@@ -1,0 +1,109 @@
+{% macro render_project_type(type) %}
+  {% if type == 'channel_follow' or type == '渠道跟进' %}
+    <span class="badge bg-info">渠道跟进</span>
+  {% elif type == 'sales_focus' or type == '销售重点' %}
+    <span class="badge bg-primary">销售重点</span>
+  {% elif type == '业务机会' %}
+    <span class="badge bg-success">业务机会</span>
+  {% else %}
+    <span class="badge bg-secondary">{{ type }}</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro render_owner(owner) %}
+  <span class="badge bg-secondary">
+    {{ owner.real_name if owner and owner.real_name else owner.username if owner else '未知' }}
+  </span>
+{% endmacro %}
+
+{% macro render_project_stage(stage) %}
+  {% if stage == '初步接触' %}
+    <span class="badge bg-warning">{{ stage }}</span>
+  {% elif stage == '方案阶段' %}
+    <span class="badge bg-info">{{ stage }}</span>
+  {% elif stage == '商务谈判' %}
+    <span class="badge bg-primary">{{ stage }}</span>
+  {% elif stage == '签约完成' %}
+    <span class="badge bg-success">{{ stage }}</span>
+  {% elif stage == '项目结束' %}
+    <span class="badge bg-secondary">{{ stage }}</span>
+  {% else %}
+    <span class="badge bg-secondary">{{ stage }}</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro render_authorization_code(code, project_type=None, size="normal") %}
+  {% if code %}
+    {% if code.startswith('CPJ') or project_type == '渠道跟进' %}
+      {% if size == "large" %}
+        <span class="badge authorization-code" style="background-color: #5bc0de; font-size: 1rem;">{{ code }}</span>
+      {% else %}
+        <span class="badge authorization-code" style="background-color: #5bc0de;">{{ code }}</span>
+      {% endif %}
+    {% elif code.startswith('SPJ') or project_type == '销售重点' %}
+      {% if size == "large" %}
+        <span class="badge authorization-code" style="background-color: #0d6efd; font-size: 1rem;">{{ code }}</span>
+      {% else %}
+        <span class="badge authorization-code" style="background-color: #0d6efd;">{{ code }}</span>
+      {% endif %}
+    {% elif code.startswith('APJ') or project_type == '业务机会' %}
+      {% if size == "large" %}
+        <span class="badge authorization-code" style="background-color: #198754; font-size: 1rem;">{{ code }}</span>
+      {% else %}
+        <span class="badge authorization-code" style="background-color: #198754;">{{ code }}</span>
+      {% endif %}
+    {% else %}
+      {% if size == "large" %}
+        <span class="badge bg-secondary authorization-code" style="font-size: 1rem;">{{ code }}</span>
+      {% else %}
+        <span class="badge bg-secondary authorization-code">{{ code }}</span>
+      {% endif %}
+    {% endif %}
+  {% else %}
+    {% if size == "large" %}
+      <span class="badge bg-secondary authorization-code" style="font-size: 1rem;">无</span>
+    {% else %}
+      <span class="badge bg-secondary authorization-code">无</span>
+    {% endif %}
+  {% endif %}
+{% endmacro %}
+
+{% macro render_quotation_number(number, size="normal") %}
+  {% if number %}
+    {% if size == "large" %}
+      <span class="badge bg-primary quotation-number" style="font-size: 1rem; font-weight: bold; letter-spacing: 0.5px; padding: 0.35em 0.65em; display: inline-block;">{{ number }}</span>
+    {% else %}
+      <span class="badge bg-primary quotation-number" style="font-weight: bold; letter-spacing: 0.5px; padding: 0.35em 0.65em; display: inline-block;">{{ number }}</span>
+    {% endif %}
+  {% else %}
+    {% if size == "large" %}
+      <span class="badge bg-secondary quotation-number" style="font-size: 1rem; font-weight: bold; letter-spacing: 0.5px; padding: 0.35em 0.65em; display: inline-block;">无</span>
+    {% else %}
+      <span class="badge bg-secondary quotation-number" style="font-weight: bold; letter-spacing: 0.5px; padding: 0.35em 0.65em; display: inline-block;">无</span>
+    {% endif %}
+  {% endif %}
+{% endmacro %}
+
+{% macro render_date(date, format='%Y-%m-%d') %}
+  {% if date %}
+    {{ date.strftime(format) }}
+  {% else %}
+    
+  {% endif %}
+{% endmacro %}
+
+{% macro render_datetime(datetime, format='%Y-%m-%d %H:%M') %}
+  {% if datetime %}
+    {{ datetime.strftime(format) }}
+  {% else %}
+    
+  {% endif %}
+{% endmacro %}
+
+{% macro render_currency(amount) %}
+  {% if amount %}
+    ￥{{ '{:,.2f}'.format(amount) }}
+  {% else %}
+    
+  {% endif %}
+{% endmacro %} 

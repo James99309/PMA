@@ -1,0 +1,592 @@
+{% extends "base.html" %}
+
+{% block title %}{{ '编辑用户' if is_edit else '新增用户' }} - 项目管理系统{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('user.list_users') }}">用户管理</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{ '编辑用户' if is_edit else '新增用户' }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="mb-0">{{ '编辑用户信息' if is_edit else '新增用户' }}</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" class="needs-validation" novalidate>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="username" class="form-label">用户名 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="username" name="username" 
+                                   value="{{ user.username if user else '' }}" required 
+                                   {{ 'readonly' if is_edit else '' }}>
+                            <div class="invalid-feedback">
+                                请输入用户名
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="real_name" class="form-label">真实姓名 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="real_name" name="real_name" 
+                                   value="{{ user.real_name if user else '' }}" required>
+                            <div class="invalid-feedback">
+                                请输入真实姓名
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="email" class="form-label">邮箱地址</label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   value="{{ user.email if user else '' }}">
+                            <div class="invalid-feedback">
+                                请输入有效的邮箱地址
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="phone" class="form-label">联系电话</label>
+                            <input type="text" class="form-control" id="phone" name="phone" 
+                                   value="{{ user.phone if user else '' }}">
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="company_name" class="form-label">企业名称 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="company_name" name="company_name" 
+                                   value="{{ user.company_name if user else '' }}" required>
+                            <div class="invalid-feedback">
+                                请输入企业名称
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="department" class="form-label">部门归属</label>
+                            <input type="text" class="form-control" id="department" name="department" 
+                                   value="{{ user.department if user else '' }}">
+                            <div class="invalid-feedback">
+                                请输入部门归属
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="is_department_manager" name="is_department_manager" 
+                                   {{ 'checked' if user and user.is_department_manager else '' }}>
+                            <label class="form-check-label" for="is_department_manager">
+                                是部门负责人
+                            </label>
+                            <small class="form-text text-muted d-block">标记为负责人的用户将在同公司同部门中拥有更高的权限</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="role" class="form-label">用户角色 <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <select class="form-select" id="role" name="role" required>
+                                    <option value="" {{ 'selected' if not user or not user.role else '' }}>选择角色...</option>
+                                    <!-- 角色选项将通过API动态加载 -->
+                                </select>
+                                <button class="btn btn-outline-secondary" type="button" id="manageDictBtn" title="管理角色字典">
+                                    <i class="fas fa-cog"></i>
+                                </button>
+                                <div class="invalid-feedback">
+                                    请选择用户角色
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="password" class="form-label">
+                                {{ '新密码' if is_edit else '密码' }}
+                                {% if not is_edit %}<span class="text-danger">*</span>{% endif %}
+                            </label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="password" name="password" 
+                                       {{ '' if is_edit else 'required' }}>
+                                <button class="btn btn-outline-secondary toggle-password" type="button">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <div class="invalid-feedback">
+                                    {{ '如需修改，请输入新密码' if is_edit else '请输入密码' }}
+                                </div>
+                            </div>
+                            {% if is_edit %}
+                            <small class="text-muted">如不修改密码，请留空</small>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="confirm_password" class="form-label">
+                                {{ '确认新密码' if is_edit else '确认密码' }}
+                                {% if not is_edit %}<span class="text-danger">*</span>{% endif %}
+                            </label>
+                            <input type="password" class="form-control" id="confirm_password" name="confirm_password" 
+                                   {{ '' if is_edit else 'required' }}>
+                            <div class="invalid-feedback">
+                                {{ '如需修改，请确认新密码' if is_edit else '请确认密码' }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="is_active" name="is_active" 
+                                   {{ 'checked' if not user or user.is_active else '' }}>
+                            <label class="form-check-label" for="is_active">
+                                账号已激活
+                            </label>
+                            <small class="form-text text-muted d-block">未激活的账号无法登录系统</small>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="{{ url_for('user.list_users') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-1"></i> 返回列表
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i> 保存用户
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 角色字典管理弹窗 -->
+<div class="modal fade" id="dictModal" tabindex="-1" aria-labelledby="dictModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="dictModalLabel">角色字典管理</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3 d-flex justify-content-between">
+                    <button type="button" class="btn btn-primary" id="addDictBtn">
+                        <i class="fas fa-plus"></i> 新增角色
+                    </button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover" id="dictTable">
+                        <thead>
+                            <tr>
+                                <th width="15%">键值</th>
+                                <th width="35%">显示文本</th>
+                                <th width="15%">排序</th>
+                                <th width="15%">状态</th>
+                                <th width="20%">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- 字典表格内容将由JavaScript动态加载 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 新增/编辑字典项弹窗 -->
+<div class="modal fade" id="editDictItemModal" tabindex="-1" aria-labelledby="editDictItemModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editDictItemModalLabel">新增角色</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="dictItemForm">
+                    <input type="hidden" id="dictItemId" value="">
+                    <div class="mb-3">
+                        <label for="dictItemKey" class="form-label">键值 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="dictItemKey" required>
+                        <div class="form-text">用于系统存储，如 "admin"、"user"、"sales" 等</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="dictItemValue" class="form-label">显示文本 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="dictItemValue" required>
+                        <div class="form-text">用于界面显示，如 "系统管理员"、"普通用户"、"销售人员" 等</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="dictItemOrder" class="form-label">排序值</label>
+                        <input type="number" class="form-control" id="dictItemOrder" value="0">
+                        <div class="form-text">数字越小排序越靠前</div>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="dictItemActive" checked>
+                        <label class="form-check-label" for="dictItemActive">启用</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="saveDictItemBtn">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 表单验证
+        const forms = document.querySelectorAll('.needs-validation');
+        Array.prototype.slice.call(forms).forEach(function (form) {
+            form.addEventListener('submit', function (event) {
+                if (!form.checkValidity()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+        
+        // 密码显示切换
+        const togglePassword = document.querySelector('.toggle-password');
+        if (togglePassword) {
+            togglePassword.addEventListener('click', function() {
+                const passwordInput = document.getElementById('password');
+                const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                passwordInput.setAttribute('type', type);
+                this.querySelector('i').classList.toggle('fa-eye');
+                this.querySelector('i').classList.toggle('fa-eye-slash');
+            });
+        }
+        
+        // 角色下拉列表加载
+        loadRoleOptions();
+        
+        // 字典管理按钮点击事件
+        const manageDictBtn = document.getElementById('manageDictBtn');
+        if (manageDictBtn) {
+            manageDictBtn.addEventListener('click', function() {
+                // 打开字典管理弹窗
+                loadDictItems();
+                const dictModal = new bootstrap.Modal(document.getElementById('dictModal'));
+                dictModal.show();
+            });
+        }
+        
+        // 新增字典项按钮点击事件
+        const addDictBtn = document.getElementById('addDictBtn');
+        if (addDictBtn) {
+            addDictBtn.addEventListener('click', function() {
+                // 重置表单
+                document.getElementById('dictItemForm').reset();
+                document.getElementById('dictItemId').value = '';
+                document.getElementById('editDictItemModalLabel').textContent = '新增角色';
+                
+                // 打开编辑弹窗
+                const editModal = new bootstrap.Modal(document.getElementById('editDictItemModal'));
+                editModal.show();
+            });
+        }
+        
+        // 保存字典项按钮点击事件
+        const saveDictItemBtn = document.getElementById('saveDictItemBtn');
+        if (saveDictItemBtn) {
+            saveDictItemBtn.addEventListener('click', function() {
+                saveDictItem();
+            });
+        }
+    });
+    
+    // 加载角色选项
+    function loadRoleOptions() {
+        const roleSelect = document.getElementById('role');
+        if (!roleSelect) return;
+        
+        fetch('/api/v1/dictionary/role?active_only=true')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const currentValue = roleSelect.value;
+                    
+                    // 清空下拉列表，保留第一个选项
+                    while (roleSelect.options.length > 1) {
+                        roleSelect.remove(1);
+                    }
+                    
+                    // 添加从API获取的选项
+                    data.data.forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item.key;
+                        option.textContent = item.value;
+                        roleSelect.appendChild(option);
+                    });
+                    
+                    // 恢复之前选中的值
+                    if (currentValue) {
+                        roleSelect.value = currentValue;
+                    }
+                } else {
+                    console.error('加载角色选项失败:', data.message);
+                }
+            })
+            .catch(error => {
+                console.error('API请求错误:', error);
+            });
+    }
+    
+    // 加载字典项列表
+    function loadDictItems() {
+        const tbody = document.querySelector('#dictTable tbody');
+        if (!tbody) return;
+        
+        // 显示加载中
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center">加载中...</td></tr>';
+        
+        fetch('/api/v1/dictionary/role')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (data.data.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center">暂无数据</td></tr>';
+                        return;
+                    }
+                    
+                    // 清空表格
+                    tbody.innerHTML = '';
+                    
+                    // 添加行
+                    data.data.forEach(item => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${item.key}</td>
+                            <td>${item.value}</td>
+                            <td>${item.sort_order}</td>
+                            <td>
+                                <span class="badge ${item.is_active ? 'bg-success' : 'bg-secondary'}">
+                                    ${item.is_active ? '启用' : '禁用'}
+                                </span>
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-outline-primary edit-dict-btn" data-id="${item.id}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm ${item.is_active ? 'btn-outline-warning' : 'btn-outline-success'} toggle-dict-btn" data-id="${item.id}">
+                                    <i class="fas ${item.is_active ? 'fa-ban' : 'fa-check'}"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger delete-dict-btn" data-id="${item.id}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                    
+                    // 注册按钮事件
+                    registerDictBtnEvents();
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">${data.message || '加载失败'}</td></tr>`;
+                }
+            })
+            .catch(error => {
+                console.error('API请求错误:', error);
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">网络错误，请稍后重试</td></tr>';
+            });
+    }
+    
+    // 注册字典操作按钮事件
+    function registerDictBtnEvents() {
+        // 编辑按钮
+        document.querySelectorAll('.edit-dict-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const id = this.getAttribute('data-id');
+                editDictItem(id);
+            });
+        });
+        
+        // 切换状态按钮
+        document.querySelectorAll('.toggle-dict-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const id = this.getAttribute('data-id');
+                toggleDictItem(id);
+            });
+        });
+        
+        // 删除按钮
+        document.querySelectorAll('.delete-dict-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const id = this.getAttribute('data-id');
+                deleteDictItem(id);
+            });
+        });
+    }
+    
+    // 编辑字典项
+    function editDictItem(id) {
+        fetch(`/api/v1/dictionary/role`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const item = data.data.find(d => d.id == id);
+                    if (item) {
+                        // 填充表单
+                        document.getElementById('dictItemId').value = item.id;
+                        document.getElementById('dictItemKey').value = item.key;
+                        document.getElementById('dictItemValue').value = item.value;
+                        document.getElementById('dictItemOrder').value = item.sort_order;
+                        document.getElementById('dictItemActive').checked = item.is_active;
+                        
+                        // 修改标题
+                        document.getElementById('editDictItemModalLabel').textContent = '编辑角色';
+                        
+                        // 打开弹窗
+                        const editModal = new bootstrap.Modal(document.getElementById('editDictItemModal'));
+                        editModal.show();
+                    } else {
+                        alert('找不到该字典项');
+                    }
+                } else {
+                    alert(data.message || '获取字典项失败');
+                }
+            })
+            .catch(error => {
+                console.error('API请求错误:', error);
+                alert('网络错误，请稍后重试');
+            });
+    }
+    
+    // 保存字典项
+    function saveDictItem() {
+        const id = document.getElementById('dictItemId').value;
+        const key = document.getElementById('dictItemKey').value;
+        const value = document.getElementById('dictItemValue').value;
+        const order = document.getElementById('dictItemOrder').value;
+        const isActive = document.getElementById('dictItemActive').checked;
+        
+        // 表单验证
+        if (!key || !value) {
+            alert('键值和显示文本不能为空');
+            return;
+        }
+        
+        // 准备请求数据
+        const reqData = {
+            key: key,
+            value: value,
+            sort_order: parseInt(order) || 0,
+            is_active: isActive
+        };
+        
+        // 确定请求地址
+        const isNew = !id;
+        const url = isNew ? 
+            '/api/v1/dictionary/role/add' : 
+            '/api/v1/dictionary/role/edit';
+        
+        // 如果是编辑，添加ID字段
+        if (!isNew) {
+            reqData.id = parseInt(id);
+        }
+        
+        // 发送请求
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+            },
+            body: JSON.stringify(reqData)
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 关闭弹窗
+                    bootstrap.Modal.getInstance(document.getElementById('editDictItemModal')).hide();
+                    
+                    // 重新加载列表
+                    loadDictItems();
+                    
+                    // 更新角色下拉列表
+                    loadRoleOptions();
+                } else {
+                    alert(data.message || (isNew ? '添加失败' : '更新失败'));
+                }
+            })
+            .catch(error => {
+                console.error('API请求错误:', error);
+                alert('网络错误，请稍后重试');
+            });
+    }
+    
+    // 切换字典项状态
+    function toggleDictItem(id) {
+        if (!confirm('确定要切换该角色的状态吗？')) return;
+        
+        fetch('/api/v1/dictionary/role/toggle', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+            },
+            body: JSON.stringify({ id: parseInt(id) })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 重新加载列表
+                    loadDictItems();
+                    
+                    // 更新角色下拉列表
+                    loadRoleOptions();
+                } else {
+                    alert(data.message || '操作失败');
+                }
+            })
+            .catch(error => {
+                console.error('API请求错误:', error);
+                alert('网络错误，请稍后重试');
+            });
+    }
+    
+    // 删除字典项
+    function deleteDictItem(id) {
+        if (!confirm('确定要删除该角色吗？删除后不可恢复。')) return;
+        
+        fetch('/api/v1/dictionary/role/delete', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+            },
+            body: JSON.stringify({ id: parseInt(id) })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 重新加载列表
+                    loadDictItems();
+                    
+                    // 更新角色下拉列表
+                    loadRoleOptions();
+                } else {
+                    alert(data.message || '删除失败');
+                }
+            })
+            .catch(error => {
+                console.error('API请求错误:', error);
+                alert('网络错误，请稍后重试');
+            });
+    }
+</script>
+{% endblock %} 

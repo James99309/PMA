@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_authorization_code %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">添加项目</h2>
+
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <!-- 项目信息卡片 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">项目信息</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label for="project_name" class="form-label mb-2">项目名称</label>
+                        <input type="text" class="form-control" id="project_name" name="project_name" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="report_time" class="form-label mb-2">报备日期</label>
+                        <input type="date" class="form-control" id="report_time" name="report_time" required>
+                    </div>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label for="report_source" class="form-label mb-2">报备来源</label>
+                        <select class="form-select" id="report_source" name="report_source" required>
+                            <option value="">请选择报备来源</option>
+                            <option value="销售">销售</option>
+                            <option value="经销商">经销商</option>
+                            <option value="渠道">渠道</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="project_type" class="form-label mb-2">项目类型</label>
+                        <select class="form-select" id="project_type" name="project_type" required>
+                            <option value="">-- 请选择项目类型 --</option>
+                            <option value="销售重点">销售重点</option>
+                            <option value="渠道跟进">渠道跟进</option>
+                            <option value="业务机会">业务机会</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label for="product_situation" class="form-label mb-2">品牌情况</label>
+                        <select class="form-select" id="product_situation" name="product_situation" required>
+                            <option value="">请选择品牌情况</option>
+                            <option value="入围">入围</option>
+                            <option value="围标">围标</option>
+                            <option value="不确定">不确定</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="current_stage" class="form-label mb-2">当前阶段</label>
+                        <select class="form-select" id="current_stage" name="current_stage" required>
+                            <option value="">请选择阶段</option>
+                            <option value="发现">发现</option>
+                            <option value="品牌植入">品牌植入</option>
+                            <option value="招标前">招标前</option>
+                            <option value="招标中">招标中</option>
+                            <option value="中标">中标</option>
+                            <option value="失败">失败</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label for="quotation_customer" class="form-label mb-2">报价（元）</label>
+                        <input type="text" class="form-control" id="quotation_customer" name="quotation_customer" 
+                            placeholder="请输入报价金额"
+                            oninput="formatAmount(this)">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="delivery_forecast" class="form-label mb-2">出货预测日期</label>
+                        <input type="date" class="form-control" id="delivery_forecast" name="delivery_forecast" required>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 参与单位卡片 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">参与单位</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label for="end_user" class="form-label mb-2">直接用户</label>
+                        <select class="form-select" id="end_user" name="end_user">
+                            <option value="">请选择用户</option>
+                            {% for user in end_users %}
+                            <option value="{{ user.company_name }}">{{ user.company_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="design_issues" class="form-label mb-2">设计院及顾问</label>
+                        <select class="form-select" id="design_issues" name="design_issues">
+                            <option value="">请选择设计院及顾问</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label for="contractor" class="form-label mb-2">总承包单位</label>
+                        <select class="form-select" id="contractor" name="contractor">
+                            <option value="">请选择总承包单位</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="system_integrator" class="form-label mb-2">系统集成商</label>
+                        <select class="form-select" id="system_integrator" name="system_integrator">
+                            <option value="">请选择系统集成商</option>
+                            {% for integrator in integrators %}
+                            <option value="{{ integrator.company_name }}">{{ integrator.company_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="dealer" class="form-label mb-2">经销商</label>
+                        <select class="form-select" id="dealer" name="dealer">
+                            <option value="">请选择经销商</option>
+                            {% for dealer in dealers %}
+                            <option value="{{ dealer.company_name }}">{{ dealer.company_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 阶段说明卡片 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">阶段说明</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <label for="stage_description" class="form-label mb-2">当前阶段情况说明</label>
+                    <textarea class="form-control" id="stage_description" name="stage_description" rows="3"></textarea>
+                </div>
+
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <button type="submit" class="btn btn-primary me-md-2">保存</button>
+                    <a href="{{ url_for('project.list_projects') }}" class="btn btn-secondary">取消</a>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- 添加日期格式化脚本 -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    function formatDateInput(input) {
+        input.addEventListener('input', function(e) {
+            let value = e.target.value;
+            if (value) {
+                let date = new Date(value);
+                let year = date.getFullYear();
+                let month = String(date.getMonth() + 1).padStart(2, '0');
+                let day = String(date.getDate()).padStart(2, '0');
+                e.target.value = `${year}-${month}-${day}`;
+            }
+        });
+    }
+
+    let dateInputs = document.querySelectorAll('input[type="date"]');
+    dateInputs.forEach(formatDateInput);
+    
+    // 加载各类型公司数据的函数
+    async function loadCompanies(type, selectId) {
+        try {
+            console.log(`正在加载${type}类型的公司数据...`);
+            const response = await fetch(`/api/companies/${type}`);
+            const data = await response.json();
+            
+            const select = document.getElementById(selectId);
+            select.innerHTML = '<option value="">请选择</option>';
+            
+            data.companies.forEach(company => {
+                const option = document.createElement('option');
+                option.value = company.name;
+                option.textContent = company.name;
+                option.setAttribute('data-id', company.id);
+                option.setAttribute('data-contact', company.contact);
+                option.setAttribute('data-phone', company.phone);
+                select.appendChild(option);
+            });
+            console.log(`成功加载了${data.companies.length}个${type}类型的公司`);
+        } catch (error) {
+            console.error(`加载${type}类型公司数据失败:`, error);
+        }
+    }
+    
+    // 初始化加载所有类型的公司数据
+    loadCompanies('users', 'end_user');
+    loadCompanies('designers', 'design_issues');
+    loadCompanies('contractors', 'contractor');
+    loadCompanies('integrators', 'system_integrator');
+    loadCompanies('dealers', 'dealer');
+});
+
+// 金额格式化函数
+function formatAmount(input) {
+    // 移除非数字字符
+    let value = input.value.replace(/[^\d.]/g, '');
+    
+    // 确保只有一个小数点
+    let parts = value.split('.');
+    if (parts.length > 2) {
+        parts = [parts[0], parts.slice(1).join('')];
+    }
+    if (parts[1]) {
+        parts[1] = parts[1].slice(0, 2); // 限制小数位数为2位
+    }
+    value = parts.join('.');
+    
+    // 添加千位分隔符
+    parts = value.split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    
+    input.value = parts.join('.');
+}
+</script>
+
+{% endblock %} 

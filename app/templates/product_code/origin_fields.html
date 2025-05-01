@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}区域信息管理{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <h1 class="mt-4">区域信息管理</h1>
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}">首页</a></li>
+        <li class="breadcrumb-item active">区域信息管理</li>
+    </ol>
+    
+    <div class="alert alert-info mb-4">
+        <i class="fas fa-info-circle me-1"></i>
+        <strong>区域信息说明</strong>
+        <p class="mb-2 mt-2">区域信息是与产品分类无关的通用字段，用于表示产品的销售区域、应用场景等信息。</p>
+        <p class="mb-2">这些字段将在所有产品编码生成过程中通用，不受产品分类限制。</p>
+        <p class="mb-0">区域信息在编码中位于第3位置，长度为1个字符。系统自动分配编码，使用字母（A-Z）和数字（0-9）。</p>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="fas fa-list me-1"></i>
+            区域信息列表
+            <a href="{{ url_for('product_code.new_origin_field') }}" class="btn btn-sm btn-primary float-end">
+                <i class="fas fa-plus"></i> 添加区域信息
+            </a>
+        </div>
+        <div class="card-body">
+            <table class="table table-bordered table-striped">
+                <thead>
+                    <tr>
+                        <th>序号</th>
+                        <th>区域名称</th>
+                        <th>编码</th>
+                        <th>说明</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for field in fields %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ field.name }}</td>
+                        <td><code>{{ field.code }}</code></td>
+                        <td>{{ field.description }}</td>
+                        <td>{{ field.created_at.strftime('%Y-%m-%d') if field.created_at else '未知' }}</td>
+                        <td>
+                            <a href="{{ url_for('product_code.edit_origin_field', id=field.id) }}" class="btn btn-sm btn-warning">
+                                <i class="fas fa-edit"></i> 编辑
+                            </a>
+                            <form method="POST" action="{{ url_for('product_code.delete_origin_field', id=field.id) }}" 
+                                  class="d-inline" onsubmit="return confirm('确定要删除此区域信息吗？');">
+                                <button type="submit" class="btn btn-sm btn-danger">
+                                    <i class="fas fa-trash"></i> 删除
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center">暂无区域信息，请添加</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %} 

@@ -1,0 +1,330 @@
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
+from werkzeug.security import generate_password_hash, check_password_hash
+from app.models.user import User, Permission
+from app import db
+from flask_login import login_user, logout_user, login_required, current_user
+import qrcode
+import io
+import base64
+import uuid
+import time
+import logging
+import requests
+import json
+from sqlalchemy import func
+from flask_jwt_extended import create_access_token
+from werkzeug.urls import url_parse
+
+logger = logging.getLogger(__name__)
+auth = Blueprint('auth', __name__)
+
+# API基础URL
+API_BASE_URL = "/api/v1"
+
+@auth.route('/login', methods=['GET', 'POST'])
+def login():
+    """登录处理函数"""
+    if current_user.is_authenticated:
+        return redirect(url_for('main.index'))
+        
+    # 如果是POST请求，处理登录表单
+    if request.method == 'POST':
+        username_or_email = request.form.get('username')
+        password = request.form.get('password')
+        remember = 'remember' in request.form
+        
+        # 使用与API相同的不区分大小写的查询逻辑
+        user = User.query.filter(
+            (func.lower(User.username) == func.lower(username_or_email)) | 
+            (func.lower(User.email) == func.lower(username_or_email))
+        ).first()
+        
+        # 验证用户名和密码
+        if user and user.check_password(password):
+            login_user(user, remember=remember)
+            
+            # 生成JWT令牌
+            jwt_token = create_access_token(identity=user.id)
+            # 将角色和用户ID信息存放在session中，方便前端使用
+            session['jwt_token'] = jwt_token
+            session['role'] = user.role  # 确保使用数据库中的最新角色值
+            session['user_id'] = user.id
+            session['username'] = user.username
+            
+            # 记录登录日志
+            logger.info(f"用户 {user.username} (ID: {user.id}, 角色: {user.role}) 成功登录")
+            
+            # 重定向到登录前的页面或默认页面
+            next_page = request.args.get('next')
+            if not next_page or url_parse(next_page).netloc != '':
+                next_page = url_for('main.index')
+            return redirect(next_page)
+        else:
+            # 记录失败的登录尝试
+            if user:
+                logger.warning(f"用户 {username_or_email} 登录失败：密码错误")
+            else:
+                logger.warning(f"用户 {username_or_email} 登录失败：用户名或邮箱不存在")
+            flash('用户名/邮箱或密码错误', 'danger')
+    
+    return render_template('auth/login.html')
+
+@auth.route('/complete_profile', methods=['GET', 'POST'])
+@login_required
+def complete_profile():
+    user = current_user
+    if user.is_profile_complete:
+        return redirect(url_for('main.index'))
+        
+    if request.method == 'POST':
+        real_name = request.form.get('real_name')
+        company_name = request.form.get('company_name')
+        email = request.form.get('email')
+        
+        if not all([real_name, company_name, email]):
+            flash('请填写所有必填字段！', 'danger')
+            return render_template('auth/complete_profile.html')
+            
+        # 检查邮箱是否已被使用
+        if User.query.filter(User.id != user.id, User.email == email).first():
+            flash('该邮箱已被使用！', 'danger')
+            return render_template('auth/complete_profile.html')
+            
+        user.real_name = real_name
+        user.company_name = company_name
+        user.email = email
+        user.is_profile_complete = True
+        
+        try:
+            db.session.commit()
+            flash('个人信息已完善！', 'success')
+            return redirect(url_for('main.index'))
+        except Exception as e:
+            logger.error('Error saving profile: %s', str(e))
+            db.session.rollback()
+            flash('保存失败，请稍后重试！', 'danger')
+            
+    return render_template('auth/complete_profile.html')
+
+@auth.route('/logout')
+@login_required
+def logout():
+    """用户登出"""
+    # 记录登出信息
+    if current_user.is_authenticated:
+        logger.info(f"用户 {current_user.username} (ID: {current_user.id}) 登出系统")
+    
+    # 清除会话数据
+    session.clear()
+    
+    # 登出用户
+    logout_user()
+    
+    flash('您已成功登出！', 'info')
+    return redirect(url_for('auth.login'))
+
+@auth.route('/register', methods=['GET', 'POST'])
+def register():
+    """
+    用户注册页面和处理
+    
+    GET: 显示注册页面
+    POST: 处理注册请求
+    """
+    if request.method == 'POST':
+        username = request.form.get('username')
+        real_name = request.form.get('real_name')
+        company_name = request.form.get('company_name')
+        email = request.form.get('email')
+        phone = request.form.get('phone')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        # 使用API注册
+        try:
+            response = requests.post(
+                f"{request.host_url.rstrip('/')}{API_BASE_URL}/auth/register",
+                json={
+                    "username": username,
+                    "real_name": real_name,
+                    "company_name": company_name,
+                    "email": email,
+                    "phone": phone,
+                    "password": password,
+                    "confirm_password": confirm_password
+                }
+            )
+            
+            data = response.json()
+            
+            if response.status_code == 200 and data.get('success'):
+                flash('注册申请已提交，请等待管理员审核！', 'success')
+                return redirect(url_for('auth.login'))
+            else:
+                # API注册失败
+                error_message = data.get('message', '注册失败，请检查输入信息！')
+                flash(error_message, 'danger')
+                
+        except Exception as e:
+            logger.error(f'Error during API register: {str(e)}')
+            flash('服务器错误，请稍后重试', 'danger')
+        
+    return render_template('auth/register.html')
+
+@auth.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    """
+    忘记密码页面和处理
+    
+    GET: 显示忘记密码页面
+    POST: 处理忘记密码请求
+    """
+    logger.info(f"访问忘记密码页面，Method: {request.method}")
+    
+    if request.method == 'POST':
+        username_or_email = request.form.get('username_or_email')
+        logger.info(f"提交忘记密码表单，输入: {username_or_email}")
+        
+        # 使用API提交忘记密码请求
+        try:
+            api_url = f"{request.url_root.rstrip('/')}{API_BASE_URL}/auth/forgot-password"
+            logger.info(f"调用API: {api_url}")
+            
+            response = requests.post(
+                api_url,
+                json={"username_or_email": username_or_email}
+            )
+            
+            logger.info(f"API响应状态码: {response.status_code}")
+            data = response.json()
+            logger.info(f"API响应数据: {data}")
+            
+            if response.status_code == 200 and data.get('success'):
+                logger.info("忘记密码请求处理成功，重定向到登录页面")
+                flash('如果账户存在，密码重置邮件已发送到您的邮箱，请查收。', 'success')
+                return redirect(url_for('auth.login'))
+            else:
+                # API请求失败
+                error_message = data.get('message', '请求失败，请检查输入信息！')
+                logger.error(f"API请求失败: {error_message}")
+                flash(error_message, 'danger')
+                
+        except requests.RequestException as e:
+            logger.error(f"请求API时发生错误: {str(e)}")
+            flash('服务器错误，请稍后重试', 'danger')
+        except ValueError as e:
+            logger.error(f"解析API响应JSON时发生错误: {str(e)}")
+            flash('服务器错误，请稍后重试', 'danger')
+        except Exception as e:
+            logger.error(f'忘记密码请求过程中出现未知错误: {str(e)}', exc_info=True)
+            flash('服务器错误，请稍后重试', 'danger')
+    
+    return render_template('auth/forgot_password.html')
+
+@auth.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    """
+    密码重置页面
+    
+    GET: 显示密码重置页面
+    POST: 处理密码重置请求
+    """
+    logger.info(f"访问密码重置页面，Token: {token[:10]}...")
+    
+    # 先验证令牌是否有效，不显示用户名等信息以保护隐私
+    user = User.verify_reset_token(token)
+    
+    if not user:
+        logger.warning(f"无效的密码重置令牌: {token[:10]}...")
+        flash('密码重置链接无效或已过期，请重新申请', 'danger')
+        return redirect(url_for('auth.forgot_password'))
+    
+    logger.info(f"密码重置令牌有效，用户: {user.username}")
+    
+    if request.method == 'POST':
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        # 验证两次密码输入是否一致
+        if password != confirm_password:
+            flash('两次输入的密码不一致', 'danger')
+            return render_template('auth/reset_password.html', token=token)
+        
+        # 使用API重置密码
+        try:
+            logger.info(f"尝试通过API重置用户 {user.username} 的密码")
+            response = requests.post(
+                f"{request.url_root.rstrip('/')}{API_BASE_URL}/auth/reset-password",
+                json={
+                    "token": token, 
+                    "new_password": password
+                }
+            )
+            
+            data = response.json()
+            
+            if response.status_code == 200 and data.get('success'):
+                logger.info(f"用户 {user.username} 成功重置密码")
+                flash('密码已成功重置，请使用新密码登录', 'success')
+                return redirect(url_for('auth.login'))
+            else:
+                error_message = data.get('message', '密码重置失败，请重试')
+                logger.error(f"密码重置失败: {error_message}")
+                flash(error_message, 'danger')
+                
+        except Exception as e:
+            logger.error(f'Error during password reset: {str(e)}')
+            flash('服务器错误，请稍后重试', 'danger')
+    
+    return render_template('auth/reset_password.html', token=token)
+
+@auth.route('/generate_wechat_qrcode')
+def generate_wechat_qrcode():
+    # 生成唯一的状态码
+    state = str(uuid.uuid4())
+    session['wechat_state'] = state
+    
+    # 生成包含状态码的二维码URL
+    # 这里需要替换成实际的微信OAuth2.0授权URL
+    qr_url = f"https://open.weixin.qq.com/connect/qrconnect?appid=YOUR_APP_ID&redirect_uri=YOUR_REDIRECT_URI&response_type=code&scope=snsapi_login&state={state}#wechat_redirect"
+    
+    # 生成二维码图片
+    qr = qrcode.QRCode(version=1, box_size=10, border=5)
+    qr.add_data(qr_url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    
+    # 将图片转换为base64字符串
+    img_buffer = io.BytesIO()
+    img.save(img_buffer, format='PNG')
+    img_str = base64.b64encode(img_buffer.getvalue()).decode()
+    
+    return jsonify({
+        'qrcode': f'data:image/png;base64,{img_str}',
+        'state': state
+    })
+
+@auth.route('/check_wechat_bind')
+def check_wechat_bind():
+    state = request.args.get('state')
+    # 这里需要实现检查微信绑定状态的逻辑
+    # 临时返回未绑定状态
+    return jsonify({'bound': False})
+
+@auth.route('/wechat_callback')
+def wechat_callback():
+    code = request.args.get('code')
+    state = request.args.get('state')
+    
+    # 验证state是否匹配
+    if state != session.get('wechat_state'):
+        flash('无效的请求', 'error')
+        return redirect(url_for('auth.login'))
+    
+    # 这里需要实现微信登录的逻辑
+    # 1. 使用code获取access_token
+    # 2. 使用access_token获取用户信息
+    # 3. 更新或创建用户记录
+    # 4. 设置登录状态
+    
+    return redirect(url_for('main.index')) 

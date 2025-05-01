@@ -1,0 +1,12 @@
+                        <label for="quotation_customer" class="form-label mb-2">报价（元）</label>
+                        <div class="input-group quotation-wrapper">
+                            <input type="text" class="form-control" id="quotation_customer" name="quotation_customer" 
+                                placeholder="选择报价单或直接输入金额"
+                                oninput="formatAmount(this)"
+                                style="border-right: none;" readonly>
+                            <button class="form-control dropdown-toggle quotation-dropdown-btn" type="button" 
+                                    onclick="toggleQuotationDropdown()"
+                                    style="max-width: 40px; border-left: none; background-color: white;">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                        </div> 

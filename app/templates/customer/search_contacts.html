@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="contactSearch" placeholder="搜索联系人..." value="{{ search_term }}">
+                                <button class="btn btn-outline-secondary" type="button" id="searchContact">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <a href="{{ url_for('customer.list_companies') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> 返回企业列表
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">搜索结果</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th class="px-3" style="min-width: 120px;">姓名</th>
+                                    <th class="px-3" style="min-width: 200px;">企业名称</th>
+                                    <th class="px-3" style="min-width: 120px;">部门</th>
+                                    <th class="px-3" style="min-width: 120px;">职位</th>
+                                    <th class="px-3" style="min-width: 150px;">电话</th>
+                                    <th class="px-3" style="min-width: 200px;">邮箱</th>
+                                    <th class="px-3" style="min-width: 100px;">主要联系人</th>
+                                    <th class="px-3" style="min-width: 120px;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for contact in contacts %}
+                                <tr>
+                                    <td class="px-3">{{ contact.name }}</td>
+                                    <td class="px-3">{{ contact.company.company_name }}</td>
+                                    <td class="px-3">{{ contact.department }}</td>
+                                    <td class="px-3">{{ contact.position }}</td>
+                                    <td class="px-3">{{ contact.phone }}</td>
+                                    <td class="px-3">{{ contact.email }}</td>
+                                    <td class="px-3">
+                                        {% if contact.is_primary %}
+                                        <span class="badge bg-success">是</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">否</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-3">
+                                        <a href="{{ url_for('customer.edit_contact', company_id=contact.company_id, contact_id=contact.id) }}" class="btn btn-sm btn-outline-primary me-1">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-danger me-1" onclick="deleteContact('{{ contact.company_id }}', '{{ contact.id }}')">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                        <a href="{{ url_for('customer.add_action', contact_id=contact.id) }}" class="btn btn-sm btn-outline-success">
+                                            <i class="fas fa-plus"></i> 记录行动
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加自定义样式 -->
+<style>
+    .table th {
+        font-weight: 600;
+        white-space: nowrap;
+        background-color: #f8f9fa;
+    }
+    
+    .table td {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 200px;
+    }
+    
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    /* 调整徽章样式 */
+    .badge {
+        font-size: 12px;
+        padding: 5px 8px;
+    }
+</style>
+
+{% block scripts %}
+<script>
+document.getElementById('searchContact').addEventListener('click', function() {
+    const searchTerm = document.getElementById('contactSearch').value;
+    window.location.href = "{{ url_for('customer.search_contacts') }}?search=" + encodeURIComponent(searchTerm);
+});
+
+document.getElementById('contactSearch').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        document.getElementById('searchContact').click();
+    }
+});
+
+function deleteContact(companyId, contactId) {
+    if (confirm('确定要删除这个联系人吗？')) {
+        fetch(`/customer/${companyId}/contacts/${contactId}/delete`, {
+            method: 'POST',
+        }).then(response => {
+            if (response.ok) {
+                window.location.reload();
+            }
+        });
+    }
+}
+</script>
+{% endblock %}
+{% endblock %} 

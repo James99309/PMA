@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}产品详情{% endblock %}
+
+{% block styles %}
+<style>
+    .product-details {
+        margin-top: 20px;
+    }
+    .detail-label {
+        font-weight: 600;
+        color: #555;
+    }
+    .detail-value {
+        padding-left: 15px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>产品详情</h2>
+        <a href="{{ url_for('product_management.index') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> 返回产品管理
+        </a>
+    </div>
+    
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">{{ product.product_name }} - {{ product.model }}</h5>
+        </div>
+        <div class="card-body">
+            <div class="row product-details">
+                <div class="col-md-6 mb-3">
+                    <div class="row">
+                        <div class="col-md-4 detail-label">型号编码：</div>
+                        <div class="col-md-8 detail-value">{{ product.product_mn }}</div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="row">
+                        <div class="col-md-4 detail-label">产品分类：</div>
+                        <div class="col-md-8 detail-value">{{ product.category }}</div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="row">
+                        <div class="col-md-4 detail-label">产品名称：</div>
+                        <div class="col-md-8 detail-value">{{ product.product_name }}</div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="row">
+                        <div class="col-md-4 detail-label">型号：</div>
+                        <div class="col-md-8 detail-value">{{ product.model }}</div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="row">
+                        <div class="col-md-4 detail-label">品牌：</div>
+                        <div class="col-md-8 detail-value">{{ product.brand }}</div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="row">
+                        <div class="col-md-4 detail-label">单位：</div>
+                        <div class="col-md-8 detail-value">{{ product.unit }}</div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="row">
+                        <div class="col-md-4 detail-label">零售价：</div>
+                        <div class="col-md-8 detail-value">{{ product.retail_price }}</div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="row">
+                        <div class="col-md-4 detail-label">入库时间：</div>
+                        <div class="col-md-8 detail-value">{{ product.updated_at.strftime('%Y-%m-%d %H:%M') }}</div>
+                    </div>
+                </div>
+                <div class="col-12 mb-3">
+                    <div class="row">
+                        <div class="col-md-2 detail-label">规格说明：</div>
+                        <div class="col-md-10 detail-value">{{ product.specification }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

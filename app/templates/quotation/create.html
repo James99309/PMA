@@ -1,0 +1,1316 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 页面标题和按钮 -->
+    <div class="row mb-3">
+        <div class="col-auto">
+            <h1 class="h3 mb-0 text-gray-800">创建报价单</h1>
+                </div>
+        <div class="col-auto ml-auto">
+            <a href="{{ url_for('quotation.list_quotations') }}" class="btn btn-secondary">返回列表</a>
+            <button type="submit" form="quotation-form" id="submit-btn" class="btn btn-primary">提交</button>
+        </div>
+    </div>
+
+    {% if error %}
+    <!-- 错误提示 -->
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <strong>错误:</strong> {{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <!-- 表单内容 -->
+    <form id="quotation-form" method="POST">
+                        <div class="row mb-3">
+                            <!-- 项目选择 -->
+                            <div class="col-md-12">
+                                <label for="project_id" class="form-label">关联项目</label>
+                                <select class="form-select" id="project_id" name="project_id" required>
+                                    <option value="">-- 请选择项目 --</option>
+                                    {% for project in projects %}
+                                    <option value="{{ project.id }}" {% if preset_project_id and preset_project_id|int == project.id %}selected{% endif %}>
+                                        {{ project.project_name }} {% if project.authorization_code %}({{ project.authorization_code }}){% endif %}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 添加隐藏字段保存返回URL -->
+                        {% if return_to %}
+                        <input type="hidden" name="return_to" value="{{ return_to }}">
+                        {% endif %}
+
+                        <div class="row mb-3">
+                            <!-- 报价日期 -->
+                            <div class="col-md-4">
+                                <label class="form-label">报价日期</label>
+                                <input type="text" class="form-control" value="{{ today_date }}" readonly>
+                            </div>
+                            <!-- 项目阶段 -->
+                            <div class="col-md-4">
+                                <label for="project_stage" class="form-label">项目阶段</label>
+                <input type="text" class="form-control" id="project_stage" name="project_stage" readonly placeholder="选择项目后自动填充">
+                            </div>
+                            <!-- 项目类型 -->
+                            <div class="col-md-4">
+                                <label for="project_type" class="form-label">项目类型</label>
+                <input type="text" class="form-control" id="project_type" name="project_type" readonly placeholder="选择项目后自动填充">
+                            </div>
+                        </div>
+
+                        <!-- 产品明细表格 -->
+                        <div class="card mb-4">
+                            <div class="card-header text-center">
+                                <h5 class="card-title mb-0">产品明细</h5>
+                <small class="text-muted">表格可横向滚动查看更多内容</small>
+                            </div>
+                            <div class="card-body">
+                <div class="table-responsive product-table-container">
+                                    <table class="table table-bordered" id="productTable">
+                                        <thead>
+                                            <tr>
+                                <th width="180px">产品名称</th>
+                                <th width="150px">产品型号</th>
+                                <th width="200px">产品描述</th>
+                                <th width="120px">品牌</th>
+                                <th width="80px">单位</th>
+                                <th width="120px">市场单价</th>
+                                <th width="100px">折扣率</th>
+                                <th width="120px">单价</th>
+                                <th width="80px">数量</th>
+                                <th width="120px">小计</th>
+                                <th width="100px">MN</th>
+                                <th width="70px">操作</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>
+                                                    <div class="product-name-container">
+                                                        <input type="text" class="form-control product-name" name="product_name[]" required placeholder="点击选择产品...">
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div class="product-model-container">
+                                                        <input type="text" class="form-control product-model" name="product_model[]" readonly>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <input type="text" class="form-control product-spec" name="product_spec[]" readonly>
+                                                </td>
+                                                <td>
+                                                    <input type="text" class="form-control product-brand" name="product_brand[]" readonly>
+                                                </td>
+                                                <td>
+                                                    <input type="text" class="form-control product-unit" name="product_unit[]" readonly>
+                                                </td>
+                                                <td>
+                                                    <input type="text" class="form-control product-price" name="product_price[]" readonly>
+                                                </td>
+                                                <td>
+                                                    <div class="discount-rate-container">
+                                                        <input type="number" class="form-control discount-rate" name="discount_rate[]" 
+                                               value="100.0" min="0" step="0.1" max="500" required>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <input type="text" class="form-control discounted-price" name="discounted_price[]">
+                                                </td>
+                                                <td>
+                                                    <input type="number" class="form-control quantity" name="quantity[]" 
+                                                           value="1" min="1" step="1" required>
+                                                </td>
+                                                <td>
+                                                    <input type="text" class="form-control subtotal" name="subtotal[]" readonly>
+                                                </td>
+                                                <td>
+                                                    <input type="text" class="form-control product-mn" name="product_mn[]" readonly>
+                                                </td>
+                                                <td class="text-center">
+                                                    <button type="button" class="btn btn-danger btn-sm remove-row">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="text-end mt-3">
+                                    <button type="button" class="btn btn-primary" id="addProduct">
+                                        <i class="fas fa-plus"></i> 添加产品
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 合计金额 -->
+                        <div class="row justify-content-end mt-4">
+                            <div class="col-md-3">
+                                <div class="total-amount-container">
+                                    <div class="input-group">
+                                        <span class="input-group-text">总计金额</span>
+                                        <input type="text" class="form-control" id="grandTotal" name="total_amount" readonly>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+</div>
+
+<style>
+/* 表格样式 */
+.table th {
+    background-color: #f8f9fa;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.table td {
+    vertical-align: middle;
+    padding: 0.4rem;
+}
+
+/* 产品明细表格容器样式 */
+.product-table-container {
+    overflow-x: auto;
+    margin-bottom: 15px;
+}
+
+#productTable {
+    min-width: 1440px; /* 确保表格有足够的最小宽度 */
+    table-layout: fixed; /* 使用固定布局以确保列宽设置生效 */
+}
+
+#productTable th, #productTable td {
+    white-space: nowrap; /* 防止内容换行 */
+    overflow: hidden;
+    text-overflow: ellipsis; /* 超出部分显示省略号 */
+}
+
+/* 表格单元格中的表单控件样式 */
+#productTable .form-control {
+    width: 100%;
+    min-width: 100%;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    min-height: 30px;
+    border-radius: 0.25rem;
+}
+
+/* 输入框样式 */
+.form-control {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    min-height: 30px;
+}
+
+/* 数字输入框样式 */
+input[type="number"].form-control {
+    text-align: right;
+    font-family: 'Roboto Mono', monospace;
+}
+
+/* 折扣率输入框容器样式 */
+.discount-rate-container {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+.discount-rate-container:after {
+    content: '%';
+    position: absolute;
+    right: 25px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #666;
+}
+
+/* 产品名称输入框容器样式 */
+.product-name-container {
+    position: relative;
+    width: 100%;
+}
+
+.product-name-container::after {
+    content: '▼';
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: #666;
+    pointer-events: none;
+}
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+<!-- 引用本地JS库文件 -->
+<script src="{{ url_for('static', filename='js/vendor/jquery-ui.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/vendor/jquery.dataTables.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/vendor/dataTables.rowReorder.min.js') }}"></script>
+<script>
+// 设置页面类型标志 - 这是创建页面
+var isCreatePage = true;
+var isEditPage = false;
+
+// 确保jQuery完全加载后执行初始化
+(function() {
+    // 等待jQuery和DOM完全加载
+    if (typeof jQuery === 'undefined') {
+        console.error('jQuery未加载，无法初始化页面');
+        return;
+    }
+    
+    // 直接执行AJAX请求加载项目列表
+    $.ajax({
+        url: '/quotation/get_all_projects',
+        method: 'GET',
+        cache: false,
+        success: function(response) {
+            console.log('获取到项目列表响应:', response);
+            if (!$('#project_id').length) {
+                console.error('未找到项目下拉框元素(#project_id)');
+                return;
+            }
+            
+            var $select = $('#project_id');
+            $select.empty().append('<option value="">-- 请选择项目 --</option>');
+            
+            if (response.projects && response.projects.length > 0) {
+                console.log('找到', response.projects.length, '个项目');
+                response.projects.forEach(function(project) {
+                    $select.append(
+                        $('<option>')
+                            .val(project.id)
+                            .text(project.name)
+                    );
+                });
+                console.log('项目选项添加完成');
+            } else {
+                console.log('没有找到项目或项目列表为空');
+                $select.append('<option value="" disabled>没有找到项目</option>');
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('获取项目列表失败:', error);
+        }
+    });
+})();
+
+// 项目类型翻译函数 - 移至全局作用域
+function translateProjectType(typeCode) {
+    var typeMap = {
+        'sales_focus': '销售重点',
+        'channel_follow': '渠道跟进',
+        'internal_project': '内部项目',
+        'partner_project': '合作伙伴项目',
+        'poc': '概念验证',
+        'strategic': '战略项目'
+    };
+    
+    return typeMap[typeCode] || typeCode; // 如果没有匹配的翻译，返回原值
+}
+
+// 页面完全加载后再进行其他初始化
+$(document).ready(function() {
+    console.log('页面DOM已加载完成，开始初始化其他功能...');
+    
+    // 检查URL参数中的项目ID
+    checkProjectIdFromUrl();
+    
+    // 初始化产品自动完成
+    initializeProductAutocomplete();
+    
+    // 初始化首行产品计算
+    initializeFirstRow();
+    
+    // 监听项目选择变化
+    $('#project_id').on('change', function() {
+        const projectId = $(this).val();
+        
+        console.log('项目ID变更为:', projectId);
+        
+        if (projectId) {
+            // 通过AJAX获取项目信息
+            $.ajax({
+                url: '/quotation/get_project/' + projectId,
+                type: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    console.log('获取到项目信息:', data);
+                    
+                    // 填充项目相关字段
+                    $('#project_stage').val(data.current_stage || '');
+                    
+                    // 转换项目类型为中文显示
+                    var projectType = data.project_type || '';
+                    var displayProjectType = translateProjectType(projectType);
+                    $('#project_type').val(displayProjectType);
+                    
+                    // 移除加载指示器
+                    removeLoading();
+                },
+                error: function(xhr, status, error) {
+                    console.error('获取项目信息请求失败:', xhr.responseText);
+                    alert('获取项目信息失败: ' + error);
+                    removeLoading();
+                }
+            });
+        } else {
+            // 清空项目相关字段
+            $('#project_stage').val('');
+            $('#project_type').val('');
+            removeLoading();
+        }
+    });
+    
+    // 表单提交处理
+    $('form').on('submit', function(e) {
+        try {
+            console.log('表单提交');
+            
+            // 表单验证
+            if (!validateForm()) {
+        e.preventDefault();
+            return false;
+        }
+        
+            // 确保所有价格字段格式正确
+            ensurePriceFormats();
+            
+            // 显示加载指示器
+            showLoading('正在提交报价单...');
+            
+            // 禁用提交按钮防止重复提交
+            $('#submit-btn').prop('disabled', true).text('提交中...');
+            
+            return true;
+        } catch (error) {
+            console.error('表单提交处理时出错:', error);
+            e.preventDefault();
+            alert('表单提交时发生错误: ' + (error.message || '未知错误'));
+            $('#submit-btn').prop('disabled', false);
+            removeLoading();
+                return false;
+            }
+    });
+    
+    // 添加新行按钮
+    $('#addProduct').on('click', function() {
+        var newRow = $('#productTable tbody tr:first').clone();
+        newRow.find('input').val('');
+        newRow.find('.discount-rate').val('100.0');
+        newRow.find('.quantity').val('1');
+        $('#productTable tbody').append(newRow);
+        initializeProductAutocomplete();
+    });
+    
+    // 删除行按钮
+    $('#productTable').on('click', '.remove-row', function() {
+        if ($('#productTable tbody tr').length > 1) {
+            $(this).closest('tr').remove();
+            updateTotalAmount();
+        }
+    });
+    
+    // 监听价格相关字段的变化
+    $('#productTable').on('change', '.product-price, .discount-rate, .quantity', function() {
+        calculateRowPrices($(this).closest('tr'), $(this));
+    });
+    
+    // 监听单价(折后价)变更
+    $('#productTable').on('change', '.discounted-price', function() {
+        var $row = $(this).closest('tr');
+        calculateDiscountRateFromPrice($row);
+    });
+});
+
+// 初始化产品自动完成
+function initializeProductAutocomplete() {
+    // 移除所有现有菜单
+    $('.product-menu-container').remove();
+    
+    // 添加必要的样式
+    if (!$('#product-menu-styles').length) {
+        $('head').append(`
+            <style id="product-menu-styles">
+                .product-menu-container {
+                    position: absolute;
+                    background: white;
+                    border: 1px solid #ddd;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                    z-index: 9999;
+                    display: flex;
+                }
+                .menu-list {
+                    border-right: 1px solid #eee;
+                    max-height: 350px;
+                    overflow-y: auto;
+                }
+                .category-list {
+                    width: 180px;
+                }
+                .product-list {
+                    width: 220px;
+                    display: none;
+                }
+                .model-list {
+                    width: 220px;
+                    display: none;
+                }
+                .spec-list {
+                    width: 240px;
+                    display: none;
+                }
+                .menu-item {
+                    padding: 8px 12px;
+                    cursor: pointer;
+                    border-bottom: 1px solid #f0f0f0;
+                    position: relative;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+                .menu-item:after {
+                    content: "▶";
+                    position: absolute;
+                    right: 10px;
+                    font-size: 10px;
+                    color: #999;
+                }
+                .menu-item:hover {
+                    background-color: #f0f7ff;
+                }
+                .menu-item.active {
+                    background-color: #e0f0ff;
+                }
+                .menu-item.no-arrow:after {
+                    content: "";
+                }
+                .menu-loading {
+                    padding: 8px 12px;
+                    color: #888;
+                    font-style: italic;
+                }
+            </style>
+        `);
+    }
+    
+    // 为产品名称输入框添加事件
+    $('.product-name').each(function() {
+        var $input = $(this);
+        
+        // 移除之前的事件和自动完成功能
+        $input.off('click focus');
+        if ($input.data('uiAutocomplete')) {
+            $input.autocomplete('destroy');
+        }
+        
+        // 点击或获取焦点时显示菜单
+        $input.on('click focus', function(e) {
+            e.stopPropagation();
+            console.log('点击产品名称输入框');
+            
+            // 移除现有菜单
+            $('.product-menu-container').remove();
+            
+            // 创建菜单结构
+            var $menu = $('<div class="product-menu-container"></div>');
+            var $categories = $('<div class="category-list menu-list"></div>');
+            var $products = $('<div class="product-list menu-list"></div>');
+            var $models = $('<div class="model-list menu-list"></div>');
+            var $specs = $('<div class="spec-list menu-list"></div>');
+            
+            $categories.html('<div class="menu-loading">加载中...</div>');
+            $products.html('<div class="menu-loading">请选择左侧类别</div>');
+            $models.html('<div class="menu-loading">请选择产品名称</div>');
+            $specs.html('<div class="menu-loading">请选择产品型号</div>');
+            
+            $menu.append($categories).append($products).append($models).append($specs);
+            
+            // 定位菜单
+            var pos = $input.offset();
+            $menu.css({
+                top: pos.top + $input.outerHeight() + 'px',
+                left: pos.left + 'px'
+            });
+            
+            // 添加到页面
+            $('body').append($menu);
+            
+            // 加载产品类别
+            $.ajax({
+                url: '/quotation/products/categories',
+                method: 'GET',
+                cache: false, // 禁用AJAX缓存
+                headers: {
+                    'Pragma': 'no-cache',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate'
+                },
+                data: {
+                    '_': new Date().getTime() // 添加时间戳参数避免缓存
+                },
+                success: function(categories) {
+                    console.log('获取到产品类别数组:', categories);
+                    $categories.empty();
+                    
+                    if (!categories || categories.length === 0) {
+                        $categories.html('<div class="menu-loading">无产品类别</div>');
+                        return;
+                    }
+                    
+                    // 添加类别选项
+                    categories.forEach(function(category) {
+                        var $item = $('<div class="menu-item"></div>')
+                            .text(category)
+                            .data('category', category);
+                        
+                        $item.on('click', function() {
+                            // 高亮当前类别
+                            $('.category-list .menu-item').removeClass('active');
+                            $(this).addClass('active');
+                            
+                            // 隐藏型号和规格列表
+                            $models.hide();
+                            $specs.hide();
+                            
+                            // 显示产品列表并加载数据
+                            $products.show();
+                            $products.html('<div class="menu-loading">加载中...</div>');
+                            
+                            var selectedCategory = $(this).data('category');
+                            console.log('选中类别:', selectedCategory);
+                            
+                            // 加载该类别下的产品
+                            $.ajax({
+                                url: '/quotation/products/by-category',
+                                method: 'GET',
+                                data: { category: selectedCategory },
+                                success: function(products) {
+                                    console.log('获取到产品数据:', products);
+                                    $products.empty();
+                                    
+                                    if (!products || products.length === 0) {
+                                        $products.html('<div class="menu-loading">此类别下无产品</div>');
+                                        return;
+                                    }
+                                    
+                                    // 从产品对象中提取产品名称并去重
+                                    var uniqueNames = {};
+                                    products.forEach(function(product) {
+                                        if (product && product.product_name) {
+                                            uniqueNames[product.product_name] = true;
+                                        }
+                                    });
+                                    
+                                    var productNames = Object.keys(uniqueNames);
+                                    
+                                    // 显示产品名称列表
+                                    if (productNames.length === 0) {
+                                        $products.html('<div class="menu-loading">此类别下无产品</div>');
+                                    } else {
+                                        productNames.forEach(function(name) {
+                                            // 过滤出该产品名称对应的所有产品
+                                            var productsWithName = products.filter(function(p) {
+                                                return p.product_name === name;
+                                            });
+                                            
+                                            $('<div class="menu-item"></div>')
+                                                .text(name)
+                                                .data('products', productsWithName)
+                                                .on('click', function() {
+                                                    // 高亮当前产品
+                                                    $('.product-list .menu-item').removeClass('active');
+                                                    $(this).addClass('active');
+                                                    
+                                                    // 隐藏规格列表
+                                                    $specs.hide();
+                                                    
+                                                    // 显示型号列表
+                                                    $models.show();
+                                                    $models.empty();
+                                                    
+                                                    var productsWithName = $(this).data('products');
+                                                    
+                                                    // 提取并去重型号
+                                                    var uniqueModels = {};
+                                                    productsWithName.forEach(function(product) {
+                                                        if (product && product.model) {
+                                                            uniqueModels[product.model] = true;
+                                                        }
+                                                    });
+                                                    
+                                                    var modelList = Object.keys(uniqueModels);
+                                                    
+                                                    if (modelList.length === 0) {
+                                                        $models.html('<div class="menu-loading">此产品下无型号</div>');
+                                                    } else {
+                                                        modelList.forEach(function(model) {
+                                                            // 过滤出该型号对应的所有产品
+                                                            var productsWithModel = productsWithName.filter(function(p) {
+                                                                return p.model === model;
+                                                            });
+                                                            
+                                                            $('<div class="menu-item"></div>')
+                                                                .text(model)
+                                                                .data('products', productsWithModel)
+                                                                .on('click', function() {
+                                                                    // 高亮当前型号
+                                                                    $('.model-list .menu-item').removeClass('active');
+                                                                    $(this).addClass('active');
+                                                                    
+                                                                    // 显示规格列表
+                                                                    $specs.show();
+                                                                    $specs.empty();
+                                                                    
+                                                                    var productsWithModel = $(this).data('products');
+                                                                    
+                                                                    if (productsWithModel.length === 0) {
+                                                                        $specs.html('<div class="menu-loading">此型号下无规格</div>');
+                                                                    } else {
+                                                                        productsWithModel.forEach(function(product) {
+                                                                            var specText = product.specification || '默认规格';
+                                                                            $('<div class="menu-item no-arrow"></div>')
+                                                                                .text(specText)
+                                                                                .data('product', product)
+                                                                                .on('click', function() {
+                                                                                    var selectedProduct = $(this).data('product');
+                                                                                    
+                                                                                    // 设置产品名称
+                                                                                    $input.val(selectedProduct.product_name);
+                                                                                    
+                                                                                    // 获取当前行
+                                                                                    var $row = $input.closest('tr');
+                                                                                    
+                                                                                    // 清除现有产品详情
+                                                                                    clearProductDetails($row, true);
+                                                                                    
+                                                                                    // 填充产品详情
+                                                                                    fillProductDetails($row, selectedProduct);
+                                                                                    
+                                                                                    // 关闭菜单
+                                                                                    $menu.remove();
+                                                                                })
+                                                                                .appendTo($specs);
+                                                                        });
+                                                                    }
+                                                                })
+                                                                .appendTo($models);
+                                                        });
+                                                    }
+                                                })
+                                                .appendTo($products);
+                                        });
+                                    }
+                                },
+                                error: function(xhr, status, error) {
+                                    console.error('加载产品失败:', error);
+                                    $products.html('<div class="menu-loading">加载产品失败</div>');
+                                }
+                            });
+                        })
+                        .appendTo($categories);
+                    });
+                    
+                    // 默认选中第一个类别并触发点击事件
+                    $categories.find('.menu-item:first').click();
+                },
+                error: function(xhr, status, error) {
+                    console.error('加载类别失败:', error);
+                    $categories.html('<div class="menu-loading">加载类别失败</div>');
+                }
+            });
+            
+            // 点击其他区域关闭菜单
+            $(document).one('click', function(e) {
+                if (!$(e.target).closest('.product-menu-container, .product-name').length) {
+                    $menu.remove();
+                }
+            });
+        });
+    });
+}
+
+// 清除产品详情
+function clearProductDetails($row, keepName = false) {
+    // 如果不保留名称，则清除产品名称
+    if (!keepName) {
+        $row.find('.product-name').val('');
+    }
+    
+    // 清除其他产品详情字段
+    $row.find('.product-model').val('');
+    $row.find('.product-spec').val('');
+    $row.find('.product-brand').val('');
+    $row.find('.product-unit').val('');
+    $row.find('.product-price').val('');
+    $row.find('.product-mn').val('');
+    $row.find('.discounted-price').val('');
+    $row.find('.subtotal').val('');
+    
+    // 移除任何已经创建的下拉框
+    $row.find('.model-select-container').remove();
+}
+
+// 创建型号选择函数 - 此函数已废弃，由新的级联菜单功能替代
+// 但为了保持向后兼容性暂时保留
+function createModelSelect($row, products) {
+    console.log('警告: createModelSelect函数已废弃，请使用新的级联菜单功能');
+    // 移除已存在的选择下拉菜单
+    $('.model-select-container').remove();
+    
+    var $container = $('<div class="model-select-container"></div>');
+    var $select = $('<select class="form-select model-select"></select>');
+    
+    $select.append('<option value="">-- 请选择型号 --</option>');
+    
+    products.forEach(function(product) {
+        $select.append(
+            $('<option></option>')
+                .val(product.id)
+                .text(product.model)
+                .data('product', product)
+        );
+    });
+    
+    $select.on('change', function() {
+        var product = $(this).find(':selected').data('product');
+        if (product) {
+            // 填充产品详情
+            fillProductDetails($row, product);
+            
+            // 删除选择容器
+            $container.remove();
+        }
+    });
+    
+    $container.append($select);
+    
+    // 获取型号输入框的位置和尺寸
+    var $modelInput = $row.find('.product-model');
+    var position = $modelInput.position();
+    var offset = $modelInput.offset();
+    
+    // 设置选择容器的样式和定位
+    $container.css({
+        'position': 'absolute',
+        'top': offset.top + $modelInput.outerHeight() + 'px',
+        'left': offset.left + 'px',
+        'width': $modelInput.outerWidth() + 'px',
+        'z-index': 1000,
+        'background-color': '#fff',
+        'border': '1px solid #ddd',
+        'box-shadow': '0 2px 5px rgba(0,0,0,0.2)'
+    });
+    
+    // 添加到body以确保正确的z-index堆叠顺序
+    $('body').append($container);
+}
+
+// 填充产品详情
+function fillProductDetails($row, product) {
+    if (!product) return;
+    
+    console.log('填充产品详情:', product);
+    
+    $row.find('.product-name').val(product.product_name || '');
+    $row.find('.product-model').val(product.model || '');
+    $row.find('.product-spec').val(product.specification || '');
+    $row.find('.product-brand').val(product.brand || '');
+    $row.find('.product-unit').val(product.unit || '');
+    
+    // 设置市场价格
+    var marketPrice = product.retail_price || 0;
+    $row.find('.product-price').val(formatNumber(marketPrice));
+    
+    // 获取当前折扣率
+    var discountRate = parseFloat($row.find('.discount-rate').val()) || 100;
+    
+    // 计算折后价
+    var discountedPrice = marketPrice * (discountRate / 100);
+    
+    // 设置产品MN
+    $row.find('.product-mn').val(product.product_mn || '');
+    
+    // 设置折后价 - 确保使用正确的选择器
+    $row.find('.discounted-price').val(formatNumber(discountedPrice.toFixed(2)));
+    
+    // 计算行价格
+    calculateRowPrices($row, null);
+    
+    console.log('产品详情填充完成, 单价:', discountedPrice);
+}
+
+// 计算行价格
+function calculateRowPrices($row, eventSource) {
+    try {
+        console.log('计算行价格');
+        
+        // 获取市场价格和其他值
+        var marketPriceStr = $row.find('.product-price').val() || '0';
+        var marketPrice = parseFloat(marketPriceStr.replace(/,/g, '')) || 0;
+        
+        var discountStr = $row.find('.discount-rate').val() || '100';
+        var discount = parseFloat(discountStr.replace(/,/g, '')) || 100;
+        
+        var quantityStr = $row.find('.quantity').val() || '0';
+        var quantity = parseFloat(quantityStr.replace(/,/g, '')) || 0;
+        
+        // 检查事件来源
+        var fromDiscountRate = false;
+        if (eventSource) {
+            fromDiscountRate = $(eventSource).hasClass('discount-rate');
+        }
+        
+        // 获取当前的折后价
+        var discountedPriceStr = $row.find('.discounted-price').val() || '0';
+        var currentDiscountedPrice = parseFloat(discountedPriceStr.replace(/,/g, '')) || 0;
+        
+        // 计算单价 (折后价)
+        var unitPrice = marketPrice * (discount / 100);
+        
+        // 如果价格变更是从折扣率变更触发的，或者单价为0，才更新单价
+        if (fromDiscountRate || currentDiscountedPrice <= 0) {
+            $row.find('.discounted-price').val(formatNumber(unitPrice.toFixed(2)));
+        } else {
+            // 否则使用输入的折后价
+            unitPrice = currentDiscountedPrice;
+        }
+        
+        // 计算小计
+        var subtotal = unitPrice * quantity;
+        $row.find('.subtotal').val(formatNumber(subtotal.toFixed(2)));
+    
+        // 调用总计更新函数
+        updateTotalAmount();
+        
+        console.log('行价格计算完成: 市场价=', marketPrice, '折扣=', discount, '单价=', unitPrice, '数量=', quantity, '小计=', subtotal);
+    } catch (error) {
+        console.error('计算行价格时出错:', error);
+    }
+}
+
+// 更新总计金额
+function updateTotalAmount() {
+    try {
+    var total = 0;
+        
+    $('.subtotal').each(function() {
+            var subtotalStr = $(this).val() || '0';
+            var subtotal = parseFloat(subtotalStr.replace(/,/g, '')) || 0;
+            total += subtotal;
+    });
+        
+        $('#grandTotal').val(formatNumber(total.toFixed(2)));
+        console.log('总金额更新为:', total);
+    } catch (error) {
+        console.error('更新总金额时出错:', error);
+    }
+}
+
+// 格式化数字为带千位分隔符和两位小数的字符串
+function formatNumber(number) {
+    try {
+        // 确保输入是数值类型
+        var num = parseFloat(number);
+        if (isNaN(num)) {
+            return '0.00';
+        }
+        
+        // 格式化为两位小数，带千位分隔符
+        return num.toLocaleString('zh-CN', { 
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+        });
+    } catch (e) {
+        console.error('格式化数字时出错:', e);
+        return '0.00';
+    }
+}
+
+// 获取原始项目类型值
+function getOriginalProjectType(displayType) {
+    // 项目类型值映射表
+    var typeMap = {
+        '设备': 'equipment',
+        '系统': 'system',
+        '工程': 'project',
+        '设备+工程': 'equipment_project',
+        '系统+工程': 'system_project',
+        '其他': 'other'
+    };
+    
+    // 检查映射表中是否有对应值
+    if (typeMap[displayType]) {
+        return typeMap[displayType];
+    }
+    
+    // 如果没有找到匹配项，检查是否已经是英文代码
+    var reverseMap = {};
+    for (var key in typeMap) {
+        reverseMap[typeMap[key]] = key;
+    }
+    
+    if (reverseMap[displayType]) {
+        return displayType; // 已经是英文代码，直接返回
+    }
+    
+    // 默认返回 'other'
+    console.warn('未知的项目类型:', displayType, '使用默认值: other');
+    return 'other';
+}
+
+// 确保价格字段格式正确
+function ensurePriceFormats() {
+    try {
+        // 处理所有产品明细行的价格字段
+        $('#productTable tbody tr').each(function() {
+            var $row = $(this);
+            
+            // 市场价
+            var marketPrice = parseFloat($row.find('.product-price').val().replace(/,/g, '')) || 0;
+            $row.find('.product-price').val(marketPrice);
+            
+            // 折扣率
+            var discountRate = parseFloat($row.find('.discount-rate').val()) || 100;
+            $row.find('.discount-rate').val(discountRate);
+            
+            // 折后价
+            var discountedPrice = parseFloat($row.find('.discounted-price').val().replace(/,/g, '')) || 0;
+            $row.find('.discounted-price').val(discountedPrice);
+            
+            // 小计
+            var subtotal = parseFloat($row.find('.subtotal').val().replace(/,/g, '')) || 0;
+            $row.find('.subtotal').val(subtotal);
+        });
+        
+        // 总价
+        var grandTotal = parseFloat($('#grandTotal').val().replace(/,/g, '')) || 0;
+        $('#grandTotal').val(grandTotal);
+        $('#form_total_amount').val(grandTotal);
+        
+        console.log('价格字段格式已确保正确');
+    } catch (error) {
+        console.error('确保价格字段格式时出错:', error);
+        throw error;
+    }
+}
+
+// 全局AJAX错误处理
+$(document).ajaxError(function(event, jqXHR, settings, thrownError) {
+    console.error('AJAX请求失败:', {
+        url: settings.url,
+        status: jqXHR.status,
+        statusText: jqXHR.statusText,
+        responseText: jqXHR.responseText,
+        error: thrownError
+    });
+    
+    // 报价单相关的请求错误处理
+    if (settings.url && (
+        settings.url.includes('/quotation/create') || 
+        settings.url.includes('/quotation/update') ||
+        settings.url.includes('/quotation/products')
+    )) {
+        let errorMessage = '操作失败';
+        
+        // 尝试解析错误响应
+        try {
+            if (jqXHR.responseText) {
+                const response = JSON.parse(jqXHR.responseText);
+                errorMessage = response.message || response.error || '未知错误';
+            } else {
+                errorMessage = jqXHR.statusText || thrownError || '未知错误';
+            }
+        } catch (e) {
+            errorMessage = jqXHR.responseText || thrownError || '未知错误';
+        }
+        
+        // 启用提交按钮
+        $('#submit-btn').prop('disabled', false).text('提交');
+        
+        // 显示错误消息
+        alert('操作失败: ' + errorMessage);
+        
+        // 移除加载指示器
+        removeLoading();
+    }
+});
+
+// 表单验证函数
+function validateForm() {
+    try {
+        console.log('验证表单...');
+        
+        // 验证项目ID
+        var projectId = $('#project_id').val();
+        if (!projectId) {
+            alert('请选择项目');
+            $('#project_id').focus();
+            return false;
+        }
+        
+        // 确保项目ID是整数
+        projectId = parseInt(projectId, 10);
+        console.log('解析后的项目ID:', projectId, '类型:', typeof projectId);
+        
+        if (isNaN(projectId) || projectId <= 0) {
+            alert('项目ID无效，请重新选择项目');
+            $('#project_id').focus();
+            return false;
+        }
+        
+        // 验证是否有产品明细
+        if ($('#productTable tbody tr').length === 0) {
+            alert('请至少添加一个产品明细');
+            return false;
+        }
+        
+        // 验证产品明细是否填写完整
+        var isValid = true;
+        $('#productTable tbody tr').each(function() {
+            var $row = $(this);
+            var productName = $row.find('.product-name').val();
+            
+            if (!productName) {
+                isValid = false;
+                alert('产品名称不能为空');
+                $row.find('.product-name').focus();
+                return false; // 跳出循环
+            }
+            
+            var productModel = $row.find('.product-model').val();
+            if (!productModel) {
+                isValid = false;
+                alert('产品型号不能为空');
+                $row.find('.product-model').focus();
+                return false; // 跳出循环
+            }
+            
+            var quantity = parseInt($row.find('.quantity').val()) || 0;
+            if (quantity <= 0) {
+                isValid = false;
+                alert('数量必须大于0');
+                $row.find('.quantity').focus();
+                return false; // 跳出循环
+            }
+        });
+        
+        if (!isValid) {
+            return false;
+        }
+        
+        // 准备表单数据
+        prepareFormData();
+        
+        return true;
+    } catch (error) {
+        console.error('表单验证时出错:', error);
+        alert('表单验证时发生错误: ' + (error.message || '未知错误'));
+        return false;
+    }
+}
+
+// 准备表单数据
+function prepareFormData() {
+    try {
+        // 获取项目相关信息
+        var projectId = parseInt($('#project_id').val(), 10);
+        var projectStage = $('#project_stage').val();
+        var projectType = getOriginalProjectType($('#project_type').val());
+        
+        // 计算总金额
+        var totalAmount = parseFloat($('#grandTotal').val().replace(/,/g, '')) || 0;
+        
+        // 准备隐藏字段
+        $('#form_project_id').val(projectId);
+        $('#form_project_stage').val(projectStage);
+        $('#form_project_type').val(projectType);
+        $('#form_total_amount').val(totalAmount);
+        
+        // 处理产品明细数据
+        var detailsJson = [];
+        $('#productTable tbody tr').each(function(index) {
+            var $row = $(this);
+            var detail = {
+                product_name: $row.find('.product-name').val(),
+                product_model: $row.find('.product-model').val(),
+                product_desc: $row.find('.product-spec').val() || '',
+                brand: $row.find('.product-brand').val() || '',
+                unit: $row.find('.product-unit').val() || '个',
+                market_price: parseFloat($row.find('.product-price').val().replace(/,/g, '')) || 0,
+                discount_rate: parseFloat($row.find('.discount-rate').val()) || 100,
+                quantity: parseInt($row.find('.quantity').val()) || 1,
+                unit_price: parseFloat($row.find('.discounted-price').val().replace(/,/g, '')) || 0,
+                total_price: parseFloat($row.find('.subtotal').val().replace(/,/g, '')) || 0,
+                product_mn: $row.find('.product-mn').val() || ''
+            };
+            
+            detailsJson.push(detail);
+            
+            // 创建隐藏字段
+            for (var key in detail) {
+                var fieldName = 'details-' + index + '-' + key;
+                var $field = $('<input>').attr({
+                    type: 'hidden',
+                    name: fieldName,
+                    value: detail[key]
+                });
+                $('#quotation-form').append($field);
+            }
+        });
+        
+        // 添加明细数量隐藏字段
+        $('#form_detail_count').val(detailsJson.length);
+        
+        // 日志输出准备的数据
+        console.log('准备的表单数据:', {
+            project_id: projectId,
+            project_stage: projectStage,
+            project_type: projectType,
+            total_amount: totalAmount,
+            details_count: detailsJson.length,
+            details: detailsJson
+        });
+    } catch (error) {
+        console.error('准备表单数据时出错:', error);
+        throw error; // 重新抛出错误，让验证函数捕获
+    }
+}
+
+// 从URL参数中获取并设置项目ID
+function checkProjectIdFromUrl() {
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const projectId = urlParams.get('project_id');
+        
+        console.log('URL参数中的项目ID:', projectId);
+        
+        if (projectId) {
+            // 设置项目ID
+            const parsedId = parseInt(projectId, 10);
+            if (!isNaN(parsedId) && parsedId > 0) {
+                console.log('设置项目ID:', parsedId);
+                showLoading('正在加载项目信息...');
+                $('#project_id').val(parsedId).trigger('change');
+            } else {
+                console.warn('URL中的项目ID无效:', projectId);
+            }
+        } else {
+            console.log('URL中没有项目ID参数');
+        }
+    } catch (error) {
+        console.error('检查URL项目ID时出错:', error);
+        removeLoading();
+    }
+}
+
+// 显示加载指示器
+function showLoading(message = '加载中...') {
+    // 如果已有加载指示器，先移除
+    removeLoading();
+    
+    // 创建加载指示器容器
+    var $loadingContainer = $('<div>').addClass('loading-container')
+        .css({
+            'position': 'fixed',
+            'top': '0',
+            'left': '0',
+            'width': '100%',
+            'height': '100%',
+            'background-color': 'rgba(0, 0, 0, 0.5)',
+            'z-index': '9999',
+            'display': 'flex',
+            'justify-content': 'center',
+            'align-items': 'center',
+            'flex-direction': 'column'
+        });
+        
+    // 创建加载指示器
+    var $loadingIndicator = $('<div>').addClass('spinner-border text-light').attr('role', 'status');
+    var $loadingText = $('<div>').addClass('mt-2 text-light').text(message);
+    
+    // 组装加载指示器
+    $loadingContainer.append($loadingIndicator).append($loadingText);
+    
+    // 添加到文档中
+    $('body').append($loadingContainer);
+}
+
+// 移除加载指示器
+function removeLoading() {
+    $('.loading-container').remove();
+}
+
+// 初始化首行产品计算函数
+function initializeFirstRow() {
+    // 对第一行进行初始计算，确保折扣率和数量正确设置
+    var $firstRow = $('#productTable tbody tr:first');
+    
+    // 设置默认折扣率和数量
+    if (!$firstRow.find('.discount-rate').val()) {
+        $firstRow.find('.discount-rate').val('100.0');
+    }
+    
+    if (!$firstRow.find('.quantity').val()) {
+        $firstRow.find('.quantity').val('1');
+    }
+    
+    // 计算单价和小计
+    calculateRowPrices($firstRow);
+    
+    console.log('首行产品初始化完成');
+}
+
+// 监听价格相关字段的变化
+function calculateDiscountRateFromPrice($row) {
+    try {
+        console.log('计算折扣率');
+        
+        // 获取市场价格和其他值
+        var marketPriceStr = $row.find('.product-price').val() || '0';
+        var marketPrice = parseFloat(marketPriceStr.replace(/,/g, '')) || 0;
+        
+        var quantityStr = $row.find('.quantity').val() || '0';
+        var quantity = parseFloat(quantityStr.replace(/,/g, '')) || 0;
+        
+        var discountedPriceStr = $row.find('.discounted-price').val() || '0';
+        var discountedPrice = parseFloat(discountedPriceStr.replace(/,/g, '')) || 0;
+        
+        // 计算折扣率（处理市场价为0的情况）
+        var discountRate = 100; // 默认值
+        if (marketPrice > 0) {
+            discountRate = (discountedPrice / marketPrice) * 100;
+            // 限制折扣率最小值为0
+            discountRate = Math.max(0, discountRate);
+        } else if (discountedPrice > 0) {
+            // 如果市场价为0但单价不为0，设置一个默认值
+            $row.find('.product-price').val(formatNumber(discountedPrice));
+            marketPrice = discountedPrice;
+            discountRate = 100;
+        }
+        
+        // 设置折扣率
+        $row.find('.discount-rate').val(discountRate.toFixed(2));
+        
+        // 计算行价格（使用单价而不是重新计算）
+        // 计算小计
+        var subtotal = discountedPrice * quantity;
+        $row.find('.subtotal').val(formatNumber(subtotal.toFixed(2)));
+        
+        // 更新总金额
+        updateTotalAmount();
+        
+        console.log('折扣率计算完成: 市场价=', marketPrice, '折后价=', discountedPrice, '折扣率=', discountRate);
+    } catch (error) {
+        console.error('计算折扣率时出错:', error);
+    }
+}
+</script>
+{% endblock %} 

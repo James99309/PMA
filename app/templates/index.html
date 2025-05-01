@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}仪表盘 - 项目管理系统{% endblock %}
+
+{% block content %}
+{# 角色名称映射 #}
+{% set role_names = {
+    'admin': '管理员',
+    'user': '普通用户',
+    'sales': '销售人员',
+    'channel_manager': '渠道经理',
+    'marketing_director': '营销总监',
+    'service': '服务人员',
+    'service_manager': '服务经理',
+    'dealer': '经销商',
+    'product_manager': '产品经理',
+    'solution_manager': '解决方案经理'
+} %}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h1>仪表盘</h1>
+        <h3 class="text-muted">欢迎, {{ current_user.real_name or current_user.username or session.get('username', '访客') }}</h3>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">最近项目</h5>
+                <a href="{{ url_for('project.list_projects') }}" class="btn btn-sm btn-outline-primary">查看全部</a>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        您没有最近的项目
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">最近报价</h5>
+                <a href="{{ url_for('quotation.list_quotations') }}" class="btn btn-sm btn-outline-primary">查看全部</a>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        您没有最近的报价
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">最近客户</h5>
+                <a href="{{ url_for('customer.list_companies') }}" class="btn btn-sm btn-outline-primary">查看全部</a>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        您没有最近的客户
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">快速操作</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('project.add_project') }}" class="btn btn-primary w-100">
+                            <i class="fas fa-plus-circle me-2"></i>新建项目
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('quotation.list_quotations') }}" class="btn btn-primary w-100">
+                            <i class="fas fa-file-invoice-dollar me-2"></i>新建报价
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('customer.list_companies') }}" class="btn btn-primary w-100">
+                            <i class="fas fa-building me-2"></i>新建客户
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="#" class="btn btn-primary w-100">
+                            <i class="fas fa-chart-line me-2"></i>查看报表
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">系统信息</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>当前用户:</span>
+                        <span>
+                            {{ current_user.real_name or current_user.username or session.get('username', '访客') }}
+                        </span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>系统版本:</span>
+                        <span>1.0.0</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>上次登录:</span>
+                        <span>{{ now.strftime('%Y-%m-%d %H:%M:%S') if now is defined else '暂无记录' }}</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">帮助与支持</h5>
+            </div>
+            <div class="card-body">
+                <p>如果您在使用过程中遇到任何问题，请联系系统管理员。</p>
+                <ul>
+                    <li>邮箱: admin@example.com</li>
+                    <li>电话: 123-456-7890</li>
+                </ul>
+                <a href="#" class="btn btn-outline-primary mt-2">
+                    <i class="fas fa-book me-2"></i>查看用户手册
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

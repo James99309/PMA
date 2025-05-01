@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block title %}产品详情 - {{ product.product_name }}{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+    .product-detail-card {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        border: none;
+    }
+    
+    .product-header {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #e7e7e7;
+        padding: 1.5rem;
+        border-radius: 8px 8px 0 0;
+    }
+    
+    .product-header h2 {
+        margin-bottom: 0.5rem;
+        color: #333;
+    }
+    
+    .product-body {
+        padding: 1.5rem;
+    }
+    
+    .product-property {
+        margin-bottom: 1.25rem;
+    }
+    
+    .property-label {
+        font-weight: 600;
+        color: #6c757d;
+        margin-bottom: 0.25rem;
+        font-size: 0.9rem;
+    }
+    
+    .property-value {
+        font-size: 1rem;
+    }
+    
+    .product-status {
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        display: inline-block;
+    }
+    
+    .product-status.active {
+        background-color: #d4edda;
+        color: #155724;
+    }
+    
+    .product-status.discontinued {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+    
+    .product-status.upcoming {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+    
+    .product-price {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #dc3545;
+    }
+    
+    .badge-type {
+        padding: 0.35em 0.65em;
+        border-radius: 0.25rem;
+        font-size: 0.85rem;
+        color: white;
+        font-weight: 500;
+    }
+    
+    .badge-project {
+        background-color: #0D47A1; /* 深蓝色 */
+    }
+    
+    .badge-channel {
+        background-color: #4FC3F7; /* 湖蓝色 */
+    }
+    
+    .badge-third-party {
+        background-color: #757575; /* 灰色 */
+    }
+    
+    /* 产品图片样式 */
+    .product-image-container {
+        width: 100%;
+        padding-bottom: 100%; /* 1:1 的比例，形成正方形 */
+        position: relative;
+        overflow: hidden;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        border: 1px solid #e7e7e7;
+    }
+    
+    .product-image {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain; /* 保持图片比例，确保完整显示 */
+    }
+    
+    /* 无图片时显示的占位符 */
+    .product-placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        color: #adb5bd;
+    }
+    
+    .product-placeholder i {
+        font-size: 3rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2>产品详情</h2>
+                <div>
+                    <a href="{{ url_for('product_route.product_list') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> 返回列表
+                    </a>
+                    {% if current_user.has_permission('product', 'edit') %}
+                    <a href="{{ url_for('product_route.edit_product_page', id=product.id) }}" class="btn btn-primary">
+                        <i class="fas fa-edit"></i> 编辑产品
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card product-detail-card">
+                <div class="product-header">
+                    <h2>{{ product.product_name }}</h2>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge-type {% if product.type == '项目产品' %}badge-project{% elif product.type == '渠道产品' %}badge-channel{% else %}badge-third-party{% endif %}">
+                                {{ product.type or '未分类' }}
+                            </span>
+                            <span class="ml-2">MN: {{ product.product_mn }}</span>
+                        </div>
+                        <div>
+                            <span class="product-status 
+                                {% if product.status == 'active' %}active
+                                {% elif product.status == 'discontinued' %}discontinued
+                                {% else %}upcoming{% endif %}">
+                                {% if product.status == 'active' %}生产中
+                                {% elif product.status == 'discontinued' %}已停产
+                                {% else %}待上市{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="product-body">
+                    <div class="row">
+                        <!-- 产品图片区域 -->
+                        <div class="col-md-4">
+                            <div class="product-image-container">
+                                {% if product.image_path %}
+                                <img src="{{ url_for('static', filename='uploads/products/' + product.image_path) }}" 
+                                     alt="{{ product.product_name }}" 
+                                     class="product-image">
+                                {% else %}
+                                <div class="product-placeholder">
+                                    <i class="fas fa-box"></i>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- 产品信息区域 -->
+                        <div class="col-md-8">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="product-property">
+                                        <div class="property-label">产品型号</div>
+                                        <div class="property-value">{{ product.model or '无' }}</div>
+                                    </div>
+                                    
+                                    <div class="product-property">
+                                        <div class="property-label">产品类别</div>
+                                        <div class="property-value">{{ product.category or '无' }}</div>
+                                    </div>
+                                    
+                                    <div class="product-property">
+                                        <div class="property-label">品牌</div>
+                                        <div class="property-value">{{ product.brand or '无' }}</div>
+                                    </div>
+                                    
+                                    <div class="product-property">
+                                        <div class="property-label">规格说明</div>
+                                        <div class="property-value">{{ product.specification or '无' }}</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="product-property">
+                                        <div class="property-label">市场价格</div>
+                                        <div class="product-price">¥ {{ '%.2f'|format(product.retail_price or 0) }}</div>
+                                    </div>
+                                    
+                                    <div class="product-property">
+                                        <div class="property-label">计量单位</div>
+                                        <div class="property-value">{{ product.unit or '无' }}</div>
+                                    </div>
+                                    
+                                    <div class="product-property">
+                                        <div class="property-label">数据所有者</div>
+                                        <div class="property-value">{{ product.owner.username if product.owner else '未指定' }}</div>
+                                    </div>
+                                    
+                                    <div class="product-property">
+                                        <div class="property-label">创建时间</div>
+                                        <div class="property-value">{{ product.created_at.strftime('%Y-%m-%d %H:%M:%S') if product.created_at else '未知' }}</div>
+                                    </div>
+                                    
+                                    <div class="product-property">
+                                        <div class="property-label">更新时间</div>
+                                        <div class="property-value">{{ product.updated_at.strftime('%Y-%m-%d %H:%M:%S') if product.updated_at else '未知' }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

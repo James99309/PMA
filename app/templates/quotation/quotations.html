@@ -1,0 +1,67 @@
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="position-relative">
+                        <!-- 表格容器，添加水平滚动 -->
+                        <div class="table-responsive" style="margin-right: 100px;">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th style="min-width: 150px;">产品名称</th>
+                                        <th style="min-width: 120px;">产品型号</th>
+                                        <th style="min-width: 200px;">产品描述</th>
+                                        <th style="min-width: 100px;">品牌</th>
+                                        <th style="min-width: 80px;">单位</th>
+                                        <th style="min-width: 80px;">折扣</th>
+                                        <th style="min-width: 100px;">市场单价</th>
+                                        <th style="min-width: 100px;">单价</th>
+                                        <th style="min-width: 100px;">合价</th>
+                                        <th style="min-width: 100px;">产品MN</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- 表格内容 -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <!-- 固定在右侧的操作列 -->
+                        <div class="position-absolute" style="top: 0; right: 0; width: 100px;">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- 操作列内容 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* 确保表格容器有固定高度和滚动条 */
+.table-responsive {
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+/* 固定操作列的样式 */
+.position-absolute {
+    background: white;
+    border-left: 1px solid #dee2e6;
+}
+
+/* 表格行高度一致 */
+.table td, .table th {
+    height: 48px;
+    vertical-align: middle;
+}
+</style> 

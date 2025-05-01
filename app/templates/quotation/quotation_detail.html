@@ -1,0 +1,102 @@
+<!-- 表格容器 -->
+<div class="position-relative">
+    <!-- 可滚动的主表格区域 -->
+    <div class="table-responsive" style="margin-right: 80px;">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th style="min-width: 150px;">产品名称</th>
+                    <th style="min-width: 120px;">产品型号</th>
+                    <th style="min-width: 200px;">产品描述</th>
+                    <th style="min-width: 100px;">品牌</th>
+                    <th style="min-width: 80px;">单位</th>
+                    <th style="min-width: 80px;">折扣</th>
+                    <th style="min-width: 100px;">市场单价</th>
+                    <th style="min-width: 100px;">单价</th>
+                    <th style="min-width: 100px;">合价</th>
+                    <th style="min-width: 100px;">产品MN</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td>{{ item.product_name }}</td>
+                    <td>{{ item.model_number }}</td>
+                    <td>{{ item.description }}</td>
+                    <td>{{ item.brand }}</td>
+                    <td>{{ item.unit }}</td>
+                    <td>{{ item.discount }}</td>
+                    <td>{{ item.market_price }}</td>
+                    <td>{{ item.price }}</td>
+                    <td>{{ item.total_price }}</td>
+                    <td>{{ item.product_mn }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 固定在右侧的操作列 -->
+    <div class="position-absolute top-0 end-0" style="width: 80px; background: white;">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th class="text-center">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-danger btn-sm delete-item" data-id="{{ item.id }}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 添加产品按钮 -->
+<div class="text-center mt-3">
+    <button type="button" class="btn btn-success" id="addProductBtn">
+        <i class="fas fa-plus"></i> 添加产品
+    </button>
+</div>
+
+<style>
+/* 确保表格容器有固定高度和滚动条 */
+.table-responsive {
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+/* 固定操作列的样式 */
+.position-absolute {
+    border-left: 1px solid #dee2e6;
+    z-index: 1;
+}
+
+/* 表格行高度一致 */
+.table td, .table th {
+    height: 48px;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+/* 确保内容不会换行 */
+.table td {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 鼠标悬停时显示完整内容 */
+.table td:hover {
+    overflow: visible;
+    white-space: normal;
+    word-break: break-word;
+}
+</style> 

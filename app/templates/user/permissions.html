@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block title %}权限管理 - 项目管理系统{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('user.list_users') }}">用户管理</a></li>
+                <li class="breadcrumb-item active" aria-current="page">权限管理</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="mb-0">用户权限设置</h5>
+            </div>
+            <div class="card-body">
+                <!-- 用户信息摘要 -->
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0">
+                                <div class="avatar-box bg-primary text-white">
+                                    {{ user.username[0].upper() if user and user.username else 'U' }}
+                                </div>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h5 class="mb-1">{{ user.real_name if user else '未知用户' }}</h5>
+                                <p class="text-muted mb-0">{{ user.username if user else '' }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-1"><strong>邮箱：</strong> {{ user.email if user else 'N/A' }}</div>
+                        <div class="mb-1"><strong>企业：</strong> {{ user.company_name if user else 'N/A' }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-1">
+                            <strong>角色：</strong> 
+                            {% if user and user.role %}
+                                {% if user.role == 'admin' %}
+                                <span class="badge bg-danger">管理员</span>
+                                {% elif user.role == 'sales' %}
+                                <span class="badge bg-primary">销售</span>
+                                {% elif user.role == 'product' %}
+                                <span class="badge bg-info">产品</span>
+                                {% elif user.role == 'service' %}
+                                <span class="badge bg-success">服务</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ user.role }}</span>
+                                {% endif %}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </div>
+                        <div class="mb-1">
+                            <strong>状态：</strong>
+                            {% if user and user.is_active %}
+                            <span class="badge bg-success">已激活</span>
+                            {% else %}
+                            <span class="badge bg-warning text-dark">未激活</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <!-- 权限矩阵表单 -->
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover permission-matrix">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>模块</th>
+                                    <th class="text-center">查看</th>
+                                    <th class="text-center">创建</th>
+                                    <th class="text-center">编辑</th>
+                                    <th class="text-center">删除</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for module in modules %}
+                                <tr>
+                                    <input type="hidden" name="module" value="{{ module.id }}">
+                                    <td>
+                                        <strong>{{ module.name }}</strong>
+                                        <small class="text-muted d-block">{{ module.description }}</small>
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   id="view_{{ module.id }}" name="view_{{ module.id }}"
+                                                   {% if module.id in permissions and permissions[module.id].can_view %}checked{% endif %}>
+                                            <label class="form-check-label" for="view_{{ module.id }}"></label>
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   id="create_{{ module.id }}" name="create_{{ module.id }}"
+                                                   {% if module.id in permissions and permissions[module.id].can_create %}checked{% endif %}>
+                                            <label class="form-check-label" for="create_{{ module.id }}"></label>
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   id="edit_{{ module.id }}" name="edit_{{ module.id }}"
+                                                   {% if module.id in permissions and permissions[module.id].can_edit %}checked{% endif %}>
+                                            <label class="form-check-label" for="edit_{{ module.id }}"></label>
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   id="delete_{{ module.id }}" name="delete_{{ module.id }}"
+                                                   {% if module.id in permissions and permissions[module.id].can_delete %}checked{% endif %}>
+                                            <label class="form-check-label" for="delete_{{ module.id }}"></label>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-outline-primary" id="selectAll">全选</button>
+                                    <button type="button" class="btn btn-outline-secondary" id="selectNone">清空</button>
+                                    <button type="button" class="btn btn-outline-info" id="selectView">仅查看</button>
+                                </div>
+                            </div>
+                            <div class="col-md-6 text-end">
+                                <div class="btn-group" role="group">
+                                    <a href="{{ url_for('user.list_users') }}" class="btn btn-outline-secondary">
+                                        <i class="fas fa-arrow-left me-1"></i> 返回列表
+                                    </a>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save me-1"></i> 保存权限设置
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+    .avatar-box {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        font-weight: bold;
+    }
+    
+    .permission-matrix label {
+        cursor: pointer;
+    }
+    
+    .permission-matrix .form-check-input {
+        width: 1.2em;
+        height: 1.2em;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 快速选择按钮
+        const selectAllBtn = document.getElementById('selectAll');
+        const selectNoneBtn = document.getElementById('selectNone');
+        const selectViewBtn = document.getElementById('selectView');
+        const checkboxes = document.querySelectorAll('.permission-matrix input[type="checkbox"]');
+        
+        if(selectAllBtn) {
+            selectAllBtn.addEventListener('click', function() {
+                checkboxes.forEach(checkbox => checkbox.checked = true);
+            });
+        }
+        
+        if(selectNoneBtn) {
+            selectNoneBtn.addEventListener('click', function() {
+                checkboxes.forEach(checkbox => checkbox.checked = false);
+            });
+        }
+        
+        if(selectViewBtn) {
+            selectViewBtn.addEventListener('click', function() {
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = checkbox.id.startsWith('view_');
+                });
+            });
+        }
+    });
+</script>
+{% endblock %} 

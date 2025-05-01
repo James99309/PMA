@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block title %}产品名称管理 - {{ category.name }}{% endblock %}
+
+{% block styles %}
+<style>
+    .sortable-ghost {
+        background-color: #f8f9fa;
+        border: 2px dashed #dee2e6;
+    }
+    .sortable-chosen {
+        background-color: #f0f7ff;
+    }
+    .sortable-drag {
+        opacity: 0.8;
+    }
+    #subcategoryTable tbody tr {
+        cursor: move;
+    }
+    #subcategoryTable tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <h1 class="mt-4">产品名称管理 - {{ category.name }} ({{ category.code_letter }})</h1>
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}">首页</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('product_code.categories') }}">产品分类</a></li>
+        <li class="breadcrumb-item active">产品名称管理</li>
+    </ol>
+    
+    <div class="alert alert-success mb-4" id="successAlert" style="display: none;">
+        <i class="fas fa-check-circle me-1"></i>
+        <span>产品名称顺序已更新！</span>
+    </div>
+    
+    <div class="alert alert-info mb-4">
+        <i class="fas fa-info-circle me-1"></i>
+        <strong>编码规则说明</strong>
+        <p class="mb-2 mt-2">完整的产品编码格式如下：</p>
+        <div class="mb-3">
+            <code class="h5">{{ category.code_letter }}<span class="text-primary">X</span><span class="text-success">3</span><span class="text-info">ABCDE</span></code>
+        </div>
+        <p>其中：</p>
+        <ul class="mb-2">
+            <li><code>{{ category.code_letter }}</code> - 当前产品分类的标识符（位置1）</li>
+            <li><span class="text-primary">X</span> - 产品名称标识符（位置2）</li>
+            <li><span class="text-success">3</span> - 区域信息（位置3，单字符标识）</li>
+            <li><span class="text-info">ABCDE</span> - 规格信息（位置4-8，共5个位置，每个位置占一个字符）</li>
+        </ul>
+        <p class="mb-0">请为每个产品名称分配一个唯一的单字符标识符，避免在同一分类下重复使用相同标识符。</p>
+        <p class="mt-2 mb-0"><i class="fas fa-arrows-alt me-1"></i><strong>提示：</strong>您可以通过拖拽来调整产品名称的顺序。</p>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="fas fa-sitemap me-1"></i>
+            {{ category.name }} ({{ category.code_letter }}) 产品名称列表
+            <div class="float-end">
+                <a href="{{ url_for('product_code.new_subcategory', id=category.id) }}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus"></i> 添加产品名称
+            </a>
+            </div>
+        </div>
+        <div class="card-body">
+            <table class="table table-bordered table-striped" id="subcategoryTable">
+                <thead>
+                    <tr>
+                        <th width="50">#</th>
+                        <th width="80">序号</th>
+                        <th width="220">产品名称</th>
+                        <th width="100">标识符</th>
+                        <th>描述</th>
+                        <th width="150">创建时间</th>
+                        <th width="120">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="subcategoryTableBody">
+                    {% for subcategory in subcategories %}
+                    <tr data-id="{{ subcategory.id }}" data-display-order="{{ subcategory.display_order }}">
+                        <td class="sortable-handle"><i class="fas fa-grip-vertical"></i></td>
+                        <td class="display-order">{{ subcategory.display_order }}</td>
+                        <td>{{ subcategory.name }}</td>
+                        <td>{{ subcategory.code_letter }}</td>
+                        <td>{{ subcategory.description }}</td>
+                        <td>{{ subcategory.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            <div class="btn-group">
+                                <a href="{{ url_for('product_code.edit_subcategory', id=subcategory.id) }}" class="btn btn-sm btn-warning" title="编辑">
+                                    <i class="fas fa-edit"></i>
+                            </a>
+                                <a href="{{ url_for('product_code.subcategory_fields', id=subcategory.id) }}" class="btn btn-sm btn-info" title="规格管理">
+                                    <i class="fas fa-list"></i>
+                            </a>
+                                <button type="button" class="btn btn-sm btn-danger delete-subcategory" data-id="{{ subcategory.id }}" data-name="{{ subcategory.name }}" title="删除">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center">暂无产品名称，请添加</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认模态框 -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">确认删除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>确定要删除产品名称 <span id="subcategoryNameToDelete"></span> 吗？</p>
+                <p class="text-danger">警告：这将同时删除所有相关字段和选项！</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <form id="deleteForm" method="POST" action="" class="d-inline">
+                    <button type="submit" class="btn btn-danger">确认删除</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 获取CSRF令牌
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        
+        // 初始化删除模态框
+        const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        const deleteButtons = document.querySelectorAll('.delete-subcategory');
+        const deleteForm = document.getElementById('deleteForm');
+        const subcategoryNameToDelete = document.getElementById('subcategoryNameToDelete');
+        
+        deleteButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const id = this.getAttribute('data-id');
+                const name = this.getAttribute('data-name');
+                deleteForm.action = `/product-code/subcategories/${id}/delete`;
+                subcategoryNameToDelete.textContent = name;
+                deleteModal.show();
+            });
+        });
+        
+        // 初始化Sortable
+        const subcategoryTableBody = document.getElementById('subcategoryTableBody');
+        if (subcategoryTableBody.children.length > 1) {
+            const sortable = new Sortable(subcategoryTableBody, {
+                animation: 150,
+                handle: '.sortable-handle',
+                ghostClass: 'sortable-ghost',
+                chosenClass: 'sortable-chosen',
+                dragClass: 'sortable-drag',
+                onEnd: async function() {
+                    try {
+                        // 获取所有行并计算新的顺序
+                        const rows = Array.from(subcategoryTableBody.children)
+                            .filter(row => row.hasAttribute('data-id'));
+                        
+                        // 准备发送到服务器的数据
+                        const items = rows.map((row, index) => {
+                            return {
+                                id: parseInt(row.getAttribute('data-id')),
+                                order: index + 1
+                            };
+                        });
+                        
+                        // 发送到服务器
+                        const response = await fetch('/product-code/subcategory/update_order', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken
+                            },
+                            body: JSON.stringify({ items: items })
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            // 更新表格中的显示顺序
+                            rows.forEach((row, index) => {
+                                const orderCell = row.querySelector('.display-order');
+                                if (orderCell) {
+                                    orderCell.textContent = index + 1;
+                                }
+                                row.setAttribute('data-display-order', index + 1);
+                            });
+                            
+                            // 显示成功消息
+                            const successAlert = document.getElementById('successAlert');
+                            successAlert.style.display = 'block';
+                            setTimeout(() => {
+                                successAlert.style.display = 'none';
+                            }, 3000);
+                        } else {
+                            throw new Error(result.message || '保存失败');
+                        }
+                    } catch (error) {
+                        alert('保存顺序失败: ' + error.message);
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %} 

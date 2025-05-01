@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}添加销售区域{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <h1 class="mt-4">添加销售区域</h1>
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}">首页</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('product_code.origin_fields') }}">销售区域管理</a></li>
+        <li class="breadcrumb-item active">添加销售区域</li>
+    </ol>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="fas fa-plus me-1"></i>
+            添加销售区域
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('product_code.new_origin_field') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="mb-3">
+                    <label for="name" class="form-label">区域名称 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="name" name="name" required>
+                    <div class="form-text">销售区域的名称，如"中国"、"美国"等</div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="description" class="form-label">区域说明</label>
+                    <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                    <div class="form-text">对该销售区域的详细说明</div>
+                </div>
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> 
+                    销售区域在编码中占用1位，系统会自动生成先字母后数字的逻辑编码，以避免冲突。
+                </div>
+                
+                <div class="mb-3">
+                    <a href="{{ url_for('product_code.origin_fields') }}" class="btn btn-secondary">取消</a>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %} 

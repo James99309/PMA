@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_owner, render_date %}
+
+{% block title %}{{ contact.name }} - 联系人详情{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- 页面标题和操作按钮 -->
+    <div class="row mb-3">
+        <div class="col">
+            <h2 class="text-primary">联系人详情</h2>
+            <p class="text-muted mb-0">所属企业：
+                <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="text-decoration-none">
+                    <span class="badge bg-info">{{ company.company_name }}</span>
+                </a>
+            </p>
+        </div>
+        <div class="col text-end">
+            <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="btn btn-outline-secondary me-2">
+                <i class="fas fa-arrow-left"></i> 返回企业
+            </a>
+            {% if has_permission('customer', 'edit') and (contact.owner_id == current_user.id or current_user.role == 'admin') %}
+            <a href="{{ url_for('customer.edit_contact', company_id=company.id, contact_id=contact.id) }}" class="btn btn-outline-primary me-2">
+                <i class="fas fa-edit"></i> 编辑联系人
+            </a>
+            {% endif %}
+            {% if has_permission('customer', 'create') %}
+            <a href="{{ url_for('customer.add_action', contact_id=contact.id) }}" class="btn btn-primary">
+                <i class="fas fa-comment"></i> 添加行动记录
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 联系人信息卡片 -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-user me-2"></i>{{ contact.name }}
+                        {% if contact.is_primary %}
+                        <span class="badge bg-success ms-2">主要联系人</span>
+                        {% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label class="fw-bold text-muted">部门</label>
+                            <p>{{ contact.department or '未指定' }}</p>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="fw-bold text-muted">职位</label>
+                            <p>{{ contact.position or '未指定' }}</p>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="fw-bold text-muted">电话</label>
+                            <p>{{ contact.phone or '未指定' }}</p>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="fw-bold text-muted">所有者</label>
+                            <p>{{ render_owner(contact.owner) }}</p>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="fw-bold text-muted">邮箱</label>
+                            <p>{{ contact.email or '未指定' }}</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="fw-bold text-muted">创建时间</label>
+                            <p>{{ render_date(contact.created_at) }}</p>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <label class="fw-bold text-muted">备注</label>
+                            <p>{{ contact.notes or '暂无备注' }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 行动记录列表 -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <h3 class="text-primary">行动记录</h3>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="timeline-container">
+                {% if actions %}
+                    {% for action in actions %}
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <div class="card mb-0">
+                                <div class="card-header d-flex justify-content-between">
+                                    <span>
+                                        <i class="fas fa-calendar-alt me-1"></i> {{ action.date.strftime('%Y-%m-%d') }}
+                                    </span>
+                                    <span>
+                                        <small class="text-muted">记录人: {{ render_owner(action.owner) }}</small>
+                                    </span>
+                                </div>
+                                <div class="card-body">
+                                    <p style="white-space: pre-wrap;">{{ action.communication }}</p>
+                                    {% if action.project %}
+                                    <div class="mt-2">
+                                        <span class="badge bg-primary">相关项目: 
+                                            <a href="{{ url_for('project.view_project', project_id=action.project.id) }}" class="text-white">
+                                                {{ action.project.project_name }}
+                                            </a>
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-center text-muted my-5">暂无行动记录</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加Font Awesome图标库 -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+<!-- 添加自定义样式 -->
+<style>
+    /* 时间线样式 */
+    .timeline-container {
+        position: relative;
+        padding-left: 40px;
+    }
+    
+    .timeline-item {
+        position: relative;
+        margin-bottom: 25px;
+    }
+    
+    .timeline-marker {
+        position: absolute;
+        top: 15px;
+        left: -40px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background-color: #007bff;
+        border: 2px solid #fff;
+        box-shadow: 0 0 0 2px #007bff;
+    }
+    
+    .timeline-item:after {
+        content: '';
+        position: absolute;
+        left: -34px;
+        top: 25px;
+        bottom: -25px;
+        width: 2px;
+        background-color: #e0e0e0;
+    }
+    
+    .timeline-item:last-child:after {
+        display: none;
+    }
+    
+    /* 调整徽章样式 */
+    .badge {
+        font-size: 12px;
+        padding: 5px 8px;
+    }
+</style>
+{% endblock %} 

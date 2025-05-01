@@ -1,0 +1,147 @@
+ * Environment: production
+   WARNING: This is a development server. Do not use it in a production deployment.
+   Use a production WSGI server instead.
+ * Debug mode: on
+INFO:werkzeug: * Running on http://127.0.0.1:5000/ (Press CTRL+C to quit)
+INFO:werkzeug: * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 149-098-032
+DEBUG:app:Request URL: http://127.0.0.1:5000/
+DEBUG:app:Request Endpoint: main.index
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app:User is logged in, proceeding with request
+INFO:app.views.main:Accessing index page
+INFO:app.views.main:User logged in, rendering index page
+127.0.0.1 - - [17/Apr/2025 11:27:55] "GET / HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:27:55] "GET / HTTP/1.1" 200 -
+DEBUG:app:Request URL: http://127.0.0.1:5000/static/img/logo.png
+DEBUG:app:Request Endpoint: static
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app:Static file request, skipping auth check
+DEBUG:app:Request URL: http://127.0.0.1:5000/static/css/style.css
+DEBUG:app:Request Endpoint: static
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app:Static file request, skipping auth check
+127.0.0.1 - - [17/Apr/2025 11:27:56] "GET /static/img/logo.png HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:27:56] "GET /static/img/logo.png HTTP/1.1" 200 -
+127.0.0.1 - - [17/Apr/2025 11:27:56] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:27:56] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+DEBUG:app:Request URL: http://127.0.0.1:5000/products
+DEBUG:app:Request Endpoint: product_route.product_list
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app:User is logged in, proceeding with request
+127.0.0.1 - - [17/Apr/2025 11:27:58] "GET /products HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:27:58] "GET /products HTTP/1.1" 200 -
+DEBUG:app:Request URL: http://127.0.0.1:5000/static/img/logo.png
+DEBUG:app:Request Endpoint: static
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app:Static file request, skipping auth check
+127.0.0.1 - - [17/Apr/2025 11:27:58] "[36mGET /static/img/logo.png HTTP/1.1[0m" 304 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:27:58] "[36mGET /static/img/logo.png HTTP/1.1[0m" 304 -
+DEBUG:app:Request URL: http://127.0.0.1:5000/static/css/style.css
+DEBUG:app:Request Endpoint: static
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app:Static file request, skipping auth check
+127.0.0.1 - - [17/Apr/2025 11:27:58] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:27:58] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+DEBUG:app:Request URL: http://127.0.0.1:5000/api/products/dashboard-data
+DEBUG:app:Request Endpoint: product_route.get_dashboard_data
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app:Request URL: http://127.0.0.1:5000/api/products?page=1&per_page=10&sort_by=id&sort_order=asc
+DEBUG:app:Request Endpoint: product_route.get_products
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app.routes.product:正在获取产品列表...
+/Users/nijie/Documents/PMA/venv/lib/python3.13/site-packages/flask_sqlalchemy/__init__.py:534: SAWarning: Dialect sqlite+pysqlite does *not* support Decimal objects natively, and SQLAlchemy must convert from floating point - rounding errors and other issues may occur. Please consider storing Decimal numbers as strings or integers on this platform for lossless storage.
+  items = self.limit(per_page).offset((page - 1) * per_page).all()
+127.0.0.1 - - [17/Apr/2025 11:27:58] "GET /api/products/dashboard-data HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:27:58] "GET /api/products/dashboard-data HTTP/1.1" 200 -
+127.0.0.1 - - [17/Apr/2025 11:27:58] "GET /api/products?page=1&per_page=10&sort_by=id&sort_order=asc HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:27:58] "GET /api/products?page=1&per_page=10&sort_by=id&sort_order=asc HTTP/1.1" 200 -
+DEBUG:app:Request URL: http://127.0.0.1:5000/api/products?page=1&per_page=10&sort_by=is_discontinued&sort_order=asc
+DEBUG:app:Request Endpoint: product_route.get_products
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app.routes.product:正在获取产品列表...
+127.0.0.1 - - [17/Apr/2025 11:28:36] "GET /api/products?page=1&per_page=10&sort_by=is_discontinued&sort_order=asc HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:28:36] "GET /api/products?page=1&per_page=10&sort_by=is_discontinued&sort_order=asc HTTP/1.1" 200 -
+DEBUG:app:Request URL: http://127.0.0.1:5000/api/products?page=2&per_page=10&sort_by=is_discontinued&sort_order=asc
+DEBUG:app:Request Endpoint: product_route.get_products
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app.routes.product:正在获取产品列表...
+127.0.0.1 - - [17/Apr/2025 11:28:44] "GET /api/products?page=2&per_page=10&sort_by=is_discontinued&sort_order=asc HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:28:44] "GET /api/products?page=2&per_page=10&sort_by=is_discontinued&sort_order=asc HTTP/1.1" 200 -
+DEBUG:app:Request URL: http://127.0.0.1:5000/api/products?page=3&per_page=10&sort_by=is_discontinued&sort_order=asc
+DEBUG:app:Request Endpoint: product_route.get_products
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app.routes.product:正在获取产品列表...
+127.0.0.1 - - [17/Apr/2025 11:28:45] "GET /api/products?page=3&per_page=10&sort_by=is_discontinued&sort_order=asc HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:28:45] "GET /api/products?page=3&per_page=10&sort_by=is_discontinued&sort_order=asc HTTP/1.1" 200 -
+DEBUG:app:Request URL: http://127.0.0.1:5000/api/products?page=4&per_page=10&sort_by=is_discontinued&sort_order=asc
+DEBUG:app:Request Endpoint: product_route.get_products
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app.routes.product:正在获取产品列表...
+127.0.0.1 - - [17/Apr/2025 11:28:45] "GET /api/products?page=4&per_page=10&sort_by=is_discontinued&sort_order=asc HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:28:45] "GET /api/products?page=4&per_page=10&sort_by=is_discontinued&sort_order=asc HTTP/1.1" 200 -
+DEBUG:app:Request URL: http://127.0.0.1:5000/api/products?page=5&per_page=10&sort_by=is_discontinued&sort_order=asc
+DEBUG:app:Request Endpoint: product_route.get_products
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app.routes.product:正在获取产品列表...
+127.0.0.1 - - [17/Apr/2025 11:28:46] "GET /api/products?page=5&per_page=10&sort_by=is_discontinued&sort_order=asc HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:28:46] "GET /api/products?page=5&per_page=10&sort_by=is_discontinued&sort_order=asc HTTP/1.1" 200 -
+DEBUG:app:Request URL: http://127.0.0.1:5000/api/products?page=4&per_page=10&sort_by=is_discontinued&sort_order=asc
+DEBUG:app:Request Endpoint: product_route.get_products
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app.routes.product:正在获取产品列表...
+127.0.0.1 - - [17/Apr/2025 11:28:51] "GET /api/products?page=4&per_page=10&sort_by=is_discontinued&sort_order=asc HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:28:51] "GET /api/products?page=4&per_page=10&sort_by=is_discontinued&sort_order=asc HTTP/1.1" 200 -
+DEBUG:app:Request URL: http://127.0.0.1:5000/api/products?page=3&per_page=10&sort_by=is_discontinued&sort_order=asc
+DEBUG:app:Request Endpoint: product_route.get_products
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app.routes.product:正在获取产品列表...
+127.0.0.1 - - [17/Apr/2025 11:28:52] "GET /api/products?page=3&per_page=10&sort_by=is_discontinued&sort_order=asc HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:28:52] "GET /api/products?page=3&per_page=10&sort_by=is_discontinued&sort_order=asc HTTP/1.1" 200 -
+DEBUG:app:Request URL: http://127.0.0.1:5000/api/products?page=2&per_page=10&sort_by=is_discontinued&sort_order=asc
+DEBUG:app:Request Endpoint: product_route.get_products
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app.routes.product:正在获取产品列表...
+127.0.0.1 - - [17/Apr/2025 11:28:52] "GET /api/products?page=2&per_page=10&sort_by=is_discontinued&sort_order=asc HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:28:52] "GET /api/products?page=2&per_page=10&sort_by=is_discontinued&sort_order=asc HTTP/1.1" 200 -
+DEBUG:app:Request URL: http://127.0.0.1:5000/api/products?page=1&per_page=10&sort_by=is_discontinued&sort_order=asc
+DEBUG:app:Request Endpoint: product_route.get_products
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app.routes.product:正在获取产品列表...
+127.0.0.1 - - [17/Apr/2025 11:28:52] "GET /api/products?page=1&per_page=10&sort_by=is_discontinued&sort_order=asc HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:28:52] "GET /api/products?page=1&per_page=10&sort_by=is_discontinued&sort_order=asc HTTP/1.1" 200 -
+DEBUG:app:Request URL: http://127.0.0.1:5000/products
+DEBUG:app:Request Endpoint: product_route.product_list
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app:User is logged in, proceeding with request
+127.0.0.1 - - [17/Apr/2025 11:29:25] "GET /products HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:29:25] "GET /products HTTP/1.1" 200 -
+DEBUG:app:Request URL: http://127.0.0.1:5000/static/img/logo.png
+DEBUG:app:Request Endpoint: static
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app:Static file request, skipping auth check
+127.0.0.1 - - [17/Apr/2025 11:29:25] "[36mGET /static/img/logo.png HTTP/1.1[0m" 304 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:29:25] "[36mGET /static/img/logo.png HTTP/1.1[0m" 304 -
+DEBUG:app:Request URL: http://127.0.0.1:5000/static/css/style.css
+DEBUG:app:Request Endpoint: static
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app:Static file request, skipping auth check
+127.0.0.1 - - [17/Apr/2025 11:29:25] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:29:25] "[36mGET /static/css/style.css HTTP/1.1[0m" 304 -
+DEBUG:app:Request URL: http://127.0.0.1:5000/api/products/dashboard-data
+DEBUG:app:Request Endpoint: product_route.get_dashboard_data
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app:Request URL: http://127.0.0.1:5000/api/products?page=1&per_page=10&sort_by=id&sort_order=asc
+DEBUG:app:Request Endpoint: product_route.get_products
+DEBUG:app:Session: <SecureCookieSession {'_fresh': True, '_id': '0ea226ce305aa6d3e9bd21d9b52bd4726d20a1fb46257b8f8d4e53061449fcfc28977166462d8ec8191ef51fd8b485aa6eecd4d068d2d8ac3eb21a689f2131c3', '_user_id': '1', 'user_id': 1, 'username': '倪捷'}>
+DEBUG:app.routes.product:正在获取产品列表...
+127.0.0.1 - - [17/Apr/2025 11:29:26] "GET /api/products?page=1&per_page=10&sort_by=id&sort_order=asc HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:29:26] "GET /api/products?page=1&per_page=10&sort_by=id&sort_order=asc HTTP/1.1" 200 -
+127.0.0.1 - - [17/Apr/2025 11:29:26] "GET /api/products/dashboard-data HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [17/Apr/2025 11:29:26] "GET /api/products/dashboard-data HTTP/1.1" 200 -
+ * Detected change in '/Users/nijie/Documents/PMA/app/routes/product.py', reloading
+INFO:werkzeug: * Detected change in '/Users/nijie/Documents/PMA/app/routes/product.py', reloading
+INFO:werkzeug: * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 149-098-032

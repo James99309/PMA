@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4>编辑企业</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        企业代码：<strong>{{ company.company_code }}</strong>
+                    </div>
+
+                    <form method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="mb-3">
+                            <label for="company_name" class="form-label">企业名称</label>
+                            <input type="text" class="form-control" id="company_name" name="company_name" value="{{ company.company_name }}" required>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="country" class="form-label">国家/地区</label>
+                                <select class="form-select" id="country" name="country" required>
+                                    <option value="">请选择国家</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="province" class="form-label">省份/城市</label>
+                                <select class="form-select" id="province" name="province" required>
+                                    <option value="">请选择省份/城市</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="city" class="form-label">区域</label>
+                                <select class="form-select" id="city" name="city">
+                                    <option value="">请选择区域</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="address" class="form-label">详细地址</label>
+                            <input type="text" class="form-control" id="address" name="address" value="{{ company.address }}">
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="industry" class="form-label">行业</label>
+                                <select class="form-select" id="industry" name="industry">
+                                    <option value="">请选择行业</option>
+                                    <option value="制造业" {% if company.industry == '制造业' %}selected{% endif %}>制造业</option>
+                                    <option value="建筑业" {% if company.industry == '建筑业' %}selected{% endif %}>建筑业</option>
+                                    <option value="房地产业" {% if company.industry == '房地产业' %}selected{% endif %}>房地产业</option>
+                                    <option value="批发和零售业" {% if company.industry == '批发和零售业' %}selected{% endif %}>批发和零售业</option>
+                                    <option value="交通运输业" {% if company.industry == '交通运输业' %}selected{% endif %}>交通运输业</option>
+                                    <option value="信息技术服务" {% if company.industry == '信息技术服务' %}selected{% endif %}>信息技术服务</option>
+                                    <option value="金融业" {% if company.industry == '金融业' %}selected{% endif %}>金融业</option>
+                                    <option value="教育" {% if company.industry == '教育' %}selected{% endif %}>教育</option>
+                                    <option value="医疗卫生" {% if company.industry == '医疗卫生' %}selected{% endif %}>医疗卫生</option>
+                                    <option value="其他" {% if company.industry == '其他' %}selected{% endif %}>其他</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="company_type" class="form-label">企业类型</label>
+                                <select class="form-select" id="company_type" name="company_type" required>
+                                    <option value="">-- 请选择企业类型 --</option>
+                                    <option value="用户" {% if company.company_type == '用户' %}selected{% endif %}>用户</option>
+                                    <option value="经销商" {% if company.company_type == '经销商' %}selected{% endif %}>经销商</option>
+                                    <option value="系统集成商" {% if company.company_type == '系统集成商' %}selected{% endif %}>系统集成商</option>
+                                    <option value="设计院及顾问" {% if company.company_type == '设计院及顾问' %}selected{% endif %}>设计院及顾问</option>
+                                    <option value="总承包单位" {% if company.company_type == '总承包单位' %}selected{% endif %}>总承包单位</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="status" class="form-label">状态</label>
+                            <select class="form-select" id="status" name="status">
+                                <option value="活跃" {% if company.status == '活跃' %}selected{% endif %}>活跃</option>
+                                <option value="非活跃" {% if company.status == '非活跃' %}selected{% endif %}>非活跃</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">备注</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3">{{ company.notes }}</textarea>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{{ url_for('customer.list_companies') }}" class="btn btn-secondary me-md-2">取消</a>
+                            <button type="submit" class="btn btn-primary">保存</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/area_data.js') }}"></script>
+<script src="{{ url_for('static', filename='js/area_selector.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 设置已保存的地区信息
+    const countrySelect = document.getElementById('country');
+    const provinceSelect = document.getElementById('province');
+    const citySelect = document.getElementById('city');
+    
+    // 设置国家
+    if ('{{ company.country }}') {
+        countrySelect.value = '{{ company.country }}';
+        updateProvinces();
+        
+        // 设置省份
+        if ('{{ company.province }}') {
+            provinceSelect.value = '{{ company.province }}';
+            updateCities();
+            
+            // 设置城市
+            if ('{{ company.city }}') {
+                citySelect.value = '{{ company.city }}';
+            }
+        }
+    }
+});
+</script>
+{% endblock %} 

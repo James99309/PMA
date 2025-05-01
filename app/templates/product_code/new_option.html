@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}添加指标 - {{ field.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <h1 class="mt-4">添加指标</h1>
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}">首页</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('product_code.categories') }}">产品分类</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('product_code.subcategory_fields', id=field.subcategory_id) }}">规格管理</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('product_code.field_options', id=field.id) }}">指标管理</a></li>
+        <li class="breadcrumb-item active">添加指标</li>
+    </ol>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="fas fa-plus me-1"></i>
+            添加指标 - {{ field.name }}
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> 
+                字段类型: 
+                {% if field.field_type == 'origin_location' %}
+                <span class="badge bg-primary">通用信息</span>
+                {% elif field.field_type == 'spec' %}
+                <span class="badge bg-success">规格字段</span>
+                {% elif field.field_type == 'supplement' %}
+                <span class="badge bg-info">补充字段</span>
+                {% endif %}
+                | 编码长度: <strong>{{ field.max_length }}</strong>
+            </div>
+            
+            <form method="POST" action="{{ url_for('product_code.new_option', id=field.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="mb-3">
+                    <label for="value" class="form-label">指标名称 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="value" name="value" required>
+                    <div class="form-text">指标的显示名称，如"红色"、"高功率"等</div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="description" class="form-label">指标说明</label>
+                    <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                    <div class="form-text">关于此指标的详细说明（可选）</div>
+                </div>
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> 
+                    系统将自动为指标分配唯一编码字符（字母或数字），用于产品编码生成。
+                </div>
+                
+                <div class="mb-3">
+                    <a href="{{ url_for('product_code.field_options', id=field.id) }}" class="btn btn-secondary">取消</a>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %} 

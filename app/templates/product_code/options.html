@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}字段选项管理 - {{ field.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <h1 class="mt-4">字段选项管理</h1>
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}">首页</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('product_code.categories') }}">产品分类</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('product_code.subcategory_fields', id=field.subcategory_id) }}">字段管理</a></li>
+        <li class="breadcrumb-item active">选项管理</li>
+    </ol>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="fas fa-list me-1"></i>
+            字段"{{ field.name }}"选项列表
+            <a href="{{ url_for('product_code.new_option', id=field.id) }}" class="btn btn-sm btn-primary float-end">
+                <i class="fas fa-plus"></i> 添加选项
+            </a>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> 
+                字段类型: 
+                {% if field.field_type == 'origin_location' %}
+                <span class="badge bg-primary">通用信息</span>
+                {% elif field.field_type == 'spec' %}
+                <span class="badge bg-success">规格字段</span>
+                {% elif field.field_type == 'supplement' %}
+                <span class="badge bg-info">补充字段</span>
+                {% endif %}
+                | 编码长度: <strong>{{ field.max_length }}</strong>
+                | 必填: <strong>{{ '是' if field.is_required else '否' }}</strong>
+            </div>
+            
+            <table class="table table-bordered table-striped">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>选项值</th>
+                        <th>编码</th>
+                        <th>描述</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for option in options %}
+                    <tr>
+                        <td>{{ option.id }}</td>
+                        <td>{{ option.value }}</td>
+                        <td><code>{{ option.code }}</code></td>
+                        <td>{{ option.description }}</td>
+                        <td>
+                            {% if option.is_active %}
+                            <span class="badge bg-success">启用</span>
+                            {% else %}
+                            <span class="badge bg-danger">禁用</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('product_code.edit_option', id=option.id) }}" class="btn btn-sm btn-warning">
+                                <i class="fas fa-edit"></i> 编辑
+                            </a>
+                            <form method="POST" action="{{ url_for('product_code.toggle_option', id=option.id) }}" 
+                                  class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm {% if option.is_active %}btn-secondary{% else %}btn-success{% endif %}">
+                                    <i class="fas {% if option.is_active %}fa-ban{% else %}fa-check{% endif %}"></i> 
+                                    {% if option.is_active %}禁用{% else %}启用{% endif %}
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ url_for('product_code.delete_option', id=option.id) }}" 
+                                  class="d-inline" onsubmit="return confirm('确定要删除此选项吗？');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-danger">
+                                    <i class="fas fa-trash"></i> 删除
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center">暂无选项，请添加</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="fas fa-info-circle me-1"></i>
+            编码映射说明
+        </div>
+        <div class="card-body">
+            <p>为字段"{{ field.name }}"添加选项时，每个选项必须分配一个唯一的编码值，长度不得超过该字段的最大长度({{ field.max_length }})。</p>
+            <ul>
+                <li>选项值是显示给用户的实际内容</li>
+                <li>编码值是在最终产品MN中显示的代码</li>
+                <li>为了保持编码的唯一性，请不要重复使用相同的编码</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %} 

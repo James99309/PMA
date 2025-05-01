@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_currency, render_quotation_number %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}">首页</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('quotation.list_quotations') }}">报价单列表</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">报价单详情</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <!-- 报价单基本信息卡片 -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            {{ render_quotation_number(quotation.quotation_number, size="large") }}
+                            {{ quotation.project.project_name }} 报价单
+                        </h5>
+                        <div>
+                            {% if has_permission('quotation', 'edit') %}
+                            <a href="{{ url_for('quotation.edit_quotation', id=quotation.id) }}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-edit"></i> 编辑
+                            </a>
+                            {% endif %}
+                            {% if has_permission('quotation', 'create') %}
+                            <button class="btn btn-sm btn-info" onclick="copyQuotation('{{ quotation.id }}')">
+                                <i class="fas fa-copy"></i> 复制
+                            </button>
+                            {% endif %}
+                            {% if has_permission('quotation', 'delete') %}
+                            <button class="btn btn-sm btn-danger" onclick="deleteQuotation('{{ quotation.id }}')">
+                                <i class="fas fa-trash"></i> 删除
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <h6 class="card-title border-bottom pb-2 mb-3">基本信息</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-bordered">
+                                <tr>
+                                    <th class="bg-light" style="width: 30%">报价单编号</th>
+                                    <td>{{ render_quotation_number(quotation.quotation_number) }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="bg-light">关联项目</th>
+                                    <td>{{ quotation.project.project_name }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="bg-light">项目阶段</th>
+                                    <td>{{ quotation.project.current_stage }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="bg-light">项目类型</th>
+                                    <td>{{ render_project_type(quotation.project.project_type) }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="bg-light">报价总额</th>
+                                    <td class="fw-bold">{{ render_currency(quotation.amount) }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-bordered">
+                                <tr>
+                                    <th class="bg-light" style="width: 30%">创建时间</th>
+                                    <td>{{ render_datetime(quotation.created_at) }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="bg-light">最后更新</th>
+                                    <td>{{ render_datetime(quotation.updated_at) }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="bg-light">所有者</th>
+                                    <td>{{ render_owner(quotation.owner) }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="bg-light">直接用户</th>
+                                    <td>{{ quotation.project.end_user or '未设置' }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="bg-light">经销商</th>
+                                    <td>{{ quotation.project.dealer or '未设置' }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 产品明细卡片 -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">产品明细</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover" style="font-size: 0.875rem;">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="text-start">#</th>
+                                    <th class="text-start">产品名称</th>
+                                    <th class="text-start">产品型号</th>
+                                    <th class="text-start">品牌</th>
+                                    <th class="text-start">单位</th>
+                                    <th class="text-end">市场单价</th>
+                                    <th class="text-end">折扣率(%)</th>
+                                    <th class="text-end">单价</th>
+                                    <th class="text-end">数量</th>
+                                    <th class="text-end">小计</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for detail in quotation.details %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    <td>{{ detail.product_name }}</td>
+                                    <td>{{ detail.product_model }}</td>
+                                    <td>{{ detail.brand }}</td>
+                                    <td>{{ detail.unit }}</td>
+                                    <td class="text-end">{{ render_currency(detail.market_price) }}</td>
+                                    <td class="text-end">{{ "%.1f"|format(detail.discount * 100) }}</td>
+                                    <td class="text-end">{{ render_currency(detail.unit_price) }}</td>
+                                    <td class="text-end">{{ detail.quantity }}</td>
+                                    <td class="text-end fw-bold">{{ render_currency(detail.total_price) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr class="bg-light">
+                                    <td colspan="9" class="text-end fw-bold">总计金额：</td>
+                                    <td class="text-end fw-bold">{{ render_currency(quotation.amount) }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加Font Awesome图标库 -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+{% block scripts %}
+<script>
+function copyQuotation(id) {
+    if (confirm('确定要复制这个报价单吗？')) {
+        fetch(`/quotation/quotation/${id}/copy`, {
+            method: 'POST',
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = "{{ url_for('quotation.list_quotations') }}";
+            } else {
+                alert('复制失败: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('复制报价单时出错:', error);
+            alert('复制报价单时出错');
+        });
+    }
+}
+
+function deleteQuotation(id) {
+    if (confirm('确定要删除这个报价单吗？')) {
+        fetch(`/quotation/quotation/${id}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        }).then(response => {
+            if (response.ok) {
+                window.location.href = "{{ url_for('quotation.list_quotations') }}";
+            } else {
+                alert('删除失败，请重试');
+            }
+        });
+    }
+}
+</script>
+{% endblock %}
+{% endblock %} 

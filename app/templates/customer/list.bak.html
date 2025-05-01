@@ -1,0 +1,401 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_owner, render_date %}
+
+{% block title %}客户管理{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="companySearch" placeholder="搜索企业名称..." autocomplete="off">
+                                <button class="btn btn-outline-secondary" type="button" id="searchCompany">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                                <div id="companySearchResults" class="dropdown-menu w-100" style="max-height: 300px; overflow-y: auto;"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="contactSearch" placeholder="搜索联系人..." autocomplete="off">
+                                <button class="btn btn-outline-secondary" type="button" id="searchContact">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                                <div id="contactSearchResults" class="dropdown-menu w-100" style="max-height: 300px; overflow-y: auto;"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            {% if has_permission('customer', 'create') %}
+                            <a href="{{ url_for('customer.add_company') }}" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> 添加企业
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col">
+            <h2 class="text-primary">企业列表</h2>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle" style="font-size: 14px;">
+                    <thead>
+                        <tr class="bg-light text-dark">
+                            <th class="px-3 py-3" style="min-width: 130px;">企业代码</th>
+                            <th class="px-3" style="min-width: 200px;">企业名称</th>
+                            <th class="px-3" style="min-width: 100px;">企业类型</th>
+                            <th class="px-3" style="min-width: 100px;">行业</th>
+                            <th class="px-3" style="min-width: 100px;">国家/地区</th>
+                            <th class="px-3" style="min-width: 100px;">省份</th>
+                            <th class="px-3" style="min-width: 100px;">城市</th>
+                            <th class="px-3" style="min-width: 200px;">详细地址</th>
+                            <th class="px-3" style="min-width: 80px;">状态</th>
+                            <th class="px-3" style="min-width: 200px;">备注</th>
+                            <th class="px-3" style="min-width: 100px;">拥有人</th>
+                            <th class="px-3" style="min-width: 120px;">创建时间</th>
+                            <th class="px-3" style="min-width: 120px;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for company in companies %}
+                        {% set user_has_permission = current_user.id == company.owner_id or current_user.role == 'admin' %}
+                        <tr class="{% if not user_has_permission %}restricted-row{% endif %}">
+                            <td class="px-3"><span class="badge bg-info">{{ company.company_code }}</span></td>
+                            <td class="px-3">
+                                {% if user_has_permission %}
+                                <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="text-decoration-none">
+                                    {{ company.company_name }}
+                                </a>
+                                {% else %}
+                                <span class="text-muted" title="该企业不在您的权限范围，无法访问详情">{{ company.company_name }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-3">{{ company.company_type }}</td>
+                            <td class="px-3">{{ company.industry }}</td>
+                            <td class="px-3">{{ company.country }}</td>
+                            <td class="px-3">{{ company.province }}</td>
+                            <td class="px-3">{{ company.city }}</td>
+                            <td class="px-3">{{ company.address }}</td>
+                            <td class="px-3">
+                                <span class="badge {% if company.status == 'active' %}bg-success{% else %}bg-secondary{% endif %}">
+                                    {% if company.status == 'active' %}活跃{% else %}非活跃{% endif %}
+                                </span>
+                            </td>
+                            <td class="px-3">{{ company.notes }}</td>
+                            <td class="px-3">{{ render_owner(company.owner) }}</td>
+                            <td class="px-3">{{ render_date(company.created_at) }}</td>
+                            <td class="px-3">
+                                <div class="btn-group btn-group-sm">
+                                    {% if has_permission('customer', 'edit') and user_has_permission %}
+                                    <a href="{{ url_for('customer.edit_company', company_id=company.id) }}" class="btn btn-outline-primary">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if has_permission('customer', 'delete') and user_has_permission %}
+                                    <form action="{{ url_for('customer.delete_company', company_id=company.id) }}" method="POST" style="display: inline;">
+                                        <button type="submit" class="btn btn-outline-danger" onclick="return confirm('确定要删除该企业吗？');">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                    {% if not user_has_permission %}
+                                    <span class="badge bg-secondary" title="该企业不在您的权限范围，无法操作">无权限</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加Font Awesome图标库 -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+<!-- 添加自定义样式 -->
+<style>
+    .table th {
+        font-weight: 600;
+        white-space: nowrap;
+        background-color: #f8f9fa;
+        position: relative;
+    }
+    
+    .table td {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 200px;
+        position: relative;
+    }
+    
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        position: relative;
+    }
+    
+    .btn-group-sm > .btn {
+        padding: .25rem .5rem;
+    }
+
+    /* 固定操作列样式 */
+    .table th:last-child,
+    .table td:last-child {
+        position: sticky;
+        right: 0;
+        background-color: #fff;
+        z-index: 1;
+        border-left: 1px solid #dee2e6;
+    }
+
+    .table th:last-child {
+        background-color: #f8f9fa;
+        z-index: 2;
+    }
+
+    /* 鼠标悬停时的背景色 */
+    .table tr:hover td:last-child {
+        background-color: #f8f9fa;
+    }
+
+    /* 调整徽章样式 */
+    .badge {
+        font-size: 12px;
+        padding: 5px 8px;
+    }
+    
+    /* 禁用按钮样式 */
+    .btn.disabled, .btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        pointer-events: all !important;
+    }
+    
+    /* 禁用按钮悬停提示 */
+    [title] {
+        position: relative;
+    }
+
+    /* 限制行样式 */
+    .restricted-row td {
+        color: #6c757d;
+    }
+
+    .restricted-row:hover {
+        background-color: #f8f9fa !important;
+    }
+
+    /* 搜索下拉样式 */
+    .company-search-item, .contact-search-item {\n        padding: 8px 12px;\n        cursor: pointer;\n        border-bottom: 1px solid #f0f0f0;\n        display: flex;\n        justify-content: space-between;\n        align-items: center;\n    }\n    \n    .company-search-item:hover, \
+    .contact-search-item:hover {\n        background-color: #f8f9fa;\n    }\n    \n    .company-search-item.no-permission, \
+    .contact-search-item.no-permission {\n        color: #aaa;\n        cursor: not-allowed;\n    }\n    \n    .company-search-item.no-permission:hover, \
+    .contact-search-item.no-permission:hover {\n        background-color: #f8f9fa;\n    }\n    \n    .search-item-badge {\n        font-size: 11px;\n        padding: 2px 5px;\n        margin-left: 5px;\n        border-radius: 3px;\n        white-space: nowrap;\n    }
+</style>
+
+{% block scripts %}
+<script>
+// 企业搜索功能
+let debounceTimerCompany;
+
+// 企业搜索函数
+function searchCompany(query) {
+    // 如果输入长度少于2，不执行搜索
+    if (!query || query.length < 2) {
+        $('#companySearchResults').empty().removeClass('show');
+        return;
+    }
+    
+    $.ajax({
+        url: '/customer/api/company/search',
+        type: 'GET',
+        data: { keyword: query },
+        success: function(response) {
+            const results = response.results;
+            $('#companySearchResults').empty();
+            
+            if (results.length > 0) {
+                $('#companySearchResults').addClass('show');
+                
+                results.forEach(function(company) {
+                    const canManage = company.can_manage;
+                    const itemClass = canManage ? 'company-search-item' : 'company-search-item no-permission';
+                    const badgeClass = canManage ? 'bg-success' : 'bg-secondary';
+                    const badge = canManage ? '有权限' : '无权限';
+                    
+                    const item = $('<div class=\"' + itemClass + '\" data-id=\"' + company.id + '\" data-can-manage=\"' + canManage + '\">' + '<span>' + company.display + '</span>' + '<span class=\"search-item-badge ' + badgeClass + '\">' + badge + '</span>' + '</div>');
+                    
+                    // 添加点击事件，根据权限决定行为
+                    item.on('click', function() {
+                        if (canManage) {
+                            // 有权限，跳转到企业详情页
+                            window.location.href = '/customer/view/' + company.id;
+                        } else {
+                            // 无权限，显示提示
+                            alert('该企业不在您的权限范围，无法访问详情');
+                        }
+                        
+                        // 清空搜索和结果
+                        $('#companySearch').val('');
+                        $('#companySearchResults').empty().removeClass('show');
+                    });
+                    
+                    $('#companySearchResults').append(item);
+                });
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('搜索企业失败:', error);
+        }
+    });
+}
+
+// 输入事件监听
+$('#companySearch').on('input', function() {
+    const query = $(this).val().trim();
+    clearTimeout(debounceTimerCompany);
+    
+    // 清空结果
+    $('#companySearchResults').empty().removeClass('show');
+    
+    // 如果输入长度至少为2，执行搜索
+    if (query.length >= 2) {
+        debounceTimerCompany = setTimeout(function() {
+            searchCompany(query);
+        }, 300);
+    }
+}).on('keypress', function(e) {
+    // 回车键触发搜索
+    if (e.which === 13) {
+        const query = $(this).val().trim();
+        searchCompany(query);
+        return false; // 阻止表单提交
+    }
+});
+
+// 搜索按钮点击事件
+$('#searchCompany').on('click', function() {
+    const query = $('#companySearch').val().trim();
+    searchCompany(query);
+});
+
+// 联系人搜索功能
+let debounceTimerContact;
+
+// 联系人搜索函数
+function searchContact(query) {
+    // 如果输入长度少于2，不执行搜索
+    if (!query || query.length < 2) {
+        $('#contactSearchResults').empty().removeClass('show');
+        return;
+    }
+    
+    $.ajax({
+        url: '/customer/api/contacts/search_by_name',
+        type: 'GET',
+        data: { keyword: query },
+        success: function(response) {
+            const results = response.results;
+            $('#contactSearchResults').empty();
+            
+            if (results.length > 0) {
+                $('#contactSearchResults').addClass('show');
+                
+                results.forEach(function(contact) {
+                    const canView = contact.can_view_enterprise;
+                    const itemClass = canView ? 'contact-search-item' : 'contact-search-item no-permission';
+                    const badgeClass = canView ? 'bg-success' : 'bg-secondary';
+                    const badge = canView ? '可访问' : '无权限';
+                    
+                    const item = $('<div class=\"' + itemClass + '\" data-id=\"' + contact.id + '\" data-company-id=\"' + contact.company_id + '\" data-can-view=\"' + canView + '\">' + '<span>' + contact.display + '</span>' + '<span class=\"search-item-badge ' + badgeClass + '\">' + badge + '</span>' + '</div>');
+                    
+                    // 添加点击事件，根据权限决定行为
+                    item.on('click', function() {
+                        if (canView) {
+                            // 有权限，跳转到企业详情页，联系人标签页
+                            window.location.href = '/customer/view/' + contact.company_id + '#contacts';
+                        } else {
+                            // 无权限，显示提示
+                            alert('该联系人所属企业不在您的访问范围内');
+                        }
+                        
+                        // 清空搜索和结果
+                        $('#contactSearch').val('');
+                        $('#contactSearchResults').empty().removeClass('show');
+                    });
+                    
+                    $('#contactSearchResults').append(item);
+                });
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('搜索联系人失败:', error);
+        }
+    });
+}
+
+// 输入事件监听
+$('#contactSearch').on('input', function() {
+    const query = $(this).val().trim();
+    clearTimeout(debounceTimerContact);
+    
+    // 清空结果
+    $('#contactSearchResults').empty().removeClass('show');
+    
+    // 如果输入长度至少为2，执行搜索
+    if (query.length >= 2) {
+        debounceTimerContact = setTimeout(function() {
+            searchContact(query);
+        }, 300);
+    }
+}).on('keypress', function(e) {
+    // 回车键触发搜索
+    if (e.which === 13) {
+        const query = $(this).val().trim();
+        searchContact(query);
+        return false; // 阻止表单提交
+    }
+});
+
+// 搜索按钮点击事件
+$('#searchContact').on('click', function() {
+    const query = $('#contactSearch').val().trim();
+    searchContact(query);
+});
+
+// 点击外部区域时关闭下拉菜单
+$(document).on('click', function(event) {
+    if (!$(event.target).closest('#companySearch, #companySearchResults').length) {
+        $('#companySearchResults').removeClass('show');
+    }
+    
+    if (!$(event.target).closest('#contactSearch, #contactSearchResults').length) {
+        $('#contactSearchResults').removeClass('show');
+    }
+});
+
+// 初始化工具提示
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+</script>
+{% endblock %}
+{% endblock %} 

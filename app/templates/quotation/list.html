@@ -1,0 +1,2186 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_currency, render_quotation_number %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="projectSearch" placeholder="搜索项目名称...">
+                                <button class="btn btn-outline-secondary" type="button" id="searchProject">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            {% if has_permission('quotation', 'create') %}
+                            <button class="btn btn-success me-2" id="importQuotationsBtn">
+                                <i class="fas fa-file-import"></i> 批量导入
+                            </button>
+                            {% if has_permission('quotation', 'delete') %}
+                            <button class="btn btn-danger me-2" id="batchDeleteBtn" style="display: none;">
+                                <i class="fas fa-trash"></i> 批量删除
+                            </button>
+                            {% endif %}
+                            <a href="{{ url_for('quotation.create_quotation') }}" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> 创建报价单
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col">
+            <h2 class="text-primary">报价列表</h2>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle" style="font-size: 14px;">
+                    <thead>
+                        <tr class="bg-light text-dark">
+                            {% if has_permission('quotation', 'delete') %}
+                            <th class="px-3 py-3" style="width: 40px;">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="selectAll">
+                                </div>
+                            </th>
+                            {% endif %}
+                            <th class="px-3 py-3" style="min-width: 130px;">
+                                <a href="{{ url_for('quotation.list_quotations', sort='quotation_number', order='asc' if sort_field == 'quotation_number' and sort_order == 'desc' else 'desc', project=request.args.get('project', '')) }}" class="text-dark d-flex align-items-center {{ 'current-sort' if sort_field == 'quotation_number' }}">
+                                    报价编号
+                                    {% if sort_field == 'quotation_number' %}
+                                    <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }} ms-1"></i>
+                                    {% else %}
+                                    <i class="fas fa-sort ms-1 text-muted"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th class="px-3" style="min-width: 200px;">
+                                <a href="{{ url_for('quotation.list_quotations', sort='project_name', order='asc' if sort_field == 'project_name' and sort_order == 'desc' else 'desc', project=request.args.get('project', '')) }}" class="text-dark d-flex align-items-center {{ 'current-sort' if sort_field == 'project_name' }}">
+                                    关联项目
+                                    {% if sort_field == 'project_name' %}
+                                    <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }} ms-1"></i>
+                                    {% else %}
+                                    <i class="fas fa-sort ms-1 text-muted"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th class="px-3" style="min-width: 120px;">
+                                <a href="{{ url_for('quotation.list_quotations', sort='project_stage', order='asc' if sort_field == 'project_stage' and sort_order == 'desc' else 'desc', project=request.args.get('project', '')) }}" class="text-dark d-flex align-items-center {{ 'current-sort' if sort_field == 'project_stage' }}">
+                                    项目阶段
+                                    {% if sort_field == 'project_stage' %}
+                                    <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }} ms-1"></i>
+                                    {% else %}
+                                    <i class="fas fa-sort ms-1 text-muted"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th class="px-3" style="min-width: 120px;">
+                                <a href="{{ url_for('quotation.list_quotations', sort='project_type', order='asc' if sort_field == 'project_type' and sort_order == 'desc' else 'desc', project=request.args.get('project', '')) }}" class="text-dark d-flex align-items-center {{ 'current-sort' if sort_field == 'project_type' }}">
+                                    项目类型
+                                    {% if sort_field == 'project_type' %}
+                                    <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }} ms-1"></i>
+                                    {% else %}
+                                    <i class="fas fa-sort ms-1 text-muted"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th class="px-3" style="min-width: 120px;">
+                                <a href="{{ url_for('quotation.list_quotations', sort='amount', order='asc' if sort_field == 'amount' and sort_order == 'desc' else 'desc', project=request.args.get('project', '')) }}" class="text-dark d-flex align-items-center {{ 'current-sort' if sort_field == 'amount' }}">
+                                    总价
+                                    {% if sort_field == 'amount' %}
+                                    <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }} ms-1"></i>
+                                    {% else %}
+                                    <i class="fas fa-sort ms-1 text-muted"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th class="px-3" style="min-width: 120px;">
+                                <a href="{{ url_for('quotation.list_quotations', sort='created_at', order='asc' if sort_field == 'created_at' and sort_order == 'desc' else 'desc', project=request.args.get('project', '')) }}" class="text-dark d-flex align-items-center {{ 'current-sort' if sort_field == 'created_at' }}">
+                                    创建时间
+                                    {% if sort_field == 'created_at' %}
+                                    <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }} ms-1"></i>
+                                    {% else %}
+                                    <i class="fas fa-sort ms-1 text-muted"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th class="px-3" style="min-width: 120px;">
+                                <a href="{{ url_for('quotation.list_quotations', sort='updated_at', order='asc' if sort_field == 'updated_at' and sort_order == 'desc' else 'desc', project=request.args.get('project', '')) }}" class="text-dark d-flex align-items-center {{ 'current-sort' if sort_field == 'updated_at' }}">
+                                    更新时间
+                                    {% if sort_field == 'updated_at' %}
+                                    <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }} ms-1"></i>
+                                    {% else %}
+                                    <i class="fas fa-sort ms-1 text-muted"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <th class="px-3" style="min-width: 100px;">
+                                <a href="{{ url_for('quotation.list_quotations', sort='owner', order='asc' if sort_field == 'owner' and sort_order == 'desc' else 'desc', project=request.args.get('project', '')) }}" class="text-dark d-flex align-items-center {{ 'current-sort' if sort_field == 'owner' }}">
+                                    拥有人
+                                    {% if sort_field == 'owner' %}
+                                    <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }} ms-1"></i>
+                                    {% else %}
+                                    <i class="fas fa-sort ms-1 text-muted"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for quotation in quotations %}
+                        <tr>
+                            {% if has_permission('quotation', 'delete') %}
+                            <td class="px-3">
+                                <div class="form-check">
+                                    <input class="form-check-input quotation-checkbox" type="checkbox" value="{{ quotation.id }}">
+                                </div>
+                            </td>
+                            {% endif %}
+                            <td class="px-3">{{ render_quotation_number(quotation.quotation_number) }}</td>
+                            <td class="px-3">
+                                <a href="{{ url_for('project.view_project', project_id=quotation.project.id) }}">
+                                    {{ quotation.project.project_name }}
+                                </a>
+                            </td>
+                            <td class="px-3">{{ quotation.project.current_stage }}</td>
+                            <td class="px-3">{{ render_project_type(quotation.project.project_type) }}</td>
+                            <td class="px-3">
+                                <a href="{{ url_for('quotation.view_quotation', id=quotation.id) }}">
+                                    {{ render_currency(quotation.amount) }}
+                                </a>
+                            </td>
+                            <td class="px-3">{{ render_datetime(quotation.created_at) }}</td>
+                            <td class="px-3">{{ render_datetime(quotation.updated_at) }}</td>
+                            <td class="px-3">{{ render_owner(quotation.owner) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加滚动控制按钮 -->
+<div class="scroll-controls">
+    <button type="button" class="btn btn-sm btn-light scroll-top" title="滚动到顶部">
+        <i class="fas fa-chevron-up"></i>
+                                    </button>
+    <button type="button" class="btn btn-sm btn-light scroll-bottom" title="滚动到底部">
+        <i class="fas fa-chevron-down"></i>
+    </button>
+                                </div>
+
+<!-- 批量导入报价单模态窗口 -->
+<div class="modal fade" id="importQuotationModal" tabindex="-1" aria-labelledby="importQuotationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="importQuotationModalLabel">批量导入报价单</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <form id="importQuotationForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="ownerSelect" class="form-label">请选择归属账户</label>
+                        <select class="form-select" id="ownerSelect" name="owner_id">
+                            <option value="">请选择归属账户</option>
+                            <!-- 选项会通过JavaScript动态加载 -->
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="quotationExcelFile" class="form-label">上传Excel文件 (.xlsx或.xls) <span class="text-danger">*</span></label>
+                        <input class="form-control" type="file" id="quotationExcelFile" name="quotationExcelFile" accept=".xlsx, .xls" required>
+                        <div class="form-text">请上传包含报价单数据的Excel文件，系统将根据项目名称自动分组生成报价单及明细</div>
+                        <div class="mt-2">
+                            <a class="small text-primary" data-bs-toggle="collapse" href="#excelFormatHelp" role="button">
+                                <i class="fas fa-info-circle"></i> 查看Excel格式要求
+                            </a>
+                            <div class="collapse mt-2" id="excelFormatHelp">
+                                <div class="card card-body bg-light">
+                                    <p class="mb-1 fw-bold">Excel表格必须包含以下列：</p>
+                                    <ul class="mb-2">
+                                        <li><span class="text-danger fw-bold">项目名称</span> - 必填，将按此字段分组为不同报价单</li>
+                                        <li><span class="fw-bold">产品名称</span> - 作为报价单明细项</li>
+                                        <li><span class="fw-bold">型号</span> - 产品型号</li>
+                                        <li><span class="fw-bold">单价</span> - 产品单价</li>
+                                        <li><span class="fw-bold">合计</span> - 产品总价</li>
+                                    </ul>
+                                    <p class="mb-1 small">注意：表头名称必须与上述名称完全一致，包括中文字符</p>
+                                    <p class="mb-1 small">如果解析出错，请检查Excel表头是否包含多余的空格或特殊字符</p>
+                                    <p class="mb-2 small text-danger">重要：Excel表格的第一行必须是表头行，不能包含合并单元格</p>
+                                    <div class="alert alert-info small p-2 mb-2">
+                                        <p class="mb-1 fw-bold"><i class="fas fa-info-circle"></i> 导入提示：</p>
+                                        <ul class="mb-0 ps-3">
+                                            <li>如果您的文件出现<code>__EMPTY</code>类型的列，说明Excel表头格式异常</li>
+                                            <li>系统会尝试智能识别列名，但建议使用下方的标准模板</li>
+                                            <li>从其他系统导出的Excel可能需要调整格式后再导入</li>
+                                            <li>如遇问题，请先下载并使用我们提供的标准模板</li>
+                                        </ul>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="downloadTemplateBtn">
+                                        <i class="fas fa-download"></i> 下载Excel模板
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 进度条区域 -->
+                    <div id="importProgress" class="mt-4" style="display: none;">
+                        <h6>正在处理数据...</h6>
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- 预览区域 -->
+                    <div id="importPreview" class="mt-4" style="display: none;">
+                        <h6>报价单导入预览</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>报价单编号</th>
+                                        <th>项目名称</th>
+                                        <th>阶段状态</th>
+                                        <th>总价</th>
+                                        <th>明细数量</th>
+                        </tr>
+                                </thead>
+                                <tbody id="previewTableBody">
+                                    <!-- 预览数据会动态加载 -->
+                    </tbody>
+                </table>
+                            <div id="previewMore" class="text-center mt-2" style="display: none;">
+                                <p class="text-muted">还有更多报价单未显示...</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 冲突区域 -->
+                    <div id="importConflicts" class="mt-4" style="display: none;">
+                        <h6>存在项目冲突</h6>
+                        <p>以下报价单与系统中已有的报价单存在冲突。请选择如何处理这些冲突：</p>
+                        
+                        <!-- 冲突说明信息 -->
+                        <div id="conflictInfo" class="mb-2"></div>
+                        
+                        <div class="mb-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="ignoreAllConflicts">全部忽略</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="keepAllConflicts">全部添加</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="overwriteAllConflicts">全部覆盖</button>
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>项目名称</th>
+                                        <th>现有报价单</th>
+                                        <th>导入报价单</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="conflictsTableBody">
+                                    <!-- 冲突数据会动态加载 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- 结果区域 -->
+                    <div id="importResult" class="mt-4" style="display: none;">
+                        <div class="alert alert-success">
+                            <h6><i class="fas fa-check-circle"></i> 导入完成</h6>
+                            <p id="importSummary"></p>
+                        </div>
+                        
+                        <div id="importErrorDetails" class="mt-3" style="display: none;">
+                            <h6 class="text-danger">导入错误详情:</h6>
+                            <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                                <table class="table table-sm table-bordered table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>行号</th>
+                                            <th>项目名称</th>
+                                            <th>错误原因</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="errorDetailsTableBody">
+                                        <!-- 错误详情会动态加载 -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="parseExcelBtn">解析文件</button>
+                <button type="button" class="btn btn-success" id="importBtn" style="display: none;">确认导入</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 批量删除确认模态窗口 -->
+<div class="modal fade" id="batchDeleteModal" tabindex="-1" aria-labelledby="batchDeleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="batchDeleteModalLabel">确认批量删除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <p>您确定要删除选中的 <span id="selectedCount">0</span> 个报价单吗？此操作无法撤销。</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="confirmBatchDelete">确认删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加Font Awesome图标库 -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+<!-- 添加自定义样式 -->
+<style>
+    .table th {
+        font-weight: 600;
+        white-space: nowrap;
+        background-color: #f8f9fa;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+    }
+    
+    .table td {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 200px;
+        position: relative;
+        border-bottom: 1px solid #dee2e6;
+        padding: 8px 12px;
+        vertical-align: middle;
+    }
+    
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        position: relative;
+        max-height: 65vh; /* 设置最大高度为视口高度的65% */
+        overflow-y: auto; /* 添加垂直滚动 */
+        scrollbar-width: thin;
+        scroll-behavior: smooth;
+    }
+    
+    .btn-group-sm > .btn {
+        padding: .25rem .5rem;
+    }
+
+    /* 移除固定操作列样式 */
+    /* 
+    .table th:last-child,
+    .table td:last-child {
+        position: sticky;
+        right: 0;
+        background-color: #fff;
+        z-index: 1;
+        border-left: 1px solid #dee2e6;
+    }
+
+    .table th:last-child {
+        background-color: #f8f9fa;
+        z-index: 2;
+    }
+
+    .table tr:hover td:last-child {
+        background-color: #f8f9fa;
+    }
+    */
+
+    /* 调整徽章样式 */
+    .badge {
+        font-size: 12px;
+        padding: 5px 8px;
+    }
+    
+    /* 滚动条样式美化 */
+    .table-responsive::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    .table-responsive::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+
+    .table-responsive::-webkit-scrollbar-thumb {
+        background: #ccc;
+        border-radius: 4px;
+    }
+
+    .table-responsive::-webkit-scrollbar-thumb:hover {
+        background: #999;
+    }
+    
+    /* 奇偶行颜色区分，增强可读性 */
+    .table-striped > tbody > tr:nth-of-type(odd) > * {
+        background-color: rgba(0, 0, 0, 0.02);
+    }
+    
+    /* 添加表格斑马纹效果，每五行加强一次 */
+    .table-striped > tbody > tr:nth-of-type(10n+5) > * {
+        background-color: rgba(0, 0, 0, 0.04);
+    }
+    
+    /* 行焦点效果 */
+    .table tbody tr.highlight-row {
+        background-color: rgba(13, 110, 253, 0.08) !important;
+        outline: 1px solid rgba(13, 110, 253, 0.3);
+        box-shadow: 0 0 5px rgba(13, 110, 253, 0.2);
+    }
+    
+    /* 表格容器样式 */
+    .card-body.p-0 {
+        margin-bottom: 20px;
+    }
+    
+    /* 表格结构样式 */
+    .table {
+        margin-bottom: 0;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    
+    /* 滚动控制按钮样式 */
+    .scroll-controls {
+        position: fixed;
+        right: 20px;
+        bottom: 50px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        z-index: 1000;
+        opacity: 0.7;
+        transition: opacity 0.3s;
+    }
+
+    .scroll-controls:hover {
+        opacity: 1;
+    }
+
+    .scroll-controls button {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .scroll-controls button:hover {
+        background-color: #f0f0f0;
+    }
+    
+    /* 排序表头样式 */
+    .table th a {
+        text-decoration: none;
+        color: #333;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+    }
+    
+    .table th a:hover {
+        color: #0d6efd;
+    }
+    
+    .table th a i.text-muted {
+        opacity: 0.4;
+    }
+    
+    .table th a:hover i.text-muted {
+        opacity: 0.7;
+    }
+    
+    /* 当前排序列高亮 */
+    .table th a.current-sort {
+        color: #0d6efd;
+    }
+    
+    /* 垂直分隔符 */
+    .table th a .sort-separator {
+        margin: 0 5px;
+        color: #ccc;
+    }
+    
+    /* 批量删除按钮脉冲动画 */
+    @keyframes btn-pulse {
+        0% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+        }
+        70% {
+            transform: scale(1.05);
+            box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+        }
+        100% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+        }
+    }
+    
+    .btn-pulse {
+        animation: btn-pulse 1s;
+    }
+    
+    /* 批量删除按钮淡入淡出效果 */
+    #batchDeleteBtn {
+        transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+        opacity: 0;
+        transform: translateY(5px);
+    }
+    
+    #batchDeleteBtn[style*="display: inline-block"] {
+        opacity: 1;
+        transform: translateY(0);
+        animation: btn-pulse 1s cubic-bezier(0.66, 0, 0, 1);
+    }
+
+    @keyframes fadeInRight {
+        from {
+            opacity: 0;
+            transform: translateX(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    
+    @keyframes fadeOutRight {
+        from {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        to {
+            opacity: 0;
+            transform: translateX(20px);
+        }
+    }
+    
+    @keyframes checkbox-pulse {
+        0% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.7);
+        }
+        70% {
+            transform: scale(1.05);
+            box-shadow: 0 0 0 10px rgba(13, 110, 253, 0);
+        }
+        100% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(13, 110, 253, 0);
+        }
+    }
+    
+    .checkbox-pulse {
+        animation: checkbox-pulse 1s cubic-bezier(0.66, 0, 0, 1);
+    }
+</style>
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+// 获取表格容器
+const tableContainer = document.querySelector('.table-responsive');
+
+// 记住和恢复滚动位置
+if (tableContainer) {
+    // 尝试从sessionStorage恢复滚动位置
+    const savedScrollTop = sessionStorage.getItem('quotationListScrollTop');
+    const savedScrollLeft = sessionStorage.getItem('quotationListScrollLeft');
+    
+    if (savedScrollTop !== null) {
+        tableContainer.scrollTop = parseInt(savedScrollTop);
+    }
+    
+    if (savedScrollLeft !== null) {
+        tableContainer.scrollLeft = parseInt(savedScrollLeft);
+    }
+    
+    // 保存滚动位置
+    tableContainer.addEventListener('scroll', function() {
+        sessionStorage.setItem('quotationListScrollTop', this.scrollTop);
+        sessionStorage.setItem('quotationListScrollLeft', this.scrollLeft);
+    });
+    
+    // 添加键盘导航支持
+    document.addEventListener('keydown', function(e) {
+        // 只有当表格区域可见时才响应键盘事件
+        if (isElementInViewport(tableContainer)) {
+            // Home键 - 滚动到顶部
+            if (e.key === 'Home') {
+                tableContainer.scrollTop = 0;
+                e.preventDefault();
+            }
+            // End键 - 滚动到底部
+            else if (e.key === 'End') {
+                tableContainer.scrollTop = tableContainer.scrollHeight;
+                e.preventDefault();
+            }
+            // Page Up键 - 向上翻页
+            else if (e.key === 'PageUp') {
+                tableContainer.scrollTop -= tableContainer.clientHeight;
+                e.preventDefault();
+            }
+            // Page Down键 - 向下翻页
+            else if (e.key === 'PageDown') {
+                tableContainer.scrollTop += tableContainer.clientHeight;
+                e.preventDefault();
+            }
+        }
+    });
+}
+
+// 检查元素是否在视口中
+function isElementInViewport(el) {
+    const rect = el.getBoundingClientRect();
+    return (
+        rect.top >= 0 &&
+        rect.left >= 0 &&
+        rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+        rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+    );
+}
+
+// 处理滚动控制按钮
+const scrollTopBtn = document.querySelector('.scroll-top');
+const scrollBottomBtn = document.querySelector('.scroll-bottom');
+
+if (scrollTopBtn && tableContainer) {
+    scrollTopBtn.addEventListener('click', function() {
+        tableContainer.scrollTop = 0;
+    });
+}
+
+if (scrollBottomBtn && tableContainer) {
+    scrollBottomBtn.addEventListener('click', function() {
+        tableContainer.scrollTop = tableContainer.scrollHeight;
+    });
+}
+
+// 根据滚动位置显示/隐藏滚动按钮
+const scrollControls = document.querySelector('.scroll-controls');
+if (scrollControls && tableContainer) {
+    // 初始隐藏
+    if (tableContainer.scrollHeight <= tableContainer.clientHeight) {
+        scrollControls.style.display = 'none';
+    }
+    
+    // 监听表格容器的滚动事件
+    tableContainer.addEventListener('scroll', function() {
+        // 如果表格内容不需要滚动，则隐藏控制按钮
+        if (tableContainer.scrollHeight <= tableContainer.clientHeight) {
+            scrollControls.style.display = 'none';
+            return;
+        }
+        
+        // 否则显示控制按钮
+        scrollControls.style.display = 'flex';
+    });
+    
+    // 监听窗口大小变化
+    window.addEventListener('resize', function() {
+        if (tableContainer.scrollHeight <= tableContainer.clientHeight) {
+            scrollControls.style.display = 'none';
+        } else {
+            scrollControls.style.display = 'flex';
+        }
+    });
+}
+
+// 添加行滚动焦点效果
+if (tableContainer) {
+    const rows = document.querySelectorAll('.table tbody tr');
+    let lastHighlightedRow = null;
+    
+    // 鼠标滑过行时添加高亮
+    rows.forEach(row => {
+        row.addEventListener('mouseenter', function() {
+            if (lastHighlightedRow) {
+                lastHighlightedRow.classList.remove('highlight-row');
+            }
+            this.classList.add('highlight-row');
+            lastHighlightedRow = this;
+        });
+    });
+    
+    // 鼠标离开表格区域时移除高亮
+    tableContainer.addEventListener('mouseleave', function() {
+        if (lastHighlightedRow) {
+            lastHighlightedRow.classList.remove('highlight-row');
+            lastHighlightedRow = null;
+        }
+    });
+    
+    // 滚动时计算可见行并高亮中心行
+    tableContainer.addEventListener('scroll', function() {
+        // 节流滚动事件处理，避免性能问题
+        if (window.scrollThrottled) return;
+        window.scrollThrottled = true;
+        
+        setTimeout(() => {
+            highlightCenterRow();
+            window.scrollThrottled = false;
+        }, 100);
+    });
+    
+    // 高亮中心行函数
+    function highlightCenterRow() {
+        if (rows.length === 0) return;
+        
+        const containerRect = tableContainer.getBoundingClientRect();
+        const containerMiddle = containerRect.top + containerRect.height / 2;
+        
+        let closestRow = null;
+        let minDistance = Infinity;
+        
+        // 找出最靠近中心的行
+        rows.forEach(row => {
+            const rowRect = row.getBoundingClientRect();
+            const rowMiddle = rowRect.top + rowRect.height / 2;
+            const distance = Math.abs(rowMiddle - containerMiddle);
+            
+            // 只考虑可见行
+            if (rowRect.top <= containerRect.bottom && 
+                rowRect.bottom >= containerRect.top) {
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    closestRow = row;
+                }
+            }
+        });
+        
+        // 更新高亮
+        if (closestRow && closestRow !== lastHighlightedRow) {
+            if (lastHighlightedRow) {
+                lastHighlightedRow.classList.remove('highlight-row');
+            }
+            closestRow.classList.add('highlight-row');
+            lastHighlightedRow = closestRow;
+        }
+    }
+}
+
+document.getElementById('searchProject').addEventListener('click', function() {
+    const searchTerm = document.getElementById('projectSearch').value;
+    window.location.href = "{{ url_for('quotation.list_quotations') }}?project=" + encodeURIComponent(searchTerm);
+});
+
+// 全局变量
+let parsedQuotations = [];
+let quotationDetails = {};
+let conflicts = [];
+let conflictActions = {};
+let skippedHeaderRows = 0; // 用于记录过滤掉的表头行数量
+
+// 添加回车键搜索功能
+document.getElementById('projectSearch').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        document.getElementById('searchProject').click();
+    }
+});
+
+function copyQuotation(id) {
+    if (confirm('确定要复制这个报价单吗？')) {
+        fetch(`/quotation/quotation/${id}/copy`, {
+            method: 'POST',
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('复制失败: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('复制报价单时出错:', error);
+            alert('复制报价单时出错');
+        });
+    }
+}
+
+function deleteQuotation(id) {
+    if (confirm('确定要删除这个报价单吗？')) {
+        fetch(`/quotation/${id}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        }).then(response => {
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                alert('删除失败，请重试');
+            }
+        });
+    }
+}
+
+// 批量删除功能
+document.addEventListener('DOMContentLoaded', function() {
+    const projectSearch = document.getElementById('projectSearch');
+    const searchBtn = document.getElementById('searchProject');
+    const batchDeleteBtn = document.getElementById('batchDeleteBtn');
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const quotationCheckboxes = document.querySelectorAll('.quotation-checkbox');
+    const selectedCountSpan = document.getElementById('selectedCount');
+    const confirmBatchDeleteBtn = document.getElementById('confirmBatchDelete');
+    const batchDeleteModal = new bootstrap.Modal(document.getElementById('batchDeleteModal'));
+    
+    // 更新批量删除按钮显示状态的函数
+    function updateBatchDeleteButtonVisibility() {
+        const checkedCount = document.querySelectorAll('.quotation-checkbox:checked').length;
+        
+        if (checkedCount > 0) {
+            batchDeleteBtn.style.display = 'inline-block';
+            // 更新按钮文本
+            batchDeleteBtn.innerHTML = `<i class="fas fa-trash"></i> 批量删除 (${checkedCount})`;
+            // 更新模态框中的数量
+            if (selectedCountSpan) {
+                selectedCountSpan.textContent = checkedCount;
+            }
+        } else {
+            // 添加淡出动画
+            batchDeleteBtn.style.animation = 'fadeOutRight 0.3s ease forwards';
+            setTimeout(() => {
+                if (document.querySelectorAll('.quotation-checkbox:checked').length === 0) {
+                    batchDeleteBtn.style.display = 'none';
+                }
+            }, 300);
+        }
+    }
+    
+    // 初始化检查批量删除按钮状态
+    updateBatchDeleteButtonVisibility();
+    
+    // 全选checkbox事件
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            const isChecked = this.checked;
+            
+            quotationCheckboxes.forEach(function(checkbox) {
+                checkbox.checked = isChecked;
+            });
+            
+            // 添加脉冲效果给全选
+            if (isChecked) {
+                this.parentElement.classList.add('checkbox-pulse');
+                setTimeout(() => {
+                    this.parentElement.classList.remove('checkbox-pulse');
+                }, 1000);
+            }
+            
+            updateBatchDeleteButtonVisibility();
+        });
+    }
+    
+    // 单个checkbox事件
+    quotationCheckboxes.forEach(function(checkbox) {
+        checkbox.addEventListener('change', function() {
+            // 如果取消勾选，更新全选checkbox
+            if (!this.checked && selectAllCheckbox && selectAllCheckbox.checked) {
+                selectAllCheckbox.checked = false;
+            }
+            
+            // 如果所有可选的都被选中，更新全选checkbox
+            if (selectAllCheckbox) {
+                const allChecked = Array.from(quotationCheckboxes).every(cb => cb.checked);
+                selectAllCheckbox.checked = allChecked;
+            }
+            
+            // 添加脉冲效果给变化的复选框
+            this.parentElement.classList.add('checkbox-pulse');
+            setTimeout(() => {
+                this.parentElement.classList.remove('checkbox-pulse');
+            }, 1000);
+            
+            updateBatchDeleteButtonVisibility();
+        });
+    });
+    
+    // 搜索处理
+    if (searchBtn) {
+        searchBtn.addEventListener('click', function() {
+            const searchValue = projectSearch.value.trim();
+            window.location.href = `{{ url_for('quotation.list_quotations') }}?project=${encodeURIComponent(searchValue)}`;
+        });
+    }
+    
+    if (projectSearch) {
+        projectSearch.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                searchBtn.click();
+            }
+        });
+    }
+    
+    // 批量删除按钮点击事件
+    if (batchDeleteBtn) {
+        batchDeleteBtn.addEventListener('click', function() {
+            const checkedCount = document.querySelectorAll('.quotation-checkbox:checked').length;
+            if (checkedCount > 0) {
+                if (selectedCountSpan) {
+                    selectedCountSpan.textContent = checkedCount;
+                }
+                batchDeleteModal.show();
+            }
+        });
+    }
+    
+    // 确认批量删除
+    if (confirmBatchDeleteBtn) {
+        confirmBatchDeleteBtn.addEventListener('click', function() {
+            const checkedBoxes = document.querySelectorAll('.quotation-checkbox:checked');
+            const quotationIds = Array.from(checkedBoxes).map(cb => cb.value);
+            
+            if (quotationIds.length === 0) {
+                batchDeleteModal.hide();
+                return;
+            }
+            
+            // 发送批量删除请求
+            fetch('{{ url_for('quotation.batch_delete_quotations') }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({ quotation_ids: quotationIds })
+            })
+            .then(response => response.json())
+            .then(data => {
+                batchDeleteModal.hide();
+                
+                if (data.success) {
+                    // 显示成功消息
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert alert-success alert-dismissible fade show';
+                    alertDiv.innerHTML = `
+                        <strong>成功!</strong> ${data.message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    `;
+                    document.querySelector('.container-fluid').prepend(alertDiv);
+                    
+                    // 刷新页面或移除已删除的行
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    // 显示错误消息
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+                    alertDiv.innerHTML = `
+                        <strong>错误!</strong> ${data.message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    `;
+                    document.querySelector('.container-fluid').prepend(alertDiv);
+                }
+            })
+            .catch(error => {
+                console.error('批量删除报价单时出错:', error);
+                batchDeleteModal.hide();
+                
+                // 显示错误消息
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+                alertDiv.innerHTML = `
+                    <strong>错误!</strong> 批量删除请求失败
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `;
+                document.querySelector('.container-fluid').prepend(alertDiv);
+            });
+        });
+    }
+});
+
+// 报价单批量导入功能
+document.addEventListener('DOMContentLoaded', function() {
+    const importQuotationsBtn = document.getElementById('importQuotationsBtn');
+    const importModal = new bootstrap.Modal(document.getElementById('importQuotationModal'));
+    const ownerSelect = document.getElementById('ownerSelect');
+    const quotationExcelFile = document.getElementById('quotationExcelFile');
+    const parseExcelBtn = document.getElementById('parseExcelBtn');
+    const importBtn = document.getElementById('importBtn');
+    const previewDiv = document.getElementById('importPreview');
+    const conflictsDiv = document.getElementById('importConflicts');
+    const progressDiv = document.getElementById('importProgress');
+    const resultDiv = document.getElementById('importResult');
+    const ignoreAllConflictsBtn = document.getElementById('ignoreAllConflicts');
+    const keepAllConflictsBtn = document.getElementById('keepAllConflicts');
+    const overwriteAllConflictsBtn = document.getElementById('overwriteAllConflicts');
+    
+    let parsedQuotations = [];
+    let quotationDetails = {};
+    let conflicts = [];
+    let conflictActions = {};
+    
+    // 打开导入模态框
+    if (importQuotationsBtn) {
+        importQuotationsBtn.addEventListener('click', function() {
+            // 重置表单和状态
+            document.getElementById('importQuotationForm').reset();
+            importBtn.style.display = 'none';
+            previewDiv.style.display = 'none';
+            conflictsDiv.style.display = 'none';
+            progressDiv.style.display = 'none';
+            resultDiv.style.display = 'none';
+            document.getElementById('previewTableBody').innerHTML = '';
+            document.getElementById('conflictsTableBody').innerHTML = '';
+            document.getElementById('errorDetailsTableBody').innerHTML = '';
+            
+            // 获取用户列表用于选择归属账户
+            fetch('/api/accounts/list')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        ownerSelect.innerHTML = '<option value="">请选择归属账户</option>';
+                        
+                        // 按企业分组用户
+                        const companiesUsers = {};
+                        data.users.forEach(user => {
+                            if (!companiesUsers[user.company]) {
+                                companiesUsers[user.company] = [];
+                            }
+                            companiesUsers[user.company].push(user);
+                        });
+                        
+                        // 创建选项组
+                        for (const company in companiesUsers) {
+                            const optgroup = document.createElement('optgroup');
+                            optgroup.label = company;
+                            
+                            companiesUsers[company].forEach(user => {
+                                const option = document.createElement('option');
+                                option.value = user.id;
+                                option.textContent = user.name;
+                                optgroup.appendChild(option);
+                            });
+                            
+                            ownerSelect.appendChild(optgroup);
+                        }
+                    } else {
+                        console.error('获取用户列表失败:', data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('获取用户列表失败:', error);
+                });
+            
+            // 显示模态框
+            importModal.show();
+        });
+    }
+    
+    // 解析Excel文件
+    if (parseExcelBtn) {
+        parseExcelBtn.addEventListener('click', function() {
+            const fileInput = document.getElementById('quotationExcelFile');
+            
+            if (!fileInput.files.length) {
+                alert('请选择Excel文件');
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            
+            resultDiv.style.display = 'none';
+            progressDiv.style.display = 'block';
+            const progressBar = progressDiv.querySelector('.progress-bar');
+            progressBar.style.width = '30%';
+            
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    progressBar.style.width = '50%';
+                    
+                    // 解析Excel文件
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // 获取第一个工作表
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    // 将工作表转换为JSON
+                    // 使用更多选项来确保正确解析
+                    const excelData = XLSX.utils.sheet_to_json(worksheet, { 
+                        raw: false, 
+                        defval: '',  // 空单元格使用空字符串
+                        blankrows: false, // 跳过空行
+                        range: 0,  // 从第一行开始
+                        dateNF: 'yyyy-mm-dd', // 日期格式
+                        header: 'A' // 使用默认表头
+                    });
+                    
+                    // 检查是否为空
+                    if (excelData.length === 0) {
+                        alert('Excel文件中没有数据');
+                        progressDiv.style.display = 'none';
+                        return;
+                    }
+                    
+                    // 尝试标准方式读取（假设Excel有正确的表头行）
+                    const standardData = XLSX.utils.sheet_to_json(worksheet, { 
+                        raw: false, 
+                        defval: '',
+                        blankrows: false
+                    });
+                    
+                    // 打印调试信息
+                    console.log('无表头解析数据:', excelData);
+                    console.log('标准解析数据:', standardData);
+                    
+                    let useData = standardData;
+                    
+                    // 检测是否有__EMPTY类型的列，这意味着Excel可能缺少标准表头
+                    const hasEmptyColumns = standardData.length > 0 && 
+                                         Object.keys(standardData[0] || {}).some(key => key.startsWith('__EMPTY'));
+                    
+                    console.log('是否包含__EMPTY列:', hasEmptyColumns);
+                    
+                    // 检查是否是一个合并单元格的表格（只用于日志分析）
+                    try {
+                        const merges = worksheet['!merges'] || [];
+                        console.log('表格包含的合并单元格数量:', merges.length);
+                        if (merges.length > 0) {
+                            console.log('检测到合并单元格，这可能影响解析');
+                        }
+                    } catch (e) {
+                        console.warn('检查合并单元格出错:', e);
+                    }
+                    
+                    // 如果检测到__EMPTY列，则使用第一行作为表头重新解析
+                    if (hasEmptyColumns && standardData.length > 0) {
+                        console.log('检测到空列头，尝试使用第一行作为表头');
+                        
+                        // 获取工作表的范围
+                        const range = XLSX.utils.decode_range(worksheet['!ref']);
+                        
+                        // 从第一行提取表头
+                        const headers = [];
+                        for(let C = range.s.c; C <= range.e.c; ++C) {
+                            const cell = worksheet[XLSX.utils.encode_cell({r:0, c:C})];
+                            headers.push(cell && cell.v ? String(cell.v).trim() : `列${C+1}`);
+                        }
+                        
+                        console.log('从第一行提取的表头:', headers);
+                        
+                        // 如果找到了"项目名称"或"项目"等关键列，使用自定义表头重新解析
+                        if (headers.some(h => h.includes('项目'))) {
+                            // 使用自定义表头重新解析
+                            const customData = XLSX.utils.sheet_to_json(worksheet, {
+                                header: headers,
+                                range: 1,  // 从第二行开始（跳过表头）
+                                raw: false,
+                                defval: ''
+                            });
+                            
+                            console.log('使用自定义表头解析的数据:', customData);
+                            useData = customData;
+                        }
+                    }
+                    
+                    // 如果标准方式解析失败，尝试其他方式
+                    if (useData.length === 0 && excelData.length > 0) {
+                        console.log('标准解析无结果，使用无表头解析结果');
+                        useData = excelData;
+                    }
+                    
+                    console.log('最终使用的Excel解析数据：', useData);
+                    console.log('第一条记录：', useData[0]);
+                    console.log('第一条记录的键：', Object.keys(useData[0] || {}));
+                    
+                    progressBar.style.width = '70%';
+                    
+                    // 按项目名称分组
+                    const groupedByProject = {};
+                    
+                    // 为了解决列名可能包含空格或不完全匹配的问题，先找到项目名称列的实际键名
+                    let projectNameKey = '项目名称';
+                    const possibleKeys = Object.keys(useData[0] || {});
+                    
+                    // 添加对__EMPTY_开头列的支持
+                    const projectKeyVariants = [
+                        '项目名称', '项目 名称', '项目  名称', '项目名 称', '项 目名称', '项目', 
+                        'ProjectName', 'Project Name'
+                    ];
+                    
+                    // 先尝试精确匹配
+                    for (const variant of projectKeyVariants) {
+                        if (possibleKeys.includes(variant)) {
+                            projectNameKey = variant;
+                            console.log('找到项目名称列:', projectNameKey);
+                            break;
+                        }
+                    }
+                    
+                    // 如果没找到，尝试匹配__EMPTY_开头的列
+                    if (projectNameKey === '项目名称' && !possibleKeys.includes('项目名称')) {
+                        // 检查是否有包含"项目"或"名称"的列（从表格的第一行检测）
+                        for (let i = 0; i < possibleKeys.length; i++) {
+                            const key = possibleKeys[i];
+                            if (key.startsWith('__EMPTY')) {
+                                // 尝试检查该列的第一个值是否包含"项目"关键词
+                                const firstValue = useData[0][key];
+                                if (firstValue && (
+                                    typeof firstValue === 'string' && (
+                                        firstValue.includes('项目') || 
+                                        firstValue.toLowerCase().includes('project')
+                                    )
+                                )) {
+                                    projectNameKey = key;
+                                    console.log('在__EMPTY列中找到可能的项目名称列:', key, '首值:', firstValue);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 如果精确匹配失败，尝试模糊匹配
+                    if (projectNameKey === '项目名称' && !possibleKeys.includes('项目名称')) {
+                        // 尝试查找包含关键词的键
+                        const fuzzyMatch = possibleKeys.find(key => 
+                            (key.includes('项目') && key.includes('名称')) || 
+                            (key.toLowerCase().includes('project') && key.toLowerCase().includes('name')));
+                        
+                        if (fuzzyMatch) {
+                            projectNameKey = fuzzyMatch;
+                            console.log('模糊匹配到项目名称列:', projectNameKey);
+                        } else {
+                            // 如果还是找不到，尝试使用第2列或第3列
+                            if (possibleKeys.includes('B') || possibleKeys.includes('__EMPTY_1')) {
+                                projectNameKey = possibleKeys.includes('B') ? 'B' : '__EMPTY_1';
+                                console.log('使用第2列作为项目名称列:', projectNameKey);
+                            } else if (possibleKeys.includes('C') || possibleKeys.includes('__EMPTY_2')) {
+                                projectNameKey = possibleKeys.includes('C') ? 'C' : '__EMPTY_2';
+                                console.log('使用第3列作为项目名称列:', projectNameKey);
+                            }
+                        }
+                    }
+                    
+                    console.log('最终使用的项目名称列键:', projectNameKey);
+                    console.log('可用的列键:', possibleKeys);
+                    
+                    // 过滤记录计数
+                    let totalRows = 0;
+                    let skippedHeaderRows = 0;
+                    let validDataRows = 0;
+                    
+                    useData.forEach(row => {
+                        totalRows++;
+                        // 确保项目名称存在
+                        const projectName = row[projectNameKey];
+                        if (!projectName) {
+                            return;
+                        }
+                        
+                        // 检查项目名称是否为表头，如果是则跳过
+                        // 如果项目名称等于列名本身，很可能是表头
+                        if (projectName === '项目名称' || projectName === '项目' || 
+                            projectName.toLowerCase() === 'project' || 
+                            projectName.toLowerCase() === 'project name' ||
+                            projectName.toLowerCase() === 'projectname') {
+                            console.log('跳过疑似表头行:', projectName);
+                            skippedHeaderRows++;
+                            return;
+                        }
+                        
+                        // 检查项目名称是否包含常见表头关键词
+                        const headerKeywords = ['表头', '列名', 'header', 'column', 'title', '名称', '表格'];
+                        if (headerKeywords.some(keyword => 
+                            projectName.toLowerCase().includes(keyword.toLowerCase()))) {
+                            console.log('跳过包含表头关键词的行:', projectName);
+                            skippedHeaderRows++;
+                            return;
+                        }
+                        
+                        // 检查是否整行都是列名，而不是实际数据
+                        // 如果一行中多个字段都与典型列名匹配，则可能是表头
+                        const typicalColumnNames = ['产品名称', '型号', '单价', '数量', '合计', '总价', '阶段', '日期', '备注'];
+                        let headerMatchCount = 0;
+                        
+                        typicalColumnNames.forEach(colName => {
+                            // 遍历行中的所有字段值
+                            Object.values(row).forEach(value => {
+                                if (typeof value === 'string' && 
+                                    (value === colName || 
+                                     value.toLowerCase() === colName.toLowerCase() ||
+                                     value.includes(colName))) {
+                                    headerMatchCount++;
+                                }
+                            });
+                        });
+                        
+                        // 如果匹配了多个列名，判定为表头行
+                        if (headerMatchCount >= 3) {
+                            console.log('跳过疑似表头行(多列匹配):', projectName, '匹配数:', headerMatchCount);
+                            skippedHeaderRows++;
+                            return;
+                        }
+                        
+                        // 检查数值型字段是否缺失或非数值，如果是则可能是表头
+                        const numericKeywords = ['价格', '单价', '合计', '总价', '数量'];
+                        let numericFieldCount = 0;
+                        let numericValueCount = 0;
+                        
+                        // 检查有多少个数值型字段确实包含数值
+                        Object.entries(row).forEach(([key, value]) => {
+                            // 检查字段名是否为数值型字段
+                            const isNumericField = numericKeywords.some(keyword => 
+                                key.toLowerCase().includes(keyword.toLowerCase()));
+                            
+                            if (isNumericField) {
+                                numericFieldCount++;
+                                
+                                // 检查值是否为数值
+                                const numValue = parseFloat(value);
+                                if (!isNaN(numValue)) {
+                                    numericValueCount++;
+                                }
+                            }
+                        });
+                        
+                        // 如果有数值字段但都不是数值，很可能是表头
+                        if (numericFieldCount >= 2 && numericValueCount === 0) {
+                            console.log('跳过疑似表头行(无数值):', projectName);
+                            skippedHeaderRows++;
+                            return;
+                        }
+                        
+                        // 如果所有字段值的长度都很短（通常是列名），可能是表头
+                        const fieldValues = Object.values(row).filter(v => typeof v === 'string');
+                        const shortFieldCount = fieldValues.filter(v => v.length < 8).length;
+                        if (fieldValues.length >= 5 && shortFieldCount / fieldValues.length > 0.8) {
+                            console.log('跳过疑似表头行(短字段):', projectName);
+                            skippedHeaderRows++;
+                            return;
+                        }
+                        
+                        if (!groupedByProject[projectName]) {
+                            groupedByProject[projectName] = [];
+                        }
+                        
+                        groupedByProject[projectName].push(row);
+                        validDataRows++;
+                    });
+                    
+                    console.log(`Excel解析统计: 总行数=${totalRows}, 有效数据行=${validDataRows}, 跳过表头/无效行=${skippedHeaderRows}`);
+                    if (skippedHeaderRows > 0) {
+                        console.log(`已自动过滤 ${skippedHeaderRows} 行疑似表头数据`);
+                    }
+                    
+                    // 解析出报价单数据和明细数据
+                    parsedQuotations = [];
+                    quotationDetails = {};
+                    
+                    // 检查是否有项目名称列
+                    const hasProjectNameColumn = useData.some(row => row[projectNameKey] !== undefined);
+                    if (!hasProjectNameColumn) {
+                        console.error('Excel解析结果:', useData);
+                        console.error('Excel中找不到项目名称列，检查第一行记录的键:', Object.keys(useData[0] || {}));
+                        console.error('当前尝试的项目名称键:', projectNameKey);
+                        alert(`Excel文件中缺少必要的"项目名称"列，请检查文件格式！\n可能的原因：\n1. 表头名称不匹配"项目名称"\n2. Excel格式不正确\n3. 列名包含空格或特殊字符\n\n当前尝试的列名: ${projectNameKey}\n可用的列名: ${possibleKeys.join(', ')}`);
+                        progressDiv.style.display = 'none';
+                        return;
+                    }
+                    
+                    // 处理每个项目的报价单
+                    for (const projectName in groupedByProject) {
+                        const projectDetails = groupedByProject[projectName];
+                        
+                        // 如果项目名称为空或项目下没有明细，跳过
+                        if (!projectName || projectName.trim() === '' || projectDetails.length === 0) {
+                            console.warn('跳过无效项目名称或无明细的项目:', projectName);
+                            continue;
+                        }
+                        
+                        // 取第一条记录作为报价单数据
+                        const firstRecord = projectDetails[0];
+                        
+                        // 查找相关列键
+                        const findColumnKey = (possibleNames, defaultValue = '') => {
+                            for (const name of possibleNames) {
+                                if (possibleKeys.includes(name)) {
+                                    return name;
+                                }
+                            }
+                            
+                            // 模糊匹配
+                            for (const name of possibleNames) {
+                                const fuzzyKey = possibleKeys.find(key => 
+                                    (key.includes(name) || 
+                                    (typeof name === 'string' && key.toLowerCase().includes(name.toLowerCase()))));
+                                if (fuzzyKey) return fuzzyKey;
+                            }
+                            
+                            // 在__EMPTY列中查找
+                            const emptyKeys = possibleKeys.filter(key => key.startsWith('__EMPTY'));
+                            for (const key of emptyKeys) {
+                                const firstValue = useData[0][key];
+                                if (firstValue) {
+                                    for (const name of possibleNames) {
+                                        if (typeof firstValue === 'string' && 
+                                            (firstValue.includes(name) || 
+                                            (typeof name === 'string' && firstValue.toLowerCase().includes(name.toLowerCase())))) {
+                                            return key;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            return defaultValue;
+                        };
+                        
+                        // 查找关键列
+                        const productNameKey = findColumnKey(['产品名称', '产品', '名称', '产品型号名称', 'product'], '');
+                        const productModelKey = findColumnKey(['型号', '规格型号', '产品型号', 'model'], '');
+                        const priceKey = findColumnKey(['单价', '价格', '产品单价', 'price'], '');
+                        const quantityKey = findColumnKey(['数量', '产品数量', 'quantity'], '');
+                        const totalKey = findColumnKey(['合计', '总价', '产品总价', 'total'], '');
+                        const stageKey = findColumnKey(['阶段状态', '阶段', '项目阶段', 'stage'], '');
+                        const dateKey = findColumnKey(['日期', '时间', '创建日期', 'date'], '');
+                        
+                        console.log('识别的列映射:',
+                            '产品名称列:', productNameKey,
+                            '型号列:', productModelKey,
+                            '单价列:', priceKey,
+                            '数量列:', quantityKey,
+                            '合计列:', totalKey,
+                            '阶段列:', stageKey,
+                            '日期列:', dateKey
+                        );
+                        
+                        // 计算项目总额
+                        let totalAmount = 0;
+                        projectDetails.forEach(detail => {
+                            // 尝试从合计字段获取金额，如果不存在则尝试计算单价*数量
+                            let amount = 0;
+                            
+                            // 获取合计值
+                            if (totalKey && detail[totalKey] && !isNaN(parseFloat(detail[totalKey]))) {
+                                amount = parseFloat(detail[totalKey]);
+                            } 
+                            // 计算单价*数量
+                            else if (priceKey && quantityKey && 
+                                     detail[priceKey] && detail[quantityKey]) {
+                                const unitPrice = parseFloat(detail[priceKey]);
+                                const quantity = parseFloat(detail[quantityKey]);
+                                if (!isNaN(unitPrice) && !isNaN(quantity)) {
+                                    amount = unitPrice * quantity;
+                                }
+                            }
+                            
+                            if (!isNaN(amount)) {
+                                totalAmount += amount;
+                            }
+                        });
+                        
+                        // 生成报价单
+                        const today = new Date();
+                        let createdDate;
+                        // 尝试解析日期
+                        try {
+                            // 支持多种日期格式
+                            const dateStr = dateKey ? firstRecord[dateKey] : null;
+                            if (dateStr) {
+                                // 尝试常见格式 MM/DD/YY
+                                if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(dateStr)) {
+                                    const parts = dateStr.split('/');
+                                    // 美式日期格式 MM/DD/YY(YY)
+                                    const month = parseInt(parts[0]) - 1;
+                                    const day = parseInt(parts[1]);
+                                    let year = parseInt(parts[2]);
+                                    // 处理两位年份
+                                    if (year < 100) {
+                                        year = year < 50 ? 2000 + year : 1900 + year;
+                                    }
+                                    createdDate = new Date(year, month, day);
+                                } else {
+                                    // 尝试ISO格式或其他常见格式
+                                    createdDate = new Date(dateStr);
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('日期解析错误:', e);
+                        }
+                        
+                        // 如果日期无效，使用今天的日期
+                        if (!createdDate || isNaN(createdDate.getTime())) {
+                            createdDate = today;
+                        }
+                        
+                        const quotation = {
+                            project_name: projectName,
+                            project_stage: stageKey ? (firstRecord[stageKey] || '') : '',
+                            amount: totalAmount,
+                            created_at: createdDate.toISOString().split('T')[0],
+                            updated_at: today.toISOString().split('T')[0],
+                            total_details: projectDetails.length
+                        };
+                        
+                        quotation.quotation_number = generateQuotationNumber(createdDate);
+                        parsedQuotations.push(quotation);
+                        
+                        // 保存该报价单的明细数据
+                        quotationDetails[projectName] = projectDetails.map(detail => {
+                            // 确保数值类型的值有效
+                            const parseNumber = (value, defaultVal = 0) => {
+                                if (!value || value === '') return defaultVal;
+                                const parsed = parseFloat(value);
+                                return isNaN(parsed) ? defaultVal : parsed;
+                            };
+                            
+                            return {
+                                product_name: productNameKey ? (detail[productNameKey] || '') : '',
+                                product_model: productModelKey ? (detail[productModelKey] || '') : '',
+                                product_desc: findColumnKey(['指标描述', '描述', '说明']) ? (detail[findColumnKey(['指标描述', '描述', '说明'])] || '') : '',
+                                brand: findColumnKey(['品牌情况', '品牌', '厂商']) ? (detail[findColumnKey(['品牌情况', '品牌', '厂商'])] || '') : '',
+                                unit: findColumnKey(['单位', 'unit']) ? (detail[findColumnKey(['单位', 'unit'])] || '') : '',
+                                discount: parseNumber(detail[findColumnKey(['折扣', 'discount'])], 1),
+                                market_price: parseNumber(detail[findColumnKey(['零售单价', '市场价', '标准价'])]),
+                                unit_price: parseNumber(detail[priceKey]),
+                                total_price: parseNumber(detail[totalKey]),
+                                product_mn: findColumnKey(['MN', '型号编码']) ? (detail[findColumnKey(['MN', '型号编码'])] || '') : '',
+                                created_at: dateKey ? (detail[dateKey] || new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0],
+                                updated_at: findColumnKey(['更新时间']) ? (detail[findColumnKey(['更新时间'])] || new Date().toISOString().split('T')[0]) : new Date().toISOString().split('T')[0]
+                            };
+                        });
+                    }
+                    
+                    // 显示预览
+                    progressBar.style.width = '100%';
+                    setTimeout(() => {
+                        progressDiv.style.display = 'none';
+                        showQuotationPreview();
+                        importBtn.style.display = 'block';
+                        
+                        // 检查报价单与当前系统中的冲突
+                        checkQuotationConflicts(parsedQuotations)
+                            .then(data => {
+                                if (data.success) {
+                                    conflicts = data.conflicts || [];
+                                    
+                                    // 如果检测到冲突，显示冲突处理区域
+                                    if (conflicts.length > 0) {
+                                        showConflicts();
+                                    }
+                                } else {
+                                    console.error('检查冲突失败:', data.message);
+                                    alert('检查冲突失败: ' + data.message);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('处理冲突检查时出错:', error);
+                            });
+                    }, 500);
+                } catch (error) {
+                    console.error('解析Excel文件错误:', error);
+                    console.error('错误详情:', error.stack);
+                    
+                    // 使用错误诊断功能
+                    const errorAnalysis = analyzeExcelImportError(error, file.name, possibleKeys);
+                    
+                    // 构建详细错误消息
+                    let errorMessage = `解析Excel文件时出错: ${errorAnalysis.message}\n\n`;
+                    
+                    if (errorAnalysis.possibleCauses.length > 0) {
+                        errorMessage += '可能的原因:\n';
+                        errorAnalysis.possibleCauses.forEach((cause, index) => {
+                            errorMessage += `${index+1}. ${cause}\n`;
+                        });
+                        errorMessage += '\n';
+                    }
+                    
+                    if (errorAnalysis.solutions.length > 0) {
+                        errorMessage += '建议解决方案:\n';
+                        errorAnalysis.solutions.forEach((solution, index) => {
+                            errorMessage += `${index+1}. ${solution}\n`;
+                        });
+                    }
+                    
+                    alert(errorMessage);
+                    progressDiv.style.display = 'none';
+                }
+            };
+            
+            reader.onerror = function() {
+                alert('读取文件时出错');
+                progressDiv.style.display = 'none';
+            };
+            
+            reader.readAsArrayBuffer(file);
+        });
+    }
+    
+    // 生成报价单编号
+    function generateQuotationNumber(date) {
+        // 确保date是有效的Date对象
+        if (!(date instanceof Date) || isNaN(date.getTime())) {
+            date = new Date(); // 如果日期无效，使用当前日期
+        }
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const prefix = `QU${year}${month}-`;
+        
+        // 从localStorage获取当前月份的最后序号
+        let lastSequence = 0;
+        const storageKey = `quotation_sequence_${year}${month}`;
+        
+        try {
+            const savedSequence = localStorage.getItem(storageKey);
+            if (savedSequence) {
+                lastSequence = parseInt(savedSequence, 10);
+            }
+        } catch (e) {
+            console.warn('无法从localStorage读取序号', e);
+        }
+        
+        // 递增序号
+        const sequence = lastSequence + 1;
+        
+        // 更新localStorage中的序号
+        try {
+            localStorage.setItem(storageKey, sequence.toString());
+        } catch (e) {
+            console.warn('无法保存序号到localStorage', e);
+        }
+        
+        // 格式化为三位数
+        const formattedSequence = String(sequence).padStart(3, '0');
+        
+        return `${prefix}${formattedSequence}`;
+    }
+    
+    // 检查报价单冲突
+    function checkQuotationConflicts(quotations) {
+        console.log('检查报价单冲突，传入数据:', quotations);
+        
+        // 验证输入数据
+        if (!quotations || !Array.isArray(quotations) || quotations.length === 0) {
+            console.error('没有有效的报价单数据用于检查冲突', quotations);
+            alert('没有有效的报价单数据用于检查冲突，请检查Excel文件格式是否正确。');
+            return Promise.reject('没有有效的报价单数据用于检查冲突');
+        }
+        
+        // 验证每个报价单对象
+        for (const quotation of quotations) {
+            if (!quotation.project_name || quotation.project_name.trim() === '') {
+                console.error('报价单缺少项目名称', quotation);
+                alert('某些报价单缺少项目名称，请检查Excel文件格式。');
+                return Promise.reject('报价单缺少项目名称');
+            }
+        }
+        
+        return fetch('/api/quotations/check-conflicts', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ quotations: quotations })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('检查冲突请求失败: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('冲突检查结果:', data);
+            return data;
+        })
+        .catch(error => {
+            console.error('检查冲突发生错误:', error);
+            alert('检查冲突时发生错误: ' + error.message);
+            throw error;
+        });
+    }
+    
+    // 显示报价单预览
+    function showQuotationPreview() {
+        const previewTbody = document.getElementById('previewTableBody');
+        previewTbody.innerHTML = '';
+        
+        // 显示最多5条预览
+        const previewLimit = Math.min(parsedQuotations.length, 5);
+        
+        for (let i = 0; i < previewLimit; i++) {
+            const quotation = parsedQuotations[i];
+            const row = document.createElement('tr');
+            
+            row.innerHTML = `
+                <td>${quotation.quotation_number}</td>
+                <td>${quotation.project_name}</td>
+                <td>${quotation.project_stage}</td>
+                <td>${formatCurrency(quotation.amount)}</td>
+                <td>${quotation.total_details} 项</td>
+            `;
+            
+            previewTbody.appendChild(row);
+        }
+        
+        // 显示提示信息
+        const previewMore = document.getElementById('previewMore');
+        if (parsedQuotations.length > 5) {
+            previewMore.style.display = 'block';
+            previewMore.querySelector('p').textContent = `共 ${parsedQuotations.length} 个报价单待导入，仅显示前 5 个`;
+        } else {
+            previewMore.style.display = 'none';
+        }
+        
+        // 如果有过滤掉的表头行，显示提示
+        if (typeof skippedHeaderRows !== 'undefined' && skippedHeaderRows > 0) {
+            // 检查是否已存在过滤提示
+            let filterInfo = document.getElementById('headerFilterInfo');
+            if (!filterInfo) {
+                filterInfo = document.createElement('div');
+                filterInfo.id = 'headerFilterInfo';
+                filterInfo.className = 'alert alert-info mt-2';
+                previewDiv.appendChild(filterInfo);
+            }
+            
+            // 更新提示内容
+            filterInfo.innerHTML = `
+                <i class="fas fa-info-circle"></i> 系统已自动识别并过滤掉 <strong>${skippedHeaderRows}</strong> 行疑似表头或无效数据。
+                这些行通常是表头重复、格式错误或不包含有效数据的行。
+            `;
+        }
+        
+        previewDiv.style.display = 'block';
+    }
+    
+    // 显示冲突
+    function showConflicts() {
+        const conflictsTbody = document.getElementById('conflictsTableBody');
+        conflictsTbody.innerHTML = '';
+        
+        // 在冲突标题上方添加说明信息
+        const conflictInfoDiv = document.getElementById('conflictInfo');
+        if (conflictInfoDiv) {
+            conflictInfoDiv.innerHTML = `
+                <div class="alert alert-info">
+                    <ul class="mb-0">
+                        <li><strong>忽略</strong>: 跳过此项目，不导入任何明细</li>
+                        <li><strong>添加</strong>: 将明细添加到已有的报价单中，不会创建新的报价单</li>
+                        <li><strong>覆盖</strong>: 删除已有报价单及其明细，创建全新的报价单</li>
+                    </ul>
+                    <p class="mt-2 mb-0 small text-danger">注意: 对于已有报价单的项目，选择"添加"选项不会使用表格中的新编号，而是保留原有报价单编号</p>
+                </div>
+            `;
+        }
+        
+        conflicts.forEach((conflict, index) => {
+            const row = document.createElement('tr');
+            
+            row.innerHTML = `
+                <td>${conflict.project_name}</td>
+                <td>${conflict.existing_quotation ? conflict.existing_quotation.quotation_number : '无'}</td>
+                <td>${parsedQuotations.find(q => q.project_name === conflict.project_name).quotation_number}</td>
+                <td>
+                    <select class="form-select form-select-sm conflict-action" data-index="${index}">
+                        <option value="ignore" selected>忽略</option>
+                        <option value="add">添加到已有报价单</option>
+                        <option value="overwrite">覆盖现有报价单</option>
+                    </select>
+                </td>
+            `;
+            
+            conflictsTbody.appendChild(row);
+            
+            // 初始化冲突操作
+            conflictActions[index] = 'ignore';
+        });
+        
+        // 添加冲突操作变更事件监听
+        document.querySelectorAll('.conflict-action').forEach(select => {
+            select.addEventListener('change', function() {
+                const index = this.getAttribute('data-index');
+                conflictActions[index] = this.value;
+            });
+        });
+        
+        conflictsDiv.style.display = 'block';
+    }
+    
+    // 全部忽略冲突
+    if (ignoreAllConflictsBtn) {
+        ignoreAllConflictsBtn.addEventListener('click', function() {
+            document.querySelectorAll('.conflict-action').forEach(select => {
+                select.value = 'ignore';
+                const index = select.getAttribute('data-index');
+                conflictActions[index] = 'ignore';
+            });
+        });
+    }
+    
+    // 全部添加冲突
+    if (keepAllConflictsBtn) {
+        keepAllConflictsBtn.addEventListener('click', function() {
+            document.querySelectorAll('.conflict-action').forEach(select => {
+                select.value = 'add';
+                const index = select.getAttribute('data-index');
+                conflictActions[index] = 'add';
+            });
+        });
+    }
+    
+    // 全部覆盖冲突
+    if (overwriteAllConflictsBtn) {
+        overwriteAllConflictsBtn.addEventListener('click', function() {
+            document.querySelectorAll('.conflict-action').forEach(select => {
+                select.value = 'overwrite';
+                const index = select.getAttribute('data-index');
+                conflictActions[index] = 'overwrite';
+            });
+        });
+    }
+    
+    // 导入报价单
+    if (importBtn) {
+        importBtn.addEventListener('click', function() {
+            const ownerId = ownerSelect.value;
+            
+            if (parsedQuotations.length === 0) {
+                alert('没有可导入的数据');
+                return;
+            }
+            
+            // 显示进度条
+            resultDiv.style.display = 'none';
+            progressDiv.style.display = 'block';
+            const progressBar = progressDiv.querySelector('.progress-bar');
+            progressBar.style.width = '0%';
+            
+            // 禁用导入按钮，防止重复提交
+            importBtn.disabled = true;
+            
+            // 数据校验
+            let hasError = false;
+            let errorMessage = '';
+            
+            // 检查每个报价单
+            parsedQuotations.forEach((quotation, index) => {
+                // 检查总价是否为0
+                if (quotation.amount <= 0) {
+                    hasError = true;
+                    errorMessage += `• 项目"${quotation.project_name}"的总价为零，请检查明细数据\n`;
+                }
+                
+                // 检查明细数量
+                const details = quotationDetails[quotation.project_name];
+                if (!details || details.length === 0) {
+                    hasError = true;
+                    errorMessage += `• 项目"${quotation.project_name}"没有明细数据\n`;
+                }
+            });
+            
+            // 如果有错误，显示确认对话框
+            if (hasError) {
+                const confirmImport = confirm(`导入数据存在以下问题:\n${errorMessage}\n是否仍要继续导入？`);
+                if (!confirmImport) {
+                    // 用户取消导入
+                    importBtn.disabled = false;
+                    progressDiv.style.display = 'none';
+                    return;
+                }
+            }
+            
+            // 准备需要导入的数据，确保每个项目名称只出现一次
+            const quotationsToImport = [];
+            const processedProjects = new Set(); // 用于跟踪已处理的项目名称
+            
+            parsedQuotations.forEach((quotation, index) => {
+                // 跳过已处理的项目
+                if (processedProjects.has(quotation.project_name)) {
+                    console.log(`跳过重复的项目名称: ${quotation.project_name}`);
+                    return;
+                }
+                
+                // 检查是否是冲突项
+                const conflictIndex = conflicts.findIndex(c => c.project_name === quotation.project_name);
+                
+                // 如果是冲突项，且冲突处理方式是忽略，则跳过
+                if (conflictIndex !== -1 && conflictActions[conflictIndex] === 'ignore') {
+                    return;
+                }
+                
+                // 标记为已处理
+                processedProjects.add(quotation.project_name);
+                
+                // 添加到要导入的列表
+                quotationsToImport.push({
+                    ...quotation,
+                    details: quotationDetails[quotation.project_name],
+                    conflict_action: conflictIndex !== -1 ? conflictActions[conflictIndex] : null
+                });
+            });
+            
+            // 检查导入数据
+            console.log('要导入的报价单数据:', quotationsToImport);
+            console.log(`解析了 ${parsedQuotations.length} 个报价单，去重后准备导入 ${quotationsToImport.length} 个`);
+            quotationsToImport.forEach(q => {
+                console.log(`项目 ${q.project_name} 明细数量:`, q.details ? q.details.length : 0);
+                console.log(`项目 ${q.project_name} 总价:`, q.amount);
+            });
+            
+            // 发送数据到服务器
+            fetch('/api/quotations/import', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({
+                    owner_id: ownerId,
+                    quotations: quotationsToImport
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // 启用导入按钮
+                importBtn.disabled = false;
+                progressBar.style.width = '100%';
+                
+                setTimeout(() => {
+                    progressDiv.style.display = 'none';
+                    
+                    if (data.success) {
+                        // 显示导入结果
+                        const summaryElem = document.getElementById('importSummary');
+                        summaryElem.innerHTML = `
+                            成功导入 ${data.imported_count} 个报价单，
+                            共 ${data.details_count} 条明细，
+                            跳过 ${data.skipped_count} 个冲突项，
+                            出错 ${data.error_count} 项。
+                        `;
+                        
+                        // 如果有错误，显示错误详情
+                        const errorDetailsDiv = document.getElementById('importErrorDetails');
+                        if (data.error_count > 0 && data.error_details && data.error_details.length > 0) {
+                            const errorTbody = document.getElementById('errorDetailsTableBody');
+                            errorTbody.innerHTML = '';
+                            
+                            data.error_details.forEach(error => {
+                                const row = document.createElement('tr');
+                                row.innerHTML = `
+                                    <td>${error.line}</td>
+                                    <td>${error.project_name}</td>
+                                    <td>${error.reason}</td>
+                                `;
+                                errorTbody.appendChild(row);
+                            });
+                            
+                            errorDetailsDiv.style.display = 'block';
+                        } else {
+                            errorDetailsDiv.style.display = 'none';
+                        }
+                        
+                        resultDiv.style.display = 'block';
+                        
+                        // 如果导入成功，三秒后刷新页面
+                        if (data.imported_count > 0) {
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 3000);
+                        }
+                    } else {
+                        alert('导入失败: ' + data.message);
+                    }
+                }, 500);
+            })
+            .catch(error => {
+                console.error('导入报价单时出错:', error);
+                alert('导入报价单时出错');
+                importBtn.disabled = false;
+                progressDiv.style.display = 'none';
+            });
+        });
+    }
+    
+    // 格式化货币数字
+    function formatCurrency(value) {
+        if (value === undefined || value === null) return '¥0.00';
+        return '¥' + parseFloat(value).toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
+    }
+
+    // 准备导入函数
+    function prepareForImport() {
+        // 无冲突，直接显示导入按钮
+        importBtn.style.display = 'block';
+        // 隐藏冲突区域
+        conflictsDiv.style.display = 'none';
+    }
+
+    // 处理Excel模板下载
+    const downloadTemplateBtn = document.getElementById('downloadTemplateBtn');
+    if (downloadTemplateBtn) {
+        downloadTemplateBtn.addEventListener('click', function() {
+            // 创建一个空的工作簿
+            const wb = XLSX.utils.book_new();
+            
+            // 创建表头
+            const headers = ['项目名称', '产品名称', '型号', '指标描述', '品牌情况', '单位', '数量', '单价', '合计', '折扣', '零售单价', '日期', '阶段状态'];
+            
+            // 示例数据
+            const sampleData = [
+                ['江苏省某大学数据中心建设项目', '网络安全存储设备', 'NFX-GATW', '网络存储安全网关', '自研', '台', 1, 450000, 450000, 0.9, 500000, '2025/4/18', '精装修'],
+                ['江苏省某大学数据中心建设项目', '定向耦合器', 'EVDC-6 LT', '智能定向耦合检测', '自研', '台', 2, 35000, 70000, 0.85, 41176.47, '2025/4/18', '精装修'],
+                ['北京某学校建筑改造工程', '运维工具包', 'ACC-NUT', '内含全套系统维护工具', '原厂', '套', 1, 10000, 10000, 1, 10000, '2025/4/15', '初步设计']
+            ];
+            
+            // 将表头和示例数据合并
+            const wsData = [headers, ...sampleData];
+            
+            // 创建工作表
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            
+            // 设置列宽
+            ws['!cols'] = [
+                {wch: 35}, // 项目名称
+                {wch: 20}, // 产品名称
+                {wch: 15}, // 型号
+                {wch: 25}, // 指标描述
+                {wch: 15}, // 品牌情况
+                {wch: 8},  // 单位
+                {wch: 8},  // 数量
+                {wch: 12}, // 单价
+                {wch: 12}, // 合计
+                {wch: 8},  // 折扣
+                {wch: 12}, // 零售单价
+                {wch: 12}, // 日期
+                {wch: 15}  // 阶段状态
+            ];
+            
+            // 设置单元格样式（模拟，真实样式需要其他库支持）
+            // 强调表头
+            for (let i = 0; i < headers.length; i++) {
+                const cellRef = XLSX.utils.encode_cell({r: 0, c: i});
+                if (!ws[cellRef]) ws[cellRef] = { v: headers[i] };
+                ws[cellRef].s = { font: { bold: true }, fill: { fgColor: { rgb: "FFDDDDDD" } } };
+            }
+            
+            // 为工作簿添加工作表
+            XLSX.utils.book_append_sheet(wb, ws, "报价单模板");
+            
+            // 添加说明工作表
+            const instrSheet = XLSX.utils.aoa_to_sheet([
+                ['报价单Excel导入格式说明'],
+                [''],
+                ['1. 表格必须包含"项目名称"列，系统将按此列分组生成报价单'],
+                ['2. 必要的列包括：项目名称、产品名称、型号、单价/数量(或合计)'],
+                ['3. 表头名称要尽量与模板保持一致，否则可能无法正确解析'],
+                ['4. 如果列名被合并单元格，可能会影响导入，请避免使用合并单元格'],
+                ['5. 所有数值列请确保是数值格式，避免使用文本格式'],
+                ['6. 日期建议使用YYYY/MM/DD格式'],
+                [''],
+                ['如果导入失败，请尝试以下操作：'],
+                ['1. 使用此模板重新录入数据'],
+                ['2. 确保表头是第一行，没有合并单元格'],
+                ['3. 检查必要列是否存在且命名正确'],
+                ['4. 确保每行数据对应一个产品，且都有项目名称']
+            ]);
+            
+            // 设置说明列宽
+            instrSheet['!cols'] = [{wch: 60}];
+            
+            // 添加说明工作表
+            XLSX.utils.book_append_sheet(wb, instrSheet, "使用说明");
+            
+            // 导出Excel文件
+            XLSX.writeFile(wb, "报价单导入模板.xlsx");
+        });
+    }
+
+    // 添加Excel解析错误诊断功能
+    function analyzeExcelImportError(errorObj, fileName = '', possibleKeys = []) {
+        console.error('Excel导入错误分析:', errorObj);
+        
+        let errorAnalysis = {
+            message: '未知错误',
+            possibleCauses: [],
+            solutions: []
+        };
+        
+        // 根据错误类型分析
+        if (errorObj instanceof Error) {
+            errorAnalysis.message = errorObj.message;
+            
+            // 检查常见错误模式
+            if (errorObj.message.includes('Unexpected token') || errorObj.message.includes('JSON')) {
+                errorAnalysis.possibleCauses.push('Excel文件格式解析失败');
+                errorAnalysis.possibleCauses.push('文件可能已损坏或格式不兼容');
+                errorAnalysis.solutions.push('请使用标准Excel格式(.xlsx)重新保存文件');
+                errorAnalysis.solutions.push('避免使用过旧版本的Excel或其他电子表格软件创建的文件');
+            }
+            else if (errorObj.message.includes('项目名称')) {
+                errorAnalysis.possibleCauses.push('找不到"项目名称"列');
+                errorAnalysis.possibleCauses.push('表头行可能不在第一行');
+                errorAnalysis.possibleCauses.push('Excel中的列名与系统要求不匹配');
+                
+                if (possibleKeys && possibleKeys.length > 0) {
+                    if (possibleKeys.some(k => k.startsWith('__EMPTY'))) {
+                        errorAnalysis.possibleCauses.push('表头格式异常，检测到空列名');
+                        errorAnalysis.solutions.push('请确保Excel第一行包含有效的列名');
+                        errorAnalysis.solutions.push('避免使用合并单元格作为表头');
+                    }
+                }
+                
+                errorAnalysis.solutions.push('请使用系统提供的Excel模板');
+                errorAnalysis.solutions.push('确保表格第一行是列名，且包含"项目名称"列');
+            }
+            else if (errorObj.message.includes('read') || errorObj.message.includes('access')) {
+                errorAnalysis.possibleCauses.push('无法读取文件');
+                errorAnalysis.possibleCauses.push('文件可能被其他程序锁定');
+                errorAnalysis.solutions.push('关闭所有打开的Excel程序后重试');
+                errorAnalysis.solutions.push('重新上传文件');
+            }
+        }
+        
+        // 添加一些通用的解决方案
+        if (errorAnalysis.solutions.length === 0) {
+            errorAnalysis.solutions.push('下载并使用系统提供的标准Excel模板');
+            errorAnalysis.solutions.push('确保Excel第一行为列名，且包含必要的列');
+            errorAnalysis.solutions.push('避免使用合并单元格、公式或特殊格式');
+        }
+        
+        return errorAnalysis;
+    }
+});
+</script>
+{% endblock scripts %}
+{% endblock content %}

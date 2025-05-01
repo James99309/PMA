@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1 class="mb-4">销售报表系统</h1>
+        <div class="row">
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">项目管理</h5>
+                        <p class="card-text">管理销售项目信息，包括项目状态、授权编号等。</p>
+                        <a href="{{ url_for('projects') }}" class="btn btn-primary">进入</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">客户管理</h5>
+                        <p class="card-text">管理客户信息，包括公司名称、联系人等。</p>
+                        <a href="{{ url_for('customers') }}" class="btn btn-primary">进入</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">报价管理</h5>
+                        <p class="card-text">管理产品报价信息，包括公司信息、地址等。</p>
+                        <a href="{{ url_for('quotations') }}" class="btn btn-primary">进入</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">积分管理</h5>
+                        <p class="card-text">管理项目积分，包括设计院、经销商等积分。</p>
+                        <a href="{{ url_for('scores') }}" class="btn btn-primary">进入</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

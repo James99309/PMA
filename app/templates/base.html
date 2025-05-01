@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}项目管理系统{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --pa-blue: #16a0bf;
+            --pa-dark-blue: #0e7c8f;
+            --pa-light-blue: #1db0d3;
+            --pa-bg-light: #f8f9fa;
+        }
+        body {
+            background-color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .top-nav {
+            background-color: #17a2b8;
+            color: white;
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+        }
+        .top-nav a {
+            color: white;
+            text-decoration: none;
+            margin-left: 15px;
+        }
+        .top-nav .user-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .top-nav .user-dropdown-toggle {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            min-width: 150px;
+            text-align: right;
+        }
+        .top-nav .user-dropdown-toggle:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .top-nav .user-dropdown-menu {
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: none;
+            z-index: 1000;
+            min-width: 160px;
+        }
+        .top-nav .user-dropdown-menu.show {
+            display: block;
+        }
+        .top-nav .user-dropdown-item {
+            display: block;
+            padding: 8px 15px;
+            color: #333;
+            text-decoration: none;
+        }
+        .top-nav .user-dropdown-item:hover {
+            background-color: #f5f5f5;
+        }
+        .top-nav .user-dropdown-item i {
+            margin-right: 8px;
+            width: 16px;
+            text-align: center;
+        }
+        .top-nav .user-info {
+            display: flex;
+            align-items: center;
+        }
+        .top-nav .user-avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: #0b5ed7;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 8px;
+            font-size: 12px;
+        }
+        .top-nav .badge {
+            font-size: 0.7rem;
+            font-weight: normal;
+            padding: 0.2em 0.6em;
+            margin-left: 5px;
+        }
+        .top-nav .user-info span {
+            display: flex;
+            align-items: center;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            font-size: 1.4rem;
+            margin: 10px 0;
+        }
+        .logo img {
+            height: 40px;
+            margin-right: 10px;
+        }
+        .logo span {
+            color: var(--pa-blue);
+            font-weight: 300;
+        }
+        .logo strong {
+            color: #333;
+        }
+        .main-nav {
+            border-bottom: 1px solid #e7e7e7;
+            margin-bottom: 20px;
+        }
+        .main-nav .nav-link {
+            color: #333;
+            font-weight: 500;
+            padding: 1rem 1.5rem;
+            border-bottom: 2px solid transparent;
+        }
+        .main-nav .nav-link:hover,
+        .main-nav .nav-link.active {
+            color: var(--pa-blue);
+            border-bottom: 2px solid var(--pa-blue);
+        }
+        .btn-primary {
+            background-color: var(--pa-blue);
+            border-color: var(--pa-blue);
+        }
+        .btn-primary:hover {
+            background-color: var(--pa-dark-blue);
+            border-color: var(--pa-dark-blue);
+        }
+        .btn-outline-primary {
+            color: var(--pa-blue);
+            border-color: var(--pa-blue);
+        }
+        .btn-outline-primary:hover {
+            background-color: var(--pa-blue);
+            border-color: var(--pa-blue);
+        }
+        .card {
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border: 1px solid #e7e7e7;
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background-color: #fff;
+            border-bottom: 1px solid #e7e7e7;
+            font-weight: 500;
+        }
+        .dashboard-card {
+            border-radius: 4px;
+            border: 1px solid #e7e7e7;
+            padding: 15px;
+            height: 100%;
+        }
+        .dashboard-title {
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 15px;
+            color: #333;
+        }
+    </style>
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <!-- 顶部导航 -->
+    <div class="top-nav d-flex justify-content-end">
+        {% if current_user.is_authenticated or session.get('user_id') %}
+        {# 角色名称映射 #}
+        {% set role_names = {
+            'admin': '管理员',
+            'user': '普通用户',
+            'sales': '销售人员',
+            'channel_manager': '渠道经理',
+            'marketing_director': '营销总监',
+            'service': '服务人员',
+            'service_manager': '服务经理',
+            'dealer': '经销商',
+            'product_manager': '产品经理',
+            'solution_manager': '解决方案经理'
+        } %}
+        <div class="user-dropdown">
+            <div class="user-dropdown-toggle" id="userDropdown">
+                <div class="user-info">
+                    <div class="user-avatar">
+                        {{ current_user.username[0].upper() if current_user.username else session.get('username', 'U')[0].upper() }}
+                    </div>
+                    <span>
+                        {{ current_user.username or session.get('username', '用户') }}
+                    </span>
+                    <i class="fas fa-caret-down ml-2 ms-2"></i>
+                </div>
+            </div>
+            <div class="user-dropdown-menu" id="userDropdownMenu">
+                <a href="#" class="user-dropdown-item">
+                    <i class="fas fa-user"></i> 个人资料
+                </a>
+                <a href="#" class="user-dropdown-item">
+                    <i class="fas fa-cog"></i> 设置
+                </a>
+                <div class="dropdown-divider"></div>
+                <a href="{{ url_for('auth.logout') }}" class="user-dropdown-item">
+                    <i class="fas fa-sign-out-alt"></i> 退出登录
+                </a>
+            </div>
+        </div>
+        {% else %}
+        <a href="{{ url_for('auth.login') }}"><i class="fas fa-sign-in-alt me-1"></i> 登录</a>
+        <a href="{{ url_for('auth.register') }}"><i class="fas fa-user-plus me-1"></i> 注册</a>
+        {% endif %}
+    </div>
+
+    <!-- 品牌和主导航 -->
+    <div class="container">
+        <div class="logo">
+            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo">
+            <div>
+                <span>项目</span><strong>管理系统</strong>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主导航 -->
+    <nav class="main-nav">
+        <div class="container">
+            <ul class="nav nav-tabs">
+                {% if current_user.is_authenticated or session.get('user_id') %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if request.endpoint.startswith('main.') else '' }}" href="{{ url_for('main.index') }}">仪表盘</a>
+                </li>
+                
+                {% if has_permission('customer', 'view') %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if request.endpoint.startswith('customer.') else '' }}" href="{{ url_for('customer.list_companies') }}">客户管理</a>
+                </li>
+                {% endif %}
+                
+                {% if has_permission('project', 'view') %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if request.endpoint.startswith('project.') else '' }}" href="{{ url_for('project.list_projects') }}">项目管理</a>
+                </li>
+                {% endif %}
+                
+                {% if has_permission('quotation', 'view') %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if request.endpoint.startswith('quotation.') else '' }}" href="{{ url_for('quotation.list_quotations') }}">报价管理</a>
+                </li>
+                {% endif %}
+                
+                {% if has_permission('product', 'view') %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if request.endpoint.startswith('product_route.') else '' }}" href="{{ url_for('product_route.product_list') }}">产品管理</a>
+                </li>
+                {% endif %}
+                
+                {% if has_permission('product_code', 'view') %}
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle {{ 'active' if request.endpoint.startswith('product_code.') or request.endpoint.startswith('product_management.') else '' }}" 
+                       href="#" id="productCodeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        产品编码
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="productCodeDropdown">
+                        {% if current_user.role == 'admin' %}
+                        <li><a class="dropdown-item" href="{{ url_for('product_code.categories') }}">分类管理</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('product_code.origin_fields') }}">销售区域管理</a></li>
+                        {% endif %}
+                        {% if has_permission('product_code', 'view') %}
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('product_management.index') }}">产品管理</a></li>
+                        {% endif %}
+                    </ul>
+                </li>
+                {% endif %}
+                
+                {% if has_permission('user', 'view') %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if request.endpoint.startswith('user.') else '' }}" href="{{ url_for('user.list_users') }}">用户管理</a>
+                </li>
+                {% endif %}
+                
+                {% endif %}
+            </ul>
+        </div>
+    </nav>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="container mt-2">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <main class="container mb-5">
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 用户下拉菜单交互
+        document.addEventListener('DOMContentLoaded', function() {
+            const userDropdown = document.getElementById('userDropdown');
+            const userDropdownMenu = document.getElementById('userDropdownMenu');
+            
+            if(userDropdown && userDropdownMenu) {
+                userDropdown.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    userDropdownMenu.classList.toggle('show');
+                });
+                
+                // 点击其他区域关闭下拉菜单
+                document.addEventListener('click', function() {
+                    userDropdownMenu.classList.remove('show');
+                });
+                
+                // 防止点击菜单内部时关闭菜单
+                userDropdownMenu.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                });
+            }
+            
+            // 设置AJAX请求的CSRF令牌
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            
+            // 为所有AJAX请求添加CSRF令牌
+            $(document).ajaxSend(function(e, xhr, options) {
+                xhr.setRequestHeader("X-CSRFToken", csrfToken);
+            });
+            
+            // 为fetch请求准备CSRF头
+            window.fetchWithCsrf = function(url, options = {}) {
+                options.headers = options.headers || {};
+                options.headers['X-CSRFToken'] = csrfToken;
+                return fetch(url, options);
+            };
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html> 

@@ -1,0 +1,2054 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_authorization_code, render_datetime %}
+
+{% block title %}项目管理{% endblock %}
+
+{% block content %}
+<!--
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                               🔒 保护文件声明 🔒                                ║
+║                                                                                ║
+║  此文件被系统标记为受保护文件，未经倪捷明确许可，严禁修改任何代码！             ║
+║  修改此文件可能导致整个项目列表功能失效或显示异常。                            ║
+║                                                                                ║
+║  🚫 禁止修改内容包括但不限于：                                                 ║
+║  - 表格结构和样式                                                              ║
+║  - 变量名称引用方式                                                            ║
+║  - CSS类名和样式定义                                                           ║
+║  - JavaScript功能函数                                                          ║
+║                                                                                ║
+║  📝 如确实需要修改，请联系倪捷获取明确许可。                                    ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+-->
+
+<!-- 添加一个隐藏的div用于检查变量是否存在 -->
+<div style="display:none;">
+    <!-- 检查companies是否已定义 -->
+    {% if companies is defined %}
+        <span id="companies-check">companies变量已定义</span>
+    {% else %}
+        <span id="companies-check">companies变量未定义</span>
+    {% endif %}
+    
+    <!-- 检查projects是否已定义 -->
+    {% if projects is defined %}
+        <span id="projects-check">projects变量已定义</span>
+    {% else %}
+        <span id="projects-check">projects变量未定义</span>
+    {% endif %}
+</div>
+
+<!--
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                                  ⚠️ 重要警告 ⚠️                                  ║
+║                                                                                ║
+║  以下代码结构和样式是经过精心设计的，用于确保项目列表页面的正确显示和功能。        ║
+║  特别是表格的布局、固定列和滚动行为都需要保持完整性。                            ║
+║                                                                                ║
+║  🚫 未经倪捷同意，请勿修改：                                                    ║
+║  1. 表格容器的结构和类名                                                       ║
+║  2. 操作列的固定定位样式                                                       ║
+║  3. 表格的响应式布局                                                          ║
+║  4. 条纹行和悬停效果的样式                                                     ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+-->
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col">
+            <!-- 搜索和添加按钮部分 -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="input-group" style="max-width: 300px;">
+                    <input type="text" class="form-control" id="searchInput" placeholder="搜索项目名称..." value="{{ search_term }}">
+                    <button class="btn btn-outline-secondary" type="button" id="searchButton">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+                <div>
+                    {% if has_permission('project', 'create') %}
+                    <a href="{{ url_for('project.add_project') }}" class="btn btn-primary me-2">
+                        <i class="fas fa-plus"></i> 添加项目
+                    </a>
+                    <button id="importProjectsBtn" class="btn btn-info me-2">
+                        <i class="fas fa-file-import"></i> 批量导入
+                    </button>
+                    {% endif %}
+                    {% if has_permission('project', 'delete') and current_user.role == 'admin' %}
+                    <button id="batchDeleteBtn" class="btn btn-danger" style="display: none;">
+                        <i class="fas fa-trash"></i> 批量删除
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- !!! 重要：表格容器结构 - 不要修改这个结构 !!! -->
+            <div class="table-container">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                {% if has_permission('project', 'delete') %}
+                                <th style="width: 40px;" rowspan="2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="selectAll">
+                                    </div>
+                                </th>
+                                {% endif %}
+                                <th style="min-width: 120px;" data-sort="authorization_code">
+                                    <div class="th-content">
+                                        <span class="th-text">授权编号</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="authorization_code"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="authorization_code"></i>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th style="min-width: 200px;" data-sort="project_name">
+                                    <div class="th-content">
+                                        <span class="th-text">项目名称</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="project_name"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="project_name"></i>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th style="min-width: 120px;" data-sort="report_time">
+                                    <div class="th-content">
+                                        <span class="th-text">报备时间</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="report_time"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="report_time"></i>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th style="min-width: 100px;" data-sort="report_source">
+                                    <div class="th-content">
+                                        <span class="th-text">报备来源</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="report_source"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="report_source"></i>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th style="min-width: 100px;" data-sort="project_type">
+                                    <div class="th-content">
+                                        <span class="th-text">项目类型</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="project_type"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="project_type"></i>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th style="min-width: 100px;" data-sort="product_situation">
+                                    <div class="th-content">
+                                        <span class="th-text">品牌情况</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="product_situation"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="product_situation"></i>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th style="min-width: 100px;" data-sort="current_stage">
+                                    <div class="th-content">
+                                        <span class="th-text">当前阶段</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="current_stage"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="current_stage"></i>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th style="min-width: 120px;" data-sort="quotation_customer">
+                                    <div class="th-content">
+                                        <span class="th-text">报价（元）</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="quotation_customer"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="quotation_customer"></i>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th style="min-width: 150px;" data-sort="end_user">
+                                    <div class="th-content">
+                                        <span class="th-text">直接用户</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="end_user"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="end_user"></i>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th style="min-width: 150px;" data-sort="design_issues">
+                                    <div class="th-content">
+                                        <span class="th-text">设计院及顾问</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="design_issues"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="design_issues"></i>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th style="min-width: 150px;" data-sort="contractor">
+                                    <div class="th-content">
+                                        <span class="th-text">总承包单位</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="contractor"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="contractor"></i>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th style="min-width: 150px;" data-sort="system_integrator">
+                                    <div class="th-content">
+                                        <span class="th-text">系统集成商</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="system_integrator"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="system_integrator"></i>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th style="min-width: 120px;" data-sort="delivery_forecast">
+                                    <div class="th-content">
+                                        <span class="th-text">出货预测日期</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="delivery_forecast"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="delivery_forecast"></i>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th style="min-width: 100px;" data-sort="owner_id">
+                                    <div class="th-content">
+                                        <span class="th-text">拥有人</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="owner_id"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="owner_id"></i>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th style="min-width: 150px;" data-sort="created_at">
+                                    <div class="th-content">
+                                        <span class="th-text">创建时间</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="created_at"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="created_at"></i>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th style="min-width: 150px;" data-sort="updated_at">
+                                    <div class="th-content">
+                                        <span class="th-text">更新时间</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="updated_at"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="updated_at"></i>
+                                        </div>
+                                    </div>
+                                </th>
+                            </tr>
+                            <tr class="filter-row" style="display: none;">
+                                {% if not has_permission('project', 'delete') %}
+                                <!-- 当没有删除权限时，不需要添加额外的checkbox列 -->
+                                {% endif %}
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="authorization_code" placeholder="筛选..."></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="project_name" placeholder="筛选..."></th>
+                                <th><input type="date" class="form-control form-control-sm filter-input" data-field="report_time"></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="report_source" placeholder="筛选..."></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="project_type" placeholder="筛选..."></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="product_situation" placeholder="筛选..."></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="current_stage" placeholder="筛选..."></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="quotation_customer" placeholder="筛选..."></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="end_user" placeholder="筛选..."></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="design_issues" placeholder="筛选..."></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="contractor" placeholder="筛选..."></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="system_integrator" placeholder="筛选..."></th>
+                                <th><input type="date" class="form-control form-control-sm filter-input" data-field="delivery_forecast"></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="owner_id" placeholder="筛选..."></th>
+                                <th><input type="date" class="form-control form-control-sm filter-input" data-field="created_at"></th>
+                                <th><input type="date" class="form-control form-control-sm filter-input" data-field="updated_at"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for project in projects %}
+                            <tr>
+                                {% if has_permission('project', 'delete') %}
+                                <td>
+                                    <div class="form-check">
+                                        <input class="form-check-input project-checkbox" type="checkbox" value="{{ project.id }}" 
+                                               {% if current_user.role != 'admin' and current_user.id != project.owner_id %}disabled{% endif %}>
+                                    </div>
+                                </td>
+                                {% endif %}
+                                <td>
+                                    {% if project.authorization_code %}
+                                        {{ render_authorization_code(project.authorization_code, project.project_type) }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('project.view_project', project_id=project.id) }}" class="project-link">
+                                        {{ project.project_name }}
+                                    </a>
+                                </td>
+                                <td>{{ render_date(project.report_time) }}</td>
+                                <td>{{ project.report_source if project.report_source else '' }}</td>
+                                <td>{{ render_project_type(project.project_type) if project.project_type else '' }}</td>
+                                <td>{{ project.product_situation if project.product_situation else '' }}</td>
+                                <td>{{ project.current_stage if project.current_stage else '' }}</td>
+                                <td>
+                                    {% if project.quotation_customer and project.quotations.count() > 0 %}
+                                    <a href="{{ url_for('quotation.view_quotation', id=project.quotations.order_by(Quotation.created_at.desc()).first().id) }}" 
+                                       class="quotation-link" title="查看报价单详情">
+                                        {{ '{:,.2f}'.format(project.quotation_customer) }}
+                                    </a>
+                                    {% else %}
+                                    {{ '{:,.2f}'.format(project.quotation_customer) if project.quotation_customer else '' }}
+                                    {% endif %}
+                                </td>
+                                <td>{{ project.end_user if project.end_user else '' }}</td>
+                                <td>{{ project.design_issues if project.design_issues else '' }}</td>
+                                <td>{{ project.contractor if project.contractor else '' }}</td>
+                                <td>{{ project.system_integrator if project.system_integrator else '' }}</td>
+                                <td>{{ render_date(project.delivery_forecast) }}</td>
+                                <td>{{ render_owner(project.owner) if project.owner else '' }}</td>
+                                <td>{{ render_datetime(project.created_at) }}</td>
+                                <td>{{ render_datetime(project.updated_at) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加滚动控制按钮 -->
+<div class="scroll-controls">
+    <button type="button" class="btn btn-sm btn-light scroll-top" title="滚动到顶部">
+        <i class="fas fa-chevron-up"></i>
+    </button>
+    <button type="button" class="btn btn-sm btn-light scroll-bottom" title="滚动到底部">
+        <i class="fas fa-chevron-down"></i>
+    </button>
+</div>
+
+<!-- 
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                              ⚠️ 关键样式定义 ⚠️                                 ║
+║                                                                                ║
+║  以下样式是保证表格正确显示和行为的关键。修改这些样式可能会破坏：               ║
+║  - 表格的响应式布局                                                           ║
+║  - 操作列的固定定位                                                           ║
+║  - 条纹行和悬停效果                                                           ║
+║                                                                                ║
+║  🚫 如需修改，请先获得倪捷的确认                                               ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+-->
+<style>
+/* !!! 核心布局样式 - 不要修改 !!! */
+.table-container {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    margin-bottom: 20px; /* 添加底部间距 */
+}
+
+.table-responsive {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    overflow-x: auto;
+    max-height: 65vh; /* 设置最大高度为视口高度的65% */
+    overflow-y: auto; /* 添加垂直滚动 */
+}
+
+.table {
+    margin-bottom: 0;
+    font-size: 14px; /* 将表格字体大小设置为14px */
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+/* !!! 表头固定样式 - 不要修改 !!! */
+.table th {
+    white-space: nowrap;
+    background-color: #f8f9fa;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.1); /* 添加阴影增强表头分隔效果 */
+}
+
+.table td {
+    white-space: nowrap;
+}
+
+/* !!! 悬停效果样式 - 不要修改 !!! */
+.table-hover tbody tr:hover td {
+    background-color: #e9ecef !important;
+}
+
+/* 项目名称链接样式 */
+.table td a.project-link {
+    text-decoration: underline !important; /* 为项目名称添加下划线 */
+    color: #0d6efd; /* 链接蓝色 */
+}
+
+/* 鼠标悬停时的样式 */
+.table td a.project-link:hover {
+    color: #0a58ca; /* 悬停时深蓝色 */
+    font-weight: 500; /* 悬停时稍微加粗 */
+}
+
+.project-link:hover {
+    text-decoration: underline;
+    color: #0056b3;
+}
+
+/* 报价链接样式 */
+.quotation-link {
+    color: #0d6efd;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.quotation-link:hover {
+    text-decoration: underline;
+    color: #0056b3;
+}
+
+.quotation-link .badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+/* 排序图标样式 */
+.sort-icon {
+    margin-left: 3px;
+    font-size: 0.75rem;
+    color: #6c757d;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: all 0.2s;
+}
+
+.sort-icon:hover,
+.sort-icon.fa-sort-up,
+.sort-icon.fa-sort-down {
+    color: #0d6efd;
+    opacity: 1;
+}
+
+/* 过滤图标样式 */
+.filter-icon {
+    margin-left: 3px;
+    font-size: 0.75rem;
+    color: #6c757d;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: all 0.2s;
+}
+
+.filter-icon:hover {
+    color: #0d6efd;
+    opacity: 1;
+}
+
+.filter-icon.active {
+    color: #0d6efd;
+    opacity: 1;
+}
+
+/* 表头内容布局 */
+.th-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.th-text {
+    flex-grow: 1;
+}
+
+.th-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: 6px;
+}
+
+/* 筛选行样式 */
+.filter-row th {
+    padding: 4px 8px;
+    background-color: #f0f0f0;
+    position: sticky;
+    top: 39px; /* 上方表头高度 */
+    z-index: 1;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.05);
+}
+
+.filter-input {
+    width: 100%;
+    padding: 2px 6px;
+    font-size: 12px;
+}
+
+/* 滚动条样式美化 */
+.table-responsive::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
+
+/* 表格单元格样式增强 */
+.table td {
+    white-space: nowrap;
+    border-bottom: 1px solid #dee2e6;
+    padding: 8px 12px;
+    vertical-align: middle;
+}
+
+/* 奇偶行颜色区分，增强可读性 */
+.table-striped > tbody > tr:nth-of-type(odd) > * {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* 表头边框处理 */
+.table > :not(caption) > * > * {
+    border-bottom-width: 1px;
+}
+
+/* 滚动顺滑效果 */
+.table-responsive {
+    scrollbar-width: thin;
+    scroll-behavior: smooth;
+}
+
+/* 添加表格斑马纹效果，每五行加强一次 */
+.table-striped > tbody > tr:nth-of-type(10n+5) > * {
+    background-color: rgba(0, 0, 0, 0.04);
+}
+
+/* 滚动控制按钮样式 */
+.scroll-controls {
+    position: fixed;
+    right: 20px;
+    bottom: 50px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    z-index: 1000;
+    opacity: 0.7;
+    transition: opacity 0.3s;
+}
+
+.scroll-controls:hover {
+    opacity: 1;
+}
+
+.scroll-controls button {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.scroll-controls button:hover {
+    background-color: #f0f0f0;
+}
+
+/* 行焦点效果 */
+.table tbody tr.highlight-row {
+    background-color: rgba(13, 110, 253, 0.08) !important;
+    outline: 1px solid rgba(13, 110, 253, 0.3);
+    box-shadow: 0 0 5px rgba(13, 110, 253, 0.2);
+}
+</style>
+
+<!-- 
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                              ⚠️ 功能脚本 ⚠️                                    ║
+║                                                                                ║
+║  以下JavaScript代码处理表格的交互功能。修改可能会影响：                        ║
+║  - 项目搜索功能                                                               ║
+║  - 删除确认功能                                                               ║
+║                                                                                ║
+║  🚫 如需修改，请先获得倪捷的确认                                               ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+-->
+<script>
+function deleteProject(id) {
+    if (confirm('确定要删除这个项目吗？')) {
+        fetch(`/project/${id}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',  // 添加AJAX标识
+                'X-CSRFToken': '{{ csrf_token() }}'  // 添加CSRF令牌
+            }
+        })
+        .then(response => {
+            if (response.redirected) {
+                window.location.href = response.url;
+                return Promise.reject('重定向');
+            }
+            
+            if (!response.ok) {
+                throw new Error('删除失败');
+            }
+            
+            window.location.reload();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert(typeof error === 'object' ? error.message : error);
+        });
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // 搜索功能
+    const searchInput = document.getElementById('searchInput');
+    const searchButton = document.getElementById('searchButton');
+    
+    // 获取表格容器
+    const tableContainer = document.querySelector('.table-responsive');
+    
+    // 记住和恢复滚动位置
+    if (tableContainer) {
+        // 尝试从sessionStorage恢复滚动位置
+        const savedScrollTop = sessionStorage.getItem('projectListScrollTop');
+        const savedScrollLeft = sessionStorage.getItem('projectListScrollLeft');
+        
+        if (savedScrollTop !== null) {
+            tableContainer.scrollTop = parseInt(savedScrollTop);
+        }
+        
+        if (savedScrollLeft !== null) {
+            tableContainer.scrollLeft = parseInt(savedScrollLeft);
+        }
+        
+        // 保存滚动位置
+        tableContainer.addEventListener('scroll', function() {
+            sessionStorage.setItem('projectListScrollTop', this.scrollTop);
+            sessionStorage.setItem('projectListScrollLeft', this.scrollLeft);
+        });
+        
+        // 添加键盘导航支持
+        document.addEventListener('keydown', function(e) {
+            // 只有当表格区域可见时才响应键盘事件
+            if (isElementInViewport(tableContainer)) {
+                // Home键 - 滚动到顶部
+                if (e.key === 'Home') {
+                    tableContainer.scrollTop = 0;
+                    e.preventDefault();
+                }
+                // End键 - 滚动到底部
+                else if (e.key === 'End') {
+                    tableContainer.scrollTop = tableContainer.scrollHeight;
+                    e.preventDefault();
+                }
+                // Page Up键 - 向上翻页
+                else if (e.key === 'PageUp') {
+                    tableContainer.scrollTop -= tableContainer.clientHeight;
+                    e.preventDefault();
+                }
+                // Page Down键 - 向下翻页
+                else if (e.key === 'PageDown') {
+                    tableContainer.scrollTop += tableContainer.clientHeight;
+                    e.preventDefault();
+                }
+            }
+        });
+    }
+    
+    // 检查元素是否在视口中
+    function isElementInViewport(el) {
+        const rect = el.getBoundingClientRect();
+        return (
+            rect.top >= 0 &&
+            rect.left >= 0 &&
+            rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+            rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+        );
+    }
+    
+    // 处理滚动控制按钮
+    const scrollTopBtn = document.querySelector('.scroll-top');
+    const scrollBottomBtn = document.querySelector('.scroll-bottom');
+    
+    if (scrollTopBtn && tableContainer) {
+        scrollTopBtn.addEventListener('click', function() {
+            tableContainer.scrollTop = 0;
+        });
+    }
+    
+    if (scrollBottomBtn && tableContainer) {
+        scrollBottomBtn.addEventListener('click', function() {
+            tableContainer.scrollTop = tableContainer.scrollHeight;
+        });
+    }
+    
+    // 根据滚动位置显示/隐藏滚动按钮
+    const scrollControls = document.querySelector('.scroll-controls');
+    if (scrollControls && tableContainer) {
+        // 初始隐藏
+        if (tableContainer.scrollHeight <= tableContainer.clientHeight) {
+            scrollControls.style.display = 'none';
+        }
+        
+        // 监听表格容器的滚动事件
+        tableContainer.addEventListener('scroll', function() {
+            // 如果表格内容不需要滚动，则隐藏控制按钮
+            if (tableContainer.scrollHeight <= tableContainer.clientHeight) {
+                scrollControls.style.display = 'none';
+                return;
+            }
+            
+            // 否则显示控制按钮
+            scrollControls.style.display = 'flex';
+        });
+        
+        // 监听窗口大小变化
+        window.addEventListener('resize', function() {
+            if (tableContainer.scrollHeight <= tableContainer.clientHeight) {
+                scrollControls.style.display = 'none';
+            } else {
+                scrollControls.style.display = 'flex';
+            }
+        });
+    }
+    
+    // 搜索按钮点击事件
+    searchButton.addEventListener('click', function() {
+        performSearch();
+    });
+    
+    // 回车键搜索
+    searchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            performSearch();
+        }
+    });
+    
+    // 执行搜索
+    function performSearch() {
+        const searchText = searchInput.value.trim();
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        // 保留当前的排序参数
+        const sort = urlParams.get('sort') || 'id';
+        const order = urlParams.get('order') || 'desc';
+        
+        // 构建新的URL
+        let newUrl = window.location.pathname + '?';
+        if (searchText) {
+            newUrl += 'search=' + encodeURIComponent(searchText) + '&';
+        }
+        newUrl += 'sort=' + sort + '&order=' + order;
+        
+        // 收集并保留当前的筛选参数
+        const filterInputs = document.querySelectorAll('.filter-input');
+        filterInputs.forEach(input => {
+            const value = input.value.trim();
+            if (value) {
+                const field = input.getAttribute('data-field');
+                newUrl += `&filter_${field}=${encodeURIComponent(value)}`;
+            }
+        });
+        
+        // 重定向到新URL
+        window.location.href = newUrl;
+    }
+    
+    // 表头筛选功能
+    const filterIcons = document.querySelectorAll('.filter-icon');
+    const filterRow = document.querySelector('.filter-row');
+    const filterInputs = document.querySelectorAll('.filter-input');
+    
+    // 记录筛选状态
+    let isFilterRowVisible = filterRow.style.display !== 'none';
+    
+    // 点击筛选图标时显示/隐藏筛选行
+    filterIcons.forEach(icon => {
+        icon.addEventListener('click', function(e) {
+            e.stopPropagation(); // 阻止事件冒泡到th元素
+            
+            const field = this.getAttribute('data-field');
+            
+            // 切换筛选行显示状态
+            if (!isFilterRowVisible) {
+                filterRow.style.display = '';
+                isFilterRowVisible = true;
+                this.classList.add('active');
+                
+                // 聚焦当前列的输入框
+                const input = document.querySelector(`.filter-input[data-field="${field}"]`);
+                if (input) {
+                    setTimeout(() => input.focus(), 100);
+                }
+            } else {
+                // 如果已经显示，检查是否是切换其他列的筛选
+                const activeIcon = document.querySelector('.filter-icon.active');
+                
+                // 如果点击的是同一列，并且没有输入值，则隐藏筛选行
+                const currentInput = document.querySelector(`.filter-input[data-field="${field}"]`);
+                if (activeIcon && activeIcon.getAttribute('data-field') === field && 
+                    (!currentInput || !currentInput.value.trim())) {
+                    filterRow.style.display = 'none';
+                    isFilterRowVisible = false;
+                    activeIcon.classList.remove('active');
+                } else {
+                    // 清除所有图标的活动状态
+                    filterIcons.forEach(i => {
+                        if (i.getAttribute('data-field') !== field && 
+                            !document.querySelector(`.filter-input[data-field="${i.getAttribute('data-field')}"]`).value.trim()) {
+                            i.classList.remove('active');
+                        }
+                    });
+                    
+                    // 设置当前图标为活动状态
+                    this.classList.add('active');
+                    
+                    // 聚焦当前列的输入框
+                    if (currentInput) {
+                        setTimeout(() => currentInput.focus(), 100);
+                    }
+                }
+            }
+        });
+    });
+    
+    // 添加点击其他区域隐藏筛选行的功能
+    document.addEventListener('click', function(e) {
+        // 如果点击的不是筛选相关元素，则隐藏筛选行
+        if (isFilterRowVisible && 
+            !e.target.closest('.filter-row') && 
+            !e.target.closest('.filter-icon')) {
+            
+            // 检查是否有任何筛选条件
+            let hasActiveFilters = false;
+            filterInputs.forEach(input => {
+                if (input.value.trim()) {
+                    hasActiveFilters = true;
+                    // 保持对应筛选图标高亮
+                    const field = input.getAttribute('data-field');
+                    const icon = document.querySelector(`.filter-icon[data-field="${field}"]`);
+                    if (icon) icon.classList.add('active');
+                }
+            });
+            
+            // 如果没有筛选条件，隐藏筛选行
+            if (!hasActiveFilters) {
+                filterRow.style.display = 'none';
+                isFilterRowVisible = false;
+                
+                // 移除所有图标的活动状态
+                filterIcons.forEach(icon => icon.classList.remove('active'));
+            }
+        }
+    });
+    
+    // 处理筛选输入框的输入事件
+    filterInputs.forEach(input => {
+        input.addEventListener('input', function() {
+            performColumnFilter();
+        });
+        
+        input.addEventListener('change', function() {
+            performColumnFilter();
+        });
+        
+        // 防止筛选输入框的点击事件冒泡，避免影响筛选行的显示
+        input.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+        
+        input.addEventListener('keydown', function(e) {
+            // 按ESC键清除筛选条件
+            if (e.key === 'Escape') {
+                this.value = '';
+                performColumnFilter();
+                
+                // 检查是否所有筛选都为空，如果是则隐藏筛选行
+                let allEmpty = true;
+                filterInputs.forEach(inp => {
+                    if (inp.value.trim()) allEmpty = false;
+                });
+                
+                if (allEmpty) {
+                    filterRow.style.display = 'none';
+                    isFilterRowVisible = false;
+                    
+                    // 移除所有图标的活动状态
+                    filterIcons.forEach(icon => icon.classList.remove('active'));
+                }
+            }
+            
+            // 按回车键时应用筛选并向服务器提交
+            if (e.key === 'Enter') {
+                // 向服务器提交筛选参数
+                submitFiltersToServer();
+            }
+        });
+    });
+    
+    // 向服务器提交筛选参数
+    function submitFiltersToServer() {
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        // 保留当前的排序和搜索参数
+        const sort = urlParams.get('sort') || 'id';
+        const order = urlParams.get('order') || 'desc';
+        const search = urlParams.get('search') || '';
+        
+        // 构建新的URL
+        let newUrl = window.location.pathname + '?';
+        if (search) {
+            newUrl += 'search=' + encodeURIComponent(search) + '&';
+        }
+        newUrl += 'sort=' + sort + '&order=' + order;
+        
+        // 收集所有筛选参数
+        const activeFilters = {};
+        filterInputs.forEach(input => {
+            const value = input.value.trim();
+            if (value) {
+                const field = input.getAttribute('data-field');
+                activeFilters[field] = value;
+                newUrl += `&filter_${field}=${encodeURIComponent(value)}`;
+            }
+        });
+        
+        // 重定向到新URL
+        window.location.href = newUrl;
+    }
+    
+    // 执行列筛选
+    function performColumnFilter() {
+        const rows = document.querySelectorAll('tbody tr');
+        
+        // 收集所有筛选条件
+        const filters = {};
+        filterInputs.forEach(input => {
+            const field = input.getAttribute('data-field');
+            const value = input.value.trim().toLowerCase();
+            if (value) {
+                filters[field] = value;
+            }
+        });
+        
+        // 应用筛选
+        rows.forEach(row => {
+            let showRow = true;
+            
+            // 检查每个筛选条件
+            for (const [field, filterValue] of Object.entries(filters)) {
+                const columnIndex = getColumnIndexByField(field);
+                if (columnIndex !== -1) {
+                    const cell = row.cells[columnIndex];
+                    if (cell) {
+                        const cellValue = cell.textContent.toLowerCase();
+                        
+                        // 日期字段特殊处理
+                        if (field === 'report_time' || field === 'delivery_forecast' || 
+                            field === 'created_at' || field === 'updated_at') {
+                            
+                            // 比较日期（YYYY-MM-DD格式）
+                            const cellDate = cellValue.match(/\d{4}-\d{2}-\d{2}/);
+                            
+                            if (cellDate && cellDate[0] !== filterValue) {
+                                showRow = false;
+                                break;
+                            } else if (!cellDate && filterValue) {
+                                showRow = false;
+                                break;
+                            }
+                        } 
+                        // 数字字段特殊处理
+                        else if (field === 'quotation_customer') {
+                            // 移除逗号后比较数字
+                            const numericCellValue = cellValue.replace(/,/g, '');
+                            if (!numericCellValue.includes(filterValue)) {
+                                showRow = false;
+                                break;
+                            }
+                        }
+                        // 普通文本字段
+                        else if (!cellValue.includes(filterValue)) {
+                            showRow = false;
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // 根据筛选结果显示或隐藏行
+            row.style.display = showRow ? '' : 'none';
+        });
+        
+        // 高亮活动的筛选图标
+        filterIcons.forEach(icon => {
+            const field = icon.getAttribute('data-field');
+            const input = document.querySelector(`.filter-input[data-field="${field}"]`);
+            
+            if (input && input.value.trim()) {
+                icon.classList.add('active');
+            } else {
+                icon.classList.remove('active');
+            }
+        });
+    }
+    
+    // 根据字段名获取列索引
+    function getColumnIndexByField(field) {
+        // 计算列偏移量，考虑到复选框列
+        const hasCheckbox = document.querySelector('th .form-check') !== null;
+        const offset = hasCheckbox ? 1 : 0;
+        
+        // 获取表头和字段的映射关系
+        const thElements = document.querySelectorAll('th[data-sort]');
+        for (let i = 0; i < thElements.length; i++) {
+            if (thElements[i].getAttribute('data-sort') === field) {
+                return i + offset;
+            }
+        }
+        return -1;
+    }
+    
+    // 表格行内搜索功能（已废弃，保留作为备用）
+    searchInput.addEventListener('input', function(e) {
+        const searchText = e.target.value.toLowerCase();
+        const rows = document.querySelectorAll('tbody tr');
+        
+        rows.forEach(row => {
+            const projectNameCell = row.querySelector('td:nth-child({% if has_permission("project", "delete") %}3{% else %}2{% endif %})')
+            if (projectNameCell) {
+                const projectName = projectNameCell.textContent.toLowerCase();
+                row.style.display = projectName.includes(searchText) ? '' : 'none';
+            }
+        });
+    });
+});
+
+// 添加排序功能
+document.addEventListener('DOMContentLoaded', function() {
+    // 排序状态变量
+    let sortBy = 'id';  // 默认按ID排序
+    let sortOrder = 'desc';  // 默认降序
+    
+    // 表头排序点击事件
+    document.querySelectorAll('.sort-icon').forEach(icon => {
+        icon.addEventListener('click', function(e) {
+            e.stopPropagation(); // 阻止事件冒泡
+            
+            const clickedSortBy = this.getAttribute('data-sort');
+            
+            // 切换排序方向或设置新的排序字段
+            if (sortBy === clickedSortBy) {
+                // 切换排序方向
+                sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                // 新的排序字段，默认降序
+                sortBy = clickedSortBy;
+                sortOrder = 'desc';
+            }
+            
+            // 更新排序图标
+            updateSortIcons();
+            
+            // 重新加载页面，带上排序参数
+            const urlParams = new URLSearchParams(window.location.search);
+            const searchParam = urlParams.get('search');
+            
+            let newUrl = window.location.pathname + '?sort=' + sortBy + '&order=' + sortOrder;
+            if (searchParam) {
+                newUrl += '&search=' + encodeURIComponent(searchParam);
+            }
+            
+            // 收集所有筛选参数
+            const filterInputs = document.querySelectorAll('.filter-input');
+            const activeFilters = {};
+            filterInputs.forEach(input => {
+                const value = input.value.trim();
+                if (value) {
+                    const field = input.getAttribute('data-field');
+                    activeFilters[field] = value;
+                }
+            });
+            
+            // 添加筛选参数到URL
+            for (const [field, value] of Object.entries(activeFilters)) {
+                newUrl += `&filter_${field}=${encodeURIComponent(value)}`;
+            }
+            
+            window.location.href = newUrl;
+        });
+    });
+    
+    // 更新排序图标
+    function updateSortIcons() {
+        // 重置所有图标
+        document.querySelectorAll('.sort-icon').forEach(icon => {
+            icon.className = 'fas fa-sort sort-icon';
+            icon.setAttribute('data-sort', icon.getAttribute('data-sort'));
+        });
+        
+        // 设置当前排序列的图标
+        const currentSortHeader = document.querySelector(`.sort-icon[data-sort="${sortBy}"]`);
+        if (currentSortHeader) {
+            currentSortHeader.className = sortOrder === 'asc' ? 'fas fa-sort-up sort-icon' : 'fas fa-sort-down sort-icon';
+        }
+    }
+    
+    // 初始化时根据URL参数设置排序状态
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('sort')) {
+        sortBy = urlParams.get('sort');
+        if (urlParams.has('order')) {
+            sortOrder = urlParams.get('order');
+        }
+        // 更新排序图标
+        updateSortIcons();
+    }
+    
+    // 初始化筛选字段
+    for (const [key, value] of urlParams.entries()) {
+        if (key.startsWith('filter_')) {
+            const field = key.substring(7);  // 移除 'filter_' 前缀
+            const input = document.querySelector(`.filter-input[data-field="${field}"]`);
+            if (input) {
+                input.value = value;
+                
+                // 显示筛选行
+                document.querySelector('.filter-row').style.display = '';
+                
+                // 高亮筛选图标
+                const icon = document.querySelector(`.filter-icon[data-field="${field}"]`);
+                if (icon) {
+                    icon.classList.add('active');
+                }
+            }
+        }
+    }
+});
+
+// 批量选择和删除功能
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const projectCheckboxes = document.querySelectorAll('.project-checkbox');
+    const batchDeleteBtn = document.getElementById('batchDeleteBtn');
+    
+    if (selectAllCheckbox) {
+        // 全选/取消全选
+        selectAllCheckbox.addEventListener('change', function() {
+            const isChecked = this.checked;
+            
+            projectCheckboxes.forEach(checkbox => {
+                if (!checkbox.disabled) {
+                    checkbox.checked = isChecked;
+                }
+            });
+            
+            updateBatchDeleteButton();
+        });
+    }
+    
+    // 单个复选框状态变化
+    projectCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            updateBatchDeleteButton();
+            
+            // 更新全选框状态
+            if (selectAllCheckbox) {
+                const enabledCheckboxes = Array.from(projectCheckboxes).filter(cb => !cb.disabled);
+                const allChecked = enabledCheckboxes.every(cb => cb.checked);
+                selectAllCheckbox.checked = allChecked && enabledCheckboxes.length > 0;
+            }
+        });
+    });
+    
+    // 批量删除按钮点击事件
+    if (batchDeleteBtn) {
+        batchDeleteBtn.addEventListener('click', function() {
+            const selectedIds = Array.from(projectCheckboxes)
+                .filter(checkbox => checkbox.checked)
+                .map(checkbox => parseInt(checkbox.value));
+            
+            if (selectedIds.length === 0) {
+                alert('请至少选择一个项目');
+                return;
+            }
+            
+            if (confirm(`确定要删除已选中的 ${selectedIds.length} 个项目吗？此操作不可恢复！`)) {
+                // 发送批量删除请求
+                fetch('/project/api/batch-delete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({
+                        project_ids: selectedIds
+                    })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('请求失败，状态码: ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message);
+                        window.location.reload();
+                    } else {
+                        alert('删除失败: ' + data.message);
+                        console.error('删除失败详情:', data.failure_reasons);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('操作失败，请重试: ' + error.message);
+                });
+            }
+        });
+    }
+    
+    // 更新批量删除按钮状态
+    function updateBatchDeleteButton() {
+        if (batchDeleteBtn) {
+            const anyChecked = Array.from(projectCheckboxes).some(checkbox => checkbox.checked);
+            batchDeleteBtn.style.display = anyChecked ? 'inline-block' : 'none';
+        }
+    }
+});
+
+// 添加行滚动焦点效果
+if (tableContainer) {
+    const rows = document.querySelectorAll('.table tbody tr');
+    let lastHighlightedRow = null;
+    
+    // 鼠标滑过行时添加高亮
+    rows.forEach(row => {
+        row.addEventListener('mouseenter', function() {
+            if (lastHighlightedRow) {
+                lastHighlightedRow.classList.remove('highlight-row');
+            }
+            this.classList.add('highlight-row');
+            lastHighlightedRow = this;
+        });
+    });
+    
+    // 鼠标离开表格区域时移除高亮
+    tableContainer.addEventListener('mouseleave', function() {
+        if (lastHighlightedRow) {
+            lastHighlightedRow.classList.remove('highlight-row');
+            lastHighlightedRow = null;
+        }
+    });
+    
+    // 滚动时计算可见行并高亮中心行
+    tableContainer.addEventListener('scroll', function() {
+        // 节流滚动事件处理，避免性能问题
+        if (window.scrollThrottled) return;
+        window.scrollThrottled = true;
+        
+        setTimeout(() => {
+            highlightCenterRow();
+            window.scrollThrottled = false;
+        }, 100);
+    });
+    
+    // 高亮中心行函数
+    function highlightCenterRow() {
+        if (rows.length === 0) return;
+        
+        const containerRect = tableContainer.getBoundingClientRect();
+        const containerMiddle = containerRect.top + containerRect.height / 2;
+        
+        let closestRow = null;
+        let minDistance = Infinity;
+        
+        // 找出最靠近中心的行
+        rows.forEach(row => {
+            const rowRect = row.getBoundingClientRect();
+            const rowMiddle = rowRect.top + rowRect.height / 2;
+            const distance = Math.abs(rowMiddle - containerMiddle);
+            
+            // 只考虑可见行
+            if (rowRect.top <= containerRect.bottom && 
+                rowRect.bottom >= containerRect.top) {
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    closestRow = row;
+                }
+            }
+        });
+        
+        // 更新高亮
+        if (closestRow && closestRow !== lastHighlightedRow) {
+            if (lastHighlightedRow) {
+                lastHighlightedRow.classList.remove('highlight-row');
+            }
+            closestRow.classList.add('highlight-row');
+            lastHighlightedRow = closestRow;
+        }
+    }
+}
+
+// 搜索按钮点击事件
+searchButton.addEventListener('click', function() {
+    performSearch();
+});
+</script>
+
+<!-- 项目批量导入模态框 -->
+<div class="modal fade" id="importProjectModal" tabindex="-1" aria-labelledby="importProjectModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="importProjectModalLabel">批量导入项目</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="importProjectForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="ownerSelect" class="form-label">请选择归属账户</label>
+                        <select class="form-select" id="ownerSelect" name="owner_id">
+                            <option value="">不指定(使用Excel中的销售负责人字段)</option>
+                            <!-- 选项会通过JavaScript动态加载 -->
+                        </select>
+                        <div class="form-text">如果不选择，将使用Excel中的销售负责人字段作为项目拥有者</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="projectExcelFile" class="form-label">上传Excel文件 (.xlsx或.xls) <span class="text-danger">*</span></label>
+                        <input class="form-control" type="file" id="projectExcelFile" name="projectExcelFile" accept=".xlsx, .xls" required>
+                        <div class="form-text">请上传包含项目数据的Excel文件</div>
+                    </div>
+                    
+                    <!-- 预览区域 -->
+                    <div id="importPreview" style="display: none;">
+                        <h6>数据预览：</h6>
+                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-sm table-bordered table-hover">
+                                <thead class="table-light">
+                                    <tr id="previewHeader">
+                                        <!-- 表头会动态生成 -->
+                                    </tr>
+                                </thead>
+                                <tbody id="previewBody">
+                                    <!-- 预览数据会动态生成 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- 字段映射区域 -->
+                    <div id="fieldMapping" style="display: none;">
+                        <div class="alert alert-info mt-3">
+                            <small>系统已自动匹配Excel列与数据库字段，预览显示了映射后的数据</small>
+                        </div>
+                    </div>
+                    
+                    <!-- 冲突检测区域 -->
+                    <div id="importConflicts" style="display: none;">
+                        <h6 class="mt-3">检测到可能的冲突：</h6>
+                        <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                            <table class="table table-sm table-bordered table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>项目名称</th>
+                                        <th>授权编号</th>
+                                        <th>冲突类型</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="conflictsBody">
+                                    <!-- 冲突数据会动态生成 -->
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="d-flex flex-wrap justify-content-between align-items-center mt-3">
+                            <div class="mb-2">
+                                <span class="text-muted">批量操作:</span>
+                            </div>
+                            <div class="mb-2">
+                                <button type="button" class="btn btn-outline-primary btn-sm me-2" id="applyRecommendedActions">
+                                    <i class="fas fa-magic"></i> 应用智能推荐
+                                </button>
+                                <button type="button" class="btn btn-outline-success btn-sm me-2" id="keepAllConflicts">
+                                    <i class="fas fa-plus"></i> 全部导入为新项目
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="ignoreAllConflicts">
+                                    <i class="fas fa-times"></i> 全部忽略不导入
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 进度条 -->
+                    <div id="importProgress" class="progress mt-3" style="display: none;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                    </div>
+                    
+                    <!-- 导入结果 -->
+                    <div id="importResult" class="alert mt-3" style="display: none;"></div>
+                    
+                    <!-- 错误详情区域 -->
+                    <div id="importErrorDetails" class="mt-3" style="display: none;">
+                        <h6 class="text-danger">导入错误详情:</h6>
+                        <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                            <table class="table table-sm table-bordered table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>行号</th>
+                                        <th>项目名称</th>
+                                        <th>错误原因</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="errorDetailsTableBody">
+                                    <!-- 错误详情会动态加载 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="parseExcelBtn">解析文件</button>
+                <button type="button" class="btn btn-success" id="importBtn" style="display: none;">确认导入</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+// ... existing code ...
+
+// 项目批量导入功能
+document.addEventListener('DOMContentLoaded', function() {
+    const importProjectsBtn = document.getElementById('importProjectsBtn');
+    const importModal = new bootstrap.Modal(document.getElementById('importProjectModal'));
+    const ownerSelect = document.getElementById('ownerSelect');
+    const projectExcelFile = document.getElementById('projectExcelFile');
+    const parseExcelBtn = document.getElementById('parseExcelBtn');
+    const importBtn = document.getElementById('importBtn');
+    const previewDiv = document.getElementById('importPreview');
+    const fieldMappingDiv = document.getElementById('fieldMapping');
+    const conflictsDiv = document.getElementById('importConflicts');
+    const progressDiv = document.getElementById('importProgress');
+    const resultDiv = document.getElementById('importResult');
+    const applyRecommendedActionsBtn = document.getElementById('applyRecommendedActions');
+    const keepAllConflictsBtn = document.getElementById('keepAllConflicts');
+    const ignoreAllConflictsBtn = document.getElementById('ignoreAllConflicts');
+    
+    let parsedData = [];
+    let conflicts = [];
+    let conflictActions = {};
+    let fieldMapping = {};
+    
+    // 打开导入模态框
+    if (importProjectsBtn) {
+        importProjectsBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // 重置状态
+            document.getElementById('importProjectForm').reset();
+            previewDiv.style.display = 'none';
+            fieldMappingDiv.style.display = 'none';
+            conflictsDiv.style.display = 'none';
+            progressDiv.style.display = 'none';
+            resultDiv.style.display = 'none';
+            document.getElementById('importErrorDetails').style.display = 'none';
+            importBtn.style.display = 'none';
+            parsedData = [];
+            conflicts = [];
+            conflictActions = {};
+            fieldMapping = {};
+            
+            // 加载用户列表
+            fetch('/api/users/hierarchical')
+                .then(response => response.json())
+                .then(data => {
+                    ownerSelect.innerHTML = '<option value="">请选择...</option>';
+                    
+                    if (data.success) {
+                        // 生成嵌套的选择框选项
+                        data.data.forEach(company => {
+                            const companyOptgroup = document.createElement('optgroup');
+                            companyOptgroup.label = company.name + ' (企业)';
+                            
+                            company.users.forEach(user => {
+                                const option = document.createElement('option');
+                                option.value = user.id;
+                                option.textContent = user.name;
+                                companyOptgroup.appendChild(option);
+                            });
+                            
+                            ownerSelect.appendChild(companyOptgroup);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('获取用户列表失败:', error);
+                });
+            
+            // 显示模态框
+            importModal.show();
+        });
+    }
+    
+    // 解析Excel文件
+    if (parseExcelBtn) {
+        parseExcelBtn.addEventListener('click', function() {
+            const fileInput = document.getElementById('projectExcelFile');
+            const ownerIdSelect = document.getElementById('ownerSelect');
+            
+            /* 移除必选验证
+            if (!ownerIdSelect.value) {
+                alert('请选择归属账户');
+                return;
+            }
+            */
+            
+            if (!fileInput.files.length) {
+                alert('请选择Excel文件');
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            
+            resultDiv.style.display = 'none';
+            progressDiv.style.display = 'block';
+            const progressBar = progressDiv.querySelector('.progress-bar');
+            progressBar.style.width = '30%';
+            
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array', cellDates: true, dateNF: 'yyyy-mm-dd'});
+                    
+                    // 获取第一个工作表
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    // 转换为JSON
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+                        header: 1,
+                        raw: false,
+                        dateNF: 'YYYY-MM-DD'
+                    });
+                    
+                    if (jsonData.length <= 1) {
+                        alert('工作表中未找到足够的数据，请确保至少有标题行和一行数据');
+                        progressDiv.style.display = 'none';
+                        return;
+                    }
+                    
+                    // 获取表头
+                    const headers = jsonData[0];
+                    
+                    // 定义数据库字段映射
+                    const dbFields = {
+                        "项目名称": "project_name",
+                        "报备时间": "report_time",
+                        "项目分类": "project_type",
+                        "报备来源": "report_source",
+                        "品牌情况": "product_situation",
+                        "用户": "end_user",
+                        "设计院及顾问": "design_issues",
+                        "经销商": "dealer",
+                        "总承包商": "contractor",
+                        "系统集成商": "system_integrator",
+                        "阶段状态": "current_stage",
+                        "项目跟进记录": "stage_description",
+                        "授权编号": "authorization_code",
+                        "预测签约时间": "delivery_forecast",
+                        "更新时间": "updated_at",
+                        "销售负责人": "owner_id"
+                    };
+                    
+                    // 定义数据库字段中文名称
+                    const dbFieldsChineseNames = {
+                        "project_name": "项目名称",
+                        "report_time": "报备时间",
+                        "created_at": "创建日期",
+                        "project_type": "项目分类",
+                        "report_source": "报备来源",
+                        "product_situation": "品牌情况",
+                        "end_user": "用户",
+                        "design_issues": "设计院及顾问",
+                        "dealer": "经销商",
+                        "contractor": "总承包商",
+                        "system_integrator": "系统集成商",
+                        "current_stage": "阶段状态",
+                        "stage_description": "项目跟进记录",
+                        "authorization_code": "授权编号",
+                        "delivery_forecast": "预测签约时间",
+                        "updated_at": "更新时间",
+                        "owner_id": "销售负责人"
+                    };
+                    
+                    // 自动映射字段
+                    fieldMapping = {};
+                    headers.forEach(header => {
+                        const matchedField = dbFields[header] || '';
+                        if (matchedField) {
+                            fieldMapping[header] = matchedField;
+                        }
+                    });
+                    
+                    // 转换为对象数组
+                    parsedData = [];
+                    for (let i = 1; i < jsonData.length; i++) {
+                        const rowData = {};
+                        let rowIsEmpty = true;
+                        
+                        headers.forEach((header, index) => {
+                            const value = jsonData[i][index];
+                            if (value !== undefined && value !== null && value !== '') {
+                                rowData[header] = value;
+                                rowIsEmpty = false;
+                            }
+                        });
+                        
+                        // 只添加非空行
+                        if (!rowIsEmpty) {
+                            parsedData.push(rowData);
+                        }
+                    }
+                    
+                    if (parsedData.length === 0) {
+                        alert('未在工作表中找到有效数据');
+                        progressDiv.style.display = 'none';
+                        return;
+                    }
+                    
+                    // 处理授权编号格式
+                    function formatAuthCode(code) {
+                        if (code && typeof code === 'string' && code.startsWith('HY-')) {
+                            return code.substring(3);
+                        }
+                        return code;
+                    }
+                    
+                    // 预览表头
+                    const previewHeader = document.getElementById('previewHeader');
+                    previewHeader.innerHTML = '';
+                    
+                    // 创建反向映射，从数据库字段找到Excel表头
+                    const reverseMapping = {};
+                    for (const [excelHeader, dbField] of Object.entries(fieldMapping)) {
+                        reverseMapping[dbField] = excelHeader;
+                    }
+                    
+                    // 指定需要显示的字段及其顺序
+                    const orderedFields = [
+                        "authorization_code",  // 授权编码
+                        "project_name",        // 项目名称
+                        "report_source",       // 报备来源
+                        "project_type",        // 项目类型
+                        "product_situation",   // 品牌情况
+                        "current_stage",       // 当前阶段
+                        "delivery_forecast",   // 出货预测日期
+                        "end_user",            // 直接用户
+                        "design_issues",       // 设计院及顾问
+                        "contractor",          // 总承包单位
+                        "system_integrator",   // 系统集成商
+                        "dealer",              // 经销商
+                        "stage_description",   // 阶段说明
+                        "report_time",         // 报备时间
+                        "created_at",          // 创建日期
+                        "updated_at",          // 更新日期
+                        "owner_id"             // 销售负责人
+                    ];
+                    
+                    // 添加数据库字段中文名称作为表头
+                    orderedFields.forEach(dbField => {
+                        const th = document.createElement('th');
+                        const chineseName = dbFieldsChineseNames[dbField] || dbField;
+                        th.textContent = chineseName;
+                        
+                        // 如果是授权编号字段，添加格式化提示
+                        if (dbField === 'authorization_code') {
+                            th.innerHTML = `${chineseName}<br><small class="text-success">(将自动格式化)</small>`;
+                        }
+                        
+                        previewHeader.appendChild(th);
+                    });
+                    
+                    // 清空预览数据
+                    const previewBody = document.getElementById('previewBody');
+                    previewBody.innerHTML = '';
+                    
+                    // 显示前5行或所有行（如果少于5行）
+                    const rowsToShow = Math.min(5, parsedData.length);
+                    for (let i = 0; i < rowsToShow; i++) {
+                        const tr = document.createElement('tr');
+                        const rowData = parsedData[i];
+                        
+                        // 按指定的字段顺序添加内容
+                        orderedFields.forEach(dbField => {
+                            const td = document.createElement('td');
+                            const excelHeader = reverseMapping[dbField];
+                            
+                            // 检查是否存在对应的Excel数据
+                            if (excelHeader && rowData[excelHeader] !== undefined) {
+                                let value = rowData[excelHeader];
+                                
+                                // 格式化日期字段
+                                if ((dbField === 'report_time' || dbField === 'delivery_forecast' || 
+                                     dbField === 'created_at' || dbField === 'updated_at') && value) {
+                                    // 检查是否已经是字符串格式的日期
+                                    if (typeof value === 'string' && value.match(/^\d+$/)) {
+                                        // 尝试将Excel数字格式的日期转换为JS日期对象
+                                        const dateObj = XLSX.SSF.parse_date_code(parseInt(value));
+                                        if (dateObj) {
+                                            const year = dateObj.y;
+                                            const month = dateObj.m.toString().padStart(2, '0');
+                                            const day = dateObj.d.toString().padStart(2, '0');
+                                            value = `${year}-${month}-${day}`;
+                                        }
+                                    }
+                                }
+                                
+                                // 如果是授权编号字段，格式化显示
+                                if (dbField === 'authorization_code' && value) {
+                                    const formattedValue = formatAuthCode(value);
+                                    if (value !== formattedValue) {
+                                        td.innerHTML = `<span class="text-success">${formattedValue}</span> <small class="text-muted">(原始: ${value})</small>`;
+                                    } else {
+                                        td.textContent = value;
+                                    }
+                                } else {
+                                    td.textContent = value;
+                                }
+                            } else if (dbField === 'created_at') {
+                                // 如果是创建日期字段，使用报备时间的值
+                                const reportTimeHeader = reverseMapping['report_time'];
+                                if (reportTimeHeader && rowData[reportTimeHeader]) {
+                                    let value = rowData[reportTimeHeader];
+                                    
+                                    // 格式化日期
+                                    if (typeof value === 'string' && value.match(/^\d+$/)) {
+                                        const dateObj = XLSX.SSF.parse_date_code(parseInt(value));
+                                        if (dateObj) {
+                                            const year = dateObj.y;
+                                            const month = dateObj.m.toString().padStart(2, '0');
+                                            const day = dateObj.d.toString().padStart(2, '0');
+                                            value = `${year}-${month}-${day}`;
+                                        }
+                                    }
+                                    
+                                    td.textContent = value;
+                                } else {
+                                    td.textContent = '';
+                                }
+                            } else {
+                                // 如果没有对应数据，则留空
+                                td.textContent = '';
+                            }
+                            
+                            tr.appendChild(td);
+                        });
+                        
+                        previewBody.appendChild(tr);
+                    }
+                    
+                    previewDiv.style.display = 'block';
+                    fieldMappingDiv.style.display = 'block';
+                    progressBar.style.width = '70%';
+                    
+                    // 检查冲突
+                    progressBar.style.width = '80%';
+                    
+                    // 在这里发送请求检查冲突，此次简化为前端模拟
+                    fetch('/api/projects/check-conflicts', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token() }}'
+                        },
+                        body: JSON.stringify({
+                            projects: parsedData,
+                            field_mapping: fieldMapping
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        progressBar.style.width = '100%';
+                        
+                        if (data.success) {
+                            conflicts = data.conflicts || [];
+                            
+                            // 显示冲突
+                            if (conflicts.length > 0) {
+                                const conflictsBody = document.getElementById('conflictsBody');
+                                conflictsBody.innerHTML = '';
+                                
+                                conflicts.forEach((conflict, index) => {
+                                    const tr = document.createElement('tr');
+                                    
+                                    const tdName = document.createElement('td');
+                                    tdName.textContent = conflict.project_name;
+                                    tr.appendChild(tdName);
+                                    
+                                    const tdCode = document.createElement('td');
+                                    tdCode.textContent = conflict.authorization_code || '未指定';
+                                    tr.appendChild(tdCode);
+                                    
+                                    const tdType = document.createElement('td');
+                                    tdType.textContent = conflict.conflict_type === 'code' ? '授权编号冲突' : '项目名称相似';
+                                    tr.appendChild(tdType);
+                                    
+                                    const tdAction = document.createElement('td');
+                                    const actionSelect = document.createElement('select');
+                                    actionSelect.classList.add('form-select', 'form-select-sm');
+                                    actionSelect.dataset.index = index;
+                                    
+                                    const ignoreOpt = document.createElement('option');
+                                    ignoreOpt.value = 'ignore';
+                                    ignoreOpt.textContent = '忽略不导入';
+                                    
+                                    const newOpt = document.createElement('option');
+                                    newOpt.value = 'new';
+                                    newOpt.textContent = '作为新项目导入';
+                                    
+                                    actionSelect.appendChild(ignoreOpt);
+                                    actionSelect.appendChild(newOpt);
+                                    
+                                    // 根据冲突类型设置默认选择
+                                    if (conflict.conflict_type === 'code') {
+                                        // 授权编号冲突默认忽略
+                                        ignoreOpt.selected = true;
+                                        conflictActions[index] = 'ignore';
+                                    } else {
+                                        // 名称相似默认新建
+                                        newOpt.selected = true;
+                                        conflictActions[index] = 'new';
+                                    }
+                                    
+                                    actionSelect.addEventListener('change', function() {
+                                        conflictActions[this.dataset.index] = this.value;
+                                    });
+                                    
+                                    tdAction.appendChild(actionSelect);
+                                    tr.appendChild(tdAction);
+                                    
+                                    conflictsBody.appendChild(tr);
+                                });
+                                
+                                conflictsDiv.style.display = 'block';
+                            }
+                            
+                            // 显示导入按钮
+                            importBtn.style.display = 'block';
+                        } else {
+                            resultDiv.className = 'alert alert-danger mt-3';
+                            resultDiv.textContent = data.message || '检查冲突时出现错误';
+                            resultDiv.style.display = 'block';
+                        }
+                        
+                        progressDiv.style.display = 'none';
+                    })
+                    .catch(error => {
+                        console.error('冲突检查出错:', error);
+                        progressBar.style.width = '100%';
+                        progressDiv.style.display = 'none';
+                        
+                        resultDiv.className = 'alert alert-danger mt-3';
+                        resultDiv.textContent = '请求服务器时出错，请重试';
+                        resultDiv.style.display = 'block';
+                    });
+                    
+                } catch (err) {
+                    console.error('解析Excel出错:', err);
+                    
+                    resultDiv.className = 'alert alert-danger mt-3';
+                    resultDiv.textContent = '解析Excel文件失败: ' + err.message;
+                    resultDiv.style.display = 'block';
+                    
+                    progressDiv.style.display = 'none';
+                }
+            };
+            
+            reader.onerror = function() {
+                resultDiv.className = 'alert alert-danger mt-3';
+                resultDiv.textContent = '读取文件时出错';
+                resultDiv.style.display = 'block';
+                
+                progressDiv.style.display = 'none';
+            };
+            
+            reader.readAsArrayBuffer(file);
+        });
+    }
+    
+    // 处理冲突操作按钮
+    if (applyRecommendedActionsBtn) {
+        applyRecommendedActionsBtn.addEventListener('click', function() {
+            document.querySelectorAll('#conflictsBody select').forEach(select => {
+                const index = parseInt(select.dataset.index);
+                const conflict = conflicts[index];
+                
+                // 应用智能推荐: 对授权编号冲突忽略，对名称相似新建
+                if (conflict.conflict_type === 'code') {
+                    select.value = 'ignore';
+                } else {
+                    select.value = 'new';
+                }
+                
+                // 更新选择
+                conflictActions[index] = select.value;
+            });
+        });
+    }
+    
+    if (keepAllConflictsBtn) {
+        keepAllConflictsBtn.addEventListener('click', function() {
+            document.querySelectorAll('#conflictsBody select').forEach(select => {
+                select.value = 'new';
+                conflictActions[select.dataset.index] = 'new';
+            });
+        });
+    }
+    
+    if (ignoreAllConflictsBtn) {
+        ignoreAllConflictsBtn.addEventListener('click', function() {
+            document.querySelectorAll('#conflictsBody select').forEach(select => {
+                select.value = 'ignore';
+                conflictActions[select.dataset.index] = 'ignore';
+            });
+        });
+    }
+    
+    // 确认导入
+    if (importBtn) {
+        importBtn.addEventListener('click', function() {
+            const ownerId = ownerSelect.value;
+            
+            /* 移除必选验证
+            if (!ownerId) {
+                alert('请选择归属账户');
+                return;
+            }
+            */
+            
+            if (parsedData.length === 0) {
+                alert('没有可导入的数据');
+                return;
+            }
+            
+            // 显示进度条
+            resultDiv.style.display = 'none';
+            progressDiv.style.display = 'block';
+            const progressBar = progressDiv.querySelector('.progress-bar');
+            progressBar.style.width = '0%';
+            
+            // 禁用导入按钮，防止重复提交
+            importBtn.disabled = true;
+            
+            // 发送数据到服务器
+            fetch('/api/projects/import', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({
+                    owner_id: ownerId,
+                    projects: parsedData,
+                    conflict_actions: conflictActions,
+                    field_mapping: fieldMapping,
+                    sync_report_time_to_created_at: true,  // 添加标志以同步报备时间到创建时间
+                    use_excel_owner: !ownerId  // 如果未选择归属账户，则使用Excel中的销售负责人字段
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                progressBar.style.width = '100%';
+                
+                // 显示结果
+                if (data.success) {
+                    resultDiv.className = 'alert alert-success mt-3';
+                    resultDiv.innerHTML = `导入完成，新增: ${data.data.imported}，跳过: ${data.data.skipped}，错误: ${data.data.error}`;
+                    
+                    // 如果有错误，显示错误详情
+                    if (data.data.error > 0 && data.data.error_details && data.data.error_details.length > 0) {
+                        const errorDetailsDiv = document.getElementById('importErrorDetails');
+                        const errorTableBody = document.getElementById('errorDetailsTableBody');
+                        errorTableBody.innerHTML = '';
+                        
+                        data.data.error_details.forEach(error => {
+                            const tr = document.createElement('tr');
+                            
+                            const tdLine = document.createElement('td');
+                            tdLine.textContent = error.line || 'N/A';
+                            tr.appendChild(tdLine);
+                            
+                            const tdName = document.createElement('td');
+                            tdName.textContent = error.project_name || 'N/A';
+                            tr.appendChild(tdName);
+                            
+                            const tdReason = document.createElement('td');
+                            tdReason.textContent = error.reason || '未知错误';
+                            tr.appendChild(tdReason);
+                            
+                            errorTableBody.appendChild(tr);
+                        });
+                        
+                        errorDetailsDiv.style.display = 'block';
+                    }
+                    
+                    // 如果导入成功且没有错误，1.5秒后刷新页面
+                    if (data.data.error === 0) {
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1500);
+                    }
+                } else {
+                    resultDiv.className = 'alert alert-danger mt-3';
+                    resultDiv.textContent = data.message || '导入失败';
+                }
+                
+                resultDiv.style.display = 'block';
+                progressDiv.style.display = 'none';
+                
+                // 重新启用导入按钮
+                importBtn.disabled = false;
+            })
+            .catch(error => {
+                console.error('导入出错:', error);
+                
+                resultDiv.className = 'alert alert-danger mt-3';
+                resultDiv.textContent = '请求服务器时出错，请重试';
+                resultDiv.style.display = 'block';
+                
+                progressDiv.style.display = 'none';
+                importBtn.disabled = false;
+            });
+        });
+    }
+});
+</script>
+{% endblock %} 

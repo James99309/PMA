@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_owner, render_date %}
+
+{% block title %}联系人搜索结果{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-3">
+        <div class="col">
+            <h2 class="text-primary">联系人搜索结果</h2>
+            <p class="text-muted mb-0">搜索关键词：<span class="badge bg-info">{{ search_term }}</span></p>
+        </div>
+        <div class="col text-end">
+            <a href="{{ url_for('customer.list_companies') }}" class="btn btn-outline-secondary me-2">
+                <i class="fas fa-arrow-left"></i> 返回企业列表
+            </a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle" style="font-size: 14px;">
+                    <thead>
+                        <tr class="bg-light text-dark">
+                            <th class="px-3 py-3" style="min-width: 100px;">姓名</th>
+                            <th class="px-3" style="min-width: 200px;">所属企业</th>
+                            <th class="px-3" style="min-width: 100px;">部门</th>
+                            <th class="px-3" style="min-width: 100px;">职位</th>
+                            <th class="px-3" style="min-width: 120px;">电话</th>
+                            <th class="px-3" style="min-width: 200px;">邮箱</th>
+                            <th class="px-3" style="min-width: 100px;">主要联系人</th>
+                            <th class="px-3" style="min-width: 100px;">拥有人</th>
+                            <th class="px-3" style="min-width: 120px;">创建时间</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if contacts %}
+                            {% for contact in contacts %}
+                            <tr>
+                                <td class="px-3">
+                                    <a href="{{ url_for('customer.view_contact', contact_id=contact.id) }}">
+                                        {{ contact.name }}
+                                    </a>
+                                </td>
+                                <td class="px-3">
+                                    {% if contact.company %}
+                                        <a href="{{ url_for('customer.view_company', company_id=contact.company_id) }}">
+                                            {{ contact.company.company_name }}
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">未知企业</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3">{{ contact.department or '-' }}</td>
+                                <td class="px-3">{{ contact.position or '-' }}</td>
+                                <td class="px-3">{{ contact.phone or '-' }}</td>
+                                <td class="px-3">{{ contact.email or '-' }}</td>
+                                <td class="px-3">
+                                    <span class="badge {% if contact.is_primary %}bg-success{% else %}bg-secondary{% endif %}">
+                                        {% if contact.is_primary %}是{% else %}否{% endif %}
+                                    </span>
+                                </td>
+                                <td class="px-3">{{ render_owner(contact.owner) }}</td>
+                                <td class="px-3">{{ render_date(contact.created_at) }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="9" class="text-center py-4">
+                                    <div class="alert alert-info mb-0">
+                                        <i class="fas fa-info-circle me-2"></i> 没有找到匹配的联系人
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加自定义样式 -->
+<style>
+    .table th {
+        font-weight: 600;
+        white-space: nowrap;
+        background-color: #f8f9fa;
+        position: relative;
+        vertical-align: middle !important;
+        height: 55px;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .table td {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 200px;
+        position: relative;
+        vertical-align: middle !important;
+        height: 50px;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        position: relative;
+    }
+    
+    .badge {
+        font-size: 12px;
+        padding: 5px 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 45px;
+    }
+    
+    /* 表格行样式 */
+    .table tr {
+        height: 50px;
+    }
+    
+    /* 表格行悬停效果 */
+    .table tbody tr:hover {
+        background-color: rgba(0, 123, 255, 0.05) !important;
+    }
+    
+    /* 链接样式 */
+    .table td a {
+        color: #0d6efd;
+        text-decoration: none;
+    }
+    
+    .table td a:hover {
+        text-decoration: underline;
+    }
+</style>
+
+{% block scripts %}
+<script>
+// 添加工具提示初始化
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+</script>
+{% endblock %}
+{% endblock %} 

@@ -1,0 +1,1044 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="8989" uniqueCount="2178"><si><t>项目名称</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前阶段</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>项目编号</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>报备时间</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>分销商</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>类型</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>报备来源</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>面价金额</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>更新时间</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>品牌情况</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>销售负责人</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>报价客户</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>经销商</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>跟进记录</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>日期</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>时间轴</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>历史内容</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>阶段状态</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>面价合计</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>项目分类</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>项目跟进记录</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>编号</t></si><si><t>公司名称</t></si><si><t>种类</t></si><si><t>单位地址</t></si><si><t>联系人编号</t></si><si><t>联系人</t></si><si><t>部门</t></si><si><t>总计</t></si><si><t>和源通信（上海）股份有限公司</t></si><si><t>武威路88弄19号楼6楼
+普陀区 上海市 
+中国  (200335)
+021-62596028
+www.evertac.net</t></si><si><t>报价公司</t></si><si><t>序号</t></si><si><t>产品名称</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>型号</t></si><si><t>指标描述</t></si><si><t>品牌</t></si><si><t>单位</t></si><si><t>数量</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>零售合计</t></si><si><t>MN</t><phoneticPr fontId="14" type="noConversion"/></si><si><t>产品名称</t></si><si><t>数量</t></si><si><t>Model</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Quantity</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>MN</t></si><si><t>销售</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>E-ANTG 400</t></si><si><t>频率范围：400-430MHz 增益：5dBi 防护等级：IP65 辐射方向：全向 最大承载功率：50W 接头类型：N-Femade</t></si><si><t>和源通信</t></si><si><t>EANLOMO5HR1</t></si><si><t>超薄室内全向吸顶天线</t></si><si><t>MA10</t></si><si><t>频率范围：351-430MHz 承载功率：100W 性能：室内全向 天线增益：0dBi 防护等级：IP65</t></si><si><t>HYAIOCN4Y</t></si><si><t>定向耦合合路器</t></si><si><t>E-FH400-4</t></si><si><t>频率范围：400-430MHz 单端口承载功率：50W 插入损耗：≤8.5dB 接入端口数量：4 安装方式：机柜式 尺寸2U</t></si><si><t>ECM1B042CZ1</t></si><si><t>分路器</t></si><si><t>E-JF350/400-4</t></si><si><t>频率范围：350-430MHz 单端口承载功率：1W 插入损耗：≤7.5dB 接入端口数量：4 安装方式：机柜式 尺寸1U</t></si><si><t>EDE1BU4xCZ1</t></si><si><t>E-SGQ400N</t></si><si><t>频率范围：410-414/420-424MHz 隔离方式：带阻 工作带宽：1.5M 单端口承载功率：50W 插入损耗：≤2.0dB 收发频率间隔：10M 安装方式：机柜式</t></si><si><t>EDULN4N1CZ1</t></si><si><t>功率分配器</t></si><si><t>EVPD-2 LT</t></si><si><t>频率范围：88-430MHz;承载功率：100W;分路端口数量：2;防护等级：IP53;</t></si><si><t>HYCDN24Y</t></si><si><t>定向耦合器</t></si><si><t>EVDC-6 LT</t></si><si><t>RFT-BDA400B LT/M</t></si><si><t>频率范围：410-414/420-424MHz 带宽：≤4M 输出：2W 1U机箱 功能： 网讯平台</t></si><si><t>HYR3SI140</t></si><si><t>ECM1B022CZ1</t></si><si><t>EDE1BU2xCZ1</t></si><si><t>上行信号剥离器</t></si><si><t>R-EVDC-BLST-U</t></si><si><t>频率范围：350-430MHz 单端口承载功率：50W 插入损耗：≤0.5dB 接入端口数量：6 安装方式机：机柜式 尺寸：1U</t></si><si><t>EDE1AU6xCZ1</t></si><si><t>下行信号剥离器</t></si><si><t>R-EVDC-BLST-D</t></si><si><t>智能光纤近端机</t></si><si><t>RFS-400 LT/M</t></si><si><t>HYR2SI030</t></si><si><t>智能光纤远端直放站</t></si><si><t>HYR3SI14A</t></si><si><t>RFT-BDA310 LT/M</t></si><si><t>频率范围：351-356/361-366MHz 带宽：≤5M 输出：10W 2U机箱 功能： 正面状态灯/网讯平台</t></si><si><t>HYR3SI330</t></si><si><t>系统合路器</t></si><si><t>E-FHP2000-2</t></si><si><t>频率范围：351-366/410-424MHz 单端口承载功率：50W 插入损耗：≤1.5dB 接入端口数量：2 安装方式：机柜式 尺寸：2U</t></si><si><t>ECM1BB22CZ2</t></si><si><t>HYWG0NB1</t></si><si><t>HYWSRNB1</t></si><si><t>数字智能信道机</t></si><si><t>Mark1000 MAX</t></si><si><t>双工器</t></si><si><t>HYR2DI040</t></si><si><t>HYR3DI340</t></si><si><t>ECM1B082CZ1</t></si><si><t>EDE1BU8xCZ1</t></si><si><t>ECM1B062CZ1</t></si><si><t>EDE1BU6xCZ1</t></si><si><t>EAN2OFD2TE2</t></si><si><t>HYR2SI080</t></si><si><t>HYR3SI380</t></si><si><t>EANPOMO5HR1</t></si><si><t>E-SGQ350D</t></si><si><t>频率范围：351-356/361-366MHz 单端口承载功率：50W 插入损耗：≤2.0dB 收发频率间隔：10M 隔离方式：带通 工作带宽：5M 安装方式：机柜式 尺寸：2U</t></si><si><t>EDUPB5H1CZ1</t></si><si><t>HYR2DI030</t></si><si><t>HYR3DI330</t></si><si><t>E-FH350-4</t></si><si><t>频率范围：350-390MHz 单端口承载功率：50W;插入损耗：≤8.5dB接入端口数量：4;安装方式：机柜式;尺寸：2U</t></si><si><t>ECM1B042CZ2</t></si><si><t>套</t></si><si><t>合约单价</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>合约合计</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>备注</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>ID</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Type</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>MN</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>HYPSMXI30</t></si><si><t>合路平台</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>HYMBC6A1U</t></si><si><t>HYMBC6A1D</t></si><si><t>EDE1AD6xCZ1</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>HYR2SI000</t></si><si><t>HYR3SI300</t></si><si><t>HYR2SI010</t></si><si><t>HYR3SI310</t></si><si><t>HYR2DI000</t></si><si><t>HYR3DI300</t></si><si><t>HYR2DI010</t></si><si><t>HYR3DI310</t></si><si><t>HYR2DI080</t></si><si><t>HYR3DI380</t></si><si><t>HYCCN31Y</t></si><si><t>EANFOMO5HR1</t></si><si><t>室外全向玻璃钢天线</t></si><si><t>台</t></si><si><t>OBJANOTGR01</t></si><si><t>国产</t></si><si><t>OBJANOTHS01</t></si><si><t>OZCH221035</t></si><si><t>波纹管同轴电缆</t></si><si><t>HCAAYZ -50-12</t></si><si><t>浙江联创</t></si><si><t>米</t></si><si><t>OCIN5JZALC1</t></si><si><t>同轴电缆连接器</t></si><si><t>N-J1/2</t></si><si><t>只</t></si><si><t>OCIN5KZALC1</t></si><si><t>同轴电缆连接转换器</t></si><si><t>OCIN5JWALC1</t></si><si><t>N-50JKW</t></si><si><t>OISKHB1JLC1</t></si><si><t>跳线</t></si><si><t>E-JP50-7</t></si><si><t>长度：0.5米 接口：NJ转NJ 用途：天线连接跳线</t></si><si><t>根</t></si><si><t>EDFWYFC04O</t></si><si><t>EDFWYFC24W</t></si><si><t>服务</t></si><si><t>F0010</t></si><si><t>对讲机频率占用费</t></si><si><t>转移支付</t></si><si><t>F0011</t></si><si><t>主站频率占用费</t></si><si><t>F0012</t></si><si><t>电磁环境检测及申报报告费</t></si><si><t>次</t></si><si><t>Error #1004: 对象“Save”的方法“_Workbook”失败</t></si><si><t>FirstTimeSetup</t></si><si><t>Error #9: 下标超出范围</t></si><si><t>TransferDataWithBOM</t></si><si><t>Error #424: 要求的对象</t></si><si><t>Resetform</t></si><si><t>Error #1004: 对象“Add”的方法“Validation”失败</t></si><si><t>Rerashform</t></si><si><t>CreateNewProject</t></si><si><t>AccessWorkbook</t></si><si><t>Workbook_Open</t></si><si><t>ApplyPurchseCompany</t></si><si><t>Error #438: 对象不支持该属性或方法</t></si><si><t>Workbook_BeforeClose</t></si><si><t>UpdateCustomerDatabase</t></si><si><t>Error #-2147024809: 未找到以指定名称命名的项目。</t></si><si><t>FindFillSatuts</t></si><si><t>Error #1004: 无法对所选单元格进行此更改，因为它会影响数据透视表。请使用字段列表更改报表。如果您试图插入或删除单元格，请移动数据透视表，然后再试。</t></si><si><t>Error #1004: 对象“PivotTables”的方法“_Worksheet”失败</t></si><si><t>Error #91: 未设置对象变量或 With 块变量</t></si><si><t>Error #1004: 应用程序定义或对象定义错误</t></si><si><t>Error #91: 对象变量或 With 块变量未设置</t></si><si><t>CopyMatchingDataSortedByDate</t></si><si><t>DeleteRecalledData</t></si><si><t>Error #9: 下标越界</t></si><si><t>ProjectFilterList</t></si><si><t>Error #28: 溢出堆栈空间</t></si><si><t>Project.Worksheet_Change</t></si><si><t>CreateNewCustomer</t></si><si><t>Worksheet_Change</t></si><si><t>HYMFC2A10</t><phoneticPr fontId="20" type="noConversion"/></si><si><t>Error #1004: 对象“Visible”的方法“_Worksheet”失败</t></si><si><t>Sale</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>记录状态</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>信用等级</t></si><si><t>关系等级</t></si><si><t>VIP客户</t></si><si><t>价值评估</t></si><si><t>合作关系</t></si><si><t>城市</t></si><si><t>省份</t></si><si><t>Error #13: 类型不匹配</t></si><si><t>ResetFormRow</t></si><si><t>出货时间预测</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>状态</t></si><si><t>SaveToProjectDatabase</t></si><si><t>Error #1004: 您试图更改的单元格或图表位于受保护的工作表中。若要进行更改，请取消工作表保护。您可能需要输入密码。</t></si><si><t>ProjectFormDropManu</t></si><si><t>阶段</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>历史记录</t><phoneticPr fontId="6" type="noConversion"/></si><si><t xml:space="preserve">Error #0: </t></si><si><t>QuotationCustomerDropdownlist</t></si><si><t>和源通信（上海）股份有限公司</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>CheckCellMatchDB</t></si><si><t>设计院及顾问</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>系统集成商</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>直接用户</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前行动策略</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>对象</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Table4FilterSet</t></si><si><t>Error #1004: 对象“Intersect”的方法“_Global”失败</t></si><si><t>DeleteProjectRecord</t></si><si><t>MainProcess</t></si><si><t>Error #-672494352: 自动化错误</t></si><si><t>ImportData</t></si><si><t>Quotation.Worksheet_Change</t></si><si><t>报备日期</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>用户</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>对讲机</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>信道机</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>软件</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>FailedStatusButtonQo</t></si><si><t>saveform</t></si><si><t>QuotationProjectDropList</t></si><si><t>Stage</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>ApplyDropdownFromPriceList</t></si><si><t>当前积分</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>下一级积分</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>5级</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>级别</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当月新增积分</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>奖励</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>智能天线</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>模拟直放站</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>数字直放站</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>新增数量</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>新增积分</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>阶段推进新增积分</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>产品新增积分</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>活跃度丧失损失积分</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>成功率积分</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #6: 溢出</t></si><si><t>WriteToProjectDatabase</t></si><si><t>Table1ObjectDorpListSet</t></si><si><t>CopySheetToNewWorkbookWithoutPivotTables</t></si><si><t>CustomerFormDropManu</t></si><si><t>上级单位</t></si><si><t>客户编号</t></si><si><t>国家或地区</t></si><si><t>职位</t></si><si><t>联系电话</t></si><si><t>邮件信箱</t></si><si><t>客户列表</t></si><si><t>联系人列表</t></si><si><t>Chinese</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Englsih</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Project name</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Report time</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Project from</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Brand</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Consultant</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Estimate finish time</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Current stage</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Distributor</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>List price</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Owner</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Project ID</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Update time</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Customer</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>System Integrate</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Fellow recording</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>History recording</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Date</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Current strategy</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Object</t><phoneticPr fontId="6" type="noConversion"/></si><si><t xml:space="preserve">Time </t><phoneticPr fontId="6" type="noConversion"/></si><si><t>History content</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Repeater</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Project Category</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Application</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Total list price</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Two-way radio</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Report date</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Company</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Company address</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>VIP Customer</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>City</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Customer list</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Total</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>负责人</t></si><si><t>报价日期</t></si><si><t>报价金额</t></si><si><t>更新日期</t></si><si><t>单号</t></si><si><t>折扣</t></si><si><t>零售单价</t></si><si><t>单价</t></si><si><t>合计</t></si><si><t>切 换/调 取</t></si><si><t>导出 报表</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>更新 数据库</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>刷新</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>屏蔽 无效信息</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>删除</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>创 建</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>更 新</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>保 存</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>联 系 人</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Province</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Customer type</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Customer value</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Relationship</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Parent company</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Customer ID</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Country or region</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Collaborative relationship</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Credit rating</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Contact person</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Department</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Position</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Contact Number</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Email</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Contact List</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Quotation Date</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Quoting Company</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Quotation Amount</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Person</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Update Date</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Order Number</t><phoneticPr fontId="6" type="noConversion"/></si><si><t xml:space="preserve"> Status</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Product Name</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Specification Description</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Unit</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Discount</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>List Unit Price</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Retail Total Price</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Unit Price</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Subtotal</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Save</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Export As</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Update Database</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Refrash</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Filter Invalid Information</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Delete Record</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Delete</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Create</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Update</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Contact Person</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Contact ID</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>报价表</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Quotation List</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>导出报表</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Export As Report</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Import Copy</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Export As Copy</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>激活自动匹配</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>删除 记录</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>复制拷贝</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Copy</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>确认删除以下记录</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Confirm delete recording</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>切 换/创 建</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Switch to Create</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Switch to Recall</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>输入查询 关闭</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Search Off</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>输入查询 开启</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Search On</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>所有 信息可见</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>All Information On</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>取消自动匹配</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Auto Fill On</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Auto Fill Off</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>查 找</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Search</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>删 除</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>导入 副本</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>导出 副本</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>刷 新</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>失败</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>签约</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Signed</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Failure</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>项目保存成功</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Project Save Success</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>拜访</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Visit</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>返回</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Back</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>没有数据被更新需要保存.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>No data updated needs to be saved</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Processing, please wait…</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>正在处理，请稍候…</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>入围</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>围标</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>不确定</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Uncertain</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Controlled</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Involved</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>搁置</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>未中标</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>中标</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>招标中</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>招标前</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>品牌植入</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>发现</t></si><si><t>In bidding</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Pre-bid</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Brand placement</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Discovery</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Awarded</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Not awarded</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Suspended</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>销售重点</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>渠道管理</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>渠道跟进</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Key project</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Follow-up</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Management</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>【拜访】</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>【提案】</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>【提案采纳】</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>【一致行动人】</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>【Visit】</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>【Proposal】</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>【Proposal adoption】</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>【Concerted action person】</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海瑞康</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海淳泊</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>TCE</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>TA</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>SGCM1B082CZ1</t></si><si><t>SGDE1BU4XCZ1</t></si><si><t>SGDE1BU6XCZ1</t></si><si><t>SGDE1BU8XCZ1</t></si><si><t>SGE1AD6xCZ1</t></si><si><t>SGE1AU6xCZ1</t></si><si><t>SGR2SI030</t></si><si><t>SGR3SI14S</t></si><si><t>SGR2DI040</t></si><si><t>SGR3DI340</t></si><si><t>SGAIOCN4Y</t></si><si><t>SGAIOCB4Y</t></si><si><t>SGAIOCL4Y</t></si><si><t>SGANLOMO5HR1</t></si><si><t>SGCDN24Y</t></si><si><t>SGCCN34Y</t></si><si><t>OCIN5JZALC1</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>Language</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Conutry</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>请输入您要设置的账户密码：</t></si><si><t>模块</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>输入是空值</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>请确认您的密码：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>密码：</t></si><si><t>系统消息</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>设置完成</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>设置已取消</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>输入的初始密码不正确</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>第一次使用，你需要在此输入初始密码。以启动设置新账户程序</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>欢迎使用</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前版本：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Please enter the password you want to set for your account：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Module</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>The input is empty</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Please confirm your password：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Password：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>System message</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Setup complete</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Setup has been canceled</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>The initial password entered is incorrect</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>First time use, you need to enter the initial password here to start the new account setup process</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Welcome to use</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Current version：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>姓名：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>管理员访问权限已授予！您的原始凭据是：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>密码无效</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Name：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Administrator access granted! Your original credentials are：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Invalid password</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>用户名称：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>UserName：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>请设置使用的国家</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Please set the country for use</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #1004: 对象“Formula”的方法“Range”失败</t></si><si><t>缺少项目名称，请检查后再试</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>表单中没有数据</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>要保存为新记录吗?</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Missing project name, please check and try again</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>There is no data in the form</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>The same project was found in the database. Do you want to overwrite these records?</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Do you want to save as a new record?</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>在数据库中找到了相同的项目。要覆盖这些记录吗?</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>清单过滤提取完成</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>List filtering and extraction completed</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>请设置表单类型</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>请设置表单语言</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Please set the Form type for use</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Please set the Language for use</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>请输入您要设置的账户名称：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Please enter the password you want to set for your password：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>请再次输入相同的账户密码：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>两次输入的不是相同的密码，请重新设置密码</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Please confirm your password again</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>The passwords entered do not match, please reset your password.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>初始密码：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Initial password：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>账户名称：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>账户密码：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Account name：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Account password：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>项目名称重复无法保存</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>高</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>低</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>中</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>高质量客户</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>潜在客户</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>普通客户</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>是</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>否</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>有欠款情况</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>信用良好</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>The project name is duplicated and cannot be saved</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Partner</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>High</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Medium</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Low</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>High-quality customer</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Potential customer</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Ordinary customer</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Yes</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>No</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>There are outstanding debts</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Good credit</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>跟进记录时间</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Fellow recording date</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Recording status</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Success point</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Current point</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #1004: 不能设置类 Borders 的 Weight 属性</t></si><si><t>FillCustomerFormTitle</t></si><si><t>Evertac Solutions Singapore Pte. Ltd</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Address</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Logo</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>No. 8, Persiaran Tropicana &amp; Jalan Tropicana Utama, Tropicana, 47410 Petaling Jaya, Selangor, Malaysia</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>TRIPLE ACCESS SDN BHD</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Technics Communication &amp; Electronics Pte Ltd</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>No 18 Boon Lay Way, Tradehub 21 #03-105 Singapore 609966</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Name</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>TRIPLE ACCESS</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Evertacsolutions</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>武威路88 19号楼6楼
+普陀区 上海市 
+中国  (200335)
+021-62596028
+www.evertac.net</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>和源通信(上海)股份有限公司</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>18 BOON LAY WAY #03-108
+TRADEHUB 21 Singapore 609966</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>CreateDropdownFromCategory</t></si><si><t>CreateDropdownFromModel</t></si><si><t>Quotation.LookupValueInTable</t></si><si><t>CalculateScoreByVisit</t></si><si><t>Error #1004: 对象“SetRange”的方法“Sort”失败</t></si><si><t>确定要删除项目清单</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>在清单中未找到订单号</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Are you sure you want to delete the project list?</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Order number not found in the list</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>是否要删除选中单元格的内容?</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>【阶段变更】</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Do you want to delete the contents of the selected cell?</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>【Stage Change】</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>SGM1B022CZ1</t></si><si><t>SGDE1BU2XCZ1</t></si><si><t>SGCM1B042CZ1</t></si><si><t>SGCM1B062CZ1</t></si><si><t>EJUWY05A40LC</t></si><si><t>MasterSale</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>销售模块</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>DealerSale</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>渠道销售模块</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>技术模块</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Technical</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>管理模块</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #1004: 对象“Unprotect”的方法“_Worksheet”失败</t></si><si><t>ClearListObjectsData</t></si><si><t>CopyTableData</t></si><si><t>导出的项目名称</t></si><si><t>导出的客户名称</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>导入完成</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #457: 该关键字已经与该集合的一个元素相关联</t></si><si><t>Error #424: 要求对象</t></si><si><t>DeleteRecordIfFound</t></si><si><t>经销商名称</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>分销商名称</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>项目类型</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>直营产品</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>和源产品</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>渠道产品</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>总金额</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>出货时间</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>尺寸：1/2＂    特性1：低烟无卤    特性2：阻燃    阻抗：50Ω</t></si><si><t>尺寸：1/2＂    接口：N-J     外径：15.7mm    用途：同轴电缆连接器</t></si><si><t>类型：N型    特性：直角弯    用途：连接器</t></si><si><t>根据系统使用的对讲机终端数量来申报的每年一次的对讲机频率占用费    按国家核定标准收取</t></si><si><t>根据系统使用的信道机数量来申报的每年一次的基站频率占用费    按国家核定标准收取</t></si><si><t>提供前期安装现场电磁环境测试和申请频率的初选建议报告及提高无线电管理局的申报材料的准备    指导申请过程    包含1天的现场测试二个工程师    2天测试报告的撰写和一周的资料准备工作量</t></si><si><t>Evertac</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>修正导出项目时，客户和联系人信息偏差问题</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>修正报价单中文选中产品时出现的数据错位问题</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #1004: 类 Worksheet 的 Copy 方法无效</t></si><si><t>ExportasDataSheets</t></si><si><t>修正代码模块中中英文显示导致英文软件报错的问题</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Corrected the issue of deviations in customer and contact information when exporting projects.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Fixed data misalignment issues occurring when selecting products in Chinese on the quotation list.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Resolved errors in the code module caused by the display of Chinese and English, which led to errors in the English software.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>激活多选</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>导入外部项目</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>导出</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Exported project name</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Exported customer name</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Import completed</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Activate multi-select</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Import external projects</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Export</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>项目名称不能为空</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>The project name cannot be empty</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>取消多选</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Cancel multi-select</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>初始化</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Initialize</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>正确填入需要保存的客户名称</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Correctly fill in the customer name to be saved.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>该企业信息已经存在。是否覆盖?</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>该企业信息已经存在</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>确定是否激活客户</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>已经有了无法导入！</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>的信息?</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>以下是客户联系人信息：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>是否激活这些客户联系人信息?</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>是否要抹除之前导入的数据?</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>全部完成</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>确定是否激活该项目</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>该企业和联系人已经存在。是否覆盖?</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>错误：你选择的不是可以导入的文件格式。</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>导入文件对象名称不符。</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>如果你需要强制导入请输入管理员密码。</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>请输入管理员密码：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>密码错误，操作被取消。</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>操作被取消。</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>非常抱歉，在运行中出现了未能预料到的错误，我们将关闭程序，并将错误记录在文档的指定位置，</t></si><si><t>你可以将这条报错信息截屏提供给管理员，并将出现错误的文档发送给他，以获得更新错误后的最新版本，</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>管理员不会抹去任何你已经保留的记录</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>函数名称：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>错误信息：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>请输入管理员密码来启动:</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>所有数据库都清空了.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>您已取消操作。</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前操作系统为</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>所选工作簿不包含 设备清表</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>没有找到需要导入的数据。</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>项目名称列未找到。</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>更新时间列未找到。</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>MN列未找到。</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>销售负责人列未找到。</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>成功导入BOM数据条。</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>未在源表中找到必要的列。</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>请先删除该客户名单下的所有联系人后，再删除客户名单</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>联系人信息写入成功。</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>未找到与该客户相关的联系人信息。</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>The administrator will not erase any records you have already kept.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Function name:</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error message:</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Please enter the administrator password to start:</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>All databases have been cleared.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>The current operating system is</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>You have canceled the operation.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>The selected workbook does not contain an equipment list.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>No data found to import.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Project name column not found.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>MN column not found.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Update time column not found.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Sales manager column not found.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Successfully imported BOM data entries.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Necessary columns not found in the source table.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Please delete all contacts under this customer list before deleting the list itself.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Contact information was successfully written.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>No contact information related to this customer was found.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t xml:space="preserve">Confirm whether to activate the customer's </t><phoneticPr fontId="6" type="noConversion"/></si><si><t>information?</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>This enterprise information already exists. Overwrite?</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>The enterprise information already exists</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Already exists, cannot import!</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Below is the customer contact information:</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Do you want to activate these customer contact details?</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Do you want to erase the previously imported data?</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>All completed</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Confirm whether to activate the project</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>The enterprise and contact already exist. Overwrite?</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error: The file format you selected cannot be imported.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>The imported file object name does not match.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>If you need to force import, please enter the administrator password.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Please enter the administrator password:</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Password incorrect, operation canceled.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Operation canceled.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>We are very sorry, an unexpected error occurred during operation. We will close the program and record the error in the designated document location,</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>You can screenshot this error message and provide it to the administrator, and send the document where the error occurred to get the latest version after the error update,</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>ExportAsCopy</t></si><si><t>请将文件提供给管理者</t></si><si><t>Please provide the file to the manager</t></si><si><t>输出时间</t></si><si><t>Output time</t></si><si><t>报价表导出</t></si><si><t>Quotation list export</t></si><si><t>项目表导出</t></si><si><t>Project list export</t></si><si><t>客户数据导出</t></si><si><t>Customer data export</t></si><si><t>联系人数据导出</t></si><si><t>Contact data export</t></si><si><t>销售报表</t></si><si><t>Sales report</t></si><si><t>之前的内容将会被抹去。是否继续或跳过?</t></si><si><t>The previous content will be erased. Would you like to continue or skip?</t></si><si><t>历史项目数据库</t></si><si><t>ProjectBefore</t></si><si><t>历史清单数据库</t></si><si><t>BomBefore</t></si><si><t>联系人数据库</t></si><si><t>Contact Database</t></si><si><t>客户数据库</t></si><si><t>Customer Database</t></si><si><t>产品清单数据库</t></si><si><t>BOM</t></si><si><t>项目数据库</t></si><si><t>Project Database</t></si><si><t>导入项目数据库错误修正</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>报价单导出错误修正</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Correction of import project database error</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Correction of quotation list export error</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>CellCustomerDropdownSet</t></si><si><t>Error #1004: 对象“ClearContents”的方法“Range”失败</t></si><si><t>ProjectFormClear</t></si><si><t>Error #1004: 对象“Name”的方法“Font”失败</t></si><si><t>ProjectFillFontColorSet</t></si><si><t>Error #1004: 对象“LineStyle”的方法“Borders”失败</t></si><si><t>FillProjectFilterName</t></si><si><t>Error #1004: 对象“Delete”的方法“Range”失败</t></si><si><t>CustomerFromClear</t></si><si><t>CustomerFillFontColorSet</t></si><si><t>Error #1004: 类 Worksheet 的 Activate 方法无效</t></si><si><t>报价单模块增加新建功能未报价项目数据</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Quotation module adds new feature for unquoted project data</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #450: 参数数量错误或属性分配无效</t></si><si><t>FormType</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>English</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Singapore</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Malaysia</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>China</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>折扣</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>清单更新时间</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>顾问公司&amp;设计院</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>我们将更新当前数据库，点击确定继续</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>We will update database your choose to form, click yes to confirm.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>销售数据库</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>SaleForm database</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>更新后台数据库</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>解决导出的数据更新链接问题，解决导出文件自动保存指定文件名功能</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Quotation</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>预测时间从日期调整为季度</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>增加Project Filter中 报备来源数据栏</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #-2147024891: 不允许进入指定汇编中的索引。</t></si><si><t>ClearandSetupFirst</t></si><si><t>ImportProjectdata</t></si><si><t>导入项目数据时，按最新的数据进行对比后合并</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #1004: 无法对合并单元格执行此操作。</t></si><si><t>ClearAndFormatCells</t></si><si><t>提货单价</t></si><si><t>提货合计</t></si><si><t>第三方销售产品</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Login</t></si><si><t>Button_PriceApply</t></si><si><t>InitiationApplyForm</t></si><si><t>批价申请单功能增加</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>更新软件版本可以直接通过导入上版本文件来实现</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Button_ClearandSetupFirst</t></si><si><t>Error #1004: 你无权将文件保存到此位置。_x0017_请确保你有权写入此位置，或选择其他位置。</t></si><si><t>Button_ExportasDataSheets</t></si><si><t>入围</t></si><si><t>中标</t></si><si><t>上海瑞康</t></si><si><t xml:space="preserve">渠道跟进 </t></si><si><t>销售</t></si><si><t xml:space="preserve">不确定 </t></si><si><t>渠道管理</t></si><si><t>不确定</t></si><si><t>品牌植入</t></si><si><t>窄带双工器</t></si><si><t>EDE1AD6xCZ1</t></si><si><t>频率范围：350-50MHz 带宽：≤15M 远端携带：4 功能： 网讯平台</t></si><si><t>频率范围：150-170MHz，承载功率：100W;耦合规格：6dB</t></si><si><t>李冬「上海瀚网智能科技有限公司」</t></si><si><t>上海福玛通信信息科技有限公司</t></si><si><t>reCaculateFormSum</t></si><si><t>分 析 单</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>成本单价</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>成本合计</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>SumtypeMatchPrice</t></si><si><t>SortRowsByEvertac</t></si><si><t>批价</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>利润</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #11: 除数为零</t></si><si><t>reCaculateFormSumApplyreview</t></si><si><t>结算折扣</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>结算单价</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>结算合计</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>结算</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>付言新「上海福玛通信信息科技有限公司」</t></si><si><t>批 价 申 请 单</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海瀚网智能科技有限公司</t></si><si><t>频率范围：350-400MHz-功率 25W-网讯平台-数模兼容</t></si><si><t>杨俊杰</t></si><si><t>2024.11.1</t></si><si><t>2024.10.1</t></si><si><t>上海大歌剧院</t></si><si><t>殷平「华东建筑设计研究院有限公司」</t></si><si><t>胡铭杰「上海仪电楼宇科技有限公司」</t></si><si><t>黄辰赟「华东建筑设计研究院有限公司」</t></si><si><t>金晓俊「科进柏城咨询有限公司-上海分公司」</t></si><si><t>吴昊「上海华虹智联信息科技有限公司
+「上海华虹计通智能系统股份有限公司」</t></si><si><t>黄浦区广场社区C010102单元064-01、065-01地块「嘉里金陵东路」</t></si><si><t>霍尼韦尔(天津)有限公司-上海分公司</t></si><si><t>上海建筑设计研究院有限公司</t></si><si><t>港城广场</t></si><si><t>康桥01-05地块住宅项目智能化工程</t></si><si><t>/</t></si><si><t>手持对讲机</t></si><si><t>P6620</t></si><si><t>摩托罗拉</t></si><si><t>数字集群信道机 CP</t></si><si><t>SLR5300</t></si><si><t>(10%)   65,500 RMB</t></si><si><t>施工费用</t></si><si><t>(45%)   306,550 RMB</t></si><si><t>(35%)   241,050 RMB</t></si><si><t>219,323 RMB</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>(28%)  219,323 RMB</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>PriceApply.Worksheet_Change</t></si><si><t>0 RMB</t></si><si><t>(72%)  0.00 RMB</t></si><si><t>(0%)  0.00 RMB</t></si><si><t>增加批价申请单用于分析和生成单据</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>报价单可以输入产品库以外的产品型号和价格</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #92: For 循环未初始化</t></si><si><t>ProjectDropManuStatus</t></si><si><t>Button_CreateNewProject</t></si><si><t>GetParentMenuItems</t></si><si><t>Error #-652119808: 对象“DataBodyRange”的方法“ListObject”失败</t></si><si><t>Error #-652119808: 自动化错误</t></si><si><t>UpdateProjectPrice</t></si><si><t>Error #-1806734736: 对象“DataBodyRange”的方法“ListObject”失败</t></si><si><t>Error #1004: 对象“Add”的方法“ListRows”失败</t></si><si><t>workbookClose</t></si><si><t>Error #-1808185392: 对象“DataBodyRange”的方法“ListObject”失败</t></si><si><t>上海虹桥宜家方案一</t></si><si><t>上海虹桥宜家方案独立方案</t></si><si><t>Button_SaveQuotation</t></si><si><t>Error #1004: 方法 'Undo' 作用于对象 '_Application' 时失败</t></si><si><t>Error #-2147221080: 方法 'Sheets' 作用于对象 '_Workbook' 时失败</t></si><si><t>CreateDropdownValuesReturn</t></si><si><t>ConcatenateColumnValues</t></si><si><t>Button_CopyQoutationList</t></si><si><t>Error #1004: 方法 'PivotTables' 作用于对象 '_Worksheet' 时失败</t></si><si><t>Button_DeleteRecordIfFound</t></si><si><t>Customer.Worksheet_Change</t></si><si><t>Button_DeleteCustomerRecord</t></si><si><t>CreateDropdownValuesByReference</t></si><si><t>CreateDropdownValuesAddBrack</t></si><si><t>杨俊杰</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>发现集成商阶段机会</t></si><si><t>积分</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>华东建筑设计研究院有限公司</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海益邦智能技术股份有限公司</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海市安装工程集团有限公司-第九分公司</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海九谷科技发展有限公司</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海福玛通信信息科技有限公司</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海昂泰兰捷尔信息科技股份有限公司</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>任务描述</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>岗位</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>每次积分</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>首次积分</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>B</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>任务代码</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>发现设计院阶段机会</t></si><si><t>达到单月发现机会3个以上</t></si><si><t>发现重点项目机会</t></si><si><t>测试项目2</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>铠延机电设计(上海)有限公司</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>删除</t></si><si><t>列1</t></si><si><t>代理商</t></si><si><t>安达仕酒店-徐家汇中心酒店部分Lot4</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>沈麦韦「上海」商务咨询有限公司</t><phoneticPr fontId="6" type="noConversion"/></si><si><t xml:space="preserve">上海淳泊 </t><phoneticPr fontId="6" type="noConversion"/></si><si><t xml:space="preserve">渠道跟进 </t><phoneticPr fontId="6" type="noConversion"/></si><si><t>付言新「上海福玛通信信息科技有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>陆经纬「上海协利科技工程有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>常熟路8号</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>城投研究院检测基地建设「XC1-0017单元09街坊09-07号地块 」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t xml:space="preserve">不确定 </t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海菁峰设计咨询有限公司</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>奉贤烈士陈列馆</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前阶段改变为   失败 集成商改变为      _x000D_
+项目无任何信息，并非直接负责</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>奉贤住宅07-01&amp;04-02</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>渠道</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>招投标</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>李冬「上海瀚网智能科技有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>周永鹤「上海沐东机电设备有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海院闻峰负责智能化设计，配套提供设计方案</t></si><si><t>闻峰「上海现代建筑设计「集团」有限公司」</t></si><si><t>国际体操馆</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>倪道裕「上海维瓴智能科技有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>王剑「上海仪电鑫森科技发展有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>杭政工出8号浙江东富龙生物技术有限公司生命科学产业化基地</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>「阶段变更」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>付海涛「上海华虹智联信息科技有限公司
+「上海华虹计通智能系统股份有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>虹桥机场东片区T1南地块</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>余杰「华东建筑设计研究院有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>虹桥天合光能总部</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>周天文「华东建筑设计研究院有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>发现</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>该项目华东院周天文负责智能化专项，项目整体为12万方，分为六栋建筑，与虹桥希尔顿为同一个业主负责。目前再平台搭建，项目预计6月份启动招标图设计。需要跟进推动设计配套，推动消防系统、平台服务方案和全系列品牌入围</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>华亭宾馆改造</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>配套黄攀提供方案设计及概算报价，推荐全系列和源产品</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>该项目配合柏诚吴恺翔参与招标图设计，项目分为多个地块，本次先启动64和65两个地块，每个地块分为商办和住宅2个业态，有独立运维团队。需要了解设计阶段，邀约业主，推进业务合作，了解招标时间及参与集成商情况</t></si><si><t>交子公园金融商务区河东片区总部产业园「三期」项目G08地块</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>渠道反馈配套久钮俞春磊参与项目投标。目前了解到该项目为EPC，总承包为一建，由总承包发起弱电询价，要求清明节后提供整体报价</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海久钮智能科技有限公司</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>静安区工人文化宫「北宫」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海瀚网智能科技有限公司</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>陈允强「华东建筑设计研究院有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>该项目与华东院陈允强沟通了解项目计划3月底4月初挂网招标，弱电智能化基本锁定九谷，安排渠道跟进集成商投标。</t></si><si><t>九星城项目</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>郭小会 「杨俊杰」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>卓展工程顾问「北京」有限公司-上海分公司</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>该项目渠道报备，与渠道福玛付言新沟通了解，项目品牌入围，和源在内，但投标当时未使用和源品牌，中标单位实际并没有直接对接，他只是通过现场的施工分包在争取。12月初反馈系统还未定夺</t></si><si><t>邹飞「上海淳泊信息科技有限公司」</t></si><si><t>李奇灿「尚城集团」</t></si><si><t>蓝领公寓</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>该项目渠道报备，上海益邦中标，发起询价，询价品牌为海能达+和源。渠道沟通建议益邦采用全系列和源产品，益邦采购要求海能达及和源各报价一份</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>联影智慧医疗园</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>「阶段变更」_x000D_
+该项目招标，渠道配合提供投标</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>王杰飞「上海云思智慧信息技术有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>临港金桥平和项目</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前阶段改变为   失败 集成商改变为  上海益邦智能技术股份有限公司    _x000D_
+项目重复，与编号47，项目名称：平和学校</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>临港西岛金融中心项目</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>傅宏伟「上海银欣高新技术发展股份有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>临港重装备保障用房项目</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前阶段改变为   失败 集成商改变为  上海益邦智能技术股份有限公司    _x000D_
+与益邦沟通项目，没有任何反馈，自身不参与项目</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>临空 12 号地块国际商务花园四期</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>奚志坚「上海银欣高新技术发展股份有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>南京江北新金融中心一期「DEFGH地块」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>该项目与华东院余杰沟通了解有个项目管理公司，业主只负责提需求，主要是管理公司在把控整个项目招标，而管理公司这块余杰有把握说服。按他反馈现阶段关于招标品牌沟通过三轮，目前仍旧是按我所推荐的全系列和源产品。项目预计就要招标，需要跟进了解弱电投标单位信息</t></si><si><t>南京江北新区水源热泵区域冷供热系统项目(DHC)项目-5#能源站</t><phoneticPr fontId="6" type="noConversion"/></si><si><t xml:space="preserve">【拜访】「华东建筑设计研究院有限公司」:  </t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海仪电楼宇科技有限公司</t></si><si><t>上海张江国信安地产有限公司</t></si><si><t>南京市鼓楼区信泰中心</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>渠道报备，配合集成商江森参与项目投标，品牌入围</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>宁波中心</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>派米雷科技园</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>2024.11.1</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>平和学校</t><phoneticPr fontId="6" type="noConversion"/></si><si><t xml:space="preserve">类型改变为  渠道跟进     </t><phoneticPr fontId="6" type="noConversion"/></si><si><t>浦东东站地道工程</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>王微微「上海市政工程设计研究总院「集团」有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>市政院王微微反馈施工图已经送审，下一阶段进入招标前准备，但这部分由招标代理完成，按她所述招标代理会咨询他们建议，与其沟通是否可以引荐招标代理，锁定和源品牌，并提供技术要求</t></si><si><t>浦东新区杨思社区Z000602单元20C-14地块项目</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前阶段改变为   失败 集成商改变为  上海益邦智能技术股份有限公司    _x000D_
+该项目为住宅，配合益邦参与设计，据了解项目取消无线对讲系统</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>前滩华尔道夫</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海凯通实业有限公司</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海打浦桥日月光项目改造</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>「阶段变更」_x000D_
+该项目因日月光团队更换，主要因为资金问题，无线对讲取消改造</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>朱逸飞「上海菁峰设计咨询有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海大歌剧院</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>胡铭杰「上海仪电楼宇科技有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>殷平「华东建筑设计研究院有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海虹桥宜家</t></si><si><t>上海华翔拓新电子有限公司研发总部大楼</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>该项目渠道报备，华虹计通中标，之前没有无线对讲系统，现阶段业主增加，配套提供全系列和源方案</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海华虹智联信息科技有限公司
+「上海华虹计通智能系统股份有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海金山乐高</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>陈其容「华东建筑设计研究院有限公司」
+尤文捷「同济大学建筑设计研究院「集团」有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>陈志龙「上海经意实业有限公司」
+颜小兵「上海广发建设工程有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海龙旗项目</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海农行数据中心</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海浦东东站</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>黄辰赟「华东建筑设计研究院有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>施工图设计初版基本完成，与黄辰赟沟通了解目前没有任何消息。上安在提前询价，进一步跟进了解项目后续情况</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>科进柏城咨询有限公司-上海分公司</t></si><si><t>上海市黄浦区绿地外滩中心项目北区LGJ地块T1酒店</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>金晓俊「科进柏城咨询有限公司-上海分公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>刘强(挂靠)「上海临港景鸿安全防范科技发展有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>「阶段变更」_x000D_
+渠道跟进后反馈集成商因为价格因素选用烈龙，项目为原董家渡新增地块，用户为绿地，集成商和绿地用户关系较好，未按品牌要求采购，渠道反馈烈龙价格整体比我们低15%</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海市松江区洞泾镇工业区DJ-21-002号「SJS30002单元07-08」地块</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>渠道反馈该项目配套华虹计通付海涛参与项目投标。目前了解到华虹计通内部系统成本测算为报价17.5万，他们会选用和源品牌参与投标，另外上海湘辉也参与其中在询价</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海吴中路会所</t><phoneticPr fontId="6" type="noConversion"/></si><si><t xml:space="preserve">设计方改变为  科进柏城咨询有限公司-上海分公司 集成商改变为  霍尼韦尔「天津」有限公司-上海分公司    </t><phoneticPr fontId="6" type="noConversion"/></si><si><t>霍尼韦尔(天津)有限公司-上海分公司</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上实北外滩480米</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>盛令弢「科进柏城咨询有限公司-上海分公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>顾辰旻「上海市安装集团有限公司-第九分公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>深圳金融文化中心建设工程</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>思瑞浦研发楼</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前阶段改变为   失败 集成商改变为      _x000D_
+此项目并非我负责，不确定项目来源</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>台泥杭州环保科技总部</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>王正兴「杭州兆标科技有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>胡蓉「浙江微风智能科技有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>「阶段变更」_x000D_
+经集成商反馈无线对讲系统应用户运营部门取消，节约项目成本。与设计院复核信息确有此事</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>谈家渡苏河坊</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>唐镇金桥金谷商办项目</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前阶段改变为   失败 集成商改变为  上海益邦智能技术股份有限公司    _x000D_
+项目为住宅，智能化设计为上海益邦，经沟通了解无线对讲取消</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>塘镇商办项目</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前阶段改变为   失败 经销商改变为    集成商改变为  上海益邦智能技术股份有限公司    _x000D_
+项目重复，与编号26，项目名称：唐镇金桥金谷商办项目</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>桐庐县富春未来城快递物流会展中心</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>与黄辰赟沟通了解项目目前没有任何讯息</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>无锡华虹半导体1.5期</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>刘健「十一科技
+「信息产业电子第十一设计研究院科技工程
+股份有限公司-上海分公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>吴昊「上海华虹智联信息科技有限公司
+「上海华虹计通智能系统股份有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>「阶段变更」_x000D_
+该项目渠道反馈项目合同已经签订，内部批价也已确认</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>无锡华虹半导体2期</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>江勤平「十一科技
+「信息产业电子第十一设计研究院科技工程
+股份有限公司-上海分公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>芜湖宜居邻里中心</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>围标状况改变为   不确定  设计方改变为   当前阶段改变为   失败    _x000D_
+项目无任何信息，并非直接负责</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>西货运区监管货物集中查验中心3号&amp;7号地块</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>新建共和新路临汾路租赁住宅</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>与渠道确认，配合集成商未中标</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>徐汇航天科技园</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>杨俊杰/李华伟/范敬</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>徐家汇中心LOT4 T2</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>2023/124</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>龚伟「华东建筑设计研究院有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>面价金额改变为   90705    _x000D_
+该项目渠道瀚网与弱电集成商昂泰签约，推动渠道批价确认</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>徐家汇中心LOT4地库及裙房</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>代理商</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>靳丽「上海益邦智能技术股份有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>「阶段变更」_x000D_
+渠道瑞康反馈，此部分与之前昂泰部分重复，已经采购</t></si><si><t>扬州高邮金斯达先进半导体</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>杨树浦路670号优秀历史建筑装修</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>银河丽湾凯宾综合体项目</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>永城大厦项目</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前阶段改变为   失败 经销商改变为   上海鑫桉信息工程有限公司 类型改变为  渠道跟进     _x000D_
+该项目中建电子中标，云筑网招标，鑫桉投标未中标</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上海鑫桉信息工程有限公司</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>张江24-03地块</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>王小安「华东建筑设计研究院有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>张江78号地块项目</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>张江创新药基地B03C-02&amp;B03K-03</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>庄彦「上海张江国信安地产有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>贾雪凤「上海益邦智能技术股份有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>近期跟进通过渠道了解投标结果</t></si><si><t>张江集电港4-2</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>范敬</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>张江集团·周浦医疗器械总部园</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>渠道报备，配合集成商壹杰参与投标</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>张江科学家公寓</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>2024.10.1</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>列2</t></si><si><t>张江人工智能岛</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>马立果「上海建筑设计研究院有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>徐骏「上海壹杰信息技术有限公司」</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>机会关联设计院及联系人</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>机会关联业主及联系人</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>机会关联集成商及联系人</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>机会推进至品牌推荐及清单(品牌/清单）</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>机会推进至中标阶段</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>机会变更至搁置</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>机会变更至失败</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>机会推进至招标阶段（品/清）</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>机会推进至签约阶段（批价申请单）</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>机会推进至成功（批价单）</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>S</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>机会停滞</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>C类渠道批价完成</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>B类渠道批价完成</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>A类渠道批价完成</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>批价单金额大于50万</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>批价单金额大于80万</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>批价单金额大于100万</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>批价单金额大于200万</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>建立完成的客户录入信息</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>在重点项目中植入数字系统</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>等级</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>清单中植入NetFlex平台</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>完成机会的标准录入</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>制作和导出标准格式的清单</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>在招投标清单中出现对讲机/信道机产品</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>完成代理商项目报备录入</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>在清单中植入MA12天线及应用</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>T</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>M</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>备注说明</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>每次推进会增加和之前的差额部分积分</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>搁置状态，会暂时冻结扣除之前积分，直至下次重启</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>失败会扣减推进全部积分</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>停滞会扣减每个月同等量积分，直至归零</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>生成批价单为准</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>同上</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>品牌入围</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>品牌围标</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>达到单月发现机会5个以上</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>批价高于50折</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>批价高于60折</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>批价高于70折</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>成功开发区域经销商</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>成功开发行业合作伙伴</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>B1Q62</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>B1L09</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>B1O69</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>B1X83</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>B2A54</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>B2X43</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>B2R50</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>B2N46</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>B3J40</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>B3H05</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>B4G97</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>B4B39</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>B6J48</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>B6E47</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>B10G62</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>M1O15</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>M40Y65</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>M80N39</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>S2C78</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>S4L75</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>S5P83</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>S6A21</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>S6B10</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>S20I12</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>S20A53</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>S30R54</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>S30V08</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>S40E67</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>S40L35</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>S50D70</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>S60Y53</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>S70C75</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>S80K46</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>T1M20</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>T2I09</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>T2P16</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>T4Y09</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>T4L27</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #1004: 对象“Undo”的方法“_Application”失败</t></si><si><t>修复了客户模块的错误</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>增加了客户模块的联系人列表和统计功能</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #5: 无效的过程调用或参数</t></si><si><t>CustomerContactFilter</t></si><si><t>改善启动加载数据库逻辑</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #-709669424: 对象“ListColumns”的方法“ListObject”失败</t></si><si><t>Error #-709669424: 对象“DataBodyRange”的方法“ListObject”失败</t></si><si><t>Button_SaveToProjectDatabase</t></si><si><t>增加客户录入功能可以查看分析当前客户的项目关联情况</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #-1296777248: 自动化错误</t></si><si><t>Save_timer</t></si><si><t>数据库结构改变，增加对不匹配的数据的修正提示功能，解决项目预测时间数据的准确性,解决报价模块的bug</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #-1532818624: 自动化错误</t></si><si><t>Error #-957388512: 自动化错误</t></si><si><t>Error #-1381796528: 自动化错误</t></si><si><t>Error #-916429136: 自动化错误</t></si><si><t>ProcessColumn</t></si><si><t>ProcessErrorProjects</t></si><si><t>解决新数据表中会出现报错的bug</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Button_UpdateCustomerDatabase</t></si><si><t>GenerateReportForCustomer</t></si><si><t>公司评估</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>【出现困难】</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>【困难解决】</t></si><si><t>【Challage】</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>【Challage resolve】</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>修正输入的bug</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>更新预测的时间格式，精确到月度</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>修复跟进记录中数据无法保存的问题</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>客户联系人统计和分析功能增强</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>项目保存界面跟进记录模块Bug修复</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>SumColumnBasedOnCriteria</t></si><si><t>HYPSMXI30</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>OBUSWG10</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>WCF9PH</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>ProcessUStrpMN</t></si><si><t>BC3I3X4GN</t></si><si><t>BC4I2X4NN</t></si><si><t>BC4I3X4NN</t></si><si><t>BC4I4X4NN</t></si><si><t>BC4I4X4GE</t></si><si><t>BC4I3X4GE</t></si><si><t>BC4I2X4GE</t></si><si><t>HYPSMXI40</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>OBJSVOTXQ01</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>OBUSWG00</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>HYWG0NB1</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>MCHFLL52C</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>MCGFLF52C</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>EDFWYFC24W</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>EJUMJK4310NJNJ</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>Error #1004: 对象“Offset”的方法“Range”失败</t></si><si><t>Error #1004: 定义的应用程序或定义的对象错误</t></si><si><t>ID</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>HYMFC4A10</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>HYMJC2010</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>HYMJC4010</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>HYGF20000</t></si><si><t>ProcessPriceListforMapping</t></si><si><t>更新产品库到 20240820</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>更新报价单新增基站自动配置功能，默认匹配规则改为开启</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>增加下架产品开关和提示颜色</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>WCP0PH</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>OBUSWG10</t><phoneticPr fontId="20" type="noConversion"/></si><si><t>RecallFormWithLookup</t></si><si><t>优化已经保存的子项目调取时的顺序，增加产品库报价编号栏</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>ZCTCN4T</t></si><si><t>ZCTS6NN</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>HYTD1MA</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>HYTD4MA</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>HYTX0NA</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>HYTCANR01</t></si><si><t>ZCTZ6NN</t></si><si><t>当前主要困难/挑战</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Current challenges</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Company Evaluation</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Reseller</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>合作伙伴</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前联系人总数量</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Current sum of contacts</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>总项目数量</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Sum of projects</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>TranslateContent</t></si><si><t>数据库/产品库与销售功能模块分离，独立更新，取消导入/到处数据库功能</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>登录</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Login</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>TranslateShapesText</t></si><si><t>当前引用的产品库</t></si><si><t>Current database</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Current Referenced Product Library</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前数据库</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>批价申请</t></si><si><t>Price apply</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Number of Opens This Week</t></si><si><t>本周打开次数</t></si><si><t>本周累计开启时间</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Total Open Time This Week</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>下架产品过滤</t></si><si><t>Filter for Discontinued Products</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>统计数据</t></si><si><t>Statistics</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>有效联系人数量</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Number of Valid Contacts</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Update product database to 20240820 verison</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Update price list to include new base station auto-configuration feature, default rule changes for automatic matching.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Increase product off-shelf related and reminder colors</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Optimize the order of sub-project retrieval stored in memory, and increase product library quotation speed.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Enhanced customer contact statistics and analysis functionality</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Bug fix for follow-up records module on project save interface</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Correction of input bug</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Updated time format for forecasts, accurate to monthly precision</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Fixed issue with data not saving in follow-up records</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Improved logic for database loading at startup</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Added customer input functionality to analyze project relevance</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Database security enhancements, added reliable permission control and data recovery features</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Fixed bug where some data did not generate reports</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Fixed errors in the customer module</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Added contact list and statistics functionality to the customer module</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Approval application functionality added</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Software version update can now be achieved by importing previous version files directly</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Added software application form for analysis and processing</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Quotation application form now includes product IDs for analyzing product model appropriateness</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Added communication platform for customer and sales interactions, with independent update, cancellation, and save features</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Forecast time adjusted from monthly to quarterly cycle</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Added Project Filter report integration feature</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Import project data, compare with system’s automatic data, and merge accordingly</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Resolved the issue of updating links in exported data</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>沟通情况</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>沟通日期</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>GetChinesetoEnglish</t></si><si><t>关联机会</t></si><si><t>Error #457: 此键已与该集合的元素关联</t></si><si><t>沟通详情</t></si><si><t>Opportunity</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Details</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>button_recording</t></si><si><t>GenerateCompanyContact</t></si><si><t>Error #13: 类型不匹配 in line 60</t></si><si><t>Error #13: 类型不匹配 in line 60Content is:2024/5/25 10:35:30  郭小会
+_x000D_【消息】「」现场开会，关于方是采用400M独立系统，还是采用800M接入机场，设计单位还未给总包最终的确认，给总包介绍两个系统的优劣势，总包催促设计院尽快确认采用400M独立系统
+_x000D_2024/2/21 12:55:30  郭小会
+_x000D_设计方改变为  北京中电电子工程咨询公司 分销商改编为   上海淳泊  类型改变为  渠道管理 集成商改变为  上海博望电子科技有限公司    _x000D_
+协调代理商进行深化设计，配合集成商提供报审资料
+_x000D_2023/11/1  郭小会
+_x000D_1、建工总包中标，分包询价
+2、销售提供清单技术对接中
+3、销售需确认代理商
+4、带代理商对接集成商，提供相关的产品资料，试图更改成和源的对讲机</t></si><si><t>Error #13: 类型不匹配 in line 60Content is:2024/5/25 10:34:46  郭小会
+_x000D_【阶段变更】品牌植入-&gt;招标前
+_x000D_2024/5/25 10:34:01  郭小会
+_x000D_【消息】「」项目准备招标，交给杨俊杰团队后续对接跟进
+_x000D_2024/3/8 13:43:51  郭小会
+_x000D_集成商上安提前介入，杨俊杰在对接， 和设计院沟通，分布系统品牌和源也入围 ，和同济院唐平沟通把我们的品牌添加到对讲机和信道机的品牌里面
+_x000D_2024/2/21 13:01:15  郭小会
+_x000D_设计方改变为  同济大学建筑设计研究院(集团)有限公司 类型改变为  渠道管理    
+_x000D_2023/11/1  郭小会
+_x000D_1、项目前期设计规划</t></si><si><t>Error #13: 类型不匹配 in line 60Content is:2024/5/25 10:30:31  郭小会
+_x000D_【消息】「」浦东机场四期停车楼部分图纸已完成初步深化，交给华东院，近期再跟进时，了解最新进展以及业主的情况，徐昊给到业主顾婷婷近期也准备接触了解情况
+_x000D_2024/4/24 10:38:31  郭小会
+_x000D_【消息】「」建工通过上安九分反馈浦东机场四期建筑会采用新材料，可能信号屏蔽加强，对所有通信系统会有影响 ，要求相关通信厂家去嘉兴搭建的临时模型区域去测试评估，已协调安排可以杨和赵去现场测试，后续出具评估报告
+_x000D_2024/4/24 10:35:02  郭小会
+_x000D_【消息】「」浦东机场四期项目启动深化设计，带刘威参加华东院关于项目中停车楼部分的深化设计要求，本次深化设计主要是用于建筑招标，根据深化设计图纸，造价公司评估管材用量
+_x000D_2024/2/23 09:12:39  郭小会
+_x000D_面价金额改变为   10171807    
+_x000D_2024/2/21  郭小会
+_x000D_配合华东院吴老师进行前期设计规划，本次设计范围包括T3航站楼、南北车库和交通中心，系统包含消防对讲和公安对讲，边防对讲独立建设</t></si><si><t>FindAndCopyCustomerData</t></si><si><t>Error #13: 类型不匹配 in line 56016Content is:
+_x000D_2024/5/25 10:35:30  郭小会
+_x000D_【消息】「」现场开会，关于方是采用400M独立系统，还是采用800M接入机场，设计单位还未给总包最终的确认，给总包介绍两个系统的优劣势，总包催促设计院尽快确认采用400M独立系统
+_x000D_2024/2/21 12:55:30  郭小会
+_x000D_设计方改变为  北京中电电子工程咨询公司 分销商改编为   上海淳泊  类型改变为  渠道管理 集成商改变为  上海博望电子科技有限公司    _x000D_
+协调代理商进行深化设计，配合集成商提供报审资料
+_x000D_2023/11/1  郭小会
+_x000D_1、建工总包中标，分包询价
+2、销售提供清单技术对接中
+3、销售需确认代理商
+4、带代理商对接集成商，提供相关的产品资料，试图更改成和源的对讲机</t></si><si><t>Error #13: 类型不匹配 in line 56016Content is:
+_x000D_2024/5/25 10:34:46  郭小会
+_x000D_【阶段变更】品牌植入-&gt;招标前
+_x000D_2024/5/25 10:34:01  郭小会
+_x000D_【消息】「」项目准备招标，交给杨俊杰团队后续对接跟进
+_x000D_2024/3/8 13:43:51  郭小会
+_x000D_集成商上安提前介入，杨俊杰在对接， 和设计院沟通，分布系统品牌和源也入围 ，和同济院唐平沟通把我们的品牌添加到对讲机和信道机的品牌里面
+_x000D_2024/2/21 13:01:15  郭小会
+_x000D_设计方改变为  同济大学建筑设计研究院(集团)有限公司 类型改变为  渠道管理    
+_x000D_2023/11/1  郭小会
+_x000D_1、项目前期设计规划</t></si><si><t>Error #13: 类型不匹配 in line 56016Content is:
+_x000D_2024/5/25 10:30:31  郭小会
+_x000D_【消息】「」浦东机场四期停车楼部分图纸已完成初步深化，交给华东院，近期再跟进时，了解最新进展以及业主的情况，徐昊给到业主顾婷婷近期也准备接触了解情况
+_x000D_2024/4/24 10:38:31  郭小会
+_x000D_【消息】「」建工通过上安九分反馈浦东机场四期建筑会采用新材料，可能信号屏蔽加强，对所有通信系统会有影响 ，要求相关通信厂家去嘉兴搭建的临时模型区域去测试评估，已协调安排可以杨和赵去现场测试，后续出具评估报告
+_x000D_2024/4/24 10:35:02  郭小会
+_x000D_【消息】「」浦东机场四期项目启动深化设计，带刘威参加华东院关于项目中停车楼部分的深化设计要求，本次深化设计主要是用于建筑招标，根据深化设计图纸，造价公司评估管材用量
+_x000D_2024/2/23 09:12:39  郭小会
+_x000D_面价金额改变为   10171807    
+_x000D_2024/2/21  郭小会
+_x000D_配合华东院吴老师进行前期设计规划，本次设计范围包括T3航站楼、南北车库和交通中心，系统包含消防对讲和公安对讲，边防对讲独立建设</t></si><si><t>记录</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Recording</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #13: 类型不匹配 in line 60Content is:
+_x000D_2024/5/25 10:35:30  郭小会
+_x000D_【消息】「」现场开会，关于方是采用400M独立系统，还是采用800M接入机场，设计单位还未给总包最终的确认，给总包介绍两个系统的优劣势，总包催促设计院尽快确认采用400M独立系统
+_x000D_2024/2/21 12:55:30  郭小会
+_x000D_设计方改变为  北京中电电子工程咨询公司 分销商改编为   上海淳泊  类型改变为  渠道管理 集成商改变为  上海博望电子科技有限公司    _x000D_
+协调代理商进行深化设计，配合集成商提供报审资料
+_x000D_2023/11/1  郭小会
+_x000D_1、建工总包中标，分包询价
+2、销售提供清单技术对接中
+3、销售需确认代理商
+4、带代理商对接集成商，提供相关的产品资料，试图更改成和源的对讲机</t></si><si><t>Error #13: 类型不匹配 in line 60Content is:
+_x000D_2024/5/25 10:34:46  郭小会
+_x000D_【阶段变更】品牌植入-&gt;招标前
+_x000D_2024/5/25 10:34:01  郭小会
+_x000D_【消息】「」项目准备招标，交给杨俊杰团队后续对接跟进
+_x000D_2024/3/8 13:43:51  郭小会
+_x000D_集成商上安提前介入，杨俊杰在对接， 和设计院沟通，分布系统品牌和源也入围 ，和同济院唐平沟通把我们的品牌添加到对讲机和信道机的品牌里面
+_x000D_2024/2/21 13:01:15  郭小会
+_x000D_设计方改变为  同济大学建筑设计研究院(集团)有限公司 类型改变为  渠道管理    
+_x000D_2023/11/1  郭小会
+_x000D_1、项目前期设计规划</t></si><si><t>Error #13: 类型不匹配 in line 60Content is:
+_x000D_2024/5/25 10:30:31  郭小会
+_x000D_【消息】「」浦东机场四期停车楼部分图纸已完成初步深化，交给华东院，近期再跟进时，了解最新进展以及业主的情况，徐昊给到业主顾婷婷近期也准备接触了解情况
+_x000D_2024/4/24 10:38:31  郭小会
+_x000D_【消息】「」建工通过上安九分反馈浦东机场四期建筑会采用新材料，可能信号屏蔽加强，对所有通信系统会有影响 ，要求相关通信厂家去嘉兴搭建的临时模型区域去测试评估，已协调安排可以杨和赵去现场测试，后续出具评估报告
+_x000D_2024/4/24 10:35:02  郭小会
+_x000D_【消息】「」浦东机场四期项目启动深化设计，带刘威参加华东院关于项目中停车楼部分的深化设计要求，本次深化设计主要是用于建筑招标，根据深化设计图纸，造价公司评估管材用量
+_x000D_2024/2/23 09:12:39  郭小会
+_x000D_面价金额改变为   10171807    
+_x000D_2024/2/21  郭小会
+_x000D_配合华东院吴老师进行前期设计规划，本次设计范围包括T3航站楼、南北车库和交通中心，系统包含消防对讲和公安对讲，边防对讲独立建设</t></si><si><t>Error #13: 类型不匹配 in line 60Content is:2024/9/1 郭小会
+_x000D_「陈霆斌」信息产业电子第十一设计院科技工程股份有限公司  增加信道机和对讲机品牌为和源
+_x000D_2024/5/25  郭小会
+_x000D_代理商发现项目机会，联系到相关的设计院负责人，设计负责人在上海，我们去对接设计负责人，了解到项目的最新情况，计划近期重庆出差和代理商一起见业主
+_x000D_2024/5/25  郭小会
+_x000D_代理商发现项目机会，联系到相关的设计院负责人，设计负责人在上海，我们去对接设计负责人，了解到项目的最新情况，计划近期重庆出差和代理商一起见业主
+_x000D_2024/5/25  郭小会
+_x000D_【消息】「」代理商发现项目机会，联系到相关的设计院负责人，设计负责人在上海，我们去对接设计负责人，了解到项目的最新情况，计划近期重庆出差和代理商一起见业主
+_x000D_【阶段变更】品牌植入-&gt;招标前</t></si><si><t>Error #13: 类型不匹配 in line 60Content is:2024/9/1 郭小会
+_x000D_「陈霆斌」信息产业电子第十一设计院科技工程股份有限公司  增加信道机和对讲机品牌为和源
+_x000D_2024/5/25  郭小会
+_x000D_【消息】「」代理商发现项目机会，联系到相关的设计院负责人，设计负责人在上海，我们去对接设计负责人，了解到项目的最新情况，计划近期重庆出差和代理商一起见业主
+_x000D_【阶段变更】品牌植入-&gt;招标前
+_x000D_2024/5/25  郭小会
+_x000D_代理商发现项目机会，联系到相关的设计院负责人，设计负责人在上海，我们去对接设计负责人，了解到项目的最新情况，计划近期重庆出差和代理商一起见业主
+_x000D_2024/5/25  郭小会
+_x000D_代理商发现项目机会，联系到相关的设计院负责人，设计负责人在上海，我们去对接设计负责人，了解到项目的最新情况，计划近期重庆出差和代理商一起见业主
+_x000D_2024/5/25  郭小会
+_x000D_【阶段变更】招标前-&gt;中标
+_x000D_</t></si><si><t>Error #-550454256: 对象“ListColumns”的方法“ListObject”失败</t></si><si><t>Error #-813235344: 对象“DataBodyRange”的方法“ListObject”失败</t></si><si><t>Error #-1114122928: 对象“ListRows”的方法“ListObject”失败</t></si><si><t>Error #13: 类型不匹配 in line 0Content is:2024/9/1 郭小会
+_x000D_「陈霆斌」信息产业电子第十一设计院科技工程股份有限公司  增加信道机和对讲机品牌为和源
+_x000D_2024/5/25  郭小会
+_x000D_【阶段变更】招标前-&gt;中标
+_x000D_
+_x000D_2024/5/25  郭小会
+_x000D_【消息】「」代理商发现项目机会，联系到相关的设计院负责人，设计负责人在上海，我们去对接设计负责人，了解到项目的最新情况，计划近期重庆出差和代理商一起见业主
+_x000D_【阶段变更】品牌植入-&gt;招标前
+_x000D_2024/5/25  郭小会
+_x000D_代理商发现项目机会，联系到相关的设计院负责人，设计负责人在上海，我们去对接设计负责人，了解到项目的最新情况，计划近期重庆出差和代理商一起见业主
+_x000D_2024/5/25  郭小会
+_x000D_代理商发现项目机会，联系到相关的设计院负责人，设计负责人在上海，我们去对接设计负责人，了解到项目的最新情况，计划近期重庆出差和代理商一起见业主</t></si><si><t>Error #13: 类型不匹配 in line 0Content is:
+_x000D_2024/5/25 10:35:30  郭小会
+_x000D_【消息】「」现场开会，关于方是采用400M独立系统，还是采用800M接入机场，设计单位还未给总包最终的确认，给总包介绍两个系统的优劣势，总包催促设计院尽快确认采用400M独立系统
+_x000D_2024/2/21 12:55:30  郭小会
+_x000D_设计方改变为  北京中电电子工程咨询公司 分销商改编为   上海淳泊  类型改变为  渠道管理 集成商改变为  上海博望电子科技有限公司    _x000D_
+协调代理商进行深化设计，配合集成商提供报审资料
+_x000D_2023/11/1  郭小会
+_x000D_1、建工总包中标，分包询价
+2、销售提供清单技术对接中
+3、销售需确认代理商
+4、带代理商对接集成商，提供相关的产品资料，试图更改成和源的对讲机</t></si><si><t>Error #13: 类型不匹配 in line 0Content is:
+_x000D_2024/5/25 10:34:46  郭小会
+_x000D_【阶段变更】品牌植入-&gt;招标前
+_x000D_2024/5/25 10:34:01  郭小会
+_x000D_【消息】「」项目准备招标，交给杨俊杰团队后续对接跟进
+_x000D_2024/3/8 13:43:51  郭小会
+_x000D_集成商上安提前介入，杨俊杰在对接， 和设计院沟通，分布系统品牌和源也入围 ，和同济院唐平沟通把我们的品牌添加到对讲机和信道机的品牌里面
+_x000D_2024/2/21 13:01:15  郭小会
+_x000D_设计方改变为  同济大学建筑设计研究院(集团)有限公司 类型改变为  渠道管理    
+_x000D_2023/11/1  郭小会
+_x000D_1、项目前期设计规划</t></si><si><t>Error #13: 类型不匹配 in line 0Content is:
+_x000D_2024/5/25 10:30:31  郭小会
+_x000D_【消息】「」浦东机场四期停车楼部分图纸已完成初步深化，交给华东院，近期再跟进时，了解最新进展以及业主的情况，徐昊给到业主顾婷婷近期也准备接触了解情况
+_x000D_2024/4/24 10:38:31  郭小会
+_x000D_【消息】「」建工通过上安九分反馈浦东机场四期建筑会采用新材料，可能信号屏蔽加强，对所有通信系统会有影响 ，要求相关通信厂家去嘉兴搭建的临时模型区域去测试评估，已协调安排可以杨和赵去现场测试，后续出具评估报告
+_x000D_2024/4/24 10:35:02  郭小会
+_x000D_【消息】「」浦东机场四期项目启动深化设计，带刘威参加华东院关于项目中停车楼部分的深化设计要求，本次深化设计主要是用于建筑招标，根据深化设计图纸，造价公司评估管材用量
+_x000D_2024/2/23 09:12:39  郭小会
+_x000D_面价金额改变为   10171807    
+_x000D_2024/2/21  郭小会
+_x000D_配合华东院吴老师进行前期设计规划，本次设计范围包括T3航站楼、南北车库和交通中心，系统包含消防对讲和公安对讲，边防对讲独立建设</t></si><si><t>下架产品显示</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Display discontinued products</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>自动匹配已经取消</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>自动匹配已经激活</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #-40648896: 对象“ListRows”的方法“ListObject”失败</t></si><si><t>Error #13: 类型不匹配 in line 0Content is:
+_x000D_当前数据库  ：  Roy  last saved:  2024-09-01  18:34:57
+_x000D_Current database  ：  Roy  last saved:  2024-09-01  18:34:57
+_x000D_Current database  ：  Roy  last saved:  2024-09-01  18:34:57
+_x000D_Current database  ：  Roy  last saved:  2024-09-01  18:34:57Current Referenced Product Library ： Malaysia20240825 </t></si><si><t>Error #13: 类型不匹配 in line 40Content is:
+_x000D_当前数据库  ：  Roy  last saved:  2024-09-01  18:34:57
+_x000D_Current database  ：  Roy  last saved:  2024-09-01  18:34:57
+_x000D_Current database  ：  Roy  last saved:  2024-09-01  18:34:57
+_x000D_Current database  ：  Roy  last saved:  2024-09-01  18:34:57Current Referenced Product Library ： Malaysia20240825 </t></si><si><t>Error #13: 类型不匹配 in line 40Content is:
+_x000D_当前数据库  ：  Roy  last saved:  2024-09-01  18:34:57
+_x000D_Current database  ：  Roy  last saved:  2024-09-01  18:34:57
+_x000D_Current database  ：  Roy  last saved:  2024-09-01  18:34:57
+_x000D_Current database  ：  Roy  last saved:  2024-09-01  18:34:57
+_x000D_Current database  ：  Roy  last saved:  2024-09-01  18:34:57Current Referenced Product Library ： Malaysia20240825 </t></si><si><t>Error #13: 类型不匹配 in line 40Content is:
+
+当前数据库  ：  Roy  last saved:  2024-09-01  18:34:57
+
+Current database  ：  Roy  last saved:  2024-09-01  18:34:57
+
+Current database  ：  Roy  last saved:  2024-09-01  18:34:57
+
+Current database  ：  Roy  last saved:  2024-09-01  18:34:57
+
+Current database  ：  Roy  last saved:  2024-09-01  18:34:57
+
+Current database  ：  Roy  last saved:  2024-09-01  18:34:57Current Referenced Product Library ： Malaysia20240825 </t></si><si><t>此报价清单的项目名称不在数据库中，将新建一个项目,请在项目管理表中完善数据</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>The BOM list is not exist in project database, please add it late.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>调整项目跟进记录功能挪至 客户模块，在客户模块增加无项目时客户互动跟进输入</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>客户模块选择客户，汇总客户下的项目情况和联系人互动情况</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>更新产品报价货币信息</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>项目模块保留项目相关跟进分析</t><phoneticPr fontId="6" type="noConversion"/></si><si><t xml:space="preserve">Move Project fellow recoding to customer sheet and add a contact person recording function </t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Now, you can select customer then show the contact detail with person automaticly</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Update currency in quotation sheet</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Project sheet reserve project progress analyze</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #13: 类型不匹配 in line 40Content is:2024/9/1 郭小会
+_x000D_「陈霆斌」信息产业电子第十一设计院科技工程股份有限公司  增加信道机和对讲机品牌为和源
+_x000D_2024/5/25  郭小会
+_x000D_【阶段变更】招标前-&gt;中标
+_x000D_
+_x000D_2024/5/25  郭小会
+_x000D_【消息】「」代理商发现项目机会，联系到相关的设计院负责人，设计负责人在上海，我们去对接设计负责人，了解到项目的最新情况，计划近期重庆出差和代理商一起见业主
+_x000D_【阶段变更】品牌植入-&gt;招标前
+_x000D_2024/5/25  郭小会
+_x000D_代理商发现项目机会，联系到相关的设计院负责人，设计负责人在上海，我们去对接设计负责人，了解到项目的最新情况，计划近期重庆出差和代理商一起见业主
+_x000D_2024/5/25  郭小会
+_x000D_代理商发现项目机会，联系到相关的设计院负责人，设计负责人在上海，我们去对接设计负责人，了解到项目的最新情况，计划近期重庆出差和代理商一起见业主</t></si><si><t>Error #13: 类型不匹配 in line 40Content is:
+_x000D_2024/5/25 10:35:30  郭小会
+_x000D_【消息】「」现场开会，关于方是采用400M独立系统，还是采用800M接入机场，设计单位还未给总包最终的确认，给总包介绍两个系统的优劣势，总包催促设计院尽快确认采用400M独立系统
+_x000D_2024/2/21 12:55:30  郭小会
+_x000D_设计方改变为  北京中电电子工程咨询公司 分销商改编为   上海淳泊  类型改变为  渠道管理 集成商改变为  上海博望电子科技有限公司    _x000D_
+协调代理商进行深化设计，配合集成商提供报审资料
+_x000D_2023/11/1  郭小会
+_x000D_1、建工总包中标，分包询价
+2、销售提供清单技术对接中
+3、销售需确认代理商
+4、带代理商对接集成商，提供相关的产品资料，试图更改成和源的对讲机</t></si><si><t>Error #13: 类型不匹配 in line 40Content is:
+_x000D_2024/5/25 10:34:46  郭小会
+_x000D_【阶段变更】品牌植入-&gt;招标前
+_x000D_2024/5/25 10:34:01  郭小会
+_x000D_【消息】「」项目准备招标，交给杨俊杰团队后续对接跟进
+_x000D_2024/3/8 13:43:51  郭小会
+_x000D_集成商上安提前介入，杨俊杰在对接， 和设计院沟通，分布系统品牌和源也入围 ，和同济院唐平沟通把我们的品牌添加到对讲机和信道机的品牌里面
+_x000D_2024/2/21 13:01:15  郭小会
+_x000D_设计方改变为  同济大学建筑设计研究院(集团)有限公司 类型改变为  渠道管理    
+_x000D_2023/11/1  郭小会
+_x000D_1、项目前期设计规划</t></si><si><t xml:space="preserve">Error #13: 类型不匹配 in line 0Content is:
+_x000D_2024/8/5 11:27:31  Rick
+_x000D_【阶段变更】-&gt;签约
+_x000D_2024/8/5 11:20:45  Rick
+_x000D_【消息】「」Met Jitendra and Terry, Project Manager for NS Square on 2 Aug and presented the Fiber DAS Solution to him. Terry has to agree to use our solution as he is the project manager of NS Square. The installation of the cabling and ORU and antennas to be done by Kurihara which is the customer of Securitas. We are providing the cables and to advise on the installation with the cable routing for our Fiber DAS Solution. The project will be given to us after the submission. 
+_x000D_2024/7/8 11:32:44  Rick
+_x000D_【消息】「」Met Jitendra with James and he introduced Ivy, Dept Head and James Chew, new Sales Director. We had gone through the compliance and system design to Jitendra and he was happy with the design. However, he would like to have the revised quotation with no cabllings and better pricing due to his earlier submisison from Southeast.  
+_x000D_2024/6/18 14:11:16  Rick
+_x000D_【消息】「Assistant Sales Manager」To get the specs and site plan from Securitas and to submit proposal by 21 June. Then to meet Jitendra to discuss and arrange to meet DSTA to use Evertac solutions.
+_x000D_2024/6/18  Rick
+_x000D_【提案】:  </t></si><si><t xml:space="preserve">Error #13: 类型不匹配 in line 0Content is:
+_x000D_2024/7/8 14:21:39  Rick
+_x000D_【阶段变更】-&gt;中标
+_x000D_2024/7/8 11:13:10  Rick
+_x000D_【消息】「」Lyleson from ASCENDO has a project from his SI and wanted a proposal from us. He would be proposing for his SI and we would cover him for his submission to his SI. The quotation was sent to him and would be meeting him to discuss how he could win the project from his SI. 
+_x000D_2024/7/8  Rick
+_x000D_【拜访】:  </t></si><si><t>PNR2000</t></si><si><t>FDPower400</t></si><si><t>MA11</t></si><si><t>MA12</t></si><si><t>HYAIOCN4Y</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>HYAIOCL4Y</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>HYAIOCB4Y</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>MAPD-2</t></si><si><t>MADC-6</t></si><si><t>HYCDF24Y</t></si><si><t>HYCCF34Y</t></si><si><t>LS-NFX-BDA</t></si><si><t>N-50KK</t></si><si><t>CMP2600</t></si><si><t>ST/FC  4口</t></si><si><t>E-JF150-2</t></si><si><t>E-JF150-4</t></si><si><t>E-JF350/400-2</t></si><si><t>E-JF350/400-6</t></si><si><t>E-JF350/400-8</t></si><si><t>RFT-BDA88 LT/M</t></si><si><t>RFT-BDA110 LT/M</t></si><si><t>RFT-BDA810 LT/M</t></si><si><t>DRFT-BDA88/M</t></si><si><t>DRFT-BDA110/M</t></si><si><t>DRFT-BDA310/M</t></si><si><t>DRFT-BDA410/M</t></si><si><t>DRFT-BDA810/M</t></si><si><t>MONT80</t></si><si><t>CA-23RS</t></si><si><t>SGCDF24Y</t></si><si><t>SGCCF34Y</t></si><si><t>E-ANTD 400</t></si><si><t>DRFS-88/M</t></si><si><t>RFS-800 LT/M</t></si><si><t>DRFS-100/M</t></si><si><t>DRFS-300/M</t></si><si><t>DRFS-400/M</t></si><si><t>DRFS-800/M</t></si><si><t>RFS-100 LT/M</t></si><si><t>RFS-88 LT/M</t></si><si><t>E-FH400-8</t></si><si><t>E-FH400-6</t></si><si><t>E-FH400-2</t></si><si><t>E-ANTG-150</t></si><si><t>E-ANTG 350</t></si><si><t>ST/FC  24口</t></si><si><t>NFX_GATW</t></si><si><t>E-FH150-2</t></si><si><t>E-FH150-4</t></si><si><t>E-FH400-4</t><phoneticPr fontId="25" type="noConversion"/></si><si><t>E-FH400-8</t><phoneticPr fontId="25" type="noConversion"/></si><si><t>RFS-400 LT/M</t><phoneticPr fontId="25" type="noConversion"/></si><si><t>OZCH221035</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>PNR2100</t></si><si><t>MNOFHC-SMD-50</t></si><si><t>TS4D3NMK</t><phoneticPr fontId="0" type="noConversion"/></si><si><t>YSTSTH</t></si><si><t>ZSTZN0N</t></si><si><t>Battery</t></si><si><t>Multi-Charging Hub</t></si><si><t>HYWF0NA1</t></si><si><t>HYWT0NA1</t></si><si><t>Operation DashBoard</t></si><si><t>Service Operation Tool</t></si><si><t>LS-NFX-RAD</t></si><si><t>LS-NFX-RPT</t></si><si><t>HYWSPNB1</t></si><si><t>HYWSTNB1</t></si><si><t>Rack Server</t></si><si><t>PER3RSV</t></si><si><t>客户列表</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>联系人列表</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>公司名称</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>客户编号</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>联系人</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>联系人编号</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>种类</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>职位</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>国家或地区</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>部门</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>联系电话</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>省份</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>城市</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>邮件信箱</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>单位地址</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>合作关系</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>关联机会</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>价值评估</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>VIP客户</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>关系等级</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>信用等级</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>上级单位</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>报价日期</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>报价公司</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>报价金额</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>负责人</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>更新日期</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>单号</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>编号</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>型号</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>指标描述</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>单位</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>零售单价</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>零售合计</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>单价</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>合计</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>陈燕分「上海电力公司」
+{上海中心二期改造}
+提供招标清单和规格书</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>蔡少芬「南方公园项目组」
+{南方公园项目}
+邀请参观成功案例</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>项目补充说明：
+项目名称/
+补充内容</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>填写人</t></si><si><t>Filler</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>关联公司</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>related companies</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>季度</t></si><si><t>Quarter</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>一季度</t></si><si><t>Q1</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>二季度</t></si><si><t>Q2</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>三季度</t></si><si><t>Q3</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>四季度</t></si><si><t>Q4</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>月份</t></si><si><t>Month</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>创建</t></si><si><t>当前销售</t></si><si><t>Current Sales</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>集成商</t></si><si><t>System Integrator</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>设计单位</t></si><si><t>Design Unit</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>设计方</t></si><si><t>Designer</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>销售机会报备</t></si><si><t>Sales Opportunity Reporting</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>产品型号</t></si><si><t>Product Model</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>规格</t></si><si><t>Specifications</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>面价</t></si><si><t>Quoted Price</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>面价合价</t></si><si><t>Final Price</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>产品编号</t></si><si><t>Product Code</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>微软雅黑</t></si><si><t>Microsoft YaHei</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>合约单价</t></si><si><t>Contract Unit Price</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Delivery Unit Price</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Total Delivery</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>合约合计</t></si><si><t>Contract Total</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Evertac Solutions</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>和源通信产品汇总</t></si><si><t>Evertac Product Summary</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>第三方产品汇总</t></si><si><t>Third-Party Product Summary</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>报表</t></si><si><t>Reports</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>【完善价格】</t></si><si><t>[Complete Price]</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>成功导入项目数据条。</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Project data successfully imported</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>缺少项目名称或销售负责人信息，请检查后再试</t></si><si><t>Missing project name or sales lead information, please check and try again</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>报价编号</t></si><si><t>Quotation Number</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>如果你要申请特殊的价格支持，</t></si><si><t>If you need to request special price support</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>请输入账户密码，或取消后修正</t></si><si><t>Please enter the account password or cancel the revision</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>请输入金额数字</t></si><si><t>Please enter a numeric amount</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>要删除当前的联系人数据记录，请确认。</t></si><si><t>Do you want to delete the current contact data record? Please confirm</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>确认删除</t></si><si><t>Confirm deletion</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>要删除当前的客户和下属的所有联系人？，请确认。</t></si><si><t>Do you want to delete all the contacts of the current customer and its subordinates? Please confirm</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>招投标</t></si><si><t>Bidding</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>请选择一个文件</t></si><si><t>Please select a file</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>没有选择文件。</t></si><si><t>No file selected</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>一月</t></si><si><t>January</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>二月</t></si><si><t>Fabruary</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>三月</t></si><si><t>March</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>四月</t></si><si><t>April</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>五月</t></si><si><t>May</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>六月</t></si><si><t>June</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>七月</t></si><si><t>July</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>八月</t></si><si><t>August</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>九月</t></si><si><t>September</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>十月</t></si><si><t>October</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>十一月</t></si><si><t>November</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>十二月</t></si><si><t>December</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>批价</t></si><si><t>Bid price</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>以下单元格不能为空，并已标记为红色：</t></si><si><t>The following cells can not be empty and will be marked in red</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>必填单元格检查</t></si><si><t>Required cell check</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>批价申请单</t></si><si><t>Bid application form</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>成本合计</t></si><si><t>Cost summary</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>结算单价</t></si><si><t>Settlement unit price</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>结算合计</t></si><si><t>Settlement total</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>结算折扣</t></si><si><t>Settlement discount</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>源文件未找到，程序将退出。</t></si><si><t>Source file not found, porcess will exit</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>库存数据库</t></si><si><t>Inventory database</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>库存余量</t></si><si><t>Inventory balance</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>库存量</t></si><si><t>Inventory quantity</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>批价文件已经导出</t></si><si><t>Batch file has been exported</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>更新</t></si><si><t>Discover key project opportunities</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Discover opportunities at the design institute stage</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>更新和积分计算完成。</t></si><si><t>Update and complete the points calculation</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>积分</t></si><si><t>Points</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>以下是找到的项目产品清单：</t></si><si><t>The following imported products did not match inventory source, please check the highlighted items</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>激活客户联系人信息</t></si><si><t>Activated contact person information</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>报价单信息写入成功。</t></si><si><t>Report information entry successful</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>有输入的内容不匹配数据库来源，请注意褐红色标记的单元格更正。</t></si><si><t>Some input content does not match the database source. Please correct the cells marked in maroon</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>历史记录：</t></si><si><t>History Records</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>确认导入</t></si><si><t>Confirm Import</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>成本单价</t></si><si><t>Unit Cost</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>初始化设置已经清空账号和密码</t></si><si><t>Initialization Settings have cleared the Account and Password</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前表单类型是：</t></si><si><t>Current Table Type is</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前使用的语言是：</t></si><si><t>The Current Language in Use is</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前使用表单的国家是：</t></si><si><t>The Current Country for the Form is</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>如果设置正确点击确认，如果不正确点击取消。</t></si><si><t xml:space="preserve"> If the Setting is Correct, click Confirm. If Incorrect, click Cancel</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>是否要保存并关闭工作簿？</t></si><si><t>Do you want to save and close the workbook?</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>关闭确认</t></si><si><t>Confirm Closure</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前用户数据库没有被正确打开，模块不能继续使用，请检查尝试重新打开文件，加载必要的数据库</t></si><si><t>The Current User Database wasn’t Opened Correctly. The Module Can’t Proceed, Please Check</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前产品数据库和用户数据库没有被正确打开，模块不能继续使用，请检查尝试重新打开文件，加载必要的数据库</t></si><si><t>urrent Product and User Database weren’t Opened Correctly. Module Can’t Proceed, Please Check</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>经销商联系人</t></si><si><t>Distributor Contact</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>设计院及顾问联系人</t></si><si><t>Consultant Contact</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>系统集成商联系人</t></si><si><t>System Integrator Contact</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>用户联系人</t></si><si><t>User Contact</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前挑战</t></si><si><t>Current Challenge</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>时间</t></si><si><t>时间长度</t></si><si><t>Duration</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>本周累计开启时间：</t></si><si><t>Total Time Opened This Week</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>重要数据库更新：</t></si><si><t>Important Database Update:</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>我们更新了你的数据库结构，并检查发现项目中关联的联系信息和数据库中的不一致。</t></si><si><t>We have updated your database structure and detected related items in the project</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>这会造成数据分析的错误。</t></si><si><t>This could cause errors in data analysis</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>如果你现在有时间我们现在尝试修改这些错误，</t></si><si><t>If you have time now, we can try to fix these errors.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>你也可以稍后在下次启动时完成修改。</t></si><si><t>You can also fix them during the next startup.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>数据检查</t></si><si><t>Data Check</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>导出项目</t></si><si><t>Export Project</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>无效的过程调用或参数</t></si><si><t>Invalid Process Call or Parameter</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>【消息】</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>[Message]</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>年</t></si><si><t>Year</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>一</t></si><si><t>One</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>二</t></si><si><t>Two</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>三</t></si><si><t>Three</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>四</t></si><si><t>Four</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>和</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>And</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>列数不足</t></si><si><t>Column not enough</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>输入的必须是介于50%〜100%之间的数字格式，</t></si><si><t>The input must be a number between 50% and 100%</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>是否要删除选中项目?</t></si><si><t>Should the project be removed?</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>正在处理，请稍候...</t></si><si><t>Currently processing…</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Category change.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>点击 是. 确认，点击 否 重新输入</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Click Yes to confirm, click No to re-enter</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>点击 是 完成设置，点击 否 取消</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Click  Yes  to complete the setup, click No  to cancel</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>点击  是  抹除后继续导入，点击  否  直接导入</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Click  Yes  to erase and continue importing, click  No  to import directly</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>1月份,</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>January,</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>2月份,</t></si><si><t>Fabruary,</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>3月份</t></si><si><t>4月份,</t></si><si><t>April,</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>5月份,</t></si><si><t>May,</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>6月份</t></si><si><t>7月份,</t></si><si><t>July,</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>8月份,</t></si><si><t>August,</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>9月份</t></si><si><t>10月份,</t></si><si><t>October,</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>11月份,</t></si><si><t>November,</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>12月份</t></si><si><t>是,否</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Yes,No</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>结 算 单</t></si><si><t>Settlement List</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>结算批价单-</t></si><si><t>Settlement Price List</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>批 价 单</t></si><si><t>Price List</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>提货批价单-</t></si><si><t>Delivery Price List</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>季度,</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Quarter,</t><phoneticPr fontId="6" type="noConversion"/></si><si><t xml:space="preserve">函数名称: </t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Function Name:</t><phoneticPr fontId="6" type="noConversion"/></si><si><t xml:space="preserve">错误信息: </t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error Message:</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前数据库为空，你需要通过【登录】来注册一个新的账户添加数据到当前数据。也可以通过【更新数据】来导入先前的 报表来更新到最新的状态</t></si><si><t>The current database is empty. You need to [log in] to register a new one.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t xml:space="preserve">当前数据库： </t></si><si><t>Current database：</t><phoneticPr fontId="6" type="noConversion"/></si><si><t xml:space="preserve">本周打开次数: </t></si><si><t>Number of opens this week:</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Evertac Solutions产品汇总</t></si><si><t>Evertac Solutions Product Summary</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>&lt;未初始化&gt;</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>&lt;Uninitialized&gt;</t><phoneticPr fontId="6" type="noConversion"/></si><si><t xml:space="preserve">当前操作系统为 </t></si><si><t>Current Operating System</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>所有文件 (*.*), *.*</t></si><si><t>All Files (*.*), *.*</t><phoneticPr fontId="6" type="noConversion"/></si><si><t xml:space="preserve">已选择文件: </t></si><si><t>Selected File:</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>TranslateForm</t></si><si><t>类型改变为</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Button_PriceListofflineshowy</t></si><si><t>Error #-706145008: 对象“Sheets”的方法“_Workbook”失败</t></si><si><t>选择的文件不是 Evertac - Database文件！</t></si><si><t>选择的文件不是 Evertac-Pricelist文件！</t></si><si><t>The selected file is not an Evertac - Database file!</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>The selected file is not an Evertac-Pricelist file!</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>已选择文件:</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Selected file:</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>OpenFileDialogMac</t></si><si><t>请选择文件所在的文件夹:</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>请先选择需要引用的价格数据库</t></si><si><t>文件以 Evertac-Pricelist 开头</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>请先选择需要使用的数据库文件</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>文件以 Evertac-Database 开头</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Please first select the database file to use</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Select the directory of the file:</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Please first select the price database to reference</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>The file start with “Evertac-Pricelist”</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>The file start with “Evertac-Database”</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #13: 类型不匹配 in line 42240Content is:
+_x000D_2024/5/25 10:35:30  郭小会
+_x000D_【消息】「」现场开会，关于方是采用400M独立系统，还是采用800M接入机场，设计单位还未给总包最终的确认，给总包介绍两个系统的优劣势，总包催促设计院尽快确认采用400M独立系统
+_x000D_2024/2/21 12:55:30  郭小会
+_x000D_设计方改变为  北京中电电子工程咨询公司 分销商改编为   上海淳泊  类型改变为  渠道管理 集成商改变为  上海博望电子科技有限公司    _x000D_
+协调代理商进行深化设计，配合集成商提供报审资料
+_x000D_2023/11/1  郭小会
+_x000D_1、建工总包中标，分包询价
+2、销售提供清单技术对接中
+3、销售需确认代理商
+4、带代理商对接集成商，提供相关的产品资料，试图更改成和源的对讲机</t></si><si><t>Error #13: 类型不匹配 in line 42240Content is:
+_x000D_2024/5/25 10:34:46  郭小会
+_x000D_【阶段变更】品牌植入-&gt;招标前
+_x000D_2024/5/25 10:34:01  郭小会
+_x000D_【消息】「」项目准备招标，交给杨俊杰团队后续对接跟进
+_x000D_2024/3/8 13:43:51  郭小会
+_x000D_集成商上安提前介入，杨俊杰在对接， 和设计院沟通，分布系统品牌和源也入围 ，和同济院唐平沟通把我们的品牌添加到对讲机和信道机的品牌里面
+_x000D_2024/2/21 13:01:15  郭小会
+_x000D_设计方改变为  同济大学建筑设计研究院(集团)有限公司 类型改变为  渠道管理    
+_x000D_2023/11/1  郭小会
+_x000D_1、项目前期设计规划</t></si><si><t>Error #13: 类型不匹配 in line 42240Content is:
+_x000D_2024/5/25 10:30:31  郭小会
+_x000D_【消息】「」浦东机场四期停车楼部分图纸已完成初步深化，交给华东院，近期再跟进时，了解最新进展以及业主的情况，徐昊给到业主顾婷婷近期也准备接触了解情况
+_x000D_2024/4/24 10:38:31  郭小会
+_x000D_【消息】「」建工通过上安九分反馈浦东机场四期建筑会采用新材料，可能信号屏蔽加强，对所有通信系统会有影响 ，要求相关通信厂家去嘉兴搭建的临时模型区域去测试评估，已协调安排可以杨和赵去现场测试，后续出具评估报告
+_x000D_2024/4/24 10:35:02  郭小会
+_x000D_【消息】「」浦东机场四期项目启动深化设计，带刘威参加华东院关于项目中停车楼部分的深化设计要求，本次深化设计主要是用于建筑招标，根据深化设计图纸，造价公司评估管材用量
+_x000D_2024/2/23 09:12:39  郭小会
+_x000D_面价金额改变为   10171807    
+_x000D_2024/2/21  郭小会
+_x000D_配合华东院吴老师进行前期设计规划，本次设计范围包括T3航站楼、南北车库和交通中心，系统包含消防对讲和公安对讲，边防对讲独立建设</t></si><si><t>Error #13: 类型不匹配 in line 58240Content is:
+_x000D_2024/5/25 10:35:30  郭小会
+_x000D_【消息】「」现场开会，关于方是采用400M独立系统，还是采用800M接入机场，设计单位还未给总包最终的确认，给总包介绍两个系统的优劣势，总包催促设计院尽快确认采用400M独立系统
+_x000D_2024/2/21 12:55:30  郭小会
+_x000D_设计方改变为  北京中电电子工程咨询公司 分销商改编为   上海淳泊  类型改变为  渠道管理 集成商改变为  上海博望电子科技有限公司    _x000D_
+协调代理商进行深化设计，配合集成商提供报审资料
+_x000D_2023/11/1  郭小会
+_x000D_1、建工总包中标，分包询价
+2、销售提供清单技术对接中
+3、销售需确认代理商
+4、带代理商对接集成商，提供相关的产品资料，试图更改成和源的对讲机</t></si><si><t>Error #13: 类型不匹配 in line 58240Content is:
+_x000D_2024/5/25 10:34:46  郭小会
+_x000D_【阶段变更】品牌植入-&gt;招标前
+_x000D_2024/5/25 10:34:01  郭小会
+_x000D_【消息】「」项目准备招标，交给杨俊杰团队后续对接跟进
+_x000D_2024/3/8 13:43:51  郭小会
+_x000D_集成商上安提前介入，杨俊杰在对接， 和设计院沟通，分布系统品牌和源也入围 ，和同济院唐平沟通把我们的品牌添加到对讲机和信道机的品牌里面
+_x000D_2024/2/21 13:01:15  郭小会
+_x000D_设计方改变为  同济大学建筑设计研究院(集团)有限公司 类型改变为  渠道管理    
+_x000D_2023/11/1  郭小会
+_x000D_1、项目前期设计规划</t></si><si><t>Error #13: 类型不匹配 in line 58240Content is:
+_x000D_2024/5/25 10:30:31  郭小会
+_x000D_【消息】「」浦东机场四期停车楼部分图纸已完成初步深化，交给华东院，近期再跟进时，了解最新进展以及业主的情况，徐昊给到业主顾婷婷近期也准备接触了解情况
+_x000D_2024/4/24 10:38:31  郭小会
+_x000D_【消息】「」建工通过上安九分反馈浦东机场四期建筑会采用新材料，可能信号屏蔽加强，对所有通信系统会有影响 ，要求相关通信厂家去嘉兴搭建的临时模型区域去测试评估，已协调安排可以杨和赵去现场测试，后续出具评估报告
+_x000D_2024/4/24 10:35:02  郭小会
+_x000D_【消息】「」浦东机场四期项目启动深化设计，带刘威参加华东院关于项目中停车楼部分的深化设计要求，本次深化设计主要是用于建筑招标，根据深化设计图纸，造价公司评估管材用量
+_x000D_2024/2/23 09:12:39  郭小会
+_x000D_面价金额改变为   10171807    
+_x000D_2024/2/21  郭小会
+_x000D_配合华东院吴老师进行前期设计规划，本次设计范围包括T3航站楼、南北车库和交通中心，系统包含消防对讲和公安对讲，边防对讲独立建设</t></si><si><t>Error #13: 类型不匹配 in line 99Content is:
+_x000D_2024/5/25 10:35:30  郭小会
+_x000D_【消息】「」现场开会，关于方是采用400M独立系统，还是采用800M接入机场，设计单位还未给总包最终的确认，给总包介绍两个系统的优劣势，总包催促设计院尽快确认采用400M独立系统
+_x000D_2024/2/21 12:55:30  郭小会
+_x000D_设计方改变为  北京中电电子工程咨询公司 分销商改编为   上海淳泊  类型改变为  渠道管理 集成商改变为  上海博望电子科技有限公司    _x000D_
+协调代理商进行深化设计，配合集成商提供报审资料
+_x000D_2023/11/1  郭小会
+_x000D_1、建工总包中标，分包询价
+2、销售提供清单技术对接中
+3、销售需确认代理商
+4、带代理商对接集成商，提供相关的产品资料，试图更改成和源的对讲机</t></si><si><t>Error #13: 类型不匹配 in line 99Content is:
+_x000D_2024/5/25 10:34:46  郭小会
+_x000D_【阶段变更】品牌植入-&gt;招标前
+_x000D_2024/5/25 10:34:01  郭小会
+_x000D_【消息】「」项目准备招标，交给杨俊杰团队后续对接跟进
+_x000D_2024/3/8 13:43:51  郭小会
+_x000D_集成商上安提前介入，杨俊杰在对接， 和设计院沟通，分布系统品牌和源也入围 ，和同济院唐平沟通把我们的品牌添加到对讲机和信道机的品牌里面
+_x000D_2024/2/21 13:01:15  郭小会
+_x000D_设计方改变为  同济大学建筑设计研究院(集团)有限公司 类型改变为  渠道管理    
+_x000D_2023/11/1  郭小会
+_x000D_1、项目前期设计规划</t></si><si><t>Error #13: 类型不匹配 in line 99Content is:
+_x000D_2024/5/25 10:30:31  郭小会
+_x000D_【消息】「」浦东机场四期停车楼部分图纸已完成初步深化，交给华东院，近期再跟进时，了解最新进展以及业主的情况，徐昊给到业主顾婷婷近期也准备接触了解情况
+_x000D_2024/4/24 10:38:31  郭小会
+_x000D_【消息】「」建工通过上安九分反馈浦东机场四期建筑会采用新材料，可能信号屏蔽加强，对所有通信系统会有影响 ，要求相关通信厂家去嘉兴搭建的临时模型区域去测试评估，已协调安排可以杨和赵去现场测试，后续出具评估报告
+_x000D_2024/4/24 10:35:02  郭小会
+_x000D_【消息】「」浦东机场四期项目启动深化设计，带刘威参加华东院关于项目中停车楼部分的深化设计要求，本次深化设计主要是用于建筑招标，根据深化设计图纸，造价公司评估管材用量
+_x000D_2024/2/23 09:12:39  郭小会
+_x000D_面价金额改变为   10171807    
+_x000D_2024/2/21  郭小会
+_x000D_配合华东院吴老师进行前期设计规划，本次设计范围包括T3航站楼、南北车库和交通中心，系统包含消防对讲和公安对讲，边防对讲独立建设</t></si><si><t>提供管理者开启指定的用户数据库和产品数据库功能</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>货币单位：</t></si><si><t>Currency unit:</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>版本：</t></si><si><t>Version:</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>请选择 Evertac-Database 文件</t></si><si><t>Select Evertac-Database file</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>引用用户数据库</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Open sales database</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>引用产品数据库</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Open product databa</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Provide managers with the functionality to enable specified user databases and product databases.</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Module Name</t></si><si><t>Function Name</t></si><si><t>Line Number</t></si><si><t>Chinese Text</t></si><si><t>Error #1004: 方法 'Paste' 作用于对象 '_Worksheet' 时失败</t></si><si><t>Error #13: 类型不匹配 in line 60Content is:2024-9-13 杨俊杰_x000D_
+「汪加成」上海景文同安机电消防工程有限公司  签约批价_x000D_
+2024-9-13 11:30:15  杨俊杰_x000D_
+【完善价格】 133348_x000D_
+2024-9-13 11:11:28  杨俊杰_x000D_
+【完善价格】 133349_x000D_
+2024-9-12 18:26:20  杨俊杰_x000D_
+【完善价格】 52869_x000D_
+2024-8-30 12:44:58  杨俊杰_x000D_
+【消息】「」该项目按渠道反馈商务方面已经启动，目前在和对方沟通正好因为成本问题，把摩托罗拉设备替换为和源品牌，按付言新所述预计下个月商务就会确认_x000D_
+跟进记录  杨俊杰_x000D_
+【阶段变更】失败-&gt;中标_x000D_
+跟进记录  杨俊杰_x000D_
+【阶段变更】中标-&gt;失败_x000D_
+2024-6-21 12:26:48  杨俊杰_x000D_
+【消息】「」代理商福玛反馈至项目现场与对接深化配套，根据现场反馈，结合建筑实施情况，预计今年底才会启动_x000D_
+2024-3-15 17:27:22  杨俊杰_x000D_
+「阶段变更」_x000D_
+2024-3-11 10:15:57  杨俊杰_x000D_
+渠道反馈，福玛配合景文同安中标，投标选用和源品牌，预计二季度商务采购_x000D_
+2024-2-26 12:04:31  杨俊杰_x000D_
+面价金额改变为   52870 用户改变为       _x000D_
+2024-2-26  杨俊杰_x000D_
+该项目建设方张江国信安，庄彦负责，项目为人才公寓。渠道福玛付言新报备，有集成商询价</t></si><si><t>Error #-194503504: 自动化错误</t></si><si><t>CloseSourceWorkbookAndReleaseTable</t></si><si><t>Error #-1962688720: 自动化错误</t></si><si><t>Error #1004: 对象“AutoFilter”的方法“Range”失败</t></si><si><t>Button_FailedStatusButtonPF</t></si><si><t>停产标记</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Discontinued Mark</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>行业标记</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Industry Mark</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #13: 类型不匹配 in line 0Content is:2024/9/13 杨俊杰
+_x000D_「汪加成」上海景文同安机电消防工程有限公司  会面
+_x000D_2024/9/20 16:33:16  杨俊杰
+_x000D_【完善价格】 91027
+_x000D_2024/9/20  杨俊杰
+_x000D_【阶段变更】中标-&gt;签约
+_x000D_
+_x000D_2024/8/30 12:52:56  杨俊杰
+_x000D_【消息】「」该项目据渠道反馈现场启动样板层施工，代确认后就会大面积启动实施。目前商务已经在对接，但由于协利今年运营压力，所以商务方面进度缓慢，目前渠道还在有序推进，根据现场情况预计9-10月份会落实
+_x000D_2024/3/20 16:11:07  杨俊杰
+_x000D_渠道反馈项目进度较慢，目前品牌已经送审，但施工还未启动，现阶段还不确定几月份会启动采购
+_x000D_2024/2/21 13:01:54  杨俊杰
+_x000D_设计方改变为  沈麦韦「上海」商务咨询有限公司 分销商改编为   上海淳泊  经销商改变为   上海福玛通信信息科技有限公司 类型改变为  渠道管理 集成商改变为  上海协利科技工程有限公司    _x000D_
+该项目声美华徐强反馈协利提供材料报验，选用和源品牌
+_x000D_2023/11/1  杨俊杰
+_x000D_该项目配合声美华做了前期设计，目前上海协利中标，品牌围标，渠道福玛在跟进，目前集成商刚进场，项目整体实施进度缓慢，与渠道沟通了解，深化设计还未启动配套。与声美华沟通目前协利也的确还未提交任何相关资料，包括图纸深化方案和品牌材料报验</t></si><si><t>Error #13: 类型不匹配 in line 0Content is:2024/9/13 杨俊杰
+_x000D_「汪加成」上海景文同安机电消防工程有限公司  签约批价
+_x000D_2024/9/20  杨俊杰
+_x000D_【阶段变更】中标-&gt;签约
+_x000D_
+_x000D_2024/9/13 11:30:15  杨俊杰
+_x000D_【完善价格】 133348
+_x000D_2024/9/13 11:11:28  杨俊杰
+_x000D_【完善价格】 133349
+_x000D_2024/9/12 18:26:20  杨俊杰
+_x000D_【完善价格】 52869
+_x000D_2024/8/30 12:44:58  杨俊杰
+_x000D_【消息】「」该项目按渠道反馈商务方面已经启动，目前在和对方沟通正好因为成本问题，把摩托罗拉设备替换为和源品牌，按付言新所述预计下个月商务就会确认
+_x000D_跟进记录  杨俊杰
+_x000D_【阶段变更】失败-&gt;中标
+_x000D_跟进记录  杨俊杰
+_x000D_【阶段变更】中标-&gt;失败
+_x000D_2024/6/21 12:26:48  杨俊杰
+_x000D_【消息】「」代理商福玛反馈至项目现场与对接深化配套，根据现场反馈，结合建筑实施情况，预计今年底才会启动
+_x000D_2024/3/15 17:27:22  杨俊杰
+_x000D_「阶段变更」
+_x000D_2024/3/11 10:15:57  杨俊杰
+_x000D_渠道反馈，福玛配合景文同安中标，投标选用和源品牌，预计二季度商务采购
+_x000D_2024/2/26 12:04:31  杨俊杰
+_x000D_面价金额改变为   52870 用户改变为       
+_x000D_2024/2/26  杨俊杰
+_x000D_该项目建设方张江国信安，庄彦负责，项目为人才公寓。渠道福玛付言新报备，有集成商询价</t></si><si><t>Error #-841049328: 自动化错误</t></si><si><t>提货单价</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>提货合计</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #1004: 对象“Value”的方法“Range”失败</t></si><si><t>Error #13: 类型不匹配 in line 60Content is:2024/10/14 杨俊杰
+_x000D_「梁晓君」上海市安装工程集团有限公司-第九分公司  上安梁晓君反馈地上、地下会分开招标，之前机房设备考虑地上，因为地下概算问题，但现在又需改为到地下部分，重新梳理清单。并通过资源了解甲方信息，邀约拜访铁四院也了解项目情况
+_x000D_2024/10/24  杨俊杰
+_x000D_
+_x000D_2024/5/20 15:30:01  杨俊杰
+_x000D_【消息】「」与华东院及上安重新复核设计方案，据了解地上、地下部分预算已经批复，且地下施工图已经提交给予用户，除非外部因素，否则设计院不太好再做修改，地上部分预计本月提交确认。目前建设方东方枢纽还未了解到具体负责人，按华东院黄辰赟的意思，东方枢纽先等铁道部确认后可能才会有所动作
+_x000D_2024/3/20 16:19:02  杨俊杰
+_x000D_施工图设计初版基本完成，与黄辰赟沟通了解目前没有任何消息。上安在提前询价，进一步跟进了解项目后续情况
+_x000D_2024/3/20 16:19:02  杨俊杰
+_x000D_施工图设计初版基本完成，与黄辰赟沟通了解目前没有任何消息。上安在提前询价，进一步跟进了解项目后续情况
+_x000D_2023/11/1  杨俊杰
+_x000D_该项目高铁站台内由国铁下属中铁设计院负责，站台外由华东院负责，另外还有个隧道由隧道院负责，目前配合华东院提交初设方案，用于项目预算审批。整个项目地下部分由上海市政府审批预算，地上站台内由北京负责审批预算，10月底11月初地上、地下预算审批确认后就会启动施工图设计，计划要求今年底完成施工图设计。目前业主没有具象负责人，有关品牌方面还需确认由谁发起，由谁确认</t></si><si><t>PriceApply.Worksheet_BeforeDoubleClick</t></si><si><t>Error #13: 类型不匹配 in line 17599Content is:
+_x000D_2024/10/21  杨俊杰
+_x000D_【阶段变更】中标-&gt;签约
+_x000D_
+_x000D_2024/10/21 13:52:30  杨俊杰
+_x000D_【完善价格】 57844
+_x000D_2024/10/21 13:50:07  杨俊杰
+_x000D_【完善价格】 57990
+_x000D_2024/10/21 13:48:55  杨俊杰
+_x000D_【完善价格】 58277
+_x000D_2024/9/20 16:29:44  杨俊杰
+_x000D_【完善价格】 66673
+_x000D_2024/9/20 16:28:40  杨俊杰
+_x000D_【完善价格】 66673
+_x000D_2024/8/30 13:01:37  杨俊杰
+_x000D_【消息】「」该项目据现场反馈即将启动，商务方面渠道已经在跟进，和渠道确认商务节点
+_x000D_2024/7/4 14:30:35  杨俊杰
+_x000D_【消息】「」渠道反馈与现场项目负责人沟通，了解目前现场大部分区域桥架还未完成，这部分由大总包负责，预计需要1-2个月，设备进场预估在9月份。商务方面投标选用和源品牌，采购发起需等待现场通知，现场方面在确认实施清单
+_x000D_2024/5/7 12:49:33  杨俊杰
+_x000D_【消息】「」渠道与吴昊沟通反馈得知具体决定由周心一负责，具体项目现场负责人周羽反馈已经提交采购计划，但正式进场需要等到6月份，具体穿线时间还要看现场进度
+_x000D_2024/3/20 16:35:21  杨俊杰
+_x000D_该项目还早，集成商还未进场，等进场后跟进确认方案，了解实施进度，预估采购时间
+_x000D_2023/11/1  杨俊杰
+_x000D_华虹计通中标，投标当时选用和源品牌。目前现场周羽负责，在做管线预埋，设备预计明年春节以后</t></si><si><t>Error #13: 类型不匹配 in line 17599Content is:2024/9/13 杨俊杰
+_x000D_「汪加成」上海景文同安机电消防工程有限公司  会面
+_x000D_2024/9/20 16:33:16  杨俊杰
+_x000D_【完善价格】 91027
+_x000D_2024/9/20  杨俊杰
+_x000D_【阶段变更】中标-&gt;签约
+_x000D_
+_x000D_2024/8/30 12:52:56  杨俊杰
+_x000D_【消息】「」该项目据渠道反馈现场启动样板层施工，代确认后就会大面积启动实施。目前商务已经在对接，但由于协利今年运营压力，所以商务方面进度缓慢，目前渠道还在有序推进，根据现场情况预计9-10月份会落实
+_x000D_2024/3/20 16:11:07  杨俊杰
+_x000D_渠道反馈项目进度较慢，目前品牌已经送审，但施工还未启动，现阶段还不确定几月份会启动采购
+_x000D_2024/2/21 13:01:54  杨俊杰
+_x000D_设计方改变为  沈麦韦「上海」商务咨询有限公司 分销商改编为   上海淳泊  经销商改变为   上海福玛通信信息科技有限公司 类型改变为  渠道管理 集成商改变为  上海协利科技工程有限公司    _x000D_
+该项目声美华徐强反馈协利提供材料报验，选用和源品牌
+_x000D_2023/11/1  杨俊杰
+_x000D_该项目配合声美华做了前期设计，目前上海协利中标，品牌围标，渠道福玛在跟进，目前集成商刚进场，项目整体实施进度缓慢，与渠道沟通了解，深化设计还未启动配套。与声美华沟通目前协利也的确还未提交任何相关资料，包括图纸深化方案和品牌材料报验</t></si><si><t>Error #13: 类型不匹配 in line 17599Content is:2024/9/13 杨俊杰
+_x000D_「汪加成」上海景文同安机电消防工程有限公司  签约批价
+_x000D_2024/9/20  杨俊杰
+_x000D_【阶段变更】中标-&gt;签约
+_x000D_
+_x000D_2024/9/13 11:30:15  杨俊杰
+_x000D_【完善价格】 133348
+_x000D_2024/9/13 11:11:28  杨俊杰
+_x000D_【完善价格】 133349
+_x000D_2024/9/12 18:26:20  杨俊杰
+_x000D_【完善价格】 52869
+_x000D_2024/8/30 12:44:58  杨俊杰
+_x000D_【消息】「」该项目按渠道反馈商务方面已经启动，目前在和对方沟通正好因为成本问题，把摩托罗拉设备替换为和源品牌，按付言新所述预计下个月商务就会确认
+_x000D_跟进记录  杨俊杰
+_x000D_【阶段变更】失败-&gt;中标
+_x000D_跟进记录  杨俊杰
+_x000D_【阶段变更】中标-&gt;失败
+_x000D_2024/6/21 12:26:48  杨俊杰
+_x000D_【消息】「」代理商福玛反馈至项目现场与对接深化配套，根据现场反馈，结合建筑实施情况，预计今年底才会启动
+_x000D_2024/3/15 17:27:22  杨俊杰
+_x000D_「阶段变更」
+_x000D_2024/3/11 10:15:57  杨俊杰
+_x000D_渠道反馈，福玛配合景文同安中标，投标选用和源品牌，预计二季度商务采购
+_x000D_2024/2/26 12:04:31  杨俊杰
+_x000D_面价金额改变为   52870 用户改变为       
+_x000D_2024/2/26  杨俊杰
+_x000D_该项目建设方张江国信安，庄彦负责，项目为人才公寓。渠道福玛付言新报备，有集成商询价</t></si><si><t>Error #13: 类型不匹配 in line 0Content is:
+_x000D_2024/10/21  杨俊杰
+_x000D_【阶段变更】中标-&gt;签约
+_x000D_
+_x000D_2024/10/21 13:52:30  杨俊杰
+_x000D_【完善价格】 57844
+_x000D_2024/10/21 13:50:07  杨俊杰
+_x000D_【完善价格】 57990
+_x000D_2024/10/21 13:48:55  杨俊杰
+_x000D_【完善价格】 58277
+_x000D_2024/9/20 16:29:44  杨俊杰
+_x000D_【完善价格】 66673
+_x000D_2024/9/20 16:28:40  杨俊杰
+_x000D_【完善价格】 66673
+_x000D_2024/8/30 13:01:37  杨俊杰
+_x000D_【消息】「」该项目据现场反馈即将启动，商务方面渠道已经在跟进，和渠道确认商务节点
+_x000D_2024/7/4 14:30:35  杨俊杰
+_x000D_【消息】「」渠道反馈与现场项目负责人沟通，了解目前现场大部分区域桥架还未完成，这部分由大总包负责，预计需要1-2个月，设备进场预估在9月份。商务方面投标选用和源品牌，采购发起需等待现场通知，现场方面在确认实施清单
+_x000D_2024/5/7 12:49:33  杨俊杰
+_x000D_【消息】「」渠道与吴昊沟通反馈得知具体决定由周心一负责，具体项目现场负责人周羽反馈已经提交采购计划，但正式进场需要等到6月份，具体穿线时间还要看现场进度
+_x000D_2024/3/20 16:35:21  杨俊杰
+_x000D_该项目还早，集成商还未进场，等进场后跟进确认方案，了解实施进度，预估采购时间
+_x000D_2023/11/1  杨俊杰
+_x000D_华虹计通中标，投标当时选用和源品牌。目前现场周羽负责，在做管线预埋，设备预计明年春节以后</t></si><si><t>Error #13: 类型不匹配 in line 60Content is:
+_x000D_2024/10/21  杨俊杰
+_x000D_【阶段变更】中标-&gt;签约
+_x000D_
+_x000D_2024/10/21 13:52:30  杨俊杰
+_x000D_【完善价格】 57844
+_x000D_2024/10/21 13:50:07  杨俊杰
+_x000D_【完善价格】 57990
+_x000D_2024/10/21 13:48:55  杨俊杰
+_x000D_【完善价格】 58277
+_x000D_2024/9/20 16:29:44  杨俊杰
+_x000D_【完善价格】 66673
+_x000D_2024/9/20 16:28:40  杨俊杰
+_x000D_【完善价格】 66673
+_x000D_2024/8/30 13:01:37  杨俊杰
+_x000D_【消息】「」该项目据现场反馈即将启动，商务方面渠道已经在跟进，和渠道确认商务节点
+_x000D_2024/7/4 14:30:35  杨俊杰
+_x000D_【消息】「」渠道反馈与现场项目负责人沟通，了解目前现场大部分区域桥架还未完成，这部分由大总包负责，预计需要1-2个月，设备进场预估在9月份。商务方面投标选用和源品牌，采购发起需等待现场通知，现场方面在确认实施清单
+_x000D_2024/5/7 12:49:33  杨俊杰
+_x000D_【消息】「」渠道与吴昊沟通反馈得知具体决定由周心一负责，具体项目现场负责人周羽反馈已经提交采购计划，但正式进场需要等到6月份，具体穿线时间还要看现场进度
+_x000D_2024/3/20 16:35:21  杨俊杰
+_x000D_该项目还早，集成商还未进场，等进场后跟进确认方案，了解实施进度，预估采购时间
+_x000D_2023/11/1  杨俊杰
+_x000D_华虹计通中标，投标当时选用和源品牌。目前现场周羽负责，在做管线预埋，设备预计明年春节以后</t></si><si><t>Error #13: 类型不匹配 in line 60Content is:2024/9/13 杨俊杰
+_x000D_「汪加成」上海景文同安机电消防工程有限公司  会面
+_x000D_2024/9/20 16:33:16  杨俊杰
+_x000D_【完善价格】 91027
+_x000D_2024/9/20  杨俊杰
+_x000D_【阶段变更】中标-&gt;签约
+_x000D_
+_x000D_2024/8/30 12:52:56  杨俊杰
+_x000D_【消息】「」该项目据渠道反馈现场启动样板层施工，代确认后就会大面积启动实施。目前商务已经在对接，但由于协利今年运营压力，所以商务方面进度缓慢，目前渠道还在有序推进，根据现场情况预计9-10月份会落实
+_x000D_2024/3/20 16:11:07  杨俊杰
+_x000D_渠道反馈项目进度较慢，目前品牌已经送审，但施工还未启动，现阶段还不确定几月份会启动采购
+_x000D_2024/2/21 13:01:54  杨俊杰
+_x000D_设计方改变为  沈麦韦「上海」商务咨询有限公司 分销商改编为   上海淳泊  经销商改变为   上海福玛通信信息科技有限公司 类型改变为  渠道管理 集成商改变为  上海协利科技工程有限公司    _x000D_
+该项目声美华徐强反馈协利提供材料报验，选用和源品牌
+_x000D_2023/11/1  杨俊杰
+_x000D_该项目配合声美华做了前期设计，目前上海协利中标，品牌围标，渠道福玛在跟进，目前集成商刚进场，项目整体实施进度缓慢，与渠道沟通了解，深化设计还未启动配套。与声美华沟通目前协利也的确还未提交任何相关资料，包括图纸深化方案和品牌材料报验</t></si><si><t>Error #13: 类型不匹配 in line 60Content is:2024/9/13 杨俊杰
+_x000D_「汪加成」上海景文同安机电消防工程有限公司  签约批价
+_x000D_2024/9/20  杨俊杰
+_x000D_【阶段变更】中标-&gt;签约
+_x000D_
+_x000D_2024/9/13 11:30:15  杨俊杰
+_x000D_【完善价格】 133348
+_x000D_2024/9/13 11:11:28  杨俊杰
+_x000D_【完善价格】 133349
+_x000D_2024/9/12 18:26:20  杨俊杰
+_x000D_【完善价格】 52869
+_x000D_2024/8/30 12:44:58  杨俊杰
+_x000D_【消息】「」该项目按渠道反馈商务方面已经启动，目前在和对方沟通正好因为成本问题，把摩托罗拉设备替换为和源品牌，按付言新所述预计下个月商务就会确认
+_x000D_跟进记录  杨俊杰
+_x000D_【阶段变更】失败-&gt;中标
+_x000D_跟进记录  杨俊杰
+_x000D_【阶段变更】中标-&gt;失败
+_x000D_2024/6/21 12:26:48  杨俊杰
+_x000D_【消息】「」代理商福玛反馈至项目现场与对接深化配套，根据现场反馈，结合建筑实施情况，预计今年底才会启动
+_x000D_2024/3/15 17:27:22  杨俊杰
+_x000D_「阶段变更」
+_x000D_2024/3/11 10:15:57  杨俊杰
+_x000D_渠道反馈，福玛配合景文同安中标，投标选用和源品牌，预计二季度商务采购
+_x000D_2024/2/26 12:04:31  杨俊杰
+_x000D_面价金额改变为   52870 用户改变为       
+_x000D_2024/2/26  杨俊杰
+_x000D_该项目建设方张江国信安，庄彦负责，项目为人才公寓。渠道福玛付言新报备，有集成商询价</t></si><si><t>Error #13: 类型不匹配 in line 40Content is:
+_x000D_2024/10/21  杨俊杰
+_x000D_【阶段变更】中标-&gt;签约
+_x000D_
+_x000D_2024/10/21 13:52:30  杨俊杰
+_x000D_【完善价格】 57844
+_x000D_2024/10/21 13:50:07  杨俊杰
+_x000D_【完善价格】 57990
+_x000D_2024/10/21 13:48:55  杨俊杰
+_x000D_【完善价格】 58277
+_x000D_2024/9/20 16:29:44  杨俊杰
+_x000D_【完善价格】 66673
+_x000D_2024/9/20 16:28:40  杨俊杰
+_x000D_【完善价格】 66673
+_x000D_2024/8/30 13:01:37  杨俊杰
+_x000D_【消息】「」该项目据现场反馈即将启动，商务方面渠道已经在跟进，和渠道确认商务节点
+_x000D_2024/7/4 14:30:35  杨俊杰
+_x000D_【消息】「」渠道反馈与现场项目负责人沟通，了解目前现场大部分区域桥架还未完成，这部分由大总包负责，预计需要1-2个月，设备进场预估在9月份。商务方面投标选用和源品牌，采购发起需等待现场通知，现场方面在确认实施清单
+_x000D_2024/5/7 12:49:33  杨俊杰
+_x000D_【消息】「」渠道与吴昊沟通反馈得知具体决定由周心一负责，具体项目现场负责人周羽反馈已经提交采购计划，但正式进场需要等到6月份，具体穿线时间还要看现场进度
+_x000D_2024/3/20 16:35:21  杨俊杰
+_x000D_该项目还早，集成商还未进场，等进场后跟进确认方案，了解实施进度，预估采购时间
+_x000D_2023/11/1  杨俊杰
+_x000D_华虹计通中标，投标当时选用和源品牌。目前现场周羽负责，在做管线预埋，设备预计明年春节以后</t></si><si><t>Error #13: 类型不匹配 in line 40Content is:2024/9/13 杨俊杰
+_x000D_「汪加成」上海景文同安机电消防工程有限公司  会面
+_x000D_2024/9/20 16:33:16  杨俊杰
+_x000D_【完善价格】 91027
+_x000D_2024/9/20  杨俊杰
+_x000D_【阶段变更】中标-&gt;签约
+_x000D_
+_x000D_2024/8/30 12:52:56  杨俊杰
+_x000D_【消息】「」该项目据渠道反馈现场启动样板层施工，代确认后就会大面积启动实施。目前商务已经在对接，但由于协利今年运营压力，所以商务方面进度缓慢，目前渠道还在有序推进，根据现场情况预计9-10月份会落实
+_x000D_2024/3/20 16:11:07  杨俊杰
+_x000D_渠道反馈项目进度较慢，目前品牌已经送审，但施工还未启动，现阶段还不确定几月份会启动采购
+_x000D_2024/2/21 13:01:54  杨俊杰
+_x000D_设计方改变为  沈麦韦「上海」商务咨询有限公司 分销商改编为   上海淳泊  经销商改变为   上海福玛通信信息科技有限公司 类型改变为  渠道管理 集成商改变为  上海协利科技工程有限公司    _x000D_
+该项目声美华徐强反馈协利提供材料报验，选用和源品牌
+_x000D_2023/11/1  杨俊杰
+_x000D_该项目配合声美华做了前期设计，目前上海协利中标，品牌围标，渠道福玛在跟进，目前集成商刚进场，项目整体实施进度缓慢，与渠道沟通了解，深化设计还未启动配套。与声美华沟通目前协利也的确还未提交任何相关资料，包括图纸深化方案和品牌材料报验</t></si><si><t>Error #13: 类型不匹配 in line 40Content is:2024/9/13 杨俊杰
+_x000D_「汪加成」上海景文同安机电消防工程有限公司  签约批价
+_x000D_2024/9/20  杨俊杰
+_x000D_【阶段变更】中标-&gt;签约
+_x000D_
+_x000D_2024/9/13 11:30:15  杨俊杰
+_x000D_【完善价格】 133348
+_x000D_2024/9/13 11:11:28  杨俊杰
+_x000D_【完善价格】 133349
+_x000D_2024/9/12 18:26:20  杨俊杰
+_x000D_【完善价格】 52869
+_x000D_2024/8/30 12:44:58  杨俊杰
+_x000D_【消息】「」该项目按渠道反馈商务方面已经启动，目前在和对方沟通正好因为成本问题，把摩托罗拉设备替换为和源品牌，按付言新所述预计下个月商务就会确认
+_x000D_跟进记录  杨俊杰
+_x000D_【阶段变更】失败-&gt;中标
+_x000D_跟进记录  杨俊杰
+_x000D_【阶段变更】中标-&gt;失败
+_x000D_2024/6/21 12:26:48  杨俊杰
+_x000D_【消息】「」代理商福玛反馈至项目现场与对接深化配套，根据现场反馈，结合建筑实施情况，预计今年底才会启动
+_x000D_2024/3/15 17:27:22  杨俊杰
+_x000D_「阶段变更」
+_x000D_2024/3/11 10:15:57  杨俊杰
+_x000D_渠道反馈，福玛配合景文同安中标，投标选用和源品牌，预计二季度商务采购
+_x000D_2024/2/26 12:04:31  杨俊杰
+_x000D_面价金额改变为   52870 用户改变为       
+_x000D_2024/2/26  杨俊杰
+_x000D_该项目建设方张江国信安，庄彦负责，项目为人才公寓。渠道福玛付言新报备，有集成商询价</t></si><si><t>授权编号</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #13: 类型不匹配 in line 0Content is:
+_x000D_2024/12/16  李华伟
+_x000D_【阶段变更】中标-&gt;签约_x000D_
+
+_x000D_
+_x000D_2024/12/9 16:14:52  李华伟
+_x000D_【完善价格】 84992
+_x000D_
+_x000D_2024/12/9 15:49:13  李华伟
+_x000D_【完善价格】 94159
+_x000D_
+_x000D_2024/12/9 15:47:39  李华伟
+_x000D_【完善价格】 103326
+_x000D_
+_x000D_2024/12/9 13:47:52  李华伟
+_x000D_【完善价格】 84999
+_x000D_
+_x000D_2024/11/26 19:42:09  李华伟
+_x000D_【完善价格】 74335
+_x000D_
+_x000D_2024/2/21 12:54:51  李华伟
+_x000D_分销商改编为   上海淳泊  类型改变为  渠道管理    
+_x000D_
+_x000D_2023/11/1  李华伟
+_x000D_目前品牌无要求，瀚网和淳泊配合凯通行余投标。</t></si><si><t>未授权项目</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>全部</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>今年</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>本月</t><phoneticPr fontId="6" type="noConversion"/></si><si><t xml:space="preserve">Error #13: 类型不匹配 in line 60Content is:2024/9/13 周裔锦
+_x000D_「樊勇」深圳市深嘉创达科技有限公司  由于本项目投标时间较紧，报价最好今天发给他。
+_x000D_2024/12/16  周裔锦
+_x000D_类型改变为销售重点 
+_x000D_
+_x000D_2024/12/16  周裔锦
+_x000D_【阶段变更】招标中-&gt;中标_x000D_
+类型改变为渠道管理 
+_x000D_
+_x000D_2024/12/2  周裔锦
+_x000D_类型改变为渠道管理 
+_x000D_
+_x000D_2024/11/29  周裔锦
+_x000D_【阶段变更】招标前-&gt;招标中_x000D_
+
+_x000D_
+_x000D_2024/11/19 15:23:32  周裔锦
+_x000D_【完善价格】 145902
+_x000D_
+_x000D_2024/9/13  周裔锦
+_x000D_类型改变为渠道跟进 </t></si><si><t>第一季度</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>第二季度</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>第三季度</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>第四季度</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>GenerateProjectFilterReport</t></si><si><t>有效合计</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #1004: 对象“Formula1”的方法“Validation”失败</t></si><si><t>按最后项目更新时间来统计不同阶段的项目</t><phoneticPr fontId="6" type="noConversion"/></si><si><t xml:space="preserve">Error #13: 类型不匹配 in line 40Content is:
+_x000D_2024/12/29 21:38:04  周裔锦
+_x000D_[阶段变更] -&gt;签约
+_x000D_
+_x000D_2024/12/9 16:16:54  周裔锦
+_x000D_【完善价格】 101647
+_x000D_
+_x000D_2024/11/8 15:31:27  周裔锦
+_x000D_【完善价格】 73115
+_x000D_
+_x000D_2024/10/27  周裔锦
+_x000D_【出现困难】周一与张兴一同拜访商务总监，并让我们配合重新报价，价格已发对方，尚无得到确切回复。_x000D_
+
+_x000D_
+_x000D_2024/10/27 20:42:57  周裔锦
+_x000D_【完善价格】 77938
+_x000D_
+_x000D_2024/9/6 17:39:25  庄海鑫
+_x000D_【阶段变更】招标中-&gt;中标_x000D_
+</t></si><si><t xml:space="preserve">Error #13: 类型不匹配 in line 62928Content is:
+_x000D_2024/12/29 21:38:04  周裔锦
+_x000D_[阶段变更] -&gt;签约
+_x000D_
+_x000D_2024/12/9 16:16:54  周裔锦
+_x000D_【完善价格】 101647
+_x000D_
+_x000D_2024/11/8 15:31:27  周裔锦
+_x000D_【完善价格】 73115
+_x000D_
+_x000D_2024/10/27  周裔锦
+_x000D_【出现困难】周一与张兴一同拜访商务总监，并让我们配合重新报价，价格已发对方，尚无得到确切回复。_x000D_
+
+_x000D_
+_x000D_2024/10/27 20:42:57  周裔锦
+_x000D_【完善价格】 77938
+_x000D_
+_x000D_2024/9/6 17:39:25  庄海鑫
+_x000D_【阶段变更】招标中-&gt;中标_x000D_
+</t></si><si><t>SimplifyStatsWithArrays</t></si><si><t>授权合计</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>项目当前阶段统计</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>授权项目统计</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前阶段情况说明</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>转移</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #1004: 对象“SaveAs”的方法“_Workbook”失败</t></si><si><t>GetCellValueByColName</t></si><si><t>Error #1004: 对象“PasteSpecial”的方法“Range”失败</t></si><si><t>ImportAndProcessFile</t></si><si><t xml:space="preserve">Error #13: 类型不匹配 in line 60Content is:
+_x000D_2024/12/29 21:38:04  周裔锦
+_x000D_[阶段变更] -&gt;签约
+_x000D_
+_x000D_2024/12/9 16:16:54  周裔锦
+_x000D_【完善价格】 101647
+_x000D_
+_x000D_2024/11/8 15:31:27  周裔锦
+_x000D_【完善价格】 73115
+_x000D_
+_x000D_2024/10/27  周裔锦
+_x000D_【出现困难】周一与张兴一同拜访商务总监，并让我们配合重新报价，价格已发对方，尚无得到确切回复。_x000D_
+
+_x000D_
+_x000D_2024/10/27 20:42:57  周裔锦
+_x000D_【完善价格】 77938
+_x000D_
+_x000D_2024/9/6 17:39:25  庄海鑫
+_x000D_【阶段变更】招标中-&gt;中标_x000D_
+</t></si><si><t>Error #-1669731152: 对象“ListRows”的方法“ListObject”失败</t></si><si><t>Error #-2066813872: 自动化错误</t></si><si><t>Error #-1132113936: 对象“ListColumns”的方法“ListObject”失败</t></si><si><t>Error #-1132232080: 对象“ListColumns”的方法“ListObject”失败</t></si><si><t>Error #-1132049424: 对象“Sort”的方法“ListObject”失败</t></si><si><t>Error #-1132113936: 对象“DataBodyRange”的方法“ListObject”失败</t></si><si><t>Error #-1004294752: 自动化错误</t></si><si><t>Error #-1004255680: 自动化错误</t></si><si><t>Error #13: 类型不匹配 in line 0Content is:
+_x000D_2025/1/4  郭小会
+_x000D_【当前阶段】：改变成   签约
+_x000D_
+_x000D_
+_x000D_2025/1/4  郭小会
+_x000D_【当前阶段】：改变成   失败
+_x000D_
+_x000D_
+_x000D_2025/1/4  郭小会
+_x000D_【当前阶段情况说明】：添加   ceshi 
+_x000D_
+_x000D_
+_x000D_2025/1/4  郭小会
+_x000D_【分销商】：添加   上海淳泊
+_x000D_【类型】：改变成   销售重点
+_x000D_
+_x000D_
+_x000D_2025/1/3 16:44:50  郭小会
+_x000D_【完善价格】 72562
+_x000D_
+_x000D_2024/8/24 11:05:09  郭小会
+_x000D_【消息】「」下穿通道陕西无线电已和对方确定合同意向，设备已向分司下单，并支付了预付款。本周配合陕西无线电提交资料，陕西无线电和总包走个投标流程_x000D_
+【阶段变更】中标-&gt;签约
+_x000D_
+_x000D_2024/6/9  郭小会
+_x000D_下穿通道中标商原采用的是中原的产品，考虑到将来要接入到我们的系统，陕西无线电张总他们和指挥部及总包在做相应的沟通，要求光纤直入站变更为和源通信产品，目前在直审批变更流程</t></si><si><t>Error #13: 类型不匹配 in line 0Content is:
+_x000D_2025/1/3 16:36:13  郭小会
+_x000D_【完善价格】 51958
+_x000D_
+_x000D_2024/7/14 09:25:15  郭小会
+_x000D_【消息】「」安排设备交付，设备已交付到陕西无线电，协调好航站楼坏的设备替换问题
+_x000D_
+_x000D_2024/6/30 07:44:21  郭小会
+_x000D_【消息】「」预付款已付，交给董禕处理_x000D_
+【阶段变更】中标-&gt;签约
+_x000D_
+_x000D_2024/6/15 09:09:23  郭小会
+_x000D_【消息】「」催收预付款，和供应链协调好了订货问题
+_x000D_
+_x000D_2024/6/9 09:58:22  郭小会
+_x000D_【消息】「」西安咸阳机场口岸货站楼区域的光端直放站，陕西无线电已配合总包完成变更，我们双合约已签定
+_x000D_
+_x000D_2024/4/23 08:32:33  郭小会
+_x000D_【消息】「」代理商张总已通过业主找到相应的集成商，进行对接，集成商现场天线和器件已安装完成，张总和集成商进行沟通洽谈，光端机采用和源品牌接入到机场系统，已在走品牌变更流程，统计光端机2近5远
+_x000D_
+_x000D_2024/3/8 13:28:00  郭小会
+_x000D_总包这边之前选用的中原的设备，代理商张总和总包在沟通确认采用和源的光端设备，接入到航站楼
+_x000D_
+_x000D_2024/2/20 12:09:16  郭小会
+_x000D_设计方改变为  民航机场成都电子工程设计有限责任公司 出货时间预测改变为  2024-04-30 当前阶段改变为   中标 类型改变为  销售重点    _x000D_
+和陕西无线电沟通询价问题，进行价格保护
+_x000D_
+_x000D_2023/11/1  郭小会
+_x000D_1、项目投标
+2、需确认代理商</t></si><si><t>Error #13: 类型不匹配 in line 0Content is:
+_x000D_2025/1/3 15:47:12  郭小会
+_x000D_【完善价格】 430000
+_x000D_
+_x000D_2025/1/3 15:42:36  郭小会
+_x000D_【完善价格】 427000
+_x000D_
+_x000D_2025/1/3 15:35:47  郭小会
+_x000D_【完善价格】 389000
+_x000D_
+_x000D_2025/1/3 15:16:49  郭小会
+_x000D_【完善价格】 158507
+_x000D_
+_x000D_2024/8/24 11:03:53  郭小会
+_x000D_【消息】「」沟通跟进预付款，预付款上周五已到帐
+_x000D_
+_x000D_跟进记录  郭小会
+_x000D_【阶段变更】中标-&gt;签约
+_x000D_
+_x000D_2024/7/14 09:26:57  郭小会
+_x000D_【消息】「」和业主沟通投标中的问题，采购从市场上寻了多家价格进行对比，想重新招标，业主IT负责人从中协调，调整报价，现在基本可以确定我们中标了，下周提交相关资质资料和商谈合同细节_x000D_
+【阶段变更】招标中-&gt;中标
+_x000D_
+_x000D_2024/6/15 09:19:26  郭小会
+_x000D_【消息】「」现场和业主沟通其公司内部情况和相应节点，和业主合约部门进行商务沟通和谈判_x000D_
+【阶段变更】招标前-&gt;招标中
+_x000D_
+_x000D_2024/6/9 09:32:23  郭小会
+_x000D_【消息】「」和业主沟通方案和报价问题，下周采购邀请三家去现场谈判，协调福玛和淳泊下周出差，现场谈判
+_x000D_
+_x000D_2024/5/30 22:24:03  郭小会
+_x000D_【消息】「」业主打算自己招标，由IT部门负责招标工作，和业主沟通好入围三家供应商进行投标，IT负责人将其推荐 给采购，选择福玛、淳泊入围 ，计划我们公司中标，分包给淳泊，由淳泊负责实施交付_x000D_
+【阶段变更】品牌植入-&gt;招标前
+_x000D_
+_x000D_2024/5/18 10:55:19  郭小会
+_x000D_【消息】「」配合长飞业主IT负责人提交方案汇报的的PPT,提交招标技术规格书
+_x000D_
+_x000D_2024/2/21 12:43:38  郭小会
+_x000D_用户改变为   安徽长飞先进半导体有限公司 类型改变为  销售重点    _x000D_
+根据业主的需求，将方案和预算提交上去，等待业主内部上会讨论</t></si><si><t>SortAndUpdateProjectsStatus</t></si><si><t>Error #13: 类型不匹配 in line 60Content is:
+_x000D_
+_x000D_2025/1/3  周裔锦
+_x000D_【阶段变更】招标前-&gt;中标_x000D_
+
+_x000D_
+_x000D_2024/11/29  周裔锦
+_x000D_【阶段变更】签约-&gt;招标前_x000D_
+
+_x000D_
+_x000D_2024/11/24 22:49:10  周裔锦
+_x000D_【完善价格】 603482
+_x000D_
+_x000D_2024/11/22  周裔锦
+_x000D_【出现困难】深圳坐标建筑装饰工程股份有限公司中标智能化分包，目前已和李工报价，发射设备：摩托罗拉、建伍、海能达。合路平台和天馈系统：瀚网、威升、和源、浩天通信。_x000D_
+
+_x000D_
+_x000D_2024/10/27  庄海鑫
+_x000D_【阶段变更】招标中-&gt;签约_x000D_
+
+_x000D_
+_x000D_2024/5/11  庄海鑫
+_x000D_【提案】:  目前集成商深圳旗云、广东畅想参与投标</t></si><si><t>ClearAllFiltersInWorkbook</t></si><si><t>Button_ExportQuotationAsCopy</t></si><si><t>货币类型</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>植入目标</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>销售额目标</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Button_FailedStatusButtonQo</t></si><si><t>来源</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #-723779168: 自动化错误</t></si><si><t>时间安排</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>联络人</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>UpdateArrangmentTable</t></si><si><t xml:space="preserve">Error #13: 类型不匹配 in line 60Content is:2024/11/16 范敬
+_x000D_「王超」北京联航迅达通信技术有限公司  已向总包方提交会展解决方案的PPT介绍
+_x000D_
+_x000D_2024/11/9 范敬
+_x000D_「王超」北京联航迅达通信技术有限公司  经销商与目前进行 项目实施的集成商进行初步接触，了解项目后续施工范围。 
+_x000D_
+_x000D_2024/11/9 范敬
+_x000D_「王超」北京联航迅达通信技术有限公司  经销商与目前负责该项目的总包方进行初步沟通，介绍公司在会展项目上的案例等情况。
+_x000D_2025/1/12 19:33:01  范敬
+_x000D_【当前阶段情况说明】：添加   原渠道来源填写有误_x000D_
+</t></si><si><t>跟进情况</t><phoneticPr fontId="6" type="noConversion"/></si><si><t xml:space="preserve">Error #13: 类型不匹配 in line 0Content is:2024/11/16 范敬
+_x000D_「王超」北京联航迅达通信技术有限公司  已向总包方提交会展解决方案的PPT介绍
+_x000D_
+_x000D_2024/11/9 范敬
+_x000D_「王超」北京联航迅达通信技术有限公司  经销商与目前进行 项目实施的集成商进行初步接触，了解项目后续施工范围。 
+_x000D_
+_x000D_2024/11/9 范敬
+_x000D_「王超」北京联航迅达通信技术有限公司  经销商与目前负责该项目的总包方进行初步沟通，介绍公司在会展项目上的案例等情况。
+_x000D_2025/1/12 19:33:01  范敬
+_x000D_【当前阶段情况说明】：添加   原渠道来源填写有误_x000D_
+</t></si><si><t>Error #1004: 行高必须在 0 至 409 之间。</t></si><si><t>Error #-2008110112: 对象“Close”的方法“_Workbook”失败</t></si><si><t>MarketIntroductionFunction</t></si><si><t>Price_ResetForm</t></si><si><t>0</t></si><si><t>RecallPriceApplyList</t></si><si><t>FindBOMReturnValue</t></si><si><t>Error #9 at line 52: 下标超出范围
+_x000D_Code: PriceApply.Worksheet_Change</t></si><si><t>Error #-856077728: 自动化错误</t></si><si><t>CustomerFilter</t></si><si><t>Error #-2048476960: 对象“ListColumns”的方法“ListObject”失败</t></si><si><t>updateContactCell</t></si><si><t>Error #-2048476960: 对象“ListRows”的方法“ListObject”失败</t></si><si><t>FindAndCopyContactData</t></si><si><t>Error #-2048476304: 对象“ListColumns”的方法“ListObject”失败</t></si><si><t>GenerateReportForContact</t></si><si><t>Error #28: 堆栈空间不足</t></si><si><t>Error #-924315392: 自动化错误</t></si><si><t>徐昊</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>中芯南方高精度智能人员定位需求</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #-1526494528: 自动化错误</t></si><si><t>Error #13: 类型不匹配 in line 0Content is:2025/3/12 周裔锦
+_x000D_「帅进」深圳达实智能股份有限公司  最快下周设备的数量清单核对无误后就可以下单采购。
+_x000D_
+_x000D_2025/2/22 周裔锦
+_x000D_「帅进」深圳达实智能股份有限公司  已确定3月份正式签采购合同，下周和张兴一同拜访项目经理，沟通具体的采购详情。
+_x000D_2025/3/14 16:28:05  周裔锦
+_x000D_【完善价格】 573345
+_x000D_
+_x000D_2025/3/7 01:15:34  周裔锦
+_x000D_【授权编号】：改变成   HY-CPJ202409-022_x000D_
+【类型】：改变成   渠道跟进_x000D_
+
+_x000D_
+_x000D_2025/2/21 13:19:47  周裔锦
+_x000D_【出货时间预测】：改变成   2025年一季度3月份_x000D_
+
+_x000D_
+_x000D_2025/2/8 16:02:04  周裔锦
+_x000D_【出货时间预测】：改变成   2025年一季度2月份_x000D_
+
+_x000D_
+_x000D_2024/10/10 20:18:46  周裔锦
+_x000D_【完善价格】 564206
+_x000D_
+_x000D_2024/10/8  周裔锦
+_x000D_【阶段变更】-&gt;中标_x000D_
+
+_x000D_
+_x000D_2024/9/6 17:35:20  庄海鑫
+_x000D_【阶段变更】中标-&gt;签约_x000D_
+
+_x000D_
+_x000D_2023/11/1  庄海鑫
+_x000D_1、项目位于深圳，由深圳达实集成商提供的项目，项目处于招投标阶段。
+2、目前深圳金证股份、润信科技、达实、上海云思、同方股份完成参与投标
+3、项目达实已中标，使用我司品牌投标。
+4、集成商项目经理和深化设计负责人已确定</t></si><si><t xml:space="preserve">Error #13: 类型不匹配 in line 0Content is:2025/3/13 周裔锦
+_x000D_「肖阳陵」深圳市深国铁路物流发展有限公司  已将专网无线对讲系统建设必要性文件发给肖经理，他表示这两天有会议，建议下周见面逐条过文件。
+_x000D_
+_x000D_2025/3/7 周裔锦
+_x000D_「肖阳陵」深圳市深国铁路物流发展有限公司  在郭总主导下，与业主方智能化肖经理和市场部杜经理，以及省电信规划设计院进行技术交流。
+由于项目面积较大，比较谨慎，对方尚在疑虑中，未决定建设公网还是专网或者由第三方物业建设，还需要我方下周提供建设专网必要性说明。
+_x000D_
+_x000D_2025/2/28 周裔锦
+_x000D_「李进」深圳市深国铁路物流发展有限公司  目前物流园项目已经确认由广东省建筑设计院中标。与智能化负责人肖经理沟通确定了，3月6日下周三上午进行技术交流，会让设计方一同参与，让我们尽快准备技术交流使用的物流园区相关方案，以及着重介绍专网对讲系统除对讲以外的功能，公司希望从本系统看到更多的价值。
+_x000D_2025/3/8 10:46:33  周裔锦
+_x000D_【当前阶段】：改变成   发现_x000D_
+
+_x000D_
+_x000D_2025/3/8 10:46:22  周裔锦
+_x000D_【设计院及顾问】：改变成   广东省电信规划设计院有限公司_x000D_
+
+_x000D_
+_x000D_2025/2/28 17:55:53  周裔锦
+_x000D_【设计院及顾问】：添加   广东省建筑设计研究院有限公司_x000D_
+【当前阶段】：改变成   品牌植入_x000D_
+【经销商】：添加   上海瀚网智能科技有限公司_x000D_
+【当前阶段情况说明】：改变成   目前项目已经由省院中标设计。_x000D_
+
+_x000D_
+_x000D_2025/2/21 13:29:42  周裔锦
+_x000D_【当前阶段】：改变成   发现_x000D_
+【当前阶段情况说明】：添加   设计招标阶段，属于项目发现。_x000D_
+</t></si><si><t xml:space="preserve">Error #13: 类型不匹配 in line 0Content is:2024/12/29 21:38:04  周裔锦
+_x000D_[阶段变更] -&gt;签约
+_x000D_
+_x000D_2024/12/9 16:16:54  周裔锦
+_x000D_【完善价格】 101647
+_x000D_
+_x000D_2024/11/8 15:31:27  周裔锦
+_x000D_【完善价格】 73115
+_x000D_
+_x000D_2024/10/27  周裔锦
+_x000D_【出现困难】周一与张兴一同拜访商务总监，并让我们配合重新报价，价格已发对方，尚无得到确切回复。_x000D_
+
+_x000D_
+_x000D_2024/10/27 20:42:57  周裔锦
+_x000D_【完善价格】 77938
+_x000D_
+_x000D_2024/9/6 17:39:25  庄海鑫
+_x000D_【阶段变更】招标中-&gt;中标_x000D_
+</t></si><si><t>Error #13: 类型不匹配 in line 0Content is:2025/2/17 16:06:05  李华伟
+_x000D_【当前阶段】：改变成   失败_x000D_
+
+_x000D_
+_x000D_2025/1/11 14:35:52  李华伟
+_x000D_【当前阶段情况说明】：添加   跟进的代理商反馈客户最终没有谈拢改造项目，甲方找了其他分包单位。_x000D_
+
+_x000D_
+_x000D_2024/12/30  李华伟
+_x000D_【阶段变更】品牌植入-&gt;搁置_x000D_
+类型改变为渠道跟进 
+_x000D_
+_x000D_2024/2/21 13:06:55  李华伟
+_x000D_分销商改编为   上海瑞康 经销商改变为   上海瀚网智能科技有限公司 类型改变为  渠道管理    
+_x000D_
+_x000D_2023/11/1  李华伟
+_x000D_项目改造设计，安排公司技术对接设计和代理商配合。</t></si><si><t>Error #13: 类型不匹配 in line 0Content is:2025/2/16 13:02:32  李华伟
+_x000D_【当前阶段】：改变成   转移_x000D_
+
+_x000D_
+_x000D_2025/2/16 13:02:13  李华伟
+_x000D_【当前阶段情况说明】：改变成   中标后转移销售杨俊杰已经批价_x000D_
+
+_x000D_
+_x000D_2025/1/6 11:34:34  李华伟
+_x000D_【当前阶段情况说明】：添加   销售杨俊杰已经批价_x000D_
+
+_x000D_
+_x000D_2024/11/25  李华伟
+_x000D_【困难解决】_x000D_
+
+_x000D_
+_x000D_2024/11/25  李华伟
+_x000D_【出现困难】重复建立了项目，此机会做失效。_x000D_
+
+_x000D_
+_x000D_2024/11/18 15:53:20  李华伟
+_x000D_【完善价格】 340823</t></si><si><t>1.46.35</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Setuptimer</t></si><si><t>系统集成商</t></si><si><t xml:space="preserve">0 </t></si><si><t>设计院及顾问</t></si><si><t>经销商</t></si><si><t>Error #40036: 定义的应用程序或定义的对象错误</t></si><si><t>Error #13: 类型不匹配 in line 60Content is:2025/3/29 08:23:40  范敬
+_x000D_[阶段变更] -&gt;签约
+_x000D_
+_x000D_2025/3/25 16:12:03  范敬
+_x000D_【完善价格】 117016
+_x000D_
+_x000D_2025/2/14 17:36:25  范敬
+_x000D_【出货时间预测】：添加   2025年一季度3月份_x000D_
+
+_x000D_
+_x000D_2025/1/14 12:07:52  范敬
+_x000D_【完善价格】 232024
+_x000D_
+_x000D_2024/12/1  范敬
+_x000D_【阶段变更】招标前-&gt;中标_x000D_
+
+_x000D_
+_x000D_2024/7/11 16:43:05  范敬
+_x000D_【提案】「」:  经销商已配合集成商投标，结果未出。
+_x000D_
+_x000D_2024/3/27 15:10:19  范敬
+_x000D_「提案」  :  配合代理商完成招标前的项目清单及预算</t></si><si><t xml:space="preserve">Error #13: 类型不匹配 in line 60Content is:2025/3/29 07:59:56  范敬
+_x000D_【授权编号】：添加   HY-SPJ202503-002_x000D_
+【类型】：添加   销售重点_x000D_
+
+_x000D_
+_x000D_2025/3/24 13:08:07  范敬
+_x000D_【当前阶段】：改变成   搁置_x000D_
+【当前阶段情况说明】：改变成   该项目与”桑田科学岛科创中心项目东片区实验室项目（实验楼、地库及能源中心）“相同_x000D_
+
+_x000D_
+_x000D_2025/3/22 09:32:35  范敬
+_x000D_【品牌情况】：添加   入围_x000D_
+【当前阶段】：添加   中标_x000D_
+【分销商】：添加   上海淳泊_x000D_
+【经销商】：添加   敦力(南京)科技有限公司_x000D_
+【系统集成商】：添加   江苏瀚远科技股份有限公司_x000D_
+【当前阶段情况说明】：添加   该项目投标已结束，中标单位已公示完成。_x000D_
+</t></si><si><t>和源通信(上海)股份有限公司</t></si><si><t>武威路88 19号楼6楼
+普陀区 上海市 
+中国  (200335)
+021-62596028
+www.evertac.net</t></si><si><t>分销商</t></si><si><t>Error #-1110866640: 自动化错误</t></si><si><t>版本号</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>版本说明</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>修改授权编号功能，修改重大Bug</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #-719194208: 自动化错误</t></si><si><t>项目名称</t></si><si><t>报备时间</t></si><si><t>报备来源</t></si><si><t>品牌情况</t></si><si><t>销售负责人</t></si><si><t>授权编号</t></si><si><t>更新时间</t></si><si><t>项目跟进记录</t></si><si><t>阶段状态</t></si><si><t>项目分类</t></si><si><t>用户</t></si><si><t>预测签约时间</t></si><si><t>更新用户账户和密码设置，修改登录逻辑
+更新批价单导入功能</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>1.47.1</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>更新缺少产品数据会造成的卡顿</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>申请折扣</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #-854630656: 自动化错误</t></si><si><t>1.47.2</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>RefillFormattedIDs</t></si><si><t>经销商联系人</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>用户联系人</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>设计院及顾问联系人</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>系统集成商联系人</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>活跃度</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Customer.SelectionChange</t></si><si><t>PriceApplyProjectDropList</t></si><si><t>项目机会报备功能转移到数据库中合并提交，增加报备记录
+批价申请增加授权编号，优化批价单文件名称
+增加客户关联机会和联系人活跃度统计</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>Error #-880860128: 自动化错误</t></si><si><t>上海</t></si><si><t>项目经理</t></si><si><t>采购</t></si><si><t>合作伙伴</t></si><si><t>总经理</t></si><si><t>经理</t></si><si><t>工程师</t></si><si><t>销售经理</t></si><si><t>技术经理</t></si><si><t>采购经理</t></si><si><t>副总经理</t></si><si><t>弱电工程师</t></si><si><t>上海艾亿智能科技有限公司</t></si><si><t>梅小好</t></si><si><t>上海银欣高新技术发展股份有限公司</t></si><si><t>付言新</t></si><si><t>上海景文同安机电消防工程有限公司</t></si><si><t>汪加成</t></si><si><t>李冬</t></si><si><t>上海仪电鑫森科技发展有限公司</t></si><si><t>上海现代建筑设计研究院有限公司</t></si><si><t>上海壹杰信息技术有限公司</t></si><si><t>徐骏</t></si><si><t>上海谌亚智能化系统有限公司</t></si><si><t>舜宇奥来微纳光学（上海）有限公司</t></si><si><t>苏州工业园区汉威控制系统工程有限公司</t></si><si><t>上海电科智能系统股份有限公司</t></si><si><t>上海东大金智信息系统有限公司</t></si><si><t>江西盈石信息工程有限公司</t></si><si><t>上海市政工程设计研究总院（集团）有限公司</t></si><si><t>陈刘祥</t></si><si><t>上海久纽智能科技有限公司</t></si><si><t>俞春磊</t></si><si><t>上海龙旗科技股份有限公司</t></si><si><t>卓展工程顾问(北京)有限公司-上海分公司</t></si><si><t>李霄云</t></si><si><t>奥雅纳工程咨询(上海)有限公司</t></si><si><t>华东建筑设计研究院有限公司</t></si><si><t>陈允强</t></si><si><t>上海世茂物联网科技有限公司</t></si><si><t>朱丹</t></si><si><t>上海执讯智能科技有限公司</t></si><si><t>上海菁峰设计咨询有限公司</t></si><si><t>李源</t></si><si><t>上海市安装工程集团有限公司-第九分公司</t></si><si><t>梁晓君</t></si><si><t>庄妍华</t></si><si><t>信息产业电子第十一设计研究院科技工程
+股份有限公司-上海分公司</t></si><si><t>上海正德天佑防火设备安装有限公司</t></si><si><t>上海华虹智联信息科技有限公司</t></si><si><t>付海涛</t></si><si><t>上海福瑞科技有限公司</t></si><si><t>上海宝通汎球电子有限公司</t></si><si><t>同济大学建筑设计研究院（集团）有限公司</t></si><si><t>唐平</t></si><si><t>上海奔逸智能科技有限公司</t></si><si><t>上海维瓴智能科技有限公司</t></si><si><t>上海宵远信息技术有限公司</t></si><si><t>桂萍</t></si><si><t>黄辰赟</t></si><si><t>上海建工四建集团有限公司</t></si><si><t>庄彦</t></si><si><t>上海派汇网络科技有限公司</t></si><si><t>范佳顺</t></si><si><t>余杰</t></si><si><t>上海电信科技发展有限公司</t></si><si><t>黄攀</t></si><si><t>上海吉拓网络技术有限公司</t></si><si><t>天合光能股份有限公司</t></si><si><t>周天文</t></si><si><t>金晓俊</t></si><si><t>上海恒能电子科技有限公司</t></si><si><t>黄薛娇</t></si><si><t xml:space="preserve">上海华虹(集团)有限公司 </t></si><si><t>上海电器科学研究所集团有限公司</t></si><si><t>同方泰德智能科技（上海）有限公司</t></si><si><t>上海九谷科技发展有限公司</t></si><si><t>曹群峰</t></si><si><t>上海蓝极星智能科技有限公司</t></si><si><t>宋治军</t></si><si><t>上海秋煜电力工程有限公司</t></si><si><t>上海市建设工程机电设备有限公司</t></si><si><t>闻锋</t></si><si><t>沈麦韦(上海)商务咨询有限公司</t></si><si><t>徐强</t></si><si><t>徐珣</t></si><si><t>陈华林</t></si><si><t>上海临港经济发展（集团）有限公司</t></si><si><t>张小宁</t></si><si><t>张航</t></si><si><t>刘亚</t></si><si><t>傅宏伟</t></si><si><t>上海瑞康通信科技有限公司</t></si><si><t>上海鑫桉信息工程有限公司</t></si><si><t>上海云思智慧信息技术有限公司</t></si><si><t>刘鸿儒</t></si><si><t>苏州朗捷通智能科技有限公司</t></si><si><t>沪东造船厂</t></si><si><t>北京佰沃信通科技有限公司</t></si><si><t>中国建筑第八工程局有限公司</t></si><si><t>盛令弢</t></si><si><t>上海美控智慧建筑有限公司</t></si><si><t>朱艳伟</t></si><si><t>启迪设计集团股份有限公司</t></si><si><t>钱程</t></si><si><t>上海市安装工程集团有限公司-第四分公司</t></si><si><t>邬丹</t></si><si><t>奚志坚</t></si><si><t>北京江森自控有限公司-南京分公司</t></si><si><t>上海积塔半导体有限公司</t></si><si><t>上海建工二建集团有限公司</t></si><si><t>刘健</t></si><si><t>朱逸飞</t></si><si><t>王微微</t></si><si><t>周心一</t></si><si><t>上海协利科技工程有限公司</t></si><si><t>陆经纬</t></si><si><t>江勤平</t></si><si><t>冯一</t></si><si><t>殷平</t></si><si><t>胡铭杰</t></si><si><t>上海益邦智能技术股份有限公司</t></si><si><t>靳丽</t></si><si><t>韩翌</t></si><si><t>上海常森电子有限公司</t></si><si><t>林常森</t></si><si><t>王小安</t></si><si><t>上海临港景鸿安全防范科技发展有限公司</t></si><si><t>龚伟</t></si><si><t>上海沐东机电设备有限公司</t></si><si><t>周永鹤</t></si><si><t>上海昂泰兰捷尔信息科技股份有限公司</t></si><si><t>发现: 1 个 0 元  /   品牌植入: 27 个 10,978,914 元  /   招标前: 1 个 0 元  /   招标中: 15 个 3,093,153 元  /   中标: 26 个 15,729,134 元  /   失败: 47 个 10,818,638 元</t></si><si><t>项目统计列表生成完成：2025-04-14 13:15:57</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>通号通信信息集团上海有限公司</t></si><si><t>海康威视数字技术(上海)有限公司</t></si><si><t>江苏金鼎智能系统工程有限公司</t></si><si><t>上海圆信智能科技有限公司</t></si><si><t>黄浦区</t></si><si><t>浦东新区</t></si><si><t>普陀区</t></si><si><t>静安区</t></si><si><t>长宁区</t></si><si><t>徐汇区</t></si><si><t>上海世源科技工程有限公司</t></si><si><t>虹口区</t></si><si><t>上海申源电子工程技术设备有限公司</t></si><si><t>中铁四局集团有限公司</t></si><si><t>闵行区</t></si><si><t>中铁二局建设有限公司</t></si><si><t>恺驰智能科技有限公司</t></si><si><t>上海永通通信科技发展有限公司</t></si><si><t>上海经意实业有限公司</t></si><si><t>南京市</t></si><si><t>默林娱乐集团</t></si><si><t>上海凯通实业有限公司</t></si><si><t>杨浦区</t></si><si><t>铠延机电设计(上海)有限公司</t></si><si><t>闸北区</t></si><si><t>嘉定区</t></si><si><t>上海淳泊信息科技有限公司</t></si><si><t>浙江航博智能工程有限公司</t></si><si><t>当前联系人总数量：87  ｜ 设计院及顾问：13  ｜  系统集成商 ：55  ｜ 经销商：7  ｜ 分销商 ：1  ｜ 用户：10</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>当前联系人总数量 ：116  ｜  有效联系人数量 ： 12</t><phoneticPr fontId="6" type="noConversion"/></si><si><t>冯剑</t></si><si><t>技术</t></si><si><t>林志明</t></si><si><t>曲文博</t></si><si><t>陈立彦</t></si><si><t>赵泽飞</t></si><si><t>周羽</t></si><si><t>瞿迪</t></si><si><t>主任工程师</t></si><si><t>王佳斌</t></si><si><t>薛晨鑫</t></si><si><t>杨敬鹏</t></si><si><t>关鹏</t></si><si><t>焦峰</t></si><si><t>彭俊</t></si><si><t>毛晶轶</t></si><si><t>杨冰峰</t></si><si><t>朱焱</t></si><si><t>徐楷程</t></si><si><t>佴俊</t></si><si><t>俞晖</t></si><si><t>陈丽娟</t></si><si><t>王毅涛</t></si><si><t>赵展鹏</t></si><si><t>郑国慧</t></si><si><t>高源</t></si><si><t>王炜</t></si><si><t>施君</t></si><si><t>张旭东</t></si><si><t>吴洁</t></si><si><t>朱永兴</t></si><si><t>文海</t></si><si><t>郑梓璇</t></si><si><t>刘思成</t></si><si><t>李兵</t></si><si><t>陈未</t></si><si><t>陈怡</t></si><si><t>尤文捷</t></si><si><t>申时政</t></si><si><t>陈志龙</t></si><si><t>端云</t></si><si><t>魏巍</t></si><si><t>舒辉</t></si><si><t>刘强（挂靠）</t></si><si><t>赵铁军</t></si><si><t>史伟杰</t></si><si><t>祁祯</t></si><si><t>胡从焰</t></si><si><t>陈林</t></si><si><t>贾雪凤</t></si><si><t>戴卓莹</t></si><si><t>邹飞</t></si><si><t>主任设计师</t></si><si><t>张宁</t></si><si><t>薛鹏飞</t></si><si><t>谢丹</t></si><si><t>西区江森重庆办技术</t></si><si><t>吴侃</t></si><si><t>王进</t></si><si><t>陆炎</t></si><si><t>苏南项目部经理</t></si><si><t>郭清峰</t></si><si><t>尤经理</t></si><si><t>普通员工</t></si><si><t>金工</t></si><si><t>李波</t></si></sst>
