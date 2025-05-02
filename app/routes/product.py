@@ -1,4 +1,5 @@
-from flask import jsonify, Blueprint, request, render_template, flash, redirect, url_for
+from flask import json
+from flask.json.provider import JSONEncoderify, Blueprint, request, render_template, flash, redirect, url_for
 from app.models.product import Product
 from app.extensions import db
 import logging
