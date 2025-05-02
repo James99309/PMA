@@ -1,11 +1,12 @@
-name: Keep Render Alive
+name: Keep Render Service Alive
 
 on:
   schedule:
     - cron: '*/10 * * * *'  # 每10分钟执行一次
+
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Curl Ping to Render
-        run: curl -s https://pma-ipwv.onrender.com > /dev/null
+      - name: Send request to Render
+        run: curl https://pma-ipwv.onrender.com
