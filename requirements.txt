@@ -20,4 +20,5 @@ jieba==0.42.1
 gunicorn==21.2.0
 psycopg2-binary==2.9.9
 pymongo==4.6.0
-pandas==2.0.3 
+numpy==1.22.4
+pandas==1.4.3 
