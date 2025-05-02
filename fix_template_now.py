@@ -6,6 +6,7 @@
 
 import os
 import re
+import shutil
 
 template_path = "app/templates/quotation/list.html"
 
@@ -14,39 +15,84 @@ with open(template_path, 'r', encoding='utf-8') as f:
     content = f.read()
 
 # 创建备份
-with open(f"{template_path}.bak", 'w', encoding='utf-8') as f:
-    f.write(content)
-print(f"已创建备份文件: {template_path}.bak")
+backup_path = f"{template_path}.bak"
+shutil.copy2(template_path, backup_path)
+print(f"已创建备份文件: {backup_path}")
 
-# 提取每个block标签
-block_pattern = r'{%\s*block\s+([a-zA-Z0-9_]+)\s*%}'
-blocks = re.findall(block_pattern, content)
-print(f"找到以下block标签: {blocks}")
+# 计算每个block标签的数量
+def count_blocks(content):
+    block_counts = {}
+    # 查找所有block开始标签
+    start_blocks = re.finditer(r'{%\s*block\s+([a-zA-Z0-9_]+)\s*%}', content)
+    for match in start_blocks:
+        block_name = match.group(1)
+        if block_name not in block_counts:
+            block_counts[block_name] = {'start': 0, 'end': 0}
+        block_counts[block_name]['start'] += 1
+    
+    # 查找所有block结束标签
+    end_blocks = re.finditer(r'{%\s*endblock(?:\s+([a-zA-Z0-9_]+))?\s*%}', content)
+    for match in end_blocks:
+        block_name = match.group(1) if match.group(1) else None
+        if block_name and block_name in block_counts:
+            block_counts[block_name]['end'] += 1
+        else:
+            # 未命名的endblock，只统计总数
+            for key in block_counts.keys():
+                if block_counts[key]['end'] < block_counts[key]['start']:
+                    block_counts[key]['end'] += 1
+                    break
+    
+    return block_counts
 
-# 对于base layout，我们期望有这些block
-expected_blocks = ['content', 'scripts']
+blocks = count_blocks(content)
+print(f"找到的block标签情况: {blocks}")
 
-# 删除所有现有的endblock标签
-content = re.sub(r'{%\s*endblock(?:\s+[a-zA-Z0-9_]+)?\s*%}', '', content)
-print("已删除所有现有endblock标签")
+# 检查是否有多余的endblock标签
+unbalanced_blocks = False
+for block_name, counts in blocks.items():
+    if counts['start'] < counts['end']:
+        unbalanced_blocks = True
+        print(f"块 '{block_name}' 有多余的endblock标签: {counts['start']} 开始 vs {counts['end']} 结束")
 
-# 确保内容不以奇怪的字符结尾
-content = content.rstrip() + "\n"
-
-# 重新添加正确的endblock标签
-for block in expected_blocks:
-    if block in blocks:
-        if block == 'scripts':
-            # 先闭合scripts块
-            content += f"\n{{% endblock scripts %}}\n"
-        elif block == 'content':
-            # 最后闭合content块
-            content += f"\n{{% endblock content %}}\n"
-
-# 写回文件
-with open(template_path, 'w', encoding='utf-8') as f:
-    f.write(content)
-print(f"已修复文件: {template_path}")
+if unbalanced_blocks:
+    # 找到文件末尾的多余endblock标签
+    lines = content.split('\n')
+    fixed_lines = []
+    inside_script_block = False
+    block_stack = []
+    
+    for line in lines:
+        # 检测block开始
+        block_start = re.search(r'{%\s*block\s+([a-zA-Z0-9_]+)\s*%}', line)
+        if block_start:
+            block_name = block_start.group(1)
+            block_stack.append(block_name)
+            inside_script_block = (block_name == 'scripts')
+        
+        # 检测block结束
+        block_end = re.search(r'{%\s*endblock(?:\s+([a-zA-Z0-9_]+))?\s*%}', line)
+        if block_end and block_stack:
+            # 只有当还有打开的块时才弹出
+            block_stack.pop()
+            inside_script_block = False
+        
+        # 根据是否在script块内及是否是脚本结束来处理行
+        if inside_script_block or not re.match(r'^\s*{%\s*endblock\s*%}\s*$', line):
+            fixed_lines.append(line)
+    
+    # 确保最后正确关闭块
+    if 'scripts' in blocks:
+        fixed_lines.append('{% endblock scripts %}')
+    
+    fixed_lines.append('{% endblock content %}')
+    
+    # 写回文件
+    with open(template_path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(fixed_lines))
+    print(f"已修复文件: {template_path}")
+else:
+    print("所有block标签都是平衡的，不需要修复")
 
 # 验证模板
 try:
