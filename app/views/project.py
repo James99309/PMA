@@ -10,7 +10,7 @@ import logging
 import re
 from fuzzywuzzy import fuzz
 from app.utils.text_similarity import calculate_chinese_similarity, is_similar_project_name
-from bson.objectid import ObjectId
+import uuid  # 使用内置的uuid模块替代bson.objectid
 import pandas as pd
 import json
 from app.models.user import User
