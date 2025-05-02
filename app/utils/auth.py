@@ -1,5 +1,5 @@
 from functools import wraps
-from flask import json
+from flask import json, request
 
 # Flask 2.3+ JSON兼容层
 try:
@@ -15,7 +15,13 @@ except (ImportError, AttributeError):
     
     def loads(*args, **kwargs):
         return current_app.json.loads(*args, **kwargs)
-from flask.json.provider import JSONProvider, request
+
+try:
+    from flask.json.provider import JSONProvider
+except ImportError:
+    # 兼容低版本的Flask
+    JSONProvider = None
+
 from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
 from flask_login import current_user
 
