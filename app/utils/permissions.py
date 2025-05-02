@@ -2,6 +2,9 @@
 import logging
 from app import db
 from app.models.user import Permission, User
+from functools import wraps
+from flask import abort, current_app, g
+from flask_login import current_user
 
 logger = logging.getLogger(__name__)
 
@@ -245,4 +248,40 @@ def clear_user_permissions_cache(user_id=None):
         return True
     except Exception as e:
         logger.error(f"清除权限缓存失败: {str(e)}")
-        return False 
+        return False
+
+def permission_required(module, action):
+    """
+    检查用户是否具有指定模块的指定操作权限的装饰器
+    
+    参数:
+        module (str): 模块名称，如'project', 'customer'等
+        action (str): 操作名称，如'create', 'view', 'edit', 'delete'等
+    
+    用法示例:
+        @permission_required('project', 'view')
+        def list_projects():
+            # 函数内容
+            pass
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # 检查当前用户是否登录
+            if not current_user.is_authenticated:
+                abort(401)  # 未授权
+                
+            # 管理员有所有权限
+            if current_user.role == 'admin':
+                return f(*args, **kwargs)
+                
+            # 从当前用户对象获取权限
+            if hasattr(current_user, 'has_permission'):
+                if current_user.has_permission(module, action):
+                    return f(*args, **kwargs)
+            
+            # 没有权限
+            abort(403)  # 禁止访问
+            
+        return decorated_function
+    return decorator 
