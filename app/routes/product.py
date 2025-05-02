@@ -14,7 +14,15 @@ except (ImportError, AttributeError):
     
     def loads(*args, **kwargs):
         return current_app.json.loads(*args, **kwargs)
-from flask.json.provider import JSONProvider, Blueprint, request, render_template, flash, redirect, url_for
+
+# 分开导入其他组件
+from flask import Blueprint, request, render_template, flash, redirect, url_for
+try:
+    from flask.json.provider import JSONProvider  
+except ImportError:
+    # 兼容低版本的Flask
+    JSONProvider = None
+    
 from app.models.product import Product
 from app.extensions import db
 import logging
