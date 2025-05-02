@@ -1,6 +1,21 @@
 from functools import wraps
 from flask import json
-from flask.json.provider import JSONEncoderify, request
+
+# Flask 2.3+ JSON兼容层
+try:
+    from flask.json import jsonify, loads, dumps
+except (ImportError, AttributeError):
+    from flask import current_app
+    
+    def jsonify(*args, **kwargs):
+        return current_app.json.response(*args, **kwargs)
+    
+    def dumps(*args, **kwargs):
+        return current_app.json.dumps(*args, **kwargs)
+    
+    def loads(*args, **kwargs):
+        return current_app.json.loads(*args, **kwargs)
+from flask.json.provider import JSONProvider, request
 from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
 from flask_login import current_user
 

@@ -1,5 +1,20 @@
 from flask import json
-from flask.json.provider import JSONEncoderify, Blueprint, request, render_template, flash, redirect, url_for
+
+# Flask 2.3+ JSON兼容层
+try:
+    from flask.json import jsonify, loads, dumps
+except (ImportError, AttributeError):
+    from flask import current_app
+    
+    def jsonify(*args, **kwargs):
+        return current_app.json.response(*args, **kwargs)
+    
+    def dumps(*args, **kwargs):
+        return current_app.json.dumps(*args, **kwargs)
+    
+    def loads(*args, **kwargs):
+        return current_app.json.loads(*args, **kwargs)
+from flask.json.provider import JSONProvider, Blueprint, request, render_template, flash, redirect, url_for
 from app.models.product import Product
 from app.extensions import db
 import logging
