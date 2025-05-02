@@ -2,6 +2,11 @@ import os
 from dotenv import load_dotenv
 from datetime import timedelta
 import re
+import logging
+
+# 配置日志记录
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 load_dotenv(os.path.join(basedir, '.env'))
@@ -13,12 +18,22 @@ class Config:
     # 数据库配置
     # 添加Render PostgreSQL数据库支持
     database_url = os.environ.get('DATABASE_URL')
+    
+    # 记录原始数据库URL用于调试
+    if database_url:
+        logger.info(f"原始DATABASE_URL: {database_url}")
+    else:
+        logger.info("未找到DATABASE_URL环境变量，将使用默认SQLite数据库")
+    
     # Render使用postgres://协议，而SQLAlchemy 1.4+需要postgresql://
     if database_url and database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
-        
+        logger.info(f"转换后的DATABASE_URL: {database_url}")
+    
     SQLALCHEMY_DATABASE_URI = database_url or \
         'sqlite:///' + os.path.join(basedir, 'app.db')
+    
+    # 确保没有硬编码的数据库连接参数
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # 调试模式
@@ -45,6 +60,18 @@ class Config:
 
 class DevelopmentConfig(Config):
     DEBUG = True
+    # 确保开发环境也使用正确的数据库URL
+    database_url = os.environ.get('DATABASE_URL')
+    if database_url and database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    SQLALCHEMY_DATABASE_URI = database_url or \
+        'sqlite:///' + os.path.join(basedir, 'app.db')
 
 class ProductionConfig(Config):
-    DEBUG = False 
+    DEBUG = False
+    # 确保生产环境也使用正确的数据库URL
+    database_url = os.environ.get('DATABASE_URL')
+    if database_url and database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    SQLALCHEMY_DATABASE_URI = database_url or \
+        'sqlite:///' + os.path.join(basedir, 'app.db') 
