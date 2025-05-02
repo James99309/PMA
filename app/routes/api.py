@@ -12,7 +12,8 @@ from datetime import datetime, timedelta
 from fuzzywuzzy import fuzz  # 用于计算字符串相似度
 import re
 from app.models.quotation import Quotation, QuotationDetail
-from flask_wtf.csrf import CSRFProtect  # 正确导入CSRFProtect而非csrf_protect
+from flask_wtf.csrf import CSRFProtect
+from app import csrf
 
 logger = logging.getLogger(__name__)
 
