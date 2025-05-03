@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_owner, render_date %}
 
-{% block title %}客户管理{% endblock %}
+{% block title %}客户管理{% endblock title %}
 
 {% block content %}
 <div class="container-fluid">
@@ -133,19 +133,9 @@
                                 </a>
                             </th>
                             <th class="px-3 py-3" style="min-width: 100px;">
-                                <a href="{{ url_for('customer.list_companies', sort='province', order='asc' if sort_field == 'province' and sort_order == 'desc' else 'desc', search=search_term) }}" class="text-dark d-flex align-items-center {{ 'current-sort' if sort_field == 'province' }}">
-                                    省份
-                                    {% if sort_field == 'province' %}
-                                    <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }} ms-1"></i>
-                                    {% else %}
-                                    <i class="fas fa-sort ms-1 text-muted"></i>
-                                    {% endif %}
-                                </a>
-                            </th>
-                            <th class="px-3 py-3" style="min-width: 100px;">
-                                <a href="{{ url_for('customer.list_companies', sort='city', order='asc' if sort_field == 'city' and sort_order == 'desc' else 'desc', search=search_term) }}" class="text-dark d-flex align-items-center {{ 'current-sort' if sort_field == 'city' }}">
-                                    城市
-                                    {% if sort_field == 'city' %}
+                                <a href="{{ url_for('customer.list_companies', sort='region', order='asc' if sort_field == 'region' and sort_order == 'desc' else 'desc', search=search_term) }}" class="text-dark d-flex align-items-center {{ 'current-sort' if sort_field == 'region' }}">
+                                    省/州
+                                    {% if sort_field == 'region' %}
                                     <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }} ms-1"></i>
                                     {% else %}
                                     <i class="fas fa-sort ms-1 text-muted"></i>
@@ -216,8 +206,7 @@
                             <td class="px-3">{{ company.company_type }}</td>
                             <td class="px-3">{{ company.industry }}</td>
                             <td class="px-3">{{ company.country }}</td>
-                            <td class="px-3">{{ company.province }}</td>
-                            <td class="px-3">{{ company.city }}</td>
+                            <td class="px-3">{{ company.region }}</td>
                             <td class="px-3">{{ company.address }}</td>
                             <td class="px-3">
                                 <span class="badge {% if company.status == '活跃' %}bg-success{% else %}bg-secondary{% endif %}">
@@ -394,6 +383,53 @@
     
     .search-icon:hover {
         color: #495057;
+    }
+
+    .company-search-item {
+        padding: 8px 12px;
+        border-bottom: 1px solid #eee;
+        color: #6c757d;
+        cursor: pointer; /* 更改为指针光标，表示可点击 */
+    }
+    .company-search-item:hover {
+        background-color: #f8f9fa;
+    }
+    .company-name {
+        font-weight: 500;
+        display: inline;
+        font-size: 0.9em;
+    }
+    .company-location, .company-owner {
+        color: #6c757d;
+        font-size: 0.8em;
+        display: inline;
+        margin-left: 3px;
+    }
+    .reference-notice {
+        font-size: 0.85em;
+        color: #6c757d;
+        padding: 8px 12px;
+        border-top: 1px dashed #dee2e6;
+        background-color: #f8f9fa;
+        font-weight: 500;
+        text-align: center;
+    }
+    .reference-badge {
+        font-size: 0.7em;
+        padding: 0.2em 0.4em;
+        background-color: #6c757d;
+        color: white;
+        border-radius: 0.25rem;
+        margin-right: 5px;
+    }
+    .suggestions-header {
+        padding: 8px 12px;
+        background-color: #e9ecef;
+        font-size: 0.9em;
+        color: #495057;
+        font-weight: 500;
+        text-align: center;
+        border-bottom: 1px solid #dee2e6;
     }
 </style>
 
@@ -708,7 +744,7 @@
     </div>
 </div>
 
-{% endblock %}
+{% endblock content %}
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -1418,51 +1454,69 @@ function initCompanySearch() {
             })
                 .then(response => response.json())
                 .then(data => {
+                    // 清空结果容器
                     companyResults.innerHTML = '';
                     
-                    if (data.results && data.results.length > 0) {
-                        // 显示结果下拉菜单
-                        companyResults.classList.add('show');
+                    // 添加标题
+                    const headerDiv = document.createElement('div');
+                    headerDiv.className = 'suggestions-header';
+                    headerDiv.textContent = '相似企业（仅供参考）';
+                    companyResults.appendChild(headerDiv);
+                    
+                    // 添加结果项
+                    data.results.forEach(company => {
+                        const item = document.createElement('div');
+                        item.className = 'dropdown-item company-search-item';
                         
-                        // 添加结果项
-                        data.results.forEach(company => {
-                            const item = document.createElement('a');
-                            item.className = 'dropdown-item d-flex justify-content-between align-items-center';
-                            item.href = 'javascript:void(0)';
-                            
-                            // 添加企业名称和城市/类型
-                            item.innerHTML = `<span>${company.name}</span>`;
-                            
-                            if (company.display.includes('[')) {
-                                const location = company.display.split('[')[1].replace(']', '');
-                                item.innerHTML += `<small class="text-muted ms-2">(${location})</small>`;
-                            }
-                            
-                            // 设置样式和权限标记
-                            if (!company.has_permission) {
-                                item.classList.add('text-muted');
-                                item.innerHTML += '<span title="该企业不在您的权限范围" class="badge bg-secondary ms-2">无权限</span>';
-                            }
-                            
-                            // 点击事件处理
-                            item.addEventListener('click', function() {
-                                companyInput.value = company.name;
-                                companyResults.classList.remove('show');
-                                
-                                // 如果有权限，直接显示在企业列表中
-                                if (company.has_permission) {
-                                    window.location.href = `/customer/?search=${encodeURIComponent(company.name)}`;
-                                } else {
-                                    // 自定义无权限企业的展示逻辑
-                                    addNoPermissionCompanyToList(company);
-                                }
-                            });
-                            
-                            companyResults.appendChild(item);
+                        // 创建内容区
+                        const contentDiv = document.createElement('div');
+                        contentDiv.style.display = 'inline';
+                        
+                        // 添加企业名称
+                        const nameSpan = document.createElement('span');
+                        nameSpan.className = 'company-name';
+                        nameSpan.textContent = company.name;
+                        contentDiv.appendChild(nameSpan);
+                        
+                        // 添加地区信息
+                        if (company.location || (company.country && company.region)) {
+                            const locationSpan = document.createElement('span');
+                            locationSpan.className = 'company-location';
+                            const locationText = company.location || 
+                                                 ((company.country || '') + 
+                                                 (company.region ? ' ' + company.region : ''));
+                            locationSpan.textContent = ` | ${locationText}`;
+                            contentDiv.appendChild(locationSpan);
+                        }
+                        
+                        // 添加拥有者信息
+                        if (company.owner_name) {
+                            const ownerSpan = document.createElement('span');
+                            ownerSpan.className = 'company-owner';
+                            ownerSpan.textContent = ` | ${company.owner_name}`;
+                            contentDiv.appendChild(ownerSpan);
+                        }
+                        
+                        // 添加点击事件处理，点击搜索结果项直接填充输入框
+                        item.addEventListener('click', function() {
+                            companyInput.value = company.name;
+                            companyResults.classList.remove('show');
                         });
-                    } else {
-                        companyResults.classList.remove('show');
+                        
+                        item.appendChild(contentDiv);
+                        companyResults.appendChild(item);
+                    });
+                    
+                    // 添加提示信息
+                    if (data.results.length > 0) {
+                        const noticeDiv = document.createElement('div');
+                        noticeDiv.className = 'reference-notice';
+                        noticeDiv.textContent = '点击可直接选择企业进行查询';
+                        companyResults.appendChild(noticeDiv);
                     }
+                    
+                    // 显示下拉列表
+                    companyResults.classList.add('show');
                 })
                 .catch(error => {
                     console.error('搜索企业出错:', error);
@@ -1493,9 +1547,10 @@ function initCompanySearch() {
         }
     });
     
-    // 处理点击外部隐藏下拉菜单
-    document.addEventListener('click', function(e) {
-        if (!companyInput.contains(e.target) && !companyResults.contains(e.target)) {
+    // 点击其他区域隐藏结果
+    document.addEventListener('click', function(event) {
+        if (!companyInput.contains(event.target) && 
+            !companyResults.contains(event.target)) {
             companyResults.classList.remove('show');
         }
     });
@@ -1594,9 +1649,10 @@ function initContactSearch() {
         }
     });
     
-    // 处理点击外部隐藏下拉菜单
-    document.addEventListener('click', function(e) {
-        if (!contactInput.contains(e.target) && !contactResults.contains(e.target)) {
+    // 点击其他区域隐藏联系人结果
+    document.addEventListener('click', function(event) {
+        if (!contactInput.contains(event.target) && 
+            !contactResults.contains(event.target)) {
             contactResults.classList.remove('show');
         }
     });
@@ -2373,4 +2429,4 @@ updateBatchDeleteButtonVisibility();
         animation: checkbox-pulse 1s cubic-bezier(0.66, 0, 0, 1);
     }
 </style>
-{% endblock %}
+{% endblock scripts %}
