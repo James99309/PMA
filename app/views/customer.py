@@ -3,7 +3,7 @@ from flask_login import current_user, login_required
 from app.models.customer import Company, Contact, COMPANY_TYPES
 from app.models.user import User
 from app import db
-from app.decorators import permission_required
+from app.permissions import permission_required
 from app.utils.access_control import get_viewable_data, can_edit_data
 from app.models.project import Project
 from app.models.action import Action
