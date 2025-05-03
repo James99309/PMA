@@ -36,6 +36,7 @@ class Permissions:
     USER_DELETE = 'user_delete'
     
     # 产品编码相关权限
+    PRODUCT_VIEW = 'product_view'
     PRODUCT_CODE_VIEW = 'product_code_view'
     PRODUCT_CODE_CREATE = 'product_code_create'
     PRODUCT_CODE_EDIT = 'product_code_edit'
@@ -54,14 +55,14 @@ ROLE_PERMISSIONS = {
         Permissions.USER_VIEW, Permissions.USER_CREATE, Permissions.USER_EDIT, Permissions.USER_DELETE,
         Permissions.PRODUCT_CODE_VIEW, Permissions.PRODUCT_CODE_CREATE, Permissions.PRODUCT_CODE_EDIT, Permissions.PRODUCT_CODE_ADMIN,
         Permissions.ADMIN
-    ],
+    , Permissions.PRODUCT_VIEW],
     'sales': [
         # 销售人员权限
         Permissions.PROJECT_VIEW, Permissions.PROJECT_CREATE, Permissions.PROJECT_EDIT,
         Permissions.CUSTOMER_VIEW, Permissions.CUSTOMER_CREATE, Permissions.CUSTOMER_EDIT,
         Permissions.QUOTATION_VIEW, Permissions.QUOTATION_CREATE,
         Permissions.PRODUCT_CODE_VIEW
-    ],
+    , Permissions.PRODUCT_VIEW],
     'channel_manager': [
         # 渠道经理权限
         Permissions.PROJECT_VIEW, Permissions.PROJECT_CREATE, Permissions.PROJECT_EDIT,
@@ -97,21 +98,21 @@ ROLE_PERMISSIONS = {
         Permissions.CUSTOMER_VIEW,
         Permissions.QUOTATION_VIEW, Permissions.QUOTATION_CREATE, Permissions.QUOTATION_EDIT,
         Permissions.PRODUCT_CODE_VIEW, Permissions.PRODUCT_CODE_CREATE, Permissions.PRODUCT_CODE_EDIT
-    ],
+    , Permissions.PRODUCT_VIEW],
     'solution_manager': [
         # 解决方案经理权限
         Permissions.PROJECT_VIEW,
         Permissions.CUSTOMER_VIEW,
         Permissions.QUOTATION_VIEW, Permissions.QUOTATION_CREATE, Permissions.QUOTATION_EDIT,
         Permissions.PRODUCT_CODE_VIEW
-    ],
+    , Permissions.PRODUCT_VIEW],
     'user': [
         # 普通用户权限
         Permissions.PROJECT_VIEW,
         Permissions.CUSTOMER_VIEW,
         Permissions.QUOTATION_VIEW,
         Permissions.PRODUCT_CODE_VIEW
-    ],
+    , Permissions.PRODUCT_VIEW],
     'dealer': [
         # 经销商权限
         Permissions.PROJECT_VIEW, Permissions.PROJECT_CREATE,

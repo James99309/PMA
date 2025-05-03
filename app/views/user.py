@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, session
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, session, current_app
 from flask_login import login_required, current_user
 from app.models.user import User, Permission
 from app import db
@@ -34,27 +34,33 @@ def list_users():
         # 使用JWT令牌认证
         headers = get_auth_headers()
         response = requests.get(api_url, headers=headers)
-        data = response.json()
         
-        if response.status_code == 200 and data.get('success'):
-            users_data = data.get('data', {}).get('users', [])
-            total = data.get('data', {}).get('total', 0)
+        # 添加JSON解析的异常处理
+        try:
+            data = response.json()
             
-            return render_template(
-                'user/list.html',
-                users=users_data,
-                total=total
-            )
-        else:
-            # API请求失败，尝试直接从数据库获取
-            users = User.query.all()
-            users_data = [user.to_dict() for user in users]
+            if response.status_code == 200 and data.get('success'):
+                users_data = data.get('data', {}).get('users', [])
+                total = data.get('data', {}).get('total', 0)
+                
+                return render_template(
+                    'user/list.html',
+                    users=users_data,
+                    total=total
+                )
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON解析错误: {str(e)}")
+            # 如果JSON解析失败，继续执行下面的代码，从数据库获取数据
             
-            return render_template(
-                'user/list.html',
-                users=users_data,
-                total=len(users_data)
-            )
+        # API请求失败，尝试直接从数据库获取
+        users = User.query.all()
+        users_data = [user.to_dict() for user in users]
+        
+        return render_template(
+            'user/list.html',
+            users=users_data,
+            total=len(users_data)
+        )
             
     except Exception as e:
         logger.error(f"获取用户列表时出错: {str(e)}")
@@ -194,11 +200,17 @@ def edit_user(user_id):
             
             try:
                 response = requests.get(api_url, headers=headers)
-                data = response.json()
                 
-                if response.status_code == 200 and data.get('success'):
-                    user_data = data.get('data', {})
-                    return render_template('user/edit.html', user=user_data, is_edit=True)
+                # 添加JSON解析的异常处理
+                try:
+                    data = response.json()
+                    
+                    if response.status_code == 200 and data.get('success'):
+                        user_data = data.get('data', {})
+                        return render_template('user/edit.html', user=user_data, is_edit=True)
+                except json.JSONDecodeError as e:
+                    logger.warning(f"通过API获取用户信息时JSON解析失败: {str(e)}")
+                    # 如果JSON解析失败，继续执行下面的代码，从数据库获取数据
             except Exception as api_error:
                 logger.warning(f"通过API获取用户信息失败: {str(api_error)}，尝试直接获取")
             
@@ -542,249 +554,179 @@ def manage_user_affiliations(user_id):
 @user_bp.route('/api/check-duplicates', methods=['POST'])
 @login_required
 def check_duplicates():
-    """检查用户名重复性"""
+    """检查用户重复API"""
     try:
-        if not current_user.role == 'admin':
-            return jsonify({'success': False, 'message': '只有管理员可以使用此功能'}), 403
+        # 从请求中获取要检查的字段和值
+        data = request.get_json()
+        field = data.get('field')
+        value = data.get('value')
+        user_id = data.get('user_id')  # 编辑时的用户ID
         
-        # 检查请求是否包含JSON数据
-        if not request.is_json:
-            return jsonify({'success': False, 'message': '请求必须是JSON格式'}), 400
+        if not field or not value:
+            return jsonify({
+                'success': False,
+                'message': '缺少必要参数'
+            }), 400
+            
+        # 构建查询
+        query = User.query.filter(getattr(User, field) == value)
         
-        data = request.json
-        
-        # 确保data是一个dict
-        if not isinstance(data, dict):
-            return jsonify({'success': False, 'message': '请求数据格式错误'}), 400
-        
-        usernames = data.get('usernames', [])
-        
-        # 确保usernames是一个列表
-        if not isinstance(usernames, list):
-            return jsonify({'success': False, 'message': 'usernames必须是列表'}), 400
-        
-        if not usernames:
-            return jsonify({'success': False, 'message': '没有提供用户名'}), 400
-        
-        # 检查列表中的每个元素是否为字符串
-        for i, name in enumerate(usernames):
-            if not isinstance(name, str):
-                # 尝试转换为字符串
-                try:
-                    usernames[i] = str(name)
-                except:
-                    # 如果转换失败，则移除该元素
-                    usernames[i] = ""
-        
-        # 过滤掉空字符串
-        usernames = [name for name in usernames if name]
-        
-        if not usernames:
-            return jsonify({'success': False, 'message': '没有有效的用户名'}), 400
-        
-        # 获取所有现有用户名
-        existing_users = User.query.with_entities(User.id, User.username, User.email).all()
-        existing_usernames = {user.username.lower(): {'id': user.id, 'username': user.username, 'email': user.email} for user in existing_users}
-        
-        conflicts = []
-        for import_username in usernames:
-            # 查找匹配的用户名（不区分大小写）
-            if import_username.lower() in existing_usernames:
-                existing_user = existing_usernames[import_username.lower()]
-                
-                # 查找导入数据中对应的电子邮件
-                import_email = None
-                for user_data in data.get('users', []):
-                    if isinstance(user_data, dict) and user_data.get('username') == import_username:
-                        import_email = user_data.get('email')
-                        break
-                
-                conflicts.append({
-                    'import_username': import_username,
-                    'import_email': import_email,
-                    'existing_username': existing_user['username'],
-                    'existing_id': existing_user['id']
-                })
+        # 如果是编辑模式，排除当前用户ID
+        if user_id:
+            query = query.filter(User.id != user_id)
+            
+        # 检查是否存在
+        exists = query.first() is not None
         
         return jsonify({
             'success': True,
-            'conflicts': conflicts
+            'exists': exists
         })
-    
+        
     except Exception as e:
-        import traceback
-        traceback_str = traceback.format_exc()
-        logger.error(f"检查用户名重复出错: {str(e)}\n{traceback_str}")
-        return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500
+        logger.error(f"检查用户重复时出错: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f"检查失败: {str(e)}"
+        }), 500
 
 @user_bp.route('/api/import', methods=['POST'])
 @login_required
 def import_users():
-    """导入用户数据"""
+    """批量导入用户"""
+    if not current_user.has_permission('user', 'create'):
+        flash('您没有批量导入用户的权限', 'danger')
+        return redirect(url_for('user.list_users'))
+        
     try:
-        if not current_user.role == 'admin':
-            return jsonify({'success': False, 'message': '只有管理员可以使用此功能'}), 403
-        
-        # 检查请求是否包含JSON数据
-        if not request.is_json:
-            return jsonify({'success': False, 'message': '请求必须是JSON格式'}), 400
+        # 检查是否有文件上传
+        if 'csv_file' not in request.files:
+            flash('没有选择文件', 'danger')
+            return redirect(url_for('user.list_users'))
             
-        data = request.json
+        file = request.files['csv_file']
         
-        # 确保data是一个dict
-        if not isinstance(data, dict):
-            return jsonify({'success': False, 'message': '请求数据格式错误'}), 400
+        # 检查文件名是否为空
+        if file.filename == '':
+            flash('没有选择文件', 'danger')
+            return redirect(url_for('user.list_users'))
             
-        users = data.get('users', [])
-        conflict_actions = data.get('conflict_actions', {})
+        # 检查文件类型
+        if not file.filename.endswith('.csv'):
+            flash('只支持CSV文件格式', 'danger')
+            return redirect(url_for('user.list_users'))
+            
+        # 尝试使用API导入
+        api_url = f"{request.host_url.rstrip('/')}{API_BASE_URL}/users/import"
         
-        # 确保users是列表
-        if not isinstance(users, list):
-            return jsonify({'success': False, 'message': 'users必须是列表'}), 400
+        # 使用JWT令牌认证
+        headers = get_auth_headers()
         
-        # 确保conflict_actions是字典
-        if not isinstance(conflict_actions, dict):
-            return jsonify({'success': False, 'message': 'conflict_actions必须是字典'}), 400
+        # 准备multipart/form-data请求
+        files = {'csv_file': (file.filename, file.stream, 'text/csv')}
         
-        # 获取所有现有用户名（不区分大小写）
-        existing_users = User.query.all()
-        existing_usernames = {user.username.lower(): user for user in existing_users}
+        response = requests.post(api_url, files=files, headers=headers)
         
-        # 导入统计
-        stats = {
-            'imported': 0,
-            'updated': 0,
-            'skipped': 0,
-            'errors': 0
-        }
-        
-        # 记录导入日志
-        import_log = []
-        
-        # 导入用户数据
-        for user_data in users:
-            try:
-                username = user_data.get('username')
-                if not username:
-                    logger.warning(f"跳过无用户名的记录: {user_data}")
-                    stats['skipped'] += 1
-                    import_log.append(f"跳过无用户名的记录")
-                    continue
+        # 添加JSON解析的异常处理
+        try:
+            data = response.json()
+            
+            if response.status_code == 200 and data.get('success'):
+                imported_count = data.get('data', {}).get('imported_count', 0)
+                errors = data.get('data', {}).get('errors', [])
                 
-                # 检查用户名是否存在
-                existing_user = None
-                for existing_username, user in existing_usernames.items():
-                    if username.lower() == existing_username:
-                        existing_user = user
-                        break
-                
-                # 如果用户名存在，检查冲突处理方式
-                if existing_user:
-                    action = conflict_actions.get(username, 'skip')
-                    
-                    if action == 'skip':
-                        logger.info(f"跳过已存在的用户: {username}")
-                        stats['skipped'] += 1
-                        import_log.append(f"跳过已存在的用户: {username}")
-                        continue
-                        
-                    elif action == 'override':
-                        logger.info(f"覆盖已存在的用户: {username}")
-                        
-                        # 更新用户信息
-                        existing_user.real_name = user_data.get('real_name', existing_user.real_name)
-                        existing_user.company_name = user_data.get('company_name', existing_user.company_name)
-                        existing_user.email = user_data.get('email', existing_user.email)
-                        existing_user.phone = user_data.get('phone', existing_user.phone)
-                        existing_user.role = user_data.get('role', existing_user.role)
-                        existing_user.is_active = user_data.get('is_active', existing_user.is_active)
-                        
-                        # 处理创建时间
-                        if user_data.get('created_at'):
-                            try:
-                                # 尝试转换ISO格式的日期字符串为时间戳
-                                created_at = datetime.fromisoformat(user_data['created_at'].replace('Z', '+00:00')).timestamp()
-                                existing_user.created_at = created_at
-                            except Exception as e:
-                                logger.warning(f"无法解析创建时间: {user_data['created_at']}, 错误: {str(e)}")
-                        
-                        db.session.commit()
-                        stats['updated'] += 1
-                        import_log.append(f"更新用户: {username}")
-                
-                # 如果用户名不存在，创建新用户
+                if errors:
+                    flash(f'已成功导入 {imported_count} 名用户，但有 {len(errors)} 条记录导入失败', 'warning')
                 else:
-                    # 生成随机密码
-                    import random
-                    import string
-                    password = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
+                    flash(f'成功导入 {imported_count} 名用户', 'success')
                     
-                    # 创建新用户
-                    new_user = User(
-                        username=username,
-                        real_name=user_data.get('real_name', ''),
-                        company_name=user_data.get('company_name', ''),
-                        email=user_data.get('email', ''),
-                        phone=user_data.get('phone', ''),
-                        role=user_data.get('role', 'user'),
-                        is_active=user_data.get('is_active', False)
-                    )
-                    
-                    # 设置密码
-                    new_user.set_password(password)
-                    
-                    # 处理创建时间
-                    if user_data.get('created_at'):
-                        try:
-                            # 尝试转换ISO格式的日期字符串为时间戳
-                            created_at = datetime.fromisoformat(user_data['created_at'].replace('Z', '+00:00')).timestamp()
-                            new_user.created_at = created_at
-                        except Exception as e:
-                            logger.warning(f"无法解析创建时间: {user_data['created_at']}, 错误: {str(e)}")
-                    
-                    db.session.add(new_user)
-                    db.session.commit()
-                    
-                    # 发送邀请邮件
-                    from app.utils.email import send_user_invitation_email
-                    user_data_with_password = user_data.copy()
-                    user_data_with_password['password'] = password
-                    email_sent = send_user_invitation_email(user_data_with_password)
-                    
-                    if email_sent:
-                        logger.info(f"用户创建成功，邀请邮件已发送: {username}")
-                        import_log.append(f"创建用户并发送邀请邮件: {username}")
-                    else:
-                        logger.warning(f"用户创建成功，但邀请邮件发送失败: {username}")
-                        import_log.append(f"创建用户但邀请邮件发送失败: {username}")
-                    
-                    stats['imported'] += 1
+                return redirect(url_for('user.list_users'))
+        except json.JSONDecodeError as e:
+            logger.error(f"导入用户API响应JSON解析错误: {str(e)}")
+            # 如果JSON解析失败，继续直接处理CSV文件
+        
+        # 如果API导入失败，尝试直接导入CSV文件
+        logger.warning("通过API导入失败，尝试直接导入CSV文件")
+        
+        # 读取CSV文件内容
+        file.stream.seek(0)  # 重置文件指针
+        import csv
+        
+        # 使用UTF-8编码读取，以防止中文乱码
+        csv_data = file.read().decode('utf-8-sig')
+        csv_reader = csv.DictReader(csv_data.splitlines())
+        
+        # 跟踪导入统计
+        imported_count = 0
+        errors = []
+        
+        # 处理每一行
+        for row in csv_reader:
+            try:
+                # 必要字段检查
+                required_fields = ['username', 'real_name', 'email', 'password', 'role']
+                for field in required_fields:
+                    if field not in row or not row[field]:
+                        raise ValueError(f"行 {csv_reader.line_num}: 缺少必要字段 '{field}'")
                 
-            except Exception as e:
-                logger.error(f"处理用户数据时出错: {str(e)}")
-                stats['errors'] += 1
-                import_log.append(f"处理用户数据时出错: {user_data.get('username', '未知')} - {str(e)}")
+                # 检查用户名是否已存在
+                if User.query.filter_by(username=row['username']).first():
+                    raise ValueError(f"行 {csv_reader.line_num}: 用户名 '{row['username']}' 已存在")
+                
+                # 检查电子邮件是否已存在
+                if 'email' in row and row['email'] and User.query.filter_by(email=row['email']).first():
+                    raise ValueError(f"行 {csv_reader.line_num}: 电子邮件 '{row['email']}' 已存在")
+                
+                # 规范化字段
+                is_active = row.get('is_active', '').lower() in ['true', 'yes', '1', 'y', 't']
+                is_department_manager = row.get('is_department_manager', '').lower() in ['true', 'yes', '1', 'y', 't']
+                
+                # 创建新用户
+                new_user = User(
+                    username=row['username'],
+                    real_name=row['real_name'],
+                    email=row['email'],
+                    phone=row.get('phone', ''),
+                    company_name=row.get('company_name', ''),
+                    department=row.get('department', ''),
+                    is_department_manager=is_department_manager,
+                    role=normalize_role_key(row['role']),
+                    is_active=is_active
+                )
+                
+                # 设置密码
+                new_user.set_password(row['password'])
+                
+                # 保存用户
+                db.session.add(new_user)
+                imported_count += 1
+                
+            except Exception as user_error:
+                errors.append(f"行 {csv_reader.line_num}: {str(user_error)}")
+                continue
         
-        logger.info(f"用户导入完成: 导入={stats['imported']}, 更新={stats['updated']}, 跳过={stats['skipped']}, 错误={stats['errors']}")
+        # 提交事务
+        if imported_count > 0:
+            try:
+                db.session.commit()
+                if errors:
+                    flash(f'已成功导入 {imported_count} 名用户，但有 {len(errors)} 条记录导入失败', 'warning')
+                else:
+                    flash(f'成功导入 {imported_count} 名用户', 'success')
+            except Exception as commit_error:
+                db.session.rollback()
+                logger.error(f"提交导入用户事务时出错: {str(commit_error)}")
+                flash('导入过程中发生错误，所有更改已回滚', 'danger')
+                return redirect(url_for('user.list_users'))
+        else:
+            flash('没有用户被导入，请检查CSV文件格式', 'warning')
         
-        # 记录导入日志到数据库或文件系统
-        # TODO: 实现导入日志记录功能
+        return redirect(url_for('user.list_users'))
         
-        return jsonify({
-            'success': True,
-            'message': '用户导入完成',
-            'imported': stats['imported'],
-            'updated': stats['updated'],
-            'skipped': stats['skipped'],
-            'errors': stats['errors'],
-            'log': import_log
-        })
-    
     except Exception as e:
-        import traceback
-        traceback_str = traceback.format_exc()
-        logger.error(f"导入用户时出错: {str(e)}\n{traceback_str}")
-        return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500 
+        logger.error(f"导入用户时出错: {str(e)}")
+        flash(f'导入过程中发生错误: {str(e)}', 'danger')
+        return redirect(url_for('user.list_users'))
 
 @user_bp.route('/manage-permissions', methods=['GET', 'POST'])
 @login_required
