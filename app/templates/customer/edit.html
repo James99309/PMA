@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-
 {% block content %}
 <div class="container mt-4">
     <div class="row">
@@ -21,29 +20,23 @@
                         </div>
 
                         <div class="row mb-3">
-                            <div class="col-md-4">
+                            <div class="col-md-6">
                                 <label for="country" class="form-label">国家/地区</label>
                                 <select class="form-select" id="country" name="country" required>
                                     <option value="">请选择国家</option>
                                 </select>
                             </div>
-                            <div class="col-md-4">
-                                <label for="province" class="form-label">省份/城市</label>
-                                <select class="form-select" id="province" name="province" required>
-                                    <option value="">请选择省份/城市</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4">
-                                <label for="city" class="form-label">区域</label>
-                                <select class="form-select" id="city" name="city">
-                                    <option value="">请选择区域</option>
+                            <div class="col-md-6">
+                                <label for="region" class="form-label">省/州</label>
+                                <select class="form-select" id="region" name="region" required>
+                                    <option value="">请选择省/州</option>
                                 </select>
                             </div>
                         </div>
 
                         <div class="mb-3">
                             <label for="address" class="form-label">详细地址</label>
-                            <input type="text" class="form-control" id="address" name="address" value="{{ company.address }}">
+                            <input type="text" class="form-control" id="address" name="address" value="{{ company.address }}" placeholder="示例：中国 北京市 朝阳区xx路">
                         </div>
 
                         <div class="row mb-3">
@@ -99,34 +92,15 @@
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock content %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/area_data.js') }}"></script>
-<script src="{{ url_for('static', filename='js/area_selector.js') }}"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // 设置已保存的地区信息
-    const countrySelect = document.getElementById('country');
-    const provinceSelect = document.getElementById('province');
-    const citySelect = document.getElementById('city');
-    
-    // 设置国家
-    if ('{{ company.country }}') {
-        countrySelect.value = '{{ company.country }}';
-        updateProvinces();
-        
-        // 设置省份
-        if ('{{ company.province }}') {
-            provinceSelect.value = '{{ company.province }}';
-            updateCities();
-            
-            // 设置城市
-            if ('{{ company.city }}') {
-                citySelect.value = '{{ company.city }}';
-            }
-        }
-    }
-});
+// 声明全局变量，用于保存当前企业的国家和省份数据
+var savedCountry = "{{ company.country }}";
+var savedRegion = "{{ company.region }}";
 </script>
-{% endblock %} 
+<script src="{{ url_for('static', filename='js/country_region_data.js') }}"></script>
+<script src="{{ url_for('static', filename='js/country_region_selector.js') }}"></script>
+<script src="{{ url_for('static', filename='js/fix_region_selector.js') }}"></script>
+{% endblock scripts %}
