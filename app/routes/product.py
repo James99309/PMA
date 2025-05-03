@@ -30,7 +30,7 @@ from decimal import Decimal, InvalidOperation
 from flask_login import login_required, current_user
 from datetime import datetime
 from sqlalchemy import func, and_, or_
-from app.decorators import permission_required  # 添加权限装饰器导入
+from app.permissions import permission_required  # 修改权限装饰器导入
 import os
 import uuid
 from PIL import Image

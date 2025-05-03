@@ -4,7 +4,7 @@ from app.models.customer import Company
 from app import db
 from datetime import datetime
 from flask_login import current_user, login_required
-from app.decorators import permission_required
+from app.permissions import permission_required
 from app.utils.access_control import get_viewable_data, can_edit_data, get_accessible_data
 import logging
 import re
@@ -19,7 +19,9 @@ from app.models.relation import ProjectMember
 from app.permissions import check_permission, Permissions
 from werkzeug.utils import secure_filename
 import os
-from app import csrf
+from flask_wtf.csrf import CSRFProtect
+
+csrf = CSRFProtect()
 
 logger = logging.getLogger(__name__)
 

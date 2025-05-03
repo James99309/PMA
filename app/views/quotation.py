@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlalchemy import or_
 from app import db
 from flask_login import login_required, current_user
-from app.decorators import permission_required  # 添加权限装饰器导入
+from app.permissions import permission_required  # 修改权限装饰器导入
 from app.utils.access_control import get_viewable_data, can_edit_data
 import logging
 from decimal import Decimal
