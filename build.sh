@@ -8,6 +8,10 @@ set -e
 echo "安装Python依赖..."
 pip install -r requirements.txt
 
+# 修复数据库结构
+echo "修复数据库结构问题..."
+python render_db_fix.py
+
 # 运行数据库迁移
 echo "执行数据库迁移..."
 python render_db_sync.py
