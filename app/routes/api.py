@@ -7,13 +7,11 @@ from app.models.user import User
 from app.models.customer import Company
 from app.models.project import Project
 from app.models.product import Product
-from app.decorators import permission_required
+from app.permissions import permission_required
 from datetime import datetime, timedelta
 from fuzzywuzzy import fuzz  # 用于计算字符串相似度
 import re
 from app.models.quotation import Quotation, QuotationDetail
-from flask_wtf.csrf import CSRFProtect
-from app import csrf
 
 logger = logging.getLogger(__name__)
 
