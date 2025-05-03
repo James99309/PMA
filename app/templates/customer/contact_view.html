@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_owner, render_date %}
 
-{% block title %}{{ contact.name }} - 联系人详情{% endblock %}
+{% block title %}{{ contact.name }} - 联系人详情{% endblock title %}
 
 {% block content %}
 <div class="container-fluid mt-4">
@@ -93,7 +93,7 @@
 
     <div class="card">
         <div class="card-body">
-            <div class="timeline-container">
+            <div class="timeline-container action-records-scroll">
                 {% if actions %}
                     {% for action in actions %}
                     <div class="timeline-item">
@@ -101,24 +101,28 @@
                         <div class="timeline-content">
                             <div class="card mb-0">
                                 <div class="card-header d-flex justify-content-between">
-                                    <span>
+                                    <div>
                                         <i class="fas fa-calendar-alt me-1"></i> {{ action.date.strftime('%Y-%m-%d') }}
-                                    </span>
-                                    <span>
-                                        <small class="text-muted">记录人: {{ render_owner(action.owner) }}</small>
-                                    </span>
+                                        {% if action.project %}
+                                        <a href="{{ url_for('project.view_project', project_id=action.project.id) }}" class="text-primary ms-2">
+                                            {{ action.project.project_name }}
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                    <div>
+                                        <small class="text-muted me-3">记录人: {{ render_owner(action.owner) }}</small>
+                                        {% if action.owner_id == current_user.id or current_user.role == 'admin' %}
+                                        <button type="button" class="btn btn-sm btn-outline-danger delete-action-btn" 
+                                                data-action-id="{{ action.id }}" 
+                                                data-bs-toggle="tooltip" 
+                                                title="删除此行动记录">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
                                 </div>
                                 <div class="card-body">
                                     <p style="white-space: pre-wrap;">{{ action.communication }}</p>
-                                    {% if action.project %}
-                                    <div class="mt-2">
-                                        <span class="badge bg-primary">相关项目: 
-                                            <a href="{{ url_for('project.view_project', project_id=action.project.id) }}" class="text-white">
-                                                {{ action.project.project_name }}
-                                            </a>
-                                        </span>
-                                    </div>
-                                    {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -128,6 +132,38 @@
                     <p class="text-center text-muted my-5">暂无行动记录</p>
                 {% endif %}
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- 确认删除模态框 -->
+<div class="modal fade" id="deleteActionModal" tabindex="-1" aria-labelledby="deleteActionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteActionModalLabel">确认删除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                您确定要删除这条行动记录吗？此操作不可撤销。
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">确认删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 通知提示框 -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="resultToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <strong class="me-auto" id="toastTitle">提示</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body" id="toastMessage">
+            操作结果会显示在这里
         </div>
     </div>
 </div>
@@ -143,11 +179,38 @@
         padding-left: 40px;
     }
     
+    /* 滚动区域样式 */
+    .action-records-scroll {
+        max-height: 500px;
+        overflow-y: auto;
+        padding-right: 10px;
+        font-size: 0.9rem;
+    }
+    
+    /* 滚动条样式 */
+    .action-records-scroll::-webkit-scrollbar {
+        width: 6px;
+    }
+    
+    .action-records-scroll::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+    
+    .action-records-scroll::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 10px;
+    }
+    
+    .action-records-scroll::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+    }
+
     .timeline-item {
         position: relative;
         margin-bottom: 25px;
     }
-    
+
     .timeline-marker {
         position: absolute;
         top: 15px;
@@ -159,7 +222,7 @@
         border: 2px solid #fff;
         box-shadow: 0 0 0 2px #007bff;
     }
-    
+
     .timeline-item:after {
         content: '';
         position: absolute;
@@ -169,15 +232,115 @@
         width: 2px;
         background-color: #e0e0e0;
     }
-    
+
     .timeline-item:last-child:after {
         display: none;
     }
     
+    /* 行动记录卡片样式 */
+    .timeline-content .card {
+        font-size: 0.9rem;
+    }
+    
+    .timeline-content .card-header {
+        padding: 0.5rem 1rem;
+        font-size: 0.85rem;
+    }
+    
+    .timeline-content .card-body {
+        padding: 0.75rem 1rem;
+    }
+
     /* 调整徽章样式 */
     .badge {
         font-size: 12px;
         padding: 5px 8px;
     }
 </style>
-{% endblock %} 
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 初始化工具提示
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // 获取提示框实例
+    const resultToast = new bootstrap.Toast(document.getElementById('resultToast'));
+    const toastTitle = document.getElementById('toastTitle');
+    const toastMessage = document.getElementById('toastMessage');
+    
+    // 删除行动记录处理
+    const deleteModal = new bootstrap.Modal(document.getElementById('deleteActionModal'));
+    const deleteButtons = document.querySelectorAll('.delete-action-btn');
+    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+    
+    let currentActionId = null;
+    
+    // 为每个删除按钮添加点击事件
+    deleteButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            currentActionId = this.getAttribute('data-action-id');
+            deleteModal.show();
+        });
+    });
+    
+    // 确认删除按钮点击事件
+    confirmDeleteBtn.addEventListener('click', function() {
+        if (currentActionId) {
+            // 禁用按钮，防止重复点击
+            confirmDeleteBtn.disabled = true;
+            confirmDeleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 处理中...';
+            
+            // 发送删除请求
+            fetch(`/customer/api/actions/${currentActionId}/delete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token() }}'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                deleteModal.hide();
+                
+                if (data.success) {
+                    // 显示成功消息
+                    toastTitle.textContent = '成功';
+                    toastMessage.textContent = data.message;
+                    resultToast.show();
+                    
+                    // 刷新页面以显示更新后的行动记录列表
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    // 显示错误消息
+                    toastTitle.textContent = '错误';
+                    toastMessage.textContent = data.message;
+                    resultToast.show();
+                    
+                    // 恢复按钮状态
+                    confirmDeleteBtn.disabled = false;
+                    confirmDeleteBtn.textContent = '确认删除';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                deleteModal.hide();
+                
+                // 显示错误消息
+                toastTitle.textContent = '错误';
+                toastMessage.textContent = '删除过程中发生错误，请稍后重试';
+                resultToast.show();
+                
+                // 恢复按钮状态
+                confirmDeleteBtn.disabled = false;
+                confirmDeleteBtn.textContent = '确认删除';
+            });
+        }
+    });
+});
+</script>
+{% endblock content %}

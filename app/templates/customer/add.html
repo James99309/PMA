@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}添加客户{% endblock %}
+{% block title %}添加客户{% endblock title %}
 
 {% block content %}
 <div class="container mt-4">
@@ -23,42 +23,36 @@
                     <form method="POST">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-3 position-relative">
-                            <label for="company_name" class="form-label">企业名称</label>
+                            <label for="company_name" class="form-label">企业名称 <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="company_name" name="company_name" required>
                             <div id="company-suggestions" class="position-absolute w-100 mt-1 d-none" style="z-index: 1000;"></div>
                             <div id="company-name-error" class="invalid-feedback"></div>
                         </div>
 
                         <div class="row mb-3">
-                            <div class="col-md-4">
-                                <label for="country" class="form-label">国家/地区</label>
-                                <select class="form-select" id="country" name="country" required>
+                            <div class="col-md-6">
+                                <label for="country" class="form-label">国家/地区 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="country" name="country" required disabled>
                                     <option value="">请选择国家</option>
                                 </select>
                             </div>
-                            <div class="col-md-4">
-                                <label for="province" class="form-label">省份/城市</label>
-                                <select class="form-select" id="province" name="province" required>
-                                    <option value="">请选择省份/城市</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4">
-                                <label for="city" class="form-label">区域</label>
-                                <select class="form-select" id="city" name="city" required>
-                                    <option value="">请选择区域</option>
+                            <div class="col-md-6">
+                                <label for="region" class="form-label">省/州 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="region" name="region" required disabled>
+                                    <option value="">请选择省/州</option>
                                 </select>
                             </div>
                         </div>
 
                         <div class="mb-3">
-                            <label for="address" class="form-label">详细地址</label>
-                            <input type="text" class="form-control" id="address" name="address">
+                            <label for="address" class="form-label">详细地址 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="address" name="address" placeholder="示例：中国 北京市 朝阳区xx路" required disabled>
                         </div>
 
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="industry" class="form-label">行业</label>
-                                <select class="form-select" id="industry" name="industry">
+                                <label for="industry" class="form-label">行业 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="industry" name="industry" required disabled>
                                     <option value="">请选择行业</option>
                                     <option value="制造业">制造业</option>
                                     <option value="建筑业">建筑业</option>
@@ -73,8 +67,8 @@
                                 </select>
                             </div>
                             <div class="col-md-6">
-                                <label for="company_type" class="form-label">企业类型</label>
-                                <select class="form-select" id="company_type" name="company_type" required>
+                                <label for="company_type" class="form-label">企业类型 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="company_type" name="company_type" required disabled>
                                     <option value="">-- 请选择企业类型 --</option>
                                     <option value="用户">用户</option>
                                     <option value="经销商">经销商</option>
@@ -87,7 +81,7 @@
 
                         <div class="mb-3">
                             <label for="status" class="form-label">状态</label>
-                            <select class="form-select" id="status" name="status">
+                            <select class="form-select" id="status" name="status" disabled>
                                 <option value="活跃">活跃</option>
                                 <option value="非活跃">非活跃</option>
                             </select>
@@ -95,7 +89,7 @@
 
                         <div class="mb-3">
                             <label for="notes" class="form-label">备注</label>
-                            <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                            <textarea class="form-control" id="notes" name="notes" rows="3" disabled></textarea>
                         </div>
 
                         <hr class="my-4">
@@ -104,39 +98,39 @@
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label for="contact_name" class="form-label">联系人姓名</label>
-                                <input type="text" class="form-control" id="contact_name" name="contact_name">
+                                <input type="text" class="form-control" id="contact_name" name="contact_name" disabled>
                             </div>
                             <div class="col-md-6">
                                 <label for="contact_department" class="form-label">部门</label>
-                                <input type="text" class="form-control" id="contact_department" name="contact_department">
+                                <input type="text" class="form-control" id="contact_department" name="contact_department" disabled>
                             </div>
                         </div>
 
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label for="contact_position" class="form-label">职位</label>
-                                <input type="text" class="form-control" id="contact_position" name="contact_position">
+                                <input type="text" class="form-control" id="contact_position" name="contact_position" disabled>
                             </div>
                             <div class="col-md-6">
                                 <label for="contact_phone" class="form-label">电话</label>
-                                <input type="text" class="form-control" id="contact_phone" name="contact_phone">
+                                <input type="text" class="form-control" id="contact_phone" name="contact_phone" disabled>
                             </div>
                         </div>
 
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label for="contact_email" class="form-label">邮箱</label>
-                                <input type="email" class="form-control" id="contact_email" name="contact_email">
+                                <input type="email" class="form-control" id="contact_email" name="contact_email" disabled>
                             </div>
                             <div class="col-md-6">
                                 <label for="contact_notes" class="form-label">备注</label>
-                                <input type="text" class="form-control" id="contact_notes" name="contact_notes">
+                                <input type="text" class="form-control" id="contact_notes" name="contact_notes" disabled>
                             </div>
                         </div>
 
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                             <a href="{{ url_for('customer.list_companies') }}" class="btn btn-secondary me-md-2">取消</a>
-                            <button type="submit" class="btn btn-primary">保存</button>
+                            <button type="submit" class="btn btn-primary" disabled>保存</button>
                         </div>
                     </form>
                 </div>
@@ -144,11 +138,11 @@
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock content %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/area_data.js') }}"></script>
-<script src="{{ url_for('static', filename='js/area_selector.js') }}"></script>
+<script src="{{ url_for('static', filename='js/country_region_data.js') }}"></script>
+<script src="{{ url_for('static', filename='js/country_region_selector.js') }}"></script>
 <script>
 // 公司名称模糊搜索和自动填充功能
 $(document).ready(function() {
@@ -165,14 +159,81 @@ $(document).ready(function() {
     // 创建建议下拉列表的样式
     suggestionsContainer.addClass('list-group shadow-sm');
     
+    // 添加自定义样式
+    $('<style>').text(`
+        #company-suggestions {
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1050;
+        }
+        .company-suggestion-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+            color: #6c757d;
+            cursor: default; /* 更改为默认光标，表示不可点击 */
+        }
+        .company-suggestion-item:hover {
+            background-color: #f8f9fa;
+        }
+        .company-name {
+            font-weight: 500;
+            display: inline;
+            font-size: 0.9em;
+        }
+        .company-region, .company-owner {
+            color: #6c757d;
+            font-size: 0.8em;
+            display: inline;
+            margin-left: 3px;
+        }
+        .reference-notice {
+            font-size: 0.85em;
+            color: #dc3545;
+            padding: 8px 12px;
+            border-top: 1px dashed #dc3545;
+            background-color: #f8d7da;
+            font-weight: 500;
+            text-align: center;
+        }
+        .suggestions-header {
+            padding: 8px 12px;
+            background-color: #e9ecef;
+            font-size: 0.9em;
+            color: #495057;
+            font-weight: 500;
+            text-align: center;
+            border-bottom: 1px solid #dee2e6;
+        }
+    `).appendTo('head');
+    
+    // 添加启用/禁用表单字段的函数
+    function toggleFormFields(enable) {
+        const formFields = [
+            '#country', '#region', '#address', '#industry', '#company_type', '#status', '#notes',
+            '#contact_name', '#contact_department', '#contact_position', '#contact_phone', '#contact_email', '#contact_notes',
+            'button[type="submit"]'
+        ];
+        
+        formFields.forEach(selector => {
+            $(selector).prop('disabled', !enable);
+        });
+    }
+    
     // 验证公司名称是否重复
     function validateCompanyName(inputValue) {
+        if (!inputValue || inputValue.trim() === '') {
+            // 输入为空时禁用其他字段
+            toggleFormFields(false);
+            companyInput.removeClass('is-invalid');
+            errorMsgElement.text('');
+            return false;
+        }
+        
         const normalizedInput = inputValue.trim().toLowerCase();
         
         // 重置状态
         companyInput.removeClass('is-invalid');
         errorMsgElement.text('');
-        saveButton.prop('disabled', false);
         
         // 检查是否与现有公司名称完全匹配（忽略大小写和空格）
         for (let company of matchedCompanies) {
@@ -181,11 +242,15 @@ $(document).ready(function() {
                 // 设置错误状态
                 companyInput.addClass('is-invalid');
                 errorMsgElement.text('客户名称已存在，无法保存，请更换名称或联系管理员');
+                toggleFormFields(false); // 禁用其他字段
                 saveButton.prop('disabled', true);
                 return false;
             }
         }
         
+        // 名称验证通过，启用其他字段
+        toggleFormFields(true);
+        saveButton.prop('disabled', false);
         return true;
     }
     
@@ -200,8 +265,8 @@ $(document).ready(function() {
         // 即使输入长度小于2，也要验证输入
         validateCompanyName(keyword);
         
-        // 如果输入长度小于2，不进行搜索
-        if (keyword.length < 2) {
+        // 如果输入为空，不进行搜索
+        if (keyword.length < 1) {
             suggestionsContainer.empty().addClass('d-none');
             return;
         }
@@ -224,55 +289,58 @@ $(document).ready(function() {
                         // 显示建议列表
                         suggestionsContainer.empty().removeClass('d-none');
                         
+                        // 添加标题
+                        suggestionsContainer.append('<div class="suggestions-header">相似企业（仅供参考）</div>');
+                        
                         // 添加每个建议项
                         matchedCompanies.forEach(function(company) {
-                            const item = $('<a href="javascript:void(0)" class="list-group-item list-group-item-action"></a>')
-                                .text(company.display);
+                            // 创建建议项容器
+                            const item = $('<div class="list-group-item company-suggestion-item"></div>');
                             
-                            // 根据权限状态添加不同的点击事件和样式
-                            if (company.has_permission) {
-                                item.data('company', company)
-                                    .on('click', function() {
-                                        // 设置选中的公司数据
-                                        selectedCompanyData = $(this).data('company');
-                                        
-                                        // 设置输入框值为公司名称
-                                        companyInput.val(selectedCompanyData.name);
-                                        
-                                        // 自动填充其他字段
-                                        fillCompanyData(selectedCompanyData);
-                                        
-                                        // 隐藏建议列表
-                                        suggestionsContainer.addClass('d-none');
-                                        
-                                        // 验证公司名称
-                                        validateCompanyName(selectedCompanyData.name);
-                                    });
-                            } else {
-                                // 无权限的公司显示特殊样式
-                                item.addClass('text-muted')
-                                    .on('click', function() {
-                                        // 只设置名称，不填充其他字段
-                                        companyInput.val(company.name);
-                                        
-                                        // 隐藏建议列表
-                                        suggestionsContainer.addClass('d-none');
-                                        
-                                        // 显示红色边框和错误消息
-                                        companyInput.addClass('is-invalid');
-                                        errorMsgElement.text('该客户已存在，无法保存，请更换名称或联系管理员');
-                                        saveButton.prop('disabled', true);
-                                        
-                                        // 显示提示
-                                        alert('该客户已存在，仅供参考，您无权限修改信息');
-                                    });
-                                
-                                // 添加提示图标
-                                item.prepend('<i class="fas fa-lock text-muted mr-2"></i> ');
+                            // 创建单行显示的内容
+                            const contentDiv = $('<div class="d-flex justify-content-between align-items-center"></div>');
+                            
+                            // 主要内容区域（公司名 | 地区 | 拥有者）在一行内显示
+                            const mainContent = $('<div></div>');
+                            
+                            // 添加公司名称
+                            mainContent.append(`<span class="company-name">${company.name}</span>`);
+                            
+                            // 地区信息
+                            const regionText = company.region || '';
+                            const countryText = company.country || '';
+                            let locationText = '';
+                            if (countryText && regionText) {
+                                locationText = `${countryText} ${regionText}`;
+                            } else if (countryText) {
+                                locationText = countryText;
+                            } else if (regionText) {
+                                locationText = regionText;
                             }
+                            
+                            if (locationText) {
+                                mainContent.append(`<span class="company-region"> | ${locationText}</span>`);
+                            }
+                            
+                            // 拥有者信息
+                            mainContent.append(`<span class="company-owner"> | ${company.owner_name}</span>`);
+                            
+                            // 组装完整结构
+                            contentDiv.append(mainContent);
+                            item.append(contentDiv);
+                            
+                            // 不添加点击事件处理程序 - 下拉菜单只作为参考
+                            // 设置无权限样式使其看起来不可点击
+                            item.addClass('text-muted');
                             
                             suggestionsContainer.append(item);
                         });
+                        
+                        // 如果有建议结果，添加提示信息
+                        if (matchedCompanies.length > 0) {
+                            const noticeText = $('<div class="reference-notice">以上企业名称仅供参考，请确保输入的名称不与已有企业重复</div>');
+                            suggestionsContainer.append(noticeText);
+                        }
                     } else {
                         // 没有建议时隐藏列表
                         suggestionsContainer.empty().addClass('d-none');
@@ -310,14 +378,9 @@ $(document).ready(function() {
         if (window.areaSelector) {
             if (company.country) {
                 $('#country').val(company.country).trigger('change');
-                if (company.province) {
+                if (company.region) {
                     setTimeout(() => {
-                        $('#province').val(company.province).trigger('change');
-                        if (company.city) {
-                            setTimeout(() => {
-                                $('#city').val(company.city);
-                            }, 100);
-                        }
+                        $('#region').val(company.region).trigger('change');
                     }, 100);
                 }
             }
@@ -333,12 +396,134 @@ $(document).ready(function() {
     
     // 表单提交前再次验证
     $('form').on('submit', function(e) {
+        // 先验证企业名称
         if (!validateCompanyName(companyInput.val())) {
             e.preventDefault();
             alert('客户名称已存在，无法保存，请更换名称或联系管理员');
             return false;
         }
+        
+        // 确保必填字段都已填写
+        const requiredFields = [
+            { selector: '#company_name', name: '企业名称' },
+            { selector: '#country', name: '国家/地区' },
+            { selector: '#region', name: '省/州' },
+            { selector: '#address', name: '详细地址' },
+            { selector: '#industry', name: '行业' },
+            { selector: '#company_type', name: '企业类型' }
+        ];
+        
+        let missingFields = [];
+        requiredFields.forEach(field => {
+            if (!$(field.selector).val()) {
+                missingFields.push(field.name);
+            }
+        });
+        
+        if (missingFields.length > 0) {
+            e.preventDefault();
+            alert('请填写以下必填字段：' + missingFields.join('、'));
+            return false;
+        }
+        
+        // 在提交前确保所有字段都可用
+        toggleFormFields(true);
     });
+    
+    // 页面加载时默认禁用所有字段（除企业名称外）
+    toggleFormFields(false);
 });
 </script>
-{% endblock %} 
+{% endblock scripts %} 
+                        // 没有建议时隐藏列表
+                        suggestionsContainer.empty().addClass('d-none');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('搜索企业失败:', error);
+                    suggestionsContainer.empty().addClass('d-none');
+                }
+            });
+        }, 300);
+    });
+    
+    // 失去焦点时隐藏建议列表（延迟处理以便点击建议列表项）
+    companyInput.on('blur', function() {
+        setTimeout(function() {
+            suggestionsContainer.addClass('d-none');
+            
+            // 失去焦点时验证公司名称
+            validateCompanyName(companyInput.val());
+        }, 200);
+    });
+    
+    // 获得焦点时，如果有内容则显示建议列表
+    companyInput.on('focus', function() {
+        const keyword = $(this).val().trim();
+        if (keyword.length >= 2 && suggestionsContainer.children().length > 0) {
+            suggestionsContainer.removeClass('d-none');
+        }
+    });
+    
+    // 自动填充公司数据
+    function fillCompanyData(company) {
+        // 设置区域选择器
+        if (window.areaSelector) {
+            if (company.country) {
+                $('#country').val(company.country).trigger('change');
+                if (company.region) {
+                    setTimeout(() => {
+                        $('#region').val(company.region).trigger('change');
+                    }, 100);
+                }
+            }
+        }
+        
+        // 设置其他字段
+        $('#address').val(company.address || '');
+        $('#industry').val(company.industry || '');
+        $('#company_type').val(company.company_type || '');
+        $('#status').val(company.status || 'active');
+        $('#notes').val(company.notes || '');
+    }
+    
+    // 表单提交前再次验证
+    $('form').on('submit', function(e) {
+        // 先验证企业名称
+        if (!validateCompanyName(companyInput.val())) {
+            e.preventDefault();
+            alert('客户名称已存在，无法保存，请更换名称或联系管理员');
+            return false;
+        }
+        
+        // 确保必填字段都已填写
+        const requiredFields = [
+            { selector: '#company_name', name: '企业名称' },
+            { selector: '#country', name: '国家/地区' },
+            { selector: '#region', name: '省/州' },
+            { selector: '#address', name: '详细地址' },
+            { selector: '#industry', name: '行业' },
+            { selector: '#company_type', name: '企业类型' }
+        ];
+        
+        let missingFields = [];
+        requiredFields.forEach(field => {
+            if (!$(field.selector).val()) {
+                missingFields.push(field.name);
+            }
+        });
+        
+        if (missingFields.length > 0) {
+            e.preventDefault();
+            alert('请填写以下必填字段：' + missingFields.join('、'));
+            return false;
+        }
+        
+        // 在提交前确保所有字段都可用
+        toggleFormFields(true);
+    });
+    
+    // 页面加载时默认禁用所有字段（除企业名称外）
+    toggleFormFields(false);
+});
+</script>

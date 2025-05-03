@@ -1,14 +1,14 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
-from app.models.customer import Company, Contact
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
+from flask_login import current_user, login_required
+from app.models.customer import Company, Contact, COMPANY_TYPES
+from app.models.user import User
+from app import db
+from app.decorators import permission_required
+from app.utils.access_control import get_viewable_data, can_edit_data
 from app.models.project import Project
 from app.models.action import Action
-from app import db
-from sqlalchemy import or_
+from sqlalchemy import or_, func, desc, text
 from datetime import datetime
-from app.decorators import permission_required
-from flask_login import current_user
-from app.utils.access_control import get_viewable_data, can_edit_data
-from app.models.user import User
 import difflib
 import json
 
@@ -25,7 +25,7 @@ def list_companies():
     
     # 验证排序字段是否有效
     valid_sort_fields = ['company_code', 'company_name', 'company_type', 'industry', 
-                         'country', 'province', 'city', 'status', 'owner_id', 
+                         'country', 'region', 'status', 'owner_id', 
                          'updated_at', 'created_at']
     
     if sort_field not in valid_sort_fields:
@@ -134,7 +134,7 @@ def view_company(company_id):
         company.actions.sort(key=lambda x: x.date, reverse=True)
     
     # 查询与该企业相关的所有项目
-    related_projects = Project.query.filter(
+    projects = Project.query.filter(
         or_(
             Project.end_user == company.company_name,
             Project.design_issues.like(f'%{company.company_name}%'),
@@ -166,7 +166,7 @@ def view_company(company_id):
                           contacts=contacts, 
                           actions=actions, 
                           pagination=pagination,
-                          related_projects=related_projects)
+                          projects=projects)
 
 @customer.route('/add', methods=['GET', 'POST'])
 @permission_required('customer', 'create')
@@ -176,8 +176,7 @@ def add_company():
             company = Company(
                 company_name=request.form['company_name'],
                 country=request.form.get('country'),
-                province=request.form.get('province'),
-                city=request.form.get('city'),
+                region=request.form.get('region'),
                 address=request.form.get('address'),
                 industry=request.form.get('industry'),
                 company_type=request.form.get('company_type'),
@@ -209,8 +208,7 @@ def edit_company(company_id):
         try:
             company.company_name = request.form['company_name']
             company.country = request.form.get('country')
-            company.province = request.form.get('province')
-            company.city = request.form.get('city')
+            company.region = request.form.get('region')
             company.address = request.form.get('address')
             company.industry = request.form.get('industry')
             company.company_type = request.form.get('company_type')
@@ -455,45 +453,80 @@ def search_company_api():
     if not keyword or len(keyword) < 1:
         return jsonify({'results': []})
     
-    # 不再使用权限过滤，允许查询所有公司
-    # 使用直接查询替代访问控制过滤
-    all_matches = Company.query.filter(Company.company_name.ilike(f"%{keyword}%")).limit(15).all()
+    # 优化搜索查询，提高中文单字符匹配效率
+    # 使用or_条件组合多个搜索条件，支持任意位置匹配
+    from sqlalchemy import or_
+    
+    # 判断是否为单个中文字符（完整中文字符范围判断）
+    is_single_chinese = len(keyword) == 1 and '\u4e00' <= keyword <= '\u9fff'
+    
+    # 构建搜索条件
+    if is_single_chinese:
+        # 中文单字符使用包含匹配
+        search_condition = Company.company_name.contains(keyword)
+    else:
+        # 其他情况使用前缀匹配，效率更高
+        search_condition = Company.company_name.ilike(f"%{keyword}%")
+    
+    # 执行查询
+    all_matches = Company.query.filter(search_condition).limit(15).all()
     
     # 获取用户有权限查看的公司
     user_authorized_companies = get_viewable_data(Company, current_user).all()
     authorized_ids = {c.id for c in user_authorized_companies}
     
+    # 预加载所有公司拥有者信息，避免N+1查询问题
+    owner_ids = [c.owner_id for c in all_matches if c.owner_id is not None]
+    owners = {}
+    if owner_ids:
+        for user in User.query.filter(User.id.in_(owner_ids)).all():
+            owners[user.id] = user
+    
     results = []
     for c in all_matches:
         # 准备地区显示文本
         location = []
-        if c.province:
-            location.append(c.province)
-        if c.city:
-            location.append(c.city)
-        location_text = '/'.join(location) if location else ""
+        if c.country:
+            location.append(c.country)
+        if c.region:
+            location.append(c.region)
+        location_text = " ".join(location)
         
         # 判断用户是否有权限查看/编辑该公司
         has_permission = c.id in authorized_ids
         
+        # 获取拥有者信息
+        owner_name = "未指定"
+        if c.owner_id and c.owner_id in owners:
+            owner = owners[c.owner_id]
+            owner_name = owner.real_name or owner.username
+        
+        # 构建紧凑格式的显示文本：企业名称 | 国家 城市 | 拥有者真实姓名
+        display_text = c.company_name
+        if location_text:
+            display_text += f" | {location_text}"
+        display_text += f" | {owner_name}"
+        
         result = {
             'id': c.id,
             'name': c.company_name,
-            'display': f"{c.company_name} [{location_text}]" if location_text else c.company_name,
-            'has_permission': has_permission
+            'display': display_text,
+            'has_permission': has_permission,
+            'region': c.region,
+            'owner_name': owner_name
         }
         
         # 只有当用户有权限时才返回详细信息
         if has_permission:
             result.update({
                 'country': c.country,
-                'province': c.province,
-                'city': c.city,
+                'region': c.region,
                 'address': c.address,
                 'industry': c.industry,
                 'company_type': c.company_type,
                 'status': c.status or 'active',
-                'notes': c.notes
+                'notes': c.notes,
+                'owner_id': c.owner_id
             })
         
         results.append(result)
@@ -507,8 +540,19 @@ def search_contact_api():
     if not keyword or len(keyword) < 1:
         return jsonify({'results': []})
     
-    # 不使用权限过滤，允许搜索所有联系人
-    all_matches = Contact.query.filter(Contact.name.ilike(f"%{keyword}%")).limit(15).all()
+    # 判断是否为单个中文字符（完整中文字符范围判断）
+    is_single_chinese = len(keyword) == 1 and '\u4e00' <= keyword <= '\u9fff'
+    
+    # 构建搜索条件
+    if is_single_chinese:
+        # 中文单字符使用包含匹配
+        search_condition = Contact.name.contains(keyword)
+    else:
+        # 其他情况使用模糊匹配
+        search_condition = Contact.name.ilike(f"%{keyword}%")
+    
+    # 执行查询
+    all_matches = Contact.query.filter(search_condition).limit(15).all()
     
     # 获取用户有权限查看的公司ID
     user_authorized_companies = get_viewable_data(Company, current_user).all()
@@ -526,11 +570,9 @@ def search_contact_api():
         
         # 获取地区信息用于显示
         location = []
-        if company.province:
-            location.append(company.province)
-        if company.city:
-            location.append(company.city)
-        location_text = '/'.join(location) if location else ""
+        if company.region:
+            location.append(company.region)
+        location_text = ", ".join(location)
         
         result = {
             'id': contact.id,
@@ -1088,7 +1130,7 @@ def import_customers():
                 continue
                 
             # 确保所有字符串字段的值都是字符串，并且不是'none'
-            for field in ['company_name', 'country', 'province', 'city', 'address', 'company_type', 'status']:
+            for field in ['company_name', 'country', 'region', 'address', 'company_type', 'status']:
                 if field in customer and customer[field] is not None:
                     if not isinstance(customer[field], str):
                         try:
@@ -1234,11 +1276,11 @@ def import_customers():
                                 company.country = None
                         
                         # 导入表中的城市映射到省份
-                        if 'city' in customer_data:
-                            if customer_data['city'] and customer_data['city'].lower() != 'none':
-                                company.province = customer_data['city']
-                            elif customer_data['city'] == '' or customer_data['city'].lower() == 'none':
-                                company.province = None
+                        if 'region' in customer_data:
+                            if customer_data['region'] and customer_data['region'].lower() != 'none':
+                                company.region = customer_data['region']
+                            elif customer_data['region'] == '' or customer_data['region'].lower() == 'none':
+                                company.region = None
                         
                         if 'address' in customer_data:
                             if customer_data['address'] and customer_data['address'].lower() != 'none':
@@ -1284,7 +1326,7 @@ def import_customers():
                 company = Company(
                     company_name=company_name,
                     country=customer_data.get('country', '') if customer_data.get('country') and customer_data.get('country').lower() != 'none' else None,
-                    province=customer_data.get('city', '') if customer_data.get('city') and customer_data.get('city').lower() != 'none' else None,  # 导入表中的城市映射到省份
+                    region=customer_data.get('region', '') if customer_data.get('region') and customer_data.get('region').lower() != 'none' else None,  # 导入表中的城市映射到省份
                     address=customer_data.get('address', '') if customer_data.get('address') and customer_data.get('address').lower() != 'none' else None,
                     company_type=customer_data.get('company_type', '') if customer_data.get('company_type') and customer_data.get('company_type').lower() != 'none' else None,
                     status=customer_data.get('status', '活跃') if customer_data.get('status') and customer_data.get('status').lower() != 'none' else '活跃',
@@ -1433,4 +1475,109 @@ def batch_delete_companies():
         import traceback
         traceback_str = traceback.format_exc()
         print(f"批量删除企业出错: {str(e)}\n{traceback_str}")
+        return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500
+
+@customer.route('/api/actions/<int:action_id>/delete', methods=['POST'])
+@permission_required('customer', 'delete')
+def delete_action_api(action_id):
+    """通过API删除行动记录"""
+    try:
+        action = Action.query.get_or_404(action_id)
+        
+        # 检查权限：只有行动记录的创建者和管理员可以删除
+        if action.owner_id != current_user.id and current_user.role != 'admin':
+            return jsonify({
+                'success': False, 
+                'message': '您没有权限删除此行动记录'
+            }), 403
+        
+        # 记录相关信息用于返回
+        contact_id = action.contact_id
+        company_id = action.company_id
+        
+        # 删除行动记录
+        db.session.delete(action)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '行动记录已成功删除',
+            'data': {
+                'contact_id': contact_id,
+                'company_id': company_id
+            }
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        traceback_str = traceback.format_exc()
+        print(f"删除行动记录出错: {str(e)}\n{traceback_str}")
+        return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500
+
+@customer.route('/api/contacts/<int:contact_id>/add_action', methods=['POST'])
+@permission_required('customer', 'create')
+def add_action_api(contact_id):
+    """通过API添加行动记录"""
+    try:
+        contact = Contact.query.get_or_404(contact_id)
+        company = contact.company
+        
+        # 检查请求是否包含JSON数据
+        if not request.is_json:
+            return jsonify({'success': False, 'message': '请求必须是JSON格式'}), 400
+            
+        data = request.json
+        
+        # 验证必填字段
+        if not data.get('communication'):
+            return jsonify({'success': False, 'message': '沟通情况不能为空'}), 400
+            
+        if not data.get('date'):
+            return jsonify({'success': False, 'message': '日期不能为空'}), 400
+        
+        # 获取项目ID，如果未选择则设为None
+        project_id = data.get('project_id') or None
+        
+        try:
+            # 解析日期，支持ISO格式
+            action_date = datetime.fromisoformat(data['date'].replace('Z', '+00:00')).date()
+        except ValueError:
+            # 尝试标准格式
+            action_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+        
+        action = Action(
+            date=action_date,
+            contact_id=contact.id,
+            company_id=company.id,
+            project_id=project_id,
+            communication=data['communication'],
+            owner_id=current_user.id
+        )
+        
+        db.session.add(action)
+        db.session.commit()
+        
+        # 返回成功信息和新创建的行动记录信息
+        return jsonify({
+            'success': True, 
+            'message': '行动记录添加成功',
+            'data': {
+                'id': action.id,
+                'date': action.date.isoformat(),
+                'contact_name': contact.name,
+                'contact_id': contact.id,
+                'company_name': company.company_name,
+                'company_id': company.id,
+                'project_id': action.project_id,
+                'communication': action.communication,
+                'owner_id': action.owner_id
+            }
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        traceback_str = traceback.format_exc()
+        print(f"添加行动记录出错: {str(e)}\n{traceback_str}")
         return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500 

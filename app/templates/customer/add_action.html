@@ -9,7 +9,7 @@
                     <h5 class="mb-0">记录行动</h5>
                 </div>
                 <div class="card-body">
-                    <form method="POST">
+                    <form id="actionForm">
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label for="date" class="form-label">日期</label>
@@ -29,7 +29,7 @@
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label for="project" class="form-label">关联项目</label>
-                                <select class="form-select" id="project" name="project_id">
+                                <select class="form-select" id="project_id" name="project_id">
                                     <option value="">-- 请选择项目 --</option>
                                     {% for project in projects %}
                                     <option value="{{ project.id }}">{{ project.project_name }}</option>
@@ -42,7 +42,7 @@
                             <textarea class="form-control" id="communication" name="communication" rows="4" required></textarea>
                         </div>
                         <div class="text-end">
-                            <button type="submit" class="btn btn-primary me-2">
+                            <button type="button" id="saveButton" class="btn btn-primary me-2">
                                 <i class="fas fa-save"></i> 保存
                             </button>
                             <a href="{{ url_for('customer.list_contacts', company_id=company.id) }}" class="btn btn-secondary">
@@ -74,7 +74,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0">历史沟通记录</h5>
@@ -119,4 +119,98 @@
     background: #555;
 }
 </style>
-{% endblock %} 
+
+<!-- 通知弹窗 -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+  <div id="resultToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="toast-header">
+      <strong class="me-auto" id="toastTitle">提示</strong>
+      <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+    <div class="toast-body" id="toastMessage">
+      操作结果会显示在这里
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 获取今天的日期并设置为默认值
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('date').value = today;
+    
+    // 获取表单和保存按钮
+    const actionForm = document.getElementById('actionForm');
+    const saveButton = document.getElementById('saveButton');
+    
+    // 获取结果提示框
+    const resultToast = new bootstrap.Toast(document.getElementById('resultToast'));
+    const toastTitle = document.getElementById('toastTitle');
+    const toastMessage = document.getElementById('toastMessage');
+    
+    // 添加保存按钮点击事件
+    saveButton.addEventListener('click', function() {
+        // 表单验证
+        if (!actionForm.checkValidity()) {
+            actionForm.reportValidity();
+            return;
+        }
+        
+        // 获取表单数据
+        const formData = {
+            date: document.getElementById('date').value,
+            project_id: document.getElementById('project_id').value,
+            communication: document.getElementById('communication').value
+        };
+        
+        // 禁用保存按钮，防止重复提交
+        saveButton.disabled = true;
+        saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 保存中...';
+        
+        // 发送API请求
+        fetch(`/customer/api/contacts/{{ contact.id }}/add_action`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify(formData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // 显示成功消息
+                toastTitle.textContent = '成功';
+                toastMessage.textContent = data.message;
+                resultToast.show();
+                
+                // 延迟后跳转到企业联系人列表页面
+                setTimeout(() => {
+                    window.location.href = "{{ url_for('customer.list_contacts', company_id=company.id) }}";
+                }, 1500);
+            } else {
+                // 显示错误消息
+                toastTitle.textContent = '错误';
+                toastMessage.textContent = data.message;
+                resultToast.show();
+                
+                // 恢复保存按钮状态
+                saveButton.disabled = false;
+                saveButton.innerHTML = '<i class="fas fa-save"></i> 保存';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            // 显示错误消息
+            toastTitle.textContent = '错误';
+            toastMessage.textContent = '提交数据时发生错误，请稍后重试';
+            resultToast.show();
+            
+            // 恢复保存按钮状态
+            saveButton.disabled = false;
+            saveButton.innerHTML = '<i class="fas fa-save"></i> 保存';
+        });
+    });
+});
+</script>
+{% endblock content %}

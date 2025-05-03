@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_owner, render_date %}
 
-{% block title %}联系人搜索结果{% endblock %}
+{% block title %}联系人搜索结果{% endblock title %}
 
 {% block content %}
 <div class="container-fluid mt-4">
@@ -139,6 +139,7 @@
         text-decoration: underline;
     }
 </style>
+{% endblock content %}
 
 {% block scripts %}
 <script>
@@ -150,5 +151,4 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
-{% endblock %}
-{% endblock %} 
+{% endblock scripts %} 
