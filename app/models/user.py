@@ -29,7 +29,7 @@ class User(db.Model, UserMixin):
     wechat_openid = db.Column(db.String(64), unique=True)  # 微信ID
     wechat_nickname = db.Column(db.String(64))  # 微信昵称
     wechat_avatar = db.Column(db.String(256))  # 微信头像URL
-    is_active = db.Column(db.Boolean, default=False)  # 账号是否激活
+    _is_active = db.Column(db.Boolean, default=False, name="is_active")  # 账号是否激活，使用不同名称避免与属性冲突
     created_at = db.Column(db.Float)
     last_login = db.Column(db.Float)  # 最后登录时间
     
@@ -61,6 +61,20 @@ class User(db.Model, UserMixin):
     @property
     def is_anonymous(self):
         return False
+        
+    @property
+    def is_active(self):
+        """覆盖is_active属性，确保管理员账户总是激活的"""
+        # 管理员账户总是激活的
+        if self.role == 'admin':
+            return True
+        # 其他用户根据数据库字段决定
+        return bool(self._is_active)
+        
+    @is_active.setter
+    def is_active(self, value):
+        """设置is_active属性"""
+        self._is_active = bool(value)
         
     @property
     def name(self):
@@ -304,6 +318,20 @@ class DataAffiliation(db.Model):
     viewer = db.relationship('User', foreign_keys=[viewer_id], backref=db.backref('can_view_data_from', lazy='dynamic'))
     
     __table_args__ = (
+        db.UniqueConstraint('owner_id', 'viewer_id', name='uix_data_owner_viewer'),
+    )
+    
+    def to_dict(self):
+        """将数据归属关系转为字典，用于API响应"""
+        return {
+            'id': self.id,
+            'owner_id': self.owner_id,
+            'viewer_id': self.viewer_id,
+            'created_at': self.created_at
+        }
+    
+    def __repr__(self):
+        return f'<DataAffiliation {self.owner_id}->{self.viewer_id}>' 
         db.UniqueConstraint('owner_id', 'viewer_id', name='uix_data_owner_viewer'),
     )
     

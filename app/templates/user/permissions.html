@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}权限管理 - 项目管理系统{% endblock %}
+{% block title %}权限管理 - 项目管理系统{% endblock title %}
 
 {% block content %}
 <div class="row mb-4">
@@ -42,7 +42,7 @@
                     </div>
                     <div class="col-md-4">
                         <div class="mb-1">
-                            <strong>角色：</strong> 
+                            <strong>角色：</strong>
                             {% if user and user.role %}
                                 {% if user.role == 'admin' %}
                                 <span class="badge bg-danger">管理员</span>
@@ -69,9 +69,9 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <hr>
-                
+
                 <!-- 权限矩阵表单 -->
                 <form method="POST">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -96,7 +96,7 @@
                                     </td>
                                     <td class="text-center">
                                         <div class="form-check form-check-inline">
-                                            <input class="form-check-input" type="checkbox" 
+                                            <input class="form-check-input" type="checkbox"
                                                    id="view_{{ module.id }}" name="view_{{ module.id }}"
                                                    {% if module.id in permissions and permissions[module.id].can_view %}checked{% endif %}>
                                             <label class="form-check-label" for="view_{{ module.id }}"></label>
@@ -104,7 +104,7 @@
                                     </td>
                                     <td class="text-center">
                                         <div class="form-check form-check-inline">
-                                            <input class="form-check-input" type="checkbox" 
+                                            <input class="form-check-input" type="checkbox"
                                                    id="create_{{ module.id }}" name="create_{{ module.id }}"
                                                    {% if module.id in permissions and permissions[module.id].can_create %}checked{% endif %}>
                                             <label class="form-check-label" for="create_{{ module.id }}"></label>
@@ -112,7 +112,7 @@
                                     </td>
                                     <td class="text-center">
                                         <div class="form-check form-check-inline">
-                                            <input class="form-check-input" type="checkbox" 
+                                            <input class="form-check-input" type="checkbox"
                                                    id="edit_{{ module.id }}" name="edit_{{ module.id }}"
                                                    {% if module.id in permissions and permissions[module.id].can_edit %}checked{% endif %}>
                                             <label class="form-check-label" for="edit_{{ module.id }}"></label>
@@ -120,7 +120,7 @@
                                     </td>
                                     <td class="text-center">
                                         <div class="form-check form-check-inline">
-                                            <input class="form-check-input" type="checkbox" 
+                                            <input class="form-check-input" type="checkbox"
                                                    id="delete_{{ module.id }}" name="delete_{{ module.id }}"
                                                    {% if module.id in permissions and permissions[module.id].can_delete %}checked{% endif %}>
                                             <label class="form-check-label" for="delete_{{ module.id }}"></label>
@@ -131,7 +131,7 @@
                             </tbody>
                         </table>
                     </div>
-                    
+
                     <div class="mt-4">
                         <div class="row">
                             <div class="col-md-6">
@@ -158,7 +158,7 @@
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock content %}
 
 {% block styles %}
 <style>
@@ -172,17 +172,17 @@
         font-size: 20px;
         font-weight: bold;
     }
-    
+
     .permission-matrix label {
         cursor: pointer;
     }
-    
+
     .permission-matrix .form-check-input {
         width: 1.2em;
         height: 1.2em;
     }
 </style>
-{% endblock %}
+{% endblock styles %}
 
 {% block scripts %}
 <script>
@@ -192,19 +192,19 @@
         const selectNoneBtn = document.getElementById('selectNone');
         const selectViewBtn = document.getElementById('selectView');
         const checkboxes = document.querySelectorAll('.permission-matrix input[type="checkbox"]');
-        
+
         if(selectAllBtn) {
             selectAllBtn.addEventListener('click', function() {
                 checkboxes.forEach(checkbox => checkbox.checked = true);
             });
         }
-        
+
         if(selectNoneBtn) {
             selectNoneBtn.addEventListener('click', function() {
                 checkboxes.forEach(checkbox => checkbox.checked = false);
             });
         }
-        
+
         if(selectViewBtn) {
             selectViewBtn.addEventListener('click', function() {
                 checkboxes.forEach(checkbox => {
@@ -214,4 +214,4 @@
         }
     });
 </script>
-{% endblock %} 
+{% endblock scripts %}

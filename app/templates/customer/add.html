@@ -527,3 +527,85 @@ $(document).ready(function() {
     toggleFormFields(false);
 });
 </script>
+    });
+    
+    // 失去焦点时隐藏建议列表（延迟处理以便点击建议列表项）
+    companyInput.on('blur', function() {
+        setTimeout(function() {
+            suggestionsContainer.addClass('d-none');
+            
+            // 失去焦点时验证公司名称
+            validateCompanyName(companyInput.val());
+        }, 200);
+    });
+    
+    // 获得焦点时，如果有内容则显示建议列表
+    companyInput.on('focus', function() {
+        const keyword = $(this).val().trim();
+        if (keyword.length >= 2 && suggestionsContainer.children().length > 0) {
+            suggestionsContainer.removeClass('d-none');
+        }
+    });
+    
+    // 自动填充公司数据
+    function fillCompanyData(company) {
+        // 设置区域选择器
+        if (window.areaSelector) {
+            if (company.country) {
+                $('#country').val(company.country).trigger('change');
+                if (company.region) {
+                    setTimeout(() => {
+                        $('#region').val(company.region).trigger('change');
+                    }, 100);
+                }
+            }
+        }
+        
+        // 设置其他字段
+        $('#address').val(company.address || '');
+        $('#industry').val(company.industry || '');
+        $('#company_type').val(company.company_type || '');
+        $('#status').val(company.status || 'active');
+        $('#notes').val(company.notes || '');
+    }
+    
+    // 表单提交前再次验证
+    $('form').on('submit', function(e) {
+        // 先验证企业名称
+        if (!validateCompanyName(companyInput.val())) {
+            e.preventDefault();
+            alert('客户名称已存在，无法保存，请更换名称或联系管理员');
+            return false;
+        }
+        
+        // 确保必填字段都已填写
+        const requiredFields = [
+            { selector: '#company_name', name: '企业名称' },
+            { selector: '#country', name: '国家/地区' },
+            { selector: '#region', name: '省/州' },
+            { selector: '#address', name: '详细地址' },
+            { selector: '#industry', name: '行业' },
+            { selector: '#company_type', name: '企业类型' }
+        ];
+        
+        let missingFields = [];
+        requiredFields.forEach(field => {
+            if (!$(field.selector).val()) {
+                missingFields.push(field.name);
+            }
+        });
+        
+        if (missingFields.length > 0) {
+            e.preventDefault();
+            alert('请填写以下必填字段：' + missingFields.join('、'));
+            return false;
+        }
+        
+        // 在提交前确保所有字段都可用
+        toggleFormFields(true);
+    });
+    
+    // 页面加载时默认禁用所有字段（除企业名称外）
+    toggleFormFields(false);
+});
+</script>

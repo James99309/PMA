@@ -39,3 +39,4 @@ def downgrade():
     # 2. 重命名 region 列为 province
     op.alter_column('companies', 'region', new_column_name='province') 
  
+ 

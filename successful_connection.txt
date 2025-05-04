@@ -1,0 +1,2 @@
+成功的连接参数:
+sslmode=require

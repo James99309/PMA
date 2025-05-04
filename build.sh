@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 用于Render平台的构建脚本
+# Render平台构建脚本
 
 # 退出前打印错误
 set -e
@@ -8,13 +8,18 @@ set -e
 echo "安装Python依赖..."
 pip install -r requirements.txt
 
-# 修复数据库结构
+# 修复数据库结构问题
 echo "修复数据库结构问题..."
-python fix_render_db.py
+python render_db_fix.py
 
-# 运行数据库迁移
+# 执行数据库迁移
 echo "执行数据库迁移..."
-python render_db_sync.py
+python manage.py db upgrade
 
 # 构建完成
-echo "构建完成!" 
+echo "构建完成!"
+
+python manage.py db upgrade
+
+# 构建完成
+echo "构建完成!"

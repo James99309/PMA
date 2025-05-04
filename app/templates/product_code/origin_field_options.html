@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}产地区字段选项管理 - {{ field.name }}{% endblock %}
+{% block title %}产地区字段选项管理 - {{ field.name }}{% endblock title %}
 
 {% block content %}
 <div class="container-fluid px-4">
@@ -11,7 +11,7 @@
         <li class="breadcrumb-item"><a href="{{ url_for('product_code.origin_fields') }}">产地区字段</a></li>
         <li class="breadcrumb-item active">选项管理</li>
     </ol>
-    
+
     <div class="card mb-4">
         <div class="card-header">
             <i class="fas fa-list me-1"></i>
@@ -22,12 +22,12 @@
         </div>
         <div class="card-body">
             <div class="alert alert-info">
-                <i class="fas fa-info-circle"></i> 
+                <i class="fas fa-info-circle"></i>
                 字段类型: <span class="badge bg-primary">产地区信息</span>
                 | 编码长度: <strong>{{ field.max_length }}</strong>
                 | 必填: <strong>{{ '是' if field.is_required else '否' }}</strong>
             </div>
-            
+
             <table class="table table-bordered table-striped">
                 <thead>
                     <tr>
@@ -57,14 +57,14 @@
                             <a href="{{ url_for('product_code.edit_option', id=option.id) }}" class="btn btn-sm btn-warning">
                                 <i class="fas fa-edit"></i> 编辑
                             </a>
-                            <form method="POST" action="{{ url_for('product_code.toggle_option', id=option.id) }}" 
+                            <form method="POST" action="{{ url_for('product_code.toggle_option', id=option.id) }}"
                                   class="d-inline">
                                 <button type="submit" class="btn btn-sm {% if option.is_active %}btn-secondary{% else %}btn-success{% endif %}">
-                                    <i class="fas {% if option.is_active %}fa-ban{% else %}fa-check{% endif %}"></i> 
+                                    <i class="fas {% if option.is_active %}fa-ban{% else %}fa-check{% endif %}"></i>
                                     {% if option.is_active %}禁用{% else %}启用{% endif %}
                                 </button>
                             </form>
-                            <form method="POST" action="{{ url_for('product_code.delete_option', id=option.id) }}" 
+                            <form method="POST" action="{{ url_for('product_code.delete_option', id=option.id) }}"
                                   class="d-inline" onsubmit="return confirm('确定要删除此选项吗？');">
                                 <button type="submit" class="btn btn-sm btn-danger">
                                     <i class="fas fa-trash"></i> 删除
@@ -81,7 +81,7 @@
             </table>
         </div>
     </div>
-    
+
     <div class="card mb-4">
         <div class="card-header">
             <i class="fas fa-info-circle me-1"></i>
@@ -97,4 +97,4 @@
         </div>
     </div>
 </div>
-{% endblock %} 
+{% endblock content %}

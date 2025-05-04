@@ -132,3 +132,88 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }, 100);
 }); 
+  
+  // 初始调用一次更新函数，处理可能的预选值
+  updateRegions();
+  
+  // 如果页面上有保存的国家和省份数据，则加载它们
+  setTimeout(function() {
+    console.log("检查已保存的国家和地区数据...");
+    
+    // 检查是否存在全局变量
+    if (typeof savedCountry !== 'undefined' && savedCountry) {
+      console.log("已保存的国家:", savedCountry);
+      console.log("已保存的地区:", savedRegion);
+      
+      let countryCode = null;
+      let countryFound = false;
+      
+      // 在国家列表中查找匹配的国家名称
+      for (let i = 0; i < countryData.length; i++) {
+        if (countryData[i].name === savedCountry) {
+          countryCode = countryData[i].code;
+          countryFound = true;
+          console.log("找到匹配的国家代码:", countryCode);
+          break;
+        }
+      }
+      
+      if (countryFound && countryCode) {
+        // 选中对应的国家
+        countrySelect.value = countryCode;
+        console.log("设置国家选择器值为:", countryCode);
+        
+        // 触发change事件以加载地区
+        countrySelect.dispatchEvent(new Event('change'));
+        
+        // 如果有保存的省份/地区，尝试选择它
+        if (typeof savedRegion !== 'undefined' && savedRegion) {
+          setTimeout(function() {
+            let regionFound = false;
+            
+            // 遍历所有选项，找到匹配的地区名称
+            for (let i = 0; i < regionSelect.options.length; i++) {
+              if (regionSelect.options[i].text === savedRegion) {
+                regionSelect.selectedIndex = i;
+                regionFound = true;
+                console.log("找到匹配的地区选项，索引:", i);
+                break;
+              }
+            }
+            
+            // 如果在选项中没有找到匹配的地区，创建一个新选项
+            if (!regionFound && savedRegion) {
+              console.log("未找到匹配的地区，创建自定义选项:", savedRegion);
+              const customRegion = document.createElement('option');
+              customRegion.value = savedRegion;
+              customRegion.text = savedRegion;
+              regionSelect.appendChild(customRegion);
+              regionSelect.value = savedRegion;
+            }
+          }, 100);
+        }
+      } else if (savedCountry) {
+        // 如果找不到预定义的国家，创建新选项
+        console.log("未找到预定义国家，创建自定义选项:", savedCountry);
+        const customOption = document.createElement('option');
+        customOption.value = savedCountry;
+        customOption.text = savedCountry;
+        countrySelect.appendChild(customOption);
+        countrySelect.value = savedCountry;
+        
+        // 启用地区选择器
+        regionSelect.disabled = false;
+        
+        // 如果有保存的地区，添加自定义地区选项
+        if (typeof savedRegion !== 'undefined' && savedRegion) {
+          console.log("创建自定义地区选项:", savedRegion);
+          const customRegion = document.createElement('option');
+          customRegion.value = savedRegion;
+          customRegion.text = savedRegion;
+          regionSelect.appendChild(customRegion);
+          regionSelect.value = savedRegion;
+        }
+      }
+    }
+  }, 100);
+}); 

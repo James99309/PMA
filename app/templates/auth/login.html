@@ -10,7 +10,7 @@
                         <h4 class="mb-1">欢迎登录销售项目管理系统</h4>
                         <p class="text-muted small">Original evertacsolutions</p>
                     </div>
-                    
+
                     {% with messages = get_flashed_messages(with_categories=true) %}
                         {% if messages %}
                             {% for category, message in messages %}
@@ -21,12 +21,12 @@
                             {% endfor %}
                         {% endif %}
                     {% endwith %}
-                    
+
                     <form method="POST" class="needs-validation" novalidate>
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-3">
                             <label for="username" class="form-label">用户名或邮箱</label>
-                            <input type="text" class="form-control" id="username" name="username" 
+                            <input type="text" class="form-control" id="username" name="username"
                                    placeholder="请输入用户名或邮箱" required autofocus>
                             <div class="invalid-feedback">
                                 请输入用户名或邮箱
@@ -35,7 +35,7 @@
                         <div class="mb-3">
                             <label for="password" class="form-label">密码</label>
                             <div class="input-group has-validation">
-                                <input type="password" class="form-control" id="password" name="password" 
+                                <input type="password" class="form-control" id="password" name="password"
                                        placeholder="请输入密码" required>
                                 <button class="btn btn-outline-secondary" type="button" id="togglePassword" tabindex="-1">
                                     <i class="bi bi-eye"></i>
@@ -68,7 +68,7 @@
     document.getElementById('togglePassword').addEventListener('click', function() {
         const passwordInput = document.getElementById('password');
         const icon = this.querySelector('i');
-        
+
         if (passwordInput.type === 'password') {
             passwordInput.type = 'text';
             icon.classList.remove('bi-eye');
@@ -79,22 +79,22 @@
             icon.classList.add('bi-eye');
         }
     });
-    
+
     // 表单验证
     (function() {
         'use strict'
         var forms = document.querySelectorAll('.needs-validation');
-        
+
         Array.prototype.slice.call(forms).forEach(function(form) {
             form.addEventListener('submit', function(event) {
                 if (!form.checkValidity()) {
                     event.preventDefault();
                     event.stopPropagation();
                 }
-                
+
                 form.classList.add('was-validated');
             }, false);
         });
     })();
 </script>
-{% endblock %} 
+{% endblock content %}

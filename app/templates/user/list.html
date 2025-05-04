@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}用户管理 - 项目管理系统{% endblock %}
+{% block title %}用户管理 - 项目管理系统{% endblock title %}
 
 {% block styles %}
 <style>
@@ -47,7 +47,7 @@
         z-index: 1 !important;
     }
 </style>
-{% endblock %}
+{% endblock styles %}
 
 {% block content %}
 <div class="row mb-4">
@@ -315,7 +315,7 @@
     </div>
 </div>
 
-{% endblock %}
+<!-- 已删除多余endblock content -->
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -710,4 +710,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+<!-- 已删除多余endblock content --> 
+{% endblock scripts %}
+
+{% endblock content %}
+
+{% endblock %} 
+{% endblock scripts %}
+
+{% endblock content %}
+
 {% endblock %} 

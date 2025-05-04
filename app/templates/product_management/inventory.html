@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}研发产品库存{% endblock %}
+{% block title %}研发产品库存{% endblock title %}
 
 {% block styles %}
 <style>
@@ -15,12 +15,12 @@
         justify-content: center;
     }
 </style>
-{% endblock %}
+{% endblock styles %}
 
 {% block content %}
 <div class="container mt-4">
     <h2 class="mb-4">研发产品库存</h2>
-    
+
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-light">
             <h5 class="mb-0">已入库产品列表</h5>
@@ -66,7 +66,7 @@
                     </tbody>
                 </table>
             </div>
-            
+
             <!-- 分页 -->
             {% if products.pages > 1 %}
             <nav aria-label="Page navigation">
@@ -82,7 +82,7 @@
                             <span class="page-link">&laquo;</span>
                         </li>
                     {% endif %}
-                    
+
                     {% for page_num in products.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
                         {% if page_num %}
                             {% if page_num == products.page %}
@@ -100,7 +100,7 @@
                             </li>
                         {% endif %}
                     {% endfor %}
-                    
+
                     {% if products.has_next %}
                         <li class="page-item">
                             <a class="page-link" href="{{ url_for('product_management.inventory', page=products.next_num) }}" aria-label="Next">
@@ -117,11 +117,11 @@
             {% endif %}
         </div>
     </div>
-    
+
     <div class="text-center mb-4">
         <a href="{{ url_for('product_management.index') }}" class="btn btn-primary">
             <i class="fas fa-arrow-left"></i> 返回产品管理
         </a>
     </div>
 </div>
-{% endblock %} 
+{% endblock content %}

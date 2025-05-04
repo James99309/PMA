@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}编辑规格 - {{ field.name }}{% endblock %}
+{% block title %}编辑规格 - {{ field.name }}{% endblock title %}
 
 {% block content %}
 <div class="container-fluid px-4">
@@ -11,7 +11,7 @@
         <li class="breadcrumb-item"><a href="{{ url_for('product_code.subcategory_fields', id=field.subcategory_id) }}">规格管理</a></li>
         <li class="breadcrumb-item active">编辑规格</li>
     </ol>
-    
+
     <div class="card mb-4">
         <div class="card-header">
             <i class="fas fa-edit me-1"></i>
@@ -25,16 +25,16 @@
                     <input type="text" class="form-control" id="name" name="name" value="{{ field.name }}" required>
                     <div class="form-text">规格的显示名称，如"颜色"、"功率"等</div>
                 </div>
-                
+
                 <!-- 隐藏字段，保存规格类型值 -->
                 <input type="hidden" id="field_type" name="field_type" value="spec">
-                
+
                 <div class="mb-3">
                     <label for="description" class="form-label">规格说明</label>
                     <textarea class="form-control" id="description" name="description" rows="3">{{ field.description }}</textarea>
                     <div class="form-text">关于此规格参数的详细说明（可选）</div>
                 </div>
-                
+
                 <div class="form-check mb-3">
                     <input class="form-check-input" type="checkbox" id="is_required" name="is_required" {% if field.is_required %}checked{% endif %}>
                     <label class="form-check-label" for="is_required">
@@ -42,7 +42,7 @@
                     </label>
                     <div class="form-text">如果勾选，则在创建产品编码时必须提供此规格的值</div>
                 </div>
-                
+
                 <div class="form-check mb-3">
                     <input class="form-check-input" type="checkbox" id="use_in_code" name="use_in_code" {% if field.use_in_code %}checked{% endif %}>
                     <label class="form-check-label" for="use_in_code">
@@ -52,14 +52,14 @@
                         如果勾选，该规格将作为产品编码的一部分（位置4-8，最多只能有5个规格被纳入编码）
                     </div>
                 </div>
-                
+
                 {% if active_code_fields_count >= 5 and not field.use_in_code %}
                 <div class="alert alert-warning">
                     <i class="fas fa-exclamation-triangle me-1"></i>
                     已有5个规格用于编码（位置4-8），需要取消其他规格的编码选择后才能将此规格纳入编码
                 </div>
                 {% endif %}
-                
+
                 <div class="mb-3">
                     <a href="{{ url_for('product_code.subcategory_fields', id=field.subcategory_id) }}" class="btn btn-secondary">取消</a>
                     <button type="submit" class="btn btn-primary">保存</button>
@@ -68,4 +68,4 @@
         </div>
     </div>
 </div>
-{% endblock %} 
+{% endblock content %}

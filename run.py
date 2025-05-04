@@ -5,6 +5,7 @@ import logging
 import signal
 import subprocess
 from app import create_app
+from render_db_connection import test_connection
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -60,6 +61,9 @@ def main():
         raise
 
 if __name__ == '__main__':
+    # 测试数据库连接
+    test_connection()
+    
     # 注册信号处理
     def signal_handler(signum, frame):
         sys.exit(0)

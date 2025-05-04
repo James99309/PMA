@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}编辑研发产品{% endblock %}
+{% block title %}编辑研发产品{% endblock title %}
 
 {% block styles %}
 {{ super() }}
@@ -12,7 +12,7 @@
         cursor: pointer;
     }
 </style>
-{% endblock %}
+{% endblock styles %}
 
 {% block content %}
 <div class="container-fluid">
@@ -33,7 +33,7 @@
                 <div class="card-body">
                     <form id="editProductForm" method="POST" action="{{ url_for('product_management.update_product', id=dev_product.id) }}" enctype="multipart/form-data">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        
+
                         <!-- 产品信息选项卡切换 -->
                         <ul class="nav nav-tabs" id="productTabs" role="tablist">
                             <li class="nav-item" role="presentation">
@@ -43,7 +43,7 @@
                                 <button class="nav-link" id="specs-tab" data-bs-toggle="tab" data-bs-target="#specs" type="button" role="tab" aria-controls="specs" aria-selected="false">产品规格</button>
                             </li>
                         </ul>
-                        
+
                         <div class="tab-content mt-3" id="productTabsContent">
                             <!-- 产品信息选项卡 -->
                             <div class="tab-pane fade show active" id="info" role="tabpanel" aria-labelledby="info-tab">
@@ -61,7 +61,7 @@
                                         <input type="hidden" name="subcategory_id" value="{{ dev_product.subcategory_id }}">
                                     </div>
                                 </div>
-                                
+
                                 <div class="row mb-3">
                                     <div class="col-md-6">
                                         <label for="region_id" class="form-label">销售区域</label>
@@ -80,7 +80,7 @@
                                         </select>
                                     </div>
                                 </div>
-                                
+
                                 <div class="row mb-3">
                                     <div class="col-md-6">
                                         <label for="mn_code" class="form-label">MN编码</label>
@@ -92,7 +92,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 <div class="row mb-3">
                                     <div class="col-md-6">
                                         <label for="name" class="form-label">产品名称 <span class="text-danger">*</span></label>
@@ -103,7 +103,7 @@
                                         <input type="text" class="form-control" id="model" name="model" value="{{ dev_product.model }}" required>
                                     </div>
                                 </div>
-                                
+
                                 <div class="row mb-3">
                                     <div class="col-md-6">
                                         <label for="unit" class="form-label">单位</label>
@@ -117,7 +117,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 <div class="row mb-3">
                                     <div class="col-md-6">
                                         <label for="product_image" class="form-label">产品图片</label>
@@ -139,34 +139,34 @@
                                         {% endif %}
                                     </div>
                                 </div>
-                                
+
                                 <div class="row mb-3">
                                     <div class="col-md-12">
                                     <label for="description" class="form-label">产品描述</label>
                                     <textarea class="form-control" id="description" name="description" rows="3">{{ dev_product.description or '' }}</textarea>
                                     </div>
                                 </div>
-                                
+
                                 <button type="button" class="btn btn-primary next-tab">下一步：产品规格</button>
                             </div>
-                            
+
                             <!-- 产品规格选项卡 -->
                             <div class="tab-pane fade" id="specs" role="tabpanel" aria-labelledby="specs-tab">
                                 <div class="alert alert-info">
                                     <i class="fas fa-info-circle"></i> 请编辑产品规格字段及其值。如果没有规格信息，可以跳过此步骤。
                                 </div>
-                                
+
                                 <!-- 已添加规格区域 -->
                                 <h6 class="mb-3">已有规格：</h6>
                                 <div id="existing-specs-container" class="mb-4">
                                     <!-- 已有规格将在这里动态添加 -->
                                 </div>
-                                
+
                                 <!-- 添加新规格按钮 -->
                                 <button type="button" id="show-add-spec-form" class="btn btn-primary mb-3">
                                     <i class="fas fa-plus"></i> 添加规格
                                 </button>
-                                
+
                                 <!-- 添加新规格表单 -->
                                 <div id="add-spec-form" class="card mb-4" style="display:none;">
                                     <div class="card-header">
@@ -199,7 +199,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 <div class="d-flex justify-content-between mt-4">
                                     <button type="button" class="btn btn-secondary prev-tab">上一步：产品信息</button>
                                     <button type="submit" class="btn btn-success">
@@ -214,7 +214,7 @@
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock content %}
 
 {% block scripts %}
 {{ super() }}
@@ -227,17 +227,17 @@ document.addEventListener('DOMContentLoaded', function() {
             specsTab.show();
         });
     });
-    
+
     document.querySelectorAll('.prev-tab').forEach(button => {
         button.addEventListener('click', function() {
             const infoTab = new bootstrap.Tab(document.getElementById('info-tab'));
             infoTab.show();
         });
     });
-    
+
     // 获取表单元素
     const form = document.getElementById('editProductForm');
-    
+
     // 获取规格相关元素
     const newSpecName = document.getElementById('new-spec-name');
     const newSpecValue = document.getElementById('new-spec-value');
@@ -246,28 +246,28 @@ document.addEventListener('DOMContentLoaded', function() {
     const showAddSpecForm = document.getElementById('show-add-spec-form');
     const addSpecForm = document.getElementById('add-spec-form');
     const existingSpecsContainer = document.getElementById('existing-specs-container');
-    
+
     // 显示/隐藏添加规格表单
     showAddSpecForm.addEventListener('click', function() {
         // 加载所有可用的规格字段到下拉列表
         loadAvailableSpecFields();
-        
+
         addSpecForm.style.display = 'block';
         newSpecName.focus();
     });
-    
+
     // 取消添加规格按钮事件
     addSpecCancel.addEventListener('click', function() {
         addSpecForm.style.display = 'none';
         newSpecName.value = '';
         newSpecValue.value = '';
     });
-    
+
     // 加载可用的规格字段到下拉列表
     function loadAvailableSpecFields() {
         const subcategoryId = document.querySelector('input[name="subcategory_id"]').value;
         if (!subcategoryId) return;
-        
+
         fetch(`/product-management/api/subcategory/${subcategoryId}/spec-fields`)
             .then(response => response.json())
             .then(data => {
@@ -278,10 +278,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     datalist.id = 'available-specs-list';
                     document.body.appendChild(datalist);
                 }
-                
+
                 // 清空已有选项
                 datalist.innerHTML = '';
-                
+
                 // 添加规格选项
                 if (data.spec_fields && data.spec_fields.length > 0) {
                     data.spec_fields.forEach(field => {
@@ -291,7 +291,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         datalist.appendChild(option);
                     });
                 }
-                
+
                 // 将datalist关联到规格名称输入框
                 document.getElementById('new-spec-name').setAttribute('list', 'available-specs-list');
             })
@@ -299,21 +299,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('获取可用规格字段失败:', error);
             });
     }
-    
+
     // 监听规格名称输入框的变化，自动填充该规格的可选指标
     newSpecName.addEventListener('input', function() {
         const selectedName = this.value.trim();
         if (!selectedName) return;
-        
+
         const subcategoryId = document.querySelector('input[name="subcategory_id"]').value;
         if (!subcategoryId) return;
-        
+
         fetch(`/product-management/api/subcategory/${subcategoryId}/spec-fields`)
             .then(response => response.json())
             .then(data => {
                 // 找到对应名称的规格字段
                 const selectedField = data.spec_fields.find(field => field.name === selectedName);
-                
+
                 if (selectedField) {
                     // 创建或更新该规格指标的datalist
                     let datalist = document.getElementById('spec-values-list');
@@ -322,10 +322,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         datalist.id = 'spec-values-list';
                         document.body.appendChild(datalist);
                     }
-                    
+
                     // 清空已有选项
                     datalist.innerHTML = '';
-                    
+
                     // 添加指标选项
                     if (selectedField.options && selectedField.options.length > 0) {
                         selectedField.options.forEach(option => {
@@ -336,7 +336,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             datalist.appendChild(optionEl);
                         });
                     }
-                    
+
                     // 将datalist关联到指标值输入框
                     document.getElementById('new-spec-value').setAttribute('list', 'spec-values-list');
                 }
@@ -345,23 +345,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('获取规格指标选项失败:', error);
             });
     });
-    
+
     // 添加指标到已有规格的函数
     function addIndicatorToExistingSpec(specRow, fieldId, indicatorValue) {
         const indicatorInput = specRow.querySelector('.spec-indicator-input');
         const addButton = specRow.querySelector('.add-indicator-btn');
-        
+
         if (!indicatorValue.trim()) {
             alert('请输入指标值');
             indicatorInput.focus();
             return;
         }
-        
+
         // 检查是否是从下拉菜单选择的值
         const dataList = specRow.querySelector(`datalist#options-${fieldId}`);
         let selectedOption = null;
         let isFromDropdown = false;
-        
+
         if (dataList) {
             const options = dataList.querySelectorAll('option');
             for (let i = 0; i < options.length; i++) {
@@ -372,30 +372,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         }
-        
+
         if (isFromDropdown && selectedOption) {
             // 如果是从下拉菜单选择的值，直接使用已有数据
             const optionId = selectedOption.getAttribute('data-id');
             const optionCode = selectedOption.getAttribute('data-code');
-            
+
             // 禁用输入框并更改按钮为删除
             indicatorInput.readOnly = true;
             addButton.innerHTML = '<i class="fas fa-times"></i> 删除';
             addButton.classList.remove('btn-primary');
             addButton.classList.add('btn-danger');
             addButton.removeEventListener('click', addButton.clickHandler);
-            
+
             // 添加删除事件
             addButton.clickHandler = function() {
                 // 清空输入，恢复输入状态
                 indicatorInput.value = '';
                 indicatorInput.readOnly = false;
-                
+
                 // 恢复按钮状态
                 addButton.innerHTML = '<i class="fas fa-plus"></i> 添加';
                 addButton.classList.remove('btn-danger');
                 addButton.classList.add('btn-primary');
-                
+
                 // 更新事件处理器
                 addButton.removeEventListener('click', addButton.clickHandler);
                 addButton.clickHandler = function() {
@@ -403,13 +403,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     addIndicatorToExistingSpec(specRow, fieldId, newValue);
                 };
                 addButton.addEventListener('click', addButton.clickHandler);
-        
+
                 // 清空隐藏字段
                 const inputsContainer = specRow.querySelector('.hidden-inputs');
                 inputsContainer.innerHTML = '';
             };
             addButton.addEventListener('click', addButton.clickHandler);
-            
+
             // 为了保存数据，创建隐藏输入字段
             const inputsContainer = specRow.querySelector('.hidden-inputs');
             inputsContainer.innerHTML = `
@@ -418,32 +418,32 @@ document.addEventListener('DOMContentLoaded', function() {
                 <input type="hidden" name="spec_option_codes[]" value="${optionCode}">
                 <input type="hidden" name="spec_field_ids[]" value="${fieldId}">
             `;
-            
+
         } else {
             // 检查是否是临时ID（新添加的规格）
             const isTempField = fieldId.toString().startsWith('temp_');
-            
+
             if (isTempField) {
                 // 对于新添加的规格，直接在前端处理，不纳入编码
-                
+
                 // 禁用输入框并更改按钮为删除
                 indicatorInput.readOnly = true;
                 addButton.innerHTML = '<i class="fas fa-times"></i> 删除';
                 addButton.classList.remove('btn-primary');
                 addButton.classList.add('btn-danger');
                 addButton.removeEventListener('click', addButton.clickHandler);
-                
+
                 // 添加删除事件
                 addButton.clickHandler = function() {
                     // 清空输入，恢复输入状态
                     indicatorInput.value = '';
                     indicatorInput.readOnly = false;
-                    
+
                     // 恢复按钮状态
                     addButton.innerHTML = '<i class="fas fa-plus"></i> 添加';
                     addButton.classList.remove('btn-danger');
                     addButton.classList.add('btn-primary');
-                    
+
                     // 更新事件处理器
                     addButton.removeEventListener('click', addButton.clickHandler);
                     addButton.clickHandler = function() {
@@ -451,13 +451,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         addIndicatorToExistingSpec(specRow, fieldId, newValue);
                     };
                     addButton.addEventListener('click', addButton.clickHandler);
-                    
+
                     // 清空隐藏字段
                     const inputsContainer = specRow.querySelector('.hidden-inputs');
                     inputsContainer.innerHTML = '';
                 };
                 addButton.addEventListener('click', addButton.clickHandler);
-                
+
                 // 为了保存数据，创建隐藏输入字段（不含编码信息）
                 const inputsContainer = specRow.querySelector('.hidden-inputs');
                 inputsContainer.innerHTML = `
@@ -472,7 +472,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 如果是手动输入的新值，调用API添加
                 const modelName = document.getElementById('model').value || '编辑产品';
                 const csrf_token = document.querySelector('input[name="csrf_token"]').value;
-                
+
                 fetch('/product-management/api/add-spec-option', {
                     method: 'POST',
                     headers: {
@@ -494,18 +494,18 @@ document.addEventListener('DOMContentLoaded', function() {
                         addButton.classList.remove('btn-primary');
                         addButton.classList.add('btn-danger');
                         addButton.removeEventListener('click', addButton.clickHandler);
-                        
+
                         // 添加删除事件
                         addButton.clickHandler = function() {
                             // 清空输入，恢复输入状态
                             indicatorInput.value = '';
                             indicatorInput.readOnly = false;
-                            
+
                             // 恢复按钮状态
                             addButton.innerHTML = '<i class="fas fa-plus"></i> 添加';
                             addButton.classList.remove('btn-danger');
                             addButton.classList.add('btn-primary');
-                            
+
                             // 更新事件处理器
                             addButton.removeEventListener('click', addButton.clickHandler);
                             addButton.clickHandler = function() {
@@ -513,13 +513,13 @@ document.addEventListener('DOMContentLoaded', function() {
                                 addIndicatorToExistingSpec(specRow, fieldId, newValue);
                             };
                             addButton.addEventListener('click', addButton.clickHandler);
-                        
+
                             // 清空隐藏字段
                             const inputsContainer = specRow.querySelector('.hidden-inputs');
                             inputsContainer.innerHTML = '';
                         };
                         addButton.addEventListener('click', addButton.clickHandler);
-                    
+
                         // 为了保存数据，创建隐藏输入字段
                         const inputsContainer = specRow.querySelector('.hidden-inputs');
                         inputsContainer.innerHTML = `
@@ -539,13 +539,13 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     }
-    
+
     // 创建已有规格行
     function createExistingSpecRow(fieldId, fieldName, options = []) {
         const specRow = document.createElement('div');
         specRow.className = 'card mb-3 spec-row';
         specRow.setAttribute('data-field-id', fieldId);
-        
+
         // 构建下拉菜单选项
         let optionsHtml = '';
         if (options.length > 0) {
@@ -555,7 +555,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </datalist>
             `;
         }
-        
+
         // 构建规格卡片内容
         specRow.innerHTML = `
             <div class="card-header bg-light">
@@ -582,16 +582,16 @@ document.addEventListener('DOMContentLoaded', function() {
                                     </div>
                                 </div>
                             `;
-                            
+
         // 为添加指标按钮绑定事件
         const addIndicatorBtn = specRow.querySelector('.add-indicator-btn');
         const indicatorInput = specRow.querySelector('.spec-indicator-input');
-                            
+
         addIndicatorBtn.addEventListener('click', function() {
             const indicatorValue = indicatorInput.value.trim();
             addIndicatorToExistingSpec(specRow, fieldId, indicatorValue);
         });
-        
+
         // 监听datalist选择事件
         indicatorInput.addEventListener('input', function() {
             // 检查是否是从datalist选择的值
@@ -599,7 +599,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const selectedValue = this.value;
                 const option = Array.from(specRow.querySelectorAll(`datalist#options-${fieldId} option`))
                     .find(opt => opt.value === selectedValue);
-                
+
                 if (option) {
                     // 是从datalist选择的，改变按钮显示
                     addIndicatorBtn.innerHTML = '<i class="fas fa-check"></i> 确认';
@@ -609,7 +609,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         });
-        
+
         // 允许按Enter键添加指标
         indicatorInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
@@ -618,22 +618,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 addIndicatorToExistingSpec(specRow, fieldId, indicatorValue);
             }
         });
-        
+
         return specRow;
     }
-    
+
     // 确认添加新规格按钮事件
     addSpecConfirm.addEventListener('click', function() {
         const name = newSpecName.value.trim();
         const value = newSpecValue.value.trim();
-        
+
         // 验证输入
         if (!name) {
             alert('请输入规格名称');
             newSpecName.focus();
             return;
         }
-        
+
         // 检查是否已存在同名规格
         const existingSpecs = document.querySelectorAll('.spec-row');
         for (let i = 0; i < existingSpecs.length; i++) {
@@ -644,21 +644,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
         }
-        
+
         // 查找是否从下拉菜单中选择了已有规格
         const availableSpecsList = document.getElementById('available-specs-list');
         let fieldId = 'temp_' + Date.now(); // 默认使用临时ID
         let options = [];
-        
+
         // 查找选择的规格的ID
         if (availableSpecsList) {
             const selectedOption = Array.from(availableSpecsList.options).find(opt => opt.value === name);
             if (selectedOption && selectedOption.dataset.id) {
                 fieldId = selectedOption.dataset.id;
-                
+
                 // 获取子类别ID
                 const subcategoryId = document.querySelector('input[name="subcategory_id"]').value;
-                
+
                 // 获取该规格的选项
                 fetch(`/product-management/api/subcategory/${subcategoryId}/spec-fields`)
                     .then(response => response.json())
@@ -666,29 +666,29 @@ document.addEventListener('DOMContentLoaded', function() {
                         const selectedField = data.spec_fields.find(field => field.id.toString() === fieldId.toString());
                         if (selectedField && selectedField.options) {
                             options = selectedField.options;
-                            
+
                             // 创建新规格行
                             const specRow = createExistingSpecRow(fieldId, name, options);
-                            
+
                             // 在已有规格区域的末尾添加新规格
                             existingSpecsContainer.appendChild(specRow);
-                            
+
                             // 如果有输入指标值，自动添加
                             if (value) {
                                 const indicatorInput = specRow.querySelector('.spec-indicator-input');
                                 indicatorInput.value = value;
-                                
+
                                 // 延迟触发点击事件，确保DOM已经完全加载
                                 setTimeout(() => {
                                     specRow.querySelector('.add-indicator-btn').click();
                                 }, 100);
                             }
-                            
+
                             // 隐藏表单并清空输入
                             addSpecForm.style.display = 'none';
                             newSpecName.value = '';
                             newSpecValue.value = '';
-                            
+
                             // 更新MN编码预览
                             updateMNCodePreview();
                         }
@@ -701,117 +701,117 @@ document.addEventListener('DOMContentLoaded', function() {
                 return; // 不再执行下面的代码
             }
                         }
-                        
+
         // 如果没有从下拉菜单中选择已有规格，使用临时ID添加规格
         addSpecWithTempId();
-        
+
         function addSpecWithTempId() {
             // 创建临时ID
             const tempFieldId = 'temp_' + Date.now();
-            
+
             // 创建新规格行
             const specRow = createExistingSpecRow(tempFieldId, name);
-            
+
             // 在已有规格区域的末尾添加新规格
             existingSpecsContainer.appendChild(specRow);
-            
+
             // 如果有输入指标值，自动添加
             if (value) {
                 const indicatorInput = specRow.querySelector('.spec-indicator-input');
                 indicatorInput.value = value;
-                
+
                 // 延迟触发点击事件，确保DOM已经完全加载
                 setTimeout(() => {
                     specRow.querySelector('.add-indicator-btn').click();
                 }, 100);
             }
-            
+
             // 隐藏表单并清空输入
             addSpecForm.style.display = 'none';
             newSpecName.value = '';
             newSpecValue.value = '';
-            
+
             // 更新MN编码预览
             updateMNCodePreview();
         }
     });
-    
+
     // 添加规格到界面
     function addSpecToUI(name, value) {
         // 创建临时ID
         const tempFieldId = 'temp_' + Date.now();
-        
+
         // 创建新规格行
         const specRow = createExistingSpecRow(tempFieldId, name);
-        
+
         // 在已有规格区域的末尾添加新规格
         const specsContainer = document.getElementById('existing-specs-container');
         specsContainer.appendChild(specRow);
-        
+
         // 如果有输入指标值，自动添加
         if (value) {
             const indicatorInput = specRow.querySelector('.spec-indicator-input');
             indicatorInput.value = value;
-            
+
             // 延迟触发点击事件，确保DOM已经完全加载
             setTimeout(() => {
                 specRow.querySelector('.add-indicator-btn').click();
             }, 100);
         }
-        
+
         return specRow;
     }
-    
+
     // 加载规格字段
     function loadSpecFields() {
         const subcategoryId = document.querySelector('input[name="subcategory_id"]').value;
         if (!subcategoryId) return;
-        
+
         fetch(`/product-management/api/subcategory/${subcategoryId}/spec-fields`)
             .then(response => response.json())
             .then(data => {
                 // 清空现有规格容器
                 const specsContainer = document.getElementById('existing-specs-container');
                 specsContainer.innerHTML = '';
-                
+
                 // 获取预先保存的规格信息
                 const existingSpecs = JSON.parse('{{ specs|tojson }}');
-                
+
                 // 用于跟踪已添加的规格名称，防止重复
                 const addedSpecNames = new Set();
-                
+
                 // 1. 首先添加产品已有的规格
                 existingSpecs.forEach(spec => {
                     // 转换为小写以进行不区分大小写的比较
                     const specNameLower = spec.field_name.toLowerCase();
-                    
+
                     // 如果该规格名称已经添加过，则跳过
                     if (addedSpecNames.has(specNameLower)) {
                         return;
                     }
-                    
+
                     // 添加规格并标记为已添加
                     addSpecToUI(spec.field_name, spec.field_value || '');
                     addedSpecNames.add(specNameLower);
                 });
-                
+
                 // 2. 再添加子类别下所有的规格字段（如果还没有添加）
                 if (data.spec_fields && data.spec_fields.length > 0) {
                     data.spec_fields.forEach(field => {
                         const fieldNameLower = field.name.toLowerCase();
-                        
+
                         // 如果该规格已添加，则跳过
                         if (addedSpecNames.has(fieldNameLower)) {
                             return;
                         }
-                        
+
                         // 创建带选项的规格行
                         const specRow = createExistingSpecRow(field.id, field.name, field.options);
                         specsContainer.appendChild(specRow);
                         addedSpecNames.add(fieldNameLower);
                     });
                 }
-                
+
                 // 更新MN编码预览
                 updateMNCodePreview();
             })
@@ -819,38 +819,38 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('获取规格字段失败:', error);
             });
     }
-    
+
     // 查找现有规格值
     function findExistingSpec(name) {
         const specs = JSON.parse('{{ specs|tojson }}');
         return specs.find(spec => spec.field_name === name);
     }
-    
+
     // 添加现有的自定义规格字段
     function addExistingCustomSpecs() {
         // 获取已加载的规格名称
         const loadedSpecNames = Array.from(document.querySelectorAll('input[name="spec_name[]"]')).map(input => input.value.toLowerCase());
-        
+
         // 获取所有已有规格
         const existingSpecs = JSON.parse('{{ specs|tojson }}');
-        
+
         // 过滤出自定义规格（不在已加载的规格中的）
         const customSpecs = existingSpecs.filter(spec => !loadedSpecNames.includes(spec.field_name.toLowerCase()));
-        
+
         // 添加自定义规格
         customSpecs.forEach(spec => {
             // 创建临时ID
             const tempFieldId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-            
+
             // 创建规格行
             const specRow = createExistingSpecRow(tempFieldId, spec.field_name);
             existingSpecsContainer.appendChild(specRow);
-        
+
             // 如果有值，添加指标
             if (spec.field_value) {
                 const indicatorInput = specRow.querySelector('.spec-indicator-input');
                 indicatorInput.value = spec.field_value;
-                
+
                 // 延迟触发点击事件
                 setTimeout(() => {
                     specRow.querySelector('.add-indicator-btn').click();
@@ -858,27 +858,27 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
     // 表单提交前验证
     form.addEventListener('submit', function(event) {
         event.preventDefault();
-        
+
         // 验证必填字段
         const name = document.getElementById('name').value;
         const model = document.getElementById('model').value;
-        
+
         if (!name || !model) {
             alert('请填写所有必填字段');
             const infoTab = new bootstrap.Tab(document.getElementById('info-tab'));
             infoTab.show();
             return;
         }
-        
+
         // 检查是否所有规格都已确认
         const allInputs = existingSpecsContainer.querySelectorAll('.spec-indicator-input');
         let allConfirmed = true;
         let firstUnconfirmedInput = null;
-        
+
         allInputs.forEach(input => {
             if (input.value.trim() && !input.readOnly) {
                 allConfirmed = false;
@@ -887,29 +887,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         });
-        
+
         if (!allConfirmed) {
             alert('有尚未确认的规格指标值，请确认所有指标值');
-            
+
             // 切换到规格标签页
             const specsTab = new bootstrap.Tab(document.getElementById('specs-tab'));
             specsTab.show();
-            
+
             // 聚焦到第一个未确认的输入框
             if (firstUnconfirmedInput) {
                 setTimeout(() => {
                     firstUnconfirmedInput.focus();
                 }, 300); // 给标签页切换一点时间
             }
-            
+
             return;
         }
-        
+
         // 收集规格数据
         const specRows = document.querySelectorAll('.spec-row');
         const specNames = [];
         const specValues = [];
-        
+
         specRows.forEach((row) => {
             // 安全检查：确保元素存在
             const specNameInput = row.querySelector('input[name="spec_name[]"]');
@@ -917,9 +917,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.warn('找不到规格名称输入框，跳过此行');
                 return;
             }
-            
+
             const specName = specNameInput.value;
-            
+
             if (specName && specName.trim()) {
                 // 获取该规格的指标值（如果有）
                 const hiddenInputs = row.querySelector('.hidden-inputs');
@@ -927,16 +927,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.warn('找不到隐藏输入容器，跳过此行');
                     return;
                 }
-                
+
                 const valueInput = hiddenInputs.querySelector('input[name="spec_values[]"]');
                 const specValue = valueInput ? valueInput.value : '';
-                
+
                 // 添加到数组中
                 specNames.push(specName);
                 specValues.push(specValue);
             }
         });
-        
+
         // 清除表单中已有的spec_name[]和spec_value[]字段
         this.querySelectorAll('input[name="spec_name[]"]:not([type="hidden"])').forEach(input => {
             if (!input.closest('.spec-row')) {
@@ -944,7 +944,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         this.querySelectorAll('input[name="spec_value[]"]').forEach(input => input.remove());
-        
+
         // 重新添加规格名称和值到表单
         for (let i = 0; i < specNames.length; i++) {
             // 添加规格名称（如果还不存在于表单中）
@@ -955,7 +955,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 nameInput.value = specNames[i];
                 this.appendChild(nameInput);
             }
-            
+
             // 添加规格值
             const valueInput = document.createElement('input');
             valueInput.type = 'hidden';
@@ -963,24 +963,24 @@ document.addEventListener('DOMContentLoaded', function() {
             valueInput.value = specValues[i] || '';
             this.appendChild(valueInput);
         }
-        
+
         // 提交表单
         this.submit();
     });
-    
+
     // 初始化加载规格字段
     loadSpecFields();
-    
+
     // MN编码预览功能
     function updateMNCodePreview() {
         const categoryLetter = '{{ dev_product.category.code_letter }}';
         const subcategoryLetter = '{{ dev_product.subcategory.code_letter }}';
         const mnPreview = document.getElementById('mn_code_preview');
-        
+
         if (!mnPreview) {
             return;
         }
-        
+
         // 获取销售区域编码
         let regionCode = '0';
         const regionElement = document.getElementById('region_id');
@@ -993,7 +993,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             regionCode = '{{ dev_product.region.code_letter }}';
         }
-        
+
         // 获取已添加的规格指标编码
         const specCodes = [];
         document.querySelectorAll('.spec-row').forEach(row => {
@@ -1009,42 +1009,42 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         });
-        
+
         // 确保正好有5个规格代码位置（位置4-8）
         while (specCodes.length < 5) {
             specCodes.push('0');
         }
-        
+
         // 只使用前5个代码
         const usedCodes = specCodes.slice(0, 5);
-        
+
         // 构造完整的MN编码
         const mnCode = `${categoryLetter}${subcategoryLetter}${regionCode}${usedCodes.join('')}`;
         mnPreview.textContent = mnCode;
-        
+
         // 存储是否包含'0'的信息用于表单提交验证
         mnPreview.dataset.containsZero = usedCodes.includes('0');
     }
-    
+
     // 监听规格变化以更新MN编码预览
     function setupMNCodePreviewListeners() {
         // 当规格增删时更新预览
         const observer = new MutationObserver(function(mutations) {
             updateMNCodePreview();
         });
-        
+
         const specsContainer = document.getElementById('existing-specs-container');
         if (specsContainer) {
             observer.observe(specsContainer, { childList: true, subtree: true });
         }
-        
+
         // 初始更新MN编码预览
         updateMNCodePreview();
     }
-    
+
     // 设置MN编码预览监听器
     setupMNCodePreviewListeners();
-    
+
     // 表单提交前检查MN编码是否完整
     document.getElementById('editProductForm').addEventListener('submit', function(event) {
         const mnPreview = document.getElementById('mn_code_preview');
@@ -1054,7 +1054,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 event.preventDefault();
                 return false;
             }
-            
+
             // 添加一个隐藏字段，告诉后端不要更新MN编码
             const noUpdateMnField = document.createElement('input');
             noUpdateMnField.type = 'hidden';
@@ -1065,4 +1065,4 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
-{% endblock %} 
+{% endblock scripts %}

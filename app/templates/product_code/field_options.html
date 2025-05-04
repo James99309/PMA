@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ field.name }} - 指标管理{% endblock %}
+{% block title %}{{ field.name }} - 指标管理{% endblock title %}
 
 {% block content %}
 <div class="container-fluid px-4">
@@ -11,7 +11,7 @@
         <li class="breadcrumb-item"><a href="{{ url_for('product_code.subcategory_fields', id=field.subcategory_id) }}">规格管理</a></li>
         <li class="breadcrumb-item active">指标管理</li>
     </ol>
-    
+
     <div class="alert alert-info mb-4">
         <i class="fas fa-info-circle me-1"></i>
         <strong>指标编码说明</strong>
@@ -25,7 +25,7 @@
         </div>
         <p class="mb-0">指标编码是产品编码中实际使用的字符，系统自动分配唯一的字母或数字。创建产品编码时，会从每个规格的指标列表中选择一个适合的指标值。</p>
     </div>
-    
+
     <div class="card mb-4">
         <div class="card-header">
             <i class="fas fa-list me-1"></i>
@@ -58,7 +58,7 @@
                             <a href="{{ url_for('product_code.edit_option', id=option.id) }}" class="btn btn-sm btn-warning">
                                 <i class="fas fa-edit"></i> 编辑
                             </a>
-                            <form method="POST" action="{{ url_for('product_code.delete_option', id=option.id) }}" 
+                            <form method="POST" action="{{ url_for('product_code.delete_option', id=option.id) }}"
                                   class="d-inline" onsubmit="return confirm('确定要删除此指标吗？');">
                                 <button type="submit" class="btn btn-sm btn-danger">
                                     <i class="fas fa-trash"></i> 删除
@@ -76,4 +76,4 @@
         </div>
     </div>
 </div>
-{% endblock %} 
+{% endblock content %}

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}新建产品名称{% endblock %}
+{% block title %}新建产品名称{% endblock title %}
 
 {% block content %}
 <div class="container mt-4">
@@ -11,13 +11,13 @@
             <label for="name">产品名称</label>
             <input type="text" class="form-control" id="name" name="name" value="{{ form.name if form else '' }}" placeholder="请输入产品名称">
         </div>
-        
+
         <div class="form-group mb-3">
             <label for="code_letter">产品名称标识符 <span class="text-danger">*</span></label>
             <input type="text" class="form-control" id="code_letter" name="code_letter" maxlength="1" placeholder="请输入一个字符" required>
             <small class="form-text text-muted">输入一个唯一的标识符（A-Z字母或0-9数字），用于产品编码的第二位置</small>
         </div>
-        
+
         <div class="alert alert-warning mb-3">
             <i class="fas fa-exclamation-triangle me-1"></i>
             <strong>注意：</strong> 标识符必须在当前分类下唯一，已使用的标识符：
@@ -25,7 +25,7 @@
                 <span class="badge bg-secondary mx-1">{{ subcategory.code_letter }}</span>
             {% endfor %}
         </div>
-        
+
         <div class="form-group mb-3">
             <label for="description">描述（可选）</label>
             <textarea class="form-control" id="description" name="description" placeholder="请输入产品名称描述">{{ form.description if form else '' }}</textarea>
@@ -34,4 +34,4 @@
         <a href="{{ url_for('product_code.category_subcategories', id=category.id) }}" class="btn btn-secondary">返回</a>
     </form>
 </div>
-{% endblock %} 
+{% endblock content %}

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_authorization_code, render_datetime %}
 
-{% block title %}项目管理{% endblock %}
+{% block title %}项目管理{% endblock title %}
 
 {% block content %}
 <!--
@@ -29,7 +29,7 @@
     {% else %}
         <span id="companies-check">companies变量未定义</span>
     {% endif %}
-    
+
     <!-- 检查projects是否已定义 -->
     {% if projects is defined %}
         <span id="projects-check">projects变量已定义</span>
@@ -266,7 +266,7 @@
                                 {% if has_permission('project', 'delete') %}
                                 <td>
                                     <div class="form-check">
-                                        <input class="form-check-input project-checkbox" type="checkbox" value="{{ project.id }}" 
+                                        <input class="form-check-input project-checkbox" type="checkbox" value="{{ project.id }}"
                                                {% if current_user.role != 'admin' and current_user.id != project.owner_id %}disabled{% endif %}>
                                     </div>
                                 </td>
@@ -288,7 +288,7 @@
                                 <td>{{ project.current_stage if project.current_stage else '' }}</td>
                                 <td>
                                     {% if project.quotation_customer and project.quotations.count() > 0 %}
-                                    <a href="{{ url_for('quotation.view_quotation', id=project.quotations.order_by(Quotation.created_at.desc()).first().id) }}" 
+                                    <a href="{{ url_for('quotation.view_quotation', id=project.quotations.order_by(Quotation.created_at.desc()).first().id) }}"
                                        class="quotation-link" title="查看报价单详情">
                                         {{ '{:,.2f}'.format(project.quotation_customer) }}
                                     </a>
@@ -324,7 +324,7 @@
     </button>
 </div>
 
-<!-- 
+<!--
 ╔════════════════════════════════════════════════════════════════════════════════╗
 ║                              ⚠️ 关键样式定义 ⚠️                                 ║
 ║                                                                                ║
@@ -575,7 +575,7 @@
 }
 </style>
 
-<!-- 
+<!--
 ╔════════════════════════════════════════════════════════════════════════════════╗
 ║                              ⚠️ 功能脚本 ⚠️                                    ║
 ║                                                                                ║
@@ -602,11 +602,11 @@ function deleteProject(id) {
                 window.location.href = response.url;
                 return Promise.reject('重定向');
             }
-            
+
             if (!response.ok) {
                 throw new Error('删除失败');
             }
-            
+
             window.location.reload();
         })
         .catch(error => {
@@ -620,30 +620,30 @@ document.addEventListener('DOMContentLoaded', function() {
     // 搜索功能
     const searchInput = document.getElementById('searchInput');
     const searchButton = document.getElementById('searchButton');
-    
+
     // 获取表格容器
     const tableContainer = document.querySelector('.table-responsive');
-    
+
     // 记住和恢复滚动位置
     if (tableContainer) {
         // 尝试从sessionStorage恢复滚动位置
         const savedScrollTop = sessionStorage.getItem('projectListScrollTop');
         const savedScrollLeft = sessionStorage.getItem('projectListScrollLeft');
-        
+
         if (savedScrollTop !== null) {
             tableContainer.scrollTop = parseInt(savedScrollTop);
         }
-        
+
         if (savedScrollLeft !== null) {
             tableContainer.scrollLeft = parseInt(savedScrollLeft);
         }
-        
+
         // 保存滚动位置
         tableContainer.addEventListener('scroll', function() {
             sessionStorage.setItem('projectListScrollTop', this.scrollTop);
             sessionStorage.setItem('projectListScrollLeft', this.scrollLeft);
         });
-        
+
         // 添加键盘导航支持
         document.addEventListener('keydown', function(e) {
             // 只有当表格区域可见时才响应键盘事件
@@ -671,7 +671,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
     // 检查元素是否在视口中
     function isElementInViewport(el) {
         const rect = el.getBoundingClientRect();
@@ -682,23 +682,23 @@ document.addEventListener('DOMContentLoaded', function() {
             rect.right <= (window.innerWidth || document.documentElement.clientWidth)
         );
     }
-    
+
     // 处理滚动控制按钮
     const scrollTopBtn = document.querySelector('.scroll-top');
     const scrollBottomBtn = document.querySelector('.scroll-bottom');
-    
+
     if (scrollTopBtn && tableContainer) {
         scrollTopBtn.addEventListener('click', function() {
             tableContainer.scrollTop = 0;
         });
     }
-    
+
     if (scrollBottomBtn && tableContainer) {
         scrollBottomBtn.addEventListener('click', function() {
             tableContainer.scrollTop = tableContainer.scrollHeight;
         });
     }
-    
+
     // 根据滚动位置显示/隐藏滚动按钮
     const scrollControls = document.querySelector('.scroll-controls');
     if (scrollControls && tableContainer) {
@@ -706,7 +706,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (tableContainer.scrollHeight <= tableContainer.clientHeight) {
             scrollControls.style.display = 'none';
         }
-        
+
         // 监听表格容器的滚动事件
         tableContainer.addEventListener('scroll', function() {
             // 如果表格内容不需要滚动，则隐藏控制按钮
@@ -714,11 +714,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 scrollControls.style.display = 'none';
                 return;
             }
-            
+
             // 否则显示控制按钮
             scrollControls.style.display = 'flex';
         });
-        
+
         // 监听窗口大小变化
         window.addEventListener('resize', function() {
             if (tableContainer.scrollHeight <= tableContainer.clientHeight) {
@@ -728,35 +728,35 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
     // 搜索按钮点击事件
     searchButton.addEventListener('click', function() {
         performSearch();
     });
-    
+
     // 回车键搜索
     searchInput.addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             performSearch();
         }
     });
-    
+
     // 执行搜索
     function performSearch() {
         const searchText = searchInput.value.trim();
         const urlParams = new URLSearchParams(window.location.search);
-        
+
         // 保留当前的排序参数
         const sort = urlParams.get('sort') || 'id';
         const order = urlParams.get('order') || 'desc';
-        
+
         // 构建新的URL
         let newUrl = window.location.pathname + '?';
         if (searchText) {
             newUrl += 'search=' + encodeURIComponent(searchText) + '&';
         }
         newUrl += 'sort=' + sort + '&order=' + order;
-        
+
         // 收集并保留当前的筛选参数
         const filterInputs = document.querySelectorAll('.filter-input');
         filterInputs.forEach(input => {
@@ -766,32 +766,32 @@ document.addEventListener('DOMContentLoaded', function() {
                 newUrl += `&filter_${field}=${encodeURIComponent(value)}`;
             }
         });
-        
+
         // 重定向到新URL
         window.location.href = newUrl;
     }
-    
+
     // 表头筛选功能
     const filterIcons = document.querySelectorAll('.filter-icon');
     const filterRow = document.querySelector('.filter-row');
     const filterInputs = document.querySelectorAll('.filter-input');
-    
+
     // 记录筛选状态
     let isFilterRowVisible = filterRow.style.display !== 'none';
-    
+
     // 点击筛选图标时显示/隐藏筛选行
     filterIcons.forEach(icon => {
         icon.addEventListener('click', function(e) {
             e.stopPropagation(); // 阻止事件冒泡到th元素
-            
+
             const field = this.getAttribute('data-field');
-            
+
             // 切换筛选行显示状态
             if (!isFilterRowVisible) {
                 filterRow.style.display = '';
                 isFilterRowVisible = true;
                 this.classList.add('active');
-                
+
                 // 聚焦当前列的输入框
                 const input = document.querySelector(`.filter-input[data-field="${field}"]`);
                 if (input) {
@@ -800,10 +800,10 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 // 如果已经显示，检查是否是切换其他列的筛选
                 const activeIcon = document.querySelector('.filter-icon.active');
-                
+
                 // 如果点击的是同一列，并且没有输入值，则隐藏筛选行
                 const currentInput = document.querySelector(`.filter-input[data-field="${field}"]`);
-                if (activeIcon && activeIcon.getAttribute('data-field') === field && 
+                if (activeIcon && activeIcon.getAttribute('data-field') === field &&
                     (!currentInput || !currentInput.value.trim())) {
                     filterRow.style.display = 'none';
                     isFilterRowVisible = false;
@@ -811,15 +811,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     // 清除所有图标的活动状态
                     filterIcons.forEach(i => {
-                        if (i.getAttribute('data-field') !== field && 
+                        if (i.getAttribute('data-field') !== field &&
                             !document.querySelector(`.filter-input[data-field="${i.getAttribute('data-field')}"]`).value.trim()) {
                             i.classList.remove('active');
                         }
                     });
-                    
+
                     // 设置当前图标为活动状态
                     this.classList.add('active');
-                    
+
                     // 聚焦当前列的输入框
                     if (currentInput) {
                         setTimeout(() => currentInput.focus(), 100);
@@ -828,14 +828,14 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
-    
+
     // 添加点击其他区域隐藏筛选行的功能
     document.addEventListener('click', function(e) {
         // 如果点击的不是筛选相关元素，则隐藏筛选行
-        if (isFilterRowVisible && 
-            !e.target.closest('.filter-row') && 
+        if (isFilterRowVisible &&
+            !e.target.closest('.filter-row') &&
             !e.target.closest('.filter-icon')) {
-            
+
             // 检查是否有任何筛选条件
             let hasActiveFilters = false;
             filterInputs.forEach(input => {
@@ -847,54 +847,54 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (icon) icon.classList.add('active');
                 }
             });
-            
+
             // 如果没有筛选条件，隐藏筛选行
             if (!hasActiveFilters) {
                 filterRow.style.display = 'none';
                 isFilterRowVisible = false;
-                
+
                 // 移除所有图标的活动状态
                 filterIcons.forEach(icon => icon.classList.remove('active'));
             }
         }
     });
-    
+
     // 处理筛选输入框的输入事件
     filterInputs.forEach(input => {
         input.addEventListener('input', function() {
             performColumnFilter();
         });
-        
+
         input.addEventListener('change', function() {
             performColumnFilter();
         });
-        
+
         // 防止筛选输入框的点击事件冒泡，避免影响筛选行的显示
         input.addEventListener('click', function(e) {
             e.stopPropagation();
         });
-        
+
         input.addEventListener('keydown', function(e) {
             // 按ESC键清除筛选条件
             if (e.key === 'Escape') {
                 this.value = '';
                 performColumnFilter();
-                
+
                 // 检查是否所有筛选都为空，如果是则隐藏筛选行
                 let allEmpty = true;
                 filterInputs.forEach(inp => {
                     if (inp.value.trim()) allEmpty = false;
                 });
-                
+
                 if (allEmpty) {
                     filterRow.style.display = 'none';
                     isFilterRowVisible = false;
-                    
+
                     // 移除所有图标的活动状态
                     filterIcons.forEach(icon => icon.classList.remove('active'));
                 }
             }
-            
+
             // 按回车键时应用筛选并向服务器提交
             if (e.key === 'Enter') {
                 // 向服务器提交筛选参数
@@ -902,23 +902,23 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
-    
+
     // 向服务器提交筛选参数
     function submitFiltersToServer() {
         const urlParams = new URLSearchParams(window.location.search);
-        
+
         // 保留当前的排序和搜索参数
         const sort = urlParams.get('sort') || 'id';
         const order = urlParams.get('order') || 'desc';
         const search = urlParams.get('search') || '';
-        
+
         // 构建新的URL
         let newUrl = window.location.pathname + '?';
         if (search) {
             newUrl += 'search=' + encodeURIComponent(search) + '&';
         }
         newUrl += 'sort=' + sort + '&order=' + order;
-        
+
         // 收集所有筛选参数
         const activeFilters = {};
         filterInputs.forEach(input => {
@@ -929,15 +929,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 newUrl += `&filter_${field}=${encodeURIComponent(value)}`;
             }
         });
-        
+
         // 重定向到新URL
         window.location.href = newUrl;
     }
-    
+
     // 执行列筛选
     function performColumnFilter() {
         const rows = document.querySelectorAll('tbody tr');
-        
+
         // 收集所有筛选条件
         const filters = {};
         filterInputs.forEach(input => {
@@ -947,11 +947,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 filters[field] = value;
             }
         });
-        
+
         // 应用筛选
         rows.forEach(row => {
             let showRow = true;
-            
+
             // 检查每个筛选条件
             for (const [field, filterValue] of Object.entries(filters)) {
                 const columnIndex = getColumnIndexByField(field);
@@ -959,14 +959,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     const cell = row.cells[columnIndex];
                     if (cell) {
                         const cellValue = cell.textContent.toLowerCase();
-                        
+
                         // 日期字段特殊处理
-                        if (field === 'report_time' || field === 'delivery_forecast' || 
+                        if (field === 'report_time' || field === 'delivery_forecast' ||
                             field === 'created_at' || field === 'updated_at') {
-                            
+
                             // 比较日期（YYYY-MM-DD格式）
                             const cellDate = cellValue.match(/\d{4}-\d{2}-\d{2}/);
-                            
+
                             if (cellDate && cellDate[0] !== filterValue) {
                                 showRow = false;
                                 break;
@@ -974,7 +974,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 showRow = false;
                                 break;
                             }
-                        } 
+                        }
                         // 数字字段特殊处理
                         else if (field === 'quotation_customer') {
                             // 移除逗号后比较数字
@@ -992,16 +992,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
             }
-            
+
             // 根据筛选结果显示或隐藏行
             row.style.display = showRow ? '' : 'none';
         });
-        
+
         // 高亮活动的筛选图标
         filterIcons.forEach(icon => {
             const field = icon.getAttribute('data-field');
             const input = document.querySelector(`.filter-input[data-field="${field}"]`);
-            
+
             if (input && input.value.trim()) {
                 icon.classList.add('active');
             } else {
@@ -1009,13 +1009,13 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
     // 根据字段名获取列索引
     function getColumnIndexByField(field) {
         // 计算列偏移量，考虑到复选框列
         const hasCheckbox = document.querySelector('th .form-check') !== null;
         const offset = hasCheckbox ? 1 : 0;
-        
+
         // 获取表头和字段的映射关系
         const thElements = document.querySelectorAll('th[data-sort]');
         for (let i = 0; i < thElements.length; i++) {
@@ -1025,12 +1025,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         return -1;
     }
-    
+
     // 表格行内搜索功能（已废弃，保留作为备用）
     searchInput.addEventListener('input', function(e) {
         const searchText = e.target.value.toLowerCase();
         const rows = document.querySelectorAll('tbody tr');
-        
+
         rows.forEach(row => {
             const projectNameCell = row.querySelector('td:nth-child({% if has_permission("project", "delete") %}3{% else %}2{% endif %})')
             if (projectNameCell) {
@@ -1046,14 +1046,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // 排序状态变量
     let sortBy = 'id';  // 默认按ID排序
     let sortOrder = 'desc';  // 默认降序
-    
+
     // 表头排序点击事件
     document.querySelectorAll('.sort-icon').forEach(icon => {
         icon.addEventListener('click', function(e) {
             e.stopPropagation(); // 阻止事件冒泡
-            
+
             const clickedSortBy = this.getAttribute('data-sort');
-            
+
             // 切换排序方向或设置新的排序字段
             if (sortBy === clickedSortBy) {
                 // 切换排序方向
@@ -1063,19 +1063,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 sortBy = clickedSortBy;
                 sortOrder = 'desc';
             }
-            
+
             // 更新排序图标
             updateSortIcons();
-            
+
             // 重新加载页面，带上排序参数
             const urlParams = new URLSearchParams(window.location.search);
             const searchParam = urlParams.get('search');
-            
+
             let newUrl = window.location.pathname + '?sort=' + sortBy + '&order=' + sortOrder;
             if (searchParam) {
                 newUrl += '&search=' + encodeURIComponent(searchParam);
             }
-            
+
             // 收集所有筛选参数
             const filterInputs = document.querySelectorAll('.filter-input');
             const activeFilters = {};
@@ -1086,16 +1086,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     activeFilters[field] = value;
                 }
             });
-            
+
             // 添加筛选参数到URL
             for (const [field, value] of Object.entries(activeFilters)) {
                 newUrl += `&filter_${field}=${encodeURIComponent(value)}`;
             }
-            
+
             window.location.href = newUrl;
         });
     });
-    
+
     // 更新排序图标
     function updateSortIcons() {
         // 重置所有图标
@@ -1103,14 +1103,14 @@ document.addEventListener('DOMContentLoaded', function() {
             icon.className = 'fas fa-sort sort-icon';
             icon.setAttribute('data-sort', icon.getAttribute('data-sort'));
         });
-        
+
         // 设置当前排序列的图标
         const currentSortHeader = document.querySelector(`.sort-icon[data-sort="${sortBy}"]`);
         if (currentSortHeader) {
             currentSortHeader.className = sortOrder === 'asc' ? 'fas fa-sort-up sort-icon' : 'fas fa-sort-down sort-icon';
         }
     }
-    
+
     // 初始化时根据URL参数设置排序状态
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('sort')) {
@@ -1121,7 +1121,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // 更新排序图标
         updateSortIcons();
     }
-    
+
     // 初始化筛选字段
     for (const [key, value] of urlParams.entries()) {
         if (key.startsWith('filter_')) {
@@ -1129,10 +1129,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const input = document.querySelector(`.filter-input[data-field="${field}"]`);
             if (input) {
                 input.value = value;
-                
+
                 // 显示筛选行
                 document.querySelector('.filter-row').style.display = '';
-                
+
                 // 高亮筛选图标
                 const icon = document.querySelector(`.filter-icon[data-field="${field}"]`);
                 if (icon) {
@@ -1148,27 +1148,27 @@ document.addEventListener('DOMContentLoaded', function() {
     const selectAllCheckbox = document.getElementById('selectAll');
     const projectCheckboxes = document.querySelectorAll('.project-checkbox');
     const batchDeleteBtn = document.getElementById('batchDeleteBtn');
-    
+
     if (selectAllCheckbox) {
         // 全选/取消全选
         selectAllCheckbox.addEventListener('change', function() {
             const isChecked = this.checked;
-            
+
             projectCheckboxes.forEach(checkbox => {
                 if (!checkbox.disabled) {
                     checkbox.checked = isChecked;
                 }
             });
-            
+
             updateBatchDeleteButton();
         });
     }
-    
+
     // 单个复选框状态变化
     projectCheckboxes.forEach(checkbox => {
         checkbox.addEventListener('change', function() {
             updateBatchDeleteButton();
-            
+
             // 更新全选框状态
             if (selectAllCheckbox) {
                 const enabledCheckboxes = Array.from(projectCheckboxes).filter(cb => !cb.disabled);
@@ -1177,19 +1177,19 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
-    
+
     // 批量删除按钮点击事件
     if (batchDeleteBtn) {
         batchDeleteBtn.addEventListener('click', function() {
             const selectedIds = Array.from(projectCheckboxes)
                 .filter(checkbox => checkbox.checked)
                 .map(checkbox => parseInt(checkbox.value));
-            
+
             if (selectedIds.length === 0) {
                 alert('请至少选择一个项目');
                 return;
             }
-            
+
             if (confirm(`确定要删除已选中的 ${selectedIds.length} 个项目吗？此操作不可恢复！`)) {
                 // 发送批量删除请求
                 fetch('/project/api/batch-delete', {
@@ -1225,7 +1225,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
     // 更新批量删除按钮状态
     function updateBatchDeleteButton() {
         if (batchDeleteBtn) {
@@ -1239,7 +1239,7 @@ document.addEventListener('DOMContentLoaded', function() {
 if (tableContainer) {
     const rows = document.querySelectorAll('.table tbody tr');
     let lastHighlightedRow = null;
-    
+
     // 鼠标滑过行时添加高亮
     rows.forEach(row => {
         row.addEventListener('mouseenter', function() {
@@ -1250,7 +1250,7 @@ if (tableContainer) {
             lastHighlightedRow = this;
         });
     });
-    
+
     // 鼠标离开表格区域时移除高亮
     tableContainer.addEventListener('mouseleave', function() {
         if (lastHighlightedRow) {
@@ -1258,37 +1258,37 @@ if (tableContainer) {
             lastHighlightedRow = null;
         }
     });
-    
+
     // 滚动时计算可见行并高亮中心行
     tableContainer.addEventListener('scroll', function() {
         // 节流滚动事件处理，避免性能问题
         if (window.scrollThrottled) return;
         window.scrollThrottled = true;
-        
+
         setTimeout(() => {
             highlightCenterRow();
             window.scrollThrottled = false;
         }, 100);
     });
-    
+
     // 高亮中心行函数
     function highlightCenterRow() {
         if (rows.length === 0) return;
-        
+
         const containerRect = tableContainer.getBoundingClientRect();
         const containerMiddle = containerRect.top + containerRect.height / 2;
-        
+
         let closestRow = null;
         let minDistance = Infinity;
-        
+
         // 找出最靠近中心的行
         rows.forEach(row => {
             const rowRect = row.getBoundingClientRect();
             const rowMiddle = rowRect.top + rowRect.height / 2;
             const distance = Math.abs(rowMiddle - containerMiddle);
-            
+
             // 只考虑可见行
-            if (rowRect.top <= containerRect.bottom && 
+            if (rowRect.top <= containerRect.bottom &&
                 rowRect.bottom >= containerRect.top) {
                 if (distance < minDistance) {
                     minDistance = distance;
@@ -1296,7 +1296,7 @@ if (tableContainer) {
                 }
             }
         });
-        
+
         // 更新高亮
         if (closestRow && closestRow !== lastHighlightedRow) {
             if (lastHighlightedRow) {
@@ -1332,13 +1332,13 @@ searchButton.addEventListener('click', function() {
                         </select>
                         <div class="form-text">如果不选择，将使用Excel中的销售负责人字段作为项目拥有者</div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label for="projectExcelFile" class="form-label">上传Excel文件 (.xlsx或.xls) <span class="text-danger">*</span></label>
                         <input class="form-control" type="file" id="projectExcelFile" name="projectExcelFile" accept=".xlsx, .xls" required>
                         <div class="form-text">请上传包含项目数据的Excel文件</div>
                     </div>
-                    
+
                     <!-- 预览区域 -->
                     <div id="importPreview" style="display: none;">
                         <h6>数据预览：</h6>
@@ -1355,14 +1355,14 @@ searchButton.addEventListener('click', function() {
                             </table>
                         </div>
                     </div>
-                    
+
                     <!-- 字段映射区域 -->
                     <div id="fieldMapping" style="display: none;">
                         <div class="alert alert-info mt-3">
                             <small>系统已自动匹配Excel列与数据库字段，预览显示了映射后的数据</small>
                         </div>
                     </div>
-                    
+
                     <!-- 冲突检测区域 -->
                     <div id="importConflicts" style="display: none;">
                         <h6 class="mt-3">检测到可能的冲突：</h6>
@@ -1381,7 +1381,7 @@ searchButton.addEventListener('click', function() {
                                 </tbody>
                             </table>
                         </div>
-                        
+
                         <div class="d-flex flex-wrap justify-content-between align-items-center mt-3">
                             <div class="mb-2">
                                 <span class="text-muted">批量操作:</span>
@@ -1399,15 +1399,15 @@ searchButton.addEventListener('click', function() {
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- 进度条 -->
                     <div id="importProgress" class="progress mt-3" style="display: none;">
                         <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
                     </div>
-                    
+
                     <!-- 导入结果 -->
                     <div id="importResult" class="alert mt-3" style="display: none;"></div>
-                    
+
                     <!-- 错误详情区域 -->
                     <div id="importErrorDetails" class="mt-3" style="display: none;">
                         <h6 class="text-danger">导入错误详情:</h6>
@@ -1437,7 +1437,7 @@ searchButton.addEventListener('click', function() {
     </div>
 </div>
 
-{% endblock %}
+{% endblock content %}
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -1460,17 +1460,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const applyRecommendedActionsBtn = document.getElementById('applyRecommendedActions');
     const keepAllConflictsBtn = document.getElementById('keepAllConflicts');
     const ignoreAllConflictsBtn = document.getElementById('ignoreAllConflicts');
-    
+
     let parsedData = [];
     let conflicts = [];
     let conflictActions = {};
     let fieldMapping = {};
-    
+
     // 打开导入模态框
     if (importProjectsBtn) {
         importProjectsBtn.addEventListener('click', function(e) {
             e.preventDefault();
-            
+
             // 重置状态
             document.getElementById('importProjectForm').reset();
             previewDiv.style.display = 'none';
@@ -1484,26 +1484,26 @@ document.addEventListener('DOMContentLoaded', function() {
             conflicts = [];
             conflictActions = {};
             fieldMapping = {};
-            
+
             // 加载用户列表
             fetch('/api/users/hierarchical')
                 .then(response => response.json())
                 .then(data => {
                     ownerSelect.innerHTML = '<option value="">请选择...</option>';
-                    
+
                     if (data.success) {
                         // 生成嵌套的选择框选项
                         data.data.forEach(company => {
                             const companyOptgroup = document.createElement('optgroup');
                             companyOptgroup.label = company.name + ' (企业)';
-                            
+
                             company.users.forEach(user => {
                                 const option = document.createElement('option');
                                 option.value = user.id;
                                 option.textContent = user.name;
                                 companyOptgroup.appendChild(option);
                             });
-                            
+
                             ownerSelect.appendChild(companyOptgroup);
                         });
                     }
@@ -1511,63 +1511,63 @@ document.addEventListener('DOMContentLoaded', function() {
                 .catch(error => {
                     console.error('获取用户列表失败:', error);
                 });
-            
+
             // 显示模态框
             importModal.show();
         });
     }
-    
+
     // 解析Excel文件
     if (parseExcelBtn) {
         parseExcelBtn.addEventListener('click', function() {
             const fileInput = document.getElementById('projectExcelFile');
             const ownerIdSelect = document.getElementById('ownerSelect');
-            
+
             /* 移除必选验证
             if (!ownerIdSelect.value) {
                 alert('请选择归属账户');
                 return;
             }
             */
-            
+
             if (!fileInput.files.length) {
                 alert('请选择Excel文件');
                 return;
             }
-            
+
             const file = fileInput.files[0];
             const reader = new FileReader();
-            
+
             resultDiv.style.display = 'none';
             progressDiv.style.display = 'block';
             const progressBar = progressDiv.querySelector('.progress-bar');
             progressBar.style.width = '30%';
-            
+
             reader.onload = function(e) {
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, {type: 'array', cellDates: true, dateNF: 'yyyy-mm-dd'});
-                    
+
                     // 获取第一个工作表
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
-                    
+
                     // 转换为JSON
                     const jsonData = XLSX.utils.sheet_to_json(worksheet, {
                         header: 1,
                         raw: false,
                         dateNF: 'YYYY-MM-DD'
                     });
-                    
+
                     if (jsonData.length <= 1) {
                         alert('工作表中未找到足够的数据，请确保至少有标题行和一行数据');
                         progressDiv.style.display = 'none';
                         return;
                     }
-                    
+
                     // 获取表头
                     const headers = jsonData[0];
-                    
+
                     // 定义数据库字段映射
                     const dbFields = {
                         "项目名称": "project_name",
@@ -1587,7 +1587,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         "更新时间": "updated_at",
                         "销售负责人": "owner_id"
                     };
-                    
+
                     // 定义数据库字段中文名称
                     const dbFieldsChineseNames = {
                         "project_name": "项目名称",
@@ -1608,7 +1608,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         "updated_at": "更新时间",
                         "owner_id": "销售负责人"
                     };
-                    
+
                     // 自动映射字段
                     fieldMapping = {};
                     headers.forEach(header => {
@@ -1617,13 +1617,13 @@ document.addEventListener('DOMContentLoaded', function() {
                             fieldMapping[header] = matchedField;
                         }
                     });
-                    
+
                     // 转换为对象数组
                     parsedData = [];
                     for (let i = 1; i < jsonData.length; i++) {
                         const rowData = {};
                         let rowIsEmpty = true;
-                        
+
                         headers.forEach((header, index) => {
                             const value = jsonData[i][index];
                             if (value !== undefined && value !== null && value !== '') {
@@ -1631,19 +1631,19 @@ document.addEventListener('DOMContentLoaded', function() {
                                 rowIsEmpty = false;
                             }
                         });
-                        
+
                         // 只添加非空行
                         if (!rowIsEmpty) {
                             parsedData.push(rowData);
                         }
                     }
-                    
+
                     if (parsedData.length === 0) {
                         alert('未在工作表中找到有效数据');
                         progressDiv.style.display = 'none';
                         return;
                     }
-                    
+
                     // 处理授权编号格式
                     function formatAuthCode(code) {
                         if (code && typeof code === 'string' && code.startsWith('HY-')) {
@@ -1651,17 +1651,17 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                         return code;
                     }
-                    
+
                     // 预览表头
                     const previewHeader = document.getElementById('previewHeader');
                     previewHeader.innerHTML = '';
-                    
+
                     // 创建反向映射，从数据库字段找到Excel表头
                     const reverseMapping = {};
                     for (const [excelHeader, dbField] of Object.entries(fieldMapping)) {
                         reverseMapping[dbField] = excelHeader;
                     }
-                    
+
                     // 指定需要显示的字段及其顺序
                     const orderedFields = [
                         "authorization_code",  // 授权编码
@@ -1682,42 +1682,42 @@ document.addEventListener('DOMContentLoaded', function() {
                         "updated_at",          // 更新日期
                         "owner_id"             // 销售负责人
                     ];
-                    
+
                     // 添加数据库字段中文名称作为表头
                     orderedFields.forEach(dbField => {
                         const th = document.createElement('th');
                         const chineseName = dbFieldsChineseNames[dbField] || dbField;
                         th.textContent = chineseName;
-                        
+
                         // 如果是授权编号字段，添加格式化提示
                         if (dbField === 'authorization_code') {
                             th.innerHTML = `${chineseName}<br><small class="text-success">(将自动格式化)</small>`;
                         }
-                        
+
                         previewHeader.appendChild(th);
                     });
-                    
+
                     // 清空预览数据
                     const previewBody = document.getElementById('previewBody');
                     previewBody.innerHTML = '';
-                    
+
                     // 显示前5行或所有行（如果少于5行）
                     const rowsToShow = Math.min(5, parsedData.length);
                     for (let i = 0; i < rowsToShow; i++) {
                         const tr = document.createElement('tr');
                         const rowData = parsedData[i];
-                        
+
                         // 按指定的字段顺序添加内容
                         orderedFields.forEach(dbField => {
                             const td = document.createElement('td');
                             const excelHeader = reverseMapping[dbField];
-                            
+
                             // 检查是否存在对应的Excel数据
                             if (excelHeader && rowData[excelHeader] !== undefined) {
                                 let value = rowData[excelHeader];
-                                
+
                                 // 格式化日期字段
-                                if ((dbField === 'report_time' || dbField === 'delivery_forecast' || 
+                                if ((dbField === 'report_time' || dbField === 'delivery_forecast' ||
                                      dbField === 'created_at' || dbField === 'updated_at') && value) {
                                     // 检查是否已经是字符串格式的日期
                                     if (typeof value === 'string' && value.match(/^\d+$/)) {
@@ -1731,7 +1731,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                         }
                                     }
                                 }
-                                
+
                                 // 如果是授权编号字段，格式化显示
                                 if (dbField === 'authorization_code' && value) {
                                     const formattedValue = formatAuthCode(value);
@@ -1748,7 +1748,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 const reportTimeHeader = reverseMapping['report_time'];
                                 if (reportTimeHeader && rowData[reportTimeHeader]) {
                                     let value = rowData[reportTimeHeader];
-                                    
+
                                     // 格式化日期
                                     if (typeof value === 'string' && value.match(/^\d+$/)) {
                                         const dateObj = XLSX.SSF.parse_date_code(parseInt(value));
@@ -1759,7 +1759,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                             value = `${year}-${month}-${day}`;
                                         }
                                     }
-                                    
+
                                     td.textContent = value;
                                 } else {
                                     td.textContent = '';
@@ -1768,20 +1768,20 @@ document.addEventListener('DOMContentLoaded', function() {
                                 // 如果没有对应数据，则留空
                                 td.textContent = '';
                             }
-                            
+
                             tr.appendChild(td);
                         });
-                        
+
                         previewBody.appendChild(tr);
                     }
-                    
+
                     previewDiv.style.display = 'block';
                     fieldMappingDiv.style.display = 'block';
                     progressBar.style.width = '70%';
-                    
+
                     // 检查冲突
                     progressBar.style.width = '80%';
-                    
+
                     // 在这里发送请求检查冲突，此次简化为前端模拟
                     fetch('/api/projects/check-conflicts', {
                         method: 'POST',
@@ -1797,46 +1797,46 @@ document.addEventListener('DOMContentLoaded', function() {
                     .then(response => response.json())
                     .then(data => {
                         progressBar.style.width = '100%';
-                        
+
                         if (data.success) {
                             conflicts = data.conflicts || [];
-                            
+
                             // 显示冲突
                             if (conflicts.length > 0) {
                                 const conflictsBody = document.getElementById('conflictsBody');
                                 conflictsBody.innerHTML = '';
-                                
+
                                 conflicts.forEach((conflict, index) => {
                                     const tr = document.createElement('tr');
-                                    
+
                                     const tdName = document.createElement('td');
                                     tdName.textContent = conflict.project_name;
                                     tr.appendChild(tdName);
-                                    
+
                                     const tdCode = document.createElement('td');
                                     tdCode.textContent = conflict.authorization_code || '未指定';
                                     tr.appendChild(tdCode);
-                                    
+
                                     const tdType = document.createElement('td');
                                     tdType.textContent = conflict.conflict_type === 'code' ? '授权编号冲突' : '项目名称相似';
                                     tr.appendChild(tdType);
-                                    
+
                                     const tdAction = document.createElement('td');
                                     const actionSelect = document.createElement('select');
                                     actionSelect.classList.add('form-select', 'form-select-sm');
                                     actionSelect.dataset.index = index;
-                                    
+
                                     const ignoreOpt = document.createElement('option');
                                     ignoreOpt.value = 'ignore';
                                     ignoreOpt.textContent = '忽略不导入';
-                                    
+
                                     const newOpt = document.createElement('option');
                                     newOpt.value = 'new';
                                     newOpt.textContent = '作为新项目导入';
-                                    
+
                                     actionSelect.appendChild(ignoreOpt);
                                     actionSelect.appendChild(newOpt);
-                                    
+
                                     // 根据冲突类型设置默认选择
                                     if (conflict.conflict_type === 'code') {
                                         // 授权编号冲突默认忽略
@@ -1847,20 +1847,20 @@ document.addEventListener('DOMContentLoaded', function() {
                                         newOpt.selected = true;
                                         conflictActions[index] = 'new';
                                     }
-                                    
+
                                     actionSelect.addEventListener('change', function() {
                                         conflictActions[this.dataset.index] = this.value;
                                     });
-                                    
+
                                     tdAction.appendChild(actionSelect);
                                     tr.appendChild(tdAction);
-                                    
+
                                     conflictsBody.appendChild(tr);
                                 });
-                                
+
                                 conflictsDiv.style.display = 'block';
                             }
-                            
+
                             // 显示导入按钮
                             importBtn.style.display = 'block';
                         } else {
@@ -1868,62 +1868,62 @@ document.addEventListener('DOMContentLoaded', function() {
                             resultDiv.textContent = data.message || '检查冲突时出现错误';
                             resultDiv.style.display = 'block';
                         }
-                        
+
                         progressDiv.style.display = 'none';
                     })
                     .catch(error => {
                         console.error('冲突检查出错:', error);
                         progressBar.style.width = '100%';
                         progressDiv.style.display = 'none';
-                        
+
                         resultDiv.className = 'alert alert-danger mt-3';
                         resultDiv.textContent = '请求服务器时出错，请重试';
                         resultDiv.style.display = 'block';
                     });
-                    
+
                 } catch (err) {
                     console.error('解析Excel出错:', err);
-                    
+
                     resultDiv.className = 'alert alert-danger mt-3';
                     resultDiv.textContent = '解析Excel文件失败: ' + err.message;
                     resultDiv.style.display = 'block';
-                    
+
                     progressDiv.style.display = 'none';
                 }
             };
-            
+
             reader.onerror = function() {
                 resultDiv.className = 'alert alert-danger mt-3';
                 resultDiv.textContent = '读取文件时出错';
                 resultDiv.style.display = 'block';
-                
+
                 progressDiv.style.display = 'none';
             };
-            
+
             reader.readAsArrayBuffer(file);
         });
     }
-    
+
     // 处理冲突操作按钮
     if (applyRecommendedActionsBtn) {
         applyRecommendedActionsBtn.addEventListener('click', function() {
             document.querySelectorAll('#conflictsBody select').forEach(select => {
                 const index = parseInt(select.dataset.index);
                 const conflict = conflicts[index];
-                
+
                 // 应用智能推荐: 对授权编号冲突忽略，对名称相似新建
                 if (conflict.conflict_type === 'code') {
                     select.value = 'ignore';
                 } else {
                     select.value = 'new';
                 }
-                
+
                 // 更新选择
                 conflictActions[index] = select.value;
             });
         });
     }
-    
+
     if (keepAllConflictsBtn) {
         keepAllConflictsBtn.addEventListener('click', function() {
             document.querySelectorAll('#conflictsBody select').forEach(select => {
@@ -1932,7 +1932,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
-    
+
     if (ignoreAllConflictsBtn) {
         ignoreAllConflictsBtn.addEventListener('click', function() {
             document.querySelectorAll('#conflictsBody select').forEach(select => {
@@ -1941,33 +1941,33 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
-    
+
     // 确认导入
     if (importBtn) {
         importBtn.addEventListener('click', function() {
             const ownerId = ownerSelect.value;
-            
+
             /* 移除必选验证
             if (!ownerId) {
                 alert('请选择归属账户');
                 return;
             }
             */
-            
+
             if (parsedData.length === 0) {
                 alert('没有可导入的数据');
                 return;
             }
-            
+
             // 显示进度条
             resultDiv.style.display = 'none';
             progressDiv.style.display = 'block';
             const progressBar = progressDiv.querySelector('.progress-bar');
             progressBar.style.width = '0%';
-            
+
             // 禁用导入按钮，防止重复提交
             importBtn.disabled = true;
-            
+
             // 发送数据到服务器
             fetch('/api/projects/import', {
                 method: 'POST',
@@ -1987,39 +1987,39 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 progressBar.style.width = '100%';
-                
+
                 // 显示结果
                 if (data.success) {
                     resultDiv.className = 'alert alert-success mt-3';
                     resultDiv.innerHTML = `导入完成，新增: ${data.data.imported}，跳过: ${data.data.skipped}，错误: ${data.data.error}`;
-                    
+
                     // 如果有错误，显示错误详情
                     if (data.data.error > 0 && data.data.error_details && data.data.error_details.length > 0) {
                         const errorDetailsDiv = document.getElementById('importErrorDetails');
                         const errorTableBody = document.getElementById('errorDetailsTableBody');
                         errorTableBody.innerHTML = '';
-                        
+
                         data.data.error_details.forEach(error => {
                             const tr = document.createElement('tr');
-                            
+
                             const tdLine = document.createElement('td');
                             tdLine.textContent = error.line || 'N/A';
                             tr.appendChild(tdLine);
-                            
+
                             const tdName = document.createElement('td');
                             tdName.textContent = error.project_name || 'N/A';
                             tr.appendChild(tdName);
-                            
+
                             const tdReason = document.createElement('td');
                             tdReason.textContent = error.reason || '未知错误';
                             tr.appendChild(tdReason);
-                            
+
                             errorTableBody.appendChild(tr);
                         });
-                        
+
                         errorDetailsDiv.style.display = 'block';
                     }
-                    
+
                     // 如果导入成功且没有错误，1.5秒后刷新页面
                     if (data.data.error === 0) {
                         setTimeout(() => {
@@ -2030,20 +2030,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     resultDiv.className = 'alert alert-danger mt-3';
                     resultDiv.textContent = data.message || '导入失败';
                 }
-                
+
                 resultDiv.style.display = 'block';
                 progressDiv.style.display = 'none';
-                
+
                 // 重新启用导入按钮
                 importBtn.disabled = false;
             })
             .catch(error => {
                 console.error('导入出错:', error);
-                
+
                 resultDiv.className = 'alert alert-danger mt-3';
                 resultDiv.textContent = '请求服务器时出错，请重试';
                 resultDiv.style.display = 'block';
-                
+
                 progressDiv.style.display = 'none';
                 importBtn.disabled = false;
             });
@@ -2051,4 +2051,4 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
-{% endblock %} 
+{% endblock scripts %}

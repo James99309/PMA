@@ -4,7 +4,7 @@ from app.models.customer import Company
 from app import db
 from datetime import datetime
 from flask_login import current_user, login_required
-from app.permissions import permission_required
+from app.decorators import permission_required
 from app.utils.access_control import get_viewable_data, can_edit_data, get_accessible_data
 import logging
 import re
@@ -693,5 +693,7 @@ def batch_delete_projects():
         logger.error(f"批量删除项目失败: {str(e)}")
         return jsonify({
             'success': False,
+            'message': f'操作失败: {str(e)}'
+        }) 
             'message': f'操作失败: {str(e)}'
         }) 

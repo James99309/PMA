@@ -12,7 +12,7 @@
         border: 1px solid #dee2e6;
         border-radius: 0.25rem;
     }
-    
+
     /* 表头容器 - 固定在顶部 */
     .header-container {
         position: sticky;
@@ -24,19 +24,19 @@
         background-color: #f8f9fa;
         border-bottom: 2px solid #dee2e6;
     }
-    
+
     /* 表头滚动区域 - 与内容同步滚动 */
     .header-scroll {
         overflow-x: auto;
         overflow-y: hidden;
         margin-right: 0px; /* 不再为操作列留空间 */
     }
-    
+
     /* 隐藏水平滚动条 */
     .header-scroll::-webkit-scrollbar {
         display: none;
     }
-    
+
     /* 内容容器 */
     .body-container {
         position: relative;
@@ -44,20 +44,20 @@
         overflow-x: auto; /* 允许横向滚动 */
         overflow-y: auto; /* 允许垂直滚动 */
     }
-    
+
     /* 内容滚动区域 */
     .body-scroll {
         overflow-x: auto; /* 允许横向滚动 */
         overflow-y: auto; /* 允许垂直滚动 */
         margin-right: 0px; /* 不再为操作列留空间 */
     }
-    
+
     /* 统一表格行高度 */
     .product-table tr {
         height: 42px;
         box-sizing: border-box;
     }
-    
+
     /* 表格样式 */
     .product-table {
         width: 100%;
@@ -67,7 +67,7 @@
         table-layout: fixed; /* 使列宽固定 */
         border-collapse: collapse; /* 确保边框合并，避免双边框 */
     }
-    
+
     /* 表格基础样式 - 应用于所有表格单元格 */
     .product-table th,
     .product-table td {
@@ -77,7 +77,7 @@
         box-sizing: border-box; /* 确保内边距计算一致 */
         height: 42px; /* 固定行高 */
     }
-    
+
     /* 设置单元格最大宽度，超出显示省略号 */
     .product-table td {
         max-width: 100%;
@@ -87,17 +87,17 @@
         border-bottom: 1px solid #dee2e6;
         cursor: zoom-in; /* 鼠标悬停时显示放大箭头光标 */
     }
-    
+
     /* 表格行悬停效果 */
     .product-table tbody tr:hover {
         background-color: rgba(0, 123, 255, 0.05) !important;
     }
-    
+
     /* 奇数行背景色 */
     .product-table tbody tr:nth-child(odd) {
         background-color: rgba(0, 0, 0, 0.05);
     }
-    
+
     /* 特定表头样式 */
     .product-table th {
         height: 42px; /* 固定表头高度 */
@@ -106,19 +106,19 @@
         font-weight: 600;
         background-color: #f8f9fa;
     }
-    
+
     .product-table th i {
         margin-left: 5px;
     }
-    
+
     /* 悬停时显示提示框 */
     .product-table td[title] {
         cursor: help;
     }
-    
+
     /* 调整特定列的宽度和对齐方式 */
     .product-table .col-id,
-    .product-table .td-id { 
+    .product-table .td-id {
         width: 60px;
         padding-left: 15px; /* ID列的特殊对齐 */
     }
@@ -134,12 +134,12 @@
     .product-table .col-status { width: 100px; }
     .product-table .col-owner { width: 120px; }
     .product-table .col-date { width: 150px; }
-    
+
     .pagination-info {
         font-size: 0.9rem;
         color: #6c757d;
     }
-    
+
     .badge-discontinued {
         background-color: #dc3545;  /* 红色 */
         color: white;
@@ -147,7 +147,7 @@
         border-radius: 4px;
         transition: all 0.3s ease;
     }
-    
+
     .badge-active {
         background-color: #28a745;  /* 绿色 */
         color: white;
@@ -155,7 +155,7 @@
         border-radius: 4px;
         transition: all 0.3s ease;
     }
-    
+
     .badge-upcoming {
         background-color: #ffc107;  /* 黄色 */
         color: #212529;
@@ -163,7 +163,7 @@
         border-radius: 4px;
         transition: all 0.3s ease;
     }
-    
+
     /* 产品类型样式 */
     .badge-type {
         padding: 0.25em 0.5em;
@@ -171,44 +171,44 @@
         font-size: 0.75rem;
         color: white;
     }
-    
+
     .badge-project {
         background-color: #0D47A1; /* 深蓝色 */
     }
-    
+
     .badge-channel {
         background-color: #4FC3F7; /* 湖蓝色 */
     }
-    
+
     .badge-third-party {
         background-color: #757575; /* 灰色 */
     }
-    
+
     /* ID列样式 */
     .product-table .td-id {
         width: 60px;
         padding-left: 15px; /* 与表头相同的左内边距 */
     }
-    
+
     /* 确保表格行的奇偶背景一致 */
     .product-table tr:nth-child(odd) {
         background-color: rgba(0, 0, 0, 0.05);
     }
-    
+
     .product-table tr:nth-child(even) {
         background-color: #fff;
     }
-    
+
     /* 链接样式 */
     .product-table td a {
         color: #0d6efd;
         text-decoration: none;
     }
-    
+
     .product-table td a:hover {
         text-decoration: underline;
     }
-    
+
     /* 滚动控制按钮样式 */
     .scroll-controls {
         position: fixed;
@@ -239,14 +239,14 @@
     .scroll-controls button:hover {
         background-color: #f0f0f0;
     }
-    
+
     /* 允许垂直滚动 */
     .body-container {
         max-height: 65vh;
         overflow-y: auto;
         scroll-behavior: smooth;
     }
-    
+
     /* 美化滚动条 */
     .body-container::-webkit-scrollbar {
         width: 8px;
@@ -257,21 +257,21 @@
         background: #f1f1f1;
         border-radius: 4px;
     }
-    
+
     .body-container::-webkit-scrollbar-thumb {
         background: #ccc;
         border-radius: 4px;
     }
-    
+
     .body-container::-webkit-scrollbar-thumb:hover {
         background: #999;
     }
 </style>
-{% endblock %}
+{% endblock head %}
 
 {% block content %}
-<div class="container-fluid mt-4" 
-     data-can-edit-product="{{ can_edit_product|lower }}" 
+<div class="container-fluid mt-4"
+     data-can-edit-product="{{ can_edit_product|lower }}"
      data-can-delete-product="{{ can_delete_product|lower }}">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>产品管理</h2>
@@ -281,7 +281,7 @@
         </a>
         {% endif %}
     </div>
-    
+
     <!-- 查询筛选区域 -->
     <div class="card mb-4">
         <div class="card-header">
@@ -304,7 +304,7 @@
             </div>
         </div>
     </div>
-    
+
     <!-- 产品列表 -->
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
@@ -345,7 +345,7 @@
                         </table>
                     </div>
                 </div>
-                
+
                 <!-- 内容部分 - 可滚动 -->
                 <div class="body-container" style="max-height: 65vh;">
                     <div class="body-scroll" id="body-scroll">
@@ -368,7 +368,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- 滚动控制按钮 -->
             <div class="scroll-controls">
                 <button type="button" class="btn btn-sm btn-light scroll-top" title="滚动到顶部">
@@ -381,7 +381,7 @@
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock content %}
 
 {% block scripts %}
 {{ super() }}
@@ -395,26 +395,26 @@
     let sortBy = 'id';
     let sortOrder = 'asc';
     let searchTerm = '';
-    
+
     // 页面加载完成后执行
     document.addEventListener('DOMContentLoaded', function() {
         // 初始化加载数据
         loadProducts();
-        
+
         // 设置表格滚动同步
         setupTableScrollSync();
-        
+
         // 设置无限滚动加载
         setupInfiniteScroll();
-        
+
         // 设置滚动控制按钮
         setupScrollControls();
-        
+
         // 绑定事件
         document.getElementById('search').addEventListener('input', function() {
             searchTerm = this.value;
         });
-        
+
         // 添加回车键搜索功能
         document.getElementById('search').addEventListener('keyup', function(event) {
             if (event.key === 'Enter') {
@@ -422,17 +422,17 @@
                 resetAndSearch();
             }
         });
-        
+
         document.getElementById('apply-filter').addEventListener('click', function() {
             resetAndSearch();
         });
-        
+
         document.getElementById('reset-filter').addEventListener('click', function() {
             document.getElementById('search').value = '';
             searchTerm = '';
             resetAndSearch();
         });
-        
+
         // 表头排序点击事件
         document.querySelectorAll('.product-table th[data-sort]').forEach(th => {
             th.addEventListener('click', function() {
@@ -445,99 +445,99 @@
                     sortBy = clickedSortBy;
                     sortOrder = 'asc';
                 }
-                
+
                 // 更新排序图标
                 updateSortIcons();
-                
+
                 // 重置并重新加载数据
                 resetAndSearch();
             });
         });
     });
-    
+
     // 重置搜索并重新加载数据
     function resetAndSearch() {
         // 重置页码和加载状态
         currentPage = 1;
         allLoaded = false;
-                
+
         // 清空现有数据
         document.getElementById('product-list').innerHTML = '';
-        
+
         // 隐藏全部加载完成提示
         document.getElementById('all-loaded').classList.add('d-none');
-        
+
         // 加载新数据
         loadProducts();
     }
-    
+
     // 设置无限滚动加载
     function setupInfiniteScroll() {
         const bodyContainer = document.querySelector('.body-container');
-        
+
         bodyContainer.addEventListener('scroll', function() {
             // 如果正在加载或所有数据已加载完成，不执行加载
             if (loading || allLoaded) return;
-            
+
             // 检测是否滚动到底部
             const scrollHeight = this.scrollHeight;
             const scrollTop = this.scrollTop;
             const clientHeight = this.clientHeight;
-            
+
             // 当距离底部200px时，开始加载更多数据
             if (scrollTop + clientHeight >= scrollHeight - 200) {
                 loadMoreProducts();
             }
         });
     }
-    
+
     // 设置滚动控制按钮
     function setupScrollControls() {
         const bodyContainer = document.querySelector('.body-container');
         const scrollTopBtn = document.querySelector('.scroll-top');
         const scrollBottomBtn = document.querySelector('.scroll-bottom');
-        
+
         if (scrollTopBtn) {
             scrollTopBtn.addEventListener('click', function() {
                 bodyContainer.scrollTop = 0;
             });
         }
-        
+
         if (scrollBottomBtn) {
             scrollBottomBtn.addEventListener('click', function() {
                 bodyContainer.scrollTop = bodyContainer.scrollHeight;
             });
         }
     }
-    
+
     // 加载更多产品
     function loadMoreProducts() {
         // 增加页码
         currentPage++;
-        
+
         // 加载下一页数据
         loadProducts(false);
     }
-    
+
     // 加载产品列表
     function loadProducts(reset = true) {
         // 如果正在加载，不重复执行
         if (loading) return;
-        
+
         // 设置加载状态
         loading = true;
         showLoadingIndicator(true);
-        
+
         const url = new URL('/api/products', window.location.origin);
         url.searchParams.append('page', currentPage);
         url.searchParams.append('per_page', perPage);
         url.searchParams.append('sort_by', sortBy);
         url.searchParams.append('sort_order', sortOrder);
-        
+
         if (searchTerm) {
             url.searchParams.append('search', searchTerm);
         }
-        
+
         fetch(url)
             .then(response => response.json())
             .then(data => {
@@ -545,10 +545,10 @@
                 if (reset) {
                     document.getElementById('product-list').innerHTML = '';
                 }
-                
+
                 displayProducts(data);
                 updateTotalCount(data.total);
-                
+
                 // 检查是否已加载所有数据
                 if (currentPage >= data.pages) {
                     allLoaded = true;
@@ -556,7 +556,7 @@
                 } else {
                     document.getElementById('all-loaded').classList.add('d-none');
                 }
-                
+
                 // 重置加载状态
                 loading = false;
                 showLoadingIndicator(false);
@@ -568,12 +568,12 @@
                 showLoadingIndicator(false);
             });
     }
-    
+
     // 显示加载指示器
     function showLoadingIndicator(show) {
         const loadingIndicator = document.getElementById('loading-indicator');
         const loadMore = document.getElementById('load-more');
-        
+
         if (show) {
             loadingIndicator.classList.remove('d-none');
             if (currentPage > 1) {
@@ -584,7 +584,7 @@
             loadMore.classList.add('d-none');
         }
     }
-    
+
     // 更新总数显示
     function updateTotalCount(total) {
         totalItems = total;
@@ -593,40 +593,40 @@
             totalItemsElement.textContent = total;
         }
     }
-    
+
     // 显示产品列表
     function displayProducts(data) {
         const productTable = document.getElementById('product-list');
-        
+
         // 没有数据时显示提示
         if (!data.items || data.items.length === 0) {
             if (currentPage === 1) {
             const emptyRow = document.createElement('tr');
             emptyRow.style.height = '42px'; // 保持固定行高
-            
+
             const emptyCell = document.createElement('td');
             emptyCell.setAttribute('colspan', '14'); // 修正colspan值与表头列数一致
             emptyCell.textContent = '没有找到匹配的产品数据';
             emptyCell.className = 'text-center py-3';
-            
+
             emptyRow.appendChild(emptyCell);
             productTable.appendChild(emptyRow);
             }
-            
+
             allLoaded = true;
             return;
         }
-        
+
         // 遍历数据，创建表格行
         data.items.forEach((product, index) => {
             // 创建产品行
             const productRow = document.createElement('tr');
             productRow.style.height = '42px'; // 保持固定行高
             productRow.dataset.index = index; // 添加索引用于同步行
-            
+
             // 为长文本添加title属性，实现悬停显示完整内容
             const title = (text) => text ? `title="${text}"` : '';
-            
+
             // 填充产品数据
             productRow.innerHTML = `
                 <td class="td-id">${product.id}</td>
@@ -650,12 +650,12 @@
                 <td class="col-date">${escapeHtml(product.created_at || '')}</td>
                 <td class="col-date">${escapeHtml(product.updated_at || '')}</td>
             `;
-            
+
             // 添加产品行到主表格
             productTable.appendChild(productRow);
         });
     }
-    
+
     // 更新排序图标
     function updateSortIcons() {
         document.querySelectorAll('.product-table th[data-sort]').forEach(th => {
@@ -667,7 +667,7 @@
             }
         });
     }
-    
+
     // 安全转义HTML，防止XSS攻击
     function escapeHtml(unsafe) {
         if (unsafe === null || unsafe === undefined) return '';
@@ -678,13 +678,13 @@
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
     }
-    
+
     // 根据产品类型获取带有样式的徽章
     function getProductTypeBadge(type) {
         if (!type) return '-';
-        
+
         let badgeClass = 'badge-type ';
-        
+
         if (type === '项目产品') {
             badgeClass += 'badge-project';
         } else if (type === '渠道产品') {
@@ -692,17 +692,17 @@
         } else if (type === '第三方产品') {
             badgeClass += 'badge-third-party';
         }
-        
+
         return `<span class="${badgeClass}">${type}</span>`;
     }
-    
+
     // 根据产品状态获取带有样式的徽章
     function getStatusBadge(status, productId) {
         if (!status) return '<span class="badge badge-active">生产中</span>'; // 默认为生产中
-        
+
         let badgeClass = '';
         let statusText = '';
-        
+
         switch(status) {
             case 'active':
                 badgeClass = 'badge-active';
@@ -720,28 +720,28 @@
                 badgeClass = 'badge-active';
                 statusText = '生产中';
         }
-        
+
         // 不再添加可点击样式和状态切换功能
         return `<span class="badge ${badgeClass}">${statusText}</span>`;
     }
-    
+
     // 设置表格滚动同步
     function setupTableScrollSync() {
         // 等待DOM元素加载完成
         setTimeout(() => {
             const bodyScroll = document.getElementById('body-scroll');
             const headerScroll = document.getElementById('header-scroll');
-            
+
             if (bodyScroll && headerScroll) {
                 // 水平滚动同步
                 bodyScroll.addEventListener('scroll', function() {
                     headerScroll.scrollLeft = bodyScroll.scrollLeft;
                 });
-                
+
                 headerScroll.addEventListener('scroll', function() {
                     bodyScroll.scrollLeft = headerScroll.scrollLeft;
                 });
-                
+
                 console.log('表格滚动同步已设置');
             } else {
                 console.warn('未找到滚动容器元素');
@@ -749,4 +749,4 @@
         }, 500); // 延迟500ms确保DOM已加载
     }
 </script>
-{% endblock %} 
+{% endblock scripts %}

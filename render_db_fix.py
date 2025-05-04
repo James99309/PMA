@@ -173,3 +173,33 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main()) 
+            logger.info(f"region列为NULL的记录: {null_region}")
+            
+            logger.info("数据库修复完成!")
+            return True
+            
+    except Exception as e:
+        logger.error(f"修复数据库时出错: {str(e)}")
+        logger.error(traceback.format_exc())
+        return False
+
+def main():
+    """主函数"""
+    logger.info("===== 开始Render数据库修复 =====")
+    
+    # 检查是否在Render环境中
+    is_render = os.environ.get('RENDER') == 'true'
+    logger.info(f"当前环境: {'Render' if is_render else '本地'}")
+    
+    # 修复数据库
+    success = fix_database()
+    
+    if success:
+        logger.info("===== Render数据库修复成功 =====")
+        return 0
+    else:
+        logger.error("===== Render数据库修复失败 =====")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main()) 

@@ -55,3 +55,59 @@ databases:
     databaseName: pma_db_sp8d
     region: singapore
     plan: starter 
+services:
+  # Web服务配置
+  - type: web
+    name: pma-app
+    env: python
+    region: singapore
+    plan: starter
+    buildCommand: pip install -r requirements.txt && chmod +x render_start.sh
+    startCommand: ./render_start.sh
+    healthCheckPath: /auth/login
+    envVars:
+      - key: DATABASE_URL
+        value: postgresql://pma_db_sp8d_user:LXNGJmR6bFrNecoaWbdbdzPpltIAd40w@dpg-d0b1gl1r0fns73d1jc1g-a.singapore-postgres.render.com/pma_db_sp8d
+      - key: SQLALCHEMY_DATABASE_URI
+        fromDatabase:
+          name: pma-db
+          property: connectionString
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SSL_MODE
+        value: require
+      - key: RENDER
+        value: true
+      - key: PGSSLMODE
+        value: require
+      - key: PYTHON_VERSION
+        value: 3.11.0
+    autoDeploy: true
+    
+  # 定时任务配置 - 每天执行数据同步
+  - type: cron
+    name: pma-daily-sync
+    env: python
+    schedule: "0 2 * * *"  # 每天凌晨2点执行
+    buildCommand: pip install -r requirements.txt
+    startCommand: python db_migration/migrate_data_to_render.py
+    envVars:
+      - key: DATABASE_URL
+        value: postgresql://pma_db_sp8d_user:LXNGJmR6bFrNecoaWbdbdzPpltIAd40w@dpg-d0b1gl1r0fns73d1jc1g-a.singapore-postgres.render.com/pma_db_sp8d
+      - key: SQLALCHEMY_DATABASE_URI
+        fromDatabase:
+          name: pma-db
+          property: connectionString
+      - key: RENDER
+        value: true
+      - key: PGSSLMODE
+        value: require
+
+# 数据库配置
+databases:
+  - name: pma-db
+    databaseName: pma_db_sp8d
+    region: singapore
+    plan: starter 

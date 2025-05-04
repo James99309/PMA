@@ -108,12 +108,12 @@
                     <div class="col-md-6">
                         <label for="quotation_customer" class="form-label mb-2">报价（元）</label>
                         <div class="input-group quotation-wrapper">
-                            <input type="text" class="form-control" id="quotation_customer" name="quotation_customer" 
+                            <input type="text" class="form-control" id="quotation_customer" name="quotation_customer"
                                 value="{% if project and project.quotation_customer %}{{ '{:,.2f}'.format(project.quotation_customer) }}{% endif %}"
                                 placeholder="选择报价单或直接输入金额"
                                 oninput="formatAmount(this)"
                                 style="border-right: none;" readonly>
-                            <button class="form-control dropdown-toggle quotation-dropdown-btn" type="button" 
+                            <button class="form-control dropdown-toggle quotation-dropdown-btn" type="button"
                                     onclick="toggleQuotationDropdown()"
                                     style="max-width: 40px; border-left: none; background-color: white;">
                                 <i class="fas fa-chevron-down"></i>
@@ -121,7 +121,7 @@
                             <div class="quotation-dropdown" id="quotationDropdown">
                                 {% if project.quotations %}
                                     {% for quotation in project.quotations %}
-                                    <div class="quotation-item" 
+                                    <div class="quotation-item"
                                          onclick="selectQuotation(`{{ quotation.quotation_number }}`, `{{ '{:,.2f}'.format(quotation.amount) if quotation.amount else '0.00' }}`, `{{ quotation.project.end_user or '未知公司' }}`, `{{ quotation.updated_at.strftime('%Y-%m-%d') if quotation.updated_at else '' }}`)">
                                         <div class="d-flex align-items-center px-2">
                                             <div class="quotation-col" style="width: 140px;">
@@ -255,7 +255,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function toggleQuotationDropdown() {
     const wrapper = document.querySelector('.quotation-wrapper');
     const dropdown = document.getElementById('quotationDropdown');
-    
+
     wrapper.classList.toggle('show');
     dropdown.classList.toggle('show');
 }
@@ -263,10 +263,10 @@ function toggleQuotationDropdown() {
 function selectQuotation(number, amount, company, date) {
     const quotationCustomer = document.getElementById('quotation_customer');
     quotationCustomer.value = amount;
-    
+
     const quotationInfo = document.getElementById('quotation_info');
     quotationInfo.innerHTML = `<span class="badge bg-primary">${number}</span> ${company} | ${date}`;
-    
+
     // 关闭下拉菜单
     toggleQuotationDropdown();
 }
@@ -275,7 +275,7 @@ function selectQuotation(number, amount, company, date) {
 document.addEventListener('click', function(e) {
     const wrapper = document.querySelector('.quotation-wrapper');
     const dropdown = document.getElementById('quotationDropdown');
-    
+
     if (!wrapper.contains(e.target)) {
         wrapper.classList.remove('show');
         dropdown.classList.remove('show');
@@ -285,21 +285,21 @@ document.addEventListener('click', function(e) {
 // 保留原有的金额格式化函数
 function formatAmount(input) {
     let value = input.value.replace(/[^\d.]/g, '');
-    
+
     let parts = value.split('.');
     if (parts.length > 2) {
         parts = [parts[0], parts.slice(1).join('')];
         value = parts.join('.');
     }
-    
+
     if (parts.length > 1) {
         value = parts[0] + '.' + parts[1].slice(0, 2);
     }
-    
+
     let intPart = parts[0];
     let decPart = parts.length > 1 ? '.' + parts[1] : '';
     intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    
+
     input.value = intPart + decPart;
 }
 
@@ -317,10 +317,10 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const response = await fetch(`/api/companies/${type}`);
             const data = await response.json();
-            
+
             const select = document.getElementById(selectId);
             select.innerHTML = '<option value="">请选择</option>';
-            
+
             data.companies.forEach(company => {
                 const option = document.createElement('option');
                 option.value = company.name;
@@ -330,7 +330,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 option.setAttribute('data-phone', company.phone);
                 select.appendChild(option);
             });
-            
+
             // 如果有预选值，设置选中
             const preSelectedValue = select.getAttribute('data-preselected');
             if (preSelectedValue) {
@@ -340,14 +340,14 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('加载公司数据失败:', error);
         }
     }
-    
+
     // 初始化加载所有类型的公司数据
     loadCompanies('users', 'direct_user');
     loadCompanies('designers', 'design_issues');
     loadCompanies('contractors', 'contractor');
     loadCompanies('integrators', 'system_integrator');
     loadCompanies('dealers', 'dealer');
-    
+
     // 为每个选择框添加change事件监听器
     const companySelects = document.querySelectorAll('.company-select');
     companySelects.forEach(select => {
@@ -589,4 +589,4 @@ document.addEventListener('DOMContentLoaded', function() {
 .quotation-col:nth-child(3) { width: 150px; }
 .quotation-col:nth-child(4) { width: 120px; }
 </style>
-{% endblock %} 
+{% endblock content %}

@@ -30,7 +30,7 @@ from decimal import Decimal, InvalidOperation
 from flask_login import login_required, current_user
 from datetime import datetime
 from sqlalchemy import func, and_, or_
-from app.permissions import permission_required  # 修改权限装饰器导入
+from app.decorators import permission_required  # 添加权限装饰器导入
 import os
 import uuid
 from PIL import Image
@@ -1216,6 +1216,14 @@ def update_product_status(id):
             'message': f'产品状态已更新为 {status_text}',
             'status': target_status
         })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'更新产品状态时出错: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'更新产品状态失败: {str(e)}'
+        }), 500 
         
     except Exception as e:
         db.session.rollback()

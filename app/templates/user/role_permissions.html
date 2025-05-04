@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}角色权限管理 - 项目管理系统{% endblock %}
+{% block title %}角色权限管理 - 项目管理系统{% endblock title %}
 
 {% block content %}
 <div class="row mb-4">
@@ -40,9 +40,9 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <hr>
-                
+
                 <!-- 权限矩阵表 -->
                 <div id="permissionsContainer" class="d-none">
                     <div class="table-responsive">
@@ -62,7 +62,7 @@
                             </tbody>
                         </table>
                     </div>
-                    
+
                     <div class="mt-4">
                         <div class="row">
                             <div class="col-md-6">
@@ -83,7 +83,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- 加载状态 -->
                 <div id="loadingState" class="text-center py-5">
                     <div class="spinner-border text-primary" role="status">
@@ -91,12 +91,12 @@
                     </div>
                     <p class="mt-3">正在加载权限数据，请稍候...</p>
                 </div>
-                
+
                 <!-- 错误消息 -->
                 <div id="errorMessage" class="alert alert-danger d-none">
                     加载权限数据时发生错误。请刷新页面重试，或联系系统管理员。
                 </div>
-                
+
                 <!-- 空状态 -->
                 <div id="emptyState" class="text-center py-5 d-none">
                     <div class="py-4">
@@ -109,58 +109,58 @@
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock content %}
 
 {% block styles %}
 <style>
     #permissionsTable th, #permissionsTable td {
         vertical-align: middle;
     }
-    
+
     .checkbox-wrapper {
         display: flex;
         justify-content: center;
     }
-    
+
     .form-check-input {
         cursor: pointer;
         width: 1.2em;
         height: 1.2em;
     }
-    
+
     /* 模块全选复选框样式 */
     .module-select-all {
         width: 1.3em;
         height: 1.3em;
         border-color: #0d6efd;
     }
-    
+
     /* 全选模块列的样式 */
-    #permissionsTable th:last-child, 
+    #permissionsTable th:last-child,
     #permissionsTable td:last-child {
         background-color: rgba(13, 110, 253, 0.05);
     }
-    
+
     #savePermissions:disabled {
         cursor: not-allowed;
     }
-    
+
     #roleSelect {
         max-width: 300px;
     }
 </style>
-{% endblock %}
+{% endblock styles %}
 
 {% block scripts %}
 <script>
     // 定义全局变量
     let currentRole = null;
     let currentPermissions = [];
-    
+
     // 安全地解析模块和角色数据
     let MODULES = [];
     let ROLES = [];
-    
+
     try {
         MODULES = {{ modules|tojson|safe }};
         ROLES = {{ roles|tojson|safe }};
@@ -170,7 +170,7 @@
         document.getElementById('errorMessage').classList.remove('d-none');
         document.getElementById('errorMessage').innerHTML = '加载数据时出错: ' + e.message;
     }
-    
+
     // DOM 元素
     const roleSelect = document.getElementById('roleSelect');
     const permissionsContainer = document.getElementById('permissionsContainer');
@@ -182,12 +182,12 @@
     const selectAllBtn = document.getElementById('selectAll');
     const selectNoneBtn = document.getElementById('selectNone');
     const selectViewBtn = document.getElementById('selectView');
-    
+
     // 初始化页面
     document.addEventListener('DOMContentLoaded', function() {
         // 加载角色选项
         loadRoleOptions();
-        
+
         // 角色选择事件
         if (roleSelect) {
             roleSelect.addEventListener('change', function() {
@@ -199,32 +199,32 @@
                 }
             });
         }
-        
+
         // 保存按钮事件
         if (saveButton) {
             saveButton.addEventListener('click', savePermissions);
         }
-        
+
         // 快速选择按钮事件
         if (selectAllBtn) {
             selectAllBtn.addEventListener('click', function() {
                 toggleAllCheckboxes(true);
             });
         }
-        
+
         if (selectNoneBtn) {
             selectNoneBtn.addEventListener('click', function() {
                 toggleAllCheckboxes(false);
             });
         }
-        
+
         if (selectViewBtn) {
             selectViewBtn.addEventListener('click', function() {
                 selectOnlyViewPermissions();
             });
         }
     });
-    
+
     // 加载角色选项
     function loadRoleOptions() {
         if (!roleSelect || !ROLES || !Array.isArray(ROLES)) {
@@ -232,10 +232,10 @@
             showErrorMessage();
             return;
         }
-        
+
         // 清空现有选项
         roleSelect.innerHTML = '<option value="">--请选择角色--</option>';
-        
+
         // 添加角色选项
         ROLES.forEach(role => {
             if (role && role.key && role.name) {
@@ -245,21 +245,21 @@
                 roleSelect.appendChild(option);
             }
         });
-        
+
         // 初始显示空状态
         showEmptyState();
     }
-    
+
     // 加载角色权限
     function loadRolePermissions(role) {
         if (!role) return;
-        
+
         currentRole = role;
         showLoading();
-        
+
         // 构建API请求URL
         const apiUrl = `/api/v1/permissions/roles/${role}`;
-        
+
         // 发送API请求
         fetch(apiUrl, {
             method: 'GET',
@@ -279,10 +279,10 @@
             if (data.success) {
                 // 保存获取的权限数据
                 currentPermissions = data.data.permissions || [];
-                
+
                 // 渲染权限表格
                 renderPermissionsTable();
-                
+
                 // 显示权限容器
                 showPermissionsContainer();
             } else {
@@ -295,21 +295,21 @@
             showErrorMessage();
         });
     }
-    
+
     // 渲染权限表格
     function renderPermissionsTable() {
         if (!permissionsTableBody || !MODULES || !Array.isArray(MODULES)) {
             console.error('无法渲染权限表格');
             return;
         }
-        
+
         // 清空表格
         permissionsTableBody.innerHTML = '';
-        
+
         // 添加模块行
         MODULES.forEach(module => {
             if (!module || !module.id) return;
-            
+
             // 查找当前模块的权限
             const modulePermission = currentPermissions.find(p => p.module === module.id) || {
                 module: module.id,
@@ -318,11 +318,11 @@
                 can_edit: false,
                 can_delete: false
             };
-            
+
             // 创建表格行
             const row = document.createElement('tr');
             row.dataset.module = module.id;
-            
+
             // 模块名称列
             const moduleCell = document.createElement('td');
             moduleCell.innerHTML = `
@@ -330,27 +330,27 @@
                 ${module.description ? `<small class="text-muted d-block">${module.description}</small>` : ''}
             `;
             row.appendChild(moduleCell);
-            
+
             // 权限复选框列（查看、创建、编辑、删除）
             const permissions = ['view', 'create', 'edit', 'delete'];
             permissions.forEach(action => {
                 const permKey = `can_${action}`;
                 const isChecked = modulePermission[permKey] === true;
-                
+
                 const cell = document.createElement('td');
                 cell.className = 'text-center';
                 cell.innerHTML = `
                     <div class="checkbox-wrapper">
                         <input type="checkbox" class="form-check-input permission-checkbox"
-                            id="${action}_${module.id}" 
-                            data-module="${module.id}" 
-                            data-action="${action}" 
+                            id="${action}_${module.id}"
+                            data-module="${module.id}"
+                            data-action="${action}"
                             ${isChecked ? 'checked' : ''}>
                     </div>
                 `;
                 row.appendChild(cell);
             });
-            
+
             // 添加模块全选复选框
             const allChecked = permissions.every(action => modulePermission[`can_${action}`] === true);
             const selectAllCell = document.createElement('td');
@@ -358,17 +358,17 @@
             selectAllCell.innerHTML = `
                 <div class="checkbox-wrapper">
                     <input type="checkbox" class="form-check-input module-select-all"
-                        id="selectAll_${module.id}" 
-                        data-module="${module.id}" 
+                        id="selectAll_${module.id}"
+                        data-module="${module.id}"
                         ${allChecked ? 'checked' : ''}>
                 </div>
             `;
             row.appendChild(selectAllCell);
-            
+
             // 添加行到表格
             permissionsTableBody.appendChild(row);
         });
-        
+
         // 为每个模块的全选复选框添加事件监听
         document.querySelectorAll('.module-select-all').forEach(checkbox => {
             checkbox.addEventListener('change', function() {
@@ -376,70 +376,70 @@
                 toggleModulePermissions(moduleId, this.checked);
             });
         });
-        
+
         // 为每个权限复选框添加事件监听，更新全选状态
         document.querySelectorAll('.permission-checkbox').forEach(checkbox => {
             checkbox.addEventListener('change', function() {
                 updateModuleSelectAllState(this.dataset.module);
             });
         });
-        
+
         // 启用保存按钮
         if (saveButton) {
             saveButton.disabled = false;
         }
     }
-    
+
     // 切换模块所有权限
     function toggleModulePermissions(moduleId, checked) {
         if (!moduleId) return;
-        
+
         const checkboxes = document.querySelectorAll(`input[data-module="${moduleId}"].permission-checkbox`);
         checkboxes.forEach(checkbox => {
             checkbox.checked = checked;
         });
     }
-    
+
     // 更新模块全选复选框状态
     function updateModuleSelectAllState(moduleId) {
         if (!moduleId) return;
-        
+
         const checkboxes = document.querySelectorAll(`input[data-module="${moduleId}"].permission-checkbox`);
         const selectAllCheckbox = document.getElementById(`selectAll_${moduleId}`);
-        
+
         if (selectAllCheckbox) {
             // 如果所有权限都已选中，则全选复选框也选中
             const allChecked = Array.from(checkboxes).every(checkbox => checkbox.checked);
             selectAllCheckbox.checked = allChecked;
         }
     }
-    
+
     // 保存权限设置
     function savePermissions() {
         if (!currentRole) {
             alert('请先选择一个角色');
             return;
         }
-        
+
         // 禁用保存按钮
         if (saveButton) {
             saveButton.disabled = true;
             saveButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 保存中...';
         }
-        
+
         // 收集权限数据
         const permissions = [];
         const moduleRows = document.querySelectorAll('#permissionsTableBody tr');
-        
+
         moduleRows.forEach(row => {
             const moduleId = row.dataset.module;
             if (!moduleId) return;
-            
+
             const viewCheckbox = document.getElementById(`view_${moduleId}`);
             const createCheckbox = document.getElementById(`create_${moduleId}`);
             const editCheckbox = document.getElementById(`edit_${moduleId}`);
             const deleteCheckbox = document.getElementById(`delete_${moduleId}`);
-            
+
             permissions.push({
                 module: moduleId,
                 can_view: viewCheckbox ? viewCheckbox.checked : false,
@@ -448,17 +448,17 @@
                 can_delete: deleteCheckbox ? deleteCheckbox.checked : false
             });
         });
-        
+
         // 准备请求数据
         const requestData = {
             role: currentRole,
             permissions: permissions
         };
-        
+
         // 获取CSRF令牌
         const csrfToken = '{{ csrf_token() }}';
         console.log('使用CSRF令牌:', csrfToken);
-        
+
         // 发送API请求 - 使用路由的POST方法而不是直接调用API
         fetch('/user/manage-permissions', {
             method: 'POST',
@@ -480,7 +480,7 @@
             if (data.success) {
                 // 显示成功消息
                 alert('权限设置已成功保存！');
-                
+
                 // 重新加载权限数据
                 loadRolePermissions(currentRole);
             } else {
@@ -500,7 +500,7 @@
             }
         });
     }
-    
+
     // 选中或取消选中所有复选框
     function toggleAllCheckboxes(checked) {
         // 更新所有权限复选框
@@ -508,14 +508,14 @@
         checkboxes.forEach(checkbox => {
             checkbox.checked = checked;
         });
-        
+
         // 同时更新所有模块全选复选框
         const moduleSelectAllCheckboxes = document.querySelectorAll('#permissionsTableBody input.module-select-all');
         moduleSelectAllCheckboxes.forEach(checkbox => {
             checkbox.checked = checked;
         });
     }
-    
+
     // 仅选中"查看"权限
     function selectOnlyViewPermissions() {
         // 更新权限复选框
@@ -523,18 +523,18 @@
         checkboxes.forEach(checkbox => {
             checkbox.checked = checkbox.dataset.action === 'view';
         });
-        
+
         // 更新所有模块的全选复选框状态
         const moduleIds = new Set();
         checkboxes.forEach(checkbox => {
             moduleIds.add(checkbox.dataset.module);
         });
-        
+
         moduleIds.forEach(moduleId => {
             updateModuleSelectAllState(moduleId);
         });
     }
-    
+
     // 显示加载状态
     function showLoading() {
         if (loadingState) loadingState.classList.remove('d-none');
@@ -542,7 +542,7 @@
         if (emptyState) emptyState.classList.add('d-none');
         if (errorMessage) errorMessage.classList.add('d-none');
     }
-    
+
     // 显示权限容器
     function showPermissionsContainer() {
         if (loadingState) loadingState.classList.add('d-none');
@@ -550,7 +550,7 @@
         if (emptyState) emptyState.classList.add('d-none');
         if (errorMessage) errorMessage.classList.add('d-none');
     }
-    
+
     // 显示空状态
     function showEmptyState() {
         if (loadingState) loadingState.classList.add('d-none');
@@ -558,7 +558,7 @@
         if (emptyState) emptyState.classList.remove('d-none');
         if (errorMessage) errorMessage.classList.add('d-none');
     }
-    
+
     // 显示错误消息
     function showErrorMessage() {
         if (loadingState) loadingState.classList.add('d-none');
@@ -567,4 +567,4 @@
         if (errorMessage) errorMessage.classList.remove('d-none');
     }
 </script>
-{% endblock %} 
+{% endblock scripts %}

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}产品分类管理{% endblock %}
+{% block title %}产品分类管理{% endblock title %}
 
 {% block styles %}
 {{ super() }}
@@ -25,7 +25,7 @@
         background-color: #f8f9fa;
     }
 </style>
-{% endblock %}
+{% endblock styles %}
 
 {% block content %}
 <div class="container-fluid px-4">
@@ -35,22 +35,22 @@
         <li class="breadcrumb-item active">产品编码</li>
         <li class="breadcrumb-item active">分类管理</li>
     </ol>
-    
+
     <div class="alert alert-info">
         <p><i class="fas fa-info-circle me-1"></i> 产品分类是产品编码的第一个组成部分。每个分类有一个唯一的字母标识符。</p>
         <p>已使用标识符: {{ used_letters|join(', ') }}</p>
         <p>可用标识符: {{ available_letters|join(', ') }}</p>
         <p class="mt-2">提示：您可以通过拖拽分类行来重新排序，排序会自动保存并更新分类ID。</p>
     </div>
-    
+
     <div class="alert alert-success" id="successAlert" style="display:none;">
         <i class="fas fa-check-circle me-1"></i> 分类排序已成功保存。
     </div>
-    
+
     <div class="alert alert-danger" id="order-error-alert" style="display:none;">
         <i class="fas fa-exclamation-circle me-1"></i> <span id="error-message">保存排序时发生错误</span>
     </div>
-    
+
     <div class="card mb-4">
         <div class="card-header">
             <i class="fas fa-table me-1"></i>
@@ -123,7 +123,7 @@
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock content %}
 
 {% block scripts %}
 {{ super() }}
@@ -136,7 +136,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const deleteButtons = document.querySelectorAll('.delete-category');
     const deleteForm = document.getElementById('deleteForm');
     const categoryNameToDelete = document.getElementById('categoryName');
-    
+
     deleteButtons.forEach(button => {
         button.addEventListener('click', function() {
             const id = this.getAttribute('data-id');
@@ -146,7 +146,7 @@ document.addEventListener('DOMContentLoaded', function() {
             deleteModal.show();
         });
     });
-    
+
     // 初始化Sortable
     const categoryTableBody = document.getElementById('categories-list');
     if (categoryTableBody && categoryTableBody.children.length > 1) {
@@ -162,7 +162,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const newOrder = Array.from(categoryTableBody.children)
                         .filter(row => row.hasAttribute('data-id'))
                         .map(row => row.getAttribute('data-id'));
-                    
+
                     // 发送到服务器
                     const response = await fetchWithCsrf('/product-code/categories/update-order', {
                         method: 'POST',
@@ -171,9 +171,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         },
                         body: JSON.stringify({ order: newOrder })
                     });
-                    
+
                     const result = await response.json();
-                    
+
                     if (result.success) {
                         // 显示成功消息
                         const successAlert = document.getElementById('successAlert');
@@ -204,4 +204,4 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
-{% endblock %} 
+{% endblock scripts %}

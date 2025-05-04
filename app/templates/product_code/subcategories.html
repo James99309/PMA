@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}产品名称管理 - {{ category.name }}{% endblock %}
+{% block title %}产品名称管理 - {{ category.name }}{% endblock title %}
 
 {% block styles %}
 <style>
@@ -21,7 +21,7 @@
         background-color: #f8f9fa;
     }
 </style>
-{% endblock %}
+{% endblock styles %}
 
 {% block content %}
 <div class="container-fluid px-4">
@@ -31,12 +31,12 @@
         <li class="breadcrumb-item"><a href="{{ url_for('product_code.categories') }}">产品分类</a></li>
         <li class="breadcrumb-item active">产品名称管理</li>
     </ol>
-    
+
     <div class="alert alert-success mb-4" id="successAlert" style="display: none;">
         <i class="fas fa-check-circle me-1"></i>
         <span>产品名称顺序已更新！</span>
     </div>
-    
+
     <div class="alert alert-info mb-4">
         <i class="fas fa-info-circle me-1"></i>
         <strong>编码规则说明</strong>
@@ -54,7 +54,7 @@
         <p class="mb-0">请为每个产品名称分配一个唯一的单字符标识符，避免在同一分类下重复使用相同标识符。</p>
         <p class="mt-2 mb-0"><i class="fas fa-arrows-alt me-1"></i><strong>提示：</strong>您可以通过拖拽来调整产品名称的顺序。</p>
     </div>
-    
+
     <div class="card mb-4">
         <div class="card-header">
             <i class="fas fa-sitemap me-1"></i>
@@ -133,7 +133,7 @@
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock content %}
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
@@ -141,13 +141,13 @@
     document.addEventListener('DOMContentLoaded', function() {
         // 获取CSRF令牌
         const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-        
+
         // 初始化删除模态框
         const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
         const deleteButtons = document.querySelectorAll('.delete-subcategory');
         const deleteForm = document.getElementById('deleteForm');
         const subcategoryNameToDelete = document.getElementById('subcategoryNameToDelete');
-        
+
         deleteButtons.forEach(button => {
             button.addEventListener('click', function() {
                 const id = this.getAttribute('data-id');
@@ -157,7 +157,7 @@
                 deleteModal.show();
             });
         });
-        
+
         // 初始化Sortable
         const subcategoryTableBody = document.getElementById('subcategoryTableBody');
         if (subcategoryTableBody.children.length > 1) {
@@ -172,7 +172,7 @@
                         // 获取所有行并计算新的顺序
                         const rows = Array.from(subcategoryTableBody.children)
                             .filter(row => row.hasAttribute('data-id'));
-                        
+
                         // 准备发送到服务器的数据
                         const items = rows.map((row, index) => {
                             return {
@@ -180,7 +180,7 @@
                                 order: index + 1
                             };
                         });
-                        
+
                         // 发送到服务器
                         const response = await fetch('/product-code/subcategory/update_order', {
                             method: 'POST',
@@ -190,9 +190,9 @@
                             },
                             body: JSON.stringify({ items: items })
                         });
-                        
+
                         const result = await response.json();
-                        
+
                         if (result.success) {
                             // 更新表格中的显示顺序
                             rows.forEach((row, index) => {
@@ -202,7 +202,7 @@
                                 }
                                 row.setAttribute('data-display-order', index + 1);
                             });
-                            
+
                             // 显示成功消息
                             const successAlert = document.getElementById('successAlert');
                             successAlert.style.display = 'block';
@@ -220,4 +220,4 @@
         }
     });
 </script>
-{% endblock %} 
+{% endblock scripts %}

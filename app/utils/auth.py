@@ -73,3 +73,9 @@ def flexible_auth(fn):
         ), 401
         
     return wrapper 
+            success=False,
+            code=401,
+            message="未认证"
+        ), 401
+        
+    return wrapper 

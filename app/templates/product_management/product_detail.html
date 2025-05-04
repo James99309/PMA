@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}研发产品详情{% endblock %}
+{% block title %}研发产品详情{% endblock title %}
 
 {% block content %}
 <div class="container-fluid">
@@ -15,23 +15,23 @@
                             <i class="fas fa-edit"></i> 编辑产品
                         </a>
                         {% endif %}
-                        
+
                         {% if dev_product.status != '申请入库' and dev_product.status != '已入库' and dev_product.created_by == current_user.id %}
-                        <button type="button" class="btn btn-success me-2" 
-                                data-bs-toggle="modal" 
+                        <button type="button" class="btn btn-success me-2"
+                                data-bs-toggle="modal"
                                 data-bs-target="#applyModal">
                             <i class="fas fa-upload"></i> 申请入库
                         </button>
                         {% endif %}
-                        
+
                         {% if dev_product.status == '申请入库' and current_user.role == 'admin' %}
-                        <button type="button" class="btn btn-success me-2" 
-                                data-bs-toggle="modal" 
+                        <button type="button" class="btn btn-success me-2"
+                                data-bs-toggle="modal"
                                 data-bs-target="#approveModal">
                             <i class="fas fa-check"></i> 审核入库
                         </button>
                         {% endif %}
-                        
+
                         <a href="{{ url_for('product_management.index') }}" class="btn btn-secondary">
                             <i class="fas fa-arrow-left"></i> 返回列表
                         </a>
@@ -53,24 +53,24 @@
                                         <h6 class="fw-bold">产品分类</h6>
                                         <p>{{ dev_product.category.name }}</p>
                                     </div>
-                                    
+
                                     <div class="mb-4">
                                         <h6 class="fw-bold">子分类</h6>
                                         <p>{{ dev_product.subcategory.name }}</p>
                                     </div>
-                                    
+
                                     <div class="mb-4">
                                         <h6 class="fw-bold">产品型号</h6>
                                         <p>{{ dev_product.model }}</p>
                                     </div>
                                 </div>
-                                
+
                                 <div class="col-md-6">
                                     <div class="mb-4">
                                         <h6 class="fw-bold">MN编码</h6>
                                         <p>{{ dev_product.mn_code }}</p>
                                     </div>
-                                    
+
                                     <div class="mb-4">
                                         <h6 class="fw-bold">产品状态</h6>
                                         <p>
@@ -89,19 +89,19 @@
                                             {% endif %}
                                         </p>
                                     </div>
-                                    
+
                                     <div class="mb-4">
                                         <h6 class="fw-bold">销售区域</h6>
                                         <p>{{ dev_product.region.name if dev_product.region else '暂无' }}</p>
                                     </div>
-                                    
+
                                     <div class="mb-4">
                                         <h6 class="fw-bold">单位</h6>
                                         <p>{{ dev_product.unit or '暂无' }}</p>
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="mb-4">
@@ -109,7 +109,7 @@
                                         <p>{% if dev_product.retail_price %}¥{{ dev_product.retail_price }}{% else %}暂无{% endif %}</p>
                                     </div>
                                 </div>
-                                
+
                                 <div class="col-md-6">
                                     <div class="mb-4">
                                         <h6 class="fw-bold">创建者</h6>
@@ -122,12 +122,12 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="mb-4">
                         <h6 class="fw-bold">产品描述</h6>
                         <p>{{ dev_product.description or '暂无描述' }}</p>
                     </div>
-                    
+
                     <!-- 产品规格部分 -->
                     <h6 class="fw-bold mb-3">产品规格</h6>
                     {% if specs %}
@@ -158,7 +158,7 @@
                         <i class="fas fa-info-circle"></i> 暂无规格信息
                     </div>
                     {% endif %}
-                    
+
                     <div class="mt-4">
                         <h6 class="fw-bold">创建时间</h6>
                         <p>{{ dev_product.created_at | format_datetime }}</p>
@@ -231,4 +231,4 @@
         </div>
     </div>
 </div>
-{% endblock %} 
+{% endblock content %}

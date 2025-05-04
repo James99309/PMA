@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}研发产品库管理{% endblock %}
+{% block title %}研发产品库管理{% endblock title %}
 
 {% block content %}
 <div class="container-fluid">
@@ -118,7 +118,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const batchDeleteModal = new bootstrap.Modal(document.getElementById('batchDeleteModal'));
     const deleteProductList = document.getElementById('delete-product-list');
     const productIds = document.getElementById('product-ids');
-    
+
     // 选择所有复选框
     selectAll.addEventListener('change', function() {
         const isChecked = this.checked;
@@ -127,18 +127,18 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         updateBatchDeleteButton();
     });
-    
+
     // 单个产品复选框变化
     productCheckboxes.forEach(checkbox => {
         checkbox.addEventListener('change', function() {
             updateBatchDeleteButton();
-            
+
             // 检查是否所有复选框都被选中
             const allChecked = [...productCheckboxes].every(cb => cb.checked);
             selectAll.checked = allChecked;
         });
     });
-    
+
     // 更新批量删除按钮的显示状态
     function updateBatchDeleteButton() {
         const selectedCount = [...productCheckboxes].filter(cb => cb.checked).length;
@@ -149,13 +149,13 @@ document.addEventListener('DOMContentLoaded', function() {
             batchDeleteBtn.classList.add('d-none');
         }
     }
-    
+
     // 批量删除按钮点击事件
     batchDeleteBtn.addEventListener('click', function() {
         const selectedProducts = [...productCheckboxes].filter(cb => cb.checked);
         const ids = selectedProducts.map(cb => cb.dataset.id);
         const names = selectedProducts.map(cb => cb.dataset.name || `产品ID: ${cb.dataset.id}`);
-        
+
         // 清空列表并重新填充
         deleteProductList.innerHTML = '';
         names.forEach(name => {
@@ -164,16 +164,16 @@ document.addEventListener('DOMContentLoaded', function() {
             li.innerText = name;
             deleteProductList.appendChild(li);
         });
-        
+
         // 设置表单提交数据
         productIds.value = ids.join(',');
-        
+
         // 设置表单提交地址
         document.getElementById('batch-delete-form').action = "{{ url_for('product_management.batch_delete_products') }}";
-        
+
         // 显示模态框
         batchDeleteModal.show();
     });
 });
 </script>
-{% endblock %} 
+{% endblock content %}

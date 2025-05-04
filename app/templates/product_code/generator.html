@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}产品编码生成器{% endblock %}
+{% block title %}产品编码生成器{% endblock title %}
 
 {% block content %}
 <nav aria-label="breadcrumb">
@@ -89,7 +89,7 @@
   </div>
 </div>
 
-{% endblock %}
+{% endblock content %}
 
 {% block scripts %}
 <script>
@@ -97,7 +97,7 @@
     let fields = [];
     let currentFieldValues = {};
     let previewCode = '';
-    
+
     // 产品搜索
     $('#searchBtn').click(function() {
       const searchTerm = $('#productSearch').val();
@@ -105,7 +105,7 @@
         alert('请输入至少2个字符进行搜索');
         return;
       }
-      
+
       $.ajax({
         url: "{{ url_for('product_code.api_products') }}",
         data: { search: searchTerm },
@@ -113,7 +113,7 @@
           const select = $('#productSelect');
           select.empty();
           select.append('<option value="">-- 选择产品 --</option>');
-          
+
           if (data.length === 0) {
             select.append('<option disabled>没有找到匹配的产品</option>');
           } else {
@@ -121,42 +121,42 @@
               const option = $('<option></option>')
                 .val(product.id)
                 .text(`${product.name} (${product.model})`);
-              
+
               if (product.current_mn) {
                 option.attr('data-current-mn', product.current_mn);
                 option.text(`${product.name} (${product.model}) - 当前MN: ${product.current_mn}`);
               }
-              
+
               select.append(option);
             });
           }
         }
       });
     });
-    
+
     // 分类选择变更
     $('#categorySelect').change(function() {
       const categoryId = $(this).val();
       const subcategorySelect = $('#subcategorySelect');
-      
+
       // 重置字段和预览
       $('#fieldsContainer').html('<div class="alert alert-info">请先选择产品分类和子类...</div>');
       $('#generatePreviewBtn').prop('disabled', true);
       $('#saveCodeBtn').prop('disabled', true);
-      
+
       if (!categoryId) {
         subcategorySelect.prop('disabled', true);
         subcategorySelect.html('<option value="">-- 请先选择分类 --</option>');
         return;
       }
-      
+
       // 加载子类
       $.ajax({
         url: "{{ url_for('product_code.api_category_subcategories', id=0) }}".replace('0', categoryId),
         success: function(data) {
           subcategorySelect.empty();
           subcategorySelect.append('<option value="">-- 选择子类 --</option>');
-          
+
           if (data.length === 0) {
             subcategorySelect.append('<option disabled>该分类下没有子类</option>');
           } else {
@@ -164,90 +164,90 @@
               subcategorySelect.append(`<option value="${subcategory.id}" data-letter="${subcategory.code_letter}">${subcategory.name} (${subcategory.code_letter})</option>`);
             });
           }
-          
+
           subcategorySelect.prop('disabled', false);
         }
       });
     });
-    
+
     // 子类选择变更
     $('#subcategorySelect').change(function() {
       const subcategoryId = $(this).val();
-      
+
       // 重置字段和预览
       currentFieldValues = {};
       previewCode = '';
       $('#generatePreviewBtn').prop('disabled', !subcategoryId);
       $('#saveCodeBtn').prop('disabled', true);
-      
+
       if (!subcategoryId) {
         $('#fieldsContainer').html('<div class="alert alert-info">请先选择产品分类和子类...</div>');
         return;
       }
-      
+
       // 加载字段
       $.ajax({
         url: "{{ url_for('product_code.api_subcategory_fields', id=0) }}".replace('0', subcategoryId),
         success: function(data) {
           fields = data;
-          
+
           if (fields.length === 0) {
             $('#fieldsContainer').html('<div class="alert alert-warning">该子类下没有配置字段</div>');
             return;
           }
-          
+
           let html = '<div class="row">';
-          
+
           fields.forEach(function(field) {
             html += `
               <div class="col-md-6 mb-3">
                 <div class="card">
                   <div class="card-header">
-                    ${field.name} 
+                    ${field.name}
                     ${field.required ? '<span class="text-danger">*</span>' : ''}
                   </div>
                   <div class="card-body">`;
-            
+
             if (field.type === 'select') {
               html += `<select class="form-control field-input" data-field-id="${field.id}" ${field.required ? 'required' : ''}>
                         <option value="">-- 选择${field.name} --</option>`;
-              
+
               field.options.forEach(function(option) {
                 html += `<option value="${option.id}" data-code="${option.code}">${option.value}</option>`;
               });
-              
+
               html += '</select>';
             } else if (field.type === 'text') {
-              html += `<input type="text" class="form-control field-input" data-field-id="${field.id}" 
+              html += `<input type="text" class="form-control field-input" data-field-id="${field.id}"
                         placeholder="${field.name}" maxlength="${field.max_length}" ${field.required ? 'required' : ''}>`;
             } else if (field.type === 'number') {
-              html += `<input type="number" class="form-control field-input" data-field-id="${field.id}" 
+              html += `<input type="number" class="form-control field-input" data-field-id="${field.id}"
                         placeholder="${field.name}" ${field.required ? 'required' : ''}>`;
             } else if (field.type === 'origin_location') {
               html += `<select class="form-control field-input" data-field-id="${field.id}" ${field.required ? 'required' : ''}>
                         <option value="">-- 选择产地 --</option>`;
-              
+
               field.options.forEach(function(option) {
                 html += `<option value="${option.id}" data-code="${option.code}">${option.value}</option>`;
               });
-              
+
               html += '</select>';
             }
-            
+
             html += `
                   </div>
                 </div>
               </div>`;
           });
-          
+
           html += '</div>';
           $('#fieldsContainer').html(html);
-          
+
           // 绑定字段输入事件
           $('.field-input').change(function() {
             const fieldId = $(this).data('field-id');
             const field = fields.find(f => f.id === fieldId);
-            
+
             if (field.type === 'select' || field.type === 'origin_location') {
               const optionId = $(this).val();
               if (optionId) {
@@ -270,17 +270,17 @@
         }
       });
     });
-    
+
     // 生成预览
     $('#generatePreviewBtn').click(function() {
       const categoryId = $('#categorySelect').val();
       const subcategoryId = $('#subcategorySelect').val();
-      
+
       if (!categoryId || !subcategoryId) {
         alert('请选择产品分类和子类');
         return;
       }
-      
+
       // 验证必填字段
       let allRequired = true;
       fields.filter(f => f.required).forEach(function(field) {
@@ -289,9 +289,9 @@
           alert(`请填写必填字段: ${field.name}`);
         }
       });
-      
+
       if (!allRequired) return;
-      
+
       // 请求预览
       $.ajax({
         url: "{{ url_for('product_code.generate_preview') }}",
@@ -305,7 +305,7 @@
         success: function(data) {
           previewCode = data.preview_code;
           $('#codePreview').html(`<strong>${previewCode}</strong>`);
-          
+
           if (data.is_unique) {
             $('#uniqueStatus').html('<div class="alert alert-success">此编码是唯一的</div>');
             $('#saveCodeBtn').prop('disabled', false);
@@ -316,23 +316,23 @@
         }
       });
     });
-    
+
     // 保存编码
     $('#saveCodeBtn').click(function() {
       const productId = $('#productSelect').val();
       const categoryId = $('#categorySelect').val();
       const subcategoryId = $('#subcategorySelect').val();
-      
+
       if (!productId) {
         alert('请选择产品');
         return;
       }
-      
+
       // 最终确认
       if (!confirm('确定要为此产品保存编码吗？这将更新产品的型号信息。')) {
         return;
       }
-      
+
       // 保存编码
       $.ajax({
         url: "{{ url_for('product_code.save_code') }}",
@@ -364,4 +364,4 @@
     });
   });
 </script>
-{% endblock %} 
+{% endblock scripts %}

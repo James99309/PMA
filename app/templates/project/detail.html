@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_quotation_number %}
 
-{% block title %}项目详情{% endblock %}
+{% block title %}项目详情{% endblock title %}
 
 {% block content %}
 <div class="container mt-4">
@@ -50,13 +50,13 @@
                     {% else %}
                     <h4 class="text-center">{{ project.authorization_code or '' }}</h4>
                     {% endif %}
-                    
+
                     {% if project.authorization_status == 'rejected' and project.feedback %}
                     <div class="alert alert-danger mt-3">
                         <strong>驳回原因：</strong> {{ project.feedback }}
                     </div>
                     {% endif %}
-                    
+
                     <div class="text-center mt-3">
                         {% if not project.authorization_code and project.authorization_status != 'pending' %}
                             {% if current_user.id == project.owner_id or current_user.role == 'admin' %}
@@ -65,12 +65,12 @@
                             </button>
                             {% endif %}
                         {% endif %}
-                        
+
                         {% if project.authorization_status == 'pending' %}
                             {% if current_user.role in ['channel_manager', 'marketing_director', 'admin', 'service', 'service_manager'] %}
                             <div class="btn-group">
                                 <!-- 根据项目类型和用户角色决定是否显示批准按钮 -->
-                                {% if current_user.role == 'admin' or 
+                                {% if current_user.role == 'admin' or
                                      (current_user.role == 'channel_manager' and project.project_type == '渠道跟进') or
                                      (current_user.role == 'marketing_director' and project.project_type in ['渠道跟进', '销售重点']) or
                                      (current_user.role in ['service', 'service_manager'] and project.project_type == '业务机会') %}
@@ -95,7 +95,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="col-md-6">
             <div class="card h-100">
                 <div class="card-header bg-light">
@@ -141,7 +141,7 @@
                                 <div class="col-md-4"><strong>报价总额：</strong></div>
                                 <div class="col-md-8">
                                     {% if project.quotation_customer and project.quotations.count() > 0 %}
-                                    <a href="{{ url_for('quotation.view_quotation', id=project.quotations.order_by(Quotation.created_at.desc()).first().id) }}" 
+                                    <a href="{{ url_for('quotation.view_quotation', id=project.quotations.order_by(Quotation.created_at.desc()).first().id) }}"
                                        class="quotation-link" title="查看报价单详情">
                                         {{ render_currency(project.quotation_customer) }}
                                     </a>
@@ -149,7 +149,7 @@
                                     <div class="d-flex align-items-center">
                                         <span class="me-3">{{ render_currency(project.quotation_customer) if project.quotation_customer else '无' }}</span>
                                         {% if current_user.has_permission('quotation', 'create') %}
-                                        <a href="{{ url_for('quotation.create_quotation') }}?project_id={{ project.id }}&return_to={{ url_for('project.view_project', project_id=project.id) }}" 
+                                        <a href="{{ url_for('quotation.create_quotation') }}?project_id={{ project.id }}&return_to={{ url_for('project.view_project', project_id=project.id) }}"
                                            class="btn btn-sm btn-primary">
                                             <i class="fas fa-plus"></i> 添加报价
                                         </a>
@@ -373,13 +373,13 @@
                 <div class="modal-body">
                     <p class="text-danger">请确认项目信息已经完整填写，包括项目名称、相关单位和项目说明等。</p>
                     <p>系统将对项目名称进行查重，如有重复或相似项目，申请可能会被驳回。</p>
-                    
+
                     <!-- 相似项目警告 -->
                     <div id="applySimilarProjectsWarning" class="d-none alert alert-warning mb-3">
                         <p><strong>警告：</strong>系统检测到存在相似项目，请确认是否继续申请。</p>
                         <div id="applySimilarProjectsList"></div>
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="apply_note" class="form-label">申请说明（可选）：</label>
                         <textarea id="apply_note" name="apply_note" class="form-control" rows="3"></textarea>
@@ -472,7 +472,7 @@
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock content %}
 
 {% block scripts %}
 {{ super() }}
@@ -482,50 +482,50 @@
         function formatDescription() {
             const originalText = $('#original-description').text();
             if (!originalText) return;
-            
+
             // 日期匹配正则表达式 (YYYY/MM/DD 或 YYYY/M/D) 可能跟随时间格式 (HH:MM:SS)
             const datePattern = /(\d{4}\/\d{1,2}\/\d{1,2}(?:\s+\d{1,2}:\d{1,2}:\d{1,2})?)/g;
-            
+
             // 查找所有匹配的内容和位置
             let matches = [];
             let match;
-            
+
             while ((match = datePattern.exec(originalText)) !== null) {
                 matches.push({
                     text: match[0],
                     index: match.index
                 });
             }
-            
+
             // 如果没有找到日期，直接显示原文
             if (matches.length === 0) {
                 $('#formatted-description').html('<p>' + originalText + '</p>');
                 return;
             }
-            
+
             // 提取每个日期所在的段落
             let formattedHtml = '';
             for (let i = 0; i < matches.length; i++) {
                 const currentMatch = matches[i];
                 const nextIndex = (i < matches.length - 1) ? matches[i + 1].index : originalText.length;
-                
+
                 // 提取日期和内容
                 const date = currentMatch.text;
                 const content = originalText.substring(currentMatch.index + date.length, nextIndex);
-                
+
                 formattedHtml += '<div class="description-entry">';
                 formattedHtml += '<strong class="description-date">' + date + '</strong>';
                 formattedHtml += '<span class="description-content">' + content + '</span>';
                 formattedHtml += '</div>';
             }
-            
+
             // 设置格式化后的HTML内容
             $('#formatted-description').html(formattedHtml);
         }
-        
+
         // 执行格式化
         formatDescription();
-        
+
         // 审批模态框打开时检查相似项目
         $('#approveAuthorizationModal').on('show.bs.modal', function (e) {
             $.ajax({
@@ -541,10 +541,10 @@
                         $('#similarProjectsWarning').removeClass('d-none');
                         let projectsList = '<ul>';
                         data.similar_projects.forEach(function(proj) {
-                            projectsList += '<li><strong>' + proj.name + 
-                                         '</strong> (授权编号: ' + (proj.authorization_code || '') + 
-                                         ', 拥有人: ' + proj.owner_name + 
-                                         ', 状态: ' + (proj.status || '未知') + 
+                            projectsList += '<li><strong>' + proj.name +
+                                         '</strong> (授权编号: ' + (proj.authorization_code || '') +
+                                         ', 拥有人: ' + proj.owner_name +
+                                         ', 状态: ' + (proj.status || '未知') +
                                          ', 相似度: ' + proj.similarity + '%)</li>';
                         });
                         projectsList += '</ul>';
@@ -559,7 +559,7 @@
                 }
             });
         });
-        
+
         // 申请授权模态框打开时检查相似项目
         $('#applyAuthorizationModal').on('show.bs.modal', function (e) {
             $.ajax({
@@ -575,10 +575,10 @@
                         $('#applySimilarProjectsWarning').removeClass('d-none');
                         let projectsList = '<ul>';
                         data.similar_projects.forEach(function(proj) {
-                            projectsList += '<li><strong>' + proj.name + 
-                                         '</strong> (授权编号: ' + (proj.authorization_code || '') + 
-                                         ', 拥有人: ' + proj.owner_name + 
-                                         ', 状态: ' + (proj.status || '未知') + 
+                            projectsList += '<li><strong>' + proj.name +
+                                         '</strong> (授权编号: ' + (proj.authorization_code || '') +
+                                         ', 拥有人: ' + proj.owner_name +
+                                         ', 状态: ' + (proj.status || '未知') +
                                          ', 相似度: ' + proj.similarity + '%)</li>';
                         });
                         projectsList += '</ul>';
@@ -595,7 +595,7 @@
         });
     });
 </script>
-{% endblock %}
+{% endblock scripts %}
 
 {% block styles %}
 {{ super() }}
@@ -661,4 +661,4 @@
     padding-left: 5px;
 }
 </style>
-{% endblock %} 
+{% endblock styles %}

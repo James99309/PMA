@@ -8,7 +8,7 @@
     .product-dropdown-container {
         position: relative;
     }
-    
+
     /* 类别列表样式 */
     .category-list {
         display: none;
@@ -22,44 +22,44 @@
         z-index: 1000;
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
     }
-    
+
     .category-list.show {
         display: block;
     }
-    
+
     .category-item {
         padding: 8px 12px;
         cursor: pointer;
         border-bottom: 1px solid #e9ecef;
     }
-    
+
     .category-item:hover {
         background-color: #f8f9fa;
     }
-    
+
     .category-item.active {
         background-color: #e9ecef;
     }
-    
+
     /* 产品名称列表样式 */
     .product-name-list {
         display: none;
         margin-left: 20px;
     }
-    
+
     .product-name-list.show {
         display: block;
     }
-    
+
     .product-name-item {
         padding: 6px 12px;
         cursor: pointer;
     }
-    
+
     .product-name-item:hover {
         background-color: #f8f9fa;
     }
-    
+
     /* 型号下拉菜单样式 */
     .model-list {
         display: none;
@@ -73,50 +73,50 @@
         z-index: 1000;
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
     }
-    
+
     .model-list.show {
         display: block;
     }
-    
+
     .model-item {
         padding: 8px 12px;
         cursor: pointer;
         border-bottom: 1px solid #e9ecef;
     }
-    
+
     .model-item:hover {
         background-color: #f8f9fa;
     }
-    
+
     /* 必填字段标记 */
     .required-field::after {
         content: "*";
         color: red;
         margin-left: 4px;
     }
-    
+
     /* 输入框不可用时的样式 */
     .form-control:disabled,
     .form-control[readonly] {
         background-color: #e9ecef;
         opacity: 1;
     }
-    
+
     /* 按钮间距 */
     .btn-toolbar .btn {
         margin-right: 10px;
     }
-    
+
     /* 自定义数字输入框样式 */
     input[type="number"].form-control {
         text-align: right;
     }
-    
+
     /* MN号输入框容器 */
     .mn-input-group {
         position: relative;
     }
-    
+
     /* MN号校验反馈 */
     .mn-feedback {
         display: none;
@@ -125,12 +125,12 @@
         margin-top: 0.25rem;
         font-size: 80%;
     }
-    
+
     .mn-feedback.valid {
         color: #28a745;
         display: block;
     }
-    
+
     .mn-feedback.invalid {
         color: #dc3545;
         display: block;
@@ -142,14 +142,14 @@
         font-weight: 500;
         color: #dc3545;
     }
-    
+
     /* 产品图片上传区域样式 */
     .product-image-upload {
         width: 100%;
         max-width: 300px;
         margin-bottom: 20px;
     }
-    
+
     .image-preview-container {
         width: 100%;
         padding-bottom: 100%; /* 1:1的比例，形成正方形 */
@@ -162,11 +162,11 @@
         cursor: pointer;
         transition: all 0.3s ease;
     }
-    
+
     .image-preview-container:hover {
         border-color: #adb5bd;
     }
-    
+
     .image-preview {
         position: absolute;
         top: 0;
@@ -176,7 +176,7 @@
         object-fit: contain;
         display: none;
     }
-    
+
     .image-placeholder {
         display: flex;
         flex-direction: column;
@@ -189,27 +189,27 @@
         height: 100%;
         color: #adb5bd;
     }
-    
+
     .image-placeholder i {
         font-size: 3rem;
         margin-bottom: 0.5rem;
     }
-    
+
     .image-placeholder span {
         font-size: 0.9rem;
         text-align: center;
     }
-    
+
     .image-file-input {
         display: none;
     }
-    
+
     .image-actions {
         display: flex;
         justify-content: space-between;
     }
 </style>
-{% endblock %}
+{% endblock head %}
 
 {% block content %}
 <div class="container-fluid mt-4">
@@ -222,23 +222,23 @@
                 {% if product %}
                 <input type="hidden" id="product-id" value="{{ product.id }}">
                 {% endif %}
-                
+
                 <!-- 基本信息 -->
                 <div class="row mb-4">
                     <div class="col-md-12">
                         <h6 class="border-bottom pb-2">基本信息</h6>
                     </div>
-                    
+
                     <!-- 产品图片上传区域 -->
                     <div class="col-md-6 mb-3">
                         <label class="form-label">产品图片</label>
                         <div class="product-image-upload">
                             <div class="image-preview-container" id="image-preview-container">
                                 {% if product and product.image_path %}
-                                <img src="{{ url_for('static', filename='uploads/products/' + product.image_path) }}" 
-                                     alt="产品图片" 
-                                     class="image-preview" 
-                                     id="image-preview" 
+                                <img src="{{ url_for('static', filename='uploads/products/' + product.image_path) }}"
+                                     alt="产品图片"
+                                     class="image-preview"
+                                     id="image-preview"
                                      style="display: block;">
                                 <div class="image-placeholder" style="display: none;">
                                     <i class="fas fa-cloud-upload-alt"></i>
@@ -260,7 +260,7 @@
                             <small class="text-muted">支持JPG、PNG格式，图片将自动调整为正方形</small>
                         </div>
                     </div>
-                    
+
                     <!-- 产品名称 (支持二级下拉) -->
                     <div class="col-md-6 mb-3">
                         <label for="product-name" class="form-label required-field">产品名称</label>
@@ -271,7 +271,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- 产品类别 -->
                     <div class="col-md-6 mb-3">
                         <label for="category" class="form-label">产品类别</label>
@@ -280,7 +280,7 @@
                             <!-- 类别选项将通过JavaScript动态加载 -->
                         </select>
                     </div>
-                    
+
                     <!-- 产品型号 -->
                     <div class="col-md-6 mb-3">
                         <label for="model" class="form-label required-field">产品型号</label>
@@ -291,7 +291,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- 产品MN号 -->
                     <div class="col-md-6 mb-3">
                         <label for="product-mn" class="form-label required-field">产品MN号</label>
@@ -305,13 +305,13 @@
                         <small class="text-muted">MN号必须唯一</small>
                     </div>
                 </div>
-                
+
                 <!-- 规格与价格 -->
                 <div class="row mb-4">
                     <div class="col-md-12">
                         <h6 class="border-bottom pb-2">规格与价格</h6>
                     </div>
-                    
+
                     <!-- 产品类型 -->
                     <div class="col-md-6 mb-3">
                         <label for="type" class="form-label">产品类型</label>
@@ -322,7 +322,7 @@
                             <option value="第三方产品">第三方产品</option>
                         </select>
                     </div>
-                    
+
                     <!-- 品牌 -->
                     <div class="col-md-6 mb-3">
                         <label for="brand" class="form-label">品牌</label>
@@ -332,7 +332,7 @@
                         </datalist>
                         <div class="invalid-feedback">请选择或输入品牌</div>
                     </div>
-                    
+
                     <!-- 单位 -->
                     <div class="col-md-6 mb-3">
                         <label for="unit" class="form-label">单位</label>
@@ -341,13 +341,13 @@
                             <!-- 单位选项将通过JavaScript动态加载 -->
                         </select>
                     </div>
-                    
+
                     <!-- 市场价格 -->
                     <div class="col-md-6 mb-3">
                         <label for="retail-price" class="form-label">市场价格</label>
                         <input type="number" class="form-control" id="retail-price" name="retail_price" placeholder="0.00" step="0.01" min="0" {% if product %}value="{{ product.retail_price }}"{% endif %}>
                     </div>
-                    
+
                     <!-- 生产状态 - 使用选择框 -->
                     <div class="col-md-6 mb-3">
                         <label for="status" class="form-label">生产状态</label>
@@ -361,13 +361,13 @@
                         {% endif %}
                     </div>
                 </div>
-                
+
                 <!-- 规格说明 -->
                 <div class="col-md-12 mb-3">
                     <label for="specification" class="form-label">规格说明</label>
                     <textarea class="form-control" id="specification" name="specification" rows="3" placeholder="产品规格说明">{% if product %}{{ product.specification }}{% endif %}</textarea>
                 </div>
-                
+
                 <!-- 按钮工具栏 -->
                 <div class="btn-toolbar">
                     <button type="submit" class="btn btn-primary">
@@ -381,7 +381,7 @@
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock content %}
 
 {% block scripts %}
 {{ super() }}
@@ -397,7 +397,7 @@
     let originalProductData = {}; // 保存原始产品数据
     let apiLoadCount = 0; // API加载计数器
     const totalApiToLoad = 3; // 需要加载的API总数：类别、单位、品牌
-    
+
     // 保存原始数据函数
     function saveOriginalData() {
         const productId = document.getElementById('product-id');
@@ -417,7 +417,7 @@
             console.log("所有API加载完成，原始数据已保存:", originalProductData);
         }
     }
-    
+
     // 检查API是否全部加载完成
     function checkApiLoaded() {
         apiLoadCount++;
@@ -427,27 +427,27 @@
             saveOriginalData();
         }
     }
-    
+
     // 页面加载完成后执行
     document.addEventListener('DOMContentLoaded', function() {
         // 加载类别数据
         loadCategories();
-        
+
         // 加载单位数据
         loadUnits();
-        
+
         // 加载产品类型数据
         loadTypes();
-        
+
         // 加载品牌数据
         loadBrands();
-        
+
         // 绑定产品名称输入框事件
         const productNameInput = document.getElementById('product-name');
         productNameInput.addEventListener('focus', function() {
             document.getElementById('category-list').classList.add('show');
         });
-        
+
         productNameInput.addEventListener('input', function() {
             // 如果用户输入了内容，暂时隐藏下拉列表
             const categoryList = document.getElementById('category-list');
@@ -457,7 +457,7 @@
                 categoryList.classList.add('show');
             }
         });
-        
+
         // 绑定型号输入框事件
         const modelInput = document.getElementById('model');
         modelInput.addEventListener('click', function() {
@@ -472,7 +472,7 @@
                 }
             }
         });
-        
+
         // 焦点事件修改为不自动显示下拉菜单
         modelInput.addEventListener('focus', function(e) {
             // 如果是通过点击获得焦点，则已经由click事件处理
@@ -485,12 +485,12 @@
                 }
             }
         });
-        
+
         modelInput.addEventListener('input', function() {
             // 隐藏下拉列表
             document.getElementById('model-list').classList.remove('show');
         });
-        
+
         // 绑定MN号输入框事件
         const mnInput = document.getElementById('product-mn');
         mnInput.addEventListener('input', function() {
@@ -498,42 +498,42 @@
             if (mnCheckTimeout) {
                 clearTimeout(mnCheckTimeout);
             }
-            
+
             // 设置延时，避免频繁请求
             mnCheckTimeout = setTimeout(function() {
                 checkMnAvailability();
             }, 500);
         });
-        
+
         // 绑定生成MN号按钮事件
         document.getElementById('generate-mn').addEventListener('click', function() {
             // 简单实现：生成随机MN号
             // 实际项目中，可能需要调用特定的API或算法
             const randomMn = 'MN' + Date.now().toString().slice(-8) + Math.floor(Math.random() * 1000).toString().padStart(3, '0');
             document.getElementById('product-mn').value = randomMn;
-            
+
             // 检查MN号是否可用
             checkMnAvailability();
         });
-        
+
         // 处理表单提交
         $('#product-form').on('submit', function(e) {
             e.preventDefault();
-            
+
             // 显示加载状态
             showLoading();
-            
+
             // 清除所有错误提示
             $('.is-invalid').removeClass('is-invalid');
             $('.invalid-feedback').hide();
-            
+
             // 创建FormData对象，用于文件上传
             const formData = new FormData(this);
-            
+
             // 添加调试日志
             console.log('表单提交开始');
             console.log('生产状态:', $('#status').val());
-            
+
             // 检查是否有图片上传
             const imageFile = $('#product-image')[0].files[0];
             if (imageFile) {
@@ -541,7 +541,7 @@
             } else {
                 console.log('没有新图片上传');
             }
-            
+
             // 如果是编辑模式，设置更新API的URL
             let url = '/api/products/create';
             if ($('#product-id').length > 0) {
@@ -549,7 +549,7 @@
                 url = `/api/products/${productId}/update`;
                 console.log('编辑模式，产品ID:', productId);
             }
-            
+
             // 发送请求
             $.ajax({
                 url: url,
@@ -562,7 +562,7 @@
                     if (response.success) {
                         // 显示成功消息
                         showMessage('success', response.message);
-                        
+
                         // 如果是创建操作，清空表单
                         if (!$('#product-id').length) {
                             resetForm();
@@ -587,7 +587,7 @@
                     } catch (e) {
                         console.error('解析错误响应失败:', e);
                     }
-                    
+
                     showMessage('error', errorMessage);
                 },
                 complete: function() {
@@ -596,7 +596,7 @@
                 }
             });
         });
-        
+
         // 如果是编辑模式，初始化相关数据
         const productId = document.getElementById('product-id');
         if (productId) {
@@ -613,15 +613,15 @@
                 status: document.getElementById('status').value,
                 specification: document.getElementById('specification').value
             };
-            
+
             // 仅加载型号数据，但不显示下拉菜单
             const showDropdown = false;
             loadModelsByProductName(document.getElementById('product-name').value, showDropdown);
-            
+
             // 检查MN号是否有效
             checkMnAvailability();
         }
-        
+
         // 点击页面其他位置关闭下拉列表
         document.addEventListener('click', function(e) {
             if (!e.target.closest('.product-dropdown-container')) {
@@ -629,11 +629,11 @@
                 document.getElementById('model-list').classList.remove('show');
             }
         });
-        
+
         // 初始化图片上传
         initImageUpload();
     });
-    
+
     // 加载产品类别
     function loadCategories() {
         fetch('/api/products/categories')
@@ -647,7 +647,7 @@
                 // 定义类别的自定义顺序（与服务器端保持一致，作为备份）
                 const categoryOrder = {
                     '基站': 1,
-                    '合路平台': 2, 
+                    '合路平台': 2,
                     '直放站': 3,
                     '天线': 4,
                     '功率分配器': 5,
@@ -657,46 +657,46 @@
                     '应用': 9,
                     '服务': 10
                 };
-                
+
                 // 再次排序以确保顺序正确（以防服务器端排序失败）
                 categories = data.sort((a, b) => {
                     const orderA = categoryOrder[a] || 999;
                     const orderB = categoryOrder[b] || 999;
                     return orderA - orderB;
                 });
-                
+
                 // 渲染产品名称下拉列表的类别部分
                 renderCategoryList();
-                
+
                 // 填充类别下拉框
                 const categorySelect = document.getElementById('category');
                 const firstOption = categorySelect.options[0];
                 categorySelect.innerHTML = '';
                 categorySelect.appendChild(firstOption);
-                
+
                 // 当前选择的类别（如果是编辑模式）
                 const currentCategory = '{{ product.category if product else "" }}';
-                
+
                 // 添加从服务器获取的类别选项
                 categories.forEach(category => {
                     const option = document.createElement('option');
                     option.value = category;
                     option.textContent = category;
-                    
+
                     // 如果是编辑模式，检查是否需要选中
                     if (currentCategory === category) {
                         option.selected = true;
                     }
-                    
+
                     categorySelect.appendChild(option);
                 });
-                
+
                 // 添加类别选择变更事件
                 categorySelect.addEventListener('change', function() {
                     // 产品类别选择变更时，不会影响产品名称的内容
                     // 可以在此添加其他处理逻辑
                 });
-                
+
                 checkApiLoaded();
             })
             .catch(error => {
@@ -704,7 +704,7 @@
                 document.getElementById('category-list').innerHTML = '<div class="p-3 text-danger">加载类别失败</div>';
             });
     }
-    
+
     // 加载产品单位
     function loadUnits() {
         fetch('/api/products/units')
@@ -720,24 +720,24 @@
                 const firstOption = unitSelect.options[0];
                 unitSelect.innerHTML = '';
                 unitSelect.appendChild(firstOption);
-                
+
                 // 当前选择的单位（如果是编辑模式）
                 const currentUnit = '{{ product.unit if product else "" }}';
-                
+
                 // 添加从服务器获取的单位选项
                 data.forEach(unit => {
                     const option = document.createElement('option');
                     option.value = unit;
                     option.textContent = unit;
-                    
+
                     // 如果是编辑模式，检查是否需要选中
                     if (currentUnit === unit) {
                         option.selected = true;
                     }
-                    
+
                     unitSelect.appendChild(option);
                 });
-                
+
                 checkApiLoaded();
             })
             .catch(error => {
@@ -749,7 +749,7 @@
                 unitSelect.appendChild(firstOption);
             });
     }
-    
+
     // 加载产品类型
     function loadTypes() {
         // 如果是编辑模式，设置产品类型选中状态
@@ -763,10 +763,10 @@
                 }
             }
         }
-        
+
         checkApiLoaded();
     }
-    
+
     // 加载产品品牌列表
     function loadBrands() {
         fetch('/api/products/brands')
@@ -779,62 +779,62 @@
             .then(data => {
                 const brandList = document.getElementById('brand-list');
                 brandList.innerHTML = '';
-                
+
                 // 添加从服务器获取的品牌选项
                 data.forEach(brand => {
                     const option = document.createElement('option');
                     option.value = brand;
                     brandList.appendChild(option);
                 });
-                
+
                 console.log(`成功加载 ${data.length} 个品牌选项`);
-                
+
                 checkApiLoaded();
             })
             .catch(error => {
                 console.error('加载产品品牌失败:', error);
             });
     }
-    
+
     // 渲染类别列表
     function renderCategoryList() {
         const categoryList = document.getElementById('category-list');
         categoryList.innerHTML = '';
-        
+
         categories.forEach(category => {
             const categoryItem = document.createElement('div');
             categoryItem.className = 'category-item';
             categoryItem.textContent = category;
             categoryItem.setAttribute('data-category', category);
-            
+
             // 添加产品名称列表容器
             const productNameList = document.createElement('div');
             productNameList.className = 'product-name-list';
             productNameList.id = `product-names-${category.replace(/\s+/g, '-')}`;
-            
+
             // 点击类别时加载产品名称
             categoryItem.addEventListener('click', function(e) {
                 e.stopPropagation();
-                
+
                 // 切换显示产品名称列表
                 const isActive = this.classList.contains('active');
                 document.querySelectorAll('.category-item').forEach(item => {
                     item.classList.remove('active');
                     document.getElementById(`product-names-${item.getAttribute('data-category').replace(/\s+/g, '-')}`).classList.remove('show');
                 });
-                
+
                 if (!isActive) {
                     this.classList.add('active');
                     productNameList.classList.add('show');
                     loadProductNamesByCategory(category);
                 }
             });
-            
+
             categoryItem.appendChild(productNameList);
             categoryList.appendChild(categoryItem);
         });
     }
-    
+
     // 加载指定类别的产品名称
     function loadProductNamesByCategory(category) {
         // 如果已缓存该类别的产品名称，直接使用
@@ -842,7 +842,7 @@
             renderProductNameList(category, productNamesByCategory[category]);
             return;
         }
-        
+
         // 否则从服务器获取
         fetch(`/api/products/by-category?category=${encodeURIComponent(category)}`)
             .then(response => response.json())
@@ -854,12 +854,12 @@
                 console.error(`加载类别 "${category}" 的产品名称失败:`, error);
             });
     }
-    
+
     // 渲染产品名称列表
     function renderProductNameList(category, productNames) {
         const productNameList = document.getElementById(`product-names-${category.replace(/\s+/g, '-')}`);
         productNameList.innerHTML = '';
-        
+
         if (productNames.length === 0) {
             const emptyItem = document.createElement('div');
             emptyItem.className = 'product-name-item';
@@ -867,23 +867,23 @@
             productNameList.appendChild(emptyItem);
             return;
         }
-        
+
         let isSelectingFromDropdown = false;
-        
+
         productNames.forEach(productName => {
             const productNameItem = document.createElement('div');
             productNameItem.className = 'product-name-item';
             productNameItem.textContent = productName;
-            
+
             // 点击产品名称时更新输入框
             productNameItem.addEventListener('click', function(e) {
                 e.stopPropagation();
-                
+
                 isSelectingFromDropdown = true;
-                
+
                 // 更新产品名称输入框
                 document.getElementById('product-name').value = productName;
-                
+
                 // 更新产品类别下拉框
                 const categorySelect = document.getElementById('category');
                 for (let i = 0; i < categorySelect.options.length; i++) {
@@ -892,25 +892,25 @@
                         break;
                     }
                 }
-                
+
                 // 隐藏下拉列表
                 document.getElementById('category-list').classList.remove('show');
-                
+
                 // 加载对应的产品型号数据，但不显示下拉菜单
                 loadModelsByProductName(productName, false);
-                
+
                 // 自动聚焦到型号输入框，但不展开下拉菜单
                 setTimeout(() => {
                     document.getElementById('model').focus();
                 }, 100);
-                
+
                 isSelectingFromDropdown = false;
             });
-            
+
             productNameList.appendChild(productNameItem);
         });
     }
-    
+
     // 加载指定产品名称的型号
     function loadModelsByProductName(productName, showDropdown = false) {
         // 如果产品名称为空，清空型号列表
@@ -919,20 +919,20 @@
             document.getElementById('model-list').classList.remove('show');
             return;
         }
-        
+
         // 如果已缓存该产品名称的型号，直接使用
         if (modelsByProductName[productName]) {
             renderModelList(modelsByProductName[productName], showDropdown);
             return;
         }
-        
+
         // 否则从服务器获取
         fetch(`/api/products/by-name?product_name=${encodeURIComponent(productName)}`)
             .then(response => response.json())
             .then(data => {
                 modelsByProductName[productName] = data;
                 renderModelList(data, showDropdown);
-                
+
                 // 确保型号输入框获得焦点
                 setTimeout(() => {
                     document.getElementById('model').focus();
@@ -942,41 +942,41 @@
                 console.error(`加载产品 "${productName}" 的型号失败:`, error);
             });
     }
-    
+
     // 渲染型号列表
     function renderModelList(models, shouldShow = false) {
         const modelList = document.getElementById('model-list');
         modelList.innerHTML = '';
-        
+
         if (models.length === 0) {
             modelList.classList.remove('show');
             return;
         }
-        
+
         models.forEach(model => {
             const modelItem = document.createElement('div');
             modelItem.className = 'model-item';
             modelItem.textContent = model.model;
             modelItem.setAttribute('data-model', JSON.stringify(model));
-            
+
             // 点击型号时更新输入框
             modelItem.addEventListener('click', function() {
                 const modelData = JSON.parse(this.getAttribute('data-model'));
-                
+
                 // 只更新型号和MN号
                 document.getElementById('model').value = modelData.model;
                 document.getElementById('product-mn').value = modelData.product_mn;
-                
+
                 // 隐藏下拉列表
                 modelList.classList.remove('show');
-                
+
                 // 检查MN号是否有效
                 setTimeout(checkMnAvailability, 100);
             });
-            
+
             modelList.appendChild(modelItem);
         });
-        
+
         // 只有在shouldShow为true时才显示下拉菜单
         if (shouldShow) {
             modelList.classList.add('show');
@@ -984,33 +984,33 @@
             modelList.classList.remove('show');
         }
     }
-    
+
     // 检查MN号是否可用
     function checkMnAvailability() {
         const mnInput = document.getElementById('product-mn');
         const mnErrorMessage = document.getElementById('mn-error-message');
         const mn = mnInput.value.trim();
-        
+
         // 清除之前的反馈
         mnErrorMessage.textContent = '';
         mnInput.style.color = '';
         mnInput.style.borderColor = '';
-        
+
         // 如果MN号为空，直接返回
         if (!mn) {
             isMnValid = false;
             return;
         }
-        
+
         // 构建请求URL
         let url = `/api/products/check-mn?product_mn=${encodeURIComponent(mn)}`;
-        
+
         // 如果是编辑模式，需要排除当前产品
         const productId = document.getElementById('product-id');
         if (productId) {
             url += `&exclude_id=${productId.value}`;
         }
-        
+
         // 发送请求
         fetch(url)
             .then(response => response.json())
@@ -1033,24 +1033,24 @@
                 isMnValid = false;
             });
     }
-    
+
     // 比较产品数据，返回变更的字段及其旧值和新值
     function compareProductData(oldData, newData) {
         const changes = {};
-        
+
         for (const field in newData) {
             // 处理retail_price字段为数值比较
             if (field === 'retail_price') {
                 const oldValue = parseFloat(oldData[field]) || 0;
                 const newValue = parseFloat(newData[field]) || 0;
-                
+
                 if (Math.abs(oldValue - newValue) > 0.01) {  // 考虑浮点数精度问题
                     changes[field] = {
                         old: oldValue.toFixed(2),
                         new: newValue.toFixed(2)
                     };
                 }
-            } 
+            }
             // 特殊处理状态字段
             else if (field === 'status') {
                 if (oldData[field] !== newData[field]) {
@@ -1069,7 +1069,7 @@
             else {
                 const oldValue = oldData[field] || '';
                 const newValue = newData[field] || '';
-                
+
                 // 只有当两个值真正不同时才记录变更
                 // 不将空字符串和未定义值视为不同
                 if (oldValue.trim() !== newValue.trim()) {
@@ -1084,11 +1084,11 @@
                 }
             }
         }
-        
+
         console.log("变更字段:", Object.keys(changes));
         return changes;
     }
-    
+
     // 获取字段的中文显示名称
     function getFieldDisplayName(field) {
         const fieldNames = {
@@ -1103,10 +1103,10 @@
             'status': '生产状态',
             'specification': '规格说明'
         };
-        
+
         return fieldNames[field] || field;
     }
-    
+
     // 初始化图片上传组件
     function initImageUpload() {
         const previewContainer = document.getElementById('image-preview-container');
@@ -1115,59 +1115,59 @@
         const fileInput = document.getElementById('product-image');
         const uploadBtn = document.getElementById('upload-image-btn');
         const removeBtn = document.getElementById('remove-image-btn');
-        
+
         // 点击预览区域触发文件选择
         previewContainer.addEventListener('click', function() {
             fileInput.click();
         });
-        
+
         // 点击上传按钮触发文件选择
         uploadBtn.addEventListener('click', function(e) {
             e.preventDefault();
             fileInput.click();
         });
-        
+
         // 文件拖放功能
         previewContainer.addEventListener('dragover', function(e) {
             e.preventDefault();
             previewContainer.style.borderColor = '#007bff';
         });
-        
+
         previewContainer.addEventListener('dragleave', function() {
             previewContainer.style.borderColor = '#ced4da';
         });
-        
+
         previewContainer.addEventListener('drop', function(e) {
             e.preventDefault();
             previewContainer.style.borderColor = '#ced4da';
-            
+
             if (e.dataTransfer.files.length) {
                 fileInput.files = e.dataTransfer.files;
                 handleFileSelect();
             }
         });
-        
+
         // 文件选择处理
         fileInput.addEventListener('change', handleFileSelect);
-        
+
         function handleFileSelect() {
             if (fileInput.files && fileInput.files[0]) {
                 const file = fileInput.files[0];
-                
+
                 // 检查文件类型
                 if (!file.type.match('image.*')) {
                     alert('请选择图片文件（JPG、PNG）');
                     return;
                 }
-                
+
                 // 检查文件大小（最大5MB）
                 if (file.size > 5 * 1024 * 1024) {
                     alert('图片大小不能超过5MB');
                     return;
                 }
-                
+
                 const reader = new FileReader();
-                
+
                 reader.onload = function(e) {
                     // 显示预览图
                     imagePreview.src = e.target.result;
@@ -1175,38 +1175,38 @@
                     imagePlaceholder.style.display = 'none';
                     removeBtn.style.display = 'block';
                 };
-                
+
                 reader.readAsDataURL(file);
             }
         }
-        
+
         // 移除图片
         removeBtn.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation(); // 防止触发容器的点击事件
-            
+
             // 清除文件输入
             fileInput.value = '';
-            
+
             // 隐藏预览，显示占位符
             imagePreview.src = '';
             imagePreview.style.display = 'none';
             imagePlaceholder.style.display = 'flex';
             removeBtn.style.display = 'none';
-            
+
             // 如果是编辑模式，添加标记以便服务器知道要删除图片
             if (document.getElementById('product-id')) {
                 const removeImageFlag = document.createElement('input');
                 removeImageFlag.type = 'hidden';
                 removeImageFlag.name = 'remove_image';
                 removeImageFlag.value = 'true';
-                
+
                 // 移除已存在的标记（如果有）
                 const existingFlag = document.querySelector('input[name="remove_image"]');
                 if (existingFlag) {
                     existingFlag.parentNode.removeChild(existingFlag);
                 }
-                
+
                 document.getElementById('product-form').appendChild(removeImageFlag);
             }
         });
@@ -1217,7 +1217,7 @@
         // 添加加载遮罩
         if ($('#loading-overlay').length === 0) {
             $('body').append(`
-                <div id="loading-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                <div id="loading-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%;
                     background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center;">
                     <div class="spinner-border text-light" role="status">
                         <span class="visually-hidden">加载中...</span>
@@ -1236,20 +1236,20 @@
     function showMessage(type, message) {
         // 移除已有的消息
         $('.alert-message').remove();
-        
+
         // 创建消息元素
         const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
         const alertIcon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
-        
+
         const alertHtml = `
             <div class="alert ${alertClass} alert-message" style="position: fixed; top: 20px; right: 20px; z-index: 9999; max-width: 300px;">
                 <i class="fas ${alertIcon} me-2"></i> ${message}
             </div>
         `;
-        
+
         // 显示消息
         $('body').append(alertHtml);
-        
+
         // 3秒后自动隐藏
         setTimeout(() => {
             $('.alert-message').fadeOut('slow', function() {
@@ -1261,14 +1261,14 @@
     function resetForm() {
         // 重置表单
         $('#product-form')[0].reset();
-        
+
         // 清除图片预览
         $('#image-preview').attr('src', '').hide();
         $('.image-placeholder').show();
         $('#remove-image-btn').hide();
-        
+
         // 将焦点设置到第一个输入框
         $('#product-name').focus();
     }
 </script>
-{% endblock %} 
+{% endblock scripts %}

@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}数据归属关系管理 - {{ target_user.username }}{% endblock %}
+{% block title %}数据归属关系管理 - {{ target_user.username }}{% endblock title %}
 
 {% block content %}
 <div class="container-fluid mt-4">
@@ -16,10 +16,10 @@
 
     <h2 class="mb-4">数据归属权限设置 - {{ target_user.username }}</h2>
     <p class="text-muted">在此页面您可以设置该用户能够查看哪些其他用户的数据。注意：用户只能查看这些数据，不能编辑或删除。</p>
-    
+
     <!-- 调试信息区域 -->
     <div id="debugInfo" class="mb-3"></div>
-    
+
     <div class="row">
         <!-- 左侧：可选用户列表 -->
         <div class="col-md-5">
@@ -58,7 +58,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- 中间：箭头 -->
         <div class="col-md-2 d-flex justify-content-center align-items-center">
             <div class="text-center">
@@ -66,7 +66,7 @@
                 <p class="text-muted">添加或移除用户</p>
             </div>
         </div>
-        
+
         <!-- 右侧：已选用户列表 -->
         <div class="col-md-5">
             <div class="card">
@@ -105,7 +105,7 @@
             </div>
         </div>
     </div>
-    
+
     <!-- 保存按钮 -->
     <div class="row mt-4">
         <div class="col-12 text-center">
@@ -115,7 +115,7 @@
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock content %}
 
 {% block scripts %}
 <script>
@@ -124,14 +124,14 @@
         var selectedUsers = [];
         var api_base = '{{ request.host_url.rstrip("/") + "/api/v1" }}';
         var user_id = "{{ target_user.id }}"; // 确保user_id是字符串
-        
+
         // 添加调试日志
         console.log('页面加载完成，配置信息:', {
             'API基础URL': api_base,
             '目标用户ID': user_id,
             'JWT令牌存在': Boolean('{{ session.get("jwt_token", "") }}')
         });
-        
+
         // 检查JWT令牌是否有效
         function checkJwtValidity() {
             var token = '{{ session.get("jwt_token", "") }}';
@@ -140,7 +140,7 @@
                 $('#debugInfo').html('<div class="alert alert-danger">身份验证失败: JWT令牌不存在，请<a href="/auth/login">重新登录</a></div>');
                 return false;
             }
-            
+
             // 简单解析JWT令牌结构
             var parts = token.split('.');
             if (parts.length !== 3) {
@@ -148,26 +148,26 @@
                 $('#debugInfo').html('<div class="alert alert-danger">JWT令牌格式无效</div>');
                 return false;
             }
-            
+
             try {
                 // 解码JWT负载部分
                 var payload = JSON.parse(atob(parts[1]));
                 var expiration = new Date(payload.exp * 1000);
                 var now = new Date();
                 var isExpired = now > expiration;
-                
+
                 console.log('JWT令牌信息:', {
                     '过期时间': expiration.toLocaleString(),
                     '当前时间': now.toLocaleString(),
                     '是否过期': isExpired,
                     'subject类型': typeof payload.sub
                 });
-                
+
                 if (isExpired) {
                     $('#debugInfo').html('<div class="alert alert-warning">JWT令牌已过期，请<a href="/auth/login">重新登录</a></div>');
                     return false;
                 }
-                
+
                 return true;
             } catch (e) {
                 console.error('解析JWT令牌失败:', e);
@@ -175,10 +175,10 @@
                 return false;
             }
         }
-        
+
         // 页面加载时检查JWT有效性
         checkJwtValidity();
-        
+
         // 获取JWT令牌
         function getAuthHeader() {
             var token = '{{ session.get("jwt_token", "") }}';
@@ -190,7 +190,7 @@
                 'X-CSRFToken': '{{ csrf_token() }}'
             };
         }
-        
+
         // 加载可用用户
         function loadAvailableUsers() {
             $('#availableUsersList').html('<li class="list-group-item text-center"><i class="fa fa-spinner fa-spin"></i> 正在加载可用用户...</li>');
@@ -221,7 +221,7 @@
                 }
             });
         }
-        
+
         // 加载已选用户
         function loadSelectedUsers() {
             $('#selectedUsersList').html('<li class="list-group-item text-center"><i class="fa fa-spinner fa-spin"></i> 正在加载已选用户...</li>');
@@ -253,35 +253,35 @@
                 }
             });
         }
-        
+
         // 渲染可用用户列表
         function renderAvailableUsers(searchTerm) {
             if (!searchTerm) searchTerm = '';
             var $list = $('#availableUsersList');
             $list.empty();
-            
+
             // 过滤不在已选列表中的用户
             var filteredUsers = availableUsers.filter(function(user) {
                 return !selectedUsers.some(function(selected) {
                     return selected.user_id === user.id;
                 });
             });
-            
+
             // 应用搜索过滤
             if (searchTerm) {
                 searchTerm = searchTerm.toLowerCase();
                 filteredUsers = filteredUsers.filter(function(user) {
-                    return user.username.toLowerCase().includes(searchTerm) || 
+                    return user.username.toLowerCase().includes(searchTerm) ||
                         (user.real_name && user.real_name.toLowerCase().includes(searchTerm)) ||
                         (user.role && user.role.toLowerCase().includes(searchTerm));
                 });
             }
-            
+
             if (filteredUsers.length === 0) {
                 $list.append('<li class="list-group-item text-center text-muted">没有可选的用户</li>');
                 return;
             }
-            
+
             // 按角色和用户名排序
             filteredUsers.sort(function(a, b) {
                 if (a.role !== b.role) {
@@ -289,7 +289,7 @@
                 }
                 return a.username.localeCompare(b.username);
             });
-            
+
             filteredUsers.forEach(function(user) {
                 var item = '<li class="list-group-item">' +
                     '<div class="form-check">' +
@@ -305,29 +305,29 @@
                 $list.append(item);
             });
         }
-        
+
         // 渲染已选用户列表
         function renderSelectedUsers(searchTerm) {
             if (!searchTerm) searchTerm = '';
             var $list = $('#selectedUsersList');
             $list.empty();
-            
+
             // 应用搜索过滤
             var filteredUsers = selectedUsers;
             if (searchTerm) {
                 searchTerm = searchTerm.toLowerCase();
                 filteredUsers = filteredUsers.filter(function(user) {
-                    return user.username.toLowerCase().includes(searchTerm) || 
+                    return user.username.toLowerCase().includes(searchTerm) ||
                         (user.real_name && user.real_name.toLowerCase().includes(searchTerm)) ||
                         (user.role && user.role.toLowerCase().includes(searchTerm));
                 });
             }
-            
+
             if (filteredUsers.length === 0) {
                 $list.append('<li class="list-group-item text-center text-muted">没有选择任何用户</li>');
                 return;
             }
-            
+
             // 按角色和用户名排序
             filteredUsers.sort(function(a, b) {
                 if (a.role !== b.role) {
@@ -335,7 +335,7 @@
                 }
                 return a.username.localeCompare(b.username);
             });
-            
+
             filteredUsers.forEach(function(user) {
                 var item = '<li class="list-group-item">' +
                     '<div class="form-check">' +
@@ -351,7 +351,7 @@
                 $list.append(item);
             });
         }
-        
+
         // 角色翻译
         function translateRole(role) {
             var roleMap = {
@@ -367,50 +367,50 @@
             };
             return roleMap[role] || role;
         }
-        
+
         // 搜索可用用户
         $('#btnSearchAvailable').click(function() {
             renderAvailableUsers($('#searchAvailable').val());
         });
-        
+
         $('#searchAvailable').keyup(function(e) {
             if (e.keyCode === 13) {
                 renderAvailableUsers($('#searchAvailable').val());
             }
         });
-        
+
         // 搜索已选用户
         $('#btnSearchSelected').click(function() {
             renderSelectedUsers($('#searchSelected').val());
         });
-        
+
         $('#searchSelected').keyup(function(e) {
             if (e.keyCode === 13) {
                 renderSelectedUsers($('#searchSelected').val());
             }
         });
-        
+
         // 全选/取消全选
         $('#selectAllAvailable').change(function() {
             $('.available-user-check').prop('checked', $(this).is(':checked'));
         });
-        
+
         $('#selectAllSelected').change(function() {
             $('.selected-user-check').prop('checked', $(this).is(':checked'));
         });
-        
+
         // 添加选中用户
         $('#btnAddUsers').click(function() {
             var selectedIds = [];
             $('.available-user-check:checked').each(function() {
                 selectedIds.push(parseInt($(this).val()));
             });
-            
+
             if (selectedIds.length === 0) {
                 alert('请选择要添加的用户');
                 return;
             }
-            
+
             // 从可用用户中找到选中的用户并添加到已选列表
             selectedIds.forEach(function(id) {
                 var user = availableUsers.find(function(u) {
@@ -426,56 +426,56 @@
                     });
                 }
             });
-            
+
             // 重新渲染两个列表
             renderAvailableUsers($('#searchAvailable').val());
             renderSelectedUsers($('#searchSelected').val());
-            
+
             // 取消全选
             $('#selectAllAvailable').prop('checked', false);
         });
-        
+
         // 移除选中用户
         $('#btnRemoveUsers').click(function() {
             var selectedIds = [];
             $('.selected-user-check:checked').each(function() {
                 selectedIds.push(parseInt($(this).val()));
             });
-            
+
             if (selectedIds.length === 0) {
                 alert('请选择要移除的用户');
                 return;
             }
-            
+
             // 从已选列表中移除选中的用户
             selectedUsers = selectedUsers.filter(function(user) {
                 return !selectedIds.includes(user.user_id);
             });
-            
+
             // 重新渲染两个列表
             renderAvailableUsers($('#searchAvailable').val());
             renderSelectedUsers($('#searchSelected').val());
-            
+
             // 取消全选
             $('#selectAllSelected').prop('checked', false);
         });
-        
+
         // 保存设置
         $('#btnSaveAffiliations').click(function() {
             // 获取所有已选用户的ID
             var ownerIds = selectedUsers.map(function(user) {
                 return user.user_id;
             });
-            
+
             console.log('准备保存数据归属关系:', ownerIds);
             $('#btnSaveAffiliations').prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> 保存中...');
-            
+
             $.ajax({
                 url: api_base + '/affiliations/' + user_id + '/batch',
                 type: 'POST',
                 contentType: 'application/json',
                 headers: getAuthHeader(),
-                data: JSON.stringify({ 
+                data: JSON.stringify({
                     owner_ids: ownerIds,
                     csrf_token: '{{ csrf_token() }}'
                 }),
@@ -506,7 +506,7 @@
                 }
             });
         });
-        
+
         // 初始化加载
         function initializePage() {
             // 检查JWT有效性
@@ -517,22 +517,22 @@
                 $('#btnAddUsers, #btnRemoveUsers, #btnSaveAffiliations').prop('disabled', true);
                 return;
             }
-            
+
             // JWT有效，加载数据
             $('#availableUsersList').html('<li class="list-group-item text-center"><i class="fa fa-spinner fa-spin"></i> 正在加载可用用户...</li>');
             $('#selectedUsersList').html('<li class="list-group-item text-center"><i class="fa fa-spinner fa-spin"></i> 正在加载已选用户...</li>');
-            
+
             // 先加载已选择的用户
             loadSelectedUsers();
-            
+
             // 然后加载可用用户
             setTimeout(function() {
                 loadAvailableUsers();
             }, 500); // 稍微延迟加载可用用户，避免并发请求可能导致的问题
         }
-        
+
         // 开始初始化
         initializePage();
     });
 </script>
-{% endblock %} 
+{% endblock scripts %}

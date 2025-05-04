@@ -1581,3 +1581,70 @@ def add_action_api(contact_id):
         traceback_str = traceback.format_exc()
         print(f"添加行动记录出错: {str(e)}\n{traceback_str}")
         return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500 
+
+@customer.route('/api/contacts/<int:contact_id>/add_action', methods=['POST'])
+@permission_required('customer', 'create')
+def add_action_api(contact_id):
+    """通过API添加行动记录"""
+    try:
+        contact = Contact.query.get_or_404(contact_id)
+        company = contact.company
+        
+        # 检查请求是否包含JSON数据
+        if not request.is_json:
+            return jsonify({'success': False, 'message': '请求必须是JSON格式'}), 400
+            
+        data = request.json
+        
+        # 验证必填字段
+        if not data.get('communication'):
+            return jsonify({'success': False, 'message': '沟通情况不能为空'}), 400
+            
+        if not data.get('date'):
+            return jsonify({'success': False, 'message': '日期不能为空'}), 400
+        
+        # 获取项目ID，如果未选择则设为None
+        project_id = data.get('project_id') or None
+        
+        try:
+            # 解析日期，支持ISO格式
+            action_date = datetime.fromisoformat(data['date'].replace('Z', '+00:00')).date()
+        except ValueError:
+            # 尝试标准格式
+            action_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+        
+        action = Action(
+            date=action_date,
+            contact_id=contact.id,
+            company_id=company.id,
+            project_id=project_id,
+            communication=data['communication'],
+            owner_id=current_user.id
+        )
+        
+        db.session.add(action)
+        db.session.commit()
+        
+        # 返回成功信息和新创建的行动记录信息
+        return jsonify({
+            'success': True, 
+            'message': '行动记录添加成功',
+            'data': {
+                'id': action.id,
+                'date': action.date.isoformat(),
+                'contact_name': contact.name,
+                'contact_id': contact.id,
+                'company_name': company.company_name,
+                'company_id': company.id,
+                'project_id': action.project_id,
+                'communication': action.communication,
+                'owner_id': action.owner_id
+            }
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        traceback_str = traceback.format_exc()
+        print(f"添加行动记录出错: {str(e)}\n{traceback_str}")
+        return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500 

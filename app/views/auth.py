@@ -41,6 +41,7 @@ def login():
         
         # 验证用户名和密码
         if user and user.check_password(password):
+            # 用户验证成功，无需再检查is_active
             login_user(user, remember=remember)
             
             # 生成JWT令牌
@@ -327,4 +328,5 @@ def wechat_callback():
     # 3. 更新或创建用户记录
     # 4. 设置登录状态
     
+    return redirect(url_for('main.index')) 
     return redirect(url_for('main.index')) 

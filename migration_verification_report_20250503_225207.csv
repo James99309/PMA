@@ -1,0 +1,23 @@
+表名,本地行数,Render行数,行数一致,结构一致,缺少列,多余列,类型不同的列,状态
+affiliations,0,0,✅,❌,"viewer_id, owner_id","updated_at, company_id, role, user_id",created_at,不一致
+alembic_version,1,1,✅,✅,,,,一致
+companies,98,98,✅,✅,,,,一致
+contacts,132,132,✅,✅,,,,一致
+data_affiliations,1,1,✅,✅,,,,一致
+dev_product_specs,75,75,✅,✅,,,,一致
+dev_products,5,5,✅,✅,,,,一致
+dictionaries,14,14,✅,✅,,,,一致
+permissions,18,18,✅,✅,,,,一致
+product_categories,8,8,✅,✅,,,,一致
+product_code_field_options,45,45,✅,✅,,,,一致
+product_code_field_values,0,0,✅,✅,,,,一致
+product_code_fields,43,43,✅,✅,,,,一致
+product_codes,0,0,✅,✅,,,,一致
+product_regions,8,8,✅,✅,,,,一致
+product_subcategories,60,60,✅,✅,,,,一致
+products,186,186,✅,❌,,,retail_price,不一致
+project_members,0,0,✅,✅,,,,一致
+projects,301,301,✅,✅,,,,一致
+quotation_details,943,943,✅,✅,,,,一致
+quotations,62,62,✅,✅,,,,一致
+users,17,17,✅,✅,,,,一致

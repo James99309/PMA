@@ -5,7 +5,7 @@ venv/
 # Python缓存文件
 __pycache__/
 *.py[cod]
-*$py.class
+*.class
 
 # 数据库文件
 *.db
@@ -56,4 +56,84 @@ media/
 # 构建输出
 dist/
 build/
-*.egg-info/ 
+*.egg-info/
+
+# Python缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 编辑器/IDE
+.vscode/
+.idea/
+*.swp
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 数据库和本地配置
+*.sqlite
+*.db
+*.bak
+.env
+
+# 备份和临时
+backups/
+tmp/
+*.tmp
+*.log
+*.csv
+*.json
+*.zip
+*.tar
+*.gz
+*.7z
+*.rar
+
+# 静态上传文件
+app/static/uploads/
+
+# 测试和个人脚本
+final_test.py
+login_test.py
+test_*.py
+*_test.py
+test_app_with_render.py
+check_user.py
+check_db_connection.py
+check_render_data.py
+verify_admin_login.py
+reset_admin_password.py
+
+# 迁移/导出中间产物
+db_export*.json
+complete_db_export.json
+complete_fix.py
+export_sqlite_data.py
+migrate_to_render.sh
+migrate_to_render_new.py
+migrate_data_to_render.py
+
+# 只保留主程序结构和必要文件
+# 保留run.py、app/、static/、templates/、migrations/、config.py
+
+# 允许覆盖规则
+!requirements.txt
+!run.py
+!config.py
+!wsgi.py
+!build.sh
+!update_build.sh
+!render.yaml
+!render_start.sh
+!render_startup_hook.py
+!render_migration.sh
+!render_migration_run.py
+!render_db_sync.py
+!sync_db_to_render.py
+!app/
+!migrations/
+!templates/
+!static/ 

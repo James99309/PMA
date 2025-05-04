@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}编辑产品名称{% endblock %}
+{% block title %}编辑产品名称{% endblock title %}
 
 {% block content %}
 <div class="container mt-4">
@@ -28,4 +28,4 @@
         <a href="{{ url_for('product_code.category_subcategories', id=subcategory.category_id) }}" class="btn btn-secondary">返回</a>
     </form>
 </div>
-{% endblock %} 
+{% endblock content %}

@@ -88,7 +88,7 @@
   {% if date %}
     {{ date.strftime(format) }}
   {% else %}
-    
+
   {% endif %}
 {% endmacro %}
 
@@ -96,7 +96,7 @@
   {% if datetime %}
     {{ datetime.strftime(format) }}
   {% else %}
-    
+
   {% endif %}
 {% endmacro %}
 
@@ -104,6 +104,6 @@
   {% if amount %}
     ￥{{ '{:,.2f}'.format(amount) }}
   {% else %}
-    
+
   {% endif %}
-{% endmacro %} 
+{% endmacro %}
