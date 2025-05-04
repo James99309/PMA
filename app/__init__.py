@@ -205,13 +205,13 @@ def create_app(config_class=Config):
         db.create_all()
         logger.info("数据库表创建成功")
             
-            # 版本检查
-            try:
-                from app.utils.version_check import update_version_check
-                update_version_check()
-                logger.info("应用版本检查完成")
-            except Exception as e:
-                logger.error(f"应用版本检查失败: {str(e)}")
+        # 版本检查
+        try:
+            from app.utils.version_check import update_version_check
+            update_version_check()
+            logger.info("应用版本检查完成")
+        except Exception as e:
+            logger.error(f"应用版本检查失败: {str(e)}")
         
         # 数据所有权初始化 - 已关闭
         '''
@@ -223,7 +223,7 @@ def create_app(config_class=Config):
             logger.error(f"数据所有权初始化失败: {str(e)}")
         '''
         logger.info("数据所有权初始化已被关闭")
-            
+        
         # 字典数据初始化 - 已关闭
         '''
         try:
