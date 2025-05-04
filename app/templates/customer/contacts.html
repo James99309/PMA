@@ -69,11 +69,12 @@
                                     <i class="fas fa-edit"></i>
                                 </a>
                                 <!-- 删除按钮，受数据归属影响 -->
-                                <button class="btn btn-sm btn-outline-danger" 
-                                        onclick="{% if company.owner_id == current_user.id or current_user.role == 'admin' %}deleteContact('{{ company.id }}', '{{ contact.id }}'){% else %}showPermissionError(){% endif %}"
-                                        {% if company.owner_id != current_user.id and current_user.role != 'admin' %}
-                                        disabled title="您没有权限删除此联系人"
-                                        {% endif %}>
+                                <button class="btn btn-sm btn-outline-danger"
+                                    {% if company.owner_id == current_user.id or current_user.role == 'admin' %}
+                                        onclick="deleteContact('{{ company.id }}', '{{ contact.id }}')"
+                                    {% else %}
+                                        onclick="showPermissionError()" disabled title="您没有权限删除此联系人"
+                                    {% endif %}>
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </td>

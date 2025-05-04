@@ -147,7 +147,7 @@ def view_company(company_id):
     # 获取公司的行动记录
     page = request.args.get('page', 1, type=int)
     query = Action.query.filter_by(company_id=company_id)
-    pagination = query.order_by(Action.date.desc()).paginate(
+    pagination = query.order_by(Action.created_at.desc()).paginate(
         page=page, per_page=10, error_out=False
     )
     actions = pagination.items
@@ -360,91 +360,62 @@ def delete_contact(company_id, contact_id):
         
     return redirect(url_for('customer.list_contacts', company_id=company_id))
 
-@customer.route('/contacts/<int:contact_id>/add_action', methods=['GET', 'POST'])
+@customer.route('/api/contacts/<int:contact_id>/add_action', methods=['POST'])
 @permission_required('customer', 'create')
-def add_action(contact_id):
-    contact = Contact.query.get_or_404(contact_id)
-    company = contact.company
-    
-    # 获取所有行动记录，按时间倒序排列，同时加载所有者信息
-    actions = Action.query.filter_by(contact_id=contact_id).order_by(Action.date.desc()).all()
-    
-    # 预加载所有行动记录的所有者信息
-    owner_ids = [action.owner_id for action in actions if action.owner_id]
-    if owner_ids:
-        owners = {user.id: user for user in User.query.filter(User.id.in_(owner_ids)).all()}
-        for action in actions:
-            if action.owner_id and action.owner_id in owners:
-                action.owner = owners[action.owner_id]
-    
-    action_count = len(actions)
-    
-    # 获取与该企业相关的项目
-    projects = Project.query.filter(
-        or_(
-            Project.end_user == company.company_name,
-            Project.design_issues.like(f'%{company.company_name}%'),
-            Project.contractor == company.company_name,
-            Project.system_integrator == company.company_name,
-            Project.dealer == company.company_name
-        )
-    ).all()
-    
-    if request.method == 'POST':
+def add_action_api(contact_id):
+    """通过API添加行动记录"""
+    try:
+        contact = Contact.query.get_or_404(contact_id)
+        company = contact.company
+        # 检查请求是否包含JSON数据
+        if not request.is_json:
+            return jsonify({'success': False, 'message': '请求必须是JSON格式'}), 400
+        data = request.json
+        # 验证必填字段
+        if not data.get('communication'):
+            return jsonify({'success': False, 'message': '沟通情况不能为空'}), 400
+        if not data.get('date'):
+            return jsonify({'success': False, 'message': '日期不能为空'}), 400
+        # 获取项目ID，如果未选择则设为None
+        project_id = data.get('project_id') or None
         try:
-            # 验证沟通情况是否填写
-            if not request.form.get('communication'):
-                flash('请填写沟通情况', 'danger')
-                return render_template('customer/add_action.html', contact=contact, company=company, 
-                                     projects=projects, actions=actions, action_count=action_count)
-            
-            # 获取项目ID，如果未选择则设为None
-            project_id = request.form.get('project_id') or None
-            
-            action = Action(
-                date=datetime.strptime(request.form['date'], '%Y-%m-%d').date(),
-                contact_id=contact.id,
-                company_id=company.id,
-                project_id=project_id,
-                communication=request.form['communication'],
-                owner_id=current_user.id
-            )
-            db.session.add(action)
-            db.session.commit()
-            flash('行动记录添加成功！', 'success')
-            return redirect(url_for('customer.list_contacts', company_id=company.id))
-        except Exception as e:
-            db.session.rollback()
-            flash('保存失败：' + str(e), 'danger')
-    
-    return render_template('customer/add_action.html', contact=contact, company=company, 
-                         projects=projects, actions=actions, action_count=action_count)
-
-@customer.route('/contacts/<int:contact_id>/view')
-@permission_required('customer', 'view')
-def view_contact(contact_id):
-    """查看联系人详情页面"""
-    contact = Contact.query.get_or_404(contact_id)
-    company = contact.company
-    
-    # 检查查看权限
-    allowed_user_ids = current_user.get_viewable_user_ids()
-    if current_user.role != 'admin' and contact.owner_id not in allowed_user_ids:
-        flash('您没有权限查看此联系人信息', 'danger')
-        return redirect(url_for('customer.view_company', company_id=company.id))
-    
-    # 获取该联系人的所有行动记录，按时间倒序排列
-    actions = Action.query.filter_by(contact_id=contact.id).order_by(Action.date.desc()).all()
-    
-    # 预加载所有行动记录的所有者信息
-    owner_ids = [action.owner_id for action in actions if action.owner_id]
-    if owner_ids:
-        owners = {user.id: user for user in User.query.filter(User.id.in_(owner_ids)).all()}
-        for action in actions:
-            if action.owner_id and action.owner_id in owners:
-                action.owner = owners[action.owner_id]
-    
-    return render_template('customer/contact_view.html', contact=contact, company=company, actions=actions)
+            # 解析日期，支持ISO格式
+            action_date = datetime.fromisoformat(data['date'].replace('Z', '+00:00')).date()
+        except ValueError:
+            # 尝试标准格式
+            action_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+        action = Action(
+            date=action_date,
+            contact_id=contact.id,
+            company_id=company.id,
+            project_id=project_id,
+            communication=data['communication'],
+            owner_id=current_user.id
+        )
+        db.session.add(action)
+        db.session.commit()
+        # 返回成功信息和新创建的行动记录信息
+        return jsonify({
+            'success': True, 
+            'message': '行动记录添加成功',
+            'data': {
+                'id': action.id,
+                'date': action.date.isoformat(),
+                'contact_name': contact.name,
+                'contact_id': contact.id,
+                'company_name': company.company_name,
+                'company_id': company.id,
+                'project_id': action.project_id,
+                'communication': action.communication,
+                'owner_id': action.owner_id
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        traceback_str = traceback.format_exc()
+        print(f"添加行动记录出错: {str(e)}\n{traceback_str}")
+        return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500
 
 @customer.route('/api/company/search')
 @permission_required('customer', 'view')
@@ -1515,136 +1486,48 @@ def delete_action_api(action_id):
         print(f"删除行动记录出错: {str(e)}\n{traceback_str}")
         return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500
 
-@customer.route('/api/contacts/<int:contact_id>/add_action', methods=['POST'])
-@permission_required('customer', 'create')
-def add_action_api(contact_id):
-    """通过API添加行动记录"""
-    try:
-        contact = Contact.query.get_or_404(contact_id)
-        company = contact.company
-        
-        # 检查请求是否包含JSON数据
-        if not request.is_json:
-            return jsonify({'success': False, 'message': '请求必须是JSON格式'}), 400
-            
-        data = request.json
-        
-        # 验证必填字段
-        if not data.get('communication'):
-            return jsonify({'success': False, 'message': '沟通情况不能为空'}), 400
-            
-        if not data.get('date'):
-            return jsonify({'success': False, 'message': '日期不能为空'}), 400
-        
-        # 获取项目ID，如果未选择则设为None
-        project_id = data.get('project_id') or None
-        
-        try:
-            # 解析日期，支持ISO格式
-            action_date = datetime.fromisoformat(data['date'].replace('Z', '+00:00')).date()
-        except ValueError:
-            # 尝试标准格式
-            action_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
-        
-        action = Action(
-            date=action_date,
-            contact_id=contact.id,
-            company_id=company.id,
-            project_id=project_id,
-            communication=data['communication'],
-            owner_id=current_user.id
-        )
-        
-        db.session.add(action)
-        db.session.commit()
-        
-        # 返回成功信息和新创建的行动记录信息
-        return jsonify({
-            'success': True, 
-            'message': '行动记录添加成功',
-            'data': {
-                'id': action.id,
-                'date': action.date.isoformat(),
-                'contact_name': contact.name,
-                'contact_id': contact.id,
-                'company_name': company.company_name,
-                'company_id': company.id,
-                'project_id': action.project_id,
-                'communication': action.communication,
-                'owner_id': action.owner_id
-            }
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        import traceback
-        traceback_str = traceback.format_exc()
-        print(f"添加行动记录出错: {str(e)}\n{traceback_str}")
-        return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500 
+@customer.route('/contacts/<int:contact_id>/view')
+@permission_required('customer', 'view')
+def view_contact(contact_id):
+    """查看联系人详情页面"""
+    contact = Contact.query.get_or_404(contact_id)
+    company = contact.company
 
-@customer.route('/api/contacts/<int:contact_id>/add_action', methods=['POST'])
+    # 检查查看权限
+    allowed_user_ids = current_user.get_viewable_user_ids()
+    if current_user.role != 'admin' and contact.owner_id not in allowed_user_ids:
+        flash('您没有权限查看此联系人信息', 'danger')
+        return redirect(url_for('customer.view_company', company_id=company.id))
+
+    # 获取该联系人的所有行动记录，按时间倒序排列
+    actions = Action.query.filter_by(contact_id=contact.id).order_by(Action.created_at.desc()).all()
+
+    # 预加载所有行动记录的所有者信息
+    owner_ids = [action.owner_id for action in actions if action.owner_id]
+    if owner_ids:
+        owners = {user.id: user for user in User.query.filter(User.id.in_(owner_ids)).all()}
+        for action in actions:
+            if action.owner_id and action.owner_id in owners:
+                action.owner = owners[action.owner_id]
+
+    return render_template('customer/contact_view.html', contact=contact, company=company, actions=actions)
+
+@customer.route('/contacts/<int:contact_id>/add_action', methods=['GET'])
 @permission_required('customer', 'create')
-def add_action_api(contact_id):
-    """通过API添加行动记录"""
-    try:
-        contact = Contact.query.get_or_404(contact_id)
-        company = contact.company
-        
-        # 检查请求是否包含JSON数据
-        if not request.is_json:
-            return jsonify({'success': False, 'message': '请求必须是JSON格式'}), 400
-            
-        data = request.json
-        
-        # 验证必填字段
-        if not data.get('communication'):
-            return jsonify({'success': False, 'message': '沟通情况不能为空'}), 400
-            
-        if not data.get('date'):
-            return jsonify({'success': False, 'message': '日期不能为空'}), 400
-        
-        # 获取项目ID，如果未选择则设为None
-        project_id = data.get('project_id') or None
-        
-        try:
-            # 解析日期，支持ISO格式
-            action_date = datetime.fromisoformat(data['date'].replace('Z', '+00:00')).date()
-        except ValueError:
-            # 尝试标准格式
-            action_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
-        
-        action = Action(
-            date=action_date,
-            contact_id=contact.id,
-            company_id=company.id,
-            project_id=project_id,
-            communication=data['communication'],
-            owner_id=current_user.id
+def add_action(contact_id):
+    contact = Contact.query.get_or_404(contact_id)
+    company = contact.company
+    # 可选：获取与公司相关的项目列表
+    projects = Project.query.filter(
+        or_(
+            Project.end_user == company.company_name,
+            Project.design_issues.like(f'%{company.company_name}%'),
+            Project.contractor == company.company_name,
+            Project.system_integrator == company.company_name,
+            Project.dealer == company.company_name
         )
-        
-        db.session.add(action)
-        db.session.commit()
-        
-        # 返回成功信息和新创建的行动记录信息
-        return jsonify({
-            'success': True, 
-            'message': '行动记录添加成功',
-            'data': {
-                'id': action.id,
-                'date': action.date.isoformat(),
-                'contact_name': contact.name,
-                'contact_id': contact.id,
-                'company_name': company.company_name,
-                'company_id': company.id,
-                'project_id': action.project_id,
-                'communication': action.communication,
-                'owner_id': action.owner_id
-            }
-        })
-        
-    except Exception as e:
-        db.session.rollback()
-        import traceback
-        traceback_str = traceback.format_exc()
-        print(f"添加行动记录出错: {str(e)}\n{traceback_str}")
-        return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500 
+    ).all()
+    # 新增：获取该联系人的历史行动记录，按时间倒序
+    actions = Action.query.filter_by(contact_id=contact.id).order_by(Action.created_at.desc()).all()
+    action_count = len(actions)
+    return render_template('customer/add_action.html', contact=contact, company=company, projects=projects, actions=actions, action_count=action_count) 
