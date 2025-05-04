@@ -350,11 +350,11 @@ def create_app(config_class=Config):
     app.jinja_env.filters['format_currency'] = format_currency
 
     # 导入并运行模板检查
-    try:
-        from app.check_templates import check_templates
-        # 检查并修复模板问题
-        check_templates()
-    except Exception as e:
-        app.logger.warning(f"模板检查时出错: {str(e)}")
+    # try:
+    #     from app.check_templates import check_templates
+    #     # 检查并修复模板问题
+    #     check_templates()
+    # except Exception as e:
+    #     app.logger.warning(f"模板检查时出错: {str(e)}")
 
     return app 
