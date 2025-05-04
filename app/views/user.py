@@ -25,61 +25,52 @@ def get_auth_headers():
 @user_bp.route('/list')
 @login_required
 def list_users():
-    """用户列表页面"""
-    # 获取API基础URL
-    api_url = f"{request.host_url.rstrip('/')}{API_BASE_URL}/users"
-    
-    # 尝试从API获取用户列表
+    """用户列表页面（带分页）"""
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
+    api_url = f"{request.host_url.rstrip('/')}" + f"{API_BASE_URL}/users?page={page}&per_page={per_page}"
     try:
-        # 使用JWT令牌认证
         headers = get_auth_headers()
         response = requests.get(api_url, headers=headers)
-        
-        # 添加JSON解析的异常处理
         try:
             data = response.json()
-            
             if response.status_code == 200 and data.get('success'):
                 users_data = data.get('data', {}).get('users', [])
                 total = data.get('data', {}).get('total', 0)
-                
+                # 构造伪分页对象
+                class Pagination:
+                    def __init__(self, page, per_page, total):
+                        self.page = page
+                        self.per_page = per_page
+                        self.total = total
+                        self.pages = (total + per_page - 1) // per_page
+                        self.has_prev = page > 1
+                        self.has_next = page < self.pages
+                        self.prev_num = page - 1
+                        self.next_num = page + 1
+                pagination = Pagination(page, per_page, total)
                 return render_template(
                     'user/list.html',
                     users=users_data,
-                    total=total
+                    total=total,
+                    pagination=pagination
                 )
         except json.JSONDecodeError as e:
             logger.error(f"JSON解析错误: {str(e)}")
-            # 如果JSON解析失败，继续执行下面的代码，从数据库获取数据
-            
-        # API请求失败，尝试直接从数据库获取
-        users = User.query.all()
-        users_data = [user.to_dict() for user in users]
-        
-        return render_template(
-            'user/list.html',
-            users=users_data,
-            total=len(users_data)
-        )
-            
+            # API请求失败，尝试直接从数据库获取
+            pass
     except Exception as e:
         logger.error(f"获取用户列表时出错: {str(e)}")
         flash('获取用户列表时发生错误，尝试直接从数据库获取', 'warning')
-        
-        # 直接从数据库获取
-        try:
-            users = User.query.all()
-            users_data = [user.to_dict() for user in users]
-            
-            return render_template(
-                'user/list.html',
-                users=users_data,
-                total=len(users_data)
-            )
-        except Exception as db_error:
-            logger.error(f"从数据库获取用户列表时出错: {str(db_error)}")
-            flash('获取用户列表失败，请稍后重试', 'danger')
-            return render_template('user/list.html', users=[], total=0)
+    # 直接从数据库获取并分页
+    pagination = User.query.order_by(User.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    users_data = [user.to_dict() for user in pagination.items]
+    return render_template(
+        'user/list.html',
+        users=users_data,
+        total=pagination.total,
+        pagination=pagination
+    )
 
 @user_bp.route('/create', methods=['GET', 'POST'])
 @login_required
