@@ -629,4 +629,19 @@ def get_default_modules():
         {"id": "product_code", "name": "产品编码", "description": "管理产品编码系统"},
         {"id": "user", "name": "用户管理", "description": "管理系统用户"},
         {"id": "permission", "name": "权限管理", "description": "管理用户权限"}
-    ] 
+    ]
+
+@user_bp.route('/detail/<int:user_id>')
+@login_required
+def user_detail(user_id):
+    """用户详情页，展示基本信息、权限、归属关系，分选项卡"""
+    user = User.query.get_or_404(user_id)
+    # 查询权限
+    permissions = user.permissions if hasattr(user, 'permissions') else []
+    # 查询归属关系（如部门、角色等）
+    affiliations = {
+        'department': user.department if hasattr(user, 'department') else '',
+        'role': user.role if hasattr(user, 'role') else '',
+        # 可扩展更多归属关系
+    }
+    return render_template('user/detail.html', user=user, permissions=permissions, affiliations=affiliations) 

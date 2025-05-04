@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}用户详情 - 项目管理系统{% endblock %}
+
+{% block styles %}
+<style>
+    .tab-content {
+        padding: 2rem 1rem 1rem 1rem;
+        background: #fff;
+        border: 1px solid #e7e7e7;
+        border-top: none;
+        border-radius: 0 0 4px 4px;
+        min-height: 300px;
+    }
+    .nav-tabs .nav-link.active {
+        background-color: #f8f9fa;
+        border-color: #e7e7e7 #e7e7e7 #fff;
+    }
+    .tab-edit-btn {
+        float: right;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <h2>用户详情：{{ user.username }}</h2>
+    </div>
+</div>
+
+<ul class="nav nav-tabs" id="userDetailTab" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="base-tab" data-bs-toggle="tab" data-bs-target="#base" type="button" role="tab" aria-controls="base" aria-selected="true">基本信息</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="perm-tab" data-bs-toggle="tab" data-bs-target="#perm" type="button" role="tab" aria-controls="perm" aria-selected="false">权限</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="aff-tab" data-bs-toggle="tab" data-bs-target="#aff" type="button" role="tab" aria-controls="aff" aria-selected="false">归属关系</button>
+    </li>
+</ul>
+<div class="tab-content" id="userDetailTabContent">
+    <!-- 基本信息 -->
+    <div class="tab-pane fade show active" id="base" role="tabpanel" aria-labelledby="base-tab">
+        <a href="{{ url_for('user.edit_user', user_id=user.id) }}" class="btn btn-sm btn-outline-primary tab-edit-btn">编辑</a>
+        <dl class="row">
+            <dt class="col-sm-3">用户名</dt><dd class="col-sm-9">{{ user.username }}</dd>
+            <dt class="col-sm-3">真实姓名</dt><dd class="col-sm-9">{{ user.real_name }}</dd>
+            <dt class="col-sm-3">邮箱</dt><dd class="col-sm-9">{{ user.email }}</dd>
+            <dt class="col-sm-3">手机号</dt><dd class="col-sm-9">{{ user.phone }}</dd>
+            <dt class="col-sm-3">公司</dt><dd class="col-sm-9">{{ user.company_name }}</dd>
+            <dt class="col-sm-3">部门</dt><dd class="col-sm-9">{{ user.department }}</dd>
+            <dt class="col-sm-3">角色</dt><dd class="col-sm-9">{{ user.role }}</dd>
+            <dt class="col-sm-3">状态</dt><dd class="col-sm-9">{{ '激活' if user.is_active else '禁用' }}</dd>
+        </dl>
+    </div>
+    <!-- 权限 -->
+    <div class="tab-pane fade" id="perm" role="tabpanel" aria-labelledby="perm-tab">
+        <a href="{{ url_for('user.manage_permissions', user_id=user.id) }}" class="btn btn-sm btn-outline-primary tab-edit-btn">编辑权限</a>
+        <ul class="list-group mt-3">
+            {% if permissions and permissions|length > 0 %}
+                {% for perm in permissions %}
+                    <li class="list-group-item">{{ perm.name if perm.name else perm }}</li>
+                {% endfor %}
+            {% else %}
+                <li class="list-group-item text-muted">暂无权限</li>
+            {% endif %}
+        </ul>
+    </div>
+    <!-- 归属关系 -->
+    <div class="tab-pane fade" id="aff" role="tabpanel" aria-labelledby="aff-tab">
+        <a href="{{ url_for('user.edit_affiliations', user_id=user.id) }}" class="btn btn-sm btn-outline-primary tab-edit-btn">编辑归属</a>
+        <dl class="row mt-3">
+            <dt class="col-sm-3">部门</dt><dd class="col-sm-9">{{ affiliations.department }}</dd>
+            <dt class="col-sm-3">角色</dt><dd class="col-sm-9">{{ affiliations.role }}</dd>
+        </dl>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 保持tab切换状态
+    document.addEventListener('DOMContentLoaded', function() {
+        var triggerTabList = [].slice.call(document.querySelectorAll('#userDetailTab button'));
+        triggerTabList.forEach(function(triggerEl) {
+            triggerEl.addEventListener('shown.bs.tab', function (event) {
+                localStorage.setItem('userDetailActiveTab', event.target.id);
+            });
+        });
+        var activeTab = localStorage.getItem('userDetailActiveTab');
+        if (activeTab) {
+            var tab = document.getElementById(activeTab);
+            if (tab) {
+                new bootstrap.Tab(tab).show();
+            }
+        }
+    });
+</script>
+{% endblock %} 
