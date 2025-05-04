@@ -57,22 +57,3 @@ def permission_required(module, action):
             return f(*args, **kwargs)
         return decorated_function
     return decorator 
-            if current_user.role == 'admin':
-                logger.debug(f"管理员用户 {current_user.username} 权限检查通过")
-                return f(*args, **kwargs)
-            
-            # 检查普通用户权限
-            if not hasattr(current_user, 'has_permission'):
-                logger.error(f"用户对象缺少has_permission方法")
-                flash('您没有权限访问该页面', 'danger')
-                return redirect(url_for('main.index'))
-            
-            if not current_user.has_permission(module, action):
-                logger.warning(f"权限检查失败 - 用户: {current_user.username}, 模块: {module}, 操作: {action}")
-                flash('您没有权限执行此操作', 'danger')
-                return redirect(url_for('main.index'))
-            
-            logger.debug(f"权限检查通过 - 用户: {current_user.username}, 模块: {module}, 操作: {action}")
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator 

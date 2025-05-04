@@ -27,14 +27,12 @@ def test_version_api(base_url):
                 print(json.dumps(data, indent=2, ensure_ascii=False))
                 
                 if data.get('success'):
-                    print("
-版本信息获取成功!")
+                    print("版本信息获取成功!")
                     
                     # 检查一致性
                     consistency = data.get('data', {}).get('consistency', {})
                     if consistency:
-                        print("
-模块一致性状态:")
+                        print("模块一致性状态:")
                         for module, status in consistency.items():
                             is_consistent = status.get('is_consistent', False)
                             status_str = "一致" if is_consistent else "不一致"
@@ -71,6 +69,7 @@ def main():
         base_url = 'http://' + base_url
     
     success = test_version_api(base_url)
+    print("API 版本测试完成")
     return 0 if success else 1
 
 if __name__ == "__main__":

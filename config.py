@@ -112,37 +112,3 @@ class ProductionConfig(Config):
 # 本地PostgreSQL开发环境配置
 # 取消注释以下行并修改连接参数以使用本地PostgreSQL
 # SQLALCHEMY_DATABASE_URI = 'postgresql://用户名:密码@localhost/pma_development' 
-            'pool_pre_ping': True
-        }
-
-class DevelopmentConfig(Config):
-    DEBUG = True
-    # 确保开发环境也使用正确的数据库URL
-    database_url = os.environ.get('DATABASE_URL')
-    if database_url and database_url.startswith('postgres://'):
-        database_url = database_url.replace('postgres://', 'postgresql://', 1)
-    
-    # 检查数据库URL是否包含错误的主机名，如果是则替换为正确的
-    if database_url and 'dpg-d0b1gl1r0fns73d1jc1g-a' in database_url:
-        database_url = database_url.replace('dpg-d0b1gl1r0fns73d1jc1g-a', 'dpg-d0b1gl1r0fns73d1jc1g-a')
-    
-    SQLALCHEMY_DATABASE_URI = database_url or \
-        'sqlite:///' + os.path.join(basedir, 'app.db')
-
-class ProductionConfig(Config):
-    DEBUG = False 
-    # 在生产环境中优先使用环境变量，如果没有则使用硬编码的Render数据库URL
-    database_url = os.environ.get('DATABASE_URL')
-    if database_url and database_url.startswith('postgres://'):
-        database_url = database_url.replace('postgres://', 'postgresql://', 1)
-    
-    # 检查数据库URL是否包含错误的主机名，如果是则替换为正确的
-    if database_url and 'dpg-d0b1gl1r0fns73d1jc1g-a' in database_url:
-        database_url = database_url.replace('dpg-d0b1gl1r0fns73d1jc1g-a', 'dpg-d0b1gl1r0fns73d1jc1g-a')
-    
-    # 如果没有设置环境变量，使用硬编码的Render数据库URL
-    SQLALCHEMY_DATABASE_URI = database_url or RENDER_DB_URL
-
-# 本地PostgreSQL开发环境配置
-# 取消注释以下行并修改连接参数以使用本地PostgreSQL
-# SQLALCHEMY_DATABASE_URI = 'postgresql://用户名:密码@localhost/pma_development' 

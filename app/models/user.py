@@ -332,17 +332,3 @@ class DataAffiliation(db.Model):
     
     def __repr__(self):
         return f'<DataAffiliation {self.owner_id}->{self.viewer_id}>' 
-        db.UniqueConstraint('owner_id', 'viewer_id', name='uix_data_owner_viewer'),
-    )
-    
-    def to_dict(self):
-        """将数据归属关系转为字典，用于API响应"""
-        return {
-            'id': self.id,
-            'owner_id': self.owner_id,
-            'viewer_id': self.viewer_id,
-            'created_at': self.created_at
-        }
-    
-    def __repr__(self):
-        return f'<DataAffiliation {self.owner_id}->{self.viewer_id}>' 

@@ -1,7 +1,16 @@
 #!/bin/bash
 
-# 自动生成标准 .gitignore 文件，避免无关文件被上传
-cat > .gitignore <<EOF
+# ========================
+# 显示当前路径
+# ========================
+echo "[信息] 当前工作目录：$(pwd)"
+
+# ========================
+# 创建标准 .gitignore（若不存在）
+# ========================
+if [ ! -f .gitignore ]; then
+    echo "[信息] 创建 .gitignore..."
+    cat > .gitignore <<EOF
 # 虚拟环境
 venv/
 .venv/
@@ -13,9 +22,8 @@ __pycache__/
 
 # 数据库文件
 *.db
+*.sqlite*
 app.db
-*.sqlite
-*.sqlite3
 
 # 环境配置文件
 .env
@@ -34,60 +42,12 @@ logs/
 .DS_Store
 Thumbs.db
 
-# 个人开发临时文件
+# 临时和备份
 *.bak
 *.swp
 *.tmp
-
-# 测试文件和缓存
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Cursor IDE相关
-.cursor/
-
-# 未使用的文件目录
-unused/
-
-# 本地配置
-instance/
-
-# 媒体和上传文件
-uploads/
-media/
-
-# 构建输出
-dist/
-build/
-*.egg-info/
-
-# Python缓存
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-
-# 编辑器/IDE
-.vscode/
-.idea/
-*.swp
-
-# 操作系统
-.DS_Store
-Thumbs.db
-
-# 数据库和本地配置
-*.sqlite
-*.db
-*.bak
-.env
-
-# 备份和临时
-backups/
 tmp/
-*.tmp
-*.log
+backups/
 *.csv
 *.json
 *.zip
@@ -96,40 +56,49 @@ tmp/
 *.7z
 *.rar
 
+# 构建输出
+dist/
+build/
+*.egg-info/
+
 # 静态上传文件
+uploads/
+media/
 app/static/uploads/
 
-# 测试和个人脚本
-final_test.py
-login_test.py
+# 测试脚本
 test_*.py
 *_test.py
+final_test.py
+login_test.py
 test_app_with_render.py
 check_user.py
-check_db_connection.py
-check_render_data.py
 verify_admin_login.py
 reset_admin_password.py
 
-# 迁移/导出中间产物
+# 数据导入/迁移脚本
 db_export*.json
 complete_db_export.json
 complete_fix.py
 export_sqlite_data.py
-migrate_to_render.sh
-migrate_to_render_new.py
+migrate_to_render*.py
 migrate_data_to_render.py
 
-# 只保留主程序结构和必要文件
-# 保留run.py、app/、static/、templates/、migrations/、config.py
+# Cursor IDE相关
+.cursor/
 
-# 允许覆盖规则
+# 项目结构
+instance/
+
+# 保留必要文件
 !requirements.txt
 !run.py
 !config.py
 !wsgi.py
-!build.sh
-!update_build.sh
+!app/
+!migrations/
+!templates/
+!static/
 !render.yaml
 !render_start.sh
 !render_startup_hook.py
@@ -137,54 +106,46 @@ migrate_data_to_render.py
 !render_migration_run.py
 !render_db_sync.py
 !sync_db_to_render.py
-!app/
-!migrations/
-!templates/
-!static/ 
 EOF
+else
+    echo "[信息] 已存在 .gitignore，跳过生成。"
+fi
 
-# 自动 Git 提交 + 推送脚本
+# ========================
+# Python 语法检查（逐个文件并显示详细错误）
+# ========================
+echo "[信息] 正在检查所有 Python 文件语法..."
+syntax_error_found=0
 
-# 显示当前修改状态
+while IFS= read -r file; do
+    if ! python3 -m py_compile "$file"; then
+        echo -e "\033[31m[语法错误] $file\033[0m"
+        syntax_error_found=1
+    fi
+done < <(find . -type f -name "*.py")
+
+if [ "$syntax_error_found" -ne 0 ]; then
+    echo "[错误] 存在语法错误，自动推送中止。请修正后再提交。"
+    exit 1
+fi
+
+# ========================
+# Git 提交与推送
+# ========================
 git status
 
-# 添加所有变更（包括新增、修改、删除的文件）
+# 添加所有更改
 git add .
 
-# 提示输入 commit 信息
+# 读取提交信息
 echo "请输入提交信息："
 read msg
 
-# 如果没输入就用默认
+# 如果未输入，则自动生成
 if [ -z "$msg" ]; then
     msg="Auto commit at $(date)"
 fi
 
-# 执行提交
+# 提交并推送
 git commit -m "$msg"
-
-# 推送到远端
-git push origin main 
-
-# 自动 Git 提交 + 推送脚本
-
-# 显示当前修改状态
-git status
-
-# 添加所有变更（包括新增、修改、删除的文件）
-git add .
-
-# 提示输入 commit 信息
-echo "请输入提交信息："
-read msg
-
-# 如果没输入就用默认
-if [ -z "$msg" ]; then
-    msg="Auto commit at $(date)"
-fi
-
-# 执行提交
-git commit -m "$msg"
-
-# 推送到远端
-git push origin main 
+git push origin main

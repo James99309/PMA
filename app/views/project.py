@@ -695,5 +695,3 @@ def batch_delete_projects():
             'success': False,
             'message': f'操作失败: {str(e)}'
         }) 
-            'message': f'操作失败: {str(e)}'
-        }) 
