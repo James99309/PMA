@@ -1,0 +1,38 @@
+{
+  "version": "20250504084516",
+  "update_time": "2025-05-04 08:45:16",
+  "files": {
+    "app/views/user.py": {
+      "hash": "08edca8e2403e985b7f3ef8cafd5ffa7",
+      "last_modified": "2025-05-04 08:35:11"
+    },
+    "app/models/user.py": {
+      "hash": "6599e5e704b8511c40846200a5dfcdcf",
+      "last_modified": "2025-05-04 08:35:11"
+    },
+    "app/permissions.py": {
+      "hash": "cd4ffbfdcc1878e2d73c2f616de4076c",
+      "last_modified": "2025-05-04 00:05:46"
+    },
+    "app/utils/permissions.py": {
+      "hash": "ae7ae656fd79b366fc6b1f0618151c90",
+      "last_modified": "2025-05-04 08:35:03"
+    },
+    "app/templates/user/list.html": {
+      "hash": "2b3134dafc9bcd0235c04db056e353f2",
+      "last_modified": "2025-05-04 08:35:03"
+    },
+    "app/templates/user/edit.html": {
+      "hash": "b67005f3b12c099dd4a652dbd297ad1e",
+      "last_modified": "2025-05-03 15:56:06"
+    },
+    "app/templates/user/permissions.html": {
+      "hash": "2f3fbe92dcd98597989d0a96ecf95e1e",
+      "last_modified": "2025-05-03 15:56:06"
+    },
+    "app/templates/user/affiliations.html": {
+      "hash": "1ffe85bc048492618258819f6d861f78",
+      "last_modified": "2025-05-03 15:56:06"
+    }
+  }
+}
