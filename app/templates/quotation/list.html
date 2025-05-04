@@ -1,6 +1,39 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_currency, render_quotation_number %}
 
+{% block title %}报价管理 - 项目管理系统{% endblock %}
+
+{% block styles %}
+<style>
+    /* 滚动控制按钮样式 */
+    .scroll-controls {
+        position: fixed;
+        right: 20px;
+        bottom: 20px;
+        display: flex;
+        flex-direction: column;
+        z-index: 1000;
+    }
+    .scroll-controls button {
+        margin-bottom: 5px;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    .scroll-controls button:hover {
+        background-color: #e9ecef;
+    }
+    .current-sort {
+        color: #0d6efd !important;
+        font-weight: 500;
+    }
+    .table-hover tbody tr:hover {
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
     <div class="row mb-3">
@@ -610,6 +643,7 @@
         animation: checkbox-pulse 1s cubic-bezier(0.66, 0, 0, 1);
     }
 </style>
+{% endblock %}
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -975,7 +1009,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             // 发送批量删除请求
-            fetch('{{ url_for('quotation.batch_delete_quotations') }}', {
+            fetch("{{ url_for('quotation.batch_delete_quotations') }}", {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -2182,7 +2216,4 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
-
-{% endblock %}
-
 {% endblock %}
