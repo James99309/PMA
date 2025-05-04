@@ -9,6 +9,7 @@ from app.routes.product import bp as product_bp
 from app.routes.product_code import product_code_bp
 from app.routes.product_management import product_management_bp
 from datetime import timedelta
+from app.utils import version_check
 from flask_wtf.csrf import CSRFProtect
 
 # 配置日志
@@ -26,6 +27,13 @@ PROTECTED_TEMPLATES = [
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+    
+    # 设置应用版本
+    app.config['APP_VERSION'] = '1.0.1'  # 根据实际版本修改
+    
+    # 确保SECRET_KEY被设置
+    if not app.config.get('SECRET_KEY'):
+        app.config['SECRET_KEY'] = 'hard-to-guess-string-for-pma-app'
     
     # JWT配置
     app.config['JWT_SECRET_KEY'] = app.config['SECRET_KEY']
@@ -179,11 +187,31 @@ def create_app(config_class=Config):
     # 注册API v1蓝图
     app.register_blueprint(api_v1_bp, url_prefix='/api/v1')
     
+    # 添加版本信息API路由
+    @app.route('/api/version', methods=['GET'])
+    def get_app_version():
+        """返回应用版本信息"""
+        try:
+            from app.utils.version_check import get_app_version
+            version_info = get_app_version()
+            return {'success': True, 'data': version_info}
+        except Exception as e:
+            logger.error(f"获取应用版本信息失败: {str(e)}")
+            return {'success': False, 'message': '获取版本信息失败', 'error': str(e)}, 500
+    
     # 数据初始化
     with app.app_context():
         # 创建数据库表
         db.create_all()
         logger.info("数据库表创建成功")
+            
+            # 版本检查
+            try:
+                from app.utils.version_check import update_version_check
+                update_version_check()
+                logger.info("应用版本检查完成")
+            except Exception as e:
+                logger.error(f"应用版本检查失败: {str(e)}")
         
         # 数据所有权初始化 - 已关闭
         '''
@@ -320,5 +348,13 @@ def create_app(config_class=Config):
     app.jinja_env.filters['format_date'] = format_date
     app.jinja_env.filters['format_datetime'] = format_datetime
     app.jinja_env.filters['format_currency'] = format_currency
+
+    # 导入并运行模板检查
+    try:
+        from app.check_templates import check_templates
+        # 检查并修复模板问题
+        check_templates()
+    except Exception as e:
+        app.logger.warning(f"模板检查时出错: {str(e)}")
 
     return app 
