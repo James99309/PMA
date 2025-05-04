@@ -3,7 +3,6 @@ from flask_login import login_required, current_user
 from app.models.user import User, Permission
 from app import db
 import logging
-import requests
 import json
 from datetime import datetime
 from app.utils.role_mappings import normalize_role_key
@@ -25,45 +24,28 @@ def get_auth_headers():
 @user_bp.route('/list')
 @login_required
 def list_users():
-    """用户列表页面（带分页）"""
+    """用户列表页面（带分页、搜索、角色、状态过滤）"""
     page = request.args.get('page', 1, type=int)
     per_page = 20
-    api_url = f"{request.host_url.rstrip('/')}" + f"{API_BASE_URL}/users?page={page}&per_page={per_page}"
-    try:
-        headers = get_auth_headers()
-        response = requests.get(api_url, headers=headers)
-        try:
-            data = response.json()
-            if response.status_code == 200 and data.get('success'):
-                users_data = data.get('data', {}).get('users', [])
-                total = data.get('data', {}).get('total', 0)
-                # 构造伪分页对象
-                class Pagination:
-                    def __init__(self, page, per_page, total):
-                        self.page = page
-                        self.per_page = per_page
-                        self.total = total
-                        self.pages = (total + per_page - 1) // per_page
-                        self.has_prev = page > 1
-                        self.has_next = page < self.pages
-                        self.prev_num = page - 1
-                        self.next_num = page + 1
-                pagination = Pagination(page, per_page, total)
-                return render_template(
-                    'user/list.html',
-                    users=users_data,
-                    total=total,
-                    pagination=pagination
-                )
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON解析错误: {str(e)}")
-            # API请求失败，尝试直接从数据库获取
-            pass
-    except Exception as e:
-        logger.error(f"获取用户列表时出错: {str(e)}")
-        flash('获取用户列表时发生错误，尝试直接从数据库获取', 'warning')
-    # 直接从数据库获取并分页
-    pagination = User.query.order_by(User.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    search = request.args.get('search', '')
+    role = request.args.get('role', '')
+    status = request.args.get('status', '')
+
+    query = User.query
+    if search:
+        query = query.filter(
+            (User.username.like(f'%{search}%')) |
+            (User.real_name.like(f'%{search}%')) |
+            (User.email.like(f'%{search}%')) |
+            (User.company_name.like(f'%{search}%'))
+        )
+    if role:
+        query = query.filter(User.role == role)
+    if status:
+        is_active = True if status == 'active' else False
+        query = query.filter(User.is_active == is_active)
+
+    pagination = query.order_by(User.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
     users_data = [user.to_dict() for user in pagination.items]
     return render_template(
         'user/list.html',
@@ -78,7 +60,7 @@ def create_user():
     """创建新用户页面和处理"""
     if request.method == 'GET':
         return render_template('user/edit.html', user=None, is_edit=False)
-    
+
     # POST请求处理
     if request.method == 'POST':
         # 获取表单数据
@@ -93,90 +75,61 @@ def create_user():
         confirm_password = request.form.get('confirm_password')
         is_active = 'is_active' in request.form
         is_department_manager = 'is_department_manager' in request.form
-        
+
         # 验证密码
         if password != confirm_password:
             flash('两次输入的密码不一致', 'danger')
             return render_template('user/edit.html', user=None, is_edit=False)
-        
-        # 准备用户数据
-        user_data = {
-            "username": username,
-            "real_name": real_name,
-            "company_name": company_name,
-            "email": email,
-            "phone": phone,
-            "department": department,
-            "is_department_manager": is_department_manager,
-            "role": role,
-            "password": password,
-            "is_active": is_active
-        }
-        
-        # 尝试通过API创建用户
+
+        # 检查用户名/邮箱唯一性
+        if User.query.filter_by(username=username).first():
+            flash('用户名已存在', 'danger')
+            return render_template('user/edit.html', user=None, is_edit=False)
+        if email and User.query.filter_by(email=email).first():
+            flash('邮箱已存在', 'danger')
+            return render_template('user/edit.html', user=None, is_edit=False)
+
+        # 创建用户
+        user = User(
+            username=username,
+            real_name=real_name,
+            company_name=company_name,
+            email=email,
+            phone=phone,
+            department=department,
+            is_department_manager=is_department_manager,
+            role=role,
+            is_active=is_active
+        )
+        user.set_password(password)
         try:
-            # 准备API请求数据
-            api_url = f"{request.host_url.rstrip('/')}{API_BASE_URL}/users"
-            
-            # 使用JWT令牌认证
-            headers = get_auth_headers()
-            response = requests.post(api_url, json=user_data, headers=headers)
-            data = response.json()
-            
-            if response.status_code == 200 and data.get('success'):
-                # 发送邀请邮件给新用户
-                from app.utils.email import send_user_invitation_email
-                email_sent = send_user_invitation_email(user_data)
-                
-                if email_sent:
-                    flash('用户创建成功，邀请邮件已发送至用户邮箱', 'success')
-                else:
-                    flash('用户创建成功，但邀请邮件发送失败，请手动通知用户', 'warning')
-                
-                return redirect(url_for('user.list_users'))
+            db.session.add(user)
+            db.session.commit()
+            # 发送邀请邮件
+            from app.utils.email import send_user_invitation_email
+            user_data = {
+                "username": username,
+                "real_name": real_name,
+                "company_name": company_name,
+                "email": email,
+                "phone": phone,
+                "department": department,
+                "is_department_manager": is_department_manager,
+                "role": role,
+                "password": password,
+                "is_active": is_active
+            }
+            email_sent = send_user_invitation_email(user_data)
+            if email_sent:
+                flash('用户创建成功，邀请邮件已发送至用户邮箱', 'success')
             else:
-                # API创建失败，尝试直接创建
-                error_msg = data.get('message', '未知错误')
-                logger.warning(f"通过API创建用户失败: {error_msg}，尝试直接创建")
-                
-                # 直接创建用户
-                user = User(
-                    username=username,
-                    real_name=real_name,
-                    company_name=company_name,
-                    email=email,
-                    phone=phone,
-                    department=department,
-                    is_department_manager=is_department_manager,
-                    role=role,
-                    is_active=is_active
-                )
-                user.set_password(password)
-                
-                try:
-                    db.session.add(user)
-                    db.session.commit()
-                    
-                    # 发送邀请邮件给新用户
-                    from app.utils.email import send_user_invitation_email
-                    email_sent = send_user_invitation_email(user_data)
-                    
-                    if email_sent:
-                        flash('用户创建成功，邀请邮件已发送至用户邮箱（直接创建）', 'success')
-                    else:
-                        flash('用户创建成功，但邀请邮件发送失败，请手动通知用户（直接创建）', 'warning')
-                    
-                    return redirect(url_for('user.list_users'))
-                except Exception as db_error:
-                    db.session.rollback()
-                    logger.error(f"直接创建用户时出错: {str(db_error)}")
-                    flash(f'用户创建失败: {str(db_error)}', 'danger')
-                    return render_template('user/edit.html', user=user_data, is_edit=False)
-                
-        except Exception as e:
-            logger.error(f"创建用户时出错: {str(e)}")
-            flash('创建用户时发生错误，请稍后重试', 'danger')
-            return render_template('user/edit.html', user=user_data, is_edit=False)
+                flash('用户创建成功，但邀请邮件发送失败，请手动通知用户', 'warning')
+            return redirect(url_for('user.list_users'))
+        except Exception as db_error:
+            db.session.rollback()
+            logger.error(f"创建用户时出错: {str(db_error)}")
+            flash(f'用户创建失败: {str(db_error)}', 'danger')
+            return render_template('user/edit.html', user=None, is_edit=False)
 
 @user_bp.route('/edit/<int:user_id>', methods=['GET', 'POST'])
 @login_required
@@ -184,44 +137,16 @@ def edit_user(user_id):
     """编辑用户页面和处理"""
     # GET请求 - 显示编辑表单
     if request.method == 'GET':
-        try:
-            # 首先尝试API获取
-            api_url = f"{request.host_url.rstrip('/')}{API_BASE_URL}/users/{user_id}"
-            headers = get_auth_headers()
-            
-            try:
-                response = requests.get(api_url, headers=headers)
-                
-                # 添加JSON解析的异常处理
-                try:
-                    data = response.json()
-                    
-                    if response.status_code == 200 and data.get('success'):
-                        user_data = data.get('data', {})
-                        return render_template('user/edit.html', user=user_data, is_edit=True)
-                except json.JSONDecodeError as e:
-                    logger.warning(f"通过API获取用户信息时JSON解析失败: {str(e)}")
-                    # 如果JSON解析失败，继续执行下面的代码，从数据库获取数据
-            except Exception as api_error:
-                logger.warning(f"通过API获取用户信息失败: {str(api_error)}，尝试直接获取")
-            
-            # 如果API失败，直接从数据库获取
-            user = User.query.get(user_id)
-            if user:
-                user_data = user.to_dict()
-                return render_template('user/edit.html', user=user_data, is_edit=True)
-            else:
-                flash('用户不存在', 'danger')
-                return redirect(url_for('user.list_users'))
-                
-        except Exception as e:
-            logger.error(f"获取用户信息时出错: {str(e)}")
-            flash('获取用户信息时发生错误，请稍后重试', 'danger')
+        user = User.query.get(user_id)
+        if user:
+            user_data = user.to_dict()
+            return render_template('user/edit.html', user=user_data, is_edit=True)
+        else:
+            flash('用户不存在', 'danger')
             return redirect(url_for('user.list_users'))
-    
+
     # POST请求 - 处理编辑表单提交
     if request.method == 'POST':
-        # 获取表单数据
         real_name = request.form.get('real_name')
         company_name = request.form.get('company_name')
         email = request.form.get('email')
@@ -231,80 +156,32 @@ def edit_user(user_id):
         password = request.form.get('password')
         is_active = 'is_active' in request.form
         is_department_manager = 'is_department_manager' in request.form
-        
+
+        user = User.query.get(user_id)
+        if not user:
+            flash('用户不存在', 'danger')
+            return redirect(url_for('user.list_users'))
+
+        user.real_name = real_name
+        user.company_name = company_name
+        user.email = email
+        user.phone = phone
+        user.department = department
+        user.role = role
+        user.is_active = is_active
+        user.is_department_manager = is_department_manager
+
+        if password and password.strip():
+            user.set_password(password)
         try:
-            # 尝试通过API更新
-            api_url = f"{request.host_url.rstrip('/')}{API_BASE_URL}/users/{user_id}"
-            user_data = {
-                "real_name": real_name,
-                "company_name": company_name,
-                "email": email,
-                "phone": phone,
-                "department": department,
-                "is_department_manager": is_department_manager,
-                "role": role,
-                "is_active": is_active
-            }
-            
-            headers = get_auth_headers()
-            response = requests.put(api_url, json=user_data, headers=headers)
-            
-            # 如果提供了密码，处理密码更新
-            if password and password.strip():
-                try:
-                    password_api_url = f"{request.host_url.rstrip('/')}{API_BASE_URL}/users/{user_id}/reset-password"
-                    password_response = requests.post(
-                        password_api_url, 
-                        json={"password": password},
-                        headers=headers
-                    )
-                except Exception as pwd_error:
-                    logger.error(f"通过API重置密码时出错: {str(pwd_error)}")
-                    # 如果API不可用，尝试直接更新密码
-                    try:
-                        user = User.query.get(user_id)
-                        if user:
-                            user.set_password(password)
-                            db.session.commit()
-                    except Exception as db_pwd_error:
-                        logger.error(f"直接更新密码时出错: {str(db_pwd_error)}")
-            
-            data = response.json() if response.status_code == 200 else {"success": False}
-            
-            if response.status_code == 200 and data.get('success'):
-                flash('用户信息更新成功', 'success')
-                return redirect(url_for('user.list_users'))
-            else:
-                # API更新失败，尝试直接更新
-                logger.warning("通过API更新用户失败，尝试直接更新")
-                
-                user = User.query.get(user_id)
-                if user:
-                    user.real_name = real_name
-                    user.company_name = company_name
-                    user.email = email
-                    user.phone = phone
-                    user.department = department
-                    user.role = role
-                    user.is_active = is_active
-                    user.is_department_manager = is_department_manager
-                    
-                    try:
-                        db.session.commit()
-                        flash('用户信息更新成功（直接更新）', 'success')
-                        return redirect(url_for('user.list_users'))
-                    except Exception as db_error:
-                        db.session.rollback()
-                        logger.error(f"直接更新用户信息时出错: {str(db_error)}")
-                        flash(f'更新失败: {str(db_error)}', 'danger')
-                else:
-                    flash('用户不存在', 'danger')
-                
-                return render_template('user/edit.html', user=user_data, is_edit=True)
-                
-        except Exception as e:
-            logger.error(f"更新用户信息时出错: {str(e)}")
-            flash('更新用户信息时发生错误，请稍后重试', 'danger')
+            db.session.commit()
+            flash('用户信息更新成功', 'success')
+            return redirect(url_for('user.list_users'))
+        except Exception as db_error:
+            db.session.rollback()
+            logger.error(f"更新用户信息时出错: {str(db_error)}")
+            flash(f'更新失败: {str(db_error)}', 'danger')
+            user_data = user.to_dict()
             return render_template('user/edit.html', user=user_data, is_edit=True)
 
 @user_bp.route('/delete/<int:user_id>', methods=['POST'])
@@ -312,32 +189,15 @@ def edit_user(user_id):
 def delete_user(user_id):
     """删除用户"""
     try:
-        # 尝试通过API删除
-        api_url = f"{request.host_url.rstrip('/')}{API_BASE_URL}/users/{user_id}"
-        headers = get_auth_headers()
-        
-        response = requests.delete(api_url, headers=headers)
-        data = response.json() if response.status_code == 200 else {"success": False}
-        
-        if response.status_code == 200 and data.get('success'):
+        user = User.query.get(user_id)
+        if user:
+            db.session.delete(user)
+            db.session.commit()
             flash('用户删除成功', 'success')
         else:
-            # API删除失败，尝试直接删除
-            logger.warning("通过API删除用户失败，尝试直接删除")
-            
-            user = User.query.get(user_id)
-            if user:
-                try:
-                    db.session.delete(user)
-                    db.session.commit()
-                    flash('用户删除成功（直接删除）', 'success')
-                except Exception as db_error:
-                    db.session.rollback()
-                    logger.error(f"直接删除用户时出错: {str(db_error)}")
-                    flash(f'删除失败: {str(db_error)}', 'danger')
-            else:
-                flash('用户不存在', 'danger')
+            flash('用户不存在', 'danger')
     except Exception as e:
+        db.session.rollback()
         logger.error(f"删除用户时出错: {str(e)}")
         flash('删除用户时发生错误，请稍后重试', 'danger')
     
@@ -349,113 +209,34 @@ def manage_permissions(user_id):
     """管理用户权限"""
     # GET请求 - 显示权限管理页面
     if request.method == 'GET':
-        try:
-            headers = get_auth_headers()
-            
-            # 获取用户信息
-            user_data = {}
-            try:
-                user_api_url = f"{request.host_url.rstrip('/')}{API_BASE_URL}/users/{user_id}"
-                user_response = requests.get(user_api_url, headers=headers)
-                if user_response.status_code == 200:
-                    user_data = user_response.json().get('data', {})
-                else:
-                    # 直接从数据库获取
-                    user = User.query.get(user_id)
-                    if user:
-                        user_data = user.to_dict()
-            except Exception as user_error:
-                logger.warning(f"获取用户信息时出错: {str(user_error)}")
-                user = User.query.get(user_id)
-                if user:
-                    user_data = user.to_dict()
-            
-            # 获取模块列表
-            modules = []
-            try:
-                modules_api_url = f"{request.host_url.rstrip('/')}{API_BASE_URL}/modules"
-                modules_response = requests.get(modules_api_url, headers=headers)
-                if modules_response.status_code == 200:
-                    modules = modules_response.json().get('data', [])
-                else:
-                    # 如果API失败，使用预定义模块列表
-                    modules = [
-                        {"id": "project", "name": "项目管理", "description": "管理销售项目和跟进"},
-                        {"id": "customer", "name": "客户管理", "description": "管理客户信息和联系人"},
-                        {"id": "quotation", "name": "报价管理", "description": "管理产品报价"},
-                        {"id": "product", "name": "产品管理", "description": "管理产品信息和价格"},
-                        {"id": "user", "name": "用户管理", "description": "管理系统用户"},
-                        {"id": "permission", "name": "权限管理", "description": "管理用户权限"}
-                    ]
-            except Exception as modules_error:
-                logger.warning(f"获取模块列表时出错: {str(modules_error)}")
-                # 使用预定义模块列表
-                modules = [
-                    {"id": "project", "name": "项目管理", "description": "管理销售项目和跟进"},
-                    {"id": "customer", "name": "客户管理", "description": "管理客户信息和联系人"},
-                    {"id": "quotation", "name": "报价管理", "description": "管理产品报价"},
-                    {"id": "product", "name": "产品管理", "description": "管理产品信息和价格"},
-                    {"id": "user", "name": "用户管理", "description": "管理系统用户"},
-                    {"id": "permission", "name": "权限管理", "description": "管理用户权限"}
-                ]
-            
-            # 获取用户当前权限
-            permissions_dict = {}
-            try:
-                permissions_api_url = f"{request.host_url.rstrip('/')}{API_BASE_URL}/users/{user_id}/permissions"
-                permissions_response = requests.get(permissions_api_url, headers=headers)
-                if permissions_response.status_code == 200:
-                    permissions_data = permissions_response.json().get('data', {}).get('permissions', [])
-                    for perm in permissions_data:
-                        module = perm.get('module')
-                        permissions_dict[module] = perm
-                else:
-                    # 直接从数据库获取
-                    user = User.query.get(user_id)
-                    if user:
-                        for permission in user.permissions:
-                            permissions_dict[permission.module] = {
-                                'module': permission.module,
-                                'can_view': permission.can_view,
-                                'can_create': permission.can_create,
-                                'can_edit': permission.can_edit,
-                                'can_delete': permission.can_delete
-                            }
-            except Exception as permissions_error:
-                logger.warning(f"获取用户权限时出错: {str(permissions_error)}")
-                # 直接从数据库获取
-                user = User.query.get(user_id)
-                if user:
-                    for permission in user.permissions:
-                        permissions_dict[permission.module] = {
-                            'module': permission.module,
-                            'can_view': permission.can_view,
-                            'can_create': permission.can_create,
-                            'can_edit': permission.can_edit,
-                            'can_delete': permission.can_delete
-                        }
-            
-            return render_template(
-                'user/permissions.html',
-                user=user_data,
-                modules=modules,
-                permissions=permissions_dict
-            )
-                
-        except Exception as e:
-            logger.error(f"获取用户权限信息时出错: {str(e)}")
-            flash('获取用户权限信息时发生错误，请稍后重试', 'danger')
+        user = User.query.get(user_id)
+        if not user:
+            flash('用户不存在', 'danger')
             return redirect(url_for('user.list_users'))
-    
+        user_data = user.to_dict()
+        # 预定义模块列表
+        modules = get_default_modules()
+        # 权限字典
+        permissions_dict = {}
+        for permission in user.permissions:
+            permissions_dict[permission.module] = {
+                'module': permission.module,
+                'can_view': permission.can_view,
+                'can_create': permission.can_create,
+                'can_edit': permission.can_edit,
+                'can_delete': permission.can_delete
+            }
+        return render_template(
+            'user/permissions.html',
+            user=user_data,
+            modules=modules,
+            permissions=permissions_dict
+        )
     # POST请求 - 保存权限设置
     if request.method == 'POST':
-        # 获取表单数据
         form_data = request.form
-        
-        # 处理模块权限
         permissions = []
         modules = form_data.getlist('module')
-        
         for module in modules:
             permission = {
                 "module": module,
@@ -465,57 +246,30 @@ def manage_permissions(user_id):
                 "can_delete": f"delete_{module}" in form_data
             }
             permissions.append(permission)
-        
+        user = User.query.get(user_id)
+        if not user:
+            flash('用户不存在', 'danger')
+            return redirect(url_for('user.list_users'))
+        Permission.query.filter_by(user_id=user_id).delete()
+        for perm in permissions:
+            module = perm.get('module')
+            permission = Permission(
+                user_id=user_id,
+                module=module,
+                can_view=perm.get('can_view', False),
+                can_create=perm.get('can_create', False),
+                can_edit=perm.get('can_edit', False),
+                can_delete=perm.get('can_delete', False)
+            )
+            db.session.add(permission)
         try:
-            # 尝试通过API更新权限
-            permissions_api_url = f"{request.host_url.rstrip('/')}{API_BASE_URL}/users/{user_id}/permissions"
-            permissions_data = {"permissions": permissions}
-            
-            headers = get_auth_headers()
-            response = requests.put(permissions_api_url, json=permissions_data, headers=headers)
-            data = response.json() if response.status_code == 200 else {"success": False}
-            
-            if response.status_code == 200 and data.get('success'):
-                flash('用户权限更新成功', 'success')
-                return redirect(url_for('user.list_users'))
-            else:
-                # API更新失败，尝试直接更新
-                logger.warning("通过API更新权限失败，尝试直接更新")
-                
-                user = User.query.get(user_id)
-                if user:
-                    # 清除现有权限
-                    Permission.query.filter_by(user_id=user_id).delete()
-                    
-                    # 添加新权限
-                    for perm in permissions:
-                        module = perm.get('module')
-                        permission = Permission(
-                            user_id=user_id,
-                            module=module,
-                            can_view=perm.get('can_view', False),
-                            can_create=perm.get('can_create', False),
-                            can_edit=perm.get('can_edit', False),
-                            can_delete=perm.get('can_delete', False)
-                        )
-                        db.session.add(permission)
-                    
-                    try:
-                        db.session.commit()
-                        flash('用户权限更新成功（直接更新）', 'success')
-                        return redirect(url_for('user.list_users'))
-                    except Exception as db_error:
-                        db.session.rollback()
-                        logger.error(f"直接更新权限时出错: {str(db_error)}")
-                        flash(f'权限更新失败: {str(db_error)}', 'danger')
-                else:
-                    flash('用户不存在', 'danger')
-                
-                return redirect(url_for('user.manage_permissions', user_id=user_id))
-                
-        except Exception as e:
-            logger.error(f"更新用户权限时出错: {str(e)}")
-            flash('更新用户权限时发生错误，请稍后重试', 'danger')
+            db.session.commit()
+            flash('用户权限更新成功', 'success')
+            return redirect(url_for('user.list_users'))
+        except Exception as db_error:
+            db.session.rollback()
+            logger.error(f"权限更新失败: {str(db_error)}")
+            flash(f'权限更新失败: {str(db_error)}', 'danger')
             return redirect(url_for('user.manage_permissions', user_id=user_id))
 
 @user_bp.route('/affiliations')
@@ -837,109 +591,31 @@ def manage_role_permissions():
                 'message': '服务器处理请求时出错'
             }), 500
     
-    # GET请求处理逻辑保持不变
+    # GET请求处理逻辑
     try:
-        import requests
-        import json
-        import traceback
-        
-        # 获取API URL路径 - 使用绝对URL而不是相对路径
-        api_url_base = request.host_url.rstrip('/') + url_for('api_v1.index').rstrip('/')
-        logger.info(f"API基础URL: {api_url_base}")
-        
-        # 创建请求头，包含用户令牌
-        jwt_token = session.get("jwt_token", "")
-        if not jwt_token:
-            logger.error("JWT令牌不存在，无法访问API")
-            flash('会话已过期，请重新登录', 'danger')
-            return redirect(url_for('auth.login'))
-            
-        headers = {
-            'Authorization': f'Bearer {jwt_token}',
-            'Content-Type': 'application/json'
-        }
-        logger.info(f"准备请求API，请求头: {headers}")
-        
-        # 1. 获取所有角色信息
-        try:
-            from app.permissions import ROLE_PERMISSIONS
-            from app.utils.role_mappings import normalize_role_key, get_role_display_name
-            from app.models.dictionary import Dictionary
-            
-            # 从字典表中获取角色列表
-            dict_roles = Dictionary.query.filter_by(type='role', is_active=True).order_by(Dictionary.sort_order).all()
-            
-            # 从ROLE_PERMISSIONS中获取有效的权限角色列表，以便过滤
-            valid_perm_roles = set(ROLE_PERMISSIONS.keys())
-            
-            # 将角色转换为前端需要的格式（只包含ROLE_PERMISSIONS中存在的角色）
-            roles = []
-            for role_dict in dict_roles:
-                # 规范化角色键名
-                norm_key = normalize_role_key(role_dict.key)
-                
-                # 只添加在权限系统中存在的角色
-                if norm_key in valid_perm_roles:
-                    roles.append({
-                        'key': norm_key,  # 使用规范化后的键作为API调用的标识符
-                        'name': role_dict.value  # 使用字典中的值作为显示名称
-                    })
-            
-            logger.info(f"成功获取角色列表: {len(roles)}个角色")
-        except Exception as roles_error:
-            logger.error(f"获取角色列表时出错: {str(roles_error)}")
-            logger.error(traceback.format_exc())
-            flash('获取角色列表时出错，请稍后重试', 'danger')
-            return redirect(url_for('user.list_users'))
-        
-        # 2. 获取模块列表 - 直接从API获取
-        try:
-            # 构建模块API URL
-            modules_api_url = f"{api_url_base}/modules"
-            logger.info(f"开始请求模块列表API: {modules_api_url}")
-            
-            # 发送API请求
-            try:
-                modules_response = requests.get(modules_api_url, headers=headers, timeout=10)
-                logger.info(f"模块API响应状态码: {modules_response.status_code}")
-                
-                if modules_response.status_code == 200:
-                    modules_data = modules_response.json()
-                    if modules_data.get('success'):
-                        modules = modules_data.get('data', [])
-                        logger.info(f"成功获取模块列表: {len(modules)}个模块")
-                    else:
-                        logger.warning(f"API返回错误: {modules_data.get('message')}")
-                        # 使用预定义模块列表
-                        modules = get_default_modules()
-                else:
-                    logger.warning(f"API请求失败，状态码: {modules_response.status_code}, 响应内容: {modules_response.text}")
-                    # 使用预定义模块列表
-                    modules = get_default_modules()
-            except requests.RequestException as req_err:
-                logger.error(f"请求模块API时出错: {str(req_err)}")
-                # 使用预定义模块列表
-                modules = get_default_modules()
-        except Exception as modules_error:
-            logger.error(f"获取模块列表过程中出错: {str(modules_error)}")
-            logger.error(traceback.format_exc())
-            # 使用预定义模块列表
-            modules = get_default_modules()
-        
-        # 确保数据格式正确 - 避免可能的JSON序列化问题
+        from app.permissions import ROLE_PERMISSIONS
+        from app.utils.role_mappings import normalize_role_key, get_role_display_name
+        from app.models.dictionary import Dictionary
+        dict_roles = Dictionary.query.filter_by(type='role', is_active=True).order_by(Dictionary.sort_order).all()
+        valid_perm_roles = set(ROLE_PERMISSIONS.keys())
+        roles = []
+        for role_dict in dict_roles:
+            norm_key = normalize_role_key(role_dict.key)
+            if norm_key in valid_perm_roles:
+                roles.append({
+                'key': norm_key,
+                'name': role_dict.value
+                })
+        modules = get_default_modules()
         modules = [dict(module) for module in modules]
         roles = [dict(role) for role in roles]
-        
-        # 渲染模板
         return render_template(
             'user/role_permissions.html',
             roles=roles,
             modules=modules
         )
-    
     except Exception as e:
         logger.error(f"加载角色权限设置页面时出错: {str(e)}")
-        logger.error(traceback.format_exc())
         flash('加载角色权限设置页面时出错，请稍后重试', 'danger')
         return redirect(url_for('user.list_users'))
 

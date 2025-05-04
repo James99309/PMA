@@ -112,17 +112,23 @@ else
 fi
 
 # ========================
-# Python 语法检查（逐个文件并显示详细错误）
+# Python 语法检查（仅主业务代码，排除 venv/.venv/.git/migrations 等）
 # ========================
-echo "[信息] 正在检查所有 Python 文件语法..."
+echo "[信息] 正在检查主业务 Python 文件语法..."
 syntax_error_found=0
 
-while IFS= read -r file; do
-    if ! python3 -m py_compile "$file"; then
-        echo -e "\033[31m[语法错误] $file\033[0m"
-        syntax_error_found=1
+find ./app -type f -name "*.py" \
+    -o -path "./run.py" \
+    -o -path "./config.py" \
+    | grep -vE '^\./venv/|^\./.venv/|^\./.git/|^\./migrations/' \
+    | while IFS= read -r file; do
+    if [ -f "$file" ]; then
+        if ! python3 -m py_compile "$file"; then
+            echo -e "\033[31m[语法错误] $file\033[0m"
+            syntax_error_found=1
+        fi
     fi
-done < <(find . -type f -name "*.py")
+done
 
 if [ "$syntax_error_found" -ne 0 ]; then
     echo "[错误] 存在语法错误，自动推送中止。请修正后再提交。"
