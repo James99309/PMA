@@ -92,7 +92,7 @@
         </div>
     </div>
 </div>
-{% endblock content %}
+{% endblock %}
 
 {% block scripts %}
 <script>
@@ -103,4 +103,4 @@ var savedRegion = "{{ company.region }}";
 <script src="{{ url_for('static', filename='js/country_region_data.js') }}"></script>
 <script src="{{ url_for('static', filename='js/country_region_selector.js') }}"></script>
 <script src="{{ url_for('static', filename='js/fix_region_selector.js') }}"></script>
-{% endblock scripts %}
+{% endblock %}

@@ -13,7 +13,7 @@
     }
     
     .user-table {
-        min-width: 1200px !important; /* 确保表格有最小宽度，触发滚动条 */
+        min-width: 1400px !important; /* 增加最小宽度，确保横向滚动 */
         width: 100%;
         table-layout: fixed;
     }
@@ -28,8 +28,9 @@
     .user-table th:nth-child(7) { width: 100px; } /* 部门负责人列 */
     .user-table th:nth-child(8) { width: 100px; } /* 角色列 */
     .user-table th:nth-child(9) { width: 100px; } /* 创建时间列 */
-    .user-table th:nth-child(10) { width: 80px; } /* 状态列 */
-    .user-table th:nth-child(11) { width: 150px; } /* 操作列 */
+    .user-table th:nth-child(10) { width: 100px; } /* 更新时间列 */
+    .user-table th:nth-child(11) { width: 100px; } /* 状态列 */
+    .user-table th:nth-child(12) { width: 150px; } /* 操作列 */
     
     /* 响应式设计 */
     @media (max-width: 1200px) {
@@ -99,9 +100,10 @@
     </div>
     <div class="card-body p-0" style="overflow: hidden; max-width: 100%;">
         <div class="table-container" style="overflow-x: scroll !important;">
-            <table class="table table-hover mb-0 user-table" style="min-width: 1200px; width: 100%;">
+            <table class="table table-hover mb-0 user-table" style="min-width: 1400px; width: 100%;">
                 <thead class="table-light">
                     <tr>
+                        <th scope="col"><input type="checkbox" id="selectAllUsers"></th>
                         <th scope="col">#</th>
                         <th scope="col">用户名</th>
                         <th scope="col">真实姓名</th>
@@ -111,21 +113,22 @@
                         <th scope="col">部门负责人</th>
                         <th scope="col">角色</th>
                         <th scope="col">创建时间</th>
+                        <th scope="col">更新时间</th>
                         <th scope="col">状态</th>
-                        <th scope="col" class="text-center action-column" style="position: sticky; right: 0; background-color: #f8f9fa; z-index: 1;">操作</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% if users %}
                         {% for user in users %}
                         <tr>
+                            <td><input type="checkbox" class="user-checkbox" value="{{ user.id }}"></td>
                             <td>{{ user.id }}</td>
                             <td>
                                 <a href="{{ url_for('user.user_detail', user_id=user.id) }}">{{ user.username }}</a>
                             </td>
                             <td>{{ user.real_name }}</td>
                             <td>{{ user.email }}</td>
-                            <td>{{ user.company_name }}</td>
+                            <td>{{ company_dict.get(user.company_name, user.company_name or '-') }}</td>
                             <td>{{ user.department|default('-') }}</td>
                             <td>
                                 {% if user.is_department_manager %}
@@ -134,32 +137,9 @@
                                 <span class="badge bg-secondary">否</span>
                                 {% endif %}
                             </td>
-                            <td>
-                                {% if user.role == 'admin' %}
-                                <span class="badge bg-danger">管理员</span>
-                                {% elif user.role == 'sales' %}
-                                <span class="badge bg-primary">销售</span>
-                                {% elif user.role == 'product_manager' or user.role == 'product' %}
-                                <span class="badge bg-info">产品经理</span>
-                                {% elif user.role == 'solution_manager' or user.role == 'solution' %}
-                                <span class="badge bg-info">解决方案经理</span>
-                                {% elif user.role == 'service' %}
-                                <span class="badge bg-success">服务</span>
-                                {% elif user.role == 'service_manager' %}
-                                <span class="badge bg-success">服务经理</span>
-                                {% elif user.role == 'channel_manager' or user.role == 'channel' %}
-                                <span class="badge bg-primary">渠道经理</span>
-                                {% elif user.role == 'marketing_director' %}
-                                <span class="badge bg-warning text-dark">营销总监</span>
-                                {% elif user.role == 'dealer' or user.role == 'agent' %}
-                                <span class="badge bg-secondary">代理商</span>
-                                {% elif user.role == 'user' %}
-                                <span class="badge bg-secondary">普通用户</span>
-                                {% else %}
-                                <span class="badge bg-secondary">{{ user.role }}</span>
-                                {% endif %}
-                            </td>
+                            <td>{{ role_dict.get(user.role, user.role or '-') }}</td>
                             <td>{{ user.created_at|default('-') }}</td>
+                            <td>{{ user.updated_at|default('-') }}</td>
                             <td>
                                 {% if user.is_active %}
                                 <span class="badge bg-success">已激活</span>
@@ -167,27 +147,11 @@
                                 <span class="badge bg-warning text-dark">未激活</span>
                                 {% endif %}
                             </td>
-                            <td class="action-column" style="position: sticky; right: 0; background-color: #f8f9fa; z-index: 1;">
-                                <div class="btn-group" role="group">
-                                    <a href="{{ url_for('user.edit_user', user_id=user.id) }}" class="btn btn-sm btn-outline-primary">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
-                                    <a href="{{ url_for('user.manage_permissions', user_id=user.id) }}" class="btn btn-sm btn-outline-info">
-                                        <i class="fas fa-key"></i>
-                                    </a>
-                                    <a href="{{ url_for('user.manage_user_affiliations', user_id=user.id) }}" class="btn btn-sm btn-outline-secondary">
-                                        <i class="fas fa-users"></i>
-                                    </a>
-                                    <button type="button" class="btn btn-sm btn-outline-danger delete-user-btn" data-user-id="{{ user.id }}" data-username="{{ user.username }}">
-                                        <i class="fas fa-trash-alt"></i>
-                                    </button>
-                                </div>
-                            </td>
                         </tr>
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="11" class="text-center py-4">
+                            <td colspan="13" class="text-center py-4">
                                 <div class="text-muted">
                                     <i class="fas fa-users fa-3x mb-3"></i>
                                     <p>暂无用户数据</p>
@@ -199,6 +163,11 @@
             </table>
         </div>
     </div>
+</div>
+
+<!-- 在表格下方增加批量删除按钮 -->
+<div class="d-flex justify-content-end my-3" id="batchDeleteBar" style="display:none;">
+    <button class="btn btn-danger" id="batchDeleteBtn">批量删除选中用户</button>
 </div>
 
 <!-- 通用删除确认对话框 -->
@@ -341,7 +310,6 @@
   </ul>
 </nav>
 {% endif %}
-
 {% endblock %}
 
 {% block scripts %}
@@ -732,6 +700,46 @@ document.addEventListener('DOMContentLoaded', function() {
                 resultDiv.className = 'alert alert-danger mt-3';
                 resultDiv.innerHTML = `导入用户时出错: ${error.message}`;
                 resultDiv.style.display = 'block';
+            });
+        });
+    }
+
+    // 多选逻辑
+    const selectAll = document.getElementById('selectAllUsers');
+    const checkboxes = document.querySelectorAll('.user-checkbox');
+    const batchDeleteBar = document.getElementById('batchDeleteBar');
+    const batchDeleteBtn = document.getElementById('batchDeleteBtn');
+    function updateBatchBar() {
+        const checked = document.querySelectorAll('.user-checkbox:checked');
+        batchDeleteBar.style.display = checked.length > 0 ? 'flex' : 'none';
+    }
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            checkboxes.forEach(cb => cb.checked = selectAll.checked);
+            updateBatchBar();
+        });
+    }
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', updateBatchBar);
+    });
+    if (batchDeleteBtn) {
+        batchDeleteBtn.addEventListener('click', function() {
+            const ids = Array.from(document.querySelectorAll('.user-checkbox:checked')).map(cb => cb.value);
+            if (ids.length === 0) return;
+            if (!confirm('确定要删除选中的用户吗？')) return;
+            fetch('/user/batch-delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+                },
+                body: JSON.stringify({ user_ids: ids })
+            }).then(res => res.json()).then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert(data.message || '删除失败');
+                }
             });
         });
     }

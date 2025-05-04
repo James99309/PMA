@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_authorization_code, render_datetime %}
 
-{% block title %}项目管理{% endblock title %}
+{% block title %}项目管理{% endblock %}
 
 {% block content %}
 <!--
@@ -1437,7 +1437,7 @@ searchButton.addEventListener('click', function() {
     </div>
 </div>
 
-{% endblock content %}
+{% endblock %}
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -2051,4 +2051,4 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
-{% endblock scripts %}
+{% endblock %}

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}产品名称管理 - {{ category.name }}{% endblock title %}
+{% block title %}产品名称管理 - {{ category.name }}{% endblock %}
 
 {% block styles %}
 <style>
@@ -21,7 +21,7 @@
         background-color: #f8f9fa;
     }
 </style>
-{% endblock styles %}
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-4">
@@ -133,7 +133,7 @@
         </div>
     </div>
 </div>
-{% endblock content %}
+{% endblock %}
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
@@ -220,4 +220,4 @@
         }
     });
 </script>
-{% endblock scripts %}
+{% endblock %}

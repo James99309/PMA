@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}添加客户{% endblock title %}
+{% block title %}添加客户{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
@@ -138,7 +138,7 @@
         </div>
     </div>
 </div>
-{% endblock content %}
+{% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/country_region_data.js') }}"></script>
@@ -434,7 +434,7 @@ $(document).ready(function() {
     toggleFormFields(false);
 });
 </script>
-{% endblock scripts %} 
+{% endblock %} 
                         // 没有建议时隐藏列表
                         suggestionsContainer.empty().addClass('d-none');
                     }

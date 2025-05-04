@@ -9,6 +9,7 @@ import logging
 from sqlalchemy import func
 from flask_login import current_user
 from functools import wraps
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -72,62 +73,29 @@ def get_dictionaries(dict_type):
 @api_v1_bp.route('/dictionary/<string:dict_type>/add', methods=['POST'])
 @flexible_auth
 def add_dictionary(dict_type):
-    """添加新的字典项
-    
-    Args:
-        dict_type: 字典类型，如 'role', 'region' 等
-        
-    Returns:
-        包含新创建的字典项的响应
-    """
+    """添加新的字典项，自动分配key和排序，前端无需传递"""
     data = request.get_json()
-    
-    if not data:
-        return api_response(
-            success=False,
-            code=400,
-            message="请求数据无效"
-        )
-    
-    # 获取字典数据
-    key = data.get('key')
     value = data.get('value')
-    
-    # 验证必填字段
-    if not key or not value:
+    if not value:
         return api_response(
             success=False,
             code=400,
-            message="key和value字段必填"
+            message="显示文本必填"
         )
-    
-    # 检查key是否已存在（不区分大小写）
-    if Dictionary.query.filter(
-        func.lower(Dictionary.key) == func.lower(key),
-        Dictionary.type == dict_type
-    ).first():
-        return api_response(
-            success=False,
-            code=400,
-            message=f"字典键'{key}'已存在"
-        )
-    
-    # 获取最大排序号
+    # 自动分配key（UUID短码）
+    key = str(uuid.uuid4())[:8]
+    # 自动分配排序
     max_order = db.session.query(func.max(Dictionary.sort_order)).filter(
         Dictionary.type == dict_type
     ).scalar() or 0
-    
-    # 创建新字典项
     new_dict = Dictionary(
         type=dict_type,
         key=key,
         value=value,
         is_active=data.get('is_active', True),
-        sort_order=max_order + 10  # 增加10作为默认间隔
+        sort_order=max_order + 10
     )
-    
     db.session.add(new_dict)
-    
     try:
         db.session.commit()
         return api_response(
@@ -147,67 +115,26 @@ def add_dictionary(dict_type):
 @api_v1_bp.route('/dictionary/<string:dict_type>/edit', methods=['POST'])
 @flexible_auth
 def edit_dictionary(dict_type):
-    """编辑字典项
-    
-    Args:
-        dict_type: 字典类型，如 'role', 'region' 等
-        
-    Returns:
-        包含更新后的字典项的响应
-    """
+    """编辑字典项，只允许改value和is_active，禁止改key/sort_order"""
     data = request.get_json()
-    
     if not data or 'id' not in data:
         return api_response(
             success=False,
             code=400,
             message="请求数据无效"
         )
-    
-    # 获取字典项ID和更新数据
     dict_id = data.get('id')
     dict_item = Dictionary.query.get(dict_id)
-    
     if not dict_item or dict_item.type != dict_type:
         return api_response(
             success=False,
             code=404,
             message="字典项不存在"
         )
-    
-    # 更新字段
-    if 'key' in data:
-        # 检查新key是否与其他项冲突
-        existing = Dictionary.query.filter(
-            func.lower(Dictionary.key) == func.lower(data['key']),
-            Dictionary.type == dict_type,
-            Dictionary.id != dict_id
-        ).first()
-        
-        if existing:
-            return api_response(
-                success=False,
-                code=400,
-                message=f"字典键'{data['key']}'已存在"
-            )
-        
-        dict_item.key = data['key']
-    
     if 'value' in data:
         dict_item.value = data['value']
-        
-        # 如果是角色字典，同步更新用户的角色值
-        if dict_type == 'role':
-            users = User.query.filter_by(role=dict_item.key).all()
-            for user in users:
-                logger.info(f"更新用户 {user.id} 的角色从 {user.role} 到 {dict_item.key}")
-    
-    if 'sort_order' in data:
-        dict_item.sort_order = data['sort_order']
-    
     if 'is_active' in data:
         dict_item.is_active = data['is_active']
-    
     try:
         db.session.commit()
         return api_response(

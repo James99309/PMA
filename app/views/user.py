@@ -5,7 +5,11 @@ from app import db
 import logging
 import json
 from datetime import datetime
-from app.utils.role_mappings import normalize_role_key
+from app.utils.role_mappings import normalize_role_key, get_role_display_name
+from app.models.dictionary import Dictionary
+from app.models.project import Project
+from app.models.customer import Company
+from app.models.quotation import Quotation
 
 logger = logging.getLogger(__name__)
 user_bp = Blueprint('user', __name__)
@@ -47,11 +51,18 @@ def list_users():
 
     pagination = query.order_by(User.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
     users_data = [user.to_dict() for user in pagination.items]
+
+    # 批量获取企业名称和角色字典映射
+    company_dict = {d.key: d.value for d in Dictionary.query.filter_by(type='company').all()}
+    role_dict = {d.key: d.value for d in Dictionary.query.filter_by(type='role').all()}
+
     return render_template(
         'user/list.html',
         users=users_data,
         total=pagination.total,
-        pagination=pagination
+        pagination=pagination,
+        company_dict=company_dict,
+        role_dict=role_dict
     )
 
 @user_bp.route('/create', methods=['GET', 'POST'])
@@ -66,7 +77,7 @@ def create_user():
         # 获取表单数据
         username = request.form.get('username')
         real_name = request.form.get('real_name')
-        company_name = request.form.get('company_name')
+        company = request.form.get('company')
         email = request.form.get('email')
         phone = request.form.get('phone')
         department = request.form.get('department')
@@ -93,7 +104,7 @@ def create_user():
         user = User(
             username=username,
             real_name=real_name,
-            company_name=company_name,
+            company_name=company,
             email=email,
             phone=phone,
             department=department,
@@ -110,7 +121,7 @@ def create_user():
             user_data = {
                 "username": username,
                 "real_name": real_name,
-                "company_name": company_name,
+                "company_name": company,
                 "email": email,
                 "phone": phone,
                 "department": department,
@@ -148,7 +159,7 @@ def edit_user(user_id):
     # POST请求 - 处理编辑表单提交
     if request.method == 'POST':
         real_name = request.form.get('real_name')
-        company_name = request.form.get('company_name')
+        company = request.form.get('company')
         email = request.form.get('email')
         phone = request.form.get('phone')
         department = request.form.get('department')
@@ -163,7 +174,7 @@ def edit_user(user_id):
             return redirect(url_for('user.list_users'))
 
         user.real_name = real_name
-        user.company_name = company_name
+        user.company_name = company
         user.email = email
         user.phone = phone
         user.department = department
@@ -250,18 +261,42 @@ def manage_permissions(user_id):
         if not user:
             flash('用户不存在', 'danger')
             return redirect(url_for('user.list_users'))
-        Permission.query.filter_by(user_id=user_id).delete()
+        
+        # 首先查找用户现有的所有权限记录，便于后续更新
+        existing_permissions = {}
+        for perm in Permission.query.filter_by(user_id=user_id).all():
+            existing_permissions[perm.module] = perm
+        
+        # 处理表单提交的权限
         for perm in permissions:
             module = perm.get('module')
-            permission = Permission(
-                user_id=user_id,
-                module=module,
-                can_view=perm.get('can_view', False),
-                can_create=perm.get('can_create', False),
-                can_edit=perm.get('can_edit', False),
-                can_delete=perm.get('can_delete', False)
-            )
-            db.session.add(permission)
+            
+            # 检查是否已存在该模块的权限
+            if module in existing_permissions:
+                # 更新现有权限
+                existing_perm = existing_permissions[module]
+                existing_perm.can_view = bool(perm.get('can_view', False))
+                existing_perm.can_create = bool(perm.get('can_create', False))
+                existing_perm.can_edit = bool(perm.get('can_edit', False))
+                existing_perm.can_delete = bool(perm.get('can_delete', False))
+            else:
+                # 创建新权限记录
+                permission = Permission(
+                    user_id=user_id,
+                    module=module,
+                    can_view=bool(perm.get('can_view', False)),
+                    can_create=bool(perm.get('can_create', False)),
+                    can_edit=bool(perm.get('can_edit', False)),
+                    can_delete=bool(perm.get('can_delete', False))
+                )
+                db.session.add(permission)
+        
+        # 删除表单中未包含但数据库中存在的模块权限
+        form_modules = {p.get('module') for p in permissions if isinstance(p, dict) and 'module' in p}
+        for module, perm in existing_permissions.items():
+            if module not in form_modules:
+                db.session.delete(perm)
+        
         try:
             db.session.commit()
             flash('用户权限更新成功', 'success')
@@ -432,7 +467,7 @@ def import_users():
                     real_name=row['real_name'],
                     email=row['email'],
                     phone=row.get('phone', ''),
-                    company_name=row.get('company_name', ''),
+                    company_name=row.get('company', ''),
                     department=row.get('department', ''),
                     is_department_manager=is_department_manager,
                     role=normalize_role_key(row['role']),
@@ -538,10 +573,12 @@ def manage_role_permissions():
             
             try:
                 for user in users:
-                    # 删除现有权限
-                    Permission.query.filter_by(user_id=user.id).delete()
+                    # 获取用户现有权限
+                    existing_permissions = {}
+                    for perm in Permission.query.filter_by(user_id=user.id).all():
+                        existing_permissions[perm.module] = perm
                     
-                    # 添加新权限
+                    # 添加或更新权限
                     for perm in permissions:
                         if not isinstance(perm, dict) or 'module' not in perm:
                             continue
@@ -550,17 +587,31 @@ def manage_role_permissions():
                         if not module:
                             continue
                         
-                        # 创建新权限记录
-                        permission = Permission(
-                            user_id=user.id,
-                            module=module,
-                            can_view=bool(perm.get('can_view', False)),
-                            can_create=bool(perm.get('can_create', False)),
-                            can_edit=bool(perm.get('can_edit', False)),
-                            can_delete=bool(perm.get('can_delete', False))
-                        )
-                        
-                        db.session.add(permission)
+                        # 检查是否已存在该模块的权限
+                        if module in existing_permissions:
+                            # 更新现有权限
+                            existing_perm = existing_permissions[module]
+                            existing_perm.can_view = bool(perm.get('can_view', False))
+                            existing_perm.can_create = bool(perm.get('can_create', False))
+                            existing_perm.can_edit = bool(perm.get('can_edit', False))
+                            existing_perm.can_delete = bool(perm.get('can_delete', False))
+                        else:
+                            # 创建新权限记录
+                            permission = Permission(
+                                user_id=user.id,
+                                module=module,
+                                can_view=bool(perm.get('can_view', False)),
+                                can_create=bool(perm.get('can_create', False)),
+                                can_edit=bool(perm.get('can_edit', False)),
+                                can_delete=bool(perm.get('can_delete', False))
+                            )
+                            db.session.add(permission)
+                    
+                    # 删除表单中未包含但数据库中存在的模块权限
+                    form_modules = {p.get('module') for p in permissions if isinstance(p, dict) and 'module' in p}
+                    for module, perm in existing_permissions.items():
+                        if module not in form_modules:
+                            db.session.delete(perm)
                     
                     updated_count += 1
                 
@@ -595,7 +646,6 @@ def manage_role_permissions():
     try:
         from app.permissions import ROLE_PERMISSIONS
         from app.utils.role_mappings import normalize_role_key, get_role_display_name
-        from app.models.dictionary import Dictionary
         dict_roles = Dictionary.query.filter_by(type='role', is_active=True).order_by(Dictionary.sort_order).all()
         valid_perm_roles = set(ROLE_PERMISSIONS.keys())
         roles = []
@@ -636,12 +686,73 @@ def get_default_modules():
 def user_detail(user_id):
     """用户详情页，展示基本信息、权限、归属关系，分选项卡"""
     user = User.query.get_or_404(user_id)
-    # 查询权限
-    permissions = user.permissions if hasattr(user, 'permissions') else []
+    # 查询权限，强制转为列表
+    permissions = list(user.permissions) if hasattr(user, 'permissions') else []
     # 查询归属关系（如部门、角色等）
     affiliations = {
         'department': user.department if hasattr(user, 'department') else '',
         'role': user.role if hasattr(user, 'role') else '',
         # 可扩展更多归属关系
     }
-    return render_template('user/detail.html', user=user, permissions=permissions, affiliations=affiliations) 
+    role_display_name = get_role_display_name(user.role)
+    return render_template(
+        'user/detail.html',
+        user=user,
+        permissions=permissions,
+        affiliations=affiliations,
+        role_display_name=role_display_name
+    )
+
+@user_bp.route('/batch-delete', methods=['POST'])
+@login_required
+def batch_delete_users():
+    """批量删除用户：无数据可物理删除，有数据则改为未激活"""
+    try:
+        data = request.get_json()
+        user_ids = data.get('user_ids', [])
+        if not user_ids or not isinstance(user_ids, list):
+            return jsonify({'success': False, 'message': '未指定要删除的用户'}), 400
+        deleted, deactivated = [], []
+        for uid in user_ids:
+            user = User.query.get(uid)
+            if not user:
+                continue
+            # 检查是否有关联数据
+            has_data = False
+            if Project.query.filter_by(owner_id=user.id).first():
+                has_data = True
+            if Company.query.filter_by(owner_id=user.id).first():
+                has_data = True
+            if Quotation.query.filter_by(owner_id=user.id).first():
+                has_data = True
+            # 可扩展更多业务表...
+            if not has_data:
+                db.session.delete(user)
+                deleted.append(user.username)
+            else:
+                user.is_active = False
+                deactivated.append(user.username)
+        db.session.commit()
+        return jsonify({'success': True, 'deleted': deleted, 'deactivated': deactivated})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500 
+
+def to_dict(self):
+    """将用户信息转为字典，用于API响应"""
+    return {
+        'id': self.id,
+        'username': self.username,
+        'real_name': self.real_name,
+        'company_name': self.company_name,
+        'email': self.email,
+        'phone': self.phone,
+        'department': self.department,
+        'is_department_manager': self.is_department_manager,
+        'is_active': self.is_active,
+        'is_profile_complete': self.is_profile_complete,
+        'role': self.role,
+        'created_at': self.created_at,
+        'updated_at': self.updated_at if hasattr(self, 'updated_at') else None,
+        'last_login': self.last_login
+    } 

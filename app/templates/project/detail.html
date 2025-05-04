@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_quotation_number %}
 
-{% block title %}项目详情{% endblock title %}
+{% block title %}项目详情{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
@@ -472,7 +472,7 @@
         </div>
     </div>
 </div>
-{% endblock content %}
+{% endblock %}
 
 {% block scripts %}
 {{ super() }}
@@ -595,7 +595,7 @@
         });
     });
 </script>
-{% endblock scripts %}
+{% endblock %}
 
 {% block styles %}
 {{ super() }}
@@ -661,4 +661,4 @@
     padding-left: 5px;
 }
 </style>
-{% endblock styles %}
+{% endblock %}

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_owner, render_date, render_project_type %}
 
-{% block title %}{{ company.company_name }} - 企业详情{% endblock title %}
+{% block title %}{{ company.company_name }} - 企业详情{% endblock %}
 
 {% block content %}
 <div class="container-fluid mt-4">
@@ -489,5 +489,5 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
-{% endblock scripts %}
-{% endblock content %} 
+{% endblock %}
+{% endblock %} 
