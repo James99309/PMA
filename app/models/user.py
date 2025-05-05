@@ -154,13 +154,20 @@ class User(db.Model, UserMixin):
         # 管理员可以查看所有
         if self.role == 'admin':
             return [user.id for user in User.query.all()]
-            
+        
         # 基本情况：用户可以查看自己的数据
         viewable_ids = [self.id]
         
         # 代理商和普通用户只能看到自己的数据
         if self.role in ['dealer', 'user']:
             return viewable_ids
+        
+        # 部门负责人可见同公司同部门所有成员
+        if getattr(self, 'is_department_manager', False) and getattr(self, 'department', None) and getattr(self, 'company_name', None):
+            dept_users = User.query.filter_by(department=self.department, company_name=self.company_name).all()
+            for u in dept_users:
+                if u.id not in viewable_ids:
+                    viewable_ids.append(u.id)
         
         # 产品经理和解决方案经理可以查看所有报价单所有者的数据
         if self.role in ['product_manager', 'solution_manager']:
@@ -188,7 +195,7 @@ class User(db.Model, UserMixin):
         # 获取通过归属关系可以查看的用户
         for affiliation in self.can_view_from:
             viewable_ids.append(affiliation.owner_id)
-            
+        
         # 渠道经理和营销总监有特殊权限，需在查询时处理
         
         # 去重并返回

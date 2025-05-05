@@ -10,7 +10,7 @@
 ROLE_NAME_MAPPINGS = {
     'admin': '系统管理员',
     'user': '普通用户',
-    'sales': '销售人员',
+    'customer_sales': '客户销售',
     'product_manager': '产品经理',
     'solution_manager': '解决方案经理',
     'service': '服务人员',
@@ -35,8 +35,7 @@ ROLE_KEY_NORMALIZATION = {
     'HR': 'admin',  # 绩效经理映射为管理员
     'business_admin': 'admin',  # 商务助理映射为管理员
     'finace_manager': 'admin',  # 财务总监映射为管理员
-    'sales_manager': 'sales',  # 销售经理映射为销售人员
-    'customer_sales': 'sales',  # 客户销售映射为销售人员
+    'sales_manager': 'customer_sales',  # 销售经理映射为客户销售
 }
 
 def normalize_role_key(role_key):

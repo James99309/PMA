@@ -105,9 +105,7 @@ def run_migrations_online():
             connection=connection,
             target_metadata=get_metadata(),
             process_revision_directives=process_revision_directives,
-            **current_app.extensions['migrate'].configure_args,
-            # 启用SQLite批处理模式
-            render_as_batch=True
+            **current_app.extensions['migrate'].configure_args
         )
 
         with context.begin_transaction():

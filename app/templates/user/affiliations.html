@@ -122,8 +122,17 @@
     $(document).ready(function() {
         var availableUsers = [];
         var selectedUsers = [];
-        var api_base = '{{ request.host_url.rstrip("/") + "/api/v1" }}';
+        var allUsers = [];
+        var api_base = window.location.origin + '/api/v1';
         var user_id = "{{ target_user.id }}"; // 确保user_id是字符串
+        var targetUser = {
+            id: "{{ target_user.id }}",
+            real_name: "{{ target_user.real_name }}",
+            username: "{{ target_user.username }}",
+            department: "{{ target_user.department }}",
+            company_name: "{{ target_user.company_name }}",
+            is_department_manager: "{{ 'true' if target_user.is_department_manager else 'false' }}"
+        };
 
         // 添加调试日志
         console.log('页面加载完成，配置信息:', {
@@ -184,6 +193,7 @@
             var token = '{{ session.get("jwt_token", "") }}';
             if (!token) {
                 console.warn('JWT令牌不存在，可能需要重新登录');
+                $('#debugInfo').html('<div class="alert alert-danger">身份验证失败: JWT令牌不存在，请<a href="/auth/login">重新登录</a></div>');
             }
             return {
                 'Authorization': 'Bearer ' + token,
@@ -191,165 +201,126 @@
             };
         }
 
-        // 加载可用用户
-        function loadAvailableUsers() {
-            $('#availableUsersList').html('<li class="list-group-item text-center"><i class="fa fa-spinner fa-spin"></i> 正在加载可用用户...</li>');
+        // 加载所有用户（含自己）
+        function loadAllUsersAndAffiliations() {
+            var headers = getAuthHeader();
+            console.log('API请求头部:', headers);
+            
             $.ajax({
                 url: api_base + '/users/' + user_id + '/available',
                 type: 'GET',
-                headers: getAuthHeader(),
-                success: function(response) {
-                    if (response.success) {
-                        availableUsers = response.data;
-                        renderAvailableUsers();
-                        console.log('成功加载可用用户:', availableUsers.length);
+                headers: headers,
+                success: function(resp) {
+                    console.log('API响应:', resp);
+                    if (resp.success) {
+                        allUsers = resp.data;
+                        loadAffiliations();
                     } else {
-                        $('#availableUsersList').html('<li class="list-group-item text-center text-danger">加载用户列表失败</li>');
-                        alert('加载用户列表失败：' + response.message);
-                        console.error('加载用户失败:', response.message);
+                        $('#debugInfo').html('<div class="alert alert-danger">加载用户失败: ' + resp.message + '</div>');
                     }
                 },
                 error: function(xhr, status, error) {
-                    var errorMsg = '网络错误，请稍后重试';
-                    if (xhr.responseJSON && xhr.responseJSON.message) {
-                        errorMsg = xhr.responseJSON.message;
-                    } else if (xhr.status === 422) {
-                        errorMsg = '服务器处理请求时出错，请联系管理员';
-                    }
-                    $('#availableUsersList').html('<li class="list-group-item text-center text-danger">加载用户列表失败: ' + errorMsg + '</li>');
                     console.error('API错误:', xhr.status, error, xhr.responseText);
+                    var errorMsg = '加载用户失败';
+                    if (xhr.status === 401) {
+                        errorMsg = '身份验证失败，请重新登录';
+                    } else if (xhr.status === 403) {
+                        errorMsg = '无权访问此数据';
+                    } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMsg = xhr.responseJSON.message;
+                    }
+                    $('#debugInfo').html('<div class="alert alert-danger">' + errorMsg + '</div>');
                 }
             });
         }
 
-        // 加载已选用户
-        function loadSelectedUsers() {
-            $('#selectedUsersList').html('<li class="list-group-item text-center"><i class="fa fa-spinner fa-spin"></i> 正在加载已选用户...</li>');
+        // 加载已选归属
+        function loadAffiliations() {
             $.ajax({
                 url: api_base + '/affiliations/' + user_id,
                 type: 'GET',
                 headers: getAuthHeader(),
-                success: function(response) {
-                    if (response.success) {
-                        selectedUsers = response.data;
-                        renderSelectedUsers();
-                        renderAvailableUsers(); // 重新渲染可用用户，排除已选的
-                        console.log('成功加载已选用户:', selectedUsers.length);
+                success: function(resp) {
+                    console.log('加载归属响应:', resp);
+                    if (resp.success) {
+                        selectedUsers = resp.data;
+                        renderUserLists();
                     } else {
-                        $('#selectedUsersList').html('<li class="list-group-item text-center text-danger">加载已选用户失败</li>');
-                        alert('加载已选用户失败：' + response.message);
-                        console.error('加载已选用户失败:', response.message);
+                        $('#debugInfo').html('<div class="alert alert-danger">加载归属失败: ' + resp.message + '</div>');
                     }
                 },
                 error: function(xhr, status, error) {
-                    var errorMsg = '网络错误，请稍后重试';
+                    console.error('加载归属错误:', xhr.status, error, xhr.responseText);
+                    var errorMsg = '加载归属失败';
                     if (xhr.responseJSON && xhr.responseJSON.message) {
                         errorMsg = xhr.responseJSON.message;
-                    } else if (xhr.status === 422) {
-                        errorMsg = '服务器处理请求时出错，请联系管理员';
                     }
-                    $('#selectedUsersList').html('<li class="list-group-item text-center text-danger">加载已选用户失败: ' + errorMsg + '</li>');
-                    console.error('API错误:', xhr.status, error, xhr.responseText);
+                    $('#debugInfo').html('<div class="alert alert-danger">' + errorMsg + '</div>');
                 }
             });
         }
 
-        // 渲染可用用户列表
-        function renderAvailableUsers(searchTerm) {
-            if (!searchTerm) searchTerm = '';
-            var $list = $('#availableUsersList');
-            $list.empty();
-
-            // 过滤不在已选列表中的用户
-            var filteredUsers = availableUsers.filter(function(user) {
-                return !selectedUsers.some(function(selected) {
-                    return selected.user_id === user.id;
-                });
-            });
-
-            // 应用搜索过滤
-            if (searchTerm) {
-                searchTerm = searchTerm.toLowerCase();
-                filteredUsers = filteredUsers.filter(function(user) {
-                    return user.username.toLowerCase().includes(searchTerm) ||
-                        (user.real_name && user.real_name.toLowerCase().includes(searchTerm)) ||
-                        (user.role && user.role.toLowerCase().includes(searchTerm));
-                });
+        // 渲染用户列表
+        function renderUserLists() {
+            // 调试输出
+            console.log('allUsers:', allUsers);
+            console.log('selectedUsers:', selectedUsers);
+            console.log('targetUser:', targetUser);
+            // 计算部门内默认可见用户id（全部转为字符串）
+            let deptDefaultIds = [];
+            if (targetUser.is_department_manager === 'true' && targetUser.department && targetUser.company_name) {
+                deptDefaultIds = allUsers
+                    .filter(u => (u.department || '').trim() === (targetUser.department || '').trim() && (u.company_name || '').trim() === (targetUser.company_name || '').trim() && String(u.id) !== String(targetUser.id))
+                    .map(u => String(u.id));
             }
-
-            if (filteredUsers.length === 0) {
-                $list.append('<li class="list-group-item text-center text-muted">没有可选的用户</li>');
-                return;
-            }
-
-            // 按角色和用户名排序
-            filteredUsers.sort(function(a, b) {
-                if (a.role !== b.role) {
-                    return a.role.localeCompare(b.role);
+            console.log('deptDefaultIds:', deptDefaultIds);
+            // 挂载到window，便于全局调试
+            window.allUsers = allUsers;
+            window.selectedUsers = selectedUsers;
+            window.deptDefaultIds = deptDefaultIds;
+            // 右侧：已选用户（含部门默认可见）
+            let selectedHtml = '';
+            let selectedIds = selectedUsers.map(u => String(u.user_id));
+            // 补充部门默认可见但未在selectedUsers中的
+            deptDefaultIds.forEach(id => {
+                if (!selectedIds.includes(id)) {
+                    let u = allUsers.find(x => String(x.id) === id);
+                    if (u) {
+                        selectedUsers.push({
+                            user_id: String(u.id),
+                            username: u.username,
+                            real_name: u.real_name,
+                            role: u.role,
+                            company_name: u.company_name,
+                            department: u.department,
+                            is_department_manager: u.is_department_manager
+                        });
+                    }
                 }
-                return a.username.localeCompare(b.username);
             });
-
-            filteredUsers.forEach(function(user) {
-                var item = '<li class="list-group-item">' +
-                    '<div class="form-check">' +
-                    '<input class="form-check-input available-user-check" type="checkbox" value="' + user.id + '" id="user-available-' + user.id + '">' +
-                    '<label class="form-check-label" for="user-available-' + user.id + '">' +
-                    '<strong>' + user.username + '</strong> ' +
-                    (user.real_name ? '(' + user.real_name + ')' : '') +
-                    ' <span class="badge badge-info">' + translateRole(user.role) + '</span>' +
-                    (user.company_name ? '<br><small class="text-muted">' + user.company_name + '</small>' : '') +
-                    '</label>' +
-                    '</div>' +
-                    '</li>';
-                $list.append(item);
+            // 渲染右侧
+            selectedUsers.forEach(user => {
+                let isDeptDefault = deptDefaultIds.includes(String(user.user_id || user.id));
+                selectedHtml += `<li class="list-group-item d-flex align-items-center${isDeptDefault ? ' bg-light text-muted' : ''}">
+                    <input type="checkbox" class="form-check-input me-2" value="${user.user_id || user.id}" ${isDeptDefault ? 'disabled' : ''}>
+                    <span>${user.real_name || ''}｜${user.username || ''}｜${user.department || ''}｜${user.company_name || ''}</span>
+                    ${isDeptDefault ? '<span class="badge bg-secondary ms-2">部门默认可见</span>' : ''}
+                </li>`;
             });
-        }
+            $('#selectedUsersList').html(selectedHtml || '<li class="list-group-item text-center text-muted">暂无可见用户</li>');
 
-        // 渲染已选用户列表
-        function renderSelectedUsers(searchTerm) {
-            if (!searchTerm) searchTerm = '';
-            var $list = $('#selectedUsersList');
-            $list.empty();
-
-            // 应用搜索过滤
-            var filteredUsers = selectedUsers;
-            if (searchTerm) {
-                searchTerm = searchTerm.toLowerCase();
-                filteredUsers = filteredUsers.filter(function(user) {
-                    return user.username.toLowerCase().includes(searchTerm) ||
-                        (user.real_name && user.real_name.toLowerCase().includes(searchTerm)) ||
-                        (user.role && user.role.toLowerCase().includes(searchTerm));
-                });
-            }
-
-            if (filteredUsers.length === 0) {
-                $list.append('<li class="list-group-item text-center text-muted">没有选择任何用户</li>');
-                return;
-            }
-
-            // 按角色和用户名排序
-            filteredUsers.sort(function(a, b) {
-                if (a.role !== b.role) {
-                    return a.role.localeCompare(b.role);
-                }
-                return a.username.localeCompare(b.username);
+            // 左侧：可选用户 = allUsers - selectedUsers - 部门默认可见
+            let selectedSet = new Set(selectedUsers.map(u => String(u.user_id || u.id)));
+            let availableHtml = '';
+            allUsers.forEach(user => {
+                if (String(user.id) === String(targetUser.id)) return; // 排除自己
+                if (selectedSet.has(String(user.id))) return; // 排除已选
+                availableHtml += `<li class="list-group-item d-flex align-items-center">
+                    <input type="checkbox" class="form-check-input me-2" value="${user.id}">
+                    <span>${user.real_name || ''}｜${user.username || ''}｜${user.department || ''}｜${user.company_name || ''}</span>
+                </li>`;
             });
-
-            filteredUsers.forEach(function(user) {
-                var item = '<li class="list-group-item">' +
-                    '<div class="form-check">' +
-                    '<input class="form-check-input selected-user-check" type="checkbox" value="' + user.user_id + '" id="user-selected-' + user.user_id + '">' +
-                    '<label class="form-check-label" for="user-selected-' + user.user_id + '">' +
-                    '<strong>' + user.username + '</strong> ' +
-                    (user.real_name ? '(' + user.real_name + ')' : '') +
-                    ' <span class="badge badge-info">' + translateRole(user.role) + '</span>' +
-                    (user.company_name ? '<br><small class="text-muted">' + user.company_name + '</small>' : '') +
-                    '</label>' +
-                    '</div>' +
-                    '</li>';
-                $list.append(item);
-            });
+            $('#availableUsersList').html(availableHtml || '<li class="list-group-item text-center text-muted">暂无可添加用户</li>');
         }
 
         // 角色翻译
@@ -370,23 +341,23 @@
 
         // 搜索可用用户
         $('#btnSearchAvailable').click(function() {
-            renderAvailableUsers($('#searchAvailable').val());
+            renderUserLists();
         });
 
         $('#searchAvailable').keyup(function(e) {
             if (e.keyCode === 13) {
-                renderAvailableUsers($('#searchAvailable').val());
+                renderUserLists();
             }
         });
 
         // 搜索已选用户
         $('#btnSearchSelected').click(function() {
-            renderSelectedUsers($('#searchSelected').val());
+            renderUserLists();
         });
 
         $('#searchSelected').keyup(function(e) {
             if (e.keyCode === 13) {
-                renderSelectedUsers($('#searchSelected').val());
+                renderUserLists();
             }
         });
 
@@ -428,8 +399,7 @@
             });
 
             // 重新渲染两个列表
-            renderAvailableUsers($('#searchAvailable').val());
-            renderSelectedUsers($('#searchSelected').val());
+            renderUserLists();
 
             // 取消全选
             $('#selectAllAvailable').prop('checked', false);
@@ -453,8 +423,7 @@
             });
 
             // 重新渲染两个列表
-            renderAvailableUsers($('#searchAvailable').val());
-            renderSelectedUsers($('#searchSelected').val());
+            renderUserLists();
 
             // 取消全选
             $('#selectAllSelected').prop('checked', false);
@@ -522,13 +491,8 @@
             $('#availableUsersList').html('<li class="list-group-item text-center"><i class="fa fa-spinner fa-spin"></i> 正在加载可用用户...</li>');
             $('#selectedUsersList').html('<li class="list-group-item text-center"><i class="fa fa-spinner fa-spin"></i> 正在加载已选用户...</li>');
 
-            // 先加载已选择的用户
-            loadSelectedUsers();
-
-            // 然后加载可用用户
-            setTimeout(function() {
-                loadAvailableUsers();
-            }, 500); // 稍微延迟加载可用用户，避免并发请求可能导致的问题
+            // 加载所有用户和归属关系
+            loadAllUsersAndAffiliations();
         }
 
         // 开始初始化

@@ -23,14 +23,26 @@
 {% endblock %}
 
 {% block content %}
+{% set module_name_map = {} %}
+{% set module_desc_map = {} %}
+{% for m in modules %}
+  {% set _ = module_name_map.update({m.id: m.name}) %}
+  {% set _ = module_desc_map.update({m.id: m.description}) %}
+{% endfor %}
 <div class="row mb-4">
-    <div class="col-md-12 d-flex justify-content-between align-items-center">
-        <h2>用户详情：{{ user.username }}</h2>
-        <a href="{{ url_for('user.list_users') }}" class="btn btn-secondary">返回</a>
+    <div class="col-md-12 d-flex align-items-center">
+        <h2 class="me-3">用户详情：{{ user.real_name }}</h2>
+        <!-- 选项卡标题右侧按钮区 -->
+        <div class="ms-auto d-flex align-items-center" id="tabEditBtns">
+            <a id="editBaseBtn" href="{{ url_for('user.edit_user', user_id=user.id) }}" class="btn btn-sm btn-outline-primary d-none ms-2">编辑</a>
+            <a id="editPermBtn" href="{{ url_for('user.manage_permissions', user_id=user.id) }}" class="btn btn-sm btn-outline-primary d-none ms-2">编辑权限</a>
+            <a id="editAffBtn" href="{{ url_for('user.manage_user_affiliations', user_id=user.id) }}" class="btn btn-sm btn-outline-primary d-none ms-2">编辑归属</a>
+            <a href="{{ url_for('user.list_users') }}" class="btn btn-sm btn-secondary ms-2">返回</a>
+        </div>
     </div>
 </div>
 
-<div class="d-flex justify-content-between align-items-center mb-2">
+<div class="d-flex align-items-center mb-2">
     <ul class="nav nav-tabs" id="userDetailTab" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link active" id="base-tab" data-bs-toggle="tab" data-bs-target="#base" type="button" role="tab" aria-controls="base" aria-selected="true">基本信息</button>
@@ -42,11 +54,6 @@
             <button class="nav-link" id="aff-tab" data-bs-toggle="tab" data-bs-target="#aff" type="button" role="tab" aria-controls="aff" aria-selected="false">归属关系</button>
         </li>
     </ul>
-    <div id="tabEditBtns">
-        <a id="editBaseBtn" href="{{ url_for('user.edit_user', user_id=user.id) }}" class="btn btn-sm btn-outline-primary d-none">编辑</a>
-        <a id="editPermBtn" href="{{ url_for('user.manage_permissions', user_id=user.id) }}" class="btn btn-sm btn-outline-primary d-none">编辑权限</a>
-        <a id="editAffBtn" href="{{ url_for('user.manage_user_affiliations', user_id=user.id) }}" class="btn btn-sm btn-outline-primary d-none">编辑归属</a>
-    </div>
 </div>
 <div class="tab-content" id="userDetailTabContent">
     <!-- 基本信息 -->
@@ -58,27 +65,54 @@
             <dt class="col-sm-3">手机号</dt><dd class="col-sm-9">{{ user.phone }}</dd>
             <dt class="col-sm-3">公司</dt><dd class="col-sm-9">{{ user.company_name }}</dd>
             <dt class="col-sm-3">部门</dt><dd class="col-sm-9">{{ user.department }}</dd>
-            <dt class="col-sm-3">角色</dt><dd class="col-sm-9">{{ role_display_name }}</dd>
+            <dt class="col-sm-3">角色</dt><dd class="col-sm-9">{{ role_dict.get(user.role, user.role) }}</dd>
             <dt class="col-sm-3">状态</dt><dd class="col-sm-9">{{ '激活' if user.is_active else '禁用' }}</dd>
         </dl>
     </div>
     <!-- 权限 -->
     <div class="tab-pane fade" id="perm" role="tabpanel" aria-labelledby="perm-tab">
-        <ul class="list-group mt-3">
-            {% if permissions and permissions|length > 0 %}
-                {% for perm in permissions %}
-                    <li class="list-group-item">{{ perm.name if perm.name else perm }}</li>
-                {% endfor %}
-            {% else %}
-                <li class="list-group-item text-muted">暂无权限</li>
-            {% endif %}
-        </ul>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">当前权限</h5>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover permission-matrix">
+                <thead class="table-light">
+                    <tr>
+                        <th>模块</th>
+                        <th class="text-center">查看</th>
+                        <th class="text-center">创建</th>
+                        <th class="text-center">编辑</th>
+                        <th class="text-center">删除</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% if permissions and permissions|length > 0 %}
+                    {% for perm in permissions %}
+                    <tr>
+                        <td>
+                            {{ module_name_map.get(perm.module, perm.module) }}
+                            {% if module_desc_map.get(perm.module) %}
+                                <small class="text-muted d-block">{{ module_desc_map.get(perm.module) }}</small>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">{% if perm.can_view %}<i class="fas fa-check text-success"></i>{% else %}<i class="fas fa-times text-danger"></i>{% endif %}</td>
+                        <td class="text-center">{% if perm.can_create %}<i class="fas fa-check text-success"></i>{% else %}<i class="fas fa-times text-danger"></i>{% endif %}</td>
+                        <td class="text-center">{% if perm.can_edit %}<i class="fas fa-check text-success"></i>{% else %}<i class="fas fa-times text-danger"></i>{% endif %}</td>
+                        <td class="text-center">{% if perm.can_delete %}<i class="fas fa-check text-success"></i>{% else %}<i class="fas fa-times text-danger"></i>{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr><td colspan="5" class="text-muted text-center">暂无权限</td></tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
     </div>
     <!-- 归属关系 -->
     <div class="tab-pane fade" id="aff" role="tabpanel" aria-labelledby="aff-tab">
         <dl class="row mt-3">
             <dt class="col-sm-3">部门</dt><dd class="col-sm-9">{{ affiliations.department }}</dd>
-            <dt class="col-sm-3">角色</dt><dd class="col-sm-9">{{ role_display_name }}</dd>
+            <dt class="col-sm-3">角色</dt><dd class="col-sm-9">{{ role_dict.get(user.role, user.role) }}</dd>
         </dl>
     </div>
 </div>

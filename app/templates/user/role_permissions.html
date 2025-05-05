@@ -28,7 +28,9 @@
                             <label for="roleSelect" class="form-label">选择角色：</label>
                             <select class="form-select" id="roleSelect">
                                 <option value="">--请选择角色--</option>
-                                <!-- 角色将通过JS动态加载 -->
+                                {% for role in roles %}
+                                    <option value="{{ role.key }}">{{ role.value }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                     </div>
@@ -66,14 +68,17 @@
                     <div class="mt-4">
                         <div class="row">
                             <div class="col-md-6">
-                                <div class="btn-group" role="group">
+                                <div class="btn-group" role="group" id="batchButtons" style="display:none;">
                                     <button type="button" class="btn btn-outline-primary" id="selectAll">全选</button>
                                     <button type="button" class="btn btn-outline-secondary" id="selectNone">清空</button>
                                     <button type="button" class="btn btn-outline-info" id="selectView">仅查看</button>
                                 </div>
                             </div>
                             <div class="col-md-6 text-end">
-                                <button type="button" class="btn btn-primary" id="savePermissions">
+                                <button type="button" class="btn btn-success" id="editPermissions">
+                                    <i class="fas fa-edit me-1"></i> 编辑
+                                </button>
+                                <button type="button" class="btn btn-primary" id="savePermissions" style="display:none;">
                                     <i class="fas fa-save me-1"></i> 保存权限设置
                                 </button>
                                 <a href="{{ url_for('user.list_users') }}" class="btn btn-outline-secondary ms-2">
@@ -156,6 +161,7 @@
     // 定义全局变量
     let currentRole = null;
     let currentPermissions = [];
+    let editMode = false;
 
     // 安全地解析模块和角色数据
     let MODULES = [];
@@ -182,11 +188,13 @@
     const selectAllBtn = document.getElementById('selectAll');
     const selectNoneBtn = document.getElementById('selectNone');
     const selectViewBtn = document.getElementById('selectView');
+    const editPermissionsBtn = document.getElementById('editPermissions');
 
     // 初始化页面
     document.addEventListener('DOMContentLoaded', function() {
         // 加载角色选项
         loadRoleOptions();
+        setEditMode(false); // 初始只读
 
         // 角色选择事件
         if (roleSelect) {
@@ -200,9 +208,19 @@
             });
         }
 
+        // 编辑按钮事件
+        if (editPermissionsBtn) {
+            editPermissionsBtn.addEventListener('click', function() {
+                setEditMode(true);
+            });
+        }
+
         // 保存按钮事件
         if (saveButton) {
-            saveButton.addEventListener('click', savePermissions);
+            saveButton.addEventListener('click', function() {
+                savePermissions();
+                setEditMode(false);
+            });
         }
 
         // 快速选择按钮事件
@@ -238,10 +256,10 @@
 
         // 添加角色选项
         ROLES.forEach(role => {
-            if (role && role.key && role.name) {
+            if (role && role.key && role.value) {
                 const option = document.createElement('option');
                 option.value = role.key;
-                option.textContent = role.name;
+                option.textContent = role.value;
                 roleSelect.appendChild(option);
             }
         });
@@ -302,14 +320,11 @@
             console.error('无法渲染权限表格');
             return;
         }
-
         // 清空表格
         permissionsTableBody.innerHTML = '';
-
         // 添加模块行
         MODULES.forEach(module => {
             if (!module || !module.id) return;
-
             // 查找当前模块的权限
             const modulePermission = currentPermissions.find(p => p.module === module.id) || {
                 module: module.id,
@@ -318,11 +333,9 @@
                 can_edit: false,
                 can_delete: false
             };
-
             // 创建表格行
             const row = document.createElement('tr');
             row.dataset.module = module.id;
-
             // 模块名称列
             const moduleCell = document.createElement('td');
             moduleCell.innerHTML = `
@@ -330,13 +343,11 @@
                 ${module.description ? `<small class="text-muted d-block">${module.description}</small>` : ''}
             `;
             row.appendChild(moduleCell);
-
             // 权限复选框列（查看、创建、编辑、删除）
             const permissions = ['view', 'create', 'edit', 'delete'];
             permissions.forEach(action => {
                 const permKey = `can_${action}`;
                 const isChecked = modulePermission[permKey] === true;
-
                 const cell = document.createElement('td');
                 cell.className = 'text-center';
                 cell.innerHTML = `
@@ -345,12 +356,12 @@
                             id="${action}_${module.id}"
                             data-module="${module.id}"
                             data-action="${action}"
-                            ${isChecked ? 'checked' : ''}>
+                            ${isChecked ? 'checked' : ''}
+                            disabled>
                     </div>
                 `;
                 row.appendChild(cell);
             });
-
             // 添加模块全选复选框
             const allChecked = permissions.every(action => modulePermission[`can_${action}`] === true);
             const selectAllCell = document.createElement('td');
@@ -360,15 +371,14 @@
                     <input type="checkbox" class="form-check-input module-select-all"
                         id="selectAll_${module.id}"
                         data-module="${module.id}"
-                        ${allChecked ? 'checked' : ''}>
+                        ${allChecked ? 'checked' : ''}
+                        disabled>
                 </div>
             `;
             row.appendChild(selectAllCell);
-
             // 添加行到表格
             permissionsTableBody.appendChild(row);
         });
-
         // 为每个模块的全选复选框添加事件监听
         document.querySelectorAll('.module-select-all').forEach(checkbox => {
             checkbox.addEventListener('change', function() {
@@ -376,18 +386,17 @@
                 toggleModulePermissions(moduleId, this.checked);
             });
         });
-
         // 为每个权限复选框添加事件监听，更新全选状态
         document.querySelectorAll('.permission-checkbox').forEach(checkbox => {
             checkbox.addEventListener('change', function() {
                 updateModuleSelectAllState(this.dataset.module);
             });
         });
-
         // 启用保存按钮
         if (saveButton) {
             saveButton.disabled = false;
         }
+        setEditMode(editMode); // 渲染后同步只读/编辑状态
     }
 
     // 切换模块所有权限
@@ -565,6 +574,18 @@
         if (permissionsContainer) permissionsContainer.classList.add('d-none');
         if (emptyState) emptyState.classList.add('d-none');
         if (errorMessage) errorMessage.classList.remove('d-none');
+    }
+
+    function setEditMode(enable) {
+        editMode = enable;
+        // 控制复选框
+        document.querySelectorAll('#permissionsTableBody input[type=checkbox]').forEach(cb => {
+            cb.disabled = !enable;
+        });
+        // 控制按钮
+        document.getElementById('editPermissions').style.display = enable ? 'none' : '';
+        document.getElementById('savePermissions').style.display = enable ? '' : 'none';
+        document.getElementById('batchButtons').style.display = enable ? '' : 'none';
     }
 </script>
 {% endblock %}

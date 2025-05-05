@@ -13,7 +13,7 @@ import requests
 import json
 from sqlalchemy import func
 from flask_jwt_extended import create_access_token
-from werkzeug.urls import url_parse
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 auth = Blueprint('auth', __name__)
@@ -57,7 +57,7 @@ def login():
             
             # 重定向到登录前的页面或默认页面
             next_page = request.args.get('next')
-            if not next_page or url_parse(next_page).netloc != '':
+            if not next_page or urlparse(next_page).netloc != '':
                 next_page = url_for('main.index')
             return redirect(next_page)
         else:

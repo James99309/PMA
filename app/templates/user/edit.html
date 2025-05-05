@@ -498,6 +498,7 @@
                         if (currentValue) {
                             deptSelect.value = currentValue;
                         }
+                        setDeptSelected();
                     } else {
                         console.error('加载部门选项失败:', data.message);
                     }
@@ -682,36 +683,21 @@
     function loadRoleOptions() {
         const roleSelect = document.getElementById('role');
         if (!roleSelect) return;
-
         fetch('/api/v1/dictionary/role?active_only=true')
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    const currentValue = roleSelect.value;
-
-                    // 清空下拉列表，保留第一个选项
                     while (roleSelect.options.length > 1) {
                         roleSelect.remove(1);
                     }
-
-                    // 添加从API获取的选项
                     data.data.forEach(item => {
                         const option = document.createElement('option');
                         option.value = item.key;
                         option.textContent = item.value;
                         roleSelect.appendChild(option);
                     });
-
-                    // 恢复之前选中的值
-                    if (currentValue) {
-                        roleSelect.value = currentValue;
-                    }
-                } else {
-                    console.error('加载角色选项失败:', data.message);
+                    setRoleSelected();
                 }
-            })
-            .catch(error => {
-                console.error('API请求错误:', error);
             });
     }
 
@@ -981,6 +967,7 @@
                     } else if (currentValue) {
                         companySelect.value = currentValue;
                     }
+                    setCompanySelected();
                 } else {
                     console.error('加载企业名称选项失败:', data.message);
                 }
@@ -1158,5 +1145,38 @@
                 alert('网络错误，请稍后重试');
             });
     }
+
+    // 获取后端传入的当前用户角色、部门、公司
+    const currentRole = "{{ user.role or '' }}";
+    const currentDept = "{{ user.department or '' }}";
+    const currentCompany = "{{ user.company_name or '' }}";
+
+    // 动态加载角色选项后设置选中项
+    function setRoleSelected() {
+        if (currentRole) {
+            const $role = document.getElementById('role');
+            if ($role) $role.value = currentRole;
+        }
+    }
+    // 动态加载部门选项后设置选中项
+    function setDeptSelected() {
+        if (currentDept) {
+            const $dept = document.getElementById('department');
+            if ($dept) $dept.value = currentDept;
+        }
+    }
+    // 动态加载公司选项后设置选中项
+    function setCompanySelected() {
+        if (currentCompany) {
+            const $company = document.getElementById('company');
+            if ($company) $company.value = currentCompany;
+        }
+    }
+
+    // 假设你已有AJAX加载选项的代码，加载完成后分别调用上述函数
+    // 例如：
+    // $.get('/api/roles', function(data) { ... setRoleSelected(); });
+    // $.get('/api/departments', function(data) { ... setDeptSelected(); });
+    // $.get('/api/companies', function(data) { ... setCompanySelected(); });
 </script>
 {% endblock %}

@@ -420,14 +420,11 @@ def get_all_available_users():
 @api_v1_bp.route('/users/<int:user_id>/available', methods=['GET'])
 @jwt_required()
 def get_available_users_for_owner(user_id):
-    """获取可以添加为特定用户的数据所有者的用户列表"""
+    """获取可以添加为特定用户的数据所有者的用户列表，返回所有活跃用户（含自己）"""
     try:
         current_user_id = get_jwt_identity()  # 获取字符串形式的用户ID
-        # 确保是字符串类型
         if not isinstance(current_user_id, str):
             current_user_id = str(current_user_id)
-            
-        # 查询用户时使用整数ID
         current_user = User.query.get(int(current_user_id))
         if not current_user:
             return api_response(
@@ -435,8 +432,6 @@ def get_available_users_for_owner(user_id):
                 code=404,
                 message="用户不存在"
             )
-            
-        # 检查权限：只有管理员或有user view权限的用户才能查看
         if current_user.role != 'admin' and not current_user.has_permission('user', 'view'):
             return api_response(
                 success=False,
@@ -444,7 +439,6 @@ def get_available_users_for_owner(user_id):
                 message="无权限访问此数据"
             )
     except ValueError as ve:
-        # 用户ID转换错误
         logger.error(f"用户ID转换错误: {str(ve)}")
         return api_response(
             success=False,
@@ -452,21 +446,14 @@ def get_available_users_for_owner(user_id):
             message=f"无效的用户ID格式: {str(ve)}"
         )
     except Exception as e:
-        # 如果获取失败，返回错误响应
         logger.error(f"JWT验证失败: {str(e)}")
         return api_response(
             success=False,
             code=422,
             message=f"JWT验证失败: {str(e)}"
         )
-    
-    # 获取所有活跃用户，排除指定用户
-    users = User.query.filter(
-        User.is_active == True,
-        User.id != user_id
-    ).all()
-    
-    # 格式化数据
+    # 获取所有活跃用户（含自己）
+    users = User.query.filter(User.is_active == True).all()
     result = []
     for user in users:
         result.append({
@@ -474,9 +461,10 @@ def get_available_users_for_owner(user_id):
             'username': user.username,
             'real_name': user.real_name,
             'role': user.role,
-            'company_name': user.company_name
+            'company_name': user.company_name,
+            'department': user.department,
+            'is_department_manager': user.is_department_manager
         })
-    
     return api_response(
         success=True,
         message="获取成功",

@@ -131,7 +131,7 @@ find ./app -type f -name "*.py" \
 done
 
 if [ "$syntax_error_found" -ne 0 ]; then
-    echo "[错误] 存在语法错误，自动推送中止。请修正后再提交。"
+    echo -e "\033[41;97m[错误] 存在语法错误，自动推送中止。请修正所有语法错误后再提交。\033[0m"
     exit 1
 fi
 

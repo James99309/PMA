@@ -7,6 +7,7 @@ from app import db
 import logging
 from app.utils.auth import flexible_auth
 from app.utils.role_mappings import normalize_role_key
+from app.models.role_permissions import RolePermission
 
 logger = logging.getLogger(__name__)
 
@@ -15,21 +16,32 @@ logger = logging.getLogger(__name__)
 @jwt_required_with_permission('permission', 'view')
 def get_user_permissions(user_id):
     """
-    获取用户权限
+    获取用户权限（优先查个人权限，无则查角色模板）
     """
     user = User.query.get(user_id)
-    
     if not user:
         return api_response(
             success=False,
             code=404,
             message="用户不存在"
         )
-    
-    # 获取所有权限
+    # 先查个人权限
     permissions = Permission.query.filter_by(user_id=user_id).all()
-    permissions_data = [permission.to_dict() for permission in permissions]
-    
+    if permissions:
+        permissions_data = [permission.to_dict() for permission in permissions]
+    else:
+        # 查角色模板
+        from app.models.role_permissions import RolePermission
+        perms = RolePermission.query.filter_by(role=user.role).all()
+        permissions_data = []
+        for perm in perms:
+            permissions_data.append({
+                'module': perm.module,
+                'can_view': perm.can_view,
+                'can_create': perm.can_create,
+                'can_edit': perm.can_edit,
+                'can_delete': perm.can_delete
+            })
     return api_response(
         success=True,
         message="获取成功",
@@ -249,89 +261,32 @@ def get_roles_permissions():
 @flexible_auth
 def get_role_permissions(role):
     """
-    获取指定角色的权限设置
+    获取指定角色的权限设置（只查role_permissions表）
     """
-    # 从权限表中获取指定角色的权限
     try:
-        from app.permissions import ROLE_PERMISSIONS
-        from app.models.user import User, Permission
-        
+        from app.utils.role_mappings import normalize_role_key
+        from app.models.role_permissions import RolePermission
         # 规范化角色键名
         normalized_role = normalize_role_key(role)
-        
-        # 检查角色是否存在
-        if normalized_role not in ROLE_PERMISSIONS:
-            return api_response(
-                success=False,
-                code=404,
-                message=f"指定角色不存在: {role}"
-            )
-        
-        # 使用规范化后的角色查找用户
-        users_with_role = User.query.filter_by(role=normalized_role).all()
-        
-        # 获取所有模块
-        modules = ["customer", "project", "quotation", "product", "product_code", "user", "permission"]
-        
-        # 初始化角色权限
-        role_permissions = {
-            "role": normalized_role,
-            "permissions": []
-        }
-        
-        # 如果没有此角色的用户，生成默认权限
-        if not users_with_role:
-            # 为每个模块创建默认权限
-            for module in modules:
-                permission = {
-                    "module": module,
-                    "can_view": normalized_role == "admin",
-                    "can_create": normalized_role == "admin",
-                    "can_edit": normalized_role == "admin",
-                    "can_delete": normalized_role == "admin"
-                }
-                role_permissions["permissions"].append(permission)
-        else:
-            # 获取该角色下的第一个用户的权限
-            user = users_with_role[0]
-            
-            # 收集该用户的所有权限
-            for module in modules:
-                permission = Permission.query.filter_by(user_id=user.id, module=module).first()
-                
-                if permission:
-                    role_permissions["permissions"].append(permission.to_dict())
-                else:
-                    # 如果没有权限记录，则创建默认权限
-                    default_permission = {
-                        "module": module,
-                        "can_view": normalized_role == "admin",
-                        "can_create": normalized_role == "admin",
-                        "can_edit": normalized_role == "admin",
-                        "can_delete": normalized_role == "admin"
-                    }
-                    role_permissions["permissions"].append(default_permission)
-        
-        # 确保permissions是一个数组且非空
-        if not role_permissions["permissions"]:
-            role_permissions["permissions"] = []
-            # 为每个模块创建默认权限
-            for module in modules:
-                permission = {
-                    "module": module,
-                    "can_view": normalized_role == "admin",
-                    "can_create": normalized_role == "admin",
-                    "can_edit": normalized_role == "admin",
-                    "can_delete": normalized_role == "admin"
-                }
-                role_permissions["permissions"].append(permission)
-        
+        # 查询模板权限
+        perms = RolePermission.query.filter_by(role=normalized_role).all()
+        permissions = []
+        for perm in perms:
+            permissions.append({
+                'module': perm.module,
+                'can_view': perm.can_view,
+                'can_create': perm.can_create,
+                'can_edit': perm.can_edit,
+                'can_delete': perm.can_delete
+            })
         return api_response(
             success=True,
             message="获取成功",
-            data=role_permissions
+            data={
+                'role': normalized_role,
+                'permissions': permissions
+            }
         )
-        
     except Exception as e:
         logger.error(f"获取角色权限信息失败: {str(e)}")
         return api_response(
