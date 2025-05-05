@@ -17,7 +17,7 @@ class User(db.Model, UserMixin):
     
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)  # 用户名
-    password_hash = db.Column(db.String(128), nullable=False)  # 密码哈希
+    password_hash = db.Column(db.String(256), nullable=False)  # 密码哈希
     real_name = db.Column(db.String(80))  # 真实姓名
     company_name = db.Column(db.String(100))  # 企业名称
     email = db.Column(db.String(120), unique=True, nullable=True)  # 邮箱地址
