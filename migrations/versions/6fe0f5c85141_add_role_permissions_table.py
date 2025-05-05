@@ -62,7 +62,7 @@ def upgrade():
         batch_op.create_foreign_key(None, 'product_categories', ['category_id'], ['id'])
 
     with op.batch_alter_table('permissions', schema=None) as batch_op:
-        batch_op.drop_constraint('unique_user_module', type_='unique')
+        # batch_op.drop_constraint('unique_user_module', type_='unique')  # 云端无此约束，注释掉避免报错
         batch_op.create_foreign_key(None, 'users', ['user_id'], ['id'])
 
     with op.batch_alter_table('product_code_field_options', schema=None) as batch_op:
@@ -157,8 +157,8 @@ def downgrade():
         batch_op.drop_constraint(None, type_='foreignkey')
 
     with op.batch_alter_table('permissions', schema=None) as batch_op:
-        batch_op.drop_constraint(None, type_='foreignkey')
-        batch_op.create_unique_constraint('unique_user_module', ['user_id', 'module'])
+        # batch_op.drop_constraint('unique_user_module', type_='unique')  # 云端无此约束，注释掉避免报错
+        batch_op.create_foreign_key(None, 'users', ['user_id'], ['id'])
 
     with op.batch_alter_table('dev_products', schema=None) as batch_op:
         batch_op.drop_constraint(None, type_='foreignkey')
