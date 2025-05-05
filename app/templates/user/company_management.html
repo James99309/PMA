@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+
+{% block title %}企业字典管理 - 项目管理系统{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('user.list_users') }}">用户管理</a></li>
+                <li class="breadcrumb-item active" aria-current="page">企业字典管理</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">企业字典管理</h5>
+                <button class="btn btn-primary" id="addCompanyBtn">
+                    <i class="fas fa-plus me-1"></i> 新增企业
+                </button>
+            </div>
+            <div class="card-body">
+                <!-- 新增/编辑表单 -->
+                <form id="companyDictionaryForm" class="mb-4 d-none">
+                    <input type="hidden" id="companyId" name="id" value="">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="companyKeyInput" class="form-label">Key（英文标识）<span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="companyKeyInput" name="key" required placeholder="如：acme_corp">
+                            <small class="form-text text-muted">使用英文和下划线，如：acme_corp</small>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="companyValueInput" class="form-label">显示文本<span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="companyValueInput" name="value" required placeholder="如：ACME公司">
+                            <small class="form-text text-muted">显示给用户的企业名称</small>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button type="submit" class="btn btn-success me-2" id="saveCompanyBtn">保存</button>
+                            <button type="button" class="btn btn-secondary" id="cancelCompanyBtn">取消</button>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- 企业列表表格 -->
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover" id="companyTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th width="8%">ID</th>
+                                <th width="25%">Key（英文标识）</th>
+                                <th width="25%">显示文本</th>
+                                <th width="12%">状态</th>
+                                <th width="30%">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="companyTableBody">
+                            {% for company in companies %}
+                            <tr>
+                                <td>{{ company.id }}</td>
+                                <td><code>{{ company.key }}</code></td>
+                                <td>{{ company.value }}</td>
+                                <td>
+                                    {% if company.is_active %}
+                                    <span class="badge bg-success">启用</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">禁用</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-info me-1 edit-company-btn" data-id="{{ company.id }}" data-key="{{ company.key }}" data-value="{{ company.value }}">
+                                        <i class="fas fa-edit"></i> 编辑
+                                    </button>
+                                    <button class="btn btn-sm btn-warning me-1 toggle-company-btn" data-id="{{ company.id }}" data-status="{{ company.is_active }}">
+                                        {% if company.is_active %}
+                                        <i class="fas fa-ban"></i> 禁用
+                                        {% else %}
+                                        <i class="fas fa-check"></i> 启用
+                                        {% endif %}
+                                    </button>
+                                    <button class="btn btn-sm btn-danger delete-company-btn" data-id="{{ company.id }}" data-key="{{ company.key }}">
+                                        <i class="fas fa-trash"></i> 删除
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 帮助信息卡片 -->
+                <div class="card mt-4 bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-info-circle me-2 text-primary"></i>企业字典说明
+                        </h5>
+                        <ul class="mb-0">
+                            <li>企业Key是系统内部使用的英文标识符，必须全局唯一且符合英文命名规范（推荐使用小写+下划线）</li>
+                            <li>显示文本是用户界面展示的企业名称，通常使用中文，方便用户理解</li>
+                            <li>删除企业前请确保没有用户关联到该企业，否则将导致数据异常</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 获取DOM元素
+    const addCompanyBtn = document.getElementById('addCompanyBtn');
+    const companyForm = document.getElementById('companyDictionaryForm');
+    const cancelCompanyBtn = document.getElementById('cancelCompanyBtn');
+    const companyKeyInput = document.getElementById('companyKeyInput');
+    const companyValueInput = document.getElementById('companyValueInput');
+    const companyIdInput = document.getElementById('companyId');
+    
+    // 新增企业按钮点击事件
+    addCompanyBtn.addEventListener('click', function() {
+        // 重置表单
+        companyForm.reset();
+        companyIdInput.value = '';
+        companyKeyInput.readOnly = false;
+        // 显示表单
+        companyForm.classList.remove('d-none');
+        companyKeyInput.focus();
+    });
+    
+    // 取消按钮点击事件
+    cancelCompanyBtn.addEventListener('click', function() {
+        companyForm.classList.add('d-none');
+    });
+    
+    // 编辑企业按钮点击事件
+    document.querySelectorAll('.edit-company-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const companyId = this.getAttribute('data-id');
+            const companyKey = this.getAttribute('data-key');
+            const companyValue = this.getAttribute('data-value');
+            
+            // 填充表单
+            companyIdInput.value = companyId;
+            companyKeyInput.value = companyKey;
+            companyKeyInput.readOnly = true; // 编辑时不允许修改key
+            companyValueInput.value = companyValue;
+            
+            // 显示表单
+            companyForm.classList.remove('d-none');
+            companyValueInput.focus();
+        });
+    });
+    
+    // 启用/禁用企业按钮点击事件
+    document.querySelectorAll('.toggle-company-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const companyId = this.getAttribute('data-id');
+            const currentStatus = this.getAttribute('data-status') === 'True';
+            const newStatus = !currentStatus;
+            
+            if (confirm(`确定要${newStatus ? '启用' : '禁用'}此企业吗？`)) {
+                // 发送请求到后端
+                toggleCompanyStatus(companyId, newStatus);
+            }
+        });
+    });
+    
+    // 删除企业按钮点击事件
+    document.querySelectorAll('.delete-company-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const companyId = this.getAttribute('data-id');
+            const companyKey = this.getAttribute('data-key');
+            
+            if (confirm(`确定要删除企业 "${companyKey}" 吗？此操作不可恢复！`)) {
+                // 发送请求到后端
+                deleteCompany(companyId);
+            }
+        });
+    });
+    
+    // 表单提交事件
+    companyForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = {
+            id: companyIdInput.value,
+            key: companyKeyInput.value,
+            value: companyValueInput.value
+        };
+        
+        // 发送请求到后端
+        saveCompany(formData);
+    });
+    
+    // 保存企业函数
+    function saveCompany(formData) {
+        const isEditing = formData.id ? true : false;
+        const url = isEditing 
+            ? `/api/v1/dictionary/company/edit`
+            : `/api/v1/dictionary/company/add`;
+        
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify(formData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`企业${isEditing ? '编辑' : '添加'}成功！`);
+                // 刷新页面
+                window.location.reload();
+            } else {
+                alert(`操作失败: ${data.message}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('操作失败，请稍后重试');
+        });
+    }
+    
+    // 切换企业状态函数
+    function toggleCompanyStatus(companyId, newStatus) {
+        fetch(`/api/v1/dictionary/company/toggle`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ id: companyId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`企业状态已${newStatus ? '启用' : '禁用'}！`);
+                // 刷新页面
+                window.location.reload();
+            } else {
+                alert(`操作失败: ${data.message}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('操作失败，请稍后重试');
+        });
+    }
+    
+    // 删除企业函数
+    function deleteCompany(companyId) {
+        fetch(`/api/v1/dictionary/company/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ id: companyId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('企业已成功删除！');
+                // 刷新页面
+                window.location.reload();
+            } else {
+                alert(`删除失败: ${data.message}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('删除失败，请稍后重试');
+        });
+    }
+});
+</script>
+{% endblock %} 

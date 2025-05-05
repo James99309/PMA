@@ -5,7 +5,7 @@ from app import db
 import logging
 import json
 from datetime import datetime
-from app.utils.role_mappings import normalize_role_key, get_role_display_name
+from app.utils.dictionary_helpers import get_role_display_name
 from app.models.dictionary import Dictionary
 from app.models.project import Project
 from app.models.customer import Company
@@ -258,9 +258,9 @@ def manage_permissions(user_id):
         )
     # POST请求 - 保存权限设置
     if request.method == 'POST':
-        from app.utils.role_mappings import normalize_role_key
         try:
             form_data = request.form
+            logger.warning(f"[DEBUG] manage_permissions 被调用，收到请求: user_id={user_id}, form_data={form_data}")
             permissions = []
             modules = form_data.getlist('module')
             for module in modules:
@@ -272,13 +272,12 @@ def manage_permissions(user_id):
                     "can_delete": f"delete_{module}" in form_data
                 }
                 permissions.append(permission)
+            logger.warning(f"[DEBUG] 写入 permissions 表，user_id={user_id}, permissions={permissions}")
             user = User.query.get(user_id)
             if not user:
                 flash('用户不存在', 'danger')
                 return redirect(url_for('user.list_users'))
-            # 先删除该用户所有旧权限，避免主键冲突
             Permission.query.filter_by(user_id=user_id).delete()
-            # 批量插入新权限
             for perm in permissions:
                 module = perm.get('module')
                 permission = Permission(
@@ -292,15 +291,16 @@ def manage_permissions(user_id):
                 db.session.add(permission)
             try:
                 db.session.commit()
+                logger.warning(f"[DEBUG] permissions 表写入完成，user_id={user_id}")
                 flash('用户权限更新成功', 'success')
                 return redirect(url_for('user.list_users'))
             except Exception as db_error:
                 db.session.rollback()
-                logger.error(f'权限更新失败: {str(db_error)}')
+                logger.error(f'[DEBUG] manage_permissions 保存异常: {str(db_error)}')
                 flash(f'权限更新失败: {str(db_error)}', 'danger')
                 return redirect(url_for('user.manage_permissions', user_id=user_id))
         except Exception as e:
-            logger.error(f'处理权限保存请求时出错: {str(e)}', exc_info=True)
+            logger.error(f'[DEBUG] manage_permissions 处理权限保存请求时出错: {str(e)}', exc_info=True)
             flash('服务器处理请求时出错，请稍后重试', 'danger')
             return redirect(url_for('user.manage_permissions', user_id=user_id))
 
@@ -467,7 +467,7 @@ def import_users():
                     company_name=row.get('company', ''),
                     department=row.get('department', ''),
                     is_department_manager=is_department_manager,
-                    role=normalize_role_key(row['role']),
+                    role=row['role'],
                     is_active=is_active
                 )
                 
@@ -513,28 +513,22 @@ def manage_role_permissions():
         flash('您没有权限访问此页面', 'danger')
         return redirect(url_for('main.index'))
     if request.method == 'POST':
-        from app.utils.role_mappings import normalize_role_key
         try:
             data = request.get_json()
-            if not data:
-                logger.error("保存角色权限时请求数据为空")
-                return jsonify({'success': False, 'message': '请求数据为空'}), 400
+            logger.warning(f"[DEBUG] manage_role_permissions 被调用，收到请求: {data}")
             role = data.get('role')
-            normalized_role = normalize_role_key(role)
             permissions = data.get('permissions', [])
-            logger.info(f"保存角色权限模板：角色={normalized_role}，权限数量={len(permissions)}")
-            if not normalized_role or not permissions:
+            logger.warning(f"[DEBUG] 写入 role_permissions 表，role={role}, permissions={permissions}")
+            if not role or not permissions:
                 return jsonify({'success': False, 'message': '角色名称或权限数据不能为空'}), 400
-            if normalized_role == 'admin':
+            if role == 'admin':
                 return jsonify({'success': False, 'message': '管理员角色权限不允许修改'}), 403
-            # 先删除该角色所有旧模板
-            RolePermission.query.filter_by(role=normalized_role).delete()
-            # 批量插入新模板
+            RolePermission.query.filter_by(role=role).delete()
             for perm in permissions:
                 if not isinstance(perm, dict) or 'module' not in perm or not perm['module']:
                     continue
                 rp = RolePermission(
-                    role=normalized_role,
+                    role=role,
                     module=perm['module'],
                     can_view=bool(perm.get('can_view', False)),
                     can_create=bool(perm.get('can_create', False)),
@@ -543,15 +537,15 @@ def manage_role_permissions():
                 )
                 db.session.add(rp)
             db.session.commit()
+            logger.warning(f"[DEBUG] role_permissions 表写入完成，role={role}")
             return jsonify({'success': True, 'message': f"角色权限模板已保存"})
         except Exception as e:
             db.session.rollback()
-            logger.error(f"保存角色权限模板时出错: {str(e)}", exc_info=True)
+            logger.error(f"[DEBUG] manage_role_permissions 保存异常: {str(e)}", exc_info=True)
             return jsonify({'success': False, 'message': f"保存权限模板时出错: {str(e)}"}), 500
     # GET请求
     try:
         from app.permissions import ROLE_PERMISSIONS
-        from app.utils.role_mappings import normalize_role_key, get_role_display_name
         # 只取已启用的角色字典项，全部显示
         dict_roles = Dictionary.query.filter_by(type='role', is_active=True).order_by(Dictionary.sort_order).all()
         roles = []
@@ -560,10 +554,71 @@ def manage_role_permissions():
         modules = get_default_modules()
         modules = [dict(module) for module in modules]
         roles = [dict(role) for role in roles]
-        return render_template('user/role_permissions.html', roles=roles, modules=modules)
+        
+        # 如果URL中指定了role参数，设置默认选中的角色
+        selected_role = request.args.get('role', '')
+        
+        return render_template('user/role_permissions.html', roles=roles, modules=modules, selected_role=selected_role)
     except Exception as e:
         logger.error(f"加载角色权限设置页面时出错: {str(e)}")
         flash('加载角色权限设置页面时出错，请稍后重试', 'danger')
+        return redirect(url_for('user.list_users'))
+
+@user_bp.route('/manage-roles', methods=['GET'])
+@login_required
+def manage_roles():
+    """角色字典管理页面（管理dictionaries表中type=role的记录）"""
+    if not current_user.has_permission('permission', 'view'):
+        flash('您没有权限访问此页面', 'danger')
+        return redirect(url_for('main.index'))
+    
+    try:
+        # 获取所有角色字典项，包括禁用的，按排序号排序
+        dict_roles = Dictionary.query.filter_by(type='role').order_by(Dictionary.sort_order).all()
+        roles = [role.to_dict() for role in dict_roles]  # 使用to_dict方法转换为字典
+        
+        return render_template('user/role_management.html', roles=roles)
+    except Exception as e:
+        logger.error(f"加载角色管理页面时出错: {str(e)}")
+        flash('加载角色管理页面时出错，请稍后重试', 'danger')
+        return redirect(url_for('user.list_users'))
+
+@user_bp.route('/manage-companies', methods=['GET'])
+@login_required
+def manage_companies():
+    """企业字典管理页面（管理dictionaries表中type=company的记录）"""
+    if not current_user.has_permission('permission', 'view'):
+        flash('您没有权限访问此页面', 'danger')
+        return redirect(url_for('main.index'))
+    
+    try:
+        # 获取所有企业字典项，包括禁用的，按排序号排序
+        dict_companies = Dictionary.query.filter_by(type='company').order_by(Dictionary.sort_order).all()
+        companies = [company.to_dict() for company in dict_companies]  # 使用to_dict方法转换为字典
+        
+        return render_template('user/company_management.html', companies=companies)
+    except Exception as e:
+        logger.error(f"加载企业字典管理页面时出错: {str(e)}")
+        flash('加载企业字典管理页面时出错，请稍后重试', 'danger')
+        return redirect(url_for('user.list_users'))
+
+@user_bp.route('/manage-departments', methods=['GET'])
+@login_required
+def manage_departments():
+    """部门字典管理页面（管理dictionaries表中type=department的记录）"""
+    if not current_user.has_permission('permission', 'view'):
+        flash('您没有权限访问此页面', 'danger')
+        return redirect(url_for('main.index'))
+    
+    try:
+        # 获取所有部门字典项，包括禁用的，按排序号排序
+        dict_departments = Dictionary.query.filter_by(type='department').order_by(Dictionary.sort_order).all()
+        departments = [department.to_dict() for department in dict_departments]  # 使用to_dict方法转换为字典
+        
+        return render_template('user/department_management.html', departments=departments)
+    except Exception as e:
+        logger.error(f"加载部门字典管理页面时出错: {str(e)}")
+        flash('加载部门字典管理页面时出错，请稍后重试', 'danger')
         return redirect(url_for('user.list_users'))
 
 def get_default_modules():

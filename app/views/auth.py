@@ -14,6 +14,8 @@ import json
 from sqlalchemy import func
 from flask_jwt_extended import create_access_token
 from urllib.parse import urlparse
+from app.forms import ForgotPasswordForm, ResetPasswordForm
+from app.utils.email import send_password_reset_email
 
 logger = logging.getLogger(__name__)
 auth = Blueprint('auth', __name__)
@@ -181,46 +183,36 @@ def forgot_password():
     POST: 处理忘记密码请求
     """
     logger.info(f"访问忘记密码页面，Method: {request.method}")
-    
-    if request.method == 'POST':
-        username_or_email = request.form.get('username_or_email')
+    form = ForgotPasswordForm()
+    if form.validate_on_submit():
+        username_or_email = form.username_or_email.data
         logger.info(f"提交忘记密码表单，输入: {username_or_email}")
-        
-        # 使用API提交忘记密码请求
+        # 直接在视图中处理忘记密码逻辑
+        user = User.query.filter(
+            (func.lower(User.username) == func.lower(username_or_email)) |
+            (func.lower(User.email) == func.lower(username_or_email))
+        ).first()
+        if not user:
+            logger.warning(f"找不到用户: {username_or_email}")
+            flash('如果账户存在，密码重置邮件已发送到您的邮箱，请查收。', 'success')
+            return redirect(url_for('auth.login'))
+        logger.info(f"用户存在，ID: {user.id}, 用户名: {user.username}, 邮箱: {user.email}")
+        # 生成密码重置令牌
+        token = user.generate_reset_token()
+        logger.info(f"生成密码重置令牌成功: {token[:10]}...")
+        reset_url = f"{request.url_root.rstrip('/')}/auth/reset-password/{token}"
+        logger.info(f"生成密码重置链接: {reset_url}")
         try:
-            api_url = f"{request.url_root.rstrip('/')}{API_BASE_URL}/auth/forgot-password"
-            logger.info(f"调用API: {api_url}")
-            
-            response = requests.post(
-                api_url,
-                json={"username_or_email": username_or_email}
-            )
-            
-            logger.info(f"API响应状态码: {response.status_code}")
-            data = response.json()
-            logger.info(f"API响应数据: {data}")
-            
-            if response.status_code == 200 and data.get('success'):
-                logger.info("忘记密码请求处理成功，重定向到登录页面")
-                flash('如果账户存在，密码重置邮件已发送到您的邮箱，请查收。', 'success')
-                return redirect(url_for('auth.login'))
+            email_sent = send_password_reset_email(user, token, reset_url)
+            if email_sent:
+                logger.info(f"密码重置邮件已发送给用户: {user.username} ({user.email})")
             else:
-                # API请求失败
-                error_message = data.get('message', '请求失败，请检查输入信息！')
-                logger.error(f"API请求失败: {error_message}")
-                flash(error_message, 'danger')
-                
-        except requests.RequestException as e:
-            logger.error(f"请求API时发生错误: {str(e)}")
-            flash('服务器错误，请稍后重试', 'danger')
-        except ValueError as e:
-            logger.error(f"解析API响应JSON时发生错误: {str(e)}")
-            flash('服务器错误，请稍后重试', 'danger')
+                logger.error(f"密码重置邮件发送失败: {user.username} ({user.email})")
         except Exception as e:
-            logger.error(f'忘记密码请求过程中出现未知错误: {str(e)}', exc_info=True)
-            flash('服务器错误，请稍后重试', 'danger')
-    
-    return render_template('auth/forgot_password.html')
+            logger.error(f"发送密码重置邮件时出现异常: {str(e)}", exc_info=True)
+        flash('如果账户存在，密码重置邮件已发送到您的邮箱，请查收。', 'success')
+        return redirect(url_for('auth.login'))
+    return render_template('auth/forgot_password.html', form=form)
 
 @auth.route('/reset-password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
@@ -231,53 +223,30 @@ def reset_password(token):
     POST: 处理密码重置请求
     """
     logger.info(f"访问密码重置页面，Token: {token[:10]}...")
-    
     # 先验证令牌是否有效，不显示用户名等信息以保护隐私
     user = User.verify_reset_token(token)
-    
     if not user:
         logger.warning(f"无效的密码重置令牌: {token[:10]}...")
         flash('密码重置链接无效或已过期，请重新申请', 'danger')
         return redirect(url_for('auth.forgot_password'))
-    
     logger.info(f"密码重置令牌有效，用户: {user.username}")
-    
-    if request.method == 'POST':
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
-        
-        # 验证两次密码输入是否一致
-        if password != confirm_password:
-            flash('两次输入的密码不一致', 'danger')
-            return render_template('auth/reset_password.html', token=token)
-        
-        # 使用API重置密码
+    form = ResetPasswordForm()
+    if form.validate_on_submit():
+        password = form.password.data
+        # 直接在视图中重置密码
+        user.set_password(password)
+        if not user.is_active:
+            user.is_active = True
         try:
-            logger.info(f"尝试通过API重置用户 {user.username} 的密码")
-            response = requests.post(
-                f"{request.url_root.rstrip('/')}{API_BASE_URL}/auth/reset-password",
-                json={
-                    "token": token, 
-                    "new_password": password
-                }
-            )
-            
-            data = response.json()
-            
-            if response.status_code == 200 and data.get('success'):
-                logger.info(f"用户 {user.username} 成功重置密码")
-                flash('密码已成功重置，请使用新密码登录', 'success')
-                return redirect(url_for('auth.login'))
-            else:
-                error_message = data.get('message', '密码重置失败，请重试')
-                logger.error(f"密码重置失败: {error_message}")
-                flash(error_message, 'danger')
-                
+            db.session.commit()
+            logger.info(f"用户 {user.username} 成功重置密码")
+            flash('密码已成功重置，请使用新密码登录', 'success')
+            return redirect(url_for('auth.login'))
         except Exception as e:
+            db.session.rollback()
             logger.error(f'Error during password reset: {str(e)}')
             flash('服务器错误，请稍后重试', 'danger')
-    
-    return render_template('auth/reset_password.html', token=token)
+    return render_template('auth/reset_password.html', form=form, token=token)
 
 @auth.route('/generate_wechat_qrcode')
 def generate_wechat_qrcode():

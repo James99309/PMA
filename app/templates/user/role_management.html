@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+
+{% block title %}角色管理 - 项目管理系统{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('user.list_users') }}">用户管理</a></li>
+                <li class="breadcrumb-item active" aria-current="page">角色管理</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">系统角色管理</h5>
+                <button class="btn btn-primary" id="addRoleBtn">
+                    <i class="fas fa-plus me-1"></i> 新增角色
+                </button>
+            </div>
+            <div class="card-body">
+                <!-- 新增/编辑表单 -->
+                <form id="roleDictionaryForm" class="mb-4 d-none">
+                    <input type="hidden" id="roleId" name="id" value="">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="roleKeyInput" class="form-label">Key（英文标识）<span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="roleKeyInput" name="key" required placeholder="如：customer_sales">
+                            <small class="form-text text-muted">使用英文和下划线，如：customer_sales</small>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="roleValueInput" class="form-label">显示文本<span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="roleValueInput" name="value" required placeholder="如：客户销售">
+                            <small class="form-text text-muted">显示给用户的角色名称</small>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button type="submit" class="btn btn-success me-2" id="saveRoleBtn">保存</button>
+                            <button type="button" class="btn btn-secondary" id="cancelRoleBtn">取消</button>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- 角色列表表格 -->
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover" id="roleTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th width="8%">ID</th>
+                                <th width="25%">Key（英文标识）</th>
+                                <th width="25%">显示文本</th>
+                                <th width="12%">状态</th>
+                                <th width="30%">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="roleTableBody">
+                            {% for role in roles %}
+                            <tr>
+                                <td>{{ role.id }}</td>
+                                <td><code>{{ role.key }}</code></td>
+                                <td>{{ role.value }}</td>
+                                <td>
+                                    {% if role.is_active %}
+                                    <span class="badge bg-success">启用</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">禁用</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-info me-1 edit-role-btn" data-role-id="{{ role.id }}" data-role-key="{{ role.key }}" data-role-value="{{ role.value }}">
+                                        <i class="fas fa-edit"></i> 编辑
+                                    </button>
+                                    {% if role.key != 'admin' %}
+                                    <button class="btn btn-sm btn-warning me-1 toggle-role-btn" data-role-id="{{ role.id }}" data-role-status="{{ role.is_active }}">
+                                        {% if role.is_active %}
+                                        <i class="fas fa-ban"></i> 禁用
+                                        {% else %}
+                                        <i class="fas fa-check"></i> 启用
+                                        {% endif %}
+                                    </button>
+                                    <button class="btn btn-sm btn-danger delete-role-btn" data-role-id="{{ role.id }}" data-role-key="{{ role.key }}">
+                                        <i class="fas fa-trash"></i> 删除
+                                    </button>
+                                    {% else %}
+                                    <span class="text-muted small">系统角色，不可操作</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 帮助信息卡片 -->
+                <div class="card mt-4 bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-info-circle me-2 text-primary"></i>角色与权限说明
+                        </h5>
+                        <ul class="mb-0">
+                            <li>角色Key是系统内部使用的英文标识符，必须全局唯一且符合英文命名规范（推荐使用小写+下划线）</li>
+                            <li>显示文本是用户界面展示的角色名称，通常使用中文，方便用户理解</li>
+                            <li>新增角色后，请前往"用户管理 > 权限管理"菜单设置该角色的权限</li>
+                            <li>删除角色前请确保没有用户使用该角色，否则将导致用户权限异常</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 获取DOM元素
+    const addRoleBtn = document.getElementById('addRoleBtn');
+    const roleForm = document.getElementById('roleDictionaryForm');
+    const cancelRoleBtn = document.getElementById('cancelRoleBtn');
+    const roleKeyInput = document.getElementById('roleKeyInput');
+    const roleValueInput = document.getElementById('roleValueInput');
+    const roleIdInput = document.getElementById('roleId');
+    
+    // 新增角色按钮点击事件
+    addRoleBtn.addEventListener('click', function() {
+        // 重置表单
+        roleForm.reset();
+        roleIdInput.value = '';
+        roleKeyInput.readOnly = false;
+        // 显示表单
+        roleForm.classList.remove('d-none');
+        roleKeyInput.focus();
+    });
+    
+    // 取消按钮点击事件
+    cancelRoleBtn.addEventListener('click', function() {
+        roleForm.classList.add('d-none');
+    });
+    
+    // 编辑角色按钮点击事件
+    document.querySelectorAll('.edit-role-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const roleId = this.getAttribute('data-role-id');
+            const roleKey = this.getAttribute('data-role-key');
+            const roleValue = this.getAttribute('data-role-value');
+            
+            // 填充表单
+            roleIdInput.value = roleId;
+            roleKeyInput.value = roleKey;
+            roleKeyInput.readOnly = true; // 编辑时不允许修改key
+            roleValueInput.value = roleValue;
+            
+            // 显示表单
+            roleForm.classList.remove('d-none');
+            roleValueInput.focus();
+        });
+    });
+    
+    // 启用/禁用角色按钮点击事件
+    document.querySelectorAll('.toggle-role-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const roleId = this.getAttribute('data-role-id');
+            const currentStatus = this.getAttribute('data-role-status') === 'True';
+            const newStatus = !currentStatus;
+            
+            if (confirm(`确定要${newStatus ? '启用' : '禁用'}此角色吗？`)) {
+                // 发送请求到后端
+                toggleRoleStatus(roleId, newStatus);
+            }
+        });
+    });
+    
+    // 删除角色按钮点击事件
+    document.querySelectorAll('.delete-role-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const roleId = this.getAttribute('data-role-id');
+            const roleKey = this.getAttribute('data-role-key');
+            
+            if (confirm(`确定要删除角色 "${roleKey}" 吗？此操作不可恢复！`)) {
+                // 发送请求到后端
+                deleteRole(roleId);
+            }
+        });
+    });
+    
+    // 表单提交事件
+    roleForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = {
+            id: roleIdInput.value,
+            key: roleKeyInput.value,
+            value: roleValueInput.value
+        };
+        
+        // 发送请求到后端
+        saveRole(formData);
+    });
+    
+    // 保存角色函数
+    function saveRole(formData) {
+        const isEditing = formData.id ? true : false;
+        const url = isEditing 
+            ? `/api/v1/dictionary/role/edit`
+            : `/api/v1/dictionary/role/add`;
+        
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify(formData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`角色${isEditing ? '编辑' : '添加'}成功！`);
+                // 刷新页面
+                window.location.reload();
+            } else {
+                alert(`操作失败: ${data.message}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('操作失败，请稍后重试');
+        });
+    }
+    
+    // 切换角色状态函数
+    function toggleRoleStatus(roleId, newStatus) {
+        fetch(`/api/v1/dictionary/role/toggle`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ id: roleId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`角色状态已${newStatus ? '启用' : '禁用'}！`);
+                // 刷新页面
+                window.location.reload();
+            } else {
+                alert(`操作失败: ${data.message}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('操作失败，请稍后重试');
+        });
+    }
+    
+    // 删除角色函数
+    function deleteRole(roleId) {
+        fetch(`/api/v1/dictionary/role/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ id: roleId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('角色已成功删除！');
+                // 刷新页面
+                window.location.reload();
+            } else {
+                alert(`删除失败: ${data.message}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('删除失败，请稍后重试');
+        });
+    }
+});
+</script>
+{% endblock %} 

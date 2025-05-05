@@ -169,6 +169,45 @@
             margin-bottom: 15px;
             color: #333;
         }
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        /* 多级下拉菜单样式 */
+        .dropdown-submenu {
+            position: absolute;
+            left: 100%;
+            top: 0;
+            margin-top: 0;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+        
+        .dropdown-item.dropdown-toggle {
+            position: relative;
+        }
+        
+        .dropdown-item.dropdown-toggle::after {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        .dropdown-item.dropdown-toggle:hover + .dropdown-submenu,
+        .dropdown-submenu:hover {
+            display: block;
+        }
+        
+        .dropdown-item.dropdown-toggle:active,
+        .dropdown-item.dropdown-toggle:focus {
+            color: #fff;
+            background-color: var(--pa-blue);
+        }
     </style>
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
     {% block head %}{% endblock %}
@@ -283,9 +322,52 @@
                 </li>
                 {% endif %}
 
-                {% if has_permission('user', 'view') %}
-                <li class="nav-item">
-                    <a class="nav-link {{ 'active' if request.endpoint.startswith('user.') else '' }}" href="{{ url_for('user.list_users') }}">用户管理</a>
+                {% if current_user.has_permission('user', 'view') %}
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle {{ 'active' if request.endpoint and request.endpoint.startswith('user.') else '' }}"
+                       href="#" id="userManagementDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-users fa-fw me-1"></i> 用户管理
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="userManagementDropdown">
+                        <li>
+                            <a class="dropdown-item {{ 'active' if request.endpoint == 'user.list_users' else '' }}"
+                               href="{{ url_for('user.list_users') }}">
+                               <i class="fas fa-list fa-fw me-1"></i> 用户列表
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item {{ 'active' if request.endpoint == 'user.manage_role_permissions' else '' }}"
+                               href="{{ url_for('user.manage_role_permissions') }}">
+                               <i class="fas fa-shield-alt fa-fw me-1"></i> 权限管理
+                            </a>
+                        </li>
+                        <li class="dropdown-divider"></li>
+                        <li>
+                            <a class="dropdown-item dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-book fa-fw me-1"></i> 字典管理
+                            </a>
+                            <ul class="dropdown-menu dropdown-submenu">
+                                <li>
+                                    <a class="dropdown-item {{ 'active' if request.endpoint == 'user.manage_roles' else '' }}"
+                                       href="{{ url_for('user.manage_roles') }}">
+                                       <i class="fas fa-user-tag fa-fw me-1"></i> 角色字典
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item {{ 'active' if request.endpoint == 'user.manage_companies' else '' }}"
+                                       href="{{ url_for('user.manage_companies') }}">
+                                       <i class="fas fa-building fa-fw me-1"></i> 企业字典
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item {{ 'active' if request.endpoint == 'user.manage_departments' else '' }}"
+                                       href="{{ url_for('user.manage_departments') }}">
+                                       <i class="fas fa-sitemap fa-fw me-1"></i> 部门字典
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
                 </li>
                 {% endif %}
 
@@ -335,6 +417,27 @@
                     e.stopPropagation();
                 });
             }
+            
+            // 处理多级下拉菜单
+            const dropdownItems = document.querySelectorAll('.dropdown-item.dropdown-toggle');
+            dropdownItems.forEach(item => {
+                item.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // 找到下一级菜单
+                    const submenu = this.nextElementSibling;
+                    if (submenu && submenu.classList.contains('dropdown-menu')) {
+                        submenu.classList.toggle('show');
+                    }
+                });
+            });
+            
+            // 点击其他区域关闭所有子菜单
+            document.addEventListener('click', function() {
+                const submenus = document.querySelectorAll('.dropdown-submenu.show');
+                submenus.forEach(menu => menu.classList.remove('show'));
+            });
 
             // 设置AJAX请求的CSRF令牌
             const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');

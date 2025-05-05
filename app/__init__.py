@@ -313,30 +313,34 @@ def create_app(config_class=Config):
         def has_permission(module, action):
             from flask_login import current_user
             from app.permissions import check_permission, Permissions
-            
+            print(f"[DEBUG][context_processor.has_permission] user={getattr(current_user, 'username', None)}, role={getattr(current_user, 'role', None)}, module={module}, action={action}")
             # 如果用户未登录，则没有权限
             if not current_user.is_authenticated:
+                print("[DEBUG][context_processor.has_permission] not authenticated, return False")
                 return False
-                
             # 管理员默认拥有所有权限
             if current_user.role == 'admin':
+                print("[DEBUG][context_processor.has_permission] admin, return True")
                 return True
-            
             try:
                 # 首先检查基于角色的权限系统
                 permission_name = f"{module}_{action}"
                 permission_attr = getattr(Permissions, permission_name.upper(), None)
-                
+                print(f"[DEBUG][context_processor.has_permission] permission_name={permission_name}, permission_attr={permission_attr}")
                 if permission_attr is not None:
-                    if check_permission(permission_attr):
+                    result = check_permission(permission_attr)
+                    print(f"[DEBUG][context_processor.has_permission] check_permission({permission_attr})={result}")
+                    if result:
+                        print("[DEBUG][context_processor.has_permission] role permission True, return True")
                         return True
-                
                 # 然后检查数据库中的用户权限记录
-                return current_user.has_permission(module, action)
+                result = current_user.has_permission(module, action)
+                print(f"[DEBUG][context_processor.has_permission] current_user.has_permission({module}, {action})={result}")
+                return result
             except Exception as e:
+                print(f"[DEBUG][context_processor.has_permission] error: {str(e)}")
                 app.logger.error(f"权限检查错误: {str(e)}")
                 return False
-            
         return {'has_permission': has_permission}
 
     # 注册自定义过滤器

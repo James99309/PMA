@@ -187,6 +187,13 @@
                         </tr>
                     </thead>
                     <tbody>
+                        {% if companies|length == 0 %}
+                        <tr>
+                            <td colspan="100" class="text-center text-muted py-5">
+                                暂无可见企业数据。{% if has_permission('customer', 'create') %}您可以点击右上角"添加企业"新建自己的客户。{% endif %}
+                            </td>
+                        </tr>
+                        {% endif %}
                         {% for company in companies %}
                         <tr>
                             {% if has_permission('customer', 'delete') and current_user.role == 'admin' %}

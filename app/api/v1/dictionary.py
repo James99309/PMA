@@ -10,6 +10,7 @@ from sqlalchemy import func
 from flask_login import current_user
 from functools import wraps
 import uuid
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -76,14 +77,45 @@ def add_dictionary(dict_type):
     """添加新的字典项，自动分配key和排序，前端无需传递"""
     data = request.get_json()
     value = data.get('value')
+    key = data.get('key')  # 前端可选传递key
+
     if not value:
         return api_response(
             success=False,
             code=400,
             message="显示文本必填"
         )
-    # 自动分配key（UUID短码）
-    key = str(uuid.uuid4())[:8]
+
+    # 自动生成英文key（优先用前端传递的key，否则用英文分词+下划线）
+    if not key:
+        # 用正则分词+下划线组合，保留字母和数字
+        # 例如：'客户销售' -> 'customer_sales', '渠道经理' -> 'channel_manager'
+        # 这里可根据实际业务自定义映射
+        value_map = {
+            '客户销售': 'customer_sales',
+            '渠道经理': 'channel_manager',
+            '营销总监': 'marketing_director',
+            '服务': 'service',
+            '服务经理': 'service_manager',
+            '产品经理': 'product_manager',
+            '解决方案经理': 'solution_manager',
+            '普通用户': 'user',
+            '经销商': 'dealer',
+            '管理员': 'admin'
+        }
+        key = value_map.get(value)
+        if not key:
+            # 否则用英文分词+下划线（假设value已是英文或拼音）
+            key = re.sub(r'[^a-zA-Z0-9]+', '_', value.strip().lower())
+            key = re.sub(r'_+', '_', key).strip('_')
+    # 检查key是否已存在
+    exists = Dictionary.query.filter_by(type=dict_type, key=key).first()
+    if exists:
+        return api_response(
+            success=False,
+            code=409,
+            message="该key已存在"
+        )
     # 自动分配排序
     max_order = db.session.query(func.max(Dictionary.sort_order)).filter(
         Dictionary.type == dict_type
@@ -105,7 +137,7 @@ def add_dictionary(dict_type):
         )
     except Exception as e:
         db.session.rollback()
-        logger.error(f"添加字典项失败: {str(e)}")
+        logging.error(f"添加字典项失败: {str(e)}")
         return api_response(
             success=False,
             code=500,

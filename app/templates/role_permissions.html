@@ -1,0 +1,36 @@
+// 加载角色选项
+function loadRoleOptions() {
+    if (!roleSelect || !ROLES || !Array.isArray(ROLES)) {
+        console.error('角色数据加载失败');
+        showErrorMessage();
+        return;
+    }
+
+    // 清空现有选项
+    roleSelect.innerHTML = '<option value="">--请选择角色--</option>';
+
+    // 添加角色选项
+    ROLES.forEach(role => {
+        if (role && role.key && role.value) {
+            const option = document.createElement('option');
+            // 展示key和value
+            option.value = role.key;
+            option.textContent = `${role.key}（${role.value}）`;
+            roleSelect.appendChild(option);
+        }
+    });
+
+    // 如果有预选角色参数，自动选中并加载权限
+    const selectedRole = '{{ selected_role }}';
+    if (selectedRole && roleSelect) {
+        roleSelect.value = selectedRole;
+        if (roleSelect.value) { // 确保选中成功
+            loadRolePermissions(selectedRole);
+        } else {
+            showEmptyState();
+        }
+    } else {
+        // 初始显示空状态
+        showEmptyState();
+    }
+} 

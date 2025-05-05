@@ -58,18 +58,15 @@ class Config:
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
     
-    # 邮件配置
-    MAIL_SERVER = os.environ.get('SMTP_SERVER') or 'smtp.gmail.com'
-    MAIL_PORT = int(os.environ.get('SMTP_PORT') or 587)
+    # 邮件配置（硬编码）
+    MAIL_SERVER = 'smtp.gmail.com'
+    MAIL_PORT = 587
     MAIL_USE_TLS = True
-    MAIL_USERNAME = os.environ.get('SENDER_EMAIL')
-    MAIL_PASSWORD = os.environ.get('SENDER_PASSWORD')
-    MAIL_DEFAULT_SENDER = os.environ.get('SENDER_EMAIL')
-    ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL') or 'James.ni@evertacsolutions.com' 
-    
-    # 应用域名，用于邮件中的链接
+    MAIL_USERNAME = 'james98980566@gmail.com'
+    MAIL_PASSWORD = 'cihkheuuyvnkrtrj'
+    MAIL_DEFAULT_SENDER = 'james98980566@gmail.com'
+    ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL') or 'James.ni@evertacsolutions.com'
     APP_DOMAIN = os.environ.get('APP_DOMAIN') or 'http://localhost:8082'
-    
     PORT = int(os.environ.get('FLASK_PORT', 8082))
     
     # PostgreSQL连接池配置

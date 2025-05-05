@@ -99,17 +99,18 @@ class User(db.Model, UserMixin):
         }
     
     def has_permission(self, module, action):
-        """检查用户是否有指定模块的指定操作权限"""
+        # 调试日志
+        print(f"[DEBUG][has_permission] user_id={self.id}, username={self.username}, role={self.role}, module={module}, action={action}")
+        permission = Permission.query.filter_by(user_id=self.id, module=module).first()
+        print(f"[DEBUG][has_permission] found_permission={permission}")
+        if permission:
+            print(f"[DEBUG][has_permission] can_view={permission.can_view}, can_create={permission.can_create}, can_edit={permission.can_edit}, can_delete={permission.can_delete}")
         # 管理员默认拥有所有权限
         if self.role == 'admin':
             return True
-            
         # 查找对应模块的权限记录
-        permission = Permission.query.filter_by(user_id=self.id, module=module).first()
-        
         if not permission:
             return False
-            
         # 根据操作类型检查权限
         if action == 'view':
             return permission.can_view
@@ -119,7 +120,6 @@ class User(db.Model, UserMixin):
             return permission.can_edit
         elif action == 'delete':
             return permission.can_delete
-        
         return False
         
     def get_permissions(self):

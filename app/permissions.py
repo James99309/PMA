@@ -56,6 +56,18 @@ ROLE_PERMISSIONS = {
         Permissions.PRODUCT_CODE_VIEW, Permissions.PRODUCT_CODE_CREATE, Permissions.PRODUCT_CODE_EDIT, Permissions.PRODUCT_CODE_ADMIN,
         Permissions.ADMIN
     , Permissions.PRODUCT_VIEW],
+    
+    # 添加CEO角色的权限
+    'ceo': [
+        # CEO权限（添加客户查看权限）
+        Permissions.PROJECT_VIEW, Permissions.PROJECT_CREATE, Permissions.PROJECT_EDIT,
+        Permissions.CUSTOMER_VIEW, Permissions.CUSTOMER_CREATE, Permissions.CUSTOMER_EDIT,
+        Permissions.QUOTATION_VIEW, Permissions.QUOTATION_CREATE, Permissions.QUOTATION_EDIT,
+        Permissions.USER_VIEW,
+        Permissions.PRODUCT_CODE_VIEW,
+        Permissions.PRODUCT_VIEW
+    ],
+    
     'sales': [
         # 销售人员权限
         Permissions.PROJECT_VIEW, Permissions.PROJECT_CREATE, Permissions.PROJECT_EDIT,
@@ -136,11 +148,19 @@ def check_permission(permission):
     if not current_user.is_authenticated:
         return False
     
-    # 获取用户角色
-    user_role = getattr(current_user, 'role', 'user')
+    # 获取用户角色（转为小写，避免大小写问题）
+    user_role = getattr(current_user, 'role', 'user').lower()
     
-    # 获取该角色的权限列表
-    role_permissions = ROLE_PERMISSIONS.get(user_role, [])
+    # 匹配角色权限（不区分大小写）
+    role_permissions = None
+    for role, permissions in ROLE_PERMISSIONS.items():
+        if role.lower() == user_role:
+            role_permissions = permissions
+            break
+    
+    # 如果找不到角色权限，使用默认空列表
+    if role_permissions is None:
+        role_permissions = []
     
     # 检查权限
     return permission in role_permissions
@@ -196,8 +216,10 @@ def product_manager_required(f):
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or (current_user.role != 'product_manager' and current_user.role != 'admin'):
-            logger.warning(f"非产品经理用户 {getattr(current_user, 'username', '未登录')} 尝试访问产品经理资源")
+        # 增加ceo角色支持
+        allowed_roles = ['product_manager', 'admin', 'ceo']
+        if not current_user.is_authenticated or current_user.role.lower() not in allowed_roles:
+            logger.warning(f"非产品经理/CEO用户 {getattr(current_user, 'username', '未登录')} (角色: {getattr(current_user, 'role', '无')}) 尝试访问产品经理资源")
             abort(403)
         return f(*args, **kwargs)
     return decorated_function 

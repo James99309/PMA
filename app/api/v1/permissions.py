@@ -6,7 +6,6 @@ from app.models.user import User, Permission
 from app import db
 import logging
 from app.utils.auth import flexible_auth
-from app.utils.role_mappings import normalize_role_key
 from app.models.role_permissions import RolePermission
 
 logger = logging.getLogger(__name__)
@@ -264,12 +263,8 @@ def get_role_permissions(role):
     获取指定角色的权限设置（只查role_permissions表）
     """
     try:
-        from app.utils.role_mappings import normalize_role_key
-        from app.models.role_permissions import RolePermission
-        # 规范化角色键名
-        normalized_role = normalize_role_key(role)
         # 查询模板权限
-        perms = RolePermission.query.filter_by(role=normalized_role).all()
+        perms = RolePermission.query.filter_by(role=role).all()
         permissions = []
         for perm in perms:
             permissions.append({
@@ -283,7 +278,7 @@ def get_role_permissions(role):
             success=True,
             message="获取成功",
             data={
-                'role': normalized_role,
+                'role': role,
                 'permissions': permissions
             }
         )

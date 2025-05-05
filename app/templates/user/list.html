@@ -57,9 +57,6 @@
     </div>
     <div class="col-md-6 text-end">
         {% if current_user.role == 'admin' %}
-        <a href="{{ url_for('user.manage_role_permissions') }}" class="btn btn-warning me-2">
-            <i class="fas fa-user-shield"></i> 设置角色权限
-        </a>
         <a href="#" id="importUsers" class="btn btn-info me-2">
             <i class="fas fa-file-import"></i> 导入用户
         </a>

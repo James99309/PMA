@@ -9,7 +9,6 @@
 from app import create_app
 from app.models.dictionary import Dictionary
 from app.permissions import ROLE_PERMISSIONS
-from app.utils.role_mappings import ROLE_NAME_MAPPINGS, normalize_role_key
 from sqlalchemy import func
 
 app = create_app()
@@ -29,7 +28,7 @@ def sync_roles():
         
         # 确保所有权限系统角色都存在于字典中
         perm_roles = set(ROLE_PERMISSIONS.keys())
-        dict_role_keys = {normalize_role_key(r.key) for r in dict_roles}
+        dict_role_keys = {r.key for r in dict_roles}
         
         # 找出需要添加的角色
         missing_roles = perm_roles - dict_role_keys
@@ -62,7 +61,7 @@ def sync_roles():
         updated = False
         for dict_role in dict_roles:
             orig_key = dict_role.key
-            norm_key = normalize_role_key(orig_key)
+            norm_key = orig_key
             
             # 如果规范化后的键在权限系统中存在，确保角色是激活的
             if norm_key in perm_roles:
@@ -94,7 +93,7 @@ def sync_roles():
         dict_roles = Dictionary.query.filter_by(type='role').order_by(Dictionary.sort_order).all()
         for role in dict_roles:
             status = "启用" if role.is_active else "禁用"
-            norm_key = normalize_role_key(role.key)
+            norm_key = role.key
             print(f'{role.key} ({norm_key}) - {role.value} [{status}]')
         
         print('\n角色同步完成')

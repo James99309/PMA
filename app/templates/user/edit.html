@@ -62,30 +62,20 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="company" class="form-label">企业名称 <span class="text-danger">*</span></label>
-                            <div class="input-group">
-                                <select class="form-select" id="company" name="company" required>
-                                    <option value="">选择企业名称...</option>
-                                    <!-- 企业名称选项将通过API动态加载 -->
-                                </select>
-                                <button class="btn btn-outline-secondary" type="button" id="openCompanyDictBtn" title="管理企业名称字典">
-                                    <i class="fas fa-cog"></i>
-                                </button>
-                            </div>
+                            <select class="form-select" id="company" name="company" required>
+                                <option value="">选择企业名称...</option>
+                                <!-- 企业名称选项将通过API动态加载，仅显示value -->
+                            </select>
                             <div class="invalid-feedback">
                                 请选择企业名称
                             </div>
                         </div>
                         <div class="col-md-6">
                             <label for="department" class="form-label">部门归属</label>
-                            <div class="input-group">
-                                <select class="form-select" id="department" name="department">
-                                    <option value="">选择部门...</option>
-                                    <!-- 部门选项将通过API动态加载 -->
-                                </select>
-                                <button class="btn btn-outline-secondary" type="button" id="openDeptDictBtn">
-                                    <i class="fas fa-cog"></i>
-                                </button>
-                            </div>
+                            <select class="form-select" id="department" name="department">
+                                <option value="">选择部门...</option>
+                                <!-- 部门选项将通过API动态加载，仅显示value -->
+                            </select>
                             <div class="invalid-feedback">
                                 请选择部门归属
                             </div>
@@ -105,13 +95,13 @@
                             </div>
                         </div>
                         <div class="col-md-6">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="is_department_manager" name="is_department_manager"
-                                       {{ 'checked' if user and user.is_department_manager else '' }}>
-                                <label class="form-check-label" for="is_department_manager">
-                                    是部门负责人
-                                </label>
-                                <small class="form-text text-muted d-block">标记为负责人的用户将在同公司同部门中拥有更高的权限</small>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="is_department_manager" name="is_department_manager"
+                                   {{ 'checked' if user and user.is_department_manager else '' }}>
+                            <label class="form-check-label" for="is_department_manager">
+                                是部门负责人
+                            </label>
+                            <small class="form-text text-muted d-block">标记为负责人的用户将在同公司同部门中拥有更高的权限</small>
                             </div>
                         </div>
                     </div>
@@ -124,9 +114,6 @@
                                     <option value="" {{ 'selected' if not user or not user.role else '' }}>选择角色...</option>
                                     <!-- 角色选项将通过API动态加载 -->
                                 </select>
-                                <button class="btn btn-outline-secondary" type="button" id="manageDictBtn" title="管理角色字典">
-                                    <i class="fas fa-cog"></i>
-                                </button>
                                 <div class="invalid-feedback">
                                     请选择用户角色
                                 </div>
@@ -176,138 +163,6 @@
                         </button>
                     </div>
                 </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- 角色字典管理弹窗 -->
-<div class="modal fade" id="dictModal" tabindex="-1" aria-labelledby="dictModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="dictModalLabel">角色字典管理</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3 d-flex justify-content-between">
-                    <button type="button" class="btn btn-primary" id="addDictBtn">
-                        <i class="fas fa-plus"></i> 新增角色
-                    </button>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover" id="dictTable">
-                        <thead>
-                            <tr>
-                                <th width="60%">显示文本</th>
-                                <th width="20%">状态</th>
-                                <th width="20%">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- 字典表格内容将由JavaScript动态加载 -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- 新增/编辑字典项弹窗 -->
-<div class="modal fade" id="editDictItemModal" tabindex="-1" aria-labelledby="editDictItemModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="editDictItemModalLabel">新增角色</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="dictItemForm">
-                    <input type="hidden" id="dictItemId" value="">
-                    <div class="mb-3">
-                        <label for="dictItemValue" class="form-label">显示文本 <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="dictItemValue" required>
-                        <div class="form-text">用于界面显示，如 "系统管理员"、"普通用户"、"销售人员" 等</div>
-                    </div>
-                    <div class="mb-3 form-check">
-                        <input type="checkbox" class="form-check-input" id="dictItemActive" checked>
-                        <label class="form-check-label" for="dictItemActive">启用</label>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-primary" id="saveDictItemBtn">保存</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- 部门字典管理弹窗 -->
-<div class="modal fade" id="deptDictModal" tabindex="-1" aria-labelledby="deptDictModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="deptDictModalLabel">部门字典管理</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3 d-flex justify-content-between">
-                    <button type="button" class="btn btn-primary" id="addDeptDictBtn">
-                        <i class="fas fa-plus"></i> 新增部门
-                    </button>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover" id="deptDictTable">
-                        <thead>
-                            <tr>
-                                <th width="60%">显示文本</th>
-                                <th width="20%">状态</th>
-                                <th width="20%">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- 字典表格内容将由JavaScript动态加载 -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- 新增/编辑部门字典项弹窗 -->
-<div class="modal fade" id="editDeptDictItemModal" tabindex="-1" aria-labelledby="editDeptDictItemModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="editDeptDictItemModalLabel">新增部门</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="deptDictItemForm">
-                    <input type="hidden" id="deptDictItemId" value="">
-                    <div class="mb-3">
-                        <label for="deptDictItemValue" class="form-label">显示文本 <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="deptDictItemValue" required>
-                        <div class="form-text">用于界面显示，如 "销售部"、"研发部" 等</div>
-                    </div>
-                    <div class="mb-3 form-check">
-                        <input type="checkbox" class="form-check-input" id="deptDictItemActive" checked>
-                        <label class="form-check-label" for="deptDictItemActive">启用</label>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-primary" id="saveDeptDictItemBtn">保存</button>
             </div>
         </div>
     </div>
@@ -411,69 +266,38 @@
         // 角色下拉列表加载
         loadRoleOptions();
 
-        // 字典管理按钮点击事件
-        const manageDictBtn = document.getElementById('manageDictBtn');
-        if (manageDictBtn) {
-            manageDictBtn.addEventListener('click', function() {
-                // 打开字典管理弹窗
-                loadDictItems();
-                const dictModal = new bootstrap.Modal(document.getElementById('dictModal'));
-                dictModal.show();
-            });
+        // 企业名称下拉列表加载
+        loadCompanyOptions('{{ user.company_name if user else "" }}');
+        function loadCompanyOptions(selectedValue) {
+            const companySelect = document.getElementById('company');
+            if (!companySelect) return;
+            fetch('/api/v1/dictionary/company?active_only=true')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const currentValue = companySelect.getAttribute('data-current') || companySelect.value;
+                        while (companySelect.options.length > 1) {
+                            companySelect.remove(1);
+                        }
+                        data.data.forEach(item => {
+                            const option = document.createElement('option');
+                            option.value = item.value;
+                            option.textContent = item.value;
+                            companySelect.appendChild(option);
+                        });
+                        if (selectedValue) {
+                            companySelect.value = selectedValue;
+                        } else if (currentValue) {
+                            companySelect.value = currentValue;
+                        }
+                    } else {
+                        console.error('加载企业名称选项失败:', data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('API请求错误:', error);
+                });
         }
-
-        // 新增字典项按钮点击事件
-        const addDictBtn = document.getElementById('addDictBtn');
-        if (addDictBtn) {
-            addDictBtn.addEventListener('click', function() {
-                // 重置表单
-                document.getElementById('dictItemForm').reset();
-                document.getElementById('dictItemId').value = '';
-                document.getElementById('editDictItemModalLabel').textContent = '新增角色';
-
-                // 打开编辑弹窗
-                const editModal = new bootstrap.Modal(document.getElementById('editDictItemModal'));
-                editModal.show();
-            });
-        }
-
-        // 保存字典项按钮点击事件
-        const saveDictItemBtn = document.getElementById('saveDictItemBtn');
-        if (saveDictItemBtn) {
-            saveDictItemBtn.addEventListener('click', function() {
-                saveDictItem();
-            });
-        }
-
-        // 部门字典管理弹窗逻辑
-        const openDeptDictBtn = document.getElementById('openDeptDictBtn');
-        const deptDictModal = new bootstrap.Modal(document.getElementById('deptDictModal'));
-        const deptDictTable = document.getElementById('deptDictTable');
-        const departmentInput = document.getElementById('department');
-        const addDeptDictBtn = document.getElementById('addDeptDictBtn');
-        const editDeptDictItemModal = new bootstrap.Modal(document.getElementById('editDeptDictItemModal'));
-        const saveDeptDictItemBtn = document.getElementById('saveDeptDictItemBtn');
-
-        if (openDeptDictBtn) {
-            openDeptDictBtn.addEventListener('click', function() {
-                loadDeptDictItems();
-                deptDictModal.show();
-            });
-        }
-        if (addDeptDictBtn) {
-            addDeptDictBtn.addEventListener('click', function() {
-                document.getElementById('deptDictItemForm').reset();
-                document.getElementById('deptDictItemId').value = '';
-                document.getElementById('editDeptDictItemModalLabel').textContent = '新增部门';
-                editDeptDictItemModal.show();
-            });
-        }
-        if (saveDeptDictItemBtn) {
-            saveDeptDictItemBtn.addEventListener('click', function() {
-                saveDeptDictItem();
-            });
-        }
-
         // 部门下拉列表加载
         loadDepartmentOptions();
         function loadDepartmentOptions() {
@@ -484,7 +308,6 @@
                 .then(data => {
                     if (data.success) {
                         const currentValue = deptSelect.getAttribute('data-current') || deptSelect.value;
-                        // 清空下拉列表，保留第一个选项
                         while (deptSelect.options.length > 1) {
                             deptSelect.remove(1);
                         }
@@ -494,187 +317,15 @@
                             option.textContent = item.value;
                             deptSelect.appendChild(option);
                         });
-                        // 恢复之前选中的值
                         if (currentValue) {
                             deptSelect.value = currentValue;
                         }
-                        setDeptSelected();
                     } else {
                         console.error('加载部门选项失败:', data.message);
                     }
                 })
                 .catch(error => {
                     console.error('API请求错误:', error);
-                });
-        }
-        function loadDeptDictItems() {
-            const tbody = deptDictTable.querySelector('tbody');
-            if (!tbody) return;
-            tbody.innerHTML = '<tr><td colspan="3" class="text-center">加载中...</td></tr>';
-            fetch('/api/v1/dictionary/department')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        if (data.data.length === 0) {
-                            tbody.innerHTML = '<tr><td colspan="3" class="text-center">暂无数据</td></tr>';
-                            return;
-                        }
-                        tbody.innerHTML = '';
-                        data.data.forEach(item => {
-                            const tr = document.createElement('tr');
-                            tr.innerHTML = `
-                                <td>${item.value}</td>
-                                <td>${item.is_active ? '启用' : '禁用'}</td>
-                                <td>
-                                    <button type="button" class="btn btn-sm btn-outline-primary edit-dept-dict-btn" data-id="${item.id}"><i class="fas fa-edit"></i></button>
-                                    <button type="button" class="btn btn-sm ${item.is_active ? 'btn-outline-warning' : 'btn-outline-success'} toggle-dept-dict-btn" data-id="${item.id}"><i class="fas ${item.is_active ? 'fa-ban' : 'fa-check'}"></i></button>
-                                    <button type="button" class="btn btn-sm btn-outline-danger delete-dept-dict-btn" data-id="${item.id}"><i class="fas fa-trash"></i></button>
-                                </td>
-                            `;
-                            tbody.appendChild(tr);
-                        });
-                        registerDeptDictBtnEvents();
-                    } else {
-                        tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger">加载失败</td></tr>';
-                    }
-                })
-                .catch(() => {
-                    tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger">加载失败</td></tr>';
-                });
-        }
-        function registerDeptDictBtnEvents() {
-            // 编辑按钮
-            document.querySelectorAll('.edit-dept-dict-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const id = this.getAttribute('data-id');
-                    editDeptDictItem(id);
-                });
-            });
-            // 切换状态按钮
-            document.querySelectorAll('.toggle-dept-dict-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const id = this.getAttribute('data-id');
-                    toggleDeptDictItem(id);
-                });
-            });
-            // 删除按钮
-            document.querySelectorAll('.delete-dept-dict-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const id = this.getAttribute('data-id');
-                    deleteDeptDictItem(id);
-                });
-            });
-        }
-        function editDeptDictItem(id) {
-            fetch(`/api/v1/dictionary/department`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const item = data.data.find(d => d.id == id);
-                        if (item) {
-                            document.getElementById('deptDictItemId').value = item.id;
-                            document.getElementById('deptDictItemValue').value = item.value;
-                            document.getElementById('deptDictItemActive').checked = item.is_active;
-                            document.getElementById('editDeptDictItemModalLabel').textContent = '编辑部门';
-                            editDeptDictItemModal.show();
-                        } else {
-                            alert('找不到该字典项');
-                        }
-                    } else {
-                        alert(data.message || '获取字典项失败');
-                    }
-                })
-                .catch(error => {
-                    console.error('API请求错误:', error);
-                    alert('网络错误，请稍后重试');
-                });
-        }
-        function saveDeptDictItem() {
-            const id = document.getElementById('deptDictItemId').value;
-            const value = document.getElementById('deptDictItemValue').value;
-            const isActive = document.getElementById('deptDictItemActive').checked;
-            if (!value) {
-                alert('显示文本不能为空');
-                return;
-            }
-            const reqData = {
-                value: value,
-                is_active: isActive
-            };
-            const isNew = !id;
-            const url = isNew ?
-                '/api/v1/dictionary/department/add' :
-                '/api/v1/dictionary/department/edit';
-            if (!isNew) {
-                reqData.id = parseInt(id);
-            }
-            fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
-                },
-                body: JSON.stringify(reqData)
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        bootstrap.Modal.getInstance(document.getElementById('editDeptDictItemModal')).hide();
-                        loadDeptDictItems();
-                        loadDepartmentOptions();
-                    } else {
-                        alert(data.message || (isNew ? '添加失败' : '更新失败'));
-                    }
-                })
-                .catch(error => {
-                    console.error('API请求错误:', error);
-                    alert('网络错误，请稍后重试');
-                });
-        }
-        function toggleDeptDictItem(id) {
-            if (!confirm('确定要切换该部门的状态吗？')) return;
-            fetch('/api/v1/dictionary/department/toggle', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
-                },
-                body: JSON.stringify({ id: parseInt(id) })
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        loadDeptDictItems();
-                    } else {
-                        alert(data.message || '操作失败');
-                    }
-                })
-                .catch(error => {
-                    console.error('API请求错误:', error);
-                    alert('网络错误，请稍后重试');
-                });
-        }
-        function deleteDeptDictItem(id) {
-            if (!confirm('确定要删除该部门吗？删除后不可恢复。')) return;
-            fetch('/api/v1/dictionary/department/delete', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
-                },
-                body: JSON.stringify({ id: parseInt(id) })
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        loadDeptDictItems();
-                    } else {
-                        alert(data.message || '删除失败');
-                    }
-                })
-                .catch(error => {
-                    console.error('API请求错误:', error);
-                    alert('网络错误，请稍后重试');
                 });
         }
     });
@@ -701,218 +352,31 @@
             });
     }
 
-    // 加载字典项列表（只显示显示文本、状态、操作）
-    function loadDictItems() {
-        const tbody = document.querySelector('#dictTable tbody');
-        if (!tbody) return;
-        // 显示加载中
-        tbody.innerHTML = '<tr><td colspan="3" class="text-center">加载中...</td></tr>';
-        fetch('/api/v1/dictionary/role')
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    if (data.data.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="3" class="text-center">暂无数据</td></tr>';
-                        return;
-                    }
-                    // 清空表格
-                    tbody.innerHTML = '';
-                    // 添加行
-                    data.data.forEach(item => {
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `
-                            <td>${item.value}</td>
-                            <td>
-                                <span class="badge ${item.is_active ? 'bg-success' : 'bg-secondary'}">
-                                    ${item.is_active ? '启用' : '禁用'}
-                                </span>
-                            </td>
-                            <td>
-                                <button type="button" class="btn btn-sm btn-outline-primary edit-dict-btn" data-id="${item.id}">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button type="button" class="btn btn-sm ${item.is_active ? 'btn-outline-warning' : 'btn-outline-success'} toggle-dict-btn" data-id="${item.id}">
-                                    <i class="fas ${item.is_active ? 'fa-ban' : 'fa-check'}"></i>
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger delete-dict-btn" data-id="${item.id}">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                        `;
-                        tbody.appendChild(tr);
-                    });
-                    registerDictBtnEvents();
-                } else {
-                    tbody.innerHTML = `<tr><td colspan="3" class="text-center text-danger">${data.message || '加载失败'}</td></tr>`;
-                }
-            })
-            .catch(error => {
-                console.error('API请求错误:', error);
-                tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger">网络错误，请稍后重试</td></tr>';
-            });
-    }
+    // 获取后端传入的当前用户角色、部门、公司
+    const currentRole = "{{ user.role or '' }}";
+    const currentDept = "{{ user.department or '' }}";
+    const currentCompany = "{{ user.company_name or '' }}";
 
-    // 注册字典操作按钮事件
-    function registerDictBtnEvents() {
-        // 编辑按钮
-        document.querySelectorAll('.edit-dict-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const id = this.getAttribute('data-id');
-                editDictItem(id);
-            });
-        });
-
-        // 切换状态按钮
-        document.querySelectorAll('.toggle-dict-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const id = this.getAttribute('data-id');
-                toggleDictItem(id);
-            });
-        });
-
-        // 删除按钮
-        document.querySelectorAll('.delete-dict-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const id = this.getAttribute('data-id');
-                deleteDictItem(id);
-            });
-        });
-    }
-
-    // 编辑字典项
-    function editDictItem(id) {
-        fetch(`/api/v1/dictionary/role`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    const item = data.data.find(d => d.id == id);
-                    if (item) {
-                        // 填充表单
-                        document.getElementById('dictItemId').value = item.id;
-                        document.getElementById('dictItemValue').value = item.value;
-                        document.getElementById('dictItemActive').checked = item.is_active;
-
-                        // 修改标题
-                        document.getElementById('editDictItemModalLabel').textContent = '编辑角色';
-
-                        // 打开弹窗
-                        const editModal = new bootstrap.Modal(document.getElementById('editDictItemModal'));
-                        editModal.show();
-                    } else {
-                        alert('找不到该字典项');
-                    }
-                } else {
-                    alert(data.message || '获取字典项失败');
-                }
-            })
-            .catch(error => {
-                console.error('API请求错误:', error);
-                alert('网络错误，请稍后重试');
-            });
-    }
-
-    // 保存字典项（只传 value 和 is_active）
-    function saveDictItem() {
-        const id = document.getElementById('dictItemId').value;
-        const value = document.getElementById('dictItemValue').value;
-        const isActive = document.getElementById('dictItemActive').checked;
-        if (!value) {
-            alert('显示文本不能为空');
-            return;
+    // 动态加载角色选项后设置选中项
+    function setRoleSelected() {
+        if (currentRole) {
+            const $role = document.getElementById('role');
+            if ($role) $role.value = currentRole;
         }
-        const reqData = {
-            value: value,
-            is_active: isActive
-        };
-        const isNew = !id;
-        const url = isNew ?
-            '/api/v1/dictionary/role/add' :
-            '/api/v1/dictionary/role/edit';
-        if (!isNew) {
-            reqData.id = parseInt(id);
+    }
+    // 动态加载部门选项后设置选中项
+    function setDeptSelected() {
+        if (currentDept) {
+            const $dept = document.getElementById('department');
+            if ($dept) $dept.value = currentDept;
         }
-        fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
-            },
-            body: JSON.stringify(reqData)
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    bootstrap.Modal.getInstance(document.getElementById('editDictItemModal')).hide();
-                    loadDictItems();
-                    loadRoleOptions();
-                } else {
-                    alert(data.message || (isNew ? '添加失败' : '更新失败'));
-                }
-            })
-            .catch(error => {
-                console.error('API请求错误:', error);
-                alert('网络错误，请稍后重试');
-            });
     }
-
-    // 切换字典项状态
-    function toggleDictItem(id) {
-        if (!confirm('确定要切换该角色的状态吗？')) return;
-
-        fetch('/api/v1/dictionary/role/toggle', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
-            },
-            body: JSON.stringify({ id: parseInt(id) })
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // 重新加载列表
-                    loadDictItems();
-
-                    // 更新角色下拉列表
-                    loadRoleOptions();
-                } else {
-                    alert(data.message || '操作失败');
-                }
-            })
-            .catch(error => {
-                console.error('API请求错误:', error);
-                alert('网络错误，请稍后重试');
-            });
-    }
-
-    // 删除字典项
-    function deleteDictItem(id) {
-        if (!confirm('确定要删除该角色吗？删除后不可恢复。')) return;
-
-        fetch('/api/v1/dictionary/role/delete', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
-            },
-            body: JSON.stringify({ id: parseInt(id) })
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // 重新加载列表
-                    loadDictItems();
-
-                    // 更新角色下拉列表
-                    loadRoleOptions();
-                } else {
-                    alert(data.message || '删除失败');
-                }
-            })
-            .catch(error => {
-                console.error('API请求错误:', error);
-                alert('网络错误，请稍后重试');
-            });
+    // 动态加载公司选项后设置选中项
+    function setCompanySelected() {
+        if (currentCompany) {
+            const $company = document.getElementById('company');
+            if ($company) $company.value = currentCompany;
+        }
     }
 
     // 企业名称字典管理弹窗逻辑
@@ -942,39 +406,6 @@
         saveCompanyDictItemBtn.addEventListener('click', function() {
             saveCompanyDictItem();
         });
-    }
-    // 企业名称下拉列表加载
-    loadCompanyOptions('{{ user.company_name if user else "" }}');
-    function loadCompanyOptions(selectedKey) {
-        const companySelect = document.getElementById('company');
-        if (!companySelect) return;
-        fetch('/api/v1/dictionary/company?active_only=true')
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    const currentValue = companySelect.getAttribute('data-current') || companySelect.value;
-                    while (companySelect.options.length > 1) {
-                        companySelect.remove(1);
-                    }
-                    data.data.forEach(item => {
-                        const option = document.createElement('option');
-                        option.value = item.key;
-                        option.textContent = item.value;
-                        companySelect.appendChild(option);
-                    });
-                    if (selectedKey) {
-                        companySelect.value = selectedKey;
-                    } else if (currentValue) {
-                        companySelect.value = currentValue;
-                    }
-                    setCompanySelected();
-                } else {
-                    console.error('加载企业名称选项失败:', data.message);
-                }
-            })
-            .catch(error => {
-                console.error('API请求错误:', error);
-            });
     }
     function loadCompanyDictItems() {
         const tbody = companyDictTable.querySelector('tbody');
@@ -1145,38 +576,5 @@
                 alert('网络错误，请稍后重试');
             });
     }
-
-    // 获取后端传入的当前用户角色、部门、公司
-    const currentRole = "{{ user.role or '' }}";
-    const currentDept = "{{ user.department or '' }}";
-    const currentCompany = "{{ user.company_name or '' }}";
-
-    // 动态加载角色选项后设置选中项
-    function setRoleSelected() {
-        if (currentRole) {
-            const $role = document.getElementById('role');
-            if ($role) $role.value = currentRole;
-        }
-    }
-    // 动态加载部门选项后设置选中项
-    function setDeptSelected() {
-        if (currentDept) {
-            const $dept = document.getElementById('department');
-            if ($dept) $dept.value = currentDept;
-        }
-    }
-    // 动态加载公司选项后设置选中项
-    function setCompanySelected() {
-        if (currentCompany) {
-            const $company = document.getElementById('company');
-            if ($company) $company.value = currentCompany;
-        }
-    }
-
-    // 假设你已有AJAX加载选项的代码，加载完成后分别调用上述函数
-    // 例如：
-    // $.get('/api/roles', function(data) { ... setRoleSelected(); });
-    // $.get('/api/departments', function(data) { ... setDeptSelected(); });
-    // $.get('/api/companies', function(data) { ... setCompanySelected(); });
 </script>
 {% endblock %}

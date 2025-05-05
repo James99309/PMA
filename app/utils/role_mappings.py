@@ -6,6 +6,9 @@
 用于统一前端显示和后端处理中的角色标识
 """
 
+# 此文件已废弃！请使用 app/utils/dictionary_helpers.py 中的数据库字典方法获取角色显示名。
+# 保留文件仅为兼容历史代码，后续可安全移入 /legacy 目录。
+
 # 角色映射表: 标准键名 -> 中文显示名
 ROLE_NAME_MAPPINGS = {
     'admin': '系统管理员',
@@ -20,43 +23,13 @@ ROLE_NAME_MAPPINGS = {
     'dealer': '代理商',
     
     # 兼容系统中已有的其他角色
-    'CEO': '总经理',
-    'HR': '绩效经理',
+    'ceo': '总经理',
+    'hr': '绩效经理',
     'business_admin': '商务助理',
     'finace_manager': '财务总监',
     'sales_manager': '销售经理'
 }
 
-# 角色键名标准化映射: 非标准键名 -> 标准键名
-ROLE_KEY_NORMALIZATION = {
-    'channel_manager ': 'channel_manager',  # 处理多余空格
-    'sales_director': 'marketing_director',  # 处理名称不一致
-    'CEO': 'admin',  # 总经理映射为管理员
-    'HR': 'admin',  # 绩效经理映射为管理员
-    'business_admin': 'admin',  # 商务助理映射为管理员
-    'finace_manager': 'admin',  # 财务总监映射为管理员
-    'sales_manager': 'customer_sales',  # 销售经理映射为客户销售
-}
-
-def normalize_role_key(role_key):
-    """
-    标准化角色键名，处理可能存在的键名不一致问题
-    
-    参数:
-        role_key: 原始角色键名
-        
-    返回:
-        标准化后的角色键名
-    """
-    if not role_key:
-        return role_key
-        
-    # 处理空格
-    cleaned_key = role_key.strip()
-    
-    # 应用映射
-    return ROLE_KEY_NORMALIZATION.get(cleaned_key, cleaned_key)
-    
 def get_role_display_name(role_key):
     """
     获取角色的显示名称
@@ -69,9 +42,14 @@ def get_role_display_name(role_key):
     """
     if not role_key:
         return '未知角色'
-        
-    # 先标准化角色键名
-    normalized_key = normalize_role_key(role_key)
     
-    # 获取显示名称
-    return ROLE_NAME_MAPPINGS.get(normalized_key, normalized_key) 
+    # 统一转为小写处理，避免大小写问题
+    role_key_lower = role_key.lower() if isinstance(role_key, str) else ''
+    
+    # 查找匹配的角色（不区分大小写）
+    for key, display_name in ROLE_NAME_MAPPINGS.items():
+        if key.lower() == role_key_lower:
+            return display_name
+    
+    # 如果找不到匹配，返回原始值
+    return role_key 
