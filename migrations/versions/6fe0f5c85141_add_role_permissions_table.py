@@ -26,13 +26,19 @@ def upgrade():
 
     with op.batch_alter_table('affiliations', schema=None) as batch_op:
         batch_op.add_column(sa.Column('owner_id', sa.Integer(), nullable=True))
+        batch_op.add_column(sa.Column('viewer_id', sa.Integer(), nullable=True))
         batch_op.create_foreign_key(
             'fk_affiliations_owner_id_users',
             'users',
             ['owner_id'],
             ['id']
         )
-        batch_op.create_foreign_key(None, 'users', ['viewer_id'], ['id'])
+        batch_op.create_foreign_key(
+            'fk_affiliations_viewer_id_users',
+            'users',
+            ['viewer_id'],
+            ['id']
+        )
 
     with op.batch_alter_table('companies', schema=None) as batch_op:
         batch_op.create_foreign_key(None, 'users', ['owner_id'], ['id'])
@@ -177,8 +183,9 @@ def downgrade():
 
     with op.batch_alter_table('affiliations', schema=None) as batch_op:
         batch_op.drop_constraint('fk_affiliations_owner_id_users', type_='foreignkey')
+        batch_op.drop_constraint('fk_affiliations_viewer_id_users', type_='foreignkey')
         batch_op.drop_column('owner_id')
-        batch_op.drop_constraint(None, type_='foreignkey')
+        batch_op.drop_column('viewer_id')
 
     with op.batch_alter_table('actions', schema=None) as batch_op:
         batch_op.drop_constraint(None, type_='foreignkey')
