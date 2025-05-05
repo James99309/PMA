@@ -14,15 +14,6 @@ config = context.config
 fileConfig(config.config_file_name)
 logger = logging.getLogger('alembic.env')
 
-# 添加SQLite批处理支持
-def render_item(type_, obj, autogen_context):
-    """Apply batch mode for SQLite migrations"""
-    if type_ == 'type' and obj.__class__.__module__.startswith('sqlalchemy.'):
-        return obj.__class__.__module__ + '.' + obj.__class__.__name__
-    return False
-
-# 配置SQLite批处理模式
-config.render_item = render_item
 
 def get_engine():
     try:
@@ -88,6 +79,7 @@ def run_migrations_online():
     and associate a connection with the context.
 
     """
+
     # this callback is used to prevent an auto-migration from being generated
     # when there are no changes to the schema
     # reference: http://alembic.zzzcomputing.com/en/latest/cookbook.html
@@ -98,14 +90,17 @@ def run_migrations_online():
                 directives[:] = []
                 logger.info('No changes in schema detected.')
 
-    connectable = current_app.extensions['migrate'].db.get_engine()
+    conf_args = current_app.extensions['migrate'].configure_args
+    if conf_args.get("process_revision_directives") is None:
+        conf_args["process_revision_directives"] = process_revision_directives
+
+    connectable = get_engine()
 
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
             target_metadata=get_metadata(),
-            process_revision_directives=process_revision_directives,
-            **current_app.extensions['migrate'].configure_args
+            **conf_args
         )
 
         with context.begin_transaction():
