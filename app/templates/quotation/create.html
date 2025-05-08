@@ -651,113 +651,110 @@ function initializeProductAutocomplete() {
                                         return;
                                     }
                                     
-                                    // 从产品对象中提取产品名称并去重
-                                    var uniqueNames = {};
+                                    // 新逻辑：先按ID升序排序，再去重，按ID顺序输出
+                                    products.sort(function(a, b) { return a.id - b.id; });
+                                    var nameToProduct = {};
                                     products.forEach(function(product) {
                                         if (product && product.product_name) {
-                                            uniqueNames[product.product_name] = true;
+                                            if (!nameToProduct[product.product_name]) {
+                                                nameToProduct[product.product_name] = product;
+                                            }
                                         }
                                     });
-                                    
-                                    var productNames = Object.keys(uniqueNames);
-                                    
-                                    // 显示产品名称列表
-                                    if (productNames.length === 0) {
-                                        $products.html('<div class="menu-loading">此类别下无产品</div>');
-                                    } else {
-                                        productNames.forEach(function(name) {
-                                            // 过滤出该产品名称对应的所有产品
-                                            var productsWithName = products.filter(function(p) {
-                                                return p.product_name === name;
-                                            });
-                                            
-                                            $('<div class="menu-item"></div>')
-                                                .text(name)
-                                                .data('products', productsWithName)
-                                                .on('click', function() {
-                                                    // 高亮当前产品
-                                                    $('.product-list .menu-item').removeClass('active');
-                                                    $(this).addClass('active');
-                                                    
-                                                    // 隐藏规格列表
-                                                    $specs.hide();
-                                                    
-                                                    // 显示型号列表
-                                                    $models.show();
-                                                    $models.empty();
-                                                    
-                                                    var productsWithName = $(this).data('products');
-                                                    
-                                                    // 提取并去重型号
-                                                    var uniqueModels = {};
-                                                    productsWithName.forEach(function(product) {
-                                                        if (product && product.model) {
-                                                            uniqueModels[product.model] = true;
-                                                        }
-                                                    });
-                                                    
-                                                    var modelList = Object.keys(uniqueModels);
-                                                    
-                                                    if (modelList.length === 0) {
-                                                        $models.html('<div class="menu-loading">此产品下无型号</div>');
-                                                    } else {
-                                                        modelList.forEach(function(model) {
-                                                            // 过滤出该型号对应的所有产品
-                                                            var productsWithModel = productsWithName.filter(function(p) {
-                                                                return p.model === model;
-                                                            });
-                                                            
-                                                            $('<div class="menu-item"></div>')
-                                                                .text(model)
-                                                                .data('products', productsWithModel)
-                                                                .on('click', function() {
-                                                                    // 高亮当前型号
-                                                                    $('.model-list .menu-item').removeClass('active');
-                                                                    $(this).addClass('active');
-                                                                    
-                                                                    // 显示规格列表
-                                                                    $specs.show();
-                                                                    $specs.empty();
-                                                                    
-                                                                    var productsWithModel = $(this).data('products');
-                                                                    
-                                                                    if (productsWithModel.length === 0) {
-                                                                        $specs.html('<div class="menu-loading">此型号下无规格</div>');
-                                                                    } else {
-                                                                        productsWithModel.forEach(function(product) {
-                                                                            var specText = product.specification || '默认规格';
-                                                                            $('<div class="menu-item no-arrow"></div>')
-                                                                                .text(specText)
-                                                                                .data('product', product)
-                                                                                .on('click', function() {
-                                                                                    var selectedProduct = $(this).data('product');
-                                                                                    
-                                                                                    // 设置产品名称
-                                                                                    $input.val(selectedProduct.product_name);
-                                                                                    
-                                                                                    // 获取当前行
-                                                                                    var $row = $input.closest('tr');
-                                                                                    
-                                                                                    // 清除现有产品详情
-                                                                                    clearProductDetails($row, true);
-                                                                                    
-                                                                                    // 填充产品详情
-                                                                                    fillProductDetails($row, selectedProduct);
-                                                                                    
-                                                                                    // 关闭菜单
-                                                                                    $menu.remove();
-                                                                                })
-                                                                                .appendTo($specs);
-                                                                        });
-                                                                    }
-                                                                })
-                                                                .appendTo($models);
-                                                        });
-                                                    }
-                                                })
-                                                .appendTo($products);
+                                    var productNames = Object.values(nameToProduct)
+                                        .sort(function(a, b) { return a.id - b.id; })
+                                        .map(function(product) { return product.product_name; });
+                                    productNames.forEach(function(name) {
+                                        var productsWithName = products.filter(function(p) {
+                                            return p.product_name === name;
                                         });
-                                    }
+                                        
+                                        $('<div class="menu-item"></div>')
+                                            .text(name)
+                                            .data('products', productsWithName)
+                                            .on('click', function() {
+                                                // 高亮当前产品
+                                                $('.product-list .menu-item').removeClass('active');
+                                                $(this).addClass('active');
+                                                
+                                                // 隐藏规格列表
+                                                $specs.hide();
+                                                
+                                                // 显示型号列表
+                                                $models.show();
+                                                $models.empty();
+                                                
+                                                var productsWithName = $(this).data('products');
+                                                
+                                                // 提取并去重型号
+                                                var uniqueModels = {};
+                                                productsWithName.forEach(function(product) {
+                                                    if (product && product.model) {
+                                                        uniqueModels[product.model] = true;
+                                                    }
+                                                });
+                                                
+                                                var modelList = Object.keys(uniqueModels);
+                                                
+                                                if (modelList.length === 0) {
+                                                    $models.html('<div class="menu-loading">此产品下无型号</div>');
+                                                } else {
+                                                    modelList.forEach(function(model) {
+                                                        // 过滤出该型号对应的所有产品
+                                                        var productsWithModel = productsWithName.filter(function(p) {
+                                                            return p.model === model;
+                                                        });
+                                                        
+                                                        $('<div class="menu-item"></div>')
+                                                            .text(model)
+                                                            .data('products', productsWithModel)
+                                                            .on('click', function() {
+                                                                // 高亮当前型号
+                                                                $('.model-list .menu-item').removeClass('active');
+                                                                $(this).addClass('active');
+                                                                
+                                                                // 显示规格列表
+                                                                $specs.show();
+                                                                $specs.empty();
+                                                                
+                                                                var productsWithModel = $(this).data('products');
+                                                                
+                                                                if (productsWithModel.length === 0) {
+                                                                    $specs.html('<div class="menu-loading">此型号下无规格</div>');
+                                                                } else {
+                                                                    productsWithModel.forEach(function(product) {
+                                                                        var specText = product.specification || '默认规格';
+                                                                        $('<div class="menu-item no-arrow"></div>')
+                                                                            .text(specText)
+                                                                            .data('product', product)
+                                                                            .on('click', function() {
+                                                                                var selectedProduct = $(this).data('product');
+                                                                                
+                                                                                // 设置产品名称
+                                                                                $input.val(selectedProduct.product_name);
+                                                                                
+                                                                                // 获取当前行
+                                                                                var $row = $input.closest('tr');
+                                                                                
+                                                                                // 清除现有产品详情
+                                                                                clearProductDetails($row, true);
+                                                                                
+                                                                                // 填充产品详情
+                                                                                fillProductDetails($row, selectedProduct);
+                                                                                
+                                                                                // 关闭菜单
+                                                                                $menu.remove();
+                                                                            })
+                                                                            .appendTo($specs);
+                                                                    });
+                                                                }
+                                                            })
+                                                            .appendTo($models);
+                                                    });
+                                                }
+                                            })
+                                            .appendTo($products);
+                                    });
                                 },
                                 error: function(xhr, status, error) {
                                     console.error('加载产品失败:', error);

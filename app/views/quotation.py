@@ -920,8 +920,8 @@ def get_all_companies():
 def get_all_projects():
     try:
         logger.debug("获取所有项目列表...")
-        # 只获取当前用户本人拥有的项目
-        projects_query = get_viewable_data(Project, current_user).filter(Project.owner_id == current_user.id)
+        # 获取当前用户权限范围内可见的所有项目（不再限定owner_id）
+        projects_query = get_viewable_data(Project, current_user)
         # 过滤掉已有关联报价单的项目
         projects = projects_query.outerjoin(Quotation, Project.id == Quotation.project_id) \
             .filter(Quotation.id == None).all()
@@ -1013,21 +1013,23 @@ def get_products():
 
 @quotation.route('/products/categories', methods=['GET'])
 def get_product_categories():
-    """获取去重后的产品类别列表"""
+    """获取去重后的产品类别列表，按每个类别下最小产品ID升序排列"""
     try:
         logger.debug('正在获取产品类别列表...')
-        # 使用 distinct 获取唯一的类别列表
-        categories = db.session.query(Product.category).filter(
-            Product.status != '停产'
-        ).distinct().all()
-        
-        # 将结果转换为列表
-        category_list = [category[0] for category in categories if category[0]]
-        category_list.sort()  # 按字母顺序排序
-        
+        from sqlalchemy import func
+        # 查询每个类别下ID最小的产品ID
+        min_id_per_category = db.session.query(
+            Product.category,
+            func.min(Product.id).label('min_id')
+        ).filter(Product.status != '停产').group_by(Product.category).all()
+        # 按min_id排序
+        sorted_categories = sorted(
+            [c for c in min_id_per_category if c[0]],
+            key=lambda x: x[1]
+        )
+        category_list = [c[0] for c in sorted_categories]
         logger.debug(f'找到 {len(category_list)} 个类别')
         return jsonify(category_list)
-        
     except Exception as e:
         logger.error(f'获取产品类别列表时出错: {str(e)}')
         return jsonify({

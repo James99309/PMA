@@ -261,13 +261,18 @@ class ProjectStageProgress {
                 } else if (branch.value === '搁置') {
                     branchMarker.classList.add('stage-pending');
                 }
-            } else if (this.currentStage === '失败' || this.currentStage === '搁置') {
-                branchMarker.classList.add('stage-disabled');
             }
 
             // 圆点
             const branchDot = document.createElement('div');
             branchDot.className = 'stage-dot';
+            if (branch.value === '失败') {
+                // 添加X图标
+                branchDot.innerHTML = '<i class="fas fa-times"></i>';
+            } else if (branch.value === '搁置') {
+                // 添加感叹号图标
+                branchDot.innerHTML = '<i class="fas fa-exclamation"></i>';
+            }
             if (this.currentStage === branch.value) {
                 if (branch.value === '失败') {
                     branchDot.style.backgroundColor = '#e74c3c';
@@ -284,19 +289,9 @@ class ProjectStageProgress {
                     ? `确定要恢复到主线阶段吗？`
                     : `确定要将项目阶段切换为"${branch.value}"吗？`;
                 if (window.confirm(msg)) {
-                    if (this.currentStage === branch.value) {
-                        // 恢复到上次主线阶段
-                        this.currentStage = this.lastMainStage;
-                        this.currentStageIndex = this.getStageIndex(this.currentStage);
-                    } else {
-                        // 进入分支，记住主线阶段
-                        if (this.mainStages.find(s => s.value === this.currentStage)) {
-                            this.lastMainStage = this.currentStage;
-                        }
-                        this.currentStage = branch.value;
-                        this.currentStageIndex = this.getStageIndex(this.currentStage);
-                    }
-                    this.init();
+                    // 统一通过API切换，无论是分支还是恢复主线
+                    let targetStage = (this.currentStage === branch.value) ? this.lastMainStage : branch.value;
+                    this.updateStage(targetStage);
                 }
             });
             branchMarker.appendChild(branchDot);
@@ -337,6 +332,12 @@ class ProjectStageProgress {
         // 添加到容器
         container.innerHTML = '';
         container.appendChild(progressContainer);
+
+        // 同步更新详情卡片中的当前阶段字段
+        const currentStageText = document.getElementById('currentStageText');
+        if (currentStageText) {
+            currentStageText.textContent = this.currentStage;
+        }
 
         // 添加确认推进模态框
         this.renderAdvanceModal(container);
@@ -403,12 +404,9 @@ class ProjectStageProgress {
     }
 
     /**
-     * 推进到下一阶段
+     * 通用阶段切换方法，调用后端API
      */
-    advanceStage() {
-        const nextStage = this.getNextStage();
-        if (!nextStage) return;
-
+    updateStage(targetStage) {
         // 发送请求到服务器更新阶段
         fetch(this.updateUrl, {
             method: 'POST',
@@ -418,7 +416,7 @@ class ProjectStageProgress {
             },
             body: JSON.stringify({
                 project_id: this.projectId,
-                current_stage: nextStage.value
+                current_stage: targetStage
             })
         })
         .then(response => {
@@ -439,6 +437,15 @@ class ProjectStageProgress {
             console.error('更新阶段错误:', error);
             alert('更新阶段时发生错误，请重试');
         });
+    }
+
+    /**
+     * 推进到下一阶段
+     */
+    advanceStage() {
+        const nextStage = this.getNextStage();
+        if (!nextStage) return;
+        this.updateStage(nextStage.value);
     }
 }
 

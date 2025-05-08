@@ -226,4 +226,51 @@
 
 .stage-current .stage-name:hover {
     color: #3c763d;
+}
+
+.stage-dot-hover-failed {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 6px rgba(231, 76, 60, 0.3);
+    border-color: #e74c3c !important;
+}
+
+.stage-failed .stage-dot:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 6px rgba(231, 76, 60, 0.3);
+    border-color: #e74c3c !important;
+}
+
+.stage-marker.stage-failed .stage-dot:hover {
+    cursor: pointer;
+    transform: scale(1.1);
+    box-shadow: 0 0 0 6px rgba(231, 76, 60, 0.3);
+    border-color: #e74c3c !important;
+}
+
+.stage-marker.stage-failed .stage-dot i {
+    color: #fff;
+    font-size: 18px;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.stage-branch[data-stage="失败"] .stage-dot:hover {
+    cursor: pointer;
+    transform: scale(1.1);
+    box-shadow: 0 0 0 6px rgba(231, 76, 60, 0.3);
+    border-color: #e74c3c !important;
+}
+
+.stage-branch[data-stage="搁置"] .stage-dot:hover {
+    cursor: pointer;
+    transform: scale(1.1);
+    box-shadow: 0 0 0 6px rgba(85, 85, 85, 0.3);
+    border-color: #555 !important;
+}
+
+.stage-branch[data-stage="搁置"] .stage-dot i {
+    color: #fff;
+    font-size: 18px;
+    font-weight: bold;
+    line-height: 1;
 } 

@@ -181,6 +181,7 @@ def create_app(config_class=Config):
     app.register_blueprint(quotation, url_prefix='/quotation')
     app.register_blueprint(product_bp, url_prefix='')
     app.register_blueprint(api_bp, url_prefix='/api')
+    csrf.exempt(api_bp)
     app.register_blueprint(user_bp, url_prefix='/user')
     app.register_blueprint(product_code_bp, url_prefix='/product-code')
     app.register_blueprint(product_management_bp, url_prefix='/product-management')

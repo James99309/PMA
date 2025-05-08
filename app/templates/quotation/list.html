@@ -359,6 +359,9 @@
                                 </table>
                             </div>
                         </div>
+                        <div class="text-end mt-3">
+                            <button type="button" class="btn btn-primary" id="closeImportResultBtn">确认</button>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -648,6 +651,10 @@
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
+// 全局唯一声明importModal
+let importModal = null;
+let needReloadAfterImport = false; // 标记是否需要刷新页面
+
 // 获取表格容器
 const tableContainer = document.querySelector('.table-responsive');
 
@@ -901,21 +908,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const checkedCount = document.querySelectorAll('.quotation-checkbox:checked').length;
         
         if (checkedCount > 0) {
+            batchDeleteBtn.style.animation = '';
             batchDeleteBtn.style.display = 'inline-block';
-            // 更新按钮文本
-            batchDeleteBtn.innerHTML = `<i class="fas fa-trash"></i> 批量删除 (${checkedCount})`;
+            // 只显示按钮，不显示数量
+            batchDeleteBtn.innerHTML = `<i class="fas fa-trash"></i> 批量删除`;
             // 更新模态框中的数量
             if (selectedCountSpan) {
                 selectedCountSpan.textContent = checkedCount;
             }
         } else {
-            // 添加淡出动画
-            batchDeleteBtn.style.animation = 'fadeOutRight 0.3s ease forwards';
-            setTimeout(() => {
-                if (document.querySelectorAll('.quotation-checkbox:checked').length === 0) {
-                    batchDeleteBtn.style.display = 'none';
-                }
-            }, 300);
+            // 直接隐藏按钮，不用动画和延迟
+            batchDeleteBtn.style.display = 'none';
         }
     }
     
@@ -2045,13 +2048,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                         
                         resultDiv.style.display = 'block';
-                        
-                        // 如果导入成功，三秒后刷新页面
-                        if (data.imported_count > 0) {
-                            setTimeout(() => {
-                                window.location.reload();
-                            }, 3000);
-                        }
+                        // 标记是否需要刷新页面
+                        needReloadAfterImport = data.imported_count > 0;
+                        // 不再自动刷新页面，等待用户点击确认
                     } else {
                         alert('导入失败: ' + data.message);
                     }
@@ -2214,6 +2213,38 @@ document.addEventListener('DOMContentLoaded', function() {
         
         return errorAnalysis;
     }
+
+    // 将importModal提升为全局唯一声明
+    if (!importModal) {
+        importModal = new bootstrap.Modal(document.getElementById('importQuotationModal'));
+    }
+    const closeImportResultBtn = document.getElementById('closeImportResultBtn');
+    if (closeImportResultBtn) {
+        closeImportResultBtn.addEventListener('click', function() {
+            importModal.hide();
+            if (needReloadAfterImport) {
+                window.location.reload();
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // ... existing code ...
+        // 初始化导入模态框
+        if (!importModal) {
+            importModal = new bootstrap.Modal(document.getElementById('importQuotationModal'));
+        }
+        const closeImportResultBtn = document.getElementById('closeImportResultBtn');
+        if (closeImportResultBtn) {
+            closeImportResultBtn.addEventListener('click', function() {
+                importModal.hide();
+                if (needReloadAfterImport) {
+                    window.location.reload();
+                }
+            });
+        }
+        // ... existing code ...
+    });
 });
 </script>
 {% endblock %}
