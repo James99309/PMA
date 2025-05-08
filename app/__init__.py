@@ -214,25 +214,16 @@ def create_app(config_class=Config):
         except Exception as e:
             logger.error(f"应用版本检查失败: {str(e)}")
         
-        # 初始化版本控制
-        from app.utils.version_check import init_version_check
-        init_version_check()
-        
-        # 初始化财务总监角色权限
+        # 数据所有权初始化 - 已关闭
+        '''
         try:
-            from app.models.role_permissions import init_finance_director_permissions
-            init_finance_director_permissions()
-            app.logger.info("财务总监角色权限初始化完成")
+            from app.utils.data_init import initialize_data_ownership
+            initialize_data_ownership()
+            logger.info("数据所有权初始化成功")
         except Exception as e:
-            app.logger.error(f"财务总监角色权限初始化失败: {str(e)}")
-        
-        # 初始化数据所有权（仅在需要时）
-        if app.config.get('INIT_DATA_OWNERSHIP', False):
-            from app.utils.ownership import init_data_ownership
-            init_data_ownership()
-            app.logger.info("数据所有权初始化完成")
-        else:
-            app.logger.info("数据所有权初始化已被关闭")
+            logger.error(f"数据所有权初始化失败: {str(e)}")
+        '''
+        logger.info("数据所有权初始化已被关闭")
         
         # 字典数据初始化 - 已关闭
         '''
