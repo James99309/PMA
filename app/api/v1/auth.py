@@ -14,7 +14,7 @@ import os
 from sqlalchemy import func
 from flask_login import current_user
 import sys
-from flask_wtf.csrf import csrf_exempt
+from flask_wtf.csrf import CSRFProtect, csrf
 
 # 设置日志
 logger = logging.getLogger(__name__)
@@ -134,7 +134,7 @@ def refresh():
     )
 
 @api_v1_bp.route('/auth/register', methods=['POST'])
-@csrf_exempt
+@csrf.exempt
 def register():
     """
     用户注册申请 (完全豁免CSRF保护)
