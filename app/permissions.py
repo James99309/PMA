@@ -158,22 +158,15 @@ def check_permission(permission):
     if not current_user.is_authenticated:
         return False
     
-    # 获取用户角色（转为小写，避免大小写问题）
-    user_role = getattr(current_user, 'role', 'user').lower()
-    
-    # 匹配角色权限（不区分大小写）
-    role_permissions = None
-    for role, permissions in ROLE_PERMISSIONS.items():
-        if role.lower() == user_role:
-            role_permissions = permissions
-            break
-    
-    # 如果找不到角色权限，使用默认空列表
-    if role_permissions is None:
-        role_permissions = []
-    
-    # 检查权限
-    return permission in role_permissions
+    # 只查数据库role_permissions表
+    from app.models.role_permissions import RolePermission
+    user_role = getattr(current_user, 'role', 'user')
+    # 遍历所有模块，查找是否有该权限
+    perms = RolePermission.query.filter_by(role=user_role).all()
+    for perm in perms:
+        if permission == f"{perm.module}_{'view' if perm.can_view else ''}{'create' if perm.can_create else ''}{'edit' if perm.can_edit else ''}{'delete' if perm.can_delete else ''}":
+            return True
+    return False
 
 def permission_required(resource_type, action):
     """
