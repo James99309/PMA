@@ -559,11 +559,12 @@
         {% if project and project.current_stage %}
         var stageProgress = new ProjectStageProgress({
             containerId: 'projectStageProgress',
-            projectId: {{ project.id }},
-            currentStage: "{{ project.current_stage }}",
-            csrfToken: "{{ csrf_token() }}",
-            updateUrl: "{{ url_for('project.update_project_stage') }}",
-            canEdit: {{ 'true' if current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) else 'false' }}
+            projectId: {{ project.id|tojson }},
+            currentStage: {{ project.current_stage|tojson }},
+            csrfToken: {{ csrf_token()|tojson }},
+            updateUrl: {{ url_for('project.update_project_stage')|tojson }},
+            canEdit: {{ (current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id))|tojson }},
+            stageHistory: {{ stageHistory|tojson }}
         });
         {% endif %}
     });

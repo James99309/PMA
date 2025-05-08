@@ -12,14 +12,20 @@ class ProjectStageProgress {
         this.canEdit = options.canEdit || false;
 
         // 项目阶段定义
-        this.stages = [
+        this.mainStages = [
             { id: 0, name: '发现', value: '发现' },
             { id: 1, name: '品牌植入', value: '品牌植入' },
             { id: 2, name: '招标前', value: '招标前' },
             { id: 3, name: '招标中', value: '招标中' },
             { id: 4, name: '中标', value: '中标' },
-            { id: 5, name: '失败', value: '失败' }
+            { id: 5, name: '签约', value: '签约' }
         ];
+        this.branchStages = [
+            { id: 6, name: '失败', value: '失败' },
+            { id: 7, name: '搁置', value: '搁置' }
+        ];
+        this.stages = [...this.mainStages, ...this.branchStages];
+        this.lastMainStage = this.mainStages.find(s => s.value === this.currentStage) ? this.currentStage : this.mainStages[0].value;
 
         // 初始化
         this.init();
@@ -119,88 +125,214 @@ class ProjectStageProgress {
         const progressContainer = document.createElement('div');
         progressContainer.className = 'stage-progress-container';
 
-        // 创建进度条
+        // 创建主线进度条
         const progressBar = document.createElement('div');
         progressBar.className = 'stage-progress-bar';
 
-        // 创建进度线
-        const progressLine = document.createElement('div');
-        progressLine.className = 'stage-progress-line';
+        // 创建主线灰色贯穿线
+        const mainLine = document.createElement('div');
+        mainLine.className = 'stage-main-line';
+        progressBar.appendChild(mainLine);
 
-        // 计算进度线宽度（根据当前阶段位置）
-        const validStages = this.stages.filter(stage => stage.value !== '失败');
-        const progressPercentage = this.currentStage === '失败' ? 0 : 
-            (this.currentStageIndex / (validStages.length - 1)) * 100;
-        progressLine.style.width = `${progressPercentage}%`;
-
-        progressContainer.appendChild(progressLine);
-        progressContainer.appendChild(progressBar);
-
-        // 添加各阶段标记
-        this.stages.forEach((stage, index) => {
-            // 跳过失败阶段，它是特殊状态
-            if (stage.value === '失败' && this.currentStage !== '失败') {
-                return;
-            }
-
+        // 渲染主线阶段
+        this.mainStages.forEach((stage, index) => {
             const stageMarker = document.createElement('div');
             stageMarker.className = 'stage-marker';
             stageMarker.dataset.stage = stage.value;
 
-            // 设置阶段状态样式
-            if (index < this.currentStageIndex) {
+            // 状态样式
+            if (this.currentStage === '失败' || this.currentStage === '搁置') {
+                stageMarker.classList.add('stage-disabled');
+            } else if (index < this.getStageIndex(this.currentStage)) {
                 stageMarker.classList.add('stage-completed');
-            } else if (index === this.currentStageIndex) {
+            } else if (index === this.getStageIndex(this.currentStage)) {
                 stageMarker.classList.add('stage-current');
-                // 如果用户有编辑权限且不处于最后阶段或失败阶段，添加可操作类
-                if (this.canEdit && index < 4 && stage.value !== '失败') {
-                    stageMarker.classList.add('stage-actionable');
+            } else if (index === this.getStageIndex(this.currentStage) + 1 && this.canEdit) {
+                // 下一个阶段可点击
+                stageMarker.classList.add('stage-actionable');
+                stageMarker.style.cursor = 'pointer';
+                // 悬停动画和点击图标
+                const stageDot = document.createElement('div');
+                stageDot.className = 'stage-dot';
+                stageDot.innerHTML = '<i class="fas fa-arrow-right"></i>';
+                stageMarker.appendChild(stageDot);
+                // 名称
+                const stageName = document.createElement('div');
+                stageName.className = 'stage-name';
+                stageName.textContent = stage.name;
+                stageMarker.appendChild(stageName);
+                // 推进信息
+                const durationItem = this.stageDurations.find(item => item.stageName === stage.value);
+                const days = durationItem ? durationItem.days : '未知';
+                let stageExtra = '';
+                if (this.stageHistory && Array.isArray(this.stageHistory)) {
+                    const historyItem = this.stageHistory.find(item => item.stage === stage.value);
+                    if (historyItem && historyItem.startDate && typeof days === 'number' && days > 0) {
+                        stageExtra = `${historyItem.startDate.split(' ')[0]}｜${days}天`;
+                    } else if (historyItem && historyItem.startDate) {
+                        stageExtra = `${historyItem.startDate.split(' ')[0]}`;
+                    } else if (typeof days === 'number' && days > 0) {
+                        stageExtra = `${days}天`;
+                    }
                 }
+                if (stageExtra) {
+                    const stageInfo = document.createElement('div');
+                    stageInfo.className = 'stage-extra stage-days';
+                    stageInfo.textContent = stageExtra;
+                    stageMarker.appendChild(stageInfo);
+                }
+                // 悬停动画
+                stageMarker.addEventListener('mouseenter', () => {
+                    stageMarker.classList.add('stage-current');
+                });
+                stageMarker.addEventListener('mouseleave', () => {
+                    stageMarker.classList.remove('stage-current');
+                });
+                // 点击推进
+                stageMarker.addEventListener('click', () => {
+                    this.currentStage = stage.value;
+                    this.currentStageIndex = this.getStageIndex(this.currentStage);
+                    this.init();
+                });
+                progressBar.appendChild(stageMarker);
+                return;
             }
 
-            // 创建阶段圆点
+            // 圆点
             const stageDot = document.createElement('div');
             stageDot.className = 'stage-dot';
-            
-            // 添加阶段图标
-            if (index < this.currentStageIndex || index === this.currentStageIndex) {
+            if (this.currentStage === '失败' || this.currentStage === '搁置') {
+                stageDot.classList.add('dot-disabled');
+            }
+            if (index < this.getStageIndex(this.currentStage) && this.currentStage !== '失败' && this.currentStage !== '搁置') {
                 const icon = document.createElement('i');
-                icon.className = index < this.currentStageIndex ? 'fas fa-check' : 'fas fa-circle';
+                icon.className = 'fas fa-check';
+                stageDot.appendChild(icon);
+            } else if (index === this.getStageIndex(this.currentStage) && this.currentStage !== '失败' && this.currentStage !== '搁置') {
+                const icon = document.createElement('i');
+                icon.className = 'fas fa-circle';
                 stageDot.appendChild(icon);
             }
+            stageMarker.appendChild(stageDot);
 
-            // 创建阶段名称
+            // 名称
             const stageName = document.createElement('div');
             stageName.className = 'stage-name';
             stageName.textContent = stage.name;
+            stageMarker.appendChild(stageName);
 
-            // 创建阶段天数
-            const stageDays = document.createElement('div');
-            stageDays.className = 'stage-days';
-            
-            // 获取当前阶段持续时间
+            // 推进信息
             const durationItem = this.stageDurations.find(item => item.stageName === stage.value);
             const days = durationItem ? durationItem.days : '未知';
-            
-            stageDays.textContent = (typeof days === 'number' && days > 0) ? `${days} 天` : (days === '未知' ? '未知' : '');
-
-            // 组装阶段标记
-            stageMarker.appendChild(stageDot);
-            stageMarker.appendChild(stageName);
-            stageMarker.appendChild(stageDays);
-
-            // 添加推进按钮（仅当前阶段且有权限时显示）
-            if (index === this.currentStageIndex && this.canEdit && index < 4) {
-                const advanceBtn = document.createElement('button');
-                advanceBtn.className = 'btn btn-sm btn-outline-success stage-advance-btn';
-                advanceBtn.innerHTML = '<i class="fas fa-arrow-right"></i> 推进';
-                advanceBtn.dataset.toggle = 'modal';
-                advanceBtn.dataset.target = '#advanceStageModal';
-                stageMarker.appendChild(advanceBtn);
+            let stageExtra = '';
+            if (this.stageHistory && Array.isArray(this.stageHistory)) {
+                const historyItem = this.stageHistory.find(item => item.stage === stage.value);
+                if (historyItem && historyItem.startDate && typeof days === 'number' && days > 0) {
+                    stageExtra = `${historyItem.startDate.split(' ')[0]}｜${days}天`;
+                } else if (historyItem && historyItem.startDate) {
+                    stageExtra = `${historyItem.startDate.split(' ')[0]}`;
+                } else if (typeof days === 'number' && days > 0) {
+                    stageExtra = `${days}天`;
+                }
+            }
+            if (stageExtra) {
+                const stageInfo = document.createElement('div');
+                stageInfo.className = 'stage-extra stage-days';
+                stageInfo.textContent = stageExtra;
+                stageMarker.appendChild(stageInfo);
             }
 
             progressBar.appendChild(stageMarker);
         });
+
+        // 渲染分支节点（失败、搁置）在主线下方居中分布
+        const branchContainer = document.createElement('div');
+        branchContainer.className = 'stage-branch-container';
+        this.branchStages.forEach(branch => {
+            const branchMarker = document.createElement('div');
+            branchMarker.className = 'stage-marker stage-branch';
+            branchMarker.dataset.stage = branch.value;
+
+            // 状态样式
+            if (this.currentStage === branch.value) {
+                branchMarker.classList.add('stage-current');
+                if (branch.value === '失败') {
+                    branchMarker.classList.add('stage-failed');
+                } else if (branch.value === '搁置') {
+                    branchMarker.classList.add('stage-pending');
+                }
+            } else if (this.currentStage === '失败' || this.currentStage === '搁置') {
+                branchMarker.classList.add('stage-disabled');
+            }
+
+            // 圆点
+            const branchDot = document.createElement('div');
+            branchDot.className = 'stage-dot';
+            if (this.currentStage === branch.value) {
+                if (branch.value === '失败') {
+                    branchDot.style.backgroundColor = '#e74c3c';
+                    branchDot.style.borderColor = '#e74c3c';
+                } else if (branch.value === '搁置') {
+                    branchDot.style.backgroundColor = '#555';
+                    branchDot.style.borderColor = '#555';
+                }
+            }
+            // 点击圆点弹窗确认
+            branchDot.addEventListener('click', (e) => {
+                e.stopPropagation();
+                let msg = this.currentStage === branch.value
+                    ? `确定要恢复到主线阶段吗？`
+                    : `确定要将项目阶段切换为"${branch.value}"吗？`;
+                if (window.confirm(msg)) {
+                    if (this.currentStage === branch.value) {
+                        // 恢复到上次主线阶段
+                        this.currentStage = this.lastMainStage;
+                        this.currentStageIndex = this.getStageIndex(this.currentStage);
+                    } else {
+                        // 进入分支，记住主线阶段
+                        if (this.mainStages.find(s => s.value === this.currentStage)) {
+                            this.lastMainStage = this.currentStage;
+                        }
+                        this.currentStage = branch.value;
+                        this.currentStageIndex = this.getStageIndex(this.currentStage);
+                    }
+                    this.init();
+                }
+            });
+            branchMarker.appendChild(branchDot);
+
+            // 名称
+            const branchName = document.createElement('div');
+            branchName.className = 'stage-name';
+            branchName.textContent = branch.name;
+            branchMarker.appendChild(branchName);
+
+            // 推进信息
+            const durationItem = this.stageDurations.find(item => item.stageName === branch.value);
+            const days = durationItem ? durationItem.days : '未知';
+            let stageExtra = '';
+            if (this.stageHistory && Array.isArray(this.stageHistory)) {
+                const historyItem = this.stageHistory.find(item => item.stage === branch.value);
+                if (historyItem && historyItem.startDate && typeof days === 'number' && days > 0) {
+                    stageExtra = `${historyItem.startDate.split(' ')[0]}｜${days}天`;
+                } else if (historyItem && historyItem.startDate) {
+                    stageExtra = `${historyItem.startDate.split(' ')[0]}`;
+                } else if (typeof days === 'number' && days > 0) {
+                    stageExtra = `${days}天`;
+                }
+            }
+            if (stageExtra) {
+                const stageInfo = document.createElement('div');
+                stageInfo.className = 'stage-extra stage-days';
+                stageInfo.textContent = stageExtra;
+                branchMarker.appendChild(stageInfo);
+            }
+
+            branchContainer.appendChild(branchMarker);
+        });
+        // 居中分布到主线下方
+        progressContainer.appendChild(progressBar);
+        progressContainer.appendChild(branchContainer);
 
         // 添加到容器
         container.innerHTML = '';

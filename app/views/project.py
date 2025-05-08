@@ -158,7 +158,48 @@ def view_project(project_id):
         integrator_company = Company.query.filter_by(company_name=project.system_integrator).first()
         related_companies['system_integrator'] = integrator_company.id if integrator_company else None
     
-    return render_template('project/detail.html', project=project, Quotation=Quotation, related_companies=related_companies)
+    # 解析阶段变更历史，生成stageHistory结构
+    stage_history = []
+    if project.stage_description:
+        # 匹配形如：[阶段变更] 阶段A → 阶段B (更新者: xxx, 时间: yyyy-mm-dd HH:MM:SS)
+        pattern = re.compile(r'\[阶段变更\][^\n]*?([\u4e00-\u9fa5A-Za-z0-9_]+) ?(?:→|-) ?([\u4e00-\u9fa5A-Za-z0-9_]+).*?时间: (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})')
+        matches = list(pattern.finditer(project.stage_description))
+        # 按时间顺序生成阶段历史
+        for i, match in enumerate(matches):
+            from_stage, to_stage, change_time = match.group(1), match.group(2), match.group(3)
+            # 上一个阶段的endDate为本次变更时间
+            if i == 0:
+                # 项目创建时的阶段
+                stage_history.append({
+                    'stage': from_stage,
+                    'startDate': str(project.report_time) if project.report_time else '',
+                    'endDate': change_time
+                })
+            else:
+                # 上一个to_stage的endDate为本次变更时间
+                stage_history[-1]['endDate'] = change_time
+            # 新阶段的startDate为本次变更时间
+            stage_history.append({
+                'stage': to_stage,
+                'startDate': change_time,
+                'endDate': None
+            })
+        # 如果没有任何变更记录，只有当前阶段
+        if not matches:
+            stage_history.append({
+                'stage': project.current_stage,
+                'startDate': str(project.report_time) if project.report_time else '',
+                'endDate': None
+            })
+    else:
+        # 没有历史，只有当前阶段
+        stage_history.append({
+            'stage': project.current_stage,
+            'startDate': str(project.report_time) if project.report_time else '',
+            'endDate': None
+        })
+
+    return render_template('project/detail.html', project=project, Quotation=Quotation, related_companies=related_companies, stageHistory=stage_history)
 
 @project.route('/add', methods=['GET', 'POST'])
 @permission_required('project', 'create')
