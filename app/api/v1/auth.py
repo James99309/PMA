@@ -14,7 +14,7 @@ import os
 from sqlalchemy import func
 from flask_login import current_user
 import sys
-from flask_wtf.csrf import CSRFProtect, csrf
+from app import csrf
 
 # 设置日志
 logger = logging.getLogger(__name__)
