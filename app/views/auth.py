@@ -189,7 +189,6 @@ def register():
 def forgot_password():
     """
     忘记密码页面和处理
-    
     GET: 显示忘记密码页面
     POST: 处理忘记密码请求
     """
@@ -198,7 +197,6 @@ def forgot_password():
     if form.validate_on_submit():
         username_or_email = form.username_or_email.data
         logger.info(f"提交忘记密码表单，输入: {username_or_email}")
-        # 直接在视图中处理忘记密码逻辑
         user = User.query.filter(
             (func.lower(User.username) == func.lower(username_or_email)) |
             (func.lower(User.email) == func.lower(username_or_email))
@@ -207,8 +205,11 @@ def forgot_password():
             logger.warning(f"找不到用户: {username_or_email}")
             flash('如果账户存在，密码重置邮件已发送到您的邮箱，请查收。', 'success')
             return redirect(url_for('auth.login'))
+        if not user.is_active:
+            logger.warning(f"未激活用户尝试重置密码: {user.username}")
+            flash('账户未激活，请联系管理员审核', 'danger')
+            return redirect(url_for('auth.login'))
         logger.info(f"用户存在，ID: {user.id}, 用户名: {user.username}, 邮箱: {user.email}")
-        # 生成密码重置令牌
         token = user.generate_reset_token()
         logger.info(f"生成密码重置令牌成功: {token[:10]}...")
         reset_url = f"{request.url_root.rstrip('/')}/auth/reset-password/{token}"
@@ -229,25 +230,24 @@ def forgot_password():
 def reset_password(token):
     """
     密码重置页面
-    
     GET: 显示密码重置页面
     POST: 处理密码重置请求
     """
     logger.info(f"访问密码重置页面，Token: {token[:10]}...")
-    # 先验证令牌是否有效，不显示用户名等信息以保护隐私
     user = User.verify_reset_token(token)
     if not user:
         logger.warning(f"无效的密码重置令牌: {token[:10]}...")
         flash('密码重置链接无效或已过期，请重新申请', 'danger')
         return redirect(url_for('auth.forgot_password'))
+    if not user.is_active:
+        logger.warning(f"未激活用户尝试通过重置密码激活账户: {user.username}")
+        flash('账户未激活，请联系管理员审核', 'danger')
+        return redirect(url_for('auth.login'))
     logger.info(f"密码重置令牌有效，用户: {user.username}")
     form = ResetPasswordForm()
     if form.validate_on_submit():
         password = form.password.data
-        # 直接在视图中重置密码
         user.set_password(password)
-        if not user.is_active:
-            user.is_active = True
         try:
             db.session.commit()
             logger.info(f"用户 {user.username} 成功重置密码")
