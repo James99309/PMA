@@ -130,7 +130,6 @@ def logout():
 def register():
     """
     用户注册页面和处理
-    
     GET: 显示注册页面
     POST: 处理注册请求
     """
@@ -142,36 +141,48 @@ def register():
         phone = request.form.get('phone')
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
-        
-        # 使用API注册
+
+        # 校验必填字段
+        if not all([username, real_name, company_name, email, phone, password, confirm_password]):
+            flash('请填写所有必填字段', 'danger')
+            return render_template('auth/register.html')
+
+        # 校验两次密码一致
+        if password != confirm_password:
+            flash('两次输入的密码不一致', 'danger')
+            return render_template('auth/register.html')
+
+        # 校验用户名唯一性（不区分大小写）
+        if User.query.filter(func.lower(User.username) == func.lower(username)).first():
+            flash('用户名已被使用', 'danger')
+            return render_template('auth/register.html')
+
+        # 校验邮箱唯一性（不区分大小写）
+        if User.query.filter(func.lower(User.email) == func.lower(email)).first():
+            flash('邮箱已被使用', 'danger')
+            return render_template('auth/register.html')
+
+        # 创建新用户对象，默认未激活
+        user = User(
+            username=username,
+            real_name=real_name,
+            company_name=company_name,
+            email=email,
+            phone=phone,
+            is_active=False,  # 默认未激活，等待管理员审核
+            role='user'  # 默认角色
+        )
+        user.set_password(password)
         try:
-            response = requests.post(
-                f"{request.host_url.rstrip('/')}{API_BASE_URL}/auth/register",
-                json={
-                    "username": username,
-                    "real_name": real_name,
-                    "company_name": company_name,
-                    "email": email,
-                    "phone": phone,
-                    "password": password,
-                    "confirm_password": confirm_password
-                }
-            )
-            
-            data = response.json()
-            
-            if response.status_code == 200 and data.get('success'):
-                flash('注册申请已提交，请等待管理员审核！', 'success')
-                return redirect(url_for('auth.login'))
-            else:
-                # API注册失败
-                error_message = data.get('message', '注册失败，请检查输入信息！')
-                flash(error_message, 'danger')
-                
+            db.session.add(user)
+            db.session.commit()
+            flash('注册申请已提交，请等待管理员审核！', 'success')
+            return redirect(url_for('auth.login'))
         except Exception as e:
-            logger.error(f'Error during API register: {str(e)}')
-            flash('服务器错误，请稍后重试', 'danger')
-        
+            db.session.rollback()
+            logger.error(f'用户注册过程中发生错误: {str(e)}', exc_info=True)
+            flash('注册过程中发生错误，请稍后重试', 'danger')
+            return render_template('auth/register.html')
     return render_template('auth/register.html')
 
 @auth.route('/forgot-password', methods=['GET', 'POST'])
