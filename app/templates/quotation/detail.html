@@ -26,17 +26,17 @@
                             {{ quotation.project.project_name }} 报价单
                         </h5>
                         <div>
-                            {% if has_permission('quotation', 'edit') %}
+                            {% if has_permission('quotation', 'edit') and (current_user.id == quotation.owner_id or current_user.role == 'admin') %}
                             <a href="{{ url_for('quotation.edit_quotation', id=quotation.id) }}" class="btn btn-sm btn-primary">
                                 <i class="fas fa-edit"></i> 编辑
                             </a>
                             {% endif %}
-                            {% if has_permission('quotation', 'create') %}
+                            {% if has_permission('quotation', 'create') and (current_user.id == quotation.owner_id or current_user.role == 'admin') %}
                             <button class="btn btn-sm btn-info" onclick="copyQuotation('{{ quotation.id }}')">
                                 <i class="fas fa-copy"></i> 复制
                             </button>
                             {% endif %}
-                            {% if has_permission('quotation', 'delete') %}
+                            {% if has_permission('quotation', 'delete') and (current_user.id == quotation.owner_id or current_user.role == 'admin') %}
                             <button class="btn btn-sm btn-danger" onclick="deleteQuotation('{{ quotation.id }}')">
                                 <i class="fas fa-trash"></i> 删除
                             </button>
