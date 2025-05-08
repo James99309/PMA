@@ -80,13 +80,11 @@ class ProjectStageProgress {
                 };
             });
         } else {
-            // 无历史记录，使用默认值
+            // 无历史记录，所有阶段天数显示为"未知"
             this.stageDurations = this.stages.map(stage => {
                 return {
                     stageName: stage.value,
-                    days: stage.value === this.currentStage ? 
-                        this.getRandomDuration() : 
-                        (this.getStageIndex(stage.value) < this.currentStageIndex ? this.getRandomDuration() : 0)
+                    days: '未知'
                 };
             });
         }
@@ -182,9 +180,9 @@ class ProjectStageProgress {
             
             // 获取当前阶段持续时间
             const durationItem = this.stageDurations.find(item => item.stageName === stage.value);
-            const days = durationItem ? durationItem.days : 0;
+            const days = durationItem ? durationItem.days : '未知';
             
-            stageDays.textContent = days > 0 ? `${days} 天` : '';
+            stageDays.textContent = (typeof days === 'number' && days > 0) ? `${days} 天` : (days === '未知' ? '未知' : '');
 
             // 组装阶段标记
             stageMarker.appendChild(stageDot);
