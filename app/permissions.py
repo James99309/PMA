@@ -3,7 +3,7 @@
 用于定义和检查用户权限
 """
 from functools import wraps
-from flask import abort, request, g, current_app
+from flask import abort, request, g, current_app, flash, redirect, url_for
 from flask_login import current_user
 import logging
 
@@ -12,37 +12,37 @@ logger = logging.getLogger(__name__)
 class Permissions:
     """权限常量定义"""
     # 项目相关权限
-    PROJECT_VIEW = 'project_view'
-    PROJECT_CREATE = 'project_create'
-    PROJECT_EDIT = 'project_edit'
-    PROJECT_DELETE = 'project_delete'
+    PROJECT_VIEW = 'project:view'
+    PROJECT_CREATE = 'project:create'
+    PROJECT_EDIT = 'project:edit'
+    PROJECT_DELETE = 'project:delete'
     
     # 客户相关权限
-    CUSTOMER_VIEW = 'customer_view'
-    CUSTOMER_CREATE = 'customer_create'
-    CUSTOMER_EDIT = 'customer_edit'
-    CUSTOMER_DELETE = 'customer_delete'
+    CUSTOMER_VIEW = 'customer:view'
+    CUSTOMER_CREATE = 'customer:create'
+    CUSTOMER_EDIT = 'customer:edit'
+    CUSTOMER_DELETE = 'customer:delete'
     
     # 报价单相关权限
-    QUOTATION_VIEW = 'quotation_view'
-    QUOTATION_CREATE = 'quotation_create'
-    QUOTATION_EDIT = 'quotation_edit'
-    QUOTATION_DELETE = 'quotation_delete'
+    QUOTATION_VIEW = 'quotation:view'
+    QUOTATION_CREATE = 'quotation:create'
+    QUOTATION_EDIT = 'quotation:edit'
+    QUOTATION_DELETE = 'quotation:delete'
     
     # 用户管理相关权限
-    USER_VIEW = 'user_view'
-    USER_CREATE = 'user_create'
-    USER_EDIT = 'user_edit'
-    USER_DELETE = 'user_delete'
+    USER_VIEW = 'user:view'
+    USER_CREATE = 'user:create'
+    USER_EDIT = 'user:edit'
+    USER_DELETE = 'user:delete'
     
     # 产品编码相关权限
-    PRODUCT_VIEW = 'product_view'
-    PRODUCT_CODE_VIEW = 'product_code_view'
-    PRODUCT_CODE_CREATE = 'product_code_create'
-    PRODUCT_CODE_EDIT = 'product_code_edit'
-    PRODUCT_CODE_ADMIN = 'product_code_admin'
+    PRODUCT_CODE_VIEW = 'product_code:view'
+    PRODUCT_CODE_CREATE = 'product_code:create'
+    PRODUCT_CODE_EDIT = 'product_code:edit'
+    PRODUCT_CODE_ADMIN = 'product_code:admin'
     
     # 系统管理相关权限
+    PRODUCT_VIEW = 'product:view'
     ADMIN = 'admin'
 
 # 角色权限映射
@@ -131,6 +131,13 @@ ROLE_PERMISSIONS = {
         Permissions.CUSTOMER_VIEW, Permissions.CUSTOMER_CREATE,
         Permissions.QUOTATION_VIEW,
         Permissions.PRODUCT_CODE_VIEW
+    ],
+    'finace_director': [
+        # 财务总监权限
+        Permissions.PROJECT_VIEW,
+        Permissions.CUSTOMER_VIEW,
+        Permissions.QUOTATION_VIEW,
+        Permissions.PRODUCT_VIEW
     ]
 }
 
@@ -165,35 +172,36 @@ def check_permission(permission):
     # 检查权限
     return permission in role_permissions
 
-def permission_required(resource_type, action):
+def permission_required(module, action):
     """
     权限检查装饰器
     
     参数:
-        resource_type: 资源类型 (例如 'project', 'customer')
-        action: 操作类型 (例如 'view', 'create', 'edit', 'delete')
-    
-    用法:
-        @app.route('/projects')
-        @permission_required('project', 'view')
-        def list_projects():
-            # ...
+        module: 模块名称 (project, customer, quotation, user等)
+        action: 操作名称 (view, create, edit, delete等)
     """
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
-            # 构建权限标识符
-            permission_name = f"{resource_type}_{action}"
-            permission_attr = getattr(Permissions, permission_name.upper(), None)
+            permission = f"{module}:{action}"
+            # 未登录用户重定向到登录页
+            if not current_user.is_authenticated:
+                flash('请先登录', 'warning')
+                return redirect(url_for('auth.login'))
             
-            if permission_attr is None:
-                logger.warning(f"未定义的权限: {permission_name}")
-                abort(500)
+            # 检查用户是否有该权限
+            if not check_permission(permission):
+                # 使用数据库检查用户权限(如果check_permission没有找到)
+                if hasattr(current_user, 'has_permission') and callable(current_user.has_permission):
+                    if not current_user.has_permission(module, action):
+                        logger.warning(f"用户 {current_user.username} (ID: {current_user.id}, 角色: {current_user.role}) 尝试访问无权限的资源: {module}/{action}")
+                        flash('您没有权限访问此页面', 'danger')
+                        abort(403)
+                else:
+                    logger.warning(f"用户 {current_user.username} (ID: {current_user.id}, 角色: {current_user.role}) 尝试访问无权限的资源: {module}/{action}")
+                    flash('您没有权限访问此页面', 'danger')
+                    abort(403)
             
-            if not check_permission(permission_attr):
-                logger.warning(f"用户 {current_user.username} (ID: {current_user.id}, 角色: {current_user.role}) 尝试访问无权限的资源: {resource_type}/{action}")
-                abort(403)
-                
             return f(*args, **kwargs)
         return decorated_function
     return decorator
