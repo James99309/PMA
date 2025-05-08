@@ -45,118 +45,37 @@ class Permissions:
     # 系统管理相关权限
     ADMIN = 'admin'
 
-# 角色权限映射
-ROLE_PERMISSIONS = {
-    'admin': [
-        # 管理员拥有所有权限
-        Permissions.PROJECT_VIEW, Permissions.PROJECT_CREATE, Permissions.PROJECT_EDIT, Permissions.PROJECT_DELETE,
-        Permissions.CUSTOMER_VIEW, Permissions.CUSTOMER_CREATE, Permissions.CUSTOMER_EDIT, Permissions.CUSTOMER_DELETE,
-        Permissions.QUOTATION_VIEW, Permissions.QUOTATION_CREATE, Permissions.QUOTATION_EDIT, Permissions.QUOTATION_DELETE,
-        Permissions.USER_VIEW, Permissions.USER_CREATE, Permissions.USER_EDIT, Permissions.USER_DELETE,
-        Permissions.PRODUCT_CODE_VIEW, Permissions.PRODUCT_CODE_CREATE, Permissions.PRODUCT_CODE_EDIT, Permissions.PRODUCT_CODE_ADMIN,
-        Permissions.ADMIN
-    , Permissions.PRODUCT_VIEW],
-    
-    # 添加CEO角色的权限
-    'ceo': [
-        # CEO权限（添加客户查看权限）
-        Permissions.PROJECT_VIEW, Permissions.PROJECT_CREATE, Permissions.PROJECT_EDIT,
-        Permissions.CUSTOMER_VIEW, Permissions.CUSTOMER_CREATE, Permissions.CUSTOMER_EDIT,
-        Permissions.QUOTATION_VIEW, Permissions.QUOTATION_CREATE, Permissions.QUOTATION_EDIT,
-        Permissions.USER_VIEW,
-        Permissions.PRODUCT_CODE_VIEW,
-        Permissions.PRODUCT_VIEW
-    ],
-    
-    # 已废弃：finace_director角色权限请仅在数据库role_permissions表中维护
-    'sales': [
-        # 销售人员权限
-        Permissions.PROJECT_VIEW, Permissions.PROJECT_CREATE, Permissions.PROJECT_EDIT,
-        Permissions.CUSTOMER_VIEW, Permissions.CUSTOMER_CREATE, Permissions.CUSTOMER_EDIT,
-        Permissions.QUOTATION_VIEW, Permissions.QUOTATION_CREATE,
-        Permissions.PRODUCT_CODE_VIEW
-    , Permissions.PRODUCT_VIEW],
-    'channel_manager': [
-        # 渠道经理权限
-        Permissions.PROJECT_VIEW, Permissions.PROJECT_CREATE, Permissions.PROJECT_EDIT,
-        Permissions.CUSTOMER_VIEW, Permissions.CUSTOMER_CREATE, Permissions.CUSTOMER_EDIT,
-        Permissions.QUOTATION_VIEW, Permissions.QUOTATION_CREATE,
-        Permissions.PRODUCT_CODE_VIEW
-    ],
-    'marketing_director': [
-        # 营销总监权限
-        Permissions.PROJECT_VIEW, Permissions.PROJECT_CREATE, Permissions.PROJECT_EDIT, Permissions.PROJECT_DELETE,
-        Permissions.CUSTOMER_VIEW, Permissions.CUSTOMER_CREATE, Permissions.CUSTOMER_EDIT, 
-        Permissions.QUOTATION_VIEW, Permissions.QUOTATION_CREATE, Permissions.QUOTATION_EDIT,
-        Permissions.USER_VIEW,
-        Permissions.PRODUCT_CODE_VIEW
-    ],
-    'service': [
-        # 服务人员权限
-        Permissions.PROJECT_VIEW, 
-        Permissions.CUSTOMER_VIEW,
-        Permissions.QUOTATION_VIEW,
-        Permissions.PRODUCT_CODE_VIEW
-    ],
-    'service_manager': [
-        # 服务经理权限
-        Permissions.PROJECT_VIEW, Permissions.PROJECT_CREATE,
-        Permissions.CUSTOMER_VIEW, Permissions.CUSTOMER_CREATE,
-        Permissions.QUOTATION_VIEW, Permissions.QUOTATION_CREATE,
-        Permissions.PRODUCT_CODE_VIEW
-    ],
-    'product_manager': [
-        # 产品经理权限
-        Permissions.PROJECT_VIEW,
-        Permissions.CUSTOMER_VIEW,
-        Permissions.QUOTATION_VIEW, Permissions.QUOTATION_CREATE, Permissions.QUOTATION_EDIT,
-        Permissions.PRODUCT_CODE_VIEW, Permissions.PRODUCT_CODE_CREATE, Permissions.PRODUCT_CODE_EDIT
-    , Permissions.PRODUCT_VIEW],
-    'solution_manager': [
-        # 解决方案经理权限
-        Permissions.PROJECT_VIEW,
-        Permissions.CUSTOMER_VIEW,
-        Permissions.QUOTATION_VIEW, Permissions.QUOTATION_CREATE, Permissions.QUOTATION_EDIT,
-        Permissions.PRODUCT_CODE_VIEW
-    , Permissions.PRODUCT_VIEW],
-    'user': [
-        # 普通用户权限
-        Permissions.PROJECT_VIEW,
-        Permissions.CUSTOMER_VIEW,
-        Permissions.QUOTATION_VIEW,
-        Permissions.PRODUCT_CODE_VIEW
-    , Permissions.PRODUCT_VIEW],
-    'dealer': [
-        # 经销商权限
-        Permissions.PROJECT_VIEW, Permissions.PROJECT_CREATE,
-        Permissions.CUSTOMER_VIEW, Permissions.CUSTOMER_CREATE,
-        Permissions.QUOTATION_VIEW,
-        Permissions.PRODUCT_CODE_VIEW
-    ]
-}
-
 def check_permission(permission):
     """
     检查当前用户是否具有指定权限
-    
     参数:
-        permission: 权限标识符
-    
+        permission: 权限标识符，格式为 'module_action'，如 'customer_view'
     返回:
         bool: 是否拥有权限
     """
-    # 未登录用户没有任何权限
     if not current_user.is_authenticated:
         return False
-    
+    # admin超级管理员特权
+    if getattr(current_user, 'role', None) == 'admin':
+        return True
+    # 拆分模块和操作
+    parts = permission.split('_')
+    if len(parts) < 2:
+        return False
+    module = parts[0]
+    action = parts[1]
     # 只查数据库role_permissions表
     from app.models.role_permissions import RolePermission
-    user_role = getattr(current_user, 'role', 'user')
-    # 遍历所有模块，查找是否有该权限
-    perms = RolePermission.query.filter_by(role=user_role).all()
-    for perm in perms:
-        if permission == f"{perm.module}_{'view' if perm.can_view else ''}{'create' if perm.can_create else ''}{'edit' if perm.can_edit else ''}{'delete' if perm.can_delete else ''}":
-            return True
+    role_permission = RolePermission.query.filter_by(role=current_user.role, module=module).first()
+    if role_permission:
+        if action == 'view':
+            return role_permission.can_view
+        elif action == 'create':
+            return role_permission.can_create
+        elif action == 'edit':
+            return role_permission.can_edit
+        elif action == 'delete':
+            return role_permission.can_delete
     return False
 
 def permission_required(resource_type, action):
