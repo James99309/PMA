@@ -315,34 +315,51 @@ def create_app(config_class=Config):
             from flask_login import current_user
             import sys
             print(f"[DEBUG][context_processor.has_permission] user={getattr(current_user, 'username', None)}, role={getattr(current_user, 'role', None)}, module={module}, action={action}", file=sys.stderr)
+            
             # 如果用户未登录，则没有权限
             if not current_user.is_authenticated:
                 print("[DEBUG][context_processor.has_permission] not authenticated, return False", file=sys.stderr)
                 return False
+                
             # 管理员默认拥有所有权限
             if current_user.role == 'admin':
                 print("[DEBUG][context_processor.has_permission] admin, return True", file=sys.stderr)
                 return True
-            try:
-                # 先查数据库个性化权限
-                db_result = current_user.has_permission(module, action)
-                print(f"[DEBUG][context_processor.has_permission] current_user.has_permission({module}, {action})={db_result}", file=sys.stderr)
-                if db_result is not None:
-                    return db_result
-                # 数据库无记录时查角色权限
-                permission_name = f"{module}_{action}"
-                from app.permissions import Permissions, check_permission
-                permission_attr = getattr(Permissions, permission_name.upper(), None)
-                print(f"[DEBUG][context_processor.has_permission] permission_name={permission_name}, permission_attr={permission_attr}", file=sys.stderr)
-                if permission_attr is not None:
-                    result = check_permission(permission_attr)
-                    print(f"[DEBUG][context_processor.has_permission] check_permission({permission_attr})={result}", file=sys.stderr)
-                    return result
-                return False
-            except Exception as e:
-                print(f"[DEBUG][context_processor.has_permission] error: {str(e)}", file=sys.stderr)
-                app.logger.error(f"权限检查错误: {str(e)}")
-                return False
+                
+            # 优先查找个人权限
+            from app.models.user import Permission
+            permission = Permission.query.filter_by(user_id=current_user.id, module=module).first()
+            
+            # 找到个人权限记录，直接判断
+            if permission:
+                if action == 'view':
+                    return permission.can_view
+                elif action == 'create':
+                    return permission.can_create
+                elif action == 'edit':
+                    return permission.can_edit
+                elif action == 'delete':
+                    return permission.can_delete
+            # 没有个人权限记录，查询角色权限
+            else:
+                # 导入RolePermission
+                from app.models.role_permissions import RolePermission
+                role_permission = RolePermission.query.filter_by(role=current_user.role, module=module).first()
+                
+                # 找到角色权限记录
+                if role_permission:
+                    print(f"[DEBUG][context_processor.has_permission] using role_permission: role={current_user.role}, module={module}", file=sys.stderr)
+                    if action == 'view':
+                        return role_permission.can_view
+                    elif action == 'create':
+                        return role_permission.can_create
+                    elif action == 'edit':
+                        return role_permission.can_edit
+                    elif action == 'delete':
+                        return role_permission.can_delete
+            
+            # 默认无权限
+            return False
         return {'has_permission': has_permission}
 
     # 注册自定义过滤器

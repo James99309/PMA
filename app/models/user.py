@@ -101,25 +101,49 @@ class User(db.Model, UserMixin):
     def has_permission(self, module, action):
         # 调试日志
         print(f"[DEBUG][has_permission] user_id={self.id}, username={self.username}, role={self.role}, module={module}, action={action}")
-        permission = Permission.query.filter_by(user_id=self.id, module=module).first()
-        print(f"[DEBUG][has_permission] found_permission={permission}")
-        if permission:
-            print(f"[DEBUG][has_permission] can_view={permission.can_view}, can_create={permission.can_create}, can_edit={permission.can_edit}, can_delete={permission.can_delete}")
+        
         # 管理员默认拥有所有权限
         if self.role == 'admin':
             return True
-        # 查找对应模块的权限记录
-        if not permission:
-            return False
-        # 根据操作类型检查权限
-        if action == 'view':
-            return permission.can_view
-        elif action == 'create':
-            return permission.can_create
-        elif action == 'edit':
-            return permission.can_edit
-        elif action == 'delete':
-            return permission.can_delete
+            
+        # 查找个人权限
+        permission = Permission.query.filter_by(user_id=self.id, module=module).first()
+        print(f"[DEBUG][has_permission] found_permission={permission}")
+        
+        # 如果找到个人权限记录
+        if permission:
+            print(f"[DEBUG][has_permission] can_view={permission.can_view}, can_create={permission.can_create}, can_edit={permission.can_edit}, can_delete={permission.can_delete}")
+            # 根据操作类型检查权限
+            if action == 'view':
+                return permission.can_view
+            elif action == 'create':
+                return permission.can_create
+            elif action == 'edit':
+                return permission.can_edit
+            elif action == 'delete':
+                return permission.can_delete
+        # 如果没有个人权限记录，查询角色权限
+        else:
+            # 导入RolePermission
+            from app.models.role_permissions import RolePermission
+            role_permission = RolePermission.query.filter_by(role=self.role, module=module).first()
+            
+            # 如果找到角色权限记录
+            if role_permission:
+                print(f"[DEBUG][has_permission] using role_permission: role={self.role}, module={module}")
+                print(f"[DEBUG][has_permission] role_can_view={role_permission.can_view}, role_can_create={role_permission.can_create}, role_can_edit={role_permission.can_edit}, role_can_delete={role_permission.can_delete}")
+                
+                # 根据操作类型检查角色权限
+                if action == 'view':
+                    return role_permission.can_view
+                elif action == 'create':
+                    return role_permission.can_create
+                elif action == 'edit':
+                    return role_permission.can_edit
+                elif action == 'delete':
+                    return role_permission.can_delete
+        
+        # 如果既没有个人权限，也没有找到角色权限，或其他情况，默认无权限
         return False
         
     def get_permissions(self):
