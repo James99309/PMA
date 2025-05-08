@@ -67,80 +67,11 @@ def create_app(config_class=Config):
     # 初始化CSRF保护
     csrf.init_app(app)
     
-    # CSRF配置 - 排除API路由
+    # CSRF配置 - 豁免所有API路径
     @csrf.exempt
     def csrf_exempt_api():
-        # API路径豁免 - 修改为支持所有HTTP方法
         if request.path.startswith('/api/'):
-            logger.debug(f'CSRF exempt API path: {request.path}, Method: {request.method}')
             return True
-            
-        # 特定的product_code API路径豁免
-        product_code_exempt_routes = [
-            '/product-code/generate-preview',
-            '/product-code/save',
-            '/product-code/api/products',
-            '/product-code/api/category/',
-            '/product-code/api/subcategory/',
-            '/product-code/api/generate-letter',
-            '/product-code/api/generate-subcategory-letter',
-            '/product-code/categories/update-order',
-            '/product-code/api/subcategory/',
-            '/product-code/api/category/'
-        ]
-        
-        # 特定的product_management API路径豁免
-        product_management_exempt_routes = [
-            '/product-management/save',
-            '/product-management/api/region-options',
-            '/product-management/api/category/',
-            '/product-management/api/subcategory/',
-            '/product-management/',  # 根路径
-            '/product-management/new',  # 新建产品
-            '/product-management/api/',  # 所有API路径
-            '/product-management/inventory',  # 库存页面
-        ]
-        
-        # 添加产品管理的动态路径
-        # 检查是否是产品管理的更新/删除/详情等动态路径
-        if request.path.startswith('/product-management/'):
-            parts = request.path.split('/')
-            if len(parts) >= 3 and parts[2].isdigit():
-                # 匹配形如 /product-management/数字/action 的路径
-                return True
-        
-        # 项目管理模块路径豁免
-        project_management_exempt_routes = [
-            '/project/add',
-            '/project/',
-            '/project/edit/',
-            '/project/delete/',
-            '/project/search',
-            '/project/view/',
-            '/project/import',
-            '/project/export',
-        ]
-        
-        # 添加项目管理的动态路径
-        # 检查是否是项目管理的编辑/删除/详情等动态路径
-        if request.path.startswith('/project/'):
-            parts = request.path.split('/')
-            if len(parts) >= 3 and parts[2].isdigit():
-                # 匹配形如 /project/数字/action 的路径
-                return True
-        
-        for route in product_code_exempt_routes:
-            if request.path.startswith(route):
-                return True
-        
-        for route in product_management_exempt_routes:
-            if request.path.startswith(route):
-                return True
-                
-        for route in project_management_exempt_routes:
-            if request.path.startswith(route):
-                return True
-                
         return False
         
     # CSRF配置 - 对于特定IP地址的请求豁免CSRF检查（内部应用间通信）
