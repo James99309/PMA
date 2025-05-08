@@ -14,6 +14,7 @@ import os
 from sqlalchemy import func
 from flask_login import current_user
 import sys
+from flask_wtf.csrf import csrf_exempt
 
 # 设置日志
 logger = logging.getLogger(__name__)
@@ -133,73 +134,74 @@ def refresh():
     )
 
 @api_v1_bp.route('/auth/register', methods=['POST'])
+@csrf_exempt
 def register():
     """
-    用户注册申请
+    用户注册申请 (完全豁免CSRF保护)
     """
-    data = request.get_json()
-    
-    if not data:
-        return api_response(
-            success=False,
-            code=400,
-            message="请求数据无效"
-        )
-    
-    # 获取注册信息
-    username = data.get('username')
-    real_name = data.get('real_name')
-    company_name = data.get('company_name')
-    email = data.get('email')
-    phone = data.get('phone')
-    password = data.get('password')
-    confirm_password = data.get('confirm_password')
-    
-    # 验证必填字段
-    if not all([username, real_name, company_name, email, phone, password, confirm_password]):
-        return api_response(
-            success=False,
-            code=400,
-            message="请填写所有必填字段"
-        )
-    
-    # 验证两次密码是否一致
-    if password != confirm_password:
-        return api_response(
-            success=False,
-            code=400,
-            message="两次输入的密码不一致"
-        )
-    
-    # 验证用户名是否已存在（不区分大小写）
-    if User.query.filter(func.lower(User.username) == func.lower(username)).first():
-        return api_response(
-            success=False,
-            code=400,
-            message="用户名已被使用"
-        )
-    
-    # 验证邮箱是否已存在（不区分大小写）
-    if User.query.filter(func.lower(User.email) == func.lower(email)).first():
-        return api_response(
-            success=False,
-            code=400,
-            message="邮箱已被使用"
-        )
-    
-    # 创建新用户对象，但暂不添加到数据库
-    user = User(
-        username=username,
-        real_name=real_name,
-        company_name=company_name,
-        email=email,
-        phone=phone,
-        is_active=False,  # 默认未激活，等待管理员审核
-        role='user'  # 默认角色
-    )
-    user.set_password(password)
-    
     try:
+        data = request.get_json()
+        
+        if not data:
+            return api_response(
+                success=False,
+                code=400,
+                message="请求数据无效"
+            )
+        
+        # 获取注册信息
+        username = data.get('username')
+        real_name = data.get('real_name')
+        company_name = data.get('company_name')
+        email = data.get('email')
+        phone = data.get('phone')
+        password = data.get('password')
+        confirm_password = data.get('confirm_password')
+        
+        # 验证必填字段
+        if not all([username, real_name, company_name, email, phone, password, confirm_password]):
+            return api_response(
+                success=False,
+                code=400,
+                message="请填写所有必填字段"
+            )
+        
+        # 验证两次密码是否一致
+        if password != confirm_password:
+            return api_response(
+                success=False,
+                code=400,
+                message="两次输入的密码不一致"
+            )
+        
+        # 验证用户名是否已存在（不区分大小写）
+        if User.query.filter(func.lower(User.username) == func.lower(username)).first():
+            return api_response(
+                success=False,
+                code=400,
+                message="用户名已被使用"
+            )
+        
+        # 验证邮箱是否已存在（不区分大小写）
+        if User.query.filter(func.lower(User.email) == func.lower(email)).first():
+            return api_response(
+                success=False,
+                code=400,
+                message="邮箱已被使用"
+            )
+        
+        # 创建新用户对象，但暂不添加到数据库
+        user = User(
+            username=username,
+            real_name=real_name,
+            company_name=company_name,
+            email=email,
+            phone=phone,
+            is_active=False,  # 默认未激活，等待管理员审核
+            role='user'  # 默认角色
+        )
+        user.set_password(password)
+        
         # 直接将用户添加到数据库，不再发送通知邮件
         logger.info(f"添加新用户: {username}, {email}")
         db.session.add(user)
@@ -214,12 +216,11 @@ def register():
             }
         )
     except Exception as e:
-        db.session.rollback()
-        logger.error(f"用户注册过程中发生错误: {str(e)}", exc_info=True)
+        logger.error(f"注册处理异常: {str(e)}")
         return api_response(
             success=False,
             code=500,
-            message="注册过程中发生错误，请稍后重试"
+            message=f"服务器处理异常: {str(e)}"
         )
 
 @api_v1_bp.route('/auth/forgot-password', methods=['POST'])

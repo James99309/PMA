@@ -155,6 +155,10 @@ def register():
                     "phone": phone,
                     "password": password,
                     "confirm_password": confirm_password
+                },
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Requested-With": "XMLHttpRequest"  # 添加AJAX标记，某些框架通过此识别AJAX请求
                 }
             )
             
