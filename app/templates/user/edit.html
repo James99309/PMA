@@ -299,8 +299,8 @@
                 });
         }
         // 部门下拉列表加载
-        loadDepartmentOptions();
-        function loadDepartmentOptions() {
+        loadDepartmentOptions('{{ user.department if user else "" }}');
+        function loadDepartmentOptions(selectedValue) {
             const deptSelect = document.getElementById('department');
             if (!deptSelect) return;
             fetch('/api/v1/dictionary/department?active_only=true')
@@ -317,9 +317,20 @@
                             option.textContent = item.value;
                             deptSelect.appendChild(option);
                         });
-                        if (currentValue) {
+                        // 先尝试设置传入的 selectedValue (来自后端模板变量)
+                        if (selectedValue) {
+                            deptSelect.value = selectedValue;
+                        } 
+                        // 如果没有 selectedValue 但有当前值，则使用当前值
+                        else if (currentValue) {
                             deptSelect.value = currentValue;
                         }
+                        // 最后尝试使用全局变量中的当前部门
+                        else if (currentDept) {
+                            deptSelect.value = currentDept;
+                        }
+                        
+                        console.log('已设置部门为:', deptSelect.value);
                     } else {
                         console.error('加载部门选项失败:', data.message);
                     }

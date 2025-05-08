@@ -54,7 +54,7 @@
                             <td class="px-3">{{ render_date(contact.created_at) }}</td>
                             <td class="px-3">
                                 <!-- 添加行动按钮，不受数据归属影响 -->
-                                <a href="{{ url_for('customer.add_action', contact_id=contact.id) }}" 
+                                <a href="{{ url_for('customer.add_action_for_company', company_id=company.id) }}?contact_id={{ contact.id }}"
                                    class="btn btn-sm btn-outline-info me-1" 
                                    title="添加行动记录">
                                     <i class="fas fa-comment"></i>
@@ -145,14 +145,30 @@
 </style>
 
 {% block scripts %}
+<!-- 在head区添加CSRF meta标签（如base.html未全局添加） -->
+<meta name="csrf-token" content="{{ csrf_token() }}">
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 function deleteContact(companyId, contactId) {
     if (confirm('确定要删除这个联系人吗？')) {
-        fetch(`/customer/${companyId}/contacts/${contactId}/delete`, {
-            method: 'POST',
-        }).then(response => {
-            if (response.ok) {
-                window.location.reload();
+        // 获取CSRF令牌
+        const csrfToken = $('meta[name="csrf-token"]').attr('content');
+        $.ajax({
+            url: `/customer/${companyId}/contacts/${contactId}/delete`,
+            type: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken
+            },
+            success: function(response) {
+                if (response.success !== false) {
+                    window.location.reload();
+                } else {
+                    alert('删除联系人失败: ' + (response.message || '未知错误'));
+                }
+            },
+            error: function(xhr, status, error) {
+                alert('删除联系人失败，请重试！');
             }
         });
     }

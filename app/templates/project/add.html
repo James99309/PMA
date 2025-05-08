@@ -27,7 +27,7 @@
                 <div class="row mb-4">
                     <div class="col-md-6">
                         <label for="report_source" class="form-label mb-2">报备来源</label>
-                        <select class="form-select" id="report_source" name="report_source" required>
+                        <select class="form-select" id="report_source" name="report_source">
                             <option value="">请选择报备来源</option>
                             <option value="销售">销售</option>
                             <option value="经销商">经销商</option>
@@ -36,7 +36,7 @@
                     </div>
                     <div class="col-md-6">
                         <label for="project_type" class="form-label mb-2">项目类型</label>
-                        <select class="form-select" id="project_type" name="project_type" required>
+                        <select class="form-select" id="project_type" name="project_type">
                             <option value="">-- 请选择项目类型 --</option>
                             <option value="销售重点">销售重点</option>
                             <option value="渠道跟进">渠道跟进</option>
@@ -48,7 +48,7 @@
                 <div class="row mb-4">
                     <div class="col-md-6">
                         <label for="product_situation" class="form-label mb-2">品牌情况</label>
-                        <select class="form-select" id="product_situation" name="product_situation" required>
+                        <select class="form-select" id="product_situation" name="product_situation">
                             <option value="">请选择品牌情况</option>
                             <option value="入围">入围</option>
                             <option value="围标">围标</option>
@@ -73,12 +73,12 @@
                     <div class="col-md-6">
                         <label for="quotation_customer" class="form-label mb-2">报价（元）</label>
                         <input type="text" class="form-control" id="quotation_customer" name="quotation_customer"
-                            placeholder="请输入报价金额"
-                            oninput="formatAmount(this)">
+                            placeholder="不可编辑"
+                            disabled>
                     </div>
                     <div class="col-md-6">
                         <label for="delivery_forecast" class="form-label mb-2">出货预测日期</label>
-                        <input type="date" class="form-control" id="delivery_forecast" name="delivery_forecast" required>
+                        <input type="date" class="form-control" id="delivery_forecast" name="delivery_forecast">
                     </div>
                 </div>
             </div>
@@ -104,6 +104,9 @@
                         <label for="design_issues" class="form-label mb-2">设计院及顾问</label>
                         <select class="form-select" id="design_issues" name="design_issues">
                             <option value="">请选择设计院及顾问</option>
+                            {% for designer in designers %}
+                            <option value="{{ designer.company_name }}">{{ designer.company_name }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                 </div>
@@ -113,6 +116,9 @@
                         <label for="contractor" class="form-label mb-2">总承包单位</label>
                         <select class="form-select" id="contractor" name="contractor">
                             <option value="">请选择总承包单位</option>
+                            {% for contractor in contractors %}
+                            <option value="{{ contractor.company_name }}">{{ contractor.company_name }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                     <div class="col-md-6">
@@ -179,6 +185,30 @@ document.addEventListener('DOMContentLoaded', function() {
     let dateInputs = document.querySelectorAll('input[type="date"]');
     dateInputs.forEach(formatDateInput);
 
+    // 金额格式化函数
+    window.formatAmount = function(input) {
+        let value = input.value.replace(/[^\d.]/g, '');
+        if (value) {
+            // 确保只有一个小数点
+            let parts = value.split('.');
+            if (parts.length > 2) {
+                parts = [parts[0], parts.slice(1).join('')];
+            }
+            
+            // 格式化整数部分
+            let integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            
+            // 重组金额
+            if (parts.length === 2) {
+                // 最多保留两位小数
+                let decimalPart = parts[1].substring(0, 2);
+                input.value = integerPart + '.' + decimalPart;
+            } else {
+                input.value = integerPart;
+            }
+        }
+    };
+
     // 加载各类型公司数据的函数
     async function loadCompanies(type, selectId) {
         try {
@@ -211,28 +241,6 @@ document.addEventListener('DOMContentLoaded', function() {
     loadCompanies('integrators', 'system_integrator');
     loadCompanies('dealers', 'dealer');
 });
-
-// 金额格式化函数
-function formatAmount(input) {
-    // 移除非数字字符
-    let value = input.value.replace(/[^\d.]/g, '');
-
-    // 确保只有一个小数点
-    let parts = value.split('.');
-    if (parts.length > 2) {
-        parts = [parts[0], parts.slice(1).join('')];
-    }
-    if (parts[1]) {
-        parts[1] = parts[1].slice(0, 2); // 限制小数位数为2位
-    }
-    value = parts.join('.');
-
-    // 添加千位分隔符
-    parts = value.split('.');
-    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-
-    input.value = parts.join('.');
-}
 </script>
 
 {% endblock %}

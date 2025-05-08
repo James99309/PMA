@@ -70,8 +70,9 @@ def create_app(config_class=Config):
     # CSRF配置 - 排除API路由
     @csrf.exempt
     def csrf_exempt_api():
-        # API路径豁免
+        # API路径豁免 - 修改为支持所有HTTP方法
         if request.path.startswith('/api/'):
+            logger.debug(f'CSRF exempt API path: {request.path}, Method: {request.method}')
             return True
             
         # 特定的product_code API路径豁免
@@ -312,33 +313,34 @@ def create_app(config_class=Config):
         """向模板上下文注入当前用户的权限信息"""
         def has_permission(module, action):
             from flask_login import current_user
-            from app.permissions import check_permission, Permissions
-            print(f"[DEBUG][context_processor.has_permission] user={getattr(current_user, 'username', None)}, role={getattr(current_user, 'role', None)}, module={module}, action={action}")
+            import sys
+            print(f"[DEBUG][context_processor.has_permission] user={getattr(current_user, 'username', None)}, role={getattr(current_user, 'role', None)}, module={module}, action={action}", file=sys.stderr)
             # 如果用户未登录，则没有权限
             if not current_user.is_authenticated:
-                print("[DEBUG][context_processor.has_permission] not authenticated, return False")
+                print("[DEBUG][context_processor.has_permission] not authenticated, return False", file=sys.stderr)
                 return False
             # 管理员默认拥有所有权限
             if current_user.role == 'admin':
-                print("[DEBUG][context_processor.has_permission] admin, return True")
+                print("[DEBUG][context_processor.has_permission] admin, return True", file=sys.stderr)
                 return True
             try:
-                # 首先检查基于角色的权限系统
+                # 先查数据库个性化权限
+                db_result = current_user.has_permission(module, action)
+                print(f"[DEBUG][context_processor.has_permission] current_user.has_permission({module}, {action})={db_result}", file=sys.stderr)
+                if db_result is not None:
+                    return db_result
+                # 数据库无记录时查角色权限
                 permission_name = f"{module}_{action}"
+                from app.permissions import Permissions, check_permission
                 permission_attr = getattr(Permissions, permission_name.upper(), None)
-                print(f"[DEBUG][context_processor.has_permission] permission_name={permission_name}, permission_attr={permission_attr}")
+                print(f"[DEBUG][context_processor.has_permission] permission_name={permission_name}, permission_attr={permission_attr}", file=sys.stderr)
                 if permission_attr is not None:
                     result = check_permission(permission_attr)
-                    print(f"[DEBUG][context_processor.has_permission] check_permission({permission_attr})={result}")
-                    if result:
-                        print("[DEBUG][context_processor.has_permission] role permission True, return True")
-                        return True
-                # 然后检查数据库中的用户权限记录
-                result = current_user.has_permission(module, action)
-                print(f"[DEBUG][context_processor.has_permission] current_user.has_permission({module}, {action})={result}")
-                return result
+                    print(f"[DEBUG][context_processor.has_permission] check_permission({permission_attr})={result}", file=sys.stderr)
+                    return result
+                return False
             except Exception as e:
-                print(f"[DEBUG][context_processor.has_permission] error: {str(e)}")
+                print(f"[DEBUG][context_processor.has_permission] error: {str(e)}", file=sys.stderr)
                 app.logger.error(f"权限检查错误: {str(e)}")
                 return False
         return {'has_permission': has_permission}

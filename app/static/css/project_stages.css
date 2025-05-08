@@ -1,0 +1,155 @@
+/* 项目阶段进度条样式 */
+.stage-progress-container {
+    margin: 30px 0;
+    position: relative;
+}
+
+.stage-progress-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    margin-bottom: 40px;
+}
+
+.stage-progress-bar::before {
+    content: '';
+    position: absolute;
+    top: 15px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background-color: #e0e0e0;
+    z-index: 1;
+}
+
+.stage-marker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    z-index: 2;
+    cursor: default;
+    width: 16%;
+}
+
+.stage-dot {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: #f5f5f5;
+    border: 2px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.stage-dot i {
+    color: white;
+    font-size: 14px;
+}
+
+.stage-name {
+    font-size: 14px;
+    font-weight: bold;
+    color: #666;
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+.stage-days {
+    font-size: 12px;
+    color: #888;
+    text-align: center;
+}
+
+/* 已完成阶段样式 */
+.stage-completed .stage-dot {
+    background-color: #28a745;
+    border-color: #28a745;
+}
+
+.stage-completed .stage-name {
+    color: #28a745;
+}
+
+/* 当前阶段样式 */
+.stage-current .stage-dot {
+    background-color: #8bc34a;
+    border-color: #28a745;
+    box-shadow: 0 0 0 4px rgba(40, 167, 69, 0.2);
+}
+
+.stage-current .stage-name {
+    color: #3c763d;
+}
+
+/* 当前阶段可推进样式 */
+.stage-current.stage-actionable .stage-dot {
+    cursor: pointer;
+}
+
+.stage-current.stage-actionable .stage-dot:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 6px rgba(40, 167, 69, 0.3);
+}
+
+.stage-current.stage-actionable .stage-dot::after {
+    content: '\f105'; /* 右箭头 */
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+    position: absolute;
+    color: white;
+    font-size: 14px;
+}
+
+/* 进度线样式 */
+.stage-progress-line {
+    position: absolute;
+    top: 15px;
+    left: 0;
+    height: 2px;
+    background-color: #28a745;
+    z-index: 1;
+    transition: width 0.5s ease;
+}
+
+/* 推进按钮 */
+.stage-advance-btn {
+    margin-top: 10px;
+    display: none;
+}
+
+.stage-current.stage-actionable .stage-advance-btn {
+    display: inline-block;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .stage-name {
+        font-size: 12px;
+    }
+    
+    .stage-days {
+        font-size: 10px;
+    }
+    
+    .stage-dot {
+        width: 24px;
+        height: 24px;
+    }
+}
+
+/* 确认推进模态框 */
+.advance-modal .modal-header {
+    background-color: #28a745;
+    color: white;
+}
+
+.advance-modal .next-stage {
+    font-weight: bold;
+    color: #28a745;
+} 

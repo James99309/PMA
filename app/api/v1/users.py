@@ -289,7 +289,7 @@ def delete_user(user_id):
     
     # 禁止删除当前登录用户
     current_user_id = get_jwt_identity()
-    if user_id == current_user_id:
+    if str(user_id) == str(current_user_id):
         return api_response(
             success=False,
             code=400,
@@ -543,4 +543,102 @@ def change_user_password():
             success=False,
             code=500,
             message="修改失败，请稍后重试"
+        )
+
+@api_v1_bp.route('/users/<int:user_id>/check-dependencies', methods=['GET'])
+@jwt_required()
+def check_user_dependencies(user_id):
+    """
+    检查用户是否有被引用的依赖数据
+    返回所有依赖的详细信息，以便前端决定是否可以删除用户
+    """
+    user = User.query.get(user_id)
+    
+    if not user:
+        return api_response(
+            success=False,
+            code=404,
+            message="用户不存在"
+        )
+    
+    # 禁止检查当前登录用户
+    current_user_id = get_jwt_identity()
+    if str(user_id) == str(current_user_id):
+        return api_response(
+            success=False,
+            code=400,
+            message="不能删除当前登录用户"
+        )
+    
+    try:
+        dependencies = {
+            'companies': [],      # 企业
+            'contacts': [],       # 联系人
+            'projects': [],       # 项目
+            'actions': [],        # 沟通记录
+            'affiliations': [],   # 数据归属关系
+            'data_affiliations': [], # 前端数据归属
+            'project_members': [] # 项目成员
+        }
+        
+        # 检查企业表
+        from app.models.customer import Company
+        companies = Company.query.filter_by(owner_id=user_id).all()
+        if companies:
+            dependencies['companies'] = [{'id': c.id, 'name': c.company_name} for c in companies]
+            
+        # 检查联系人表
+        from app.models.customer import Contact
+        contacts = Contact.query.filter_by(owner_id=user_id).all()
+        if contacts:
+            dependencies['contacts'] = [{'id': c.id, 'name': c.name} for c in contacts]
+            
+        # 检查项目表
+        from app.models.project import Project
+        projects = Project.query.filter_by(owner_id=user_id).all()
+        if projects:
+            dependencies['projects'] = [{'id': p.id, 'name': p.name} for p in projects]
+            
+        # 检查沟通记录表
+        from app.models.action import Action
+        actions = Action.query.filter_by(owner_id=user_id).all()
+        if actions:
+            dependencies['actions'] = [{'id': a.id, 'date': a.date.strftime('%Y-%m-%d')} for a in actions]
+            
+        # 检查归属关系表 (owner_id)
+        from app.models.user import Affiliation
+        affiliations = Affiliation.query.filter_by(owner_id=user_id).all()
+        if affiliations:
+            dependencies['affiliations'] = [{'id': a.id, 'viewer_id': a.viewer_id} for a in affiliations]
+            
+        # 检查前端数据归属表 (owner_id)
+        from app.models.user import DataAffiliation
+        data_affiliations = DataAffiliation.query.filter_by(owner_id=user_id).all()
+        if data_affiliations:
+            dependencies['data_affiliations'] = [{'id': a.id, 'viewer_id': a.viewer_id} for a in data_affiliations]
+            
+        # 检查项目成员表
+        from app.models.relation import ProjectMember
+        members = ProjectMember.query.filter_by(user_id=user_id).all()
+        if members:
+            dependencies['project_members'] = [{'id': m.id, 'project_id': m.project_id} for m in members]
+            
+        # 汇总依赖总数
+        total_dependencies = sum(len(deps) for deps in dependencies.values())
+        
+        return api_response(
+            success=True,
+            message="用户依赖关系检查完成",
+            data={
+                'has_dependencies': total_dependencies > 0,
+                'total_dependencies': total_dependencies,
+                'dependencies': dependencies
+            }
+        )
+    except Exception as e:
+        logger.error(f"检查用户依赖关系失败: {str(e)}")
+        return api_response(
+            success=False,
+            code=500,
+            message=f"检查失败，请稍后重试: {str(e)}"
         ) 

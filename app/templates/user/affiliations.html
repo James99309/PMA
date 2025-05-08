@@ -301,24 +301,23 @@
             // 渲染右侧
             selectedUsers.forEach(user => {
                 let isDeptDefault = deptDefaultIds.includes(String(user.user_id || user.id));
-                selectedHtml += `<li class="list-group-item d-flex align-items-center${isDeptDefault ? ' bg-light text-muted' : ''}">
-                    <input type="checkbox" class="form-check-input me-2" value="${user.user_id || user.id}" ${isDeptDefault ? 'disabled' : ''}>
-                    <span>${user.real_name || ''}｜${user.username || ''}｜${user.department || ''}｜${user.company_name || ''}</span>
-                    ${isDeptDefault ? '<span class="badge bg-secondary ms-2">部门默认可见</span>' : ''}
-                </li>`;
+                selectedHtml += `<li class="list-group-item d-flex align-items-center${isDeptDefault ? ' bg-light text-muted' : ''}">\n                    <input type="checkbox" class="form-check-input me-2 selected-user-check" value="${user.user_id || user.id}" ${isDeptDefault ? 'disabled' : ''}>\n                    <span>${user.real_name || ''}｜${user.username || ''}｜${user.department || ''}｜${user.company_name || ''}</span>\n                    ${isDeptDefault ? '<span class=\"badge bg-secondary ms-2\">部门默认可见</span>' : ''}\n                </li>`;
             });
             $('#selectedUsersList').html(selectedHtml || '<li class="list-group-item text-center text-muted">暂无可见用户</li>');
 
             // 左侧：可选用户 = allUsers - selectedUsers - 部门默认可见
             let selectedSet = new Set(selectedUsers.map(u => String(u.user_id || u.id)));
             let availableHtml = '';
+            // 修复点：同步 availableUsers
+            availableUsers = [];
             allUsers.forEach(user => {
                 if (String(user.id) === String(targetUser.id)) return; // 排除自己
                 if (selectedSet.has(String(user.id))) return; // 排除已选
                 availableHtml += `<li class="list-group-item d-flex align-items-center">
-                    <input type="checkbox" class="form-check-input me-2" value="${user.id}">
+                    <input type="checkbox" class="form-check-input me-2 available-user-check" value="${user.id}">
                     <span>${user.real_name || ''}｜${user.username || ''}｜${user.department || ''}｜${user.company_name || ''}</span>
                 </li>`;
+                availableUsers.push(user); // 新增：同步 availableUsers
             });
             $('#availableUsersList').html(availableHtml || '<li class="list-group-item text-center text-muted">暂无可添加用户</li>');
         }
@@ -451,7 +450,8 @@
                 success: function(response) {
                     if (response.success) {
                         console.log('保存成功:', response);
-                        alert('归属关系设置成功');
+                        // 跳转到用户详情页并高亮归属关系tab
+                        window.location.href = '/user/detail/' + user_id + '#aff';
                     } else {
                         console.error('保存失败:', response);
                         alert('保存失败：' + response.message);

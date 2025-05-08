@@ -117,19 +117,75 @@
             color: #333;
         }
         .main-nav {
-            border-bottom: 1px solid #e7e7e7;
+            background: #16a0bf;
             margin-bottom: 20px;
+            border-bottom: none;
+        }
+        .main-nav .nav-tabs {
+            border-bottom: none;
         }
         .main-nav .nav-link {
-            color: #333;
+            color: #fff !important;
             font-weight: 500;
-            padding: 1rem 1.5rem;
-            border-bottom: 2px solid transparent;
+            font-size: 14px;
+            padding: 0.7rem 1.1rem;
+            border-bottom: none;
+            background: transparent;
+            transition: color 0.2s;
+            white-space: nowrap;
         }
-        .main-nav .nav-link:hover,
-        .main-nav .nav-link.active {
-            color: var(--pa-blue);
-            border-bottom: 2px solid var(--pa-blue);
+        .main-nav .nav-link.active, .main-nav .nav-link:focus {
+            color: var(--pa-blue) !important;
+            background: #fff;
+            border-radius: 6px 6px 0 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        .main-nav .nav-link:not(.active):hover {
+            color: var(--pa-blue) !important;
+            background: transparent;
+        }
+        .main-nav .nav-link:not(.active) {
+            color: #fff !important;
+            background: transparent;
+        }
+        .main-nav .nav-item {
+            margin-bottom: 0;
+        }
+        .main-nav .user-dropdown-toggle, .main-nav .user-dropdown-menu {
+            background: transparent;
+        }
+        .main-nav .user-dropdown-menu {
+            min-width: 180px;
+        }
+        .main-nav .user-dropdown-item {
+            color: #333;
+        }
+        .main-nav .user-dropdown-item:hover {
+            background: #f5f5f5;
+        }
+        .main-nav .user-info {
+            color: #fff;
+            font-weight: 500;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        .main-nav .user-avatar {
+            background: #0b5ed7;
+            color: #fff;
+        }
+        .main-nav .user-dropdown-toggle {
+            min-width: 0;
+        }
+        .main-nav .user-dropdown {
+            margin-left: 1.5rem;
+        }
+        .main-nav .d-flex.align-items-center.ms-auto {
+            gap: 0.5rem;
+            flex-wrap: nowrap;
+        }
+        .main-nav .nav-link {
+            display: inline-block;
+            vertical-align: middle;
         }
         .btn-primary {
             background-color: var(--pa-blue);
@@ -213,96 +269,38 @@
     {% block head %}{% endblock %}
 </head>
 <body>
-    <!-- 顶部导航 -->
-    <div class="top-nav d-flex justify-content-end">
-        {% if current_user.is_authenticated or session.get('user_id') %}
-        {# 角色名称映射 #}
-        {% set role_names = {
-            'admin': '管理员',
-            'user': '普通用户',
-            'sales': '销售人员',
-            'channel_manager': '渠道经理',
-            'marketing_director': '营销总监',
-            'service': '服务人员',
-            'service_manager': '服务经理',
-            'dealer': '经销商',
-            'product_manager': '产品经理',
-            'solution_manager': '解决方案经理'
-        } %}
-        <div class="user-dropdown">
-            <div class="user-dropdown-toggle" id="userDropdown">
-                <div class="user-info">
-                    <div class="user-avatar">
-                        {{ current_user.username[0].upper() if current_user.username else session.get('username', 'U')[0].upper() }}
-                    </div>
-                    <span>
-                        {{ current_user.username or session.get('username', '用户') }}
-                    </span>
-                    <i class="fas fa-caret-down ml-2 ms-2"></i>
-                </div>
+    <!-- 固定顶部主导航，含logo、系统名、菜单、账户 -->
+    <nav class="main-nav navbar navbar-expand-lg navbar-light bg-white fixed-top shadow-sm" style="z-index: 1040;">
+        <div class="container d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" style="height: 40px; margin-right: 12px; object-fit: contain; vertical-align: bottom;">
+                <span style="font-family: 'Microsoft YaHei', '微软雅黑', Arial, sans-serif; font-weight: bold; color: #3098af; font-size: 1.4rem;">业务机会管理系统</span>
             </div>
-            <div class="user-dropdown-menu" id="userDropdownMenu">
-                <a href="#" class="user-dropdown-item">
-                    <i class="fas fa-user"></i> 个人资料
-                </a>
-                <a href="#" class="user-dropdown-item">
-                    <i class="fas fa-cog"></i> 设置
-                </a>
-                <div class="dropdown-divider"></div>
-                <a href="{{ url_for('auth.logout') }}" class="user-dropdown-item">
-                    <i class="fas fa-sign-out-alt"></i> 退出登录
-                </a>
-            </div>
-        </div>
-        {% else %}
-        <a href="{{ url_for('auth.login') }}"><i class="fas fa-sign-in-alt me-1"></i> 登录</a>
-        <a href="{{ url_for('auth.register') }}"><i class="fas fa-user-plus me-1"></i> 注册</a>
-        {% endif %}
-    </div>
-
-    <!-- 品牌和主导航 -->
-    <div class="container">
-        <div class="logo">
-            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo">
-            <div>
-                <span>项目</span><strong>管理系统</strong>
-            </div>
-        </div>
-    </div>
-
-    <!-- 主导航 -->
-    <nav class="main-nav">
-        <div class="container">
-            <ul class="nav nav-tabs">
+            <ul class="nav nav-tabs flex-grow-1 ms-4">
                 {% if current_user.is_authenticated or session.get('user_id') %}
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if request.endpoint.startswith('main.') else '' }}" href="{{ url_for('main.index') }}">仪表盘</a>
                 </li>
-
                 {% if has_permission('customer', 'view') %}
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if request.endpoint.startswith('customer.') else '' }}" href="{{ url_for('customer.list_companies') }}">客户管理</a>
                 </li>
                 {% endif %}
-
                 {% if has_permission('project', 'view') %}
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if request.endpoint.startswith('project.') else '' }}" href="{{ url_for('project.list_projects') }}">项目管理</a>
                 </li>
                 {% endif %}
-
                 {% if has_permission('quotation', 'view') %}
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if request.endpoint.startswith('quotation.') else '' }}" href="{{ url_for('quotation.list_quotations') }}">报价管理</a>
                 </li>
                 {% endif %}
-
                 {% if has_permission('product', 'view') %}
                 <li class="nav-item">
                     <a class="nav-link {{ 'active' if request.endpoint.startswith('product_route.') else '' }}" href="{{ url_for('product_route.product_list') }}">产品管理</a>
                 </li>
                 {% endif %}
-
                 {% if has_permission('product_code', 'view') %}
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle {{ 'active' if request.endpoint.startswith('product_code.') or request.endpoint.startswith('product_management.') else '' }}"
@@ -321,8 +319,7 @@
                     </ul>
                 </li>
                 {% endif %}
-
-                {% if current_user.has_permission('user', 'view') %}
+                {% if current_user.is_authenticated and current_user.has_permission('user', 'view') %}
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle {{ 'active' if request.endpoint and request.endpoint.startswith('user.') else '' }}"
                        href="#" id="userManagementDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -370,9 +367,21 @@
                     </ul>
                 </li>
                 {% endif %}
-
                 {% endif %}
             </ul>
+            <div class="d-flex align-items-center ms-auto">
+                {% if current_user.is_authenticated or session.get('user_id') %}
+                <div class="user-info me-2">
+                    <span>{{ current_user.username or session.get('username', '用户') }}</span>
+                </div>
+                <a href="{{ url_for('auth.logout') }}" class="nav-link" style="color: #fff; font-weight: 500;">
+                    <i class="fas fa-sign-out-alt"></i> 退出登录
+                </a>
+                {% else %}
+                <a href="{{ url_for('auth.login') }}" class="btn btn-outline-primary me-2"><i class="fas fa-sign-in-alt me-1"></i> 登录</a>
+                <a href="{{ url_for('auth.register') }}" class="btn btn-outline-primary"><i class="fas fa-user-plus me-1"></i> 注册</a>
+                {% endif %}
+            </div>
         </div>
     </nav>
 
@@ -390,6 +399,11 @@
     {% endwith %}
 
     <main class="container mb-5">
+        <style>
+        body { padding-top: 90px !important; }
+        @media (max-width: 991.98px) { body { padding-top: 120px !important; } }
+        .main-nav.fixed-top { box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+        </style>
         {% block content %}{% endblock %}
     </main>
 

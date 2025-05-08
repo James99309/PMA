@@ -3,106 +3,97 @@
 
 {% block title %}项目详情{% endblock %}
 
+{% block head %}
+<!-- 引入项目阶段进度条样式 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/project_stages.css') }}">
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <div class="row mb-3">
         <div class="col-md-12">
             <div class="d-flex justify-content-between align-items-center">
                 <h2>项目详情</h2>
-                <div>
+                <div class="d-flex align-items-center">
                     <a href="{{ url_for('project.list_projects') }}" class="btn btn-secondary">
                         <i class="fas fa-arrow-left"></i> 返回列表
                     </a>
                     {% if current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) %}
-                    <a href="{{ url_for('project.edit_project', project_id=project.id) }}" class="btn btn-primary">
+                    <a href="{{ url_for('project.edit_project', project_id=project.id) }}" class="btn btn-primary ms-2">
                         <i class="fas fa-edit"></i> 编辑项目
                     </a>
                     {% endif %}
                 </div>
             </div>
+            
+            {% if project.authorization_code %}
+            <div class="mt-2">
+                <span class="authorization-code fw-bold">{{ render_authorization_code(project.authorization_code, project.project_type, size="medium") }}</span>
+            </div>
+            {% elif project.authorization_status == 'pending' %}
+            <div class="mt-2 d-flex align-items-center">
+                <span class="badge bg-warning">审批中</span>
+                
+                {% if current_user.role in ['channel_manager', 'marketing_director', 'admin', 'service', 'service_manager'] %}
+                <div class="ms-3 btn-group">
+                    <!-- 根据项目类型和用户角色决定是否显示批准按钮 -->
+                    {% if current_user.role == 'admin' or
+                         (current_user.role == 'channel_manager' and project.project_type == '渠道跟进') or
+                         (current_user.role == 'marketing_director' and project.project_type in ['渠道跟进', '销售重点']) or
+                         (current_user.role in ['service', 'service_manager'] and project.project_type == '业务机会') %}
+                    <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#approveAuthorizationModal">
+                        <i class="fas fa-check"></i> 批准
+                    </button>
+                    <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#rejectAuthorizationModal">
+                        <i class="fas fa-times"></i> 驳回
+                    </button>
+                    {% endif %}
+                </div>
+                {% elif current_user.id == project.owner_id or current_user.role == 'admin' %}
+                <!-- 添加撤回授权按钮 -->
+                <button type="button" class="btn btn-sm btn-warning ms-3" data-bs-toggle="modal" data-bs-target="#revokeAuthorizationModal">
+                    <i class="fas fa-undo"></i> 撤回申请
+                </button>
+                {% endif %}
+            </div>
+            {% elif project.authorization_status == 'rejected' %}
+            <div class="mt-2 d-flex align-items-center">
+                <span class="badge bg-danger">已驳回</span>
+                {% if current_user.id == project.owner_id or current_user.role == 'admin' %}
+                <button type="button" class="btn btn-sm btn-primary ms-3" data-bs-toggle="modal" data-bs-target="#applyAuthorizationModal">
+                    <i class="fas fa-redo"></i> 再次申请
+                </button>
+                {% endif %}
+            </div>
+            
+            {% if project.feedback %}
+            <div class="alert alert-danger mt-2">
+                <strong>驳回原因：</strong> {{ project.feedback }}
+            </div>
+            {% endif %}
+            {% else %}
+            <div class="mt-2 d-flex align-items-center">
+                <span class="badge bg-secondary">未申请</span>
+                
+                {% if current_user.id == project.owner_id or current_user.role == 'admin' %}
+                <button type="button" class="btn btn-sm btn-primary ms-3" data-bs-toggle="modal" data-bs-target="#applyAuthorizationModal">
+                    <i class="fas fa-file-signature"></i> 申请授权编号
+                </button>
+                {% endif %}
+            </div>
+            {% endif %}
         </div>
     </div>
 
+    <!-- 项目阶段进度条 -->
     <div class="row mb-3">
-        <div class="col-md-6">
-            <div class="card h-100">
-                <div class="card-header bg-primary text-white">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="card-title mb-0">授权编号</h5>
-                        <div>
-                            {% if project.authorization_status == 'pending' %}
-                                <span class="badge bg-warning">审批中</span>
-                            {% elif project.authorization_status == 'rejected' %}
-                                <span class="badge bg-danger">已驳回</span>
-                            {% elif project.authorization_code %}
-                                <span class="badge bg-success">已授权</span>
-                            {% else %}
-                                <span class="badge bg-secondary">未申请</span>
-                            {% endif %}
-                        </div>
-                    </div>
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">项目阶段跟踪</h5>
                 </div>
                 <div class="card-body">
-                    {% if project.authorization_code %}
-                    <h4 class="text-center">
-                        {{ render_authorization_code(project.authorization_code, project.project_type, size="large") }}
-                    </h4>
-                    {% else %}
-                    <h4 class="text-center">{{ project.authorization_code or '' }}</h4>
-                    {% endif %}
-
-                    {% if project.authorization_status == 'rejected' and project.feedback %}
-                    <div class="alert alert-danger mt-3">
-                        <strong>驳回原因：</strong> {{ project.feedback }}
-                    </div>
-                    {% endif %}
-
-                    <div class="text-center mt-3">
-                        {% if not project.authorization_code and project.authorization_status != 'pending' %}
-                            {% if current_user.id == project.owner_id or current_user.role == 'admin' %}
-                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#applyAuthorizationModal">
-                                <i class="fas fa-file-signature"></i> 申请授权编号
-                            </button>
-                            {% endif %}
-                        {% endif %}
-
-                        {% if project.authorization_status == 'pending' %}
-                            {% if current_user.role in ['channel_manager', 'marketing_director', 'admin', 'service', 'service_manager'] %}
-                            <div class="btn-group">
-                                <!-- 根据项目类型和用户角色决定是否显示批准按钮 -->
-                                {% if current_user.role == 'admin' or
-                                     (current_user.role == 'channel_manager' and project.project_type == '渠道跟进') or
-                                     (current_user.role == 'marketing_director' and project.project_type in ['渠道跟进', '销售重点']) or
-                                     (current_user.role in ['service', 'service_manager'] and project.project_type == '业务机会') %}
-                                <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#approveAuthorizationModal">
-                                    <i class="fas fa-check"></i> 批准
-                                </button>
-                                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectAuthorizationModal">
-                                    <i class="fas fa-times"></i> 驳回
-                                </button>
-                                {% endif %}
-                            </div>
-                            {% elif current_user.id == project.owner_id or current_user.role == 'admin' %}
-                            <!-- 添加撤回授权按钮 -->
-                            <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#revokeAuthorizationModal">
-                                <i class="fas fa-undo"></i> 撤回申请
-                            </button>
-                            {% else %}
-                            <p class="text-muted">申请已提交，等待审批中...</p>
-                            {% endif %}
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-6">
-            <div class="card h-100">
-                <div class="card-header bg-light">
-                    <h5 class="card-title mb-0">项目编号</h5>
-                </div>
-                <div class="card-body d-flex flex-column justify-content-center">
-                    <h4 class="text-center">{{ project.id }}</h4>
+                    <div id="projectStageProgress"></div>
                 </div>
             </div>
         </div>
@@ -140,22 +131,25 @@
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>报价总额：</strong></div>
                                 <div class="col-md-8">
-                                    {% if project.quotation_customer and project.quotations.count() > 0 %}
-                                    <a href="{{ url_for('quotation.view_quotation', id=project.quotations.order_by(Quotation.created_at.desc()).first().id) }}"
-                                       class="quotation-link" title="查看报价单详情">
-                                        {{ render_currency(project.quotation_customer) }}
-                                    </a>
-                                    {% else %}
-                                    <div class="d-flex align-items-center">
-                                        <span class="me-3">{{ render_currency(project.quotation_customer) if project.quotation_customer else '无' }}</span>
-                                        {% if current_user.has_permission('quotation', 'create') %}
-                                        <a href="{{ url_for('quotation.create_quotation') }}?project_id={{ project.id }}&return_to={{ url_for('project.view_project', project_id=project.id) }}"
-                                           class="btn btn-sm btn-primary">
-                                            <i class="fas fa-plus"></i> 添加报价
-                                        </a>
-                                        {% endif %}
-                                    </div>
-                                    {% endif %}
+{% if project.quotations.count() > 0 %}
+    <a href="{{ url_for('quotation.view_quotation', id=project.quotations.order_by(Quotation.created_at.desc()).first().id) }}"
+       class="quotation-link" title="查看报价单详情">
+        {{ render_currency(project.quotation_customer) }}
+    </a>
+{% else %}
+    <div class="d-flex align-items-center">
+        <span class="me-3">{{ render_currency(project.quotation_customer) if project.quotation_customer else '无' }}</span>
+        {% if current_user.has_permission('quotation', 'create') %}
+        <form action="{{ url_for('quotation.create_quotation') }}" method="GET" style="display:inline;">
+            <input type="hidden" name="project_id" value="{{ project.id }}">
+            <input type="hidden" name="return_to" value="{{ url_for('project.view_project', project_id=project.id) }}">
+            <button type="submit" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus"></i> 添加报价
+            </button>
+        </form>
+        {% endif %}
+    </div>
+{% endif %}
                                 </div>
                             </div>
                         </div>
@@ -205,9 +199,7 @@
                                                 {{ project.end_user }}
                                             </a>
                                         {% else %}
-                                            <a href="{{ url_for('customer.list_companies', search=project.end_user) }}" class="company-link">
-                                                {{ project.end_user }}
-                                            </a>
+                                            {{ project.end_user }}
                                         {% endif %}
                                     {% else %}
                                         无
@@ -223,9 +215,7 @@
                                                 {{ project.design_issues }}
                                             </a>
                                         {% else %}
-                                            <a href="{{ url_for('customer.list_companies', search=project.design_issues) }}" class="company-link">
-                                                {{ project.design_issues }}
-                                            </a>
+                                            {{ project.design_issues }}
                                         {% endif %}
                                     {% else %}
                                         无
@@ -241,9 +231,7 @@
                                                 {{ project.dealer }}
                                             </a>
                                         {% else %}
-                                            <a href="{{ url_for('customer.list_companies', search=project.dealer) }}" class="company-link">
-                                                {{ project.dealer }}
-                                            </a>
+                                            {{ project.dealer }}
                                         {% endif %}
                                     {% else %}
                                         无
@@ -261,9 +249,7 @@
                                                 {{ project.contractor }}
                                             </a>
                                         {% else %}
-                                            <a href="{{ url_for('customer.list_companies', search=project.contractor) }}" class="company-link">
-                                                {{ project.contractor }}
-                                            </a>
+                                            {{ project.contractor }}
                                         {% endif %}
                                     {% else %}
                                         无
@@ -279,9 +265,7 @@
                                                 {{ project.system_integrator }}
                                             </a>
                                         {% else %}
-                                            <a href="{{ url_for('customer.list_companies', search=project.system_integrator) }}" class="company-link">
-                                                {{ project.system_integrator }}
-                                            </a>
+                                            {{ project.system_integrator }}
                                         {% endif %}
                                     {% else %}
                                         无
@@ -328,9 +312,13 @@
                                 <i class="fas fa-list"></i> 查看报价单
                             </a>
                             {% else %}
-                            <a href="{{ url_for('quotation.create_quotation', project_id=project.id, return_to=url_for('project.view_project', project_id=project.id)) }}" class="btn btn-primary btn-sm">
-                                <i class="fas fa-plus"></i> 添加报价
-                            </a>
+                            <form action="{{ url_for('quotation.create_quotation') }}" method="GET" style="display:inline;">
+                                <input type="hidden" name="project_id" value="{{ project.id }}">
+                                <input type="hidden" name="return_to" value="{{ url_for('project.view_project', project_id=project.id) }}">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-plus"></i> 添加报价
+                                </button>
+                            </form>
                             {% endif %}
                         </div>
                         {% endif %}
@@ -366,11 +354,17 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <form action="{{ url_for('project.apply_authorization', project_id=project.id) }}" method="post" id="applyAuthorizationForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="modal-header">
                     <h5 class="modal-title" id="applyAuthorizationModalLabel">申请授权编号</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
+                    {% if not project.project_type or project.project_type.strip() == '' %}
+                    <div class="alert alert-danger mb-3">
+                        <strong>提示：</strong>项目类型未填写，无法提交授权编号申请。请先完善项目信息。
+                    </div>
+                    {% endif %}
                     <p class="text-danger">请确认项目信息已经完整填写，包括项目名称、相关单位和项目说明等。</p>
                     <p>系统将对项目名称进行查重，如有重复或相似项目，申请可能会被驳回。</p>
 
@@ -387,7 +381,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="submit" class="btn btn-primary">提交申请</button>
+                    <button type="submit" class="btn btn-primary" {% if not project.project_type or project.project_type.strip() == '' %}disabled{% endif %}>提交申请</button>
                 </div>
             </form>
         </div>
@@ -399,6 +393,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <form action="{{ url_for('project.approve_authorization', project_id=project.id) }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="modal-header">
                     <h5 class="modal-title" id="approveAuthorizationModalLabel">批准授权编号申请</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -428,6 +423,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <form action="{{ url_for('project.reject_authorization', project_id=project.id) }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="modal-header">
                     <h5 class="modal-title" id="rejectAuthorizationModalLabel">驳回授权编号申请</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -476,6 +472,9 @@
 
 {% block scripts %}
 {{ super() }}
+<!-- 引入项目阶段进度条脚本 -->
+<script src="{{ url_for('static', filename='js/project_stages.js') }}"></script>
+
 <script>
     $(document).ready(function() {
         // 格式化项目说明，按日期分行
@@ -541,8 +540,8 @@
                         $('#similarProjectsWarning').removeClass('d-none');
                         let projectsList = '<ul>';
                         data.similar_projects.forEach(function(proj) {
-                            projectsList += '<li><strong>' + proj.name +
-                                         '</strong> (授权编号: ' + (proj.authorization_code || '') +
+                            projectsList += '<li><span style="font-weight:bold;color:#d35400;">' + proj.name + '</span>' +
+                                         ' (授权编号: ' + (proj.authorization_code || '') +
                                          ', 拥有人: ' + proj.owner_name +
                                          ', 状态: ' + (proj.status || '未知') +
                                          ', 相似度: ' + proj.similarity + '%)</li>';
@@ -575,8 +574,8 @@
                         $('#applySimilarProjectsWarning').removeClass('d-none');
                         let projectsList = '<ul>';
                         data.similar_projects.forEach(function(proj) {
-                            projectsList += '<li><strong>' + proj.name +
-                                         '</strong> (授权编号: ' + (proj.authorization_code || '') +
+                            projectsList += '<li><span style="font-weight:bold;color:#d35400;">' + proj.name + '</span>' +
+                                         ' (授权编号: ' + (proj.authorization_code || '') +
                                          ', 拥有人: ' + proj.owner_name +
                                          ', 状态: ' + (proj.status || '未知') +
                                          ', 相似度: ' + proj.similarity + '%)</li>';
@@ -593,6 +592,18 @@
                 }
             });
         });
+
+        // 在文档加载完成后初始化项目阶段进度条
+        {% if project and project.current_stage %}
+        var stageProgress = new ProjectStageProgress({
+            containerId: 'projectStageProgress',
+            projectId: {{ project.id }},
+            currentStage: "{{ project.current_stage }}",
+            csrfToken: "{{ csrf_token() }}",
+            updateUrl: "{{ url_for('project.update_project_stage') }}",
+            canEdit: {{ 'true' if current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) else 'false' }}
+        });
+        {% endif %}
     });
 </script>
 {% endblock %}

@@ -25,8 +25,8 @@
             </a>
             {% endif %}
             {% if has_permission('customer', 'create') %}
-            <a href="{{ url_for('customer.add_action', contact_id=contact.id) }}" class="btn btn-primary">
-                <i class="fas fa-comment"></i> 添加行动记录
+            <a href="{{ url_for('customer.add_action_for_company', company_id=contact.company_id) }}?contact_id={{ contact.id }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> 添加行动记录
             </a>
             {% endif %}
         </div>

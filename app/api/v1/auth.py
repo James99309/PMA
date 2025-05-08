@@ -12,6 +12,8 @@ import time
 import logging
 import os
 from sqlalchemy import func
+from flask_login import current_user
+import sys
 
 # 设置日志
 logger = logging.getLogger(__name__)
@@ -385,4 +387,38 @@ def reset_password():
             success=False,
             code=500,
             message="密码重置失败，请稍后重试"
+        )
+
+@api_v1_bp.route('/auth/token', methods=['POST'])
+def get_token_from_session():
+    """
+    根据当前用户会话生成JWT令牌
+    用于前端AJAX请求需要JWT认证的API
+    """
+    # 验证是否已登录
+    if not current_user.is_authenticated:
+        return api_response(
+            success=False,
+            code=401,
+            message="用户未登录，无法生成令牌"
+        )
+    
+    try:
+        # 创建访问令牌
+        access_token = create_access_token(identity=str(current_user.id))
+        
+        return api_response(
+            success=True,
+            message="令牌生成成功",
+            data={
+                "access_token": access_token,
+                "expires_in": 24 * 3600  # 24小时
+            }
+        )
+    except Exception as e:
+        logger.error(f"生成令牌失败: {str(e)}", exc_info=True)
+        return api_response(
+            success=False,
+            code=500,
+            message=f"生成令牌失败: {str(e)}"
         ) 

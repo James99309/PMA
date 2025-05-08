@@ -291,6 +291,13 @@ def create_quotation():
                     db.session.commit()
                     current_app.logger.info('数据库更改提交成功')
                     
+                    # 强制刷新项目金额
+                    project = Project.query.get(quotation.project_id)
+                    if project:
+                        total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
+                        project.quotation_customer = total
+                        db.session.commit()
+                    
                     # 如果有错误但保存成功，返回警告信息
                     if detail_errors:
                         current_app.logger.warning(f"报价单创建成功，但有以下警告: {', '.join(detail_errors)}")
@@ -367,8 +374,17 @@ def create_quotation():
                 
                 # 更新报价单总金额
                 quotation.amount = total_amount
-                
+                # 手动更新时间戳，确保updated_at字段正确
+                quotation.updated_at = datetime.utcnow()
                 db.session.commit()
+                
+                # 强制刷新项目金额
+                project = Project.query.get(quotation.project_id)
+                if project:
+                    total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
+                    project.quotation_customer = total
+                    db.session.commit()
+                
                 flash('报价单创建成功！', 'success')
                 
                 # 如果有返回URL，则重定向到该URL
@@ -414,18 +430,24 @@ def create_quotation():
 @quotation.route('/get_project/<int:project_id>')
 def get_project(project_id):
     try:
-        print(f"获取项目 {project_id} 的信息...")
+        logger.debug(f"获取项目 {project_id} 的信息...")
         project = Project.query.get_or_404(project_id)
-        print(f"项目信息: 阶段={project.current_stage}, 类型={project.project_type}")
-        return jsonify({
+        logger.debug(f"项目信息: 阶段={project.current_stage}, 类型={project.project_type}")
+        
+        # 设置缓存控制头
+        response = jsonify({
             'success': True,
             'current_stage': project.current_stage,
             'project_type': project.project_type,
             'project_name': project.project_name,
             'authorization_code': project.authorization_code
         })
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
     except Exception as e:
-        print(f"获取项目信息时出错: {str(e)}")
+        logger.error(f"获取项目信息时出错: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -571,8 +593,17 @@ def edit_quotation(id):
                 
                 # 更新报价单总金额
                 quotation.amount = total_amount
-                
+                # 手动更新时间戳，确保updated_at字段正确
+                quotation.updated_at = datetime.utcnow()
                 db.session.commit()
+                
+                # 强制刷新项目金额
+                project = Project.query.get(quotation.project_id)
+                if project:
+                    total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
+                    project.quotation_customer = total
+                    db.session.commit()
+                
                 flash('报价单更新成功！', 'success')
                 return redirect(url_for('quotation.list_quotations'))
                 
@@ -649,6 +680,13 @@ def copy_quotation(id):
         db.session.add(new_quotation)
         db.session.commit()
         
+        # 强制刷新项目金额
+        project = Project.query.get(new_quotation.project_id)
+        if project:
+            total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
+            project.quotation_customer = total
+            db.session.commit()
+        
         flash('报价单复制成功！', 'success')
         return redirect(url_for('quotation.edit_quotation', id=new_quotation.id))
     except Exception as e:
@@ -671,6 +709,13 @@ def delete_quotation(id):
         project_id = quotation.project_id
         db.session.delete(quotation)
         db.session.commit()
+        
+        # 强制刷新项目金额
+        project = Project.query.get(project_id)
+        if project:
+            total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
+            project.quotation_customer = total
+            db.session.commit()
         
         flash('报价单删除成功！', 'success')
         return redirect(url_for('project.view_project', project_id=project_id))
@@ -711,6 +756,14 @@ def batch_delete_quotations():
                 error_ids.append(quotation_id)
         
         db.session.commit()
+        
+        # 强制刷新项目金额
+        for project_id in set(quotation.project_id for quotation in Quotation.query.filter(Quotation.id.in_(quotation_ids)).all()):
+            project = Project.query.get(project_id)
+            if project:
+                total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
+                project.quotation_customer = total
+                db.session.commit()
         
         if error_ids:
             logger.warning(f"部分报价单删除失败, IDs: {error_ids}")
@@ -865,12 +918,29 @@ def get_all_companies():
 
 @quotation.route('/get_all_projects')
 def get_all_projects():
-    # 使用访问控制过滤获取项目
-    projects = get_viewable_data(Project, current_user).all()
-    
-    return jsonify({
-        'projects': [{'id': p.id, 'name': p.project_name} for p in projects]
-    })
+    try:
+        logger.debug("获取所有项目列表...")
+        # 只获取当前用户本人拥有的项目
+        projects_query = get_viewable_data(Project, current_user).filter(Project.owner_id == current_user.id)
+        # 过滤掉已有关联报价单的项目
+        projects = projects_query.outerjoin(Quotation, Project.id == Quotation.project_id) \
+            .filter(Quotation.id == None).all()
+        # 构建项目列表，只返回必要的信息
+        project_list = [{'id': p.id, 'name': p.project_name} for p in projects]
+        logger.debug(f"找到 {len(project_list)} 个项目")
+        # 设置缓存控制头
+        response = jsonify({'projects': project_list})
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
+    except Exception as e:
+        logger.error(f"获取项目列表失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': '获取项目列表失败',
+            'message': str(e)
+        }), 500
 
 # 添加产品相关API接口
 @quotation.route('/products', methods=['GET'])
@@ -1209,6 +1279,8 @@ def save_quotation(id):
         
         # 更新报价单基本信息
         quotation.amount = total_amount
+        # 手动更新时间戳，确保updated_at字段正确
+        quotation.updated_at = datetime.utcnow()
         current_app.logger.debug(f'更新报价单总金额: {total_amount}')
         
         # 先删除原有明细项
@@ -1249,13 +1321,11 @@ def save_quotation(id):
         for index, detail in enumerate(details):
             try:
                 current_app.logger.debug(f'处理第 {index+1} 个明细项: {detail}')
-                
                 if not isinstance(detail, dict):
                     error_msg = f"第 {index+1} 行数据格式错误，必须是对象格式"
                     current_app.logger.error(error_msg)
                     detail_errors.append(error_msg)
                     continue
-                
                 # 验证必填字段
                 product_name = detail.get('product_name', '').strip()
                 if not product_name:
@@ -1263,7 +1333,6 @@ def save_quotation(id):
                     current_app.logger.warning(error_msg)
                     detail_errors.append(error_msg)
                     continue
-                
                 # 安全地获取数值字段
                 try:
                     market_price = float(detail.get('market_price', 0))
@@ -1358,20 +1427,23 @@ def save_quotation(id):
         
         try:
             current_app.logger.info('准备提交所有更改到数据库...')
-            
-            # 提交事务
             db.session.commit()
             current_app.logger.info('数据库更改提交成功')
             
-            # 如果有错误但保存成功，返回警告信息
+            # 强制刷新项目金额
+            project = Project.query.get(quotation.project_id)
+            if project:
+                total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
+                project.quotation_customer = total
+                db.session.commit()
+            
             if detail_errors:
                 current_app.logger.warning(f"报价单保存成功，但有以下警告: {', '.join(detail_errors)}")
                 return jsonify({
-                    'status': 'success',
-                    'message': '报价单更新成功，但存在部分问题',
+                    'status': 'error',
+                    'message': '报价单明细存在错误，请检查：' + '; '.join(detail_errors),
                     'warnings': detail_errors
-                })
-            
+                }), 400
             current_app.logger.info('报价单更新成功，无警告信息')
             return jsonify({
                 'status': 'success',
@@ -1381,8 +1453,6 @@ def save_quotation(id):
             db.session.rollback()
             error_type = type(commit_error).__name__
             current_app.logger.error(f"提交更改时出错: {error_type} - {str(commit_error)}")
-            
-            # 返回错误信息
             return jsonify({
                 'status': 'error',
                 'message': f'保存失败: {error_type} - {str(commit_error)}'

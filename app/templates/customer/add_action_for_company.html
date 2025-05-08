@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_date %}
+
+{% block title %}添加行动记录 - {{ company.company_name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-3">
+        <div class="col">
+            <h3 class="text-primary">添加行动记录</h3>
+        </div>
+        <div class="col text-end">
+            <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> 返回企业详情
+            </a>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-body">
+            <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">企业名称</label>
+                        <input type="text" class="form-control" value="{{ company.company_name }}" readonly>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="contact_id" class="form-label">联系人 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="contact_id" name="contact_id" required onchange="window.location.href='{{ url_for('customer.add_action_for_company', company_id=company.id) }}?contact_id=' + this.value;">
+                            <option value="">请选择联系人</option>
+                            {% for contact in contacts %}
+                            <option value="{{ contact.id }}" {% if selected_contact and contact.id == selected_contact.id %}selected{% endif %}>{{ contact.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="project_id" class="form-label">关联项目</label>
+                        <select class="form-select" id="project_id" name="project_id">
+                            <option value="">无</option>
+                            {% for project in projects %}
+                            <option value="{{ project.id }}">{{ project.project_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="date" class="form-label">日期 <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="date" name="date" value="{{ request.form.date or '' }}" required>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="communication" class="form-label">沟通情况 <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="communication" name="communication" rows="4" required>{{ request.form.communication or '' }}</textarea>
+                </div>
+                <div class="d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% if selected_contact %}
+    <div class="card mt-4">
+        <div class="card-header">
+            <strong>联系人 {{ selected_contact.name }} 的历史行动记录</strong>
+        </div>
+        <div class="card-body">
+            {% if contact_actions %}
+            <ul class="list-group">
+                {% for action in contact_actions %}
+                <li class="list-group-item">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <span class="text-muted small">{{ render_date(action.date) }}</span>
+                            <span class="ms-2">{{ action.communication|truncate(60) }}</span>
+                        </div>
+                        <span class="text-muted small">记录人: {{ action.owner.real_name or action.owner.username }}</span>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-muted">该联系人暂无历史行动记录。</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %} 

@@ -47,7 +47,7 @@ def login():
             login_user(user, remember=remember)
             
             # 生成JWT令牌
-            jwt_token = create_access_token(identity=user.id)
+            jwt_token = create_access_token(identity=str(user.id))
             # 将角色和用户ID信息存放在session中，方便前端使用
             session['jwt_token'] = jwt_token
             session['role'] = user.role  # 确保使用数据库中的最新角色值

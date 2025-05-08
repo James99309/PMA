@@ -8,7 +8,11 @@
             <h1 class="h3 mb-0 text-gray-800">创建报价单</h1>
                 </div>
         <div class="col-auto ml-auto">
+            {% if return_to %}
+            <a href="{{ return_to }}" class="btn btn-secondary">返回项目详情</a>
+            {% else %}
             <a href="{{ url_for('quotation.list_quotations') }}" class="btn btn-secondary">返回列表</a>
+            {% endif %}
             <button type="submit" form="quotation-form" id="submit-btn" class="btn btn-primary">提交</button>
         </div>
     </div>
@@ -23,11 +27,13 @@
 
     <!-- 表单内容 -->
     <form id="quotation-form" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="row mb-3">
                             <!-- 项目选择 -->
                             <div class="col-md-12">
                                 <label for="project_id" class="form-label">关联项目</label>
-                                <select class="form-select" id="project_id" name="project_id" required>
+                                <select class="form-select" id="project_id" name="project_id" required
+                                    {% if preset_project_id %}disabled{% endif %}>
                                     <option value="">-- 请选择项目 --</option>
                                     {% for project in projects %}
                                     <option value="{{ project.id }}" {% if preset_project_id and preset_project_id|int == project.id %}selected{% endif %}>
@@ -272,10 +278,19 @@ var isEditPage = false;
         url: '/quotation/get_all_projects',
         method: 'GET',
         cache: false,
+        timeout: 10000, // 添加10秒超时
+        headers: {
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache, no-store, must-revalidate'
+        },
+        data: {
+            '_': new Date().getTime() // 添加时间戳参数
+        },
         success: function(response) {
             console.log('获取到项目列表响应:', response);
             if (!$('#project_id').length) {
                 console.error('未找到项目下拉框元素(#project_id)');
+                removeLoading(); // 移除可能存在的加载指示器
                 return;
             }
             
@@ -292,13 +307,24 @@ var isEditPage = false;
                     );
                 });
                 console.log('项目选项添加完成');
+                
+                // 检查URL参数中的项目ID
+                checkProjectIdFromUrl();
             } else {
                 console.log('没有找到项目或项目列表为空');
                 $select.append('<option value="" disabled>没有找到项目</option>');
+                removeLoading(); // 移除可能存在的加载指示器
             }
         },
         error: function(xhr, status, error) {
-            console.error('获取项目列表失败:', error);
+            console.error('获取项目列表失败:', error, '状态:', status);
+            var errorMsg = '获取项目列表失败';
+            if (status === 'timeout') {
+                errorMsg = '请求超时，请刷新页面重试';
+            }
+            $('#project_id').empty().append('<option value="">-- ' + errorMsg + ' --</option>');
+            removeLoading(); // 移除可能存在的加载指示器
+            alert('获取项目列表失败: ' + errorMsg);
         }
     });
 })();
@@ -321,8 +347,8 @@ function translateProjectType(typeCode) {
 $(document).ready(function() {
     console.log('页面DOM已加载完成，开始初始化其他功能...');
     
-    // 检查URL参数中的项目ID
-    checkProjectIdFromUrl();
+    // 检查URL参数中的项目ID - 移至项目列表加载成功后调用
+    // checkProjectIdFromUrl();
     
     // 初始化产品自动完成
     initializeProductAutocomplete();
@@ -337,11 +363,22 @@ $(document).ready(function() {
         console.log('项目ID变更为:', projectId);
         
         if (projectId) {
+            // 显示加载指示器
+            showLoading('正在加载项目信息...');
+            
             // 通过AJAX获取项目信息
             $.ajax({
                 url: '/quotation/get_project/' + projectId,
                 type: 'GET',
                 dataType: 'json',
+                timeout: 10000, // 10秒超时
+                headers: {
+                    'Pragma': 'no-cache',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate'
+                },
+                data: {
+                    '_': new Date().getTime() // 添加时间戳参数避免缓存
+                },
                 success: function(data) {
                     console.log('获取到项目信息:', data);
                     
@@ -357,8 +394,16 @@ $(document).ready(function() {
                     removeLoading();
                 },
                 error: function(xhr, status, error) {
-                    console.error('获取项目信息请求失败:', xhr.responseText);
-                    alert('获取项目信息失败: ' + error);
+                    console.error('获取项目信息请求失败:', status, error);
+                    var errorMsg = '获取项目信息失败';
+                    if (status === 'timeout') {
+                        errorMsg = '请求超时，请重新选择项目';
+                    }
+                    alert(errorMsg + ': ' + error);
+                    // 重置项目选择
+                    $('#project_id').val('');
+                    $('#project_stage').val('');
+                    $('#project_type').val('');
                     removeLoading();
                 }
             });
@@ -389,6 +434,11 @@ $(document).ready(function() {
             
             // 禁用提交按钮防止重复提交
             $('#submit-btn').prop('disabled', true).text('提交中...');
+            
+            // 如果项目下拉框被禁用，提交前移除disabled属性
+            if ($('#project_id').prop('disabled')) {
+                $('#project_id').prop('disabled', false);
+            }
             
             return true;
         } catch (error) {
@@ -1197,17 +1247,40 @@ function checkProjectIdFromUrl() {
             const parsedId = parseInt(projectId, 10);
             if (!isNaN(parsedId) && parsedId > 0) {
                 console.log('设置项目ID:', parsedId);
-                showLoading('正在加载项目信息...');
-                $('#project_id').val(parsedId).trigger('change');
+                
+                // 检查项目ID是否在下拉列表中存在
+                let projectExists = false;
+                $('#project_id option').each(function() {
+                    if ($(this).val() == parsedId) {
+                        projectExists = true;
+                        return false; // 跳出循环
+                    }
+                });
+                
+                if (projectExists) {
+                    showLoading('正在加载项目信息...');
+                    $('#project_id').val(parsedId).trigger('change');
+                } else {
+                    console.warn('URL中的项目ID在列表中不存在:', projectId);
+                    removeLoading();
+                    setTimeout(function() {
+                        alert('无法加载指定的项目，项目ID不存在或您没有访问权限');
+                    }, 500);
+                }
             } else {
                 console.warn('URL中的项目ID无效:', projectId);
+                removeLoading();
             }
         } else {
             console.log('URL中没有项目ID参数');
+            removeLoading();
         }
     } catch (error) {
         console.error('检查URL项目ID时出错:', error);
         removeLoading();
+        setTimeout(function() {
+            alert('加载项目信息时出错: ' + error.message);
+        }, 500);
     }
 }
 

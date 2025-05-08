@@ -20,8 +20,8 @@ def list_companies():
     search = request.args.get('search', '')
     
     # 获取排序参数
-    sort_field = request.args.get('sort', 'company_name')
-    sort_order = request.args.get('order', 'asc')
+    sort_field = request.args.get('sort', 'updated_at')
+    sort_order = request.args.get('order', 'desc')
     
     # 验证排序字段是否有效
     valid_sort_fields = ['company_code', 'company_name', 'company_type', 'industry', 
@@ -56,11 +56,16 @@ def list_companies():
             if company.owner_id and company.owner_id in owners:
                 company.owner = owners[company.owner_id]
     
+    # 国家代码到名称的映射
+    country_code_to_name = {
+        "CN": "中国", "US": "美国", "JP": "日本", "DE": "德国", "FR": "法国", "GB": "英国", "CA": "加拿大", "AU": "澳大利亚", "NZ": "新西兰", "IN": "印度", "RU": "俄罗斯", "BR": "巴西", "ZA": "南非", "SG": "新加坡", "MY": "马来西亚", "TH": "泰国", "ID": "印度尼西亚", "PH": "菲律宾", "VN": "越南", "KR": "韩国", "AE": "阿联酋", "SA": "沙特阿拉伯", "IT": "意大利", "ES": "西班牙", "NL": "荷兰", "CH": "瑞士", "SE": "瑞典", "NO": "挪威", "FI": "芬兰", "DK": "丹麦", "BE": "比利时"
+    }
     return render_template('customer/list.html', 
                           companies=companies, 
                           search_term=search, 
                           sort_field=sort_field, 
-                          sort_order=sort_order)
+                          sort_order=sort_order,
+                          country_code_to_name=country_code_to_name)
 
 @customer.route('/search', methods=['GET'])
 @permission_required('customer', 'view')
@@ -161,12 +166,17 @@ def view_company(company_id):
         if action.owner_id and action.owner_id in user_map:
             action.owner = user_map[action.owner_id]
     
+    # 国家代码到名称的映射
+    country_code_to_name = {
+        "CN": "中国", "US": "美国", "JP": "日本", "DE": "德国", "FR": "法国", "GB": "英国", "CA": "加拿大", "AU": "澳大利亚", "NZ": "新西兰", "IN": "印度", "RU": "俄罗斯", "BR": "巴西", "ZA": "南非", "SG": "新加坡", "MY": "马来西亚", "TH": "泰国", "ID": "印度尼西亚", "PH": "菲律宾", "VN": "越南", "KR": "韩国", "AE": "阿联酋", "SA": "沙特阿拉伯", "IT": "意大利", "ES": "西班牙", "NL": "荷兰", "CH": "瑞士", "SE": "瑞典", "NO": "挪威", "FI": "芬兰", "DK": "丹麦", "BE": "比利时"
+    }
     return render_template('customer/view.html', 
                           company=company, 
                           contacts=contacts, 
                           actions=actions, 
                           pagination=pagination,
-                          projects=projects)
+                          projects=projects,
+                          country_code_to_name=country_code_to_name)
 
 @customer.route('/add', methods=['GET', 'POST'])
 @permission_required('customer', 'create')
@@ -190,7 +200,9 @@ def add_company():
             return redirect(url_for('customer.view_company', company_id=company.id))
         except Exception as e:
             db.session.rollback()
-            flash('保存失败：' + str(e), 'danger')
+            import traceback
+            # 增强日志输出，包含表单内容和traceback
+            flash('保存失败：' + str(e) + '<br>表单内容：' + str(dict(request.form)) + '<br>' + traceback.format_exc(), 'danger')
     
     return render_template('customer/add.html')
 
@@ -295,7 +307,7 @@ def add_contact(company_id):
             contact.set_as_primary()
             
         flash('联系人添加成功！', 'success')
-        return redirect(url_for('customer.list_contacts', company_id=company_id))
+        return redirect(url_for('customer.view_company', company_id=company_id))
     return render_template('customer/add_contact.html', company=company)
 
 @customer.route('/<int:company_id>/contacts/<int:contact_id>/edit', methods=['GET', 'POST'])
@@ -333,32 +345,31 @@ def edit_contact(company_id, contact_id):
 def delete_contact(company_id, contact_id):
     contact = Contact.query.get_or_404(contact_id)
     company = Company.query.get_or_404(company_id)
-    
-    # 检查删除权限
+
+    # 权限校验
     if not can_edit_data(company, current_user):
-        flash('您没有权限删除此企业的联系人', 'danger')
-        return redirect(url_for('customer.list_contacts', company_id=company_id))
-    
-    company_id = contact.company_id
-    
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': '您没有权限删除此联系人'}), 403
+        flash('您没有权限删除此联系人', 'danger')
+        return redirect(url_for('customer.view_company', company_id=company_id))
+
     try:
-        # 找到与此联系人相关的所有行动记录
+        # 删除相关行动记录
         related_actions = Action.query.filter_by(contact_id=contact.id).all()
-        
-        # 对于每个相关的行动记录，删除它们
         for action in related_actions:
             db.session.delete(action)
-        
-        # 然后删除联系人
         db.session.delete(contact)
         db.session.commit()
-        flash('联系人删除成功！', 'success')
-        
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True})
+        flash('联系人已删除', 'success')
+        return redirect(url_for('customer.view_company', company_id=company_id))
     except Exception as e:
         db.session.rollback()
-        flash(f'删除失败：{str(e)}', 'danger')
-        
-    return redirect(url_for('customer.list_contacts', company_id=company_id))
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': '删除失败：' + str(e)}), 500
+        flash('删除联系人失败', 'danger')
+        return redirect(url_for('customer.view_company', company_id=company_id))
 
 @customer.route('/api/contacts/<int:contact_id>/add_action', methods=['POST'])
 @permission_required('customer', 'create')
@@ -1375,10 +1386,7 @@ def import_customers():
 def batch_delete_companies():
     """批量删除企业API"""
     try:
-        # 只有管理员可以批量删除
-        if current_user.role != 'admin':
-            return jsonify({'success': False, 'message': '只有管理员可以批量删除企业'}), 403
-        
+        # 只要有customer.delete权限即可批量删除，但只能删除自己有权限的企业
         # 检查请求是否包含JSON数据
         if not request.is_json:
             return jsonify({'success': False, 'message': '请求必须是JSON格式'}), 400
@@ -1398,16 +1406,18 @@ def batch_delete_companies():
         # 获取要删除的企业记录
         companies = Company.query.filter(Company.id.in_(company_ids)).all()
         
-        # 检查操作人是否有权限删除这些企业
+        # 检查操作人是否有权限删除这些企业，未授权的企业自动跳过
         unauthorized_companies = []
+        deletable_companies = []
         for company in companies:
-            if not can_edit_data(company, current_user):
+            if can_edit_data(company, current_user):
+                deletable_companies.append(company)
+            else:
                 unauthorized_companies.append(company.company_name)
-        
-        if unauthorized_companies:
+        if not deletable_companies:
             return jsonify({
-                'success': False, 
-                'message': f'您没有权限删除以下企业: {", ".join(unauthorized_companies)}'
+                'success': False,
+                'message': '您没有权限删除所选企业'
             }), 403
         
         deleted_count = 0
@@ -1415,7 +1425,7 @@ def batch_delete_companies():
         
         # 开始事务
         try:
-            for company in companies:
+            for company in deletable_companies:
                 # 找到与企业相关的所有行动记录
                 related_actions = Action.query.filter_by(company_id=company.id).all()
                 
@@ -1429,10 +1439,13 @@ def batch_delete_companies():
             
             # 提交事务
             db.session.commit()
+            msg = f'成功删除{deleted_count}个企业'
+            if unauthorized_companies:
+                msg += f'，无权删除: {", ".join(unauthorized_companies)}'
             return jsonify({
                 'success': True,
                 'deleted_count': deleted_count,
-                'message': f'成功删除{deleted_count}个企业'
+                'message': msg
             })
             
         except Exception as e:
@@ -1512,12 +1525,15 @@ def view_contact(contact_id):
 
     return render_template('customer/contact_view.html', contact=contact, company=company, actions=actions)
 
-@customer.route('/contacts/<int:contact_id>/add_action', methods=['GET'])
+@customer.route('/<int:company_id>/add_action', methods=['GET', 'POST'])
 @permission_required('customer', 'create')
-def add_action(contact_id):
-    contact = Contact.query.get_or_404(contact_id)
-    company = contact.company
-    # 可选：获取与公司相关的项目列表
+def add_action_for_company(company_id):
+    company = Company.query.get_or_404(company_id)
+    allowed_user_ids = current_user.get_viewable_user_ids()
+    if current_user.role != 'admin' and company.owner_id not in allowed_user_ids:
+        flash('您没有权限为该企业添加行动记录', 'danger')
+        return redirect(url_for('customer.view_company', company_id=company_id))
+    contacts = Contact.query.filter_by(company_id=company_id).all()
     projects = Project.query.filter(
         or_(
             Project.end_user == company.company_name,
@@ -1527,7 +1543,29 @@ def add_action(contact_id):
             Project.dealer == company.company_name
         )
     ).all()
-    # 新增：获取该联系人的历史行动记录，按时间倒序
-    actions = Action.query.filter_by(contact_id=contact.id).order_by(Action.created_at.desc()).all()
-    action_count = len(actions)
-    return render_template('customer/add_action.html', contact=contact, company=company, projects=projects, actions=actions, action_count=action_count) 
+    selected_contact = None
+    contact_actions = []
+    contact_id = request.args.get('contact_id') if request.method == 'GET' else request.form.get('contact_id')
+    if request.method == 'POST':
+        project_id = request.form.get('project_id') or None
+        communication = request.form.get('communication')
+        date = request.form.get('date')
+        if not contact_id or not communication or not date:
+            flash('请填写所有必填项', 'danger')
+        else:
+            action = Action(
+                date=datetime.strptime(date, '%Y-%m-%d'),
+                contact_id=contact_id,
+                company_id=company_id,
+                project_id=project_id,
+                communication=communication,
+                owner_id=current_user.id
+            )
+            db.session.add(action)
+            db.session.commit()
+            flash('行动记录添加成功！', 'success')
+            return redirect(url_for('customer.view_company', company_id=company_id))
+    if contact_id:
+        selected_contact = Contact.query.get(contact_id)
+        contact_actions = Action.query.filter_by(contact_id=contact_id).order_by(Action.created_at.desc()).all()
+    return render_template('customer/add_action_for_company.html', company=company, contacts=contacts, projects=projects, selected_contact=selected_contact, contact_actions=contact_actions) 

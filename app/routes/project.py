@@ -1,11 +1,12 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, jsonify
-from flask_login import login_required
+from flask_login import login_required, current_user
 from app.models.project import Project
 from app.models.customer import Company
 from app import db
 from datetime import datetime
 import logging
 from app.decorators import permission_required  # 添加导入权限装饰器
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -348,4 +349,73 @@ def delete_project(id):
         db.session.rollback()
         logger.error(f'删除项目失败：{str(e)}')
         flash(f'删除失败：{str(e)}', 'danger')
-    return redirect(url_for('project.list_projects')) 
+    return redirect(url_for('project.list_projects'))
+
+@bp.route('/api/update_stage', methods=['POST'])
+@login_required
+@permission_required('project', 'edit')
+def update_project_stage():
+    """
+    更新项目阶段
+    用于项目阶段可视化进度条组件调用
+    
+    注意：此功能已移至app/views/project.py中实现，
+    此处保留代码作为参考，但已不再使用
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'message': '请求数据不能为空'}), 400
+            
+        project_id = data.get('project_id')
+        new_stage = data.get('current_stage')
+        
+        if not project_id or not new_stage:
+            return jsonify({'success': False, 'message': '项目ID和阶段不能为空'}), 400
+            
+        # 查询项目
+        project = Project.query.get_or_404(project_id)
+        
+        # 检查权限
+        allowed = False
+        if current_user.role == 'admin':
+            allowed = True
+        elif project.owner_id == current_user.id:
+            allowed = True
+        else:
+            allowed_user_ids = current_user.get_viewable_user_ids() if hasattr(current_user, 'get_viewable_user_ids') else [current_user.id]
+            if project.owner_id in allowed_user_ids:
+                allowed = True
+        
+        if not allowed:
+            return jsonify({'success': False, 'message': '您没有权限修改此项目'}), 403
+            
+        # 更新项目阶段
+        old_stage = project.current_stage
+        project.current_stage = new_stage
+        
+        # 在阶段说明中添加阶段变更记录
+        change_record = f"\n[阶段变更] {old_stage} → {new_stage} (更新者: {current_user.username}, 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')})"
+        if project.stage_description:
+            project.stage_description += change_record
+        else:
+            project.stage_description = change_record
+            
+        # 保存更新
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': '项目阶段已更新',
+            'data': {
+                'project_id': project.id,
+                'current_stage': project.current_stage,
+                'old_stage': old_stage
+            }
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"更新项目阶段出错: {str(e)}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'服务器错误: {str(e)}'}), 500 

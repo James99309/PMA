@@ -51,7 +51,12 @@
             <button class="nav-link" id="perm-tab" data-bs-toggle="tab" data-bs-target="#perm" type="button" role="tab" aria-controls="perm" aria-selected="false">权限</button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link" id="aff-tab" data-bs-toggle="tab" data-bs-target="#aff" type="button" role="tab" aria-controls="aff" aria-selected="false">归属关系</button>
+            <button class="nav-link" id="aff-tab" data-bs-toggle="tab" data-bs-target="#aff" type="button" role="tab" aria-controls="aff" aria-selected="false">
+                归属关系
+                {% if affiliations and affiliations.affiliation_count is defined %}
+                  <span class="badge bg-info ms-1">{{ affiliations.affiliation_count }}</span>
+                {% endif %}
+            </button>
         </li>
     </ul>
 </div>
@@ -114,6 +119,37 @@
             <dt class="col-sm-3">部门</dt><dd class="col-sm-9">{{ affiliations.department }}</dd>
             <dt class="col-sm-3">角色</dt><dd class="col-sm-9">{{ role_dict.get(user.role, user.role) }}</dd>
         </dl>
+        {% if affiliations.affiliation_users and affiliations.affiliation_users|length > 0 %}
+        <div class="mt-4">
+            <h6>当前可见用户列表：</h6>
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>用户名</th>
+                            <th>真实姓名</th>
+                            <th>部门</th>
+                            <th>公司</th>
+                            <th>角色</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in affiliations.affiliation_users %}
+                        <tr>
+                            <td>{{ u.username }}</td>
+                            <td>{{ u.real_name }}</td>
+                            <td>{{ u.department }}</td>
+                            <td>{{ u.company_name }}</td>
+                            <td>{{ role_dict.get(u.role, u.role) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="text-muted mt-4">暂无数据归属关系。</div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
@@ -141,6 +177,10 @@
             });
         });
         var activeTab = localStorage.getItem('userDetailActiveTab') || 'base-tab';
+        // 支持通过URL hash直接定位tab
+        if (window.location.hash === '#aff') {
+            activeTab = 'aff-tab';
+        }
         var tab = document.getElementById(activeTab);
         if (tab) {
             new bootstrap.Tab(tab).show();

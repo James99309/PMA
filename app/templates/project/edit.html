@@ -59,7 +59,7 @@
                 <div class="row mb-4">
                     <div class="col-md-6">
                         <label for="report_source" class="form-label mb-2">报备来源</label>
-                        <select class="form-select" id="report_source" name="report_source" required>
+                        <select class="form-select" id="report_source" name="report_source">
                             <option value="">请选择报备来源</option>
                             <option value="销售" {% if project and project.report_source == '销售' %}selected{% endif %}>销售</option>
                             <option value="经销商" {% if project and project.report_source == '经销商' %}selected{% endif %}>经销商</option>
@@ -68,11 +68,11 @@
                     </div>
                     <div class="col-md-6">
                         <label for="project_type" class="form-label mb-2">项目类型</label>
-                        <select class="form-select {% if project %}bg-light{% endif %}" id="project_type" name="project_type" required {% if project %}disabled{% endif %}>
+                        <select class="form-select" id="project_type" name="project_type" {% if project and project.project_type %}disabled{% endif %}>
                             <option value="">-- 请选择项目类型 --</option>
-                            <option value="销售重点" {% if project and (project.project_type == '销售重点' or project.project_type == 'sales_focus') %}selected{% endif %}>销售重点</option>
-                            <option value="渠道跟进" {% if project and (project.project_type == '渠道跟进' or project.project_type == 'channel_follow') %}selected{% endif %}>渠道跟进</option>
-                            <option value="业务机会" {% if project and (project.project_type == '业务机会' or project.project_type == 'business_opportunity') %}selected{% endif %}>业务机会</option>
+                            <option value="销售重点" {% if project and project.project_type == '销售重点' %}selected{% endif %}>销售重点</option>
+                            <option value="渠道跟进" {% if project and project.project_type == '渠道跟进' %}selected{% endif %}>渠道跟进</option>
+                            <option value="业务机会" {% if project and project.project_type == '业务机会' %}selected{% endif %}>业务机会</option>
                         </select>
                         {% if project %}
                         <input type="hidden" name="project_type" value="{{ project.project_type }}">
@@ -83,7 +83,7 @@
                 <div class="row mb-4">
                     <div class="col-md-6">
                         <label for="product_situation" class="form-label mb-2">品牌情况</label>
-                        <select class="form-select" id="product_situation" name="product_situation" required>
+                        <select class="form-select" id="product_situation" name="product_situation">
                             <option value="">请选择品牌情况</option>
                             <option value="入围" {% if project and project.product_situation == '入围' %}selected{% endif %}>入围</option>
                             <option value="围标" {% if project and project.product_situation == '围标' %}selected{% endif %}>围标</option>
@@ -92,15 +92,7 @@
                     </div>
                     <div class="col-md-6">
                         <label for="current_stage" class="form-label mb-2">当前阶段</label>
-                        <select class="form-select" id="current_stage" name="current_stage" required>
-                            <option value="">请选择阶段</option>
-                            <option value="发现" {% if project and project.current_stage == '发现' %}selected{% endif %}>发现</option>
-                            <option value="品牌植入" {% if project and project.current_stage == '品牌植入' %}selected{% endif %}>品牌植入</option>
-                            <option value="招标前" {% if project and project.current_stage == '招标前' %}selected{% endif %}>招标前</option>
-                            <option value="招标中" {% if project and project.current_stage == '招标中' %}selected{% endif %}>招标中</option>
-                            <option value="中标" {% if project and project.current_stage == '中标' %}selected{% endif %}>中标</option>
-                            <option value="失败" {% if project and project.current_stage == '失败' %}selected{% endif %}>失败</option>
-                        </select>
+                        <input type="text" class="form-control" id="current_stage" name="current_stage" value="{{ project.current_stage if project else '' }}" disabled>
                     </div>
                 </div>
 
@@ -151,7 +143,7 @@
                     </div>
                     <div class="col-md-6">
                         <label for="delivery_forecast" class="form-label mb-2">出货预测日期</label>
-                        <input type="date" class="form-control" id="delivery_forecast" name="delivery_forecast" value="{{ project.formatted_delivery_forecast if project else '' }}" required>
+                        <input type="date" class="form-control" id="delivery_forecast" name="delivery_forecast" value="{{ project.formatted_delivery_forecast if project else '' }}">
                     </div>
                 </div>
             </div>

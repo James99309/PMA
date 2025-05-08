@@ -282,9 +282,7 @@ def set_user_affiliations(user_id):
                 code=400,
                 message="无效的请求数据，缺少owner_ids字段"
             )
-        
         owner_ids = data.get('owner_ids', [])
-        
         # 确保owner_ids是列表类型
         if not isinstance(owner_ids, list):
             logger.warning(f"owner_ids不是列表类型: {type(owner_ids)}")
@@ -293,6 +291,13 @@ def set_user_affiliations(user_id):
                 code=400,
                 message="owner_ids必须是数组类型"
             )
+        # 允许owner_ids为空，表示清空归属关系
+        if len(owner_ids) == 0:
+            DataAffiliation.query.filter_by(viewer_id=user_id).delete()
+            Affiliation.query.filter_by(viewer_id=user_id).delete()
+            db.session.commit()
+            logger.info(f"用户 {user_id} 的归属关系已全部清空")
+            return api_response(success=True, message="归属关系已全部清空")
     except Exception as e:
         logger.error(f"解析请求数据失败: {str(e)}")
         return api_response(
@@ -423,16 +428,25 @@ def get_available_users_for_owner(user_id):
     """获取可以添加为特定用户的数据所有者的用户列表，返回所有活跃用户（含自己）"""
     try:
         current_user_id = get_jwt_identity()  # 获取字符串形式的用户ID
+        logger.info(f"当前用户ID: {current_user_id}, 类型: {type(current_user_id)}")
+        
         if not isinstance(current_user_id, str):
             current_user_id = str(current_user_id)
+        
+        # 查询用户时使用整数ID    
         current_user = User.query.get(int(current_user_id))
         if not current_user:
+            logger.error(f"当前用户不存在 ID: {current_user_id}")
             return api_response(
                 success=False,
                 code=404,
                 message="用户不存在"
             )
+        
+        logger.info(f"当前用户: {current_user.username}, 角色: {current_user.role}, 正在查询用户ID: {user_id} 的可用用户")
+        
         if current_user.role != 'admin' and not current_user.has_permission('user', 'view'):
+            logger.warning(f"用户 {current_user.username} 无权限访问此数据")
             return api_response(
                 success=False,
                 code=403,
@@ -452,19 +466,29 @@ def get_available_users_for_owner(user_id):
             code=422,
             message=f"JWT验证失败: {str(e)}"
         )
-    # 获取所有活跃用户（含自己）
-    users = User.query.filter(User.is_active == True).all()
+    
+    # 获取所有用户，不限制is_active状态，确保能看到数据
+    users = User.query.all()
+    
+    # 添加日志
+    logger.info(f"找到 {len(users)} 个用户")
+    
     result = []
     for user in users:
+        # 添加用户状态信息，便于调试
         result.append({
             'id': user.id,
             'username': user.username,
-            'real_name': user.real_name,
+            'real_name': user.real_name or user.username,
             'role': user.role,
             'company_name': user.company_name,
             'department': user.department,
-            'is_department_manager': user.is_department_manager
+            'is_department_manager': user.is_department_manager,
+            'is_active': user.is_active
         })
+    
+    logger.info(f"返回 {len(result)} 个用户记录")
+    
     return api_response(
         success=True,
         message="获取成功",

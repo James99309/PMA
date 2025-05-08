@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, session, current_app
 from flask_login import login_required, current_user
-from app.models.user import User, Permission
+from app.models.user import User, Permission, DataAffiliation, User as UserModel
 from app import db
 import logging
 import json
@@ -11,6 +11,7 @@ from app.models.project import Project
 from app.models.customer import Company
 from app.models.quotation import Quotation
 from app.models.role_permissions import RolePermission
+from app.utils.access_control import get_viewable_data, can_edit_data
 
 logger = logging.getLogger(__name__)
 user_bp = Blueprint('user', __name__)
@@ -36,7 +37,8 @@ def list_users():
     role = request.args.get('role', '')
     status = request.args.get('status', '')
 
-    query = User.query
+    # 统一归属过滤
+    query = get_viewable_data(User, current_user)
     if search:
         query = query.filter(
             (User.username.like(f'%{search}%')) |
@@ -72,13 +74,10 @@ def create_user():
     """创建新用户页面和处理"""
     if request.method == 'GET':
         return render_template('user/edit.html', user=None, is_edit=False)
-
-    # POST请求处理
     if request.method == 'POST':
-        # 获取表单数据
         username = request.form.get('username')
         real_name = request.form.get('real_name')
-        company = request.form.get('company')
+        company_name = request.form.get('company_name')
         email = request.form.get('email')
         phone = request.form.get('phone')
         department = request.form.get('department')
@@ -87,25 +86,28 @@ def create_user():
         confirm_password = request.form.get('confirm_password')
         is_active = 'is_active' in request.form
         is_department_manager = 'is_department_manager' in request.form
-
-        # 验证密码
+        logger.info(f"[用户创建] 操作人: {current_user.username}, 参数: username={username}, email={email}, role={role}")
+        if not email or not email.strip():
+            logger.warning(f"[用户创建] 邮箱为空，操作人: {current_user.username}")
+            flash('邮箱不能为空', 'danger')
+            return render_template('user/edit.html', user=None, is_edit=False)
+        email = email.strip()
         if password != confirm_password:
+            logger.warning(f"[用户创建] 两次密码不一致，操作人: {current_user.username}")
             flash('两次输入的密码不一致', 'danger')
             return render_template('user/edit.html', user=None, is_edit=False)
-
-        # 检查用户名/邮箱唯一性
         if User.query.filter_by(username=username).first():
+            logger.warning(f"[用户创建] 用户名已存在: {username}")
             flash('用户名已存在', 'danger')
             return render_template('user/edit.html', user=None, is_edit=False)
         if email and User.query.filter_by(email=email).first():
+            logger.warning(f"[用户创建] 邮箱已存在: {email}")
             flash('邮箱已存在', 'danger')
             return render_template('user/edit.html', user=None, is_edit=False)
-
-        # 创建用户
         user = User(
             username=username,
             real_name=real_name,
-            company_name=company,
+            company_name=company_name,
             email=email,
             phone=phone,
             department=department,
@@ -116,13 +118,31 @@ def create_user():
         user.set_password(password)
         try:
             db.session.add(user)
-            db.session.commit()
-            # 发送邀请邮件
+            try:
+                db.session.commit()
+            except Exception as e:
+                if 'UniqueViolation' in str(e) and 'users_pkey' in str(e):
+                    db.session.rollback()
+                    with db.engine.connect() as connection:
+                        try:
+                            max_id_result = connection.execute("SELECT MAX(id) FROM users").scalar()
+                            max_id = max_id_result if max_id_result is not None else 0
+                            connection.execute(f"SELECT setval('users_id_seq', {max_id + 1}, true)")
+                            logger.info(f"重置用户ID序列到 {max_id + 1}")
+                            db.session.add(user)
+                            db.session.commit()
+                        except Exception as seq_error:
+                            logger.error(f"重置序列失败: {str(seq_error)}")
+                            db.session.rollback()
+                            raise seq_error
+                else:
+                    logger.error(f"[用户创建] 数据库异常: {str(e)}", exc_info=True)
+                    raise e
             from app.utils.email import send_user_invitation_email
             user_data = {
                 "username": username,
                 "real_name": real_name,
-                "company_name": company,
+                "company_name": company_name,
                 "email": email,
                 "phone": phone,
                 "department": department,
@@ -133,13 +153,15 @@ def create_user():
             }
             email_sent = send_user_invitation_email(user_data)
             if email_sent:
+                logger.info(f"[用户创建] 成功，邀请邮件已发送: {email}")
                 flash('用户创建成功，邀请邮件已发送至用户邮箱', 'success')
             else:
+                logger.warning(f"[用户创建] 成功，但邀请邮件发送失败: {email}")
                 flash('用户创建成功，但邀请邮件发送失败，请手动通知用户', 'warning')
             return redirect(url_for('user.list_users'))
         except Exception as db_error:
             db.session.rollback()
-            logger.error(f"创建用户时出错: {str(db_error)}")
+            logger.error(f"[用户创建] 失败: {str(db_error)}", exc_info=True)
             flash(f'用户创建失败: {str(db_error)}', 'danger')
             return render_template('user/edit.html', user=None, is_edit=False)
 
@@ -149,16 +171,22 @@ def edit_user(user_id):
     """编辑用户页面和处理"""
     # GET请求 - 显示编辑表单
     if request.method == 'GET':
-        user = User.query.get(user_id)
-        if user:
-            user_data = user.to_dict()
-            return render_template('user/edit.html', user=user_data, is_edit=True)
-        else:
-            flash('用户不存在', 'danger')
+        user = get_viewable_data(User, current_user).filter(User.id == user_id).first()
+        if not user:
+            flash('用户不存在或无权限编辑', 'danger')
             return redirect(url_for('user.list_users'))
-
+        user_data = user.to_dict()
+        return render_template('user/edit.html', user=user_data, is_edit=True)
     # POST请求 - 处理编辑表单提交
     if request.method == 'POST':
+        user = get_viewable_data(User, current_user).filter(User.id == user_id).first()
+        if not user:
+            flash('用户不存在或无权限编辑', 'danger')
+            return redirect(url_for('user.list_users'))
+        from app.utils.access_control import can_edit_data
+        if not can_edit_data(user, current_user):
+            flash('无权限编辑该用户', 'danger')
+            return redirect(url_for('user.list_users'))
         real_name = request.form.get('real_name')
         company = request.form.get('company')
         email = request.form.get('email')
@@ -168,12 +196,13 @@ def edit_user(user_id):
         password = request.form.get('password')
         is_active = 'is_active' in request.form
         is_department_manager = 'is_department_manager' in request.form
-
-        user = User.query.get(user_id)
-        if not user:
-            flash('用户不存在', 'danger')
-            return redirect(url_for('user.list_users'))
-
+        logger.info(f"[用户编辑] 操作人: {current_user.username}, 目标用户: {user.username}, 参数: email={email}, role={role}")
+        # 邮箱非空校验
+        if not email or not email.strip():
+            flash('邮箱不能为空', 'danger')
+            user_data = user.to_dict()
+            return render_template('user/edit.html', user=user_data, is_edit=True)
+        email = email.strip()
         user.real_name = real_name
         user.company_name = company
         user.email = email
@@ -182,16 +211,16 @@ def edit_user(user_id):
         user.role = role
         user.is_active = is_active
         user.is_department_manager = is_department_manager
-
         if password and password.strip():
             user.set_password(password)
         try:
             db.session.commit()
+            logger.info(f"[用户编辑] 成功，目标用户: {user.username}")
             flash('用户信息更新成功', 'success')
             return redirect(url_for('user.list_users'))
         except Exception as db_error:
             db.session.rollback()
-            logger.error(f"更新用户信息时出错: {str(db_error)}")
+            logger.error(f"[用户编辑] 失败: {str(db_error)}", exc_info=True)
             flash(f'更新失败: {str(db_error)}', 'danger')
             user_data = user.to_dict()
             return render_template('user/edit.html', user=user_data, is_edit=True)
@@ -200,19 +229,66 @@ def edit_user(user_id):
 @login_required
 def delete_user(user_id):
     """删除用户"""
+    # 归属过滤，确保只能删除有权限的用户
+    user = get_viewable_data(User, current_user).filter(User.id == user_id).first()
+    if not user:
+        flash('用户不存在或无权限删除', 'danger')
+        return redirect(url_for('user.list_users'))
+    
+    # 禁止删除当前登录用户
+    if current_user.id == user_id:
+        flash('不能删除当前登录用户', 'danger')
+        return redirect(url_for('user.list_users'))
+    
+    logger.info(f"[用户删除] 操作人: {current_user.username}, 目标用户ID: {user_id}")
     try:
-        user = User.query.get(user_id)
-        if user:
-            db.session.delete(user)
-            db.session.commit()
-            flash('用户删除成功', 'success')
-        else:
-            flash('用户不存在', 'danger')
+        # 删除前检查引用关系
+        has_references = False
+        reference_tables = []
+        
+        # 检查企业表
+        from app.models.customer import Company
+        if Company.query.filter_by(owner_id=user_id).count() > 0:
+            has_references = True
+            reference_tables.append('企业')
+        
+        # 检查联系人表
+        from app.models.customer import Contact
+        if Contact.query.filter_by(owner_id=user_id).count() > 0:
+            has_references = True
+            reference_tables.append('联系人')
+        
+        # 检查项目表
+        from app.models.project import Project
+        if Project.query.filter_by(owner_id=user_id).count() > 0:
+            has_references = True
+            reference_tables.append('项目')
+        
+        # 检查沟通记录表
+        from app.models.action import Action
+        if Action.query.filter_by(owner_id=user_id).count() > 0:
+            has_references = True
+            reference_tables.append('沟通记录')
+        
+        # 检查数据归属表
+        from app.models.user import Affiliation, DataAffiliation
+        if Affiliation.query.filter_by(owner_id=user_id).count() > 0 or DataAffiliation.query.filter_by(owner_id=user_id).count() > 0:
+            has_references = True 
+            reference_tables.append('数据归属关系')
+        
+        # 如果有引用关系，建议设置为非活动状态而不是删除
+        if has_references:
+            flash(f'用户拥有{", ".join(reference_tables)}数据，建议设置为非活动状态而不是删除。如需强制删除，请先将这些数据转移给其他用户。', 'warning')
+            return redirect(url_for('user.edit_user', user_id=user_id))
+        
+        db.session.delete(user)
+        db.session.commit()
+        logger.info(f"[用户删除] 成功，目标用户ID: {user_id}")
+        flash('用户删除成功', 'success')
     except Exception as e:
         db.session.rollback()
-        logger.error(f"删除用户时出错: {str(e)}")
+        logger.error(f"[用户删除] 失败: {str(e)}", exc_info=True)
         flash('删除用户时发生错误，请稍后重试', 'danger')
-    
     return redirect(url_for('user.list_users'))
 
 @user_bp.route('/permissions/<int:user_id>', methods=['GET', 'POST'])
@@ -220,9 +296,10 @@ def delete_user(user_id):
 def manage_permissions(user_id):
     """管理用户权限（优先查个人权限，无则查角色模板）"""
     if request.method == 'GET':
-        user = User.query.get(user_id)
+        # 归属过滤
+        user = get_viewable_data(User, current_user).filter(User.id == user_id).first()
         if not user:
-            flash('用户不存在', 'danger')
+            flash('用户不存在或无权限查看', 'danger')
             return redirect(url_for('user.list_users'))
         user_data = user.to_dict()
         modules = get_default_modules()
@@ -319,10 +396,11 @@ def manage_user_affiliations(user_id):
     if current_user.role != 'admin' and current_user.id != user_id:
         flash('您没有权限执行此操作', 'danger')
         return redirect(url_for('user.list_users'))
-    
-    # 获取目标用户
-    target_user = User.query.get_or_404(user_id)
-    
+    # 归属过滤
+    target_user = get_viewable_data(User, current_user).filter(User.id == user_id).first()
+    if not target_user:
+        flash('用户不存在或无权限查看', 'danger')
+        return redirect(url_for('user.list_users'))
     return render_template(
         'user/affiliations.html',
         target_user=target_user
@@ -333,39 +411,20 @@ def manage_user_affiliations(user_id):
 def check_duplicates():
     """检查用户重复API"""
     try:
-        # 从请求中获取要检查的字段和值
         data = request.get_json()
         field = data.get('field')
         value = data.get('value')
-        user_id = data.get('user_id')  # 编辑时的用户ID
-        
+        user_id = data.get('user_id')
         if not field or not value:
-            return jsonify({
-                'success': False,
-                'message': '缺少必要参数'
-            }), 400
-            
-        # 构建查询
+            return jsonify({'success': False, 'message': '缺少必要参数', 'data': None}), 400
         query = User.query.filter(getattr(User, field) == value)
-        
-        # 如果是编辑模式，排除当前用户ID
         if user_id:
             query = query.filter(User.id != user_id)
-            
-        # 检查是否存在
         exists = query.first() is not None
-        
-        return jsonify({
-            'success': True,
-            'exists': exists
-        })
-        
+        return jsonify({'success': True, 'message': '检查完成', 'data': {'exists': exists}})
     except Exception as e:
         logger.error(f"检查用户重复时出错: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': f"检查失败: {str(e)}"
-        }), 500
+        return jsonify({'success': False, 'message': f"检查失败: {str(e)}", 'data': None}), 500
 
 @user_bp.route('/api/import', methods=['POST'])
 @login_required
@@ -637,7 +696,10 @@ def get_default_modules():
 @login_required
 def user_detail(user_id):
     """用户详情页，展示基本信息、权限、归属关系，分选项卡"""
-    user = User.query.get_or_404(user_id)
+    user = get_viewable_data(User, current_user).filter(User.id == user_id).first()
+    if not user:
+        flash('用户不存在或无权限查看', 'danger')
+        return redirect(url_for('user.list_users'))
     # 查询权限，优先查个人权限，无则查角色模板
     personal_perms = list(user.permissions) if hasattr(user, 'permissions') else []
     permissions = []
@@ -662,10 +724,25 @@ def user_detail(user_id):
                 'can_delete': perm.can_delete
             })
     # 查询归属关系（如部门、角色等）
+    affiliation_users = []
+    aff_qs = DataAffiliation.query.filter_by(viewer_id=user.id).all()
+    for aff in aff_qs:
+        owner = UserModel.query.get(aff.owner_id)
+        if owner:
+            affiliation_users.append({
+                'user_id': owner.id,
+                'username': owner.username,
+                'real_name': owner.real_name,
+                'role': owner.role,
+                'company_name': owner.company_name,
+                'department': owner.department,
+                'is_department_manager': owner.is_department_manager
+            })
     affiliations = {
         'department': user.department if hasattr(user, 'department') else '',
         'role': user.role if hasattr(user, 'role') else '',
-        # 可扩展更多归属关系
+        'affiliation_users': affiliation_users,
+        'affiliation_count': len(affiliation_users)
     }
     role_display_name = get_role_display_name(user.role)
     # 用户详情页
@@ -689,13 +766,17 @@ def batch_delete_users():
         data = request.get_json()
         user_ids = data.get('user_ids', [])
         if not user_ids or not isinstance(user_ids, list):
-            return jsonify({'success': False, 'message': '未指定要删除的用户'}), 400
+            return jsonify({'success': False, 'message': '未指定要删除的用户', 'data': None}), 400
         deleted, deactivated = [], []
+        allowed_users = get_viewable_data(User, current_user).filter(User.id.in_(user_ids)).all()
+        allowed_user_ids = {u.id for u in allowed_users}
+        logger.info(f"[批量用户删除] 操作人: {current_user.username}, 目标用户ID列表: {user_ids}")
         for uid in user_ids:
-            user = User.query.get(uid)
+            if uid not in allowed_user_ids:
+                continue
+            user = next((u for u in allowed_users if u.id == uid), None)
             if not user:
                 continue
-            # 检查是否有关联数据
             has_data = False
             if Project.query.filter_by(owner_id=user.id).first():
                 has_data = True
@@ -703,7 +784,6 @@ def batch_delete_users():
                 has_data = True
             if Quotation.query.filter_by(owner_id=user.id).first():
                 has_data = True
-            # 可扩展更多业务表...
             if not has_data:
                 db.session.delete(user)
                 deleted.append(user.username)
@@ -711,10 +791,12 @@ def batch_delete_users():
                 user.is_active = False
                 deactivated.append(user.username)
         db.session.commit()
-        return jsonify({'success': True, 'deleted': deleted, 'deactivated': deactivated})
+        logger.info(f"[批量用户删除] 成功，已删除: {deleted}, 已禁用: {deactivated}")
+        return jsonify({'success': True, 'message': '批量删除完成', 'data': {'deleted': deleted, 'deactivated': deactivated}})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)}), 500 
+        logger.error(f"[批量用户删除] 失败: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e), 'data': None}), 500
 
 def to_dict(self):
     """将用户信息转为字典，用于API响应"""
@@ -733,4 +815,102 @@ def to_dict(self):
         'created_at': self.created_at,
         'updated_at': self.updated_at if hasattr(self, 'updated_at') else None,
         'last_login': self.last_login
-    } 
+    }
+
+@user_bp.route('/api/v1/users', methods=['POST'])
+@login_required
+def api_create_user():
+    """API方式创建新用户，返回标准JSON结构"""
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        real_name = data.get('real_name')
+        company_name = data.get('company_name')
+        email = data.get('email')
+        phone = data.get('phone')
+        department = data.get('department')
+        role = data.get('role')
+        password = data.get('password')
+        confirm_password = data.get('confirm_password')
+        is_active = data.get('is_active', True)
+        is_department_manager = data.get('is_department_manager', False)
+        logger.info(f"[API用户创建] 操作人: {current_user.username}, 参数: username={username}, email={email}, role={role}")
+        if not email or not email.strip():
+            logger.warning(f"[API用户创建] 邮箱为空，操作人: {current_user.username}")
+            return jsonify({'success': False, 'message': '邮箱不能为空', 'data': None}), 400
+        email = email.strip()
+        if password != confirm_password:
+            logger.warning(f"[API用户创建] 两次密码不一致，操作人: {current_user.username}")
+            return jsonify({'success': False, 'message': '两次输入的密码不一致', 'data': None}), 400
+        if User.query.filter_by(username=username).first():
+            logger.warning(f"[API用户创建] 用户名已存在: {username}")
+            return jsonify({'success': False, 'message': '用户名已存在', 'data': None}), 400
+        if email and User.query.filter_by(email=email).first():
+            logger.warning(f"[API用户创建] 邮箱已存在: {email}")
+            return jsonify({'success': False, 'message': '邮箱已存在', 'data': None}), 400
+        user = User(
+            username=username,
+            real_name=real_name,
+            company_name=company_name,
+            email=email,
+            phone=phone,
+            department=department,
+            is_department_manager=is_department_manager,
+            role=role,
+            is_active=is_active
+        )
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+        logger.info(f"[API用户创建] 成功，用户名: {username}")
+        return jsonify({'success': True, 'message': '用户创建成功', 'data': user.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"[API用户创建] 失败: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': f'用户创建失败: {str(e)}', 'data': None}), 500
+
+@user_bp.route('/api/v1/users/<int:user_id>', methods=['PUT'])
+@login_required
+def api_edit_user(user_id):
+    """API方式编辑用户，返回标准JSON结构"""
+    user = get_viewable_data(User, current_user).filter(User.id == user_id).first()
+    if not user:
+        logger.warning(f"[API用户编辑] 无权限或用户不存在，操作人: {current_user.username}, 目标用户ID: {user_id}")
+        return jsonify({'success': False, 'message': '用户不存在或无权限编辑', 'data': None}), 403
+    from app.utils.access_control import can_edit_data
+    if not can_edit_data(user, current_user):
+        logger.warning(f"[API用户编辑] 无权限编辑，操作人: {current_user.username}, 目标用户: {user.username}")
+        return jsonify({'success': False, 'message': '无权限编辑该用户', 'data': None}), 403
+    try:
+        data = request.get_json()
+        real_name = data.get('real_name')
+        company_name = data.get('company_name')
+        email = data.get('email')
+        phone = data.get('phone')
+        department = data.get('department')
+        role = data.get('role')
+        password = data.get('password')
+        is_active = data.get('is_active', True)
+        is_department_manager = data.get('is_department_manager', False)
+        logger.info(f"[API用户编辑] 操作人: {current_user.username}, 目标用户: {user.username}, 参数: email={email}, role={role}")
+        if not email or not email.strip():
+            logger.warning(f"[API用户编辑] 邮箱为空，操作人: {current_user.username}")
+            return jsonify({'success': False, 'message': '邮箱不能为空', 'data': None}), 400
+        email = email.strip()
+        user.real_name = real_name
+        user.company_name = company_name
+        user.email = email
+        user.phone = phone
+        user.department = department
+        user.role = role
+        user.is_active = is_active
+        user.is_department_manager = is_department_manager
+        if password and password.strip():
+            user.set_password(password)
+        db.session.commit()
+        logger.info(f"[API用户编辑] 成功，目标用户: {user.username}")
+        return jsonify({'success': True, 'message': '用户信息更新成功', 'data': user.to_dict()})
+    except Exception as db_error:
+        db.session.rollback()
+        logger.error(f"[API用户编辑] 失败: {str(db_error)}", exc_info=True)
+        return jsonify({'success': False, 'message': f'更新失败: {str(db_error)}', 'data': None}), 500 

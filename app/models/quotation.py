@@ -1,4 +1,5 @@
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from app import db
 from sqlalchemy import event, Date
 from sqlalchemy.exc import SQLAlchemyError
@@ -16,8 +17,8 @@ class Quotation(db.Model):
     amount = db.Column(db.Float)
     project_stage = db.Column(db.String(20))  # 项目阶段：发现、品牌植入、招标前、招标中、中标、失败
     project_type = db.Column(db.String(20))   # 项目类型：销售重点、渠道跟进
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo('Asia/Shanghai')))
+    updated_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo('Asia/Shanghai')), onupdate=lambda: datetime.now(ZoneInfo('Asia/Shanghai')))
     
     # 所有者字段（关联到用户表）
     owner_id = db.Column(db.Integer, db.ForeignKey('users.id'))

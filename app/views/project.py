@@ -37,11 +37,16 @@ def get_company_list_by_type(company_type):
 @permission_required('project', 'view')
 def list_projects():
     search = request.args.get('search', '')
-    sort = request.args.get('sort', 'id')
+    sort = request.args.get('sort', 'updated_at')
     order = request.args.get('order', 'desc')
+    my_projects = request.args.get('my_projects', '0')
     
     # 使用数据访问控制
     query = get_viewable_data(Project, current_user)
+    
+    # 如果启用了"只看自己"筛选
+    if my_projects == '1':
+        query = query.filter(Project.owner_id == current_user.id)
     
     # 添加搜索条件
     if search:
@@ -160,6 +165,19 @@ def view_project(project_id):
 def add_project():
     if request.method == 'POST':
         try:
+            # 验证必填字段
+            if not request.form.get('project_name'):
+                flash('项目名称不能为空', 'danger')
+                return render_template('project/add.html', **get_company_data())
+                
+            if not request.form.get('report_time'):
+                flash('报备日期不能为空', 'danger')
+                return render_template('project/add.html', **get_company_data())
+                
+            if not request.form.get('current_stage'):
+                flash('当前阶段不能为空', 'danger')
+                return render_template('project/add.html', **get_company_data())
+            
             # 解析日期
             report_time = None
             if request.form.get('report_time'):
@@ -171,28 +189,26 @@ def add_project():
             
             # 获取项目类型
             project_type = request.form.get('project_type', 'normal')
+            logger.info(f"原始项目类型: {project_type}")
             
             # 项目类型中英文转换
             type_mapping = {
                 '渠道跟进': 'channel_follow',
                 '销售重点': 'sales_focus',
+                '业务机会': 'business_opportunity',
                 'normal': 'normal'
             }
             
             # 如果是中文类型，转换为英文代码
             if project_type in type_mapping:
                 project_type = type_mapping[project_type]
+                logger.info(f"转换后的项目类型: {project_type}")
             
-            # 生成授权编号
+            # 不再自动生成授权编号，授权编号必须通过申请流程获得
             authorization_code = None
-            if project_type in ['channel_follow', 'sales_focus']:
-                # 映射项目类型到旧的格式以兼容现有函数
-                old_type_mapping = {
-                    'channel_follow': '渠道跟进',
-                    'sales_focus': '销售重点'
-                }
-                old_type = old_type_mapping.get(project_type, '')
-                authorization_code = Project.generate_authorization_code(old_type)
+            
+            # 报价字段设置为无效，不处理
+            quotation_customer = None
             
             project = Project(
                 project_name=request.form['project_name'],
@@ -209,6 +225,7 @@ def add_project():
                 stage_description=request.form.get('stage_description'),
                 authorization_code=authorization_code,
                 project_type=project_type,
+                quotation_customer=quotation_customer,
                 owner_id=current_user.id  # 设置当前用户为所有者
             )
             
@@ -219,12 +236,21 @@ def add_project():
             return redirect(url_for('project.view_project', project_id=project.id))
         except Exception as e:
             db.session.rollback()
+            logger.error(f"保存项目失败: {str(e)}", exc_info=True)
             flash(f'保存失败：{str(e)}', 'danger')
     
-    # 获取公司列表
-    companies = get_viewable_data(Company, current_user).all()
-    
-    return render_template('project/add.html', companies=companies)
+    return render_template('project/add.html', **get_company_data())
+
+# 辅助函数，获取公司数据
+def get_company_data():
+    company_query = get_viewable_data(Company, current_user)
+    return {
+        'end_users': company_query.filter_by(company_type='用户').all(),
+        'designers': company_query.filter_by(company_type='设计院及顾问').all(),
+        'contractors': company_query.filter_by(company_type='总承包单位').all(),
+        'integrators': company_query.filter_by(company_type='系统集成商').all(),
+        'dealers': company_query.filter_by(company_type='经销商').all()
+    }
 
 @project.route('/edit/<int:project_id>', methods=['GET', 'POST'])
 @permission_required('project', 'edit')
@@ -279,17 +305,8 @@ def edit_project(project_id):
             if new_project_type != project.project_type:
                 project.project_type = new_project_type
                 
-                # 如果项目类型变更，可能需要更新授权编号
-                if new_project_type in ['channel_follow', 'sales_focus']:
-                    # 映射项目类型到旧的格式以兼容现有函数
-                    old_type_mapping = {
-                        'channel_follow': '渠道跟进',
-                        'sales_focus': '销售重点'
-                    }
-                    old_type = old_type_mapping.get(new_project_type, '')
-                    project.authorization_code = Project.generate_authorization_code(old_type)
-                else:
-                    project.authorization_code = None
+                # 不再自动更新授权编号，即使项目类型变更
+                # 授权编号必须通过申请流程获得
             
             db.session.commit()
             flash('项目更新成功！', 'success')
@@ -387,6 +404,11 @@ def apply_authorization(project_id):
         flash('此项目已经提交申请，正在审批中', 'warning')
         return redirect(url_for('project.view_project', project_id=project_id))
     
+    # 检查项目类型是否填写
+    if not project.project_type or project.project_type.strip() == '':
+        flash('项目类型未填写，无法提交授权编号申请。请先完善项目信息。', 'danger')
+        return redirect(url_for('project.view_project', project_id=project_id))
+    
     # 更新项目状态为申请中
     apply_note = request.form.get('apply_note', '')
     project.authorization_status = 'pending'
@@ -409,7 +431,7 @@ def check_similar_projects():
     """检查是否有类似的项目名称"""
     data = request.get_json()
     project_name = data.get('project_name', '')
-    current_id = data.get('current_id', None)
+    exclude_id = data.get('exclude_id', None)
     
     if not project_name:
         return jsonify({'similar_projects': []})
@@ -417,8 +439,12 @@ def check_similar_projects():
     # 使用SQLAlchemy查询而非MongoDB
     query = Project.query.filter(Project.authorization_status != 'rejected')
     
-    if current_id:
-        query = query.filter(Project.id != current_id)
+    if exclude_id:
+        try:
+            exclude_id = int(exclude_id)
+            query = query.filter(Project.id != exclude_id)
+        except Exception:
+            pass
     
     projects = query.all()
     similar_projects = []
@@ -493,8 +519,17 @@ def approve_authorization(project_id):
         # 获取审批备注
         approval_note = request.form.get('approval_note', '')
         
-        # 生成授权编号 - 使用标准化的授权编号生成方法
-        authorization_code = Project.generate_authorization_code(project.project_type)
+        # 生成授权编号 - 先将英文类型映射为中文
+        type_mapping = {
+            'channel_follow': '渠道跟进',
+            'sales_focus': '销售重点',
+            'business_opportunity': '业务机会',
+            '渠道跟进': '渠道跟进',
+            '销售重点': '销售重点',
+            '业务机会': '业务机会'
+        }
+        project_type_for_code = type_mapping.get(project.project_type, project.project_type)
+        authorization_code = Project.generate_authorization_code(project_type_for_code)
         
         if not authorization_code:
             flash('无法为此类型的项目生成授权编号', 'danger')
@@ -694,4 +729,70 @@ def batch_delete_projects():
         return jsonify({
             'success': False,
             'message': f'操作失败: {str(e)}'
-        }) 
+        })
+
+@project.route('/api/update_stage', methods=['POST'])
+@login_required
+@permission_required('project', 'edit')
+def update_project_stage():
+    """
+    更新项目阶段
+    用于项目阶段可视化进度条组件调用
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'message': '请求数据不能为空'}), 400
+            
+        project_id = data.get('project_id')
+        new_stage = data.get('current_stage')
+        
+        if not project_id or not new_stage:
+            return jsonify({'success': False, 'message': '项目ID和阶段不能为空'}), 400
+            
+        # 查询项目
+        project = Project.query.get_or_404(project_id)
+        
+        # 检查权限
+        allowed = False
+        if current_user.role == 'admin':
+            allowed = True
+        elif project.owner_id == current_user.id:
+            allowed = True
+        else:
+            allowed_user_ids = current_user.get_viewable_user_ids() if hasattr(current_user, 'get_viewable_user_ids') else [current_user.id]
+            if project.owner_id in allowed_user_ids:
+                allowed = True
+        
+        if not allowed:
+            return jsonify({'success': False, 'message': '您没有权限修改此项目'}), 403
+            
+        # 更新项目阶段
+        old_stage = project.current_stage
+        project.current_stage = new_stage
+        
+        # 在阶段说明中添加阶段变更记录
+        change_record = f"\n[阶段变更] {old_stage} → {new_stage} (更新者: {current_user.username}, 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')})"
+        if project.stage_description:
+            project.stage_description += change_record
+        else:
+            project.stage_description = change_record
+            
+        # 保存更新
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': '项目阶段已更新',
+            'data': {
+                'project_id': project.id,
+                'current_stage': project.current_stage,
+                'old_stage': old_stage
+            }
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"更新项目阶段出错: {str(e)}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'服务器错误: {str(e)}'}), 500 
