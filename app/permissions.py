@@ -68,16 +68,7 @@ ROLE_PERMISSIONS = {
         Permissions.PRODUCT_VIEW
     ],
     
-    # 添加财务总监角色的权限
-    'finace_director': [
-        # 财务总监权限
-        Permissions.PROJECT_VIEW,
-        Permissions.CUSTOMER_VIEW,
-        Permissions.QUOTATION_VIEW, Permissions.QUOTATION_CREATE, Permissions.QUOTATION_EDIT,
-        Permissions.PRODUCT_CODE_VIEW,
-        Permissions.PRODUCT_VIEW
-    ],
-    
+    # 已废弃：finace_director角色权限请仅在数据库role_permissions表中维护
     'sales': [
         # 销售人员权限
         Permissions.PROJECT_VIEW, Permissions.PROJECT_CREATE, Permissions.PROJECT_EDIT,
