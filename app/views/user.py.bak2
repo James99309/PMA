@@ -604,7 +604,7 @@ def manage_role_permissions():
             return jsonify({'success': False, 'message': f"保存权限模板时出错: {str(e)}"}), 500
     # GET请求
     try:
-        # 已移除 ROLE_PERMISSIONS 导入，因为它不存在
+        from app.permissions import ROLE_PERMISSIONS
         # 只取已启用的角色字典项，全部显示
         dict_roles = Dictionary.query.filter_by(type='role', is_active=True).order_by(Dictionary.sort_order).all()
         roles = []
