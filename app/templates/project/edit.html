@@ -70,9 +70,9 @@
                         <label for="project_type" class="form-label mb-2">项目类型</label>
                         <select class="form-select" id="project_type" name="project_type" {% if project and project.project_type %}disabled{% endif %}>
                             <option value="">-- 请选择项目类型 --</option>
-                            <option value="销售重点" {% if project and project.project_type == '销售重点' %}selected{% endif %}>销售重点</option>
-                            <option value="渠道跟进" {% if project and project.project_type == '渠道跟进' %}selected{% endif %}>渠道跟进</option>
-                            <option value="业务机会" {% if project and project.project_type == '业务机会' %}selected{% endif %}>业务机会</option>
+                            <option value="sales_focus" {% if project and project.project_type in ['sales_focus', '销售重点'] %}selected{% endif %}>销售重点</option>
+                            <option value="channel_follow" {% if project and project.project_type in ['channel_follow', '渠道跟进'] %}selected{% endif %}>渠道跟进</option>
+                            <option value="business_opportunity" {% if project and project.project_type in ['business_opportunity', '业务机会'] %}selected{% endif %}>业务机会</option>
                         </select>
                         {% if project %}
                         <input type="hidden" name="project_type" value="{{ project.project_type }}">

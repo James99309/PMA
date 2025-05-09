@@ -783,25 +783,34 @@ document.addEventListener('DOMContentLoaded', function() {
     const ignoreAllConflictsBtn = document.getElementById('ignoreAllConflicts');
     
     let parsedData = [];
+    let unmatchedCustomers = [];
+    let userNameToId = {};
     let conflicts = [];
     let conflictActions = {};
     
-    // 加载用户列表
-    function loadUsers() {
-        fetch('/api/users', {
+    // 加载用户列表（分组+真实姓名）
+    function loadUsers(selectElement) {
+        fetch('/api/users/hierarchical', {
             headers: {
                 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
             }
         })
             .then(response => response.json())
             .then(data => {
-                ownerSelect.innerHTML = '<option value="">请选择...</option>';
-                data.forEach(user => {
+            selectElement.innerHTML = '<option value="">请选择...</option>';
+            if (data.success) {
+                data.data.forEach(company => {
+                    const companyOptgroup = document.createElement('optgroup');
+                    companyOptgroup.label = company.name + ' (企业)';
+                    company.users.forEach(user => {
                     const option = document.createElement('option');
                     option.value = user.id;
-                    option.textContent = user.username;
-                    ownerSelect.appendChild(option);
+                        option.textContent = user.name;
+                        companyOptgroup.appendChild(option);
                 });
+                    selectElement.appendChild(companyOptgroup);
+                });
+            }
             })
             .catch(error => console.error('加载用户失败:', error));
     }
@@ -819,11 +828,13 @@ document.addEventListener('DOMContentLoaded', function() {
             resultDiv.style.display = 'none';
             importBtn.style.display = 'none';
             parsedData = [];
+            unmatchedCustomers = [];
+            userNameToId = {};
             conflicts = [];
             conflictActions = {};
             
-            // 加载用户列表
-            loadUsers();
+            // 加载用户列表（分组+真实姓名）
+            loadUsers(ownerSelect);
             
             // 显示模态框
             importModal.show();
@@ -835,12 +846,12 @@ document.addEventListener('DOMContentLoaded', function() {
         parseExcelBtn.addEventListener('click', function() {
             const fileInput = document.getElementById('excelFile');
             const ownerIdSelect = document.getElementById('ownerSelect');
-            
-            if (!ownerIdSelect.value) {
-                alert('请选择归属账户');
-                return;
-            }
-            
+            unmatchedCustomers = [];
+            // 移除此处的"请选择归属账户"强制校验
+            // if (!ownerIdSelect.value) {
+            //     alert('请选择归属账户');
+            //     return;
+            // }
             if (!fileInput.files.length) {
                 alert('请选择Excel文件');
                 return;
@@ -872,7 +883,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     
                     // 处理数据
-                    parsedData = jsonData.map(row => {
+                    parsedData = [];
+                    unmatchedCustomers = [];
+                    jsonData.forEach(row => {
                         console.log("解析行数据:", row);
                         let createdAt = null;
                         
@@ -937,17 +950,28 @@ document.addEventListener('DOMContentLoaded', function() {
                             createdAt = new Date();
                         }
                         
-                        return {
+                        let ownerId = ownerIdSelect.value;
+                        let salesName = row['销售负责人'] ? String(row['销售负责人']).trim() : '';
+                        if (!ownerId) {
+                            if (salesName && userNameToId[salesName]) {
+                                ownerId = userNameToId[salesName];
+                            } else {
+                                unmatchedCustomers.push({company_name: row['公司名称'] || '', sales_name: salesName});
+                                return;
+                            }
+                        }
+                        
+                        parsedData.push({
                             company_name: row['公司名称'] || '',
                             country: row['国家和地区'] ? (row['国家和地区'].toString().toLowerCase() === 'none' ? '' : row['国家和地区']) : '',
                             city: row['城市'] ? (row['城市'].toString().toLowerCase() === 'none' ? '' : row['城市']) : '',
                             address: row['单位地址'] ? (row['单位地址'].toString().toLowerCase() === 'none' ? '' : row['单位地址']) : '',
                             company_type: row['种类'] ? (row['种类'].toString().toLowerCase() === 'none' ? '' : row['种类']) : '',
-                            created_at: createdAt.toISOString(), // 明确转换为ISO字符串
+                            created_at: createdAt.toISOString(),
                             status: row['状态'] ? (row['状态'].toString().toLowerCase() === 'none' ? '活跃' : row['状态']) : '活跃',
                             notes: row['备注'] ? (row['备注'].toString().toLowerCase() === 'none' ? '' : row['备注']) : '',
-                            owner_id: parseInt(ownerIdSelect.value)
-                        };
+                            owner_id: parseInt(ownerId)
+                        });
                     });
                     
                     // 显示预览
@@ -985,6 +1009,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     // 检查可能的重复企业
                     checkDuplicates();
+                    
+                    // 预览区下方显示未匹配客户
+                    const unmatchedDiv = document.getElementById('unmatchedCustomersDiv') || (function(){
+                        const div = document.createElement('div');
+                        div.id = 'unmatchedCustomersDiv';
+                        previewDiv.parentNode.insertBefore(div, previewDiv.nextSibling);
+                        return div;
+                    })();
+                    if (unmatchedCustomers.length > 0) {
+                        let html = '<div class="alert alert-warning mt-2"><b>以下客户未匹配到销售负责人，无法导入：</b><table class="table table-sm mt-2"><thead><tr><th>公司名称</th><th>销售负责人</th></tr></thead><tbody>';
+                        unmatchedCustomers.forEach(item => {
+                            html += `<tr><td>${item.company_name}</td><td>${item.sales_name}</td></tr>`;
+                        });
+                        html += '</tbody></table></div>';
+                        unmatchedDiv.innerHTML = html;
+                        unmatchedDiv.style.display = 'block';
+                    } else {
+                        unmatchedDiv.innerHTML = '';
+                        unmatchedDiv.style.display = 'none';
+                    }
                     
                 } catch (error) {
                     console.error('解析Excel文件失败:', error);
@@ -1838,7 +1882,7 @@ if (importContactsBtn) {
         contactConflictActions = {};
         companyNotFound = [];
         
-        // 加载用户列表
+        // 加载用户列表（分组+真实姓名）
         loadUsers(contactOwnerSelect);
         
         // 显示模态框
@@ -1848,7 +1892,7 @@ if (importContactsBtn) {
 
 // 通用加载用户列表函数
 function loadUsers(selectElement) {
-    fetch('/api/users', {
+    fetch('/api/users/hierarchical', {
         headers: {
             'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
         }
@@ -1856,12 +1900,19 @@ function loadUsers(selectElement) {
         .then(response => response.json())
         .then(data => {
             selectElement.innerHTML = '<option value="">请选择...</option>';
-            data.forEach(user => {
+        if (data.success) {
+            data.data.forEach(company => {
+                const companyOptgroup = document.createElement('optgroup');
+                companyOptgroup.label = company.name + ' (企业)';
+                company.users.forEach(user => {
                 const option = document.createElement('option');
                 option.value = user.id;
-                option.textContent = user.username;
-                selectElement.appendChild(option);
+                    option.textContent = user.name;
+                    companyOptgroup.appendChild(option);
             });
+                selectElement.appendChild(companyOptgroup);
+            });
+        }
         })
         .catch(error => console.error('加载用户失败:', error));
 }
@@ -1889,26 +1940,23 @@ if (parseContactExcelBtn) {
             try {
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, {type: 'array'});
-                
-                // 查找contact database工作表
-                const sheetName = workbook.SheetNames.find(name => 
-                    name.toLowerCase().includes('contact database'));
-                
-                if (!sheetName) {
+                // 联系人表
+                const contactSheetName = workbook.SheetNames.find(name => name.toLowerCase().includes('contact database'));
+                if (!contactSheetName) {
                     alert('未找到名为"contact database"的工作表');
                     return;
                 }
-                
-                const worksheet = workbook.Sheets[sheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet);
-                
-                if (jsonData.length === 0) {
-                    alert('工作表中未找到数据');
-                    return;
+                const contactWorksheet = workbook.Sheets[contactSheetName];
+                const contactJsonData = XLSX.utils.sheet_to_json(contactWorksheet);
+                // 行动记录表
+                const actionSheetName = workbook.SheetNames.find(name => name.toLowerCase().includes('contact detail'));
+                let actionJsonData = [];
+                if (actionSheetName) {
+                    const actionWorksheet = workbook.Sheets[actionSheetName];
+                    actionJsonData = XLSX.utils.sheet_to_json(actionWorksheet);
                 }
-                
-                // 处理数据
-                parsedContactData = jsonData.map(row => {
+                // 解析联系人
+                parsedContactData = contactJsonData.map(row => {
                     console.log("解析联系人行数据:", row);
                     let createdAt = null;
                     
@@ -1981,11 +2029,39 @@ if (parseContactExcelBtn) {
                         owner_id: parseInt(ownerIdSelect.value)
                     };
                 });
+                // 解析行动记录
+                let parsedActionData = [];
+                let unmatchedActions = [];
+                if (actionJsonData.length > 0) {
+                    parsedActionData = actionJsonData.map(row => {
+                        return {
+                            contact_name: row['联系人'] || '',
+                            company_name: row['关联公司'] || '',
+                            project_name: row['关联机会'] || '',
+                            date: row['沟通日期'] || '',
+                            communication: row['沟通详情'] || '',
+                            owner_name: row['填写人'] || '',
+                            created_at: row['沟通日期'] || ''
+                        };
+                    });
+                    // 匹配联系人
+                    parsedContactData.forEach(contact => {
+                        contact.action_records = [];
+                    });
+                    parsedActionData.forEach(action => {
+                        const match = parsedContactData.find(c => c.name === action.contact_name && c.company_name === action.company_name);
+                        if (match) {
+                            match.action_records = match.action_records || [];
+                            match.action_records.push(action);
+                        } else {
+                            unmatchedActions.push(action);
+                        }
+                    });
+                }
                 
                 // 显示预览
                 const previewBody = document.getElementById('contactPreviewTableBody');
                 previewBody.innerHTML = '';
-                
                 parsedContactData.slice(0, 5).forEach(item => {
                     const row = document.createElement('tr');
                     // 确保显示空字符串而不是'none'或undefined
@@ -2004,6 +2080,7 @@ if (parseContactExcelBtn) {
                         <td>${displayValue(item.phone)}</td>
                         <td>${displayValue(item.email)}</td>
                         <td>${new Date(item.created_at).toLocaleString()}</td>
+                        <td>${item.action_records ? item.action_records.length : 0}</td>
                     `;
                     previewBody.appendChild(row);
                 });
@@ -2018,6 +2095,18 @@ if (parseContactExcelBtn) {
                 // 检查公司是否存在，并检查联系人冲突
                 detectContactConflicts();
                 
+                // 新增：显示无法匹配的行动记录数量
+                if (unmatchedActions.length > 0) {
+                    const actionUnmatchedDiv = document.getElementById('actionUnmatchedDetails');
+                    if (actionUnmatchedDiv) {
+                        actionUnmatchedDiv.style.display = 'block';
+                        actionUnmatchedDiv.innerHTML = `<div class='alert alert-warning'>有 ${unmatchedActions.length} 条行动记录无法匹配到联系人，将不会导入。</div>`;
+                    }
+                }
+                
+                // 保存到全局变量，供后续导入
+                window.parsedActionData = parsedActionData;
+                window.unmatchedActions = unmatchedActions;
             } catch (error) {
                 console.error('解析Excel出错:', error);
                 alert('解析Excel文件失败：' + error.message);
@@ -2214,7 +2303,8 @@ if (importContactBtn) {
             body: JSON.stringify({
                 contacts: parsedContactData,
                 conflict_actions: contactConflictActions,
-                owner_id: document.getElementById('contactOwnerSelect').value
+                owner_id: document.getElementById('contactOwnerSelect').value,
+                action_records: window.parsedActionData || []
             })
         })
         .then(response => response.json())
@@ -2316,6 +2406,10 @@ if (importContactBtn) {
                     
                     contactErrorDetailsDiv.style.display = 'block';
                 }
+            }
+            // 新增：显示行动记录导入结果
+            if (data.data && data.data.action_import_result) {
+                contactResultDiv.innerHTML += `<div class='alert alert-info mt-2'>行动记录导入：成功 ${data.data.action_import_result.success} 条，失败 ${data.data.action_import_result.failed} 条。</div>`;
             }
         })
         .catch(error => {

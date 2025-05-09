@@ -1,9 +1,9 @@
 {% macro render_project_type(type) %}
-  {% if type == 'channel_follow' or type == '渠道跟进' %}
+  {% if type in ['channel_follow', '渠道跟进'] %}
     <span class="badge bg-info">渠道跟进</span>
-  {% elif type == 'sales_focus' or type == '销售重点' %}
+  {% elif type in ['sales_focus', '销售重点'] %}
     <span class="badge bg-primary">销售重点</span>
-  {% elif type == '业务机会' %}
+  {% elif type in ['business_opportunity', '业务机会'] %}
     <span class="badge bg-success">业务机会</span>
   {% else %}
     <span class="badge bg-secondary">{{ type }}</span>

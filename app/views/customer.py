@@ -345,14 +345,14 @@ def edit_contact(company_id, contact_id):
 def delete_contact(company_id, contact_id):
     contact = Contact.query.get_or_404(contact_id)
     company = Company.query.get_or_404(company_id)
-
+    
     # 权限校验
     if not can_edit_data(company, current_user):
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': False, 'message': '您没有权限删除此联系人'}), 403
         flash('您没有权限删除此联系人', 'danger')
         return redirect(url_for('customer.view_company', company_id=company_id))
-
+    
     try:
         # 删除相关行动记录
         related_actions = Action.query.filter_by(contact_id=contact.id).all()
@@ -873,6 +873,7 @@ def import_contacts():
         contacts = data.get('contacts', [])
         conflict_actions = data.get('conflict_actions', {})
         owner_id = data.get('owner_id')
+        action_records = data.get('action_records', [])
         
         # 确保contacts是列表
         if not isinstance(contacts, list):
@@ -905,7 +906,7 @@ def import_contacts():
         skipped_count = 0
         error_count = 0
         error_details = []
-        
+        contact_name_map = {}  # (name, company) -> contact_id
         for contact_data in contacts:
             company_name = contact_data.get('company_name', '')
             contact_name = contact_data.get('name', '')
@@ -962,6 +963,7 @@ def import_contacts():
                     
                     db.session.commit()
                     updated_count += 1
+                    contact_name_map[(contact_name, company_name)] = existing_contact.id
                 else:
                     # 新建联系人
                     new_contact = Contact(
@@ -989,6 +991,7 @@ def import_contacts():
                     db.session.add(new_contact)
                     db.session.commit()
                     imported_count += 1
+                    contact_name_map[(contact_name, company_name)] = new_contact.id
                     
             except Exception as e:
                 db.session.rollback()
@@ -998,6 +1001,63 @@ def import_contacts():
                     'reason': str(e)
                 })
                 print(f"导入联系人 {contact_name} 出错: {str(e)}")
+                
+        # 同步导入行动记录
+        action_success = 0
+        action_failed = 0
+        for action in action_records:
+            contact_name = action.get('contact_name', '')
+            company_name = action.get('company_name', '')
+            key = (contact_name, company_name)
+            contact_id = contact_name_map.get(key)
+            if not contact_id:
+                action_failed += 1
+                continue
+            # 匹配公司ID
+            company_id = companies.get(company_name)
+            if not company_id:
+                action_failed += 1
+                continue
+            # 匹配项目ID
+            project_id = None
+            if action.get('project_name'):
+                project = Project.query.filter_by(project_name=action['project_name']).first()
+                if project:
+                    project_id = project.id
+            # 匹配owner_id
+            owner_id_action = owner_id
+            if action.get('owner_name'):
+                user = User.query.filter((User.real_name == action['owner_name']) | (User.username == action['owner_name'])).first()
+                if user:
+                    owner_id_action = user.id
+            # 解析日期
+            try:
+                action_date = None
+                if action.get('date'):
+                    try:
+                        action_date = datetime.fromisoformat(str(action['date']).replace('Z', '+00:00')).date()
+                    except Exception:
+                        action_date = datetime.strptime(str(action['date']), '%Y-%m-%d').date()
+                else:
+                    action_date = datetime.utcnow().date()
+            except Exception:
+                action_date = datetime.utcnow().date()
+            try:
+                new_action = Action(
+                    date=action_date,
+                    contact_id=contact_id,
+                    company_id=company_id,
+                    project_id=project_id,
+                    communication=action.get('communication', ''),
+                    owner_id=owner_id_action,
+                    created_at=datetime.combine(action_date, datetime.min.time())
+                )
+                db.session.add(new_action)
+                db.session.commit()
+                action_success += 1
+            except Exception as e:
+                db.session.rollback()
+                action_failed += 1
                 
         # 记录导入日志
         import_log = {
@@ -1026,7 +1086,11 @@ def import_contacts():
                 'notFoundCount': import_log['notFoundCount'],
                 'total': len(contacts),
                 'log': import_log,
-                'error_details': error_details
+                'error_details': error_details,
+                'action_import_result': {
+                    'success': action_success,
+                    'failed': action_failed
+                }
             }
         })
         
@@ -1416,7 +1480,7 @@ def batch_delete_companies():
                 unauthorized_companies.append(company.company_name)
         if not deletable_companies:
             return jsonify({
-                'success': False,
+                'success': False, 
                 'message': '您没有权限删除所选企业'
             }), 403
         

@@ -58,11 +58,11 @@
             <!-- 搜索和添加按钮部分 -->
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div class="d-flex align-items-center">
-                    <div class="input-group" style="max-width: 300px;">
-                        <input type="text" class="form-control" id="searchInput" placeholder="搜索项目名称..." value="{{ search_term }}">
-                        <button class="btn btn-outline-secondary" type="button" id="searchButton">
-                            <i class="fas fa-search"></i>
-                        </button>
+                <div class="input-group" style="max-width: 300px;">
+                    <input type="text" class="form-control" id="searchInput" placeholder="搜索项目名称..." value="{{ search_term }}">
+                    <button class="btn btn-outline-secondary" type="button" id="searchButton">
+                        <i class="fas fa-search"></i>
+                    </button>
                     </div>
                     <div class="form-check form-switch ms-3 d-flex align-items-center">
                         <input class="form-check-input" type="checkbox" id="showMyProjectsSwitch" {% if request.args.get('my_projects') == '1' %}checked{% endif %}>
@@ -70,13 +70,15 @@
                     </div>
                 </div>
                 <div>
-                    {% if has_permission('project', 'create') %}
-                    <a href="{{ url_for('project.add_project') }}" class="btn btn-primary me-2">
-                        <i class="fas fa-plus"></i> 添加项目
-                    </a>
+                    {% if has_permission('project', 'create') and current_user.role == 'admin' %}
                     <button id="importProjectsBtn" class="btn btn-info me-2">
                         <i class="fas fa-file-import"></i> 批量导入
                     </button>
+                    {% endif %}
+                    {% if has_permission('project', 'create') %}
+                    <a href="{{ url_for('project.add_project') }}" class="btn btn-primary me-2">
+                        <i class="fas fa-plus"></i> 创建项目
+                    </a>
                     {% endif %}
                     {% if has_permission('project', 'delete') %}
                     <button id="batchDeleteBtn" class="btn btn-danger" style="display: none;">
@@ -1057,7 +1059,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return -1;
     }
 
-    // 添加排序功能
+// 添加排序功能
     // 排序状态变量
     let sortBy = 'id';  // 默认按ID排序
     let sortOrder = 'desc';  // 默认降序
@@ -1157,7 +1159,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // 批量选择和删除功能
+// 批量选择和删除功能
     const selectAllCheckbox = document.getElementById('selectAll');
     const projectCheckboxes = document.querySelectorAll('.project-checkbox');
     const batchDeleteBtn = document.getElementById('batchDeleteBtn');
@@ -1247,78 +1249,78 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // 添加行滚动焦点效果
-    if (tableContainer) {
-        const rows = document.querySelectorAll('.table tbody tr');
-        let lastHighlightedRow = null;
+// 添加行滚动焦点效果
+if (tableContainer) {
+    const rows = document.querySelectorAll('.table tbody tr');
+    let lastHighlightedRow = null;
 
-        // 鼠标滑过行时添加高亮
-        rows.forEach(row => {
-            row.addEventListener('mouseenter', function() {
-                if (lastHighlightedRow) {
-                    lastHighlightedRow.classList.remove('highlight-row');
-                }
-                this.classList.add('highlight-row');
-                lastHighlightedRow = this;
-            });
-        });
-
-        // 鼠标离开表格区域时移除高亮
-        tableContainer.addEventListener('mouseleave', function() {
+    // 鼠标滑过行时添加高亮
+    rows.forEach(row => {
+        row.addEventListener('mouseenter', function() {
             if (lastHighlightedRow) {
                 lastHighlightedRow.classList.remove('highlight-row');
-                lastHighlightedRow = null;
+            }
+            this.classList.add('highlight-row');
+            lastHighlightedRow = this;
+        });
+    });
+
+    // 鼠标离开表格区域时移除高亮
+    tableContainer.addEventListener('mouseleave', function() {
+        if (lastHighlightedRow) {
+            lastHighlightedRow.classList.remove('highlight-row');
+            lastHighlightedRow = null;
+        }
+    });
+
+    // 滚动时计算可见行并高亮中心行
+    tableContainer.addEventListener('scroll', function() {
+        // 节流滚动事件处理，避免性能问题
+        if (window.scrollThrottled) return;
+        window.scrollThrottled = true;
+
+        setTimeout(() => {
+            highlightCenterRow();
+            window.scrollThrottled = false;
+        }, 100);
+    });
+
+    // 高亮中心行函数
+    function highlightCenterRow() {
+        if (rows.length === 0) return;
+
+        const containerRect = tableContainer.getBoundingClientRect();
+        const containerMiddle = containerRect.top + containerRect.height / 2;
+
+        let closestRow = null;
+        let minDistance = Infinity;
+
+        // 找出最靠近中心的行
+        rows.forEach(row => {
+            const rowRect = row.getBoundingClientRect();
+            const rowMiddle = rowRect.top + rowRect.height / 2;
+            const distance = Math.abs(rowMiddle - containerMiddle);
+
+            // 只考虑可见行
+            if (rowRect.top <= containerRect.bottom &&
+                rowRect.bottom >= containerRect.top) {
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    closestRow = row;
+                }
             }
         });
 
-        // 滚动时计算可见行并高亮中心行
-        tableContainer.addEventListener('scroll', function() {
-            // 节流滚动事件处理，避免性能问题
-            if (window.scrollThrottled) return;
-            window.scrollThrottled = true;
-
-            setTimeout(() => {
-                highlightCenterRow();
-                window.scrollThrottled = false;
-            }, 100);
-        });
-
-        // 高亮中心行函数
-        function highlightCenterRow() {
-            if (rows.length === 0) return;
-
-            const containerRect = tableContainer.getBoundingClientRect();
-            const containerMiddle = containerRect.top + containerRect.height / 2;
-
-            let closestRow = null;
-            let minDistance = Infinity;
-
-            // 找出最靠近中心的行
-            rows.forEach(row => {
-                const rowRect = row.getBoundingClientRect();
-                const rowMiddle = rowRect.top + rowRect.height / 2;
-                const distance = Math.abs(rowMiddle - containerMiddle);
-
-                // 只考虑可见行
-                if (rowRect.top <= containerRect.bottom &&
-                    rowRect.bottom >= containerRect.top) {
-                    if (distance < minDistance) {
-                        minDistance = distance;
-                        closestRow = row;
-                    }
-                }
-            });
-
-            // 更新高亮
-            if (closestRow && closestRow !== lastHighlightedRow) {
-                if (lastHighlightedRow) {
-                    lastHighlightedRow.classList.remove('highlight-row');
-                }
-                closestRow.classList.add('highlight-row');
-                lastHighlightedRow = closestRow;
+        // 更新高亮
+        if (closestRow && closestRow !== lastHighlightedRow) {
+            if (lastHighlightedRow) {
+                lastHighlightedRow.classList.remove('highlight-row');
             }
+            closestRow.classList.add('highlight-row');
+            lastHighlightedRow = closestRow;
         }
     }
+}
 });
 
 // 项目批量导入功能
@@ -1342,6 +1344,8 @@ document.addEventListener('DOMContentLoaded', function() {
     let conflicts = [];
     let conflictActions = {};
     let fieldMapping = {};
+    let userNameToId = {}; // 新增：销售负责人姓名到ID的映射
+    let unmatchedProjects = []; // 新增：未匹配到销售负责人的项目
 
     // 打开导入模态框
     if (importProjectsBtn) {
@@ -1361,6 +1365,8 @@ document.addEventListener('DOMContentLoaded', function() {
             conflicts = [];
             conflictActions = {};
             fieldMapping = {};
+            userNameToId = {};
+            unmatchedProjects = [];
 
             // 加载用户列表
             fetch('/api/users/hierarchical')
@@ -1379,6 +1385,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                 option.value = user.id;
                                 option.textContent = user.name;
                                 companyOptgroup.appendChild(option);
+                                // 构建姓名到ID映射
+                                userNameToId[user.name] = user.id;
                             });
 
                             ownerSelect.appendChild(companyOptgroup);
@@ -1497,6 +1505,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // 转换为对象数组
                     parsedData = [];
+                    unmatchedProjects = [];
                     for (let i = 1; i < jsonData.length; i++) {
                         const rowData = {};
                         let rowIsEmpty = true;
@@ -1511,7 +1520,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
                         // 只添加非空行
                         if (!rowIsEmpty) {
+                            // 新增：销售负责人比对逻辑
+                            const selectedOwnerId = ownerIdSelect.value;
+                            const ownerHeader = Object.keys(fieldMapping).find(h => fieldMapping[h] === 'owner_id');
+                            let ownerName = ownerHeader ? rowData[ownerHeader] : '';
+                            if (!selectedOwnerId) {
+                                if (ownerName && userNameToId[ownerName]) {
+                                    rowData[ownerHeader] = ownerName; // 保留原始名
+                                    rowData['owner_id'] = userNameToId[ownerName];
                             parsedData.push(rowData);
+                                } else {
+                                    unmatchedProjects.push(rowData['项目名称'] || rowData['project_name'] || '(无项目名)');
+                                }
+                            } else {
+                                parsedData.push(rowData);
+                            }
                         }
                     }
 
@@ -1589,16 +1612,32 @@ document.addEventListener('DOMContentLoaded', function() {
                             const td = document.createElement('td');
                             const excelHeader = reverseMapping[dbField];
 
-                            // 检查是否存在对应的Excel数据
+                            if (dbField === 'authorization_code') {
+                                // 授权编号专用逻辑
+                                let rawValue = '';
                             if (excelHeader && rowData[excelHeader] !== undefined) {
+                                    rawValue = rowData[excelHeader];
+                                }
+                                // 格式化
+                                const formatted = formatAuthCode(rawValue);
+                                td.textContent = formatted || '';
+                            } else if (dbField === 'owner_id') {
+                                // 新增：显示销售负责人姓名而不是ID
+                                let id = rowData['owner_id'];
+                                let name = '';
+                                for (const uname in userNameToId) {
+                                    if (userNameToId[uname] === id) {
+                                        name = uname;
+                                        break;
+                                    }
+                                }
+                                td.textContent = name || id || '';
+                            } else if (excelHeader && rowData[excelHeader] !== undefined) {
                                 let value = rowData[excelHeader];
-
                                 // 格式化日期字段
                                 if ((dbField === 'report_time' || dbField === 'delivery_forecast' ||
                                      dbField === 'created_at' || dbField === 'updated_at') && value) {
-                                    // 检查是否已经是字符串格式的日期
-                                    if (typeof value === 'string' && value.match(/^\d+$/)) {
-                                        // 尝试将Excel数字格式的日期转换为JS日期对象
+                                    if (typeof value === 'string' && value.match(/^[0-9]+$/)) {
                                         const dateObj = XLSX.SSF.parse_date_code(parseInt(value));
                                         if (dateObj) {
                                             const year = dateObj.y;
@@ -1608,26 +1647,13 @@ document.addEventListener('DOMContentLoaded', function() {
                                         }
                                     }
                                 }
-
-                                // 如果是授权编号字段，格式化显示
-                                if (dbField === 'authorization_code' && value) {
-                                    const formattedValue = formatAuthCode(value);
-                                    if (value !== formattedValue) {
-                                        td.innerHTML = `<span class="text-success">${formattedValue}</span> <small class="text-muted">(原始: ${value})</small>`;
-                                    } else {
                                         td.textContent = value;
-                                    }
-                                } else {
-                                    td.textContent = value;
-                                }
                             } else if (dbField === 'created_at') {
                                 // 如果是创建日期字段，使用报备时间的值
                                 const reportTimeHeader = reverseMapping['report_time'];
                                 if (reportTimeHeader && rowData[reportTimeHeader]) {
                                     let value = rowData[reportTimeHeader];
-
-                                    // 格式化日期
-                                    if (typeof value === 'string' && value.match(/^\d+$/)) {
+                                    if (typeof value === 'string' && value.match(/^[0-9]+$/)) {
                                         const dateObj = XLSX.SSF.parse_date_code(parseInt(value));
                                         if (dateObj) {
                                             const year = dateObj.y;
@@ -1636,19 +1662,15 @@ document.addEventListener('DOMContentLoaded', function() {
                                             value = `${year}-${month}-${day}`;
                                         }
                                     }
-
                                     td.textContent = value;
                                 } else {
                                     td.textContent = '';
                                 }
                             } else {
-                                // 如果没有对应数据，则留空
                                 td.textContent = '';
                             }
-
                             tr.appendChild(td);
                         });
-
                         previewBody.appendChild(tr);
                     }
 
@@ -1913,6 +1935,33 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 // 重新启用导入按钮
                 importBtn.disabled = false;
+
+                // 新增：导入结果区显示未导入项目
+                const unmatchedDiv = document.getElementById('unmatchedProjectsResult');
+                if (unmatchedDiv) {
+                    if (unmatchedProjects.length > 0) {
+                        unmatchedDiv.style.display = 'block';
+                        unmatchedDiv.innerHTML =
+                            '<div class="alert alert-warning mt-2">' +
+                            '<b>以下项目因销售负责人未匹配到系统账户，未导入：</b>' +
+                            '<table class="table table-sm table-bordered mt-2"><thead><tr><th>项目名称</th><th>销售负责人</th></tr></thead><tbody>' +
+                            unmatchedProjects.map(n => `<tr><td>${n.project}</td><td>${n.owner}</td></tr>`).join('') +
+                            '</tbody></table>' +
+                            '<button id="unmatchedConfirmBtnResult" class="btn btn-primary btn-sm mt-2">确认</button>' +
+                            '</div>';
+                        setTimeout(() => {
+                            const btn = document.getElementById('unmatchedConfirmBtnResult');
+                            if (btn) {
+                                btn.onclick = function() {
+                                    unmatchedDiv.style.display = 'none';
+                                };
+                            }
+                        }, 100);
+                    } else {
+                        unmatchedDiv.style.display = 'none';
+                        unmatchedDiv.innerHTML = '';
+                    }
+                }
             })
             .catch(error => {
                 console.error('导入出错:', error);
@@ -1969,6 +2018,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </tbody>
                             </table>
                         </div>
+                        <div id="unmatchedProjects" style="display:none;"></div>
                     </div>
 
                     <!-- 字段映射区域 -->
@@ -2022,6 +2072,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     <!-- 导入结果 -->
                     <div id="importResult" class="alert mt-3" style="display: none;"></div>
+                    <div id="unmatchedProjectsResult" style="display:none;"></div>
 
                     <!-- 错误详情区域 -->
                     <div id="importErrorDetails" class="mt-3" style="display: none;">
@@ -2056,118 +2107,4 @@ document.addEventListener('DOMContentLoaded', function() {
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script>
-// ... existing code ...
-
-// 项目批量导入功能
-document.addEventListener('DOMContentLoaded', function() {
-    const importProjectsBtn = document.getElementById('importProjectsBtn');
-    const importModal = new bootstrap.Modal(document.getElementById('importProjectModal'));
-    const ownerSelect = document.getElementById('ownerSelect');
-    const projectExcelFile = document.getElementById('projectExcelFile');
-    const parseExcelBtn = document.getElementById('parseExcelBtn');
-    const importBtn = document.getElementById('importBtn');
-    const previewDiv = document.getElementById('importPreview');
-    const fieldMappingDiv = document.getElementById('fieldMapping');
-    const conflictsDiv = document.getElementById('importConflicts');
-    const progressDiv = document.getElementById('importProgress');
-    const resultDiv = document.getElementById('importResult');
-    const applyRecommendedActionsBtn = document.getElementById('applyRecommendedActions');
-    const keepAllConflictsBtn = document.getElementById('keepAllConflicts');
-    const ignoreAllConflictsBtn = document.getElementById('ignoreAllConflicts');
-
-    let parsedData = [];
-    let conflicts = [];
-    let conflictActions = {};
-    let fieldMapping = {};
-
-    // 打开导入模态框
-    if (importProjectsBtn) {
-        importProjectsBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-
-            // 重置状态
-            document.getElementById('importProjectForm').reset();
-            previewDiv.style.display = 'none';
-            fieldMappingDiv.style.display = 'none';
-            conflictsDiv.style.display = 'none';
-            progressDiv.style.display = 'none';
-            resultDiv.style.display = 'none';
-            document.getElementById('importErrorDetails').style.display = 'none';
-            importBtn.style.display = 'none';
-            parsedData = [];
-            conflicts = [];
-            conflictActions = {};
-            fieldMapping = {};
-
-            // 加载用户列表
-            fetch('/api/users/hierarchical')
-                .then(response => response.json())
-                .then(data => {
-                    ownerSelect.innerHTML = '<option value="">请选择...</option>';
-
-                    if (data.success) {
-                        // 生成嵌套的选择框选项
-                        data.data.forEach(company => {
-                            const companyOptgroup = document.createElement('optgroup');
-                            companyOptgroup.label = company.name + ' (企业)';
-
-                            company.users.forEach(user => {
-                                const option = document.createElement('option');
-                                option.value = user.id;
-                                option.textContent = user.name;
-                                companyOptgroup.appendChild(option);
-                            });
-
-                            ownerSelect.appendChild(companyOptgroup);
-                        });
-                    }
-                })
-                .catch(error => {
-                    console.error('获取用户列表失败:', error);
-                });
-
-            // 显示模态框
-            importModal.show();
-        });
-    }
-
-    // 解析Excel文件
-    if (parseExcelBtn) {
-        parseExcelBtn.addEventListener('click', function() {
-            const fileInput = document.getElementById('projectExcelFile');
-            const ownerIdSelect = document.getElementById('ownerSelect');
-
-            /* 移除必选验证
-            if (!ownerIdSelect.value) {
-                alert('请选择归属账户');
-                return;
-            }
-            */
-
-            if (!fileInput.files.length) {
-                alert('请选择Excel文件');
-                return;
-            }
-
-            const file = fileInput.files[0];
-            const reader = new FileReader();
-
-            resultDiv.style.display = 'none';
-            progressDiv.style.display = 'block';
-            const progressBar = progressDiv.querySelector('.progress-bar');
-            progressBar.style.width = '30%';
-
-            reader.onload = function(e) {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                }
-                catch(err) {
-                    console.error('解析Excel出错:', err);
-                }
-            };
-        });
-    }
-});
-</script>
 {% endblock %}

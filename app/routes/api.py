@@ -387,7 +387,6 @@ def import_projects():
             try:
                 # 构建项目数据
                 new_project_data = {}
-                
                 # 设置项目字段
                 for db_field, excel_field in reverse_mapping.items():
                     if excel_field in project_data and project_data[excel_field] is not None:
@@ -402,62 +401,53 @@ def import_projects():
                             pass
                         else:
                             new_project_data[db_field] = project_data[excel_field]
-                
                 # 确保创建时间和更新时间是datetime对象
                 current_time = datetime.now()
-                
-                # 如果设置了同步报备时间到创建日期
                 if sync_report_time_to_created_at and 'report_time' in new_project_data and new_project_data['report_time']:
                     new_project_data['created_at'] = new_project_data['report_time']
                 else:
                     new_project_data['created_at'] = current_time
-                    
-                # 设置更新时间
                 new_project_data['updated_at'] = current_time
-                
-                # 获取项目名称和授权编号，用于冲突检查
                 project_name = new_project_data.get('project_name')
                 auth_code = new_project_data.get('authorization_code')
-                
                 # 检查是否需要跳过此项目（基于冲突操作）
-                skip_project = False
-                
-                # 如果用户选择了忽略此项目，则跳过
                 if str(i) in conflict_actions and conflict_actions[str(i)] == 'ignore':
                     skipped_count += 1
                     import_log.append(f"跳过项目: {project_name}，原因: 用户选择忽略")
                     continue
-                
-                # 设置项目归属者
-                if owner_id:
-                    # 如果指定了owner_id，使用该用户作为项目所有者
-                    new_project_data['owner_id'] = owner_id
-                elif use_excel_owner and 'owner_id' in reverse_mapping:
-                    # 如果使用Excel中的销售负责人，查找该用户
-                    excel_owner_field = reverse_mapping['owner_id']
-                    excel_owner_name = project_data.get(excel_owner_field)
-                    
-                    if excel_owner_name:
-                        # 尝试根据名称查找用户
-                        excel_owner = User.query.filter(User.name == excel_owner_name).first()
-                        if excel_owner:
-                            new_project_data['owner_id'] = excel_owner.id
+                # 修正：优先用project_data['owner_id']（为int或数字字符串）
+                owner_id_from_row = project_data.get('owner_id')
+                if owner_id_from_row is not None:
+                    try:
+                        owner_id_candidate = int(owner_id_from_row)
+                        owner_obj = User.query.get(owner_id_candidate)
+                        if owner_obj:
+                            new_project_data['owner_id'] = owner_id_candidate
                         else:
-                            # 如果找不到用户，使用当前用户作为所有者
+                            # owner_id无效，走后续逻辑
+                            owner_id_from_row = None
+                    except Exception:
+                        owner_id_from_row = None
+                if owner_id_from_row is None:
+                    if owner_id:
+                        new_project_data['owner_id'] = owner_id
+                    elif use_excel_owner and 'owner_id' in reverse_mapping:
+                        excel_owner_field = reverse_mapping['owner_id']
+                        excel_owner_name = project_data.get(excel_owner_field)
+                        if excel_owner_name:
+                            excel_owner = User.query.filter(User.name == excel_owner_name).first()
+                            if excel_owner:
+                                new_project_data['owner_id'] = excel_owner.id
+                            else:
+                                new_project_data['owner_id'] = current_user.id
+                                import_log.append(f"项目 {project_name} 的销售负责人 '{excel_owner_name}' 不存在，已使用当前用户作为所有者")
+                        else:
                             new_project_data['owner_id'] = current_user.id
-                            import_log.append(f"项目 {project_name} 的销售负责人 '{excel_owner_name}' 不存在，已使用当前用户作为所有者")
                     else:
-                        # 如果Excel中没有指定销售负责人，使用当前用户
                         new_project_data['owner_id'] = current_user.id
-                else:
-                    # 如果既没有指定owner_id也没有使用Excel中的销售负责人，使用当前用户
-                    new_project_data['owner_id'] = current_user.id
-                
                 # 创建新项目
                 new_project = Project(**new_project_data)
                 db.session.add(new_project)
-                
-                # 尝试提交，处理可能的数据库错误
                 try:
                     db.session.commit()
                     imported_count += 1
@@ -467,12 +457,11 @@ def import_projects():
                     logger.error(f"导入项目 {project_name} 数据库操作失败: {str(db_error)}")
                     error_count += 1
                     error_details.append({
-                        'line': i + 2,  # Excel的行号从1开始，加1为标题行，再加1为当前行
+                        'line': i + 2,
                         'project_name': project_name,
                         'reason': f"数据库操作失败: {str(db_error)}"
                     })
                     import_log.append(f"导入项目失败: {project_name}，原因: {str(db_error)}")
-            
             except Exception as project_error:
                 logger.error(f"处理项目导入时出错 (行 {i+2}): {str(project_error)}")
                 error_count += 1
