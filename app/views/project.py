@@ -805,7 +805,9 @@ def update_project_stage():
             allowed_user_ids = current_user.get_viewable_user_ids() if hasattr(current_user, 'get_viewable_user_ids') else [current_user.id]
             if project.owner_id in allowed_user_ids:
                 allowed = True
-        
+        # 签约阶段加固：非管理员禁止任何阶段变更
+        if project.current_stage == '签约' and current_user.role != 'admin':
+            return jsonify({'success': False, 'message': '签约阶段仅管理员可变更项目阶段'}), 403
         if not allowed:
             return jsonify({'success': False, 'message': '您没有权限修改此项目'}), 403
             

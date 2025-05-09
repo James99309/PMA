@@ -282,18 +282,24 @@ class ProjectStageProgress {
                     branchDot.style.borderColor = '#555';
                 }
             }
-            // 点击圆点弹窗确认
-            branchDot.addEventListener('click', (e) => {
-                e.stopPropagation();
-                let msg = this.currentStage === branch.value
-                    ? `确定要恢复到主线阶段吗？`
-                    : `确定要将项目阶段切换为"${branch.value}"吗？`;
-                if (window.confirm(msg)) {
-                    // 统一通过API切换，无论是分支还是恢复主线
-                    let targetStage = (this.currentStage === branch.value) ? this.lastMainStage : branch.value;
-                    this.updateStage(targetStage);
-                }
-            });
+            // 只有canEdit为true时才允许点击
+            if (this.canEdit) {
+                branchDot.style.cursor = 'pointer';
+                branchDot.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    let msg = this.currentStage === branch.value
+                        ? `确定要恢复到主线阶段吗？`
+                        : `确定要将项目阶段切换为"${branch.value}"吗？`;
+                    if (window.confirm(msg)) {
+                        // 统一通过API切换，无论是分支还是恢复主线
+                        let targetStage = (this.currentStage === branch.value) ? this.lastMainStage : branch.value;
+                        this.updateStage(targetStage);
+                    }
+                });
+            } else {
+                branchDot.classList.add('dot-disabled');
+                branchDot.style.cursor = 'not-allowed';
+            }
             branchMarker.appendChild(branchDot);
 
             // 名称

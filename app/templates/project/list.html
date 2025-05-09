@@ -101,6 +101,15 @@
                                     </div>
                                 </th>
                                 {% endif %}
+                                <th style="min-width: 100px;" data-sort="owner_id">
+                                    <div class="th-content">
+                                        <span class="th-text">拥有者</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="owner_id"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="owner_id"></i>
+                                        </div>
+                                    </div>
+                                </th>
                                 <th style="min-width: 120px;" data-sort="authorization_code">
                                     <div class="th-content">
                                         <span class="th-text">授权编号</span>
@@ -119,21 +128,12 @@
                                         </div>
                                     </div>
                                 </th>
-                                <th style="min-width: 120px;" data-sort="report_time">
+                                <th style="min-width: 100px;" data-sort="current_stage">
                                     <div class="th-content">
-                                        <span class="th-text">报备时间</span>
+                                        <span class="th-text">当前阶段</span>
                                         <div class="th-actions">
-                                            <i class="fas fa-sort sort-icon" data-sort="report_time"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="report_time"></i>
-                                        </div>
-                                    </div>
-                                </th>
-                                <th style="min-width: 100px;" data-sort="report_source">
-                                    <div class="th-content">
-                                        <span class="th-text">报备来源</span>
-                                        <div class="th-actions">
-                                            <i class="fas fa-sort sort-icon" data-sort="report_source"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="report_source"></i>
+                                            <i class="fas fa-sort sort-icon" data-sort="current_stage"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="current_stage"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -146,30 +146,21 @@
                                         </div>
                                     </div>
                                 </th>
-                                <th style="min-width: 100px;" data-sort="product_situation">
-                                    <div class="th-content">
-                                        <span class="th-text">品牌情况</span>
-                                        <div class="th-actions">
-                                            <i class="fas fa-sort sort-icon" data-sort="product_situation"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="product_situation"></i>
-                                        </div>
-                                    </div>
-                                </th>
-                                <th style="min-width: 100px;" data-sort="current_stage">
-                                    <div class="th-content">
-                                        <span class="th-text">当前阶段</span>
-                                        <div class="th-actions">
-                                            <i class="fas fa-sort sort-icon" data-sort="current_stage"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="current_stage"></i>
-                                        </div>
-                                    </div>
-                                </th>
                                 <th style="min-width: 120px;" data-sort="quotation_customer">
                                     <div class="th-content">
                                         <span class="th-text">报价（元）</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="quotation_customer"></i>
                                             <i class="fas fa-filter filter-icon" data-field="quotation_customer"></i>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th style="min-width: 100px;" data-sort="report_source">
+                                    <div class="th-content">
+                                        <span class="th-text">报备来源</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="report_source"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="report_source"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -211,28 +202,19 @@
                                 </th>
                                 <th style="min-width: 120px;" data-sort="delivery_forecast">
                                     <div class="th-content">
-                                        <span class="th-text">出货预测日期</span>
+                                        <span class="th-text">出货预期日期</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="delivery_forecast"></i>
                                             <i class="fas fa-filter filter-icon" data-field="delivery_forecast"></i>
                                         </div>
                                     </div>
                                 </th>
-                                <th style="min-width: 100px;" data-sort="owner_id">
+                                <th style="min-width: 120px;" data-sort="report_time">
                                     <div class="th-content">
-                                        <span class="th-text">拥有人</span>
+                                        <span class="th-text">报备日期</span>
                                         <div class="th-actions">
-                                            <i class="fas fa-sort sort-icon" data-sort="owner_id"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="owner_id"></i>
-                                        </div>
-                                    </div>
-                                </th>
-                                <th style="min-width: 150px;" data-sort="created_at">
-                                    <div class="th-content">
-                                        <span class="th-text">创建时间</span>
-                                        <div class="th-actions">
-                                            <i class="fas fa-sort sort-icon" data-sort="created_at"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="created_at"></i>
+                                            <i class="fas fa-sort sort-icon" data-sort="report_time"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="report_time"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -242,6 +224,15 @@
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="updated_at"></i>
                                             <i class="fas fa-filter filter-icon" data-field="updated_at"></i>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th style="min-width: 150px;" data-sort="created_at">
+                                    <div class="th-content">
+                                        <span class="th-text">创建日期</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="created_at"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="created_at"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -279,6 +270,7 @@
                                     </div>
                                 </td>
                                 {% endif %}
+                                <td>{{ render_owner(project.owner) if project.owner else '' }}</td>
                                 <td>
                                     {% if project.authorization_code %}
                                         {{ render_authorization_code(project.authorization_code, project.project_type) }}
@@ -295,11 +287,8 @@
                                         {{ project.project_name }}
                                     </a>
                                 </td>
-                                <td>{{ render_date(project.report_time) }}</td>
-                                <td>{{ project.report_source if project.report_source else '' }}</td>
-                                <td>{{ render_project_type(project.project_type) if project.project_type else '' }}</td>
-                                <td>{{ project.product_situation if project.product_situation else '' }}</td>
                                 <td>{{ project.current_stage if project.current_stage else '' }}</td>
+                                <td>{{ render_project_type(project.project_type) if project.project_type else '' }}</td>
                                 <td>
                                     {% if project.quotation_customer and project.quotations.count() > 0 %}
                                     <a href="{{ url_for('quotation.view_quotation', id=project.quotations.order_by(Quotation.created_at.desc()).first().id) }}"
@@ -310,14 +299,15 @@
                                     {{ '{:,.2f}'.format(project.quotation_customer) if project.quotation_customer else '' }}
                                     {% endif %}
                                 </td>
+                                <td>{{ project.report_source if project.report_source else '' }}</td>
                                 <td>{{ project.end_user if project.end_user else '' }}</td>
                                 <td>{{ project.design_issues if project.design_issues else '' }}</td>
                                 <td>{{ project.contractor if project.contractor else '' }}</td>
                                 <td>{{ project.system_integrator if project.system_integrator else '' }}</td>
                                 <td>{{ render_date(project.delivery_forecast) }}</td>
-                                <td>{{ render_owner(project.owner) if project.owner else '' }}</td>
-                                <td>{{ render_datetime(project.created_at) }}</td>
+                                <td>{{ render_date(project.report_time) }}</td>
                                 <td>{{ render_datetime(project.updated_at) }}</td>
+                                <td>{{ render_datetime(project.created_at) }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

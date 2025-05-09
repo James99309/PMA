@@ -18,17 +18,20 @@
                     <a href="{{ url_for('project.list_projects') }}" class="btn btn-secondary">
                         <i class="fas fa-arrow-left"></i> 返回列表
                     </a>
-                    {% if current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) %}
-                    <a href="{{ url_for('project.edit_project', project_id=project.id) }}" class="btn btn-primary ms-2">
-                        <i class="fas fa-edit"></i> 编辑项目
-                    </a>
-                    {% endif %}
-                    {% if current_user.has_permission('project', 'delete') and (current_user.role == 'admin' or current_user.id == project.owner_id) %}
-                    <form action="{{ url_for('project.delete_project', project_id=project.id) }}" method="post" style="display:inline; margin-left: 10px;" onsubmit="return confirm('确定要删除此项目吗？此操作不可恢复。');">
-                        <button type="submit" class="btn btn-danger">
-                            <i class="fas fa-trash"></i> 删除项目
-                        </button>
-                    </form>
+                    {% if project.current_stage != '签约' or current_user.role == 'admin' %}
+                        {% if current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) %}
+                        <a href="{{ url_for('project.edit_project', project_id=project.id) }}" class="btn btn-primary ms-2">
+                            <i class="fas fa-edit"></i> 编辑项目
+                        </a>
+                        {% endif %}
+                        {% if current_user.has_permission('project', 'delete') and (current_user.role == 'admin' or current_user.id == project.owner_id) %}
+                        <form action="{{ url_for('project.delete_project', project_id=project.id) }}" method="post" style="display:inline; margin-left: 10px;" onsubmit="return confirm('确定要删除此项目吗？此操作不可恢复。');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-danger">
+                                <i class="fas fa-trash"></i> 删除项目
+                            </button>
+                        </form>
+                        {% endif %}
                     {% endif %}
                 </div>
             </div>
@@ -407,6 +410,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form action="{{ url_for('project.revoke_authorization', project_id=project.id) }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="modal-body">
                     <p>您确定要撤回此项目的授权申请吗？</p>
                     <div class="mb-3">
@@ -555,7 +559,7 @@
             currentStage: {{ project.current_stage|tojson }},
             csrfToken: {{ csrf_token()|tojson }},
             updateUrl: {{ url_for('project.update_project_stage')|tojson }},
-            canEdit: {{ (current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id))|tojson }},
+            canEdit: {{ ((current_user.role == 'admin' and project.current_stage == '签约') or (current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) and project.current_stage != '签约'))|tojson }},
             stageHistory: {{ stageHistory|tojson }}
         });
         {% endif %}
