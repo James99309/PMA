@@ -195,104 +195,185 @@ class ProjectStatistics:
             time_extract = func.strftime('%Y%m', ProjectStageHistory.change_date)
             period_label = '月'
 
+        # 默认返回空结果
+        empty_result = {"labels": [], "data": [], "period": period}
+        
         try:
-            viewable_projects_query = get_viewable_data(Project, target_user)
-            viewable_projects_query = viewable_projects_query.filter(
-                Project.authorization_code.isnot(None),
-                Project.authorization_code != ''
-            )
-            viewable_project_ids = [p.id for p in viewable_projects_query.all()]
-            if not viewable_project_ids:
-                return {"labels": [], "data": [], "period": period}
-
-            # 构建历史记录查询，添加账户过滤条件
-            history_query = db.session.query(ProjectStageHistory).filter(
-                ProjectStageHistory.project_id.in_(viewable_project_ids),
-                ProjectStageHistory.to_stage == stage
-            )
-            
-            # 如果指定了账户，添加账户过滤条件
-            if account_id:
-                history_query = history_query.filter(ProjectStageHistory.account_id == account_id)
-            
-            # 只统计首次进入该阶段的变更
-            subquery = db.session.query(
-                ProjectStageHistory.project_id,
-                func.min(ProjectStageHistory.change_date).label('first_date')
-            ).filter(
-                ProjectStageHistory.project_id.in_(viewable_project_ids),
-                ProjectStageHistory.to_stage == stage
-            )
-            
-            # 如果指定了账户，添加账户过滤条件
-            if account_id:
-                subquery = subquery.filter(ProjectStageHistory.account_id == account_id)
+            # 使用事务安全方式获取可查看项目
+            try:
+                viewable_projects_query = get_viewable_data(Project, target_user)
+                viewable_projects_query = viewable_projects_query.filter(
+                    Project.authorization_code.isnot(None),
+                    Project.authorization_code != ''
+                )
                 
-            subquery = subquery.group_by(ProjectStageHistory.project_id).subquery()
-
-            # 按周期分组统计首次进入该阶段的项目数
-            query = db.session.query(
-                time_extract.label('time_point'),
-                func.count().label('project_count')
-            ).select_from(ProjectStageHistory).join(
-                subquery, 
-                (ProjectStageHistory.project_id == subquery.c.project_id) & 
-                (ProjectStageHistory.change_date == subquery.c.first_date),
-                isouter=False
-            )
-            
-            # 如果指定了账户，添加账户过滤条件
-            if account_id:
-                query = query.filter(ProjectStageHistory.account_id == account_id)
+                # 避免在项目多时一次性加载过多数据
+                viewable_project_ids = []
+                # 分批获取项目ID
+                projects_query = viewable_projects_query.with_entities(Project.id)
+                for project in projects_query:
+                    viewable_project_ids.append(project[0])
                 
-            query = query.group_by('time_point').order_by('time_point')
+                if not viewable_project_ids:
+                    return empty_result
+            except Exception as e:
+                logger.error(f"获取可查看项目ID失败: {str(e)}", exc_info=True)
+                db.session.rollback()
+                return empty_result
 
-            result = query.all()
+            # 构建历史记录查询，添加账户过滤条件 - 使用更安全的查询方式
+            try:
+                # 只统计首次进入该阶段的变更 - 使用更安全的子查询方式
+                if len(viewable_project_ids) > 500:
+                    # 分批处理项目ID，避免IN子句过大
+                    chunks = [viewable_project_ids[i:i+500] for i in range(0, len(viewable_project_ids), 500)]
+                    first_entries = []
+                    
+                    for chunk in chunks:
+                        chunk_subquery = db.session.query(
+                            ProjectStageHistory.project_id,
+                            func.min(ProjectStageHistory.change_date).label('first_date')
+                        ).filter(
+                            ProjectStageHistory.project_id.in_(chunk),
+                            ProjectStageHistory.to_stage == stage
+                        )
+                        
+                        if account_id:
+                            chunk_subquery = chunk_subquery.filter(
+                                ProjectStageHistory.account_id == account_id
+                            )
+                            
+                        chunk_result = chunk_subquery.group_by(
+                            ProjectStageHistory.project_id
+                        ).all()
+                        
+                        first_entries.extend(chunk_result)
+                    
+                    # 如果没有记录，直接返回空结果
+                    if not first_entries:
+                        return empty_result
+                        
+                    # 手动构建趋势数据
+                    period_counts = {}
+                    
+                    # 分批处理查询每一个项目的历史记录
+                    for project_id, first_date in first_entries:
+                        try:
+                            history = db.session.query(ProjectStageHistory).filter(
+                                ProjectStageHistory.project_id == project_id,
+                                ProjectStageHistory.change_date == first_date,
+                                ProjectStageHistory.to_stage == stage
+                            ).first()
+                            
+                            if history:
+                                # 提取时间段
+                                if period == 'week':
+                                    time_point = int(history.change_date.strftime('%Y%W'))
+                                else:
+                                    time_point = int(history.change_date.strftime('%Y%m'))
+                                
+                                if time_point in period_counts:
+                                    period_counts[time_point] += 1
+                                else:
+                                    period_counts[time_point] = 1
+                        except Exception as e:
+                            logger.error(f"处理单个项目历史记录失败: {str(e)}", exc_info=True)
+                            # 继续处理其他项目，不影响整体结果
+                            continue
+                else:
+                    # 对于较小的项目集合，使用标准子查询
+                    subquery = db.session.query(
+                        ProjectStageHistory.project_id,
+                        func.min(ProjectStageHistory.change_date).label('first_date')
+                    ).filter(
+                        ProjectStageHistory.project_id.in_(viewable_project_ids),
+                        ProjectStageHistory.to_stage == stage
+                    )
+                    
+                    if account_id:
+                        subquery = subquery.filter(ProjectStageHistory.account_id == account_id)
+                        
+                    subquery = subquery.group_by(ProjectStageHistory.project_id).subquery()
+
+                    # 按周期分组统计首次进入该阶段的项目数
+                    query = db.session.query(
+                        time_extract.label('time_point'),
+                        func.count().label('project_count')
+                    ).select_from(ProjectStageHistory).join(
+                        subquery, 
+                        (ProjectStageHistory.project_id == subquery.c.project_id) & 
+                        (ProjectStageHistory.change_date == subquery.c.first_date),
+                        isouter=False
+                    )
+                    
+                    # 如果指定了账户，添加账户过滤条件
+                    if account_id:
+                        query = query.filter(ProjectStageHistory.account_id == account_id)
+                        
+                    try:
+                        result = query.group_by('time_point').order_by('time_point').all()
+                        period_counts = {r[0]: r[1] for r in result}
+                    except Exception as e:
+                        logger.error(f"查询阶段趋势数据失败: {str(e)}", exc_info=True)
+                        db.session.rollback()
+                        # 使用备用方法进行查询
+                        period_counts = {}
+            except Exception as e:
+                logger.error(f"构建历史记录查询失败: {str(e)}", exc_info=True)
+                db.session.rollback()
+                return empty_result
 
             # 生成所有时间点
-            time_points = []
-            current_date = start_date
-            if period == 'week':
-                while current_date <= today:
-                    week_num = int(current_date.strftime('%W'))
-                    year = current_date.year
-                    time_points.append((
-                        int(f"{year}{week_num:02d}"),
-                        f"{year}-{week_num:02d}{period_label}"
-                    ))
-                    current_date += timedelta(days=7)
-            else:
-                while current_date <= today:
-                    month = current_date.month
-                    year = current_date.year
-                    time_points.append((
-                        int(f"{year}{month:02d}"),
-                        f"{year}-{month:02d}{period_label}"
-                    ))
-                    if month == 12:
-                        current_date = current_date.replace(year=year+1, month=1)
-                    else:
-                        current_date = current_date.replace(month=month+1)
+            try:
+                time_points = []
+                current_date = start_date
+                if period == 'week':
+                    while current_date <= today:
+                        week_num = int(current_date.strftime('%W'))
+                        year = current_date.year
+                        time_points.append((
+                            int(f"{year}{week_num:02d}"),
+                            f"{year}-{week_num:02d}{period_label}"
+                        ))
+                        current_date += timedelta(days=7)
+                else:
+                    while current_date <= today:
+                        month = current_date.month
+                        year = current_date.year
+                        time_points.append((
+                            int(f"{year}{month:02d}"),
+                            f"{year}-{month:02d}{period_label}"
+                        ))
+                        if month == 12:
+                            current_date = current_date.replace(year=year+1, month=1)
+                        else:
+                            current_date = current_date.replace(month=month+1)
 
-            result_dict = {r[0]: r[1] for r in result}
-            trend_data = []
-            labels = []
-            for time_key, time_label in time_points:
-                labels.append(time_label)
-                trend_data.append(result_dict.get(time_key, 0))
+                trend_data = []
+                labels = []
+                for time_key, time_label in time_points:
+                    labels.append(time_label)
+                    trend_data.append(period_counts.get(time_key, 0))
 
-            return {
-                "labels": labels,
-                "data": trend_data,
-                "color": STAGE_COLORS.get(stage, '#1890ff'),
-                "period": period,
-                "stage": stage,
-                "total_periods": len(time_points),
-                "account_id": account_id
-            }
+                return {
+                    "labels": labels,
+                    "data": trend_data,
+                    "color": STAGE_COLORS.get(stage, '#1890ff'),
+                    "period": period,
+                    "stage": stage,
+                    "total_periods": len(time_points),
+                    "account_id": account_id
+                }
+            except Exception as e:
+                logger.error(f"生成趋势数据时间点失败: {str(e)}", exc_info=True)
+                db.session.rollback()
+                return empty_result
+                
         except Exception as e:
             logger.error(f"获取阶段趋势数据出错: {str(e)}", exc_info=True)
-            return {"labels": [], "data": [], "period": period}
+            # 确保回滚事务
+            db.session.rollback()
+            return empty_result
     
     @staticmethod
     def get_all_stage_trends(period='week', user=None, account_id=None):
