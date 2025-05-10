@@ -1,0 +1,240 @@
+         table_name         |      column_name      |          data_type          
+----------------------------+-----------------------+-----------------------------
+ actions                    | communication         | text
+ actions                    | company_id            | integer
+ actions                    | contact_id            | integer
+ actions                    | created_at            | timestamp without time zone
+ actions                    | date                  | date
+ actions                    | id                    | integer
+ actions                    | owner_id              | integer
+ actions                    | project_id            | integer
+ affiliations               | created_at            | double precision
+ affiliations               | id                    | integer
+ affiliations               | owner_id              | integer
+ affiliations               | viewer_id             | integer
+ alembic_version            | version_num           | character varying
+ companies                  | address               | character varying
+ companies                  | company_code          | character varying
+ companies                  | company_name          | character varying
+ companies                  | company_type          | character varying
+ companies                  | country               | character varying
+ companies                  | created_at            | timestamp without time zone
+ companies                  | id                    | integer
+ companies                  | industry              | character varying
+ companies                  | is_deleted            | boolean
+ companies                  | notes                 | text
+ companies                  | owner_id              | integer
+ companies                  | region                | character varying
+ companies                  | status                | character varying
+ companies                  | updated_at            | timestamp without time zone
+ contacts                   | company_id            | integer
+ contacts                   | created_at            | timestamp without time zone
+ contacts                   | department            | character varying
+ contacts                   | email                 | character varying
+ contacts                   | id                    | integer
+ contacts                   | is_primary            | boolean
+ contacts                   | name                  | character varying
+ contacts                   | notes                 | text
+ contacts                   | owner_id              | integer
+ contacts                   | phone                 | character varying
+ contacts                   | position              | character varying
+ contacts                   | updated_at            | timestamp without time zone
+ data_affiliations          | created_at            | double precision
+ data_affiliations          | id                    | integer
+ data_affiliations          | owner_id              | integer
+ data_affiliations          | viewer_id             | integer
+ dev_product_specs          | dev_product_id        | integer
+ dev_product_specs          | field_code            | character varying
+ dev_product_specs          | field_name            | character varying
+ dev_product_specs          | field_value           | character varying
+ dev_product_specs          | id                    | integer
+ dev_products               | category_id           | integer
+ dev_products               | created_at            | timestamp without time zone
+ dev_products               | created_by            | integer
+ dev_products               | description           | text
+ dev_products               | id                    | integer
+ dev_products               | image_path            | character varying
+ dev_products               | mn_code               | character varying
+ dev_products               | model                 | character varying
+ dev_products               | name                  | character varying
+ dev_products               | owner_id              | integer
+ dev_products               | region_id             | integer
+ dev_products               | retail_price          | double precision
+ dev_products               | status                | character varying
+ dev_products               | subcategory_id        | integer
+ dev_products               | unit                  | character varying
+ dev_products               | updated_at            | timestamp without time zone
+ dictionaries               | created_at            | double precision
+ dictionaries               | id                    | integer
+ dictionaries               | is_active             | boolean
+ dictionaries               | key                   | character varying
+ dictionaries               | sort_order            | integer
+ dictionaries               | type                  | character varying
+ dictionaries               | updated_at            | double precision
+ dictionaries               | value                 | character varying
+ permissions                | can_create            | boolean
+ permissions                | can_delete            | boolean
+ permissions                | can_edit              | boolean
+ permissions                | can_view              | boolean
+ permissions                | id                    | integer
+ permissions                | module                | character varying
+ permissions                | user_id               | integer
+ product_categories         | code_letter           | character varying
+ product_categories         | created_at            | timestamp without time zone
+ product_categories         | description           | text
+ product_categories         | id                    | integer
+ product_categories         | name                  | character varying
+ product_categories         | updated_at            | timestamp without time zone
+ product_code_field_options | code                  | character varying
+ product_code_field_options | created_at            | timestamp without time zone
+ product_code_field_options | description           | text
+ product_code_field_options | field_id              | integer
+ product_code_field_options | id                    | integer
+ product_code_field_options | is_active             | boolean
+ product_code_field_options | position              | integer
+ product_code_field_options | updated_at            | timestamp without time zone
+ product_code_field_options | value                 | character varying
+ product_code_field_values  | custom_value          | character varying
+ product_code_field_values  | field_id              | integer
+ product_code_field_values  | id                    | integer
+ product_code_field_values  | option_id             | integer
+ product_code_field_values  | product_code_id       | integer
+ product_code_fields        | code                  | character varying
+ product_code_fields        | created_at            | timestamp without time zone
+ product_code_fields        | description           | text
+ product_code_fields        | field_type            | character varying
+ product_code_fields        | id                    | integer
+ product_code_fields        | is_required           | boolean
+ product_code_fields        | max_length            | integer
+ product_code_fields        | name                  | character varying
+ product_code_fields        | position              | integer
+ product_code_fields        | subcategory_id        | integer
+ product_code_fields        | updated_at            | timestamp without time zone
+ product_code_fields        | use_in_code           | boolean
+ product_codes              | category_id           | integer
+ product_codes              | created_at            | timestamp without time zone
+ product_codes              | created_by            | integer
+ product_codes              | full_code             | character varying
+ product_codes              | id                    | integer
+ product_codes              | product_id            | integer
+ product_codes              | status                | character varying
+ product_codes              | subcategory_id        | integer
+ product_codes              | updated_at            | timestamp without time zone
+ product_regions            | code_letter           | character varying
+ product_regions            | created_at            | timestamp without time zone
+ product_regions            | description           | text
+ product_regions            | id                    | integer
+ product_regions            | name                  | character varying
+ product_subcategories      | category_id           | integer
+ product_subcategories      | code_letter           | character varying
+ product_subcategories      | created_at            | timestamp without time zone
+ product_subcategories      | description           | text
+ product_subcategories      | display_order         | integer
+ product_subcategories      | id                    | integer
+ product_subcategories      | name                  | character varying
+ product_subcategories      | updated_at            | timestamp without time zone
+ products                   | brand                 | character varying
+ products                   | category              | character varying
+ products                   | created_at            | timestamp without time zone
+ products                   | id                    | integer
+ products                   | image_path            | character varying
+ products                   | model                 | character varying
+ products                   | owner_id              | integer
+ products                   | product_mn            | character varying
+ products                   | product_name          | character varying
+ products                   | retail_price          | numeric
+ products                   | specification         | text
+ products                   | status                | character varying
+ products                   | type                  | character varying
+ products                   | unit                  | character varying
+ products                   | updated_at            | timestamp without time zone
+ project_members            | created_at            | timestamp without time zone
+ project_members            | id                    | integer
+ project_members            | project_id            | integer
+ project_members            | role                  | character varying
+ project_members            | updated_at            | timestamp without time zone
+ project_members            | user_id               | integer
+ project_stage_history      | account_id            | integer
+ project_stage_history      | change_date           | timestamp without time zone
+ project_stage_history      | change_month          | integer
+ project_stage_history      | change_week           | integer
+ project_stage_history      | change_year           | integer
+ project_stage_history      | created_at            | timestamp without time zone
+ project_stage_history      | from_stage            | character varying
+ project_stage_history      | id                    | integer
+ project_stage_history      | project_id            | integer
+ project_stage_history      | remarks               | text
+ project_stage_history      | to_stage              | character varying
+ project_stage_history      | user_id               | integer
+ projects                   | authorization_code    | character varying
+ projects                   | authorization_status  | character varying
+ projects                   | contractor            | character varying
+ projects                   | created_at            | timestamp without time zone
+ projects                   | current_stage         | character varying
+ projects                   | dealer                | character varying
+ projects                   | delivery_forecast     | date
+ projects                   | design_issues         | character varying
+ projects                   | end_user              | character varying
+ projects                   | feedback              | text
+ projects                   | id                    | integer
+ projects                   | owner_id              | integer
+ projects                   | product_situation     | character varying
+ projects                   | project_name          | character varying
+ projects                   | project_type          | character varying
+ projects                   | quotation_customer    | double precision
+ projects                   | report_source         | character varying
+ projects                   | report_time           | date
+ projects                   | stage_description     | text
+ projects                   | system_integrator     | character varying
+ projects                   | updated_at            | timestamp without time zone
+ quotation_details          | brand                 | character varying
+ quotation_details          | created_at            | timestamp without time zone
+ quotation_details          | discount              | double precision
+ quotation_details          | id                    | integer
+ quotation_details          | market_price          | double precision
+ quotation_details          | product_desc          | text
+ quotation_details          | product_mn            | character varying
+ quotation_details          | product_model         | character varying
+ quotation_details          | product_name          | character varying
+ quotation_details          | quantity              | integer
+ quotation_details          | quotation_id          | integer
+ quotation_details          | total_price           | double precision
+ quotation_details          | unit                  | character varying
+ quotation_details          | unit_price            | double precision
+ quotation_details          | updated_at            | timestamp without time zone
+ quotations                 | amount                | double precision
+ quotations                 | contact_id            | integer
+ quotations                 | created_at            | timestamp with time zone
+ quotations                 | id                    | integer
+ quotations                 | owner_id              | integer
+ quotations                 | project_id            | integer
+ quotations                 | project_stage         | character varying
+ quotations                 | project_type          | character varying
+ quotations                 | quotation_number      | character varying
+ quotations                 | updated_at            | timestamp with time zone
+ role_permissions           | can_create            | boolean
+ role_permissions           | can_delete            | boolean
+ role_permissions           | can_edit              | boolean
+ role_permissions           | can_view              | boolean
+ role_permissions           | id                    | integer
+ role_permissions           | module                | character varying
+ role_permissions           | role                  | character varying
+ users                      | company_name          | character varying
+ users                      | created_at            | double precision
+ users                      | department            | character varying
+ users                      | email                 | character varying
+ users                      | id                    | integer
+ users                      | is_active             | boolean
+ users                      | is_department_manager | boolean
+ users                      | is_profile_complete   | boolean
+ users                      | last_login            | double precision
+ users                      | password_hash         | character varying
+ users                      | phone                 | character varying
+ users                      | real_name             | character varying
+ users                      | role                  | character varying
+ users                      | username              | character varying
+ users                      | wechat_avatar         | character varying
+ users                      | wechat_nickname       | character varying
+ users                      | wechat_openid         | character varying
+(236 行记录)
+

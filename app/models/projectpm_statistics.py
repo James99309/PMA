@@ -234,10 +234,11 @@ class ProjectStatistics:
             query = db.session.query(
                 time_extract.label('time_point'),
                 func.count().label('project_count')
-            ).join(
-                ProjectStageHistory, 
+            ).select_from(ProjectStageHistory).join(
+                subquery, 
                 (ProjectStageHistory.project_id == subquery.c.project_id) & 
-                (ProjectStageHistory.change_date == subquery.c.first_date)
+                (ProjectStageHistory.change_date == subquery.c.first_date),
+                isouter=False
             )
             
             # 如果指定了账户，添加账户过滤条件
