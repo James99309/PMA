@@ -230,53 +230,43 @@ def delete_user(user_id):
     if not user:
         flash('用户不存在或无权限删除', 'danger')
         return redirect(url_for('user.list_users'))
-    
     # 禁止删除当前登录用户
     if current_user.id == user_id:
         flash('不能删除当前登录用户', 'danger')
         return redirect(url_for('user.list_users'))
-    
     logger.info(f"[用户删除] 操作人: {current_user.username}, 目标用户ID: {user_id}")
     try:
         # 删除前检查引用关系
         has_references = False
         reference_tables = []
-        
         # 检查企业表
         from app.models.customer import Company
         if Company.query.filter_by(owner_id=user_id).count() > 0:
             has_references = True
             reference_tables.append('企业')
-        
         # 检查联系人表
         from app.models.customer import Contact
         if Contact.query.filter_by(owner_id=user_id).count() > 0:
             has_references = True
             reference_tables.append('联系人')
-        
         # 检查项目表
         from app.models.project import Project
         if Project.query.filter_by(owner_id=user_id).count() > 0:
             has_references = True
             reference_tables.append('项目')
-        
         # 检查沟通记录表
         from app.models.action import Action
         if Action.query.filter_by(owner_id=user_id).count() > 0:
             has_references = True
             reference_tables.append('沟通记录')
-        
-        # 检查数据归属表
-        from app.models.user import Affiliation, DataAffiliation
-        if Affiliation.query.filter_by(owner_id=user_id).count() > 0 or DataAffiliation.query.filter_by(owner_id=user_id).count() > 0:
-            has_references = True 
-            reference_tables.append('数据归属关系')
-        
-        # 如果有引用关系，建议设置为非活动状态而不是删除
+        # 只要有业务数据就阻止删除
         if has_references:
             flash(f'用户拥有{", ".join(reference_tables)}数据，建议设置为非活动状态而不是删除。如需强制删除，请先将这些数据转移给其他用户。', 'warning')
             return redirect(url_for('user.edit_user', user_id=user_id))
-        
+        # 自动清理归属关系
+        from app.models.user import Affiliation, DataAffiliation
+        Affiliation.query.filter((Affiliation.owner_id == user_id) | (Affiliation.viewer_id == user_id)).delete(synchronize_session=False)
+        DataAffiliation.query.filter((DataAffiliation.owner_id == user_id) | (DataAffiliation.viewer_id == user_id)).delete(synchronize_session=False)
         db.session.delete(user)
         db.session.commit()
         logger.info(f"[用户删除] 成功，目标用户ID: {user_id}")
