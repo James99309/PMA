@@ -117,19 +117,9 @@ def get_available_accounts_api():
         if not viewable_projects:
             return jsonify({'success': True, 'data': []})
 
-        # 只统计这些项目的owner且有历史记录的账户
-        project_ids = [p.id for p in viewable_projects]
+        # 只统计这些项目的owner（不再依赖历史记录）
         owner_ids = set([p.owner_id for p in viewable_projects if p.owner_id])
-        # 这些项目的历史记录中有数据的账户ID
-        distinct_accounts = db.session.query(
-            distinct(ProjectStageHistory.account_id)
-        ).filter(
-            ProjectStageHistory.account_id.isnot(None),
-            ProjectStageHistory.project_id.in_(project_ids)
-        ).all()
-        account_ids_with_data = set([account[0] for account in distinct_accounts])
-        # 交集：既是owner又有历史记录
-        valid_account_ids = owner_ids & account_ids_with_data
+        valid_account_ids = owner_ids
 
         # 查询账户信息
         accounts = []
