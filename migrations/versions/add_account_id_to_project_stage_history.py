@@ -1,7 +1,7 @@
 """add account_id to project_stage_history
 
 Revision ID: account_id_for_stats
-Revises: 
+Revises: 07bd9afe4c03
 Create Date: 2025-05-10
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'account_id_for_stats'
-down_revision = None
+down_revision = '07bd9afe4c03'
 branch_labels = None
 depends_on = None
 
