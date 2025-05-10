@@ -77,25 +77,19 @@ def create_user():
     if request.method == 'POST':
         username = request.form.get('username')
         real_name = request.form.get('real_name')
-        company_name = request.form.get('company_name')
+        company_name = request.form.get('company')
         email = request.form.get('email')
         phone = request.form.get('phone')
         department = request.form.get('department')
         role = request.form.get('role')
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
         is_active = 'is_active' in request.form
         is_department_manager = 'is_department_manager' in request.form
-        logger.info(f"[用户创建] 操作人: {current_user.username}, 参数: username={username}, email={email}, role={role}")
+        logger.info(f"[用户创建] 操作人: {current_user.username}, 参数: username={username}, email={email}, role={role}, is_active={is_active}")
         if not email or not email.strip():
             logger.warning(f"[用户创建] 邮箱为空，操作人: {current_user.username}")
             flash('邮箱不能为空', 'danger')
             return render_template('user/edit.html', user=None, is_edit=False)
         email = email.strip()
-        if password != confirm_password:
-            logger.warning(f"[用户创建] 两次密码不一致，操作人: {current_user.username}")
-            flash('两次输入的密码不一致', 'danger')
-            return render_template('user/edit.html', user=None, is_edit=False)
         if User.query.filter_by(username=username).first():
             logger.warning(f"[用户创建] 用户名已存在: {username}")
             flash('用户名已存在', 'danger')
@@ -115,49 +109,32 @@ def create_user():
             role=role,
             is_active=is_active
         )
-        user.set_password(password)
+        import secrets
+        temp_password = secrets.token_urlsafe(12)
+        user.set_password(temp_password)
         try:
             db.session.add(user)
-            try:
-                db.session.commit()
-            except Exception as e:
-                if 'UniqueViolation' in str(e) and 'users_pkey' in str(e):
-                    db.session.rollback()
-                    with db.engine.connect() as connection:
-                        try:
-                            max_id_result = connection.execute("SELECT MAX(id) FROM users").scalar()
-                            max_id = max_id_result if max_id_result is not None else 0
-                            connection.execute(f"SELECT setval('users_id_seq', {max_id + 1}, true)")
-                            logger.info(f"重置用户ID序列到 {max_id + 1}")
-                            db.session.add(user)
-                            db.session.commit()
-                        except Exception as seq_error:
-                            logger.error(f"重置序列失败: {str(seq_error)}")
-                            db.session.rollback()
-                            raise seq_error
+            db.session.commit()
+            if is_active:
+                from app.utils.email import send_user_invitation_email
+                user_data = {
+                    "id": user.id,
+                    "username": username,
+                    "real_name": real_name,
+                    "company_name": company_name,
+                    "email": email,
+                    "phone": phone,
+                    "department": department,
+                    "is_department_manager": is_department_manager,
+                    "role": role
+                }
+                email_sent = send_user_invitation_email(user_data)
+                if email_sent:
+                    flash('用户创建成功，邀请邮件已发送至用户邮箱', 'success')
                 else:
-                    logger.error(f"[用户创建] 数据库异常: {str(e)}", exc_info=True)
-                    raise e
-            from app.utils.email import send_user_invitation_email
-            user_data = {
-                "username": username,
-                "real_name": real_name,
-                "company_name": company_name,
-                "email": email,
-                "phone": phone,
-                "department": department,
-                "is_department_manager": is_department_manager,
-                "role": role,
-                "password": password,
-                "is_active": is_active
-            }
-            email_sent = send_user_invitation_email(user_data)
-            if email_sent:
-                logger.info(f"[用户创建] 成功，邀请邮件已发送: {email}")
-                flash('用户创建成功，邀请邮件已发送至用户邮箱', 'success')
+                    flash('用户创建成功，但邀请邮件发送失败，请手动通知用户', 'warning')
             else:
-                logger.warning(f"[用户创建] 成功，但邀请邮件发送失败: {email}")
-                flash('用户创建成功，但邀请邮件发送失败，请手动通知用户', 'warning')
+                flash('用户创建成功', 'success')
             return redirect(url_for('user.list_users'))
         except Exception as db_error:
             db.session.rollback()
@@ -196,7 +173,7 @@ def edit_user(user_id):
         password = request.form.get('password')
         is_active = 'is_active' in request.form
         is_department_manager = 'is_department_manager' in request.form
-        logger.info(f"[用户编辑] 操作人: {current_user.username}, 目标用户: {user.username}, 参数: email={email}, role={role}")
+        logger.info(f"[用户编辑] 操作人: {current_user.username}, 目标用户: {user.username}, 参数: email={email}, role={role}, is_active={is_active}")
         # 邮箱非空校验
         if not email or not email.strip():
             flash('邮箱不能为空', 'danger')
@@ -215,8 +192,27 @@ def edit_user(user_id):
             user.set_password(password)
         try:
             db.session.commit()
-            logger.info(f"[用户编辑] 成功，目标用户: {user.username}")
-            flash('用户信息更新成功', 'success')
+            # 判断是否由未激活变为激活
+            if is_active and not getattr(user, '_was_active', True):
+                from app.utils.email import send_user_invitation_email
+                user_data = {
+                    "id": user.id,
+                    "username": user.username,
+                    "real_name": user.real_name,
+                    "company_name": user.company_name,
+                    "email": user.email,
+                    "phone": user.phone,
+                    "department": user.department,
+                    "is_department_manager": user.is_department_manager,
+                    "role": user.role
+                }
+                email_sent = send_user_invitation_email(user_data)
+                if email_sent:
+                    flash('邀请邮件已发送至用户邮箱', 'success')
+                else:
+                    flash('邀请邮件发送失败，请手动通知用户', 'warning')
+            else:
+                flash('用户信息更新成功', 'success')
             return redirect(url_for('user.list_users'))
         except Exception as db_error:
             db.session.rollback()
@@ -825,7 +821,7 @@ def api_create_user():
         data = request.get_json()
         username = data.get('username')
         real_name = data.get('real_name')
-        company_name = data.get('company_name')
+        company_name = data.get('company')
         email = data.get('email')
         phone = data.get('phone')
         department = data.get('department')
@@ -884,7 +880,7 @@ def api_edit_user(user_id):
     try:
         data = request.get_json()
         real_name = data.get('real_name')
-        company_name = data.get('company_name')
+        company_name = data.get('company')
         email = data.get('email')
         phone = data.get('phone')
         department = data.get('department')

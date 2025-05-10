@@ -16,6 +16,7 @@ from flask_jwt_extended import create_access_token
 from urllib.parse import urlparse
 from app.forms import ForgotPasswordForm, ResetPasswordForm
 from app.utils.email import send_password_reset_email
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired, BadData
 
 logger = logging.getLogger(__name__)
 auth = Blueprint('auth', __name__)
@@ -129,61 +130,10 @@ def logout():
 @auth.route('/register', methods=['GET', 'POST'])
 def register():
     """
-    用户注册页面和处理
-    GET: 显示注册页面
-    POST: 处理注册请求
+    用户注册页面和处理 - 已禁用，重定向到登录页面
     """
-    if request.method == 'POST':
-        username = request.form.get('username')
-        real_name = request.form.get('real_name')
-        company_name = request.form.get('company_name')
-        email = request.form.get('email')
-        phone = request.form.get('phone')
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
-
-        # 校验必填字段
-        if not all([username, real_name, company_name, email, phone, password, confirm_password]):
-            flash('请填写所有必填字段', 'danger')
-            return render_template('auth/register.html')
-
-        # 校验两次密码一致
-        if password != confirm_password:
-            flash('两次输入的密码不一致', 'danger')
-            return render_template('auth/register.html')
-
-        # 校验用户名唯一性（不区分大小写）
-        if User.query.filter(func.lower(User.username) == func.lower(username)).first():
-            flash('用户名已被使用', 'danger')
-            return render_template('auth/register.html')
-
-        # 校验邮箱唯一性（不区分大小写）
-        if User.query.filter(func.lower(User.email) == func.lower(email)).first():
-            flash('邮箱已被使用', 'danger')
-            return render_template('auth/register.html')
-
-        # 创建新用户对象，默认未激活
-        user = User(
-            username=username,
-            real_name=real_name,
-            company_name=company_name,
-            email=email,
-            phone=phone,
-            is_active=False,  # 默认未激活，等待管理员审核
-            role='user'  # 默认角色
-        )
-        user.set_password(password)
-        try:
-            db.session.add(user)
-            db.session.commit()
-            flash('注册申请已提交，请等待管理员审核！', 'success')
-            return redirect(url_for('auth.login'))
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f'用户注册过程中发生错误: {str(e)}', exc_info=True)
-            flash('注册过程中发生错误，请稍后重试', 'danger')
-            return render_template('auth/register.html')
-    return render_template('auth/register.html')
+    flash('系统不再支持自主注册，请联系管理员获取账户', 'info')
+    return redirect(url_for('auth.login'))
 
 @auth.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
@@ -309,4 +259,76 @@ def wechat_callback():
     # 4. 设置登录状态
     
     return redirect(url_for('main.index')) 
-    return redirect(url_for('main.index')) 
+
+# 添加用户激活路由
+@auth.route('/activate/<token>', methods=['GET', 'POST'])
+def activate_account(token):
+    """
+    用户通过邮件链接设置密码并激活账户
+    
+    GET: 显示设置密码页面
+    POST: 处理用户提交的密码并激活账户
+    """
+    try:
+        # 验证令牌
+        s = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
+        data = s.loads(token, salt='user-activation', max_age=86400)  # 24小时有效期
+        
+        user_id = data.get('user_id')
+        action = data.get('action')
+        
+        if not user_id or action != 'activate':
+            flash('无效的激活链接', 'danger')
+            return redirect(url_for('auth.login'))
+        
+        # 查找用户
+        user = User.query.get(user_id)
+        if not user:
+            flash('用户不存在，请联系管理员', 'danger')
+            return redirect(url_for('auth.login'))
+        
+        # 检查用户是否已激活
+        if user.is_active:
+            flash('账户已激活，请直接登录', 'info')
+            return redirect(url_for('auth.login'))
+        
+        # 处理表单提交
+        if request.method == 'POST':
+            password = request.form.get('password')
+            confirm_password = request.form.get('confirm_password')
+            
+            if not password or not confirm_password:
+                flash('请填写密码和确认密码', 'danger')
+                return render_template('auth/activate.html', token=token)
+                
+            if password != confirm_password:
+                flash('两次输入的密码不一致', 'danger')
+                return render_template('auth/activate.html', token=token)
+            
+            # 设置密码并激活账户
+            user.set_password(password)
+            user.is_active = True
+            
+            try:
+                db.session.commit()
+                flash('密码设置成功，账户已激活！请登录', 'success')
+                return redirect(url_for('auth.login'))
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"激活账户失败: {str(e)}", exc_info=True)
+                flash('激活账户失败，请稍后重试或联系管理员', 'danger')
+                return render_template('auth/activate.html', token=token)
+        
+        # GET请求，显示设置密码表单
+        return render_template('auth/activate.html', token=token)
+        
+    except SignatureExpired:
+        flash('激活链接已过期，请联系管理员重新发送', 'danger')
+        return redirect(url_for('auth.login'))
+    except (BadSignature, BadData):
+        flash('无效的激活链接', 'danger')
+        return redirect(url_for('auth.login'))
+    except Exception as e:
+        logger.error(f"处理激活链接时出错: {str(e)}", exc_info=True)
+        flash('处理激活请求时出错，请联系管理员', 'danger')
+        return redirect(url_for('auth.login')) 

@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 
+{% block title %}设置密码并激活账户 - 项目管理系统{% endblock %}
+
 {% block content %}
 <div class="container mt-5">
     <div class="row justify-content-center">
@@ -7,8 +9,8 @@
             <div class="card shadow-sm border-0">
                 <div class="card-body p-4">
                     <div class="text-center mb-4">
-                        <h4 class="mb-1">欢迎登录销售项目管理系统</h4>
-                        <p class="text-muted small">Original evertacsolutions</p>
+                        <h4 class="mb-1">设置密码并激活账户</h4>
+                        <p class="text-muted small">请设置您的登录密码以完成账户激活</p>
                     </div>
 
                     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -24,16 +26,9 @@
 
                     <form method="POST" class="needs-validation" novalidate>
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        
                         <div class="mb-3">
-                            <label for="username" class="form-label">用户名或邮箱</label>
-                            <input type="text" class="form-control" id="username" name="username"
-                                   placeholder="请输入用户名或邮箱" required autofocus>
-                            <div class="invalid-feedback">
-                                请输入用户名或邮箱
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="password" class="form-label">密码</label>
+                            <label for="password" class="form-label">设置密码</label>
                             <div class="input-group has-validation">
                                 <input type="password" class="form-control" id="password" name="password"
                                        placeholder="请输入密码" required>
@@ -44,16 +39,29 @@
                                     请输入密码
                                 </div>
                             </div>
+                            <small class="text-muted">建议使用字母、数字和特殊字符的组合，长度至少8位</small>
                         </div>
-                        <div class="mb-3 form-check">
-                            <input type="checkbox" class="form-check-input" id="remember" name="remember">
-                            <label class="form-check-label" for="remember">记住我</label>
+                        
+                        <div class="mb-4">
+                            <label for="confirm_password" class="form-label">确认密码</label>
+                            <div class="input-group has-validation">
+                                <input type="password" class="form-control" id="confirm_password" name="confirm_password"
+                                       placeholder="请再次输入密码" required>
+                                <button class="btn btn-outline-secondary" type="button" id="toggleConfirmPassword" tabindex="-1">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                <div class="invalid-feedback">
+                                    请确认密码
+                                </div>
+                            </div>
                         </div>
-                        <div class="d-grid gap-2 mb-3">
-                            <button type="submit" class="btn btn-primary">登录</button>
+                        
+                        <div class="d-grid mb-3">
+                            <button type="submit" class="btn btn-primary">设置密码并激活账户</button>
                         </div>
-                        <div class="d-flex justify-content-between">
-                            <a href="{{ url_for('auth.forgot_password') }}" class="text-decoration-none small">忘记密码?</a>
+                        
+                        <div class="text-center">
+                            <a href="{{ url_for('auth.login') }}" class="text-decoration-none small">返回登录页面</a>
                         </div>
                     </form>
                 </div>
@@ -66,6 +74,22 @@
     // 密码显示/隐藏切换
     document.getElementById('togglePassword').addEventListener('click', function() {
         const passwordInput = document.getElementById('password');
+        const icon = this.querySelector('i');
+
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            icon.classList.remove('bi-eye');
+            icon.classList.add('bi-eye-slash');
+        } else {
+            passwordInput.type = 'password';
+            icon.classList.remove('bi-eye-slash');
+            icon.classList.add('bi-eye');
+        }
+    });
+    
+    // 确认密码显示/隐藏切换
+    document.getElementById('toggleConfirmPassword').addEventListener('click', function() {
+        const passwordInput = document.getElementById('confirm_password');
         const icon = this.querySelector('i');
 
         if (passwordInput.type === 'password') {
@@ -91,9 +115,24 @@
                     event.stopPropagation();
                 }
 
+                // 检查两次密码是否一致
+                const password = document.getElementById('password').value;
+                const confirmPassword = document.getElementById('confirm_password').value;
+                
+                if (password !== confirmPassword) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    
+                    const confirmPasswordInput = document.getElementById('confirm_password');
+                    confirmPasswordInput.setCustomValidity('两次输入的密码不一致');
+                } else {
+                    const confirmPasswordInput = document.getElementById('confirm_password');
+                    confirmPasswordInput.setCustomValidity('');
+                }
+
                 form.classList.add('was-validated');
             }, false);
         });
     })();
 </script>
-{% endblock %}
+{% endblock %} 

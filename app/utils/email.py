@@ -5,6 +5,7 @@ import logging
 from email.mime.text import MIMEText
 from email.header import Header
 from flask import current_app, request
+from itsdangerous import URLSafeTimedSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -132,21 +133,29 @@ def send_user_invitation_email(user_data):
     发送邀请邮件给新创建的用户
     
     参数:
-    - user_data: 字典，包含用户信息（username, real_name, company_name, role, email, password等）
+    - user_data: 字典，包含用户信息（username, real_name, company_name, role, email等）
     
     返回值:
     - 成功发送返回True，否则返回False
     """
     try:
+        from app.models.user import User
         username = user_data.get('username')
         real_name = user_data.get('real_name')
         email = user_data.get('email')
         company_name = user_data.get('company_name')
         role = user_data.get('role')
-        password = user_data.get('password')
+        user_id = user_data.get('id')
         
         # 获取应用域名
         app_domain = current_app.config.get('APP_DOMAIN', request.host_url.rstrip('/'))
+        
+        # 生成邀请令牌
+        s = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
+        invitation_token = s.dumps({'user_id': user_id, 'action': 'activate'}, salt='user-activation')
+        
+        # 构建激活链接
+        activation_url = f"{app_domain}/auth/activate/{invitation_token}"
         
         # 角色的中文名称
         role_names = {
@@ -181,15 +190,19 @@ def send_user_invitation_email(user_data):
             <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
                 <h3 style="margin-top: 0; color: #3f51b5;">您的账户信息</h3>
                 <p><strong>用户名：</strong> {username}</p>
-                <p><strong>初始密码：</strong> {password}</p>
                 <p><strong>公司名称：</strong> {company_name}</p>
                 <p><strong>用户角色：</strong> {role_name}</p>
-                <p><strong>系统登录地址：</strong> <a href="{app_domain}/login" style="color: #3f51b5;">{app_domain}/login</a></p>
             </div>
             
-            <p style="font-size: 16px; line-height: 1.6;">请使用以上信息登录系统。首次登录后，您的账户将被自动激活。为了保障账户安全，我们强烈建议您在首次登录后立即修改密码。</p>
+            <p style="font-size: 16px; line-height: 1.6;">请点击下方按钮设置您的密码并激活账户：</p>
             
-            <p style="font-size: 16px; line-height: 1.6;"><strong>请注意：</strong>如果您的账户被停用，请联系系统管理员重新激活。</p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{activation_url}" style="background-color: #3f51b5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
+                    设置密码并激活账户
+                </a>
+            </div>
+            
+            <p style="font-size: 16px; line-height: 1.6;"><strong>请注意：</strong>此激活链接将在24小时内有效，请尽快完成账户设置。</p>
             
             <p style="font-size: 16px; line-height: 1.6;">如有任何问题或需要帮助，请随时与管理员联系。</p>
             

@@ -86,8 +86,7 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="is_active" name="is_active"
-                                       {{ 'checked' if not user or user.is_active else '' }}>
+                                <input class="form-check-input" type="checkbox" id="is_active" name="is_active" {{ 'checked' if user and user.is_active else '' }}>
                                 <label class="form-check-label" for="is_active">
                                     账号已激活
                                 </label>
@@ -95,13 +94,12 @@
                             </div>
                         </div>
                         <div class="col-md-6">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="is_department_manager" name="is_department_manager"
-                                   {{ 'checked' if user and user.is_department_manager else '' }}>
-                            <label class="form-check-label" for="is_department_manager">
-                                是部门负责人
-                            </label>
-                            <small class="form-text text-muted d-block">标记为负责人的用户将在同公司同部门中拥有更高的权限</small>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="is_department_manager" name="is_department_manager" {{ 'checked' if user and user.is_department_manager else '' }}>
+                                <label class="form-check-label" for="is_department_manager">
+                                    是部门负责人
+                                </label>
+                                <small class="form-text text-muted d-block">标记为负责人的用户将在同公司同部门中拥有更高的权限</small>
                             </div>
                         </div>
                     </div>
@@ -117,39 +115,6 @@
                                 <div class="invalid-feedback">
                                     请选择用户角色
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label for="password" class="form-label">
-                                {{ '新密码' if is_edit else '密码' }}
-                                {% if not is_edit %}<span class="text-danger">*</span>{% endif %}
-                            </label>
-                            <div class="input-group">
-                                <input type="password" class="form-control" id="password" name="password"
-                                       {{ '' if is_edit else 'required' }}>
-                                <button class="btn btn-outline-secondary toggle-password" type="button">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <div class="invalid-feedback">
-                                    {{ '如需修改，请输入新密码' if is_edit else '请输入密码' }}
-                                </div>
-                            </div>
-                            {% if is_edit %}
-                            <small class="text-muted">如不修改密码，请留空</small>
-                            {% endif %}
-                        </div>
-                        <div class="col-md-6">
-                            <label for="confirm_password" class="form-label">
-                                {{ '确认新密码' if is_edit else '确认密码' }}
-                                {% if not is_edit %}<span class="text-danger">*</span>{% endif %}
-                            </label>
-                            <input type="password" class="form-control" id="confirm_password" name="confirm_password"
-                                   {{ '' if is_edit else 'required' }}>
-                            <div class="invalid-feedback">
-                                {{ '如需修改，请确认新密码' if is_edit else '请确认密码' }}
                             </div>
                         </div>
                     </div>
