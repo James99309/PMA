@@ -164,11 +164,13 @@ def create_app(config_class=Config):
     from app.models.product_code import ProductCategory, ProductCodeField, ProductCodeFieldOption, ProductCode, ProductCodeFieldValue
     from app.models.dev_product import DevProduct, DevProductSpec
     from app.models.dictionary import Dictionary
+    from app.models.projectpm_statistics import ProjectStatistics
 
     # 导入所有视图
     from app.views import main, customer, project, auth, user_bp
     from app.views.quotation import quotation
     from app.routes.api import api_bp
+    from app.routes.projectpm_routes import bp as projectpm_bp
     
     # 导入新的API视图
     from app.api.v1 import api_v1_bp
@@ -185,6 +187,7 @@ def create_app(config_class=Config):
     app.register_blueprint(user_bp, url_prefix='/user')
     app.register_blueprint(product_code_bp, url_prefix='/product-code')
     app.register_blueprint(product_management_bp, url_prefix='/product-management')
+    app.register_blueprint(projectpm_bp, url_prefix='/projectpm')
     
     # 注册API v1蓝图
     app.register_blueprint(api_v1_bp, url_prefix='/api/v1')

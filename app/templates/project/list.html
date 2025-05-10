@@ -56,6 +56,7 @@
     <div class="row">
         <div class="col">
             <!-- 搜索和添加按钮部分 -->
+            {% include 'project/statistics_dashboard.html' %}
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div class="d-flex align-items-center">
                 <div class="input-group" style="max-width: 300px;">
@@ -2097,4 +2098,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.2/dist/echarts.min.js"></script>
+<!-- 引用账户切换功能模块 -->
+<script src="{{ url_for('static', filename='js/project_statistics_account.js') }}"></script>
+<!-- 引用项目列表账户同步模块 -->
+<script src="{{ url_for('static', filename='js/project_list_account.js') }}"></script>
+<script src="{{ url_for('static', filename='js/project_statistics.js') }}"></script>
 {% endblock %}

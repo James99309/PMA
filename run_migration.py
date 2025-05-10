@@ -1,85 +1,86 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 """
-数据库迁移脚本 - 修复DevProduct和DevProductSpec表结构
+数据库迁移脚本执行器
+用于执行特定的数据库迁移脚本，添加account_id字段到project_stage_history表
 """
-from app import create_app, db
-from app.models.dev_product import DevProduct, DevProductSpec
-import sqlite3
-import time
 
-app = create_app()
+import os
+import sys
+import logging
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 
-def add_column_if_not_exists(table, column, column_type):
-    """向表中添加列（如果不存在）"""
+# 设置日志
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# 导入迁移脚本
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from migrations.versions.add_account_id_to_project_stage_history import upgrade
+
+def run_migration():
+    """执行迁移脚本"""
     try:
-        conn = sqlite3.connect('app.db')
-        cursor = conn.cursor()
+        # 创建一个简单的Flask应用
+        app = Flask(__name__)
         
-        # 检查列是否存在
-        cursor.execute(f"PRAGMA table_info({table})")
-        columns = [info[1] for info in cursor.fetchall()]
+        # 从环境变量或配置文件获取数据库连接信息
+        from config import Config
+        app.config.from_object(Config)
         
-        if column not in columns:
-            print(f"添加列：{table}.{column} ({column_type})")
-            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_type}")
-            conn.commit()
-            print(f"成功添加列 {column}")
-        else:
-            print(f"列 {column} 已存在，跳过")
+        # 打印配置信息
+        logger.info(f"数据库配置: {app.config.get('SQLALCHEMY_DATABASE_URI', '未配置')}")
+        
+        # 初始化数据库
+        db = SQLAlchemy(app)
+        
+        # 使用应用上下文
+        with app.app_context():
+            # 测试数据库连接
+            try:
+                db.session.execute(text('SELECT 1'))
+                logger.info("数据库连接成功")
+            except Exception as e:
+                logger.error(f"数据库连接失败: {str(e)}")
+                return False
             
-        conn.close()
-        return True
+            # 执行迁移
+            logger.info("开始执行数据库迁移...")
+            upgrade()
+            logger.info("数据库迁移执行完成")
+            
+            # 验证迁移结果
+            try:
+                # 检查是否已添加account_id字段
+                result = db.session.execute(text("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name='project_stage_history' AND column_name='account_id'
+                """)).fetchone()
+                
+                if result:
+                    logger.info("迁移验证成功: account_id字段已添加到project_stage_history表")
+                    return True
+                else:
+                    logger.error("迁移验证失败: account_id字段未添加")
+                    return False
+            except Exception as e:
+                logger.error(f"迁移验证出错: {str(e)}")
+                return False
     except Exception as e:
-        print(f"添加列失败: {str(e)}")
+        logger.error(f"执行迁移脚本时出错: {str(e)}")
         return False
+    
+    return True
 
-def rename_column_if_exists(table, old_column, new_column):
-    """重命名表中的列（如果存在）"""
-    try:
-        conn = sqlite3.connect('app.db')
-        cursor = conn.cursor()
-        
-        # 检查列是否存在
-        cursor.execute(f"PRAGMA table_info({table})")
-        columns = [info[1] for info in cursor.fetchall()]
-        
-        if old_column in columns and new_column not in columns:
-            print(f"重命名列：{table}.{old_column} -> {new_column}")
-            
-            # SQLite不直接支持重命名列，需要创建新表、复制数据并重命名
-            # 这里采用更简单的方法：创建新的列然后复制数据
-            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {new_column} TEXT")
-            cursor.execute(f"UPDATE {table} SET {new_column} = {old_column}")
-            conn.commit()
-            print(f"成功重命名列 {old_column} -> {new_column}")
-        else:
-            if new_column in columns:
-                print(f"目标列 {new_column} 已存在，跳过")
-            else:
-                print(f"源列 {old_column} 不存在，跳过")
-            
-        conn.close()
-        return True
-    except Exception as e:
-        print(f"重命名列失败: {str(e)}")
-        return False
-
-with app.app_context():
-    print("开始数据库迁移...")
-    
-    # 添加缺失的列到 dev_products 表
-    add_column_if_not_exists('dev_products', 'name', 'TEXT')
-    add_column_if_not_exists('dev_products', 'created_by', 'INTEGER')
-    add_column_if_not_exists('dev_products', 'mn_code', 'TEXT')
-    
-    # 重命名 dev_product_specs 表中的列
-    # 注意：这是不安全的方法。在生产环境应使用合适的数据库迁移工具
-    rename_column_if_exists('dev_product_specs', 'product_id', 'dev_product_id')
-    rename_column_if_exists('dev_product_specs', 'name', 'field_name')
-    rename_column_if_exists('dev_product_specs', 'value', 'field_value')
-    
-    # 重新创建表结构
-    print("更新数据库表结构...")
-    db.create_all()
-    
-    print("数据库迁移完成，请重启应用程序") 
+if __name__ == "__main__":
+    success = run_migration()
+    if success:
+        logger.info("迁移脚本执行成功")
+        sys.exit(0)
+    else:
+        logger.error("迁移脚本执行失败")
+        sys.exit(1) 

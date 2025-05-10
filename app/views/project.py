@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, abort
 from app.models.project import Project
-from app.models.customer import Company
+from app.models.customer import Company, Contact
 from app import db
 from datetime import datetime
 from flask_login import current_user, login_required
@@ -20,6 +20,7 @@ from app.permissions import check_permission, Permissions
 from werkzeug.utils import secure_filename
 import os
 from flask_wtf.csrf import CSRFProtect
+from app.models.action import Action
 
 csrf = CSRFProtect()
 
@@ -40,6 +41,10 @@ def list_projects():
     sort = request.args.get('sort', 'updated_at')
     order = request.args.get('order', 'desc')
     my_projects = request.args.get('my_projects', '0')
+    # 获取account_id参数用于账户过滤
+    account_id = request.args.get('account_id')
+    # 检查是否需要保持面板打开
+    keep_panel = request.args.get('keep_panel', 'false') == 'true'
     
     # 使用数据访问控制
     query = get_viewable_data(Project, current_user)
@@ -47,6 +52,9 @@ def list_projects():
     # 如果启用了"只看自己"筛选
     if my_projects == '1':
         query = query.filter(Project.owner_id == current_user.id)
+    # 如果指定了账户ID，按owner_id过滤项目
+    elif account_id and account_id.isdigit():
+        query = query.filter(Project.owner_id == int(account_id))
     
     # 添加搜索条件
     if search:
@@ -94,7 +102,14 @@ def list_projects():
     # 将筛选参数传递到模板
     filter_params = {key: value for key, value in request.args.items() if key.startswith('filter_')}
     
-    return render_template('project/list.html', projects=projects, search_term=search, Quotation=Quotation, filter_params=filter_params)
+    # 检查是否是AJAX请求
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' and request.args.get('format') == 'json':
+        # 返回JSON格式的项目列表HTML片段
+        html = render_template('project/list_partial.html', projects=projects, search_term=search, Quotation=Quotation, filter_params=filter_params)
+        return jsonify({'success': True, 'html': html})
+    
+    # 传递keep_panel参数到模板
+    return render_template('project/list.html', projects=projects, search_term=search, Quotation=Quotation, filter_params=filter_params, keep_panel=keep_panel)
 
 @project.route('/view/<int:project_id>')
 @permission_required('project', 'view')
@@ -199,7 +214,10 @@ def view_project(project_id):
             'endDate': None
         })
 
-    return render_template('project/detail.html', project=project, Quotation=Quotation, related_companies=related_companies, stageHistory=stage_history)
+    # 查询项目相关的行动记录，按时间倒序排列
+    project_actions = Action.query.filter_by(project_id=project_id).order_by(Action.date.desc(), Action.created_at.desc()).all()
+
+    return render_template('project/detail.html', project=project, Quotation=Quotation, related_companies=related_companies, stageHistory=stage_history, project_actions=project_actions)
 
 @project.route('/add', methods=['GET', 'POST'])
 @permission_required('project', 'create')
@@ -839,3 +857,112 @@ def update_project_stage():
         current_app.logger.error(f"更新项目阶段出错: {str(e)}")
         db.session.rollback()
         return jsonify({'success': False, 'message': f'服务器错误: {str(e)}'}), 500 
+
+@project.route('/add_action/<int:project_id>', methods=['GET', 'POST'])
+@permission_required('customer', 'create')
+def add_action_for_project(project_id):
+    """为项目添加行动记录"""
+    project = Project.query.get_or_404(project_id)
+    
+    # 查找项目相关的所有企业
+    related_companies = []
+    related_companies_dict = {}
+    
+    if project.end_user:
+        company = Company.query.filter_by(company_name=project.end_user).first()
+        if company:
+            related_companies.append(company)
+            related_companies_dict[company.id] = company
+    
+    if project.design_issues:
+        company = Company.query.filter_by(company_name=project.design_issues).first()
+        if company and company.id not in related_companies_dict:
+            related_companies.append(company)
+            related_companies_dict[company.id] = company
+    
+    if project.contractor:
+        company = Company.query.filter_by(company_name=project.contractor).first()
+        if company and company.id not in related_companies_dict:
+            related_companies.append(company)
+            related_companies_dict[company.id] = company
+            
+    if project.system_integrator:
+        company = Company.query.filter_by(company_name=project.system_integrator).first()
+        if company and company.id not in related_companies_dict:
+            related_companies.append(company)
+            related_companies_dict[company.id] = company
+    
+    if project.dealer:
+        company = Company.query.filter_by(company_name=project.dealer).first()
+        if company and company.id not in related_companies_dict:
+            related_companies.append(company)
+            related_companies_dict[company.id] = company
+    
+    # 获取默认选择的企业ID
+    default_company_id = request.args.get('company_id')
+    selected_company = None
+    company_contacts = []
+    
+    if default_company_id and default_company_id.isdigit():
+        selected_company = Company.query.get(int(default_company_id))
+        if selected_company:
+            company_contacts = Contact.query.filter_by(company_id=selected_company.id).all()
+    elif related_companies:
+        # 如果没有指定企业，默认选择第一个相关企业
+        selected_company = related_companies[0]
+        company_contacts = Contact.query.filter_by(company_id=selected_company.id).all()
+    
+    if request.method == 'POST':
+        contact_id = request.form.get('contact_id')
+        communication = request.form.get('communication')
+        date = request.form.get('date')
+        company_id = request.form.get('company_id')
+        
+        if not communication or not date:
+            flash('请填写沟通情况和日期', 'danger')
+        else:
+            action = Action(
+                date=datetime.strptime(date, '%Y-%m-%d'),
+                contact_id=contact_id if contact_id else None,
+                company_id=company_id if company_id else None,
+                project_id=project_id,
+                communication=communication,
+                owner_id=current_user.id
+            )
+            db.session.add(action)
+            db.session.commit()
+            flash('行动记录添加成功！', 'success')
+            return redirect(url_for('project.view_project', project_id=project_id))
+    
+    return render_template('project/add_action.html', 
+                           project=project, 
+                           related_companies=related_companies,
+                           selected_company=selected_company,
+                           company_contacts=company_contacts)
+
+@project.route('/api/get_company_contacts/<int:company_id>', methods=['GET'])
+@permission_required('customer', 'view')
+def get_company_contacts(company_id):
+    """获取企业联系人API"""
+    try:
+        company = Company.query.get_or_404(company_id)
+        contacts = Contact.query.filter_by(company_id=company_id).all()
+        
+        result = [{
+            'id': contact.id,
+            'name': contact.name,
+            'position': contact.position or '',
+            'phone': contact.phone or '',
+            'email': contact.email or ''
+        } for contact in contacts]
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+    except Exception as e:
+        logger.error(f"获取企业联系人失败: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'获取企业联系人失败: {str(e)}'
+        }), 500 

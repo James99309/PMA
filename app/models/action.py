@@ -9,8 +9,8 @@ class Action(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
-    contact_id = db.Column(db.Integer, db.ForeignKey('contacts.id'), nullable=False)
-    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
+    contact_id = db.Column(db.Integer, db.ForeignKey('contacts.id'), nullable=True)
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=True)
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=True)
     communication = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

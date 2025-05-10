@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}添加行动记录{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2>项目行动记录</h2>
+                <a href="{{ url_for('project.view_project', project_id=project.id) }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> 返回项目
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">添加行动记录</h5>
+                </div>
+                <div class="card-body">
+                    <form id="actionForm" method="post">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="mb-3">
+                            <label for="project" class="form-label">关联项目</label>
+                            <input type="text" class="form-control" id="project" value="{{ project.project_name }}" readonly>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="company_id" class="form-label">相关企业</label>
+                            <select class="form-select" id="company_id" name="company_id">
+                                <option value="">-- 请选择企业（可选） --</option>
+                                {% for company in related_companies %}
+                                <option value="{{ company.id }}" {% if selected_company and selected_company.id == company.id %}selected{% endif %}>
+                                    {{ company.company_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="contact_id" class="form-label">联系人</label>
+                            <select class="form-select" id="contact_id" name="contact_id">
+                                <option value="">-- 请先选择企业（可选） --</option>
+                                {% if selected_company %}
+                                    {% for contact in company_contacts %}
+                                    <option value="{{ contact.id }}">
+                                        {{ contact.name }} {% if contact.position %}({{ contact.position }}){% endif %}
+                                    </option>
+                                    {% endfor %}
+                                {% endif %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="date" class="form-label">日期</label>
+                            <input type="date" class="form-control" id="date" name="date" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="communication" class="form-label">沟通情况</label>
+                            <textarea class="form-control" id="communication" name="communication" rows="5" required></textarea>
+                        </div>
+                        
+                        <div class="d-flex justify-content-end">
+                            <a href="{{ url_for('project.view_project', project_id=project.id) }}" class="btn btn-secondary me-2">取消</a>
+                            <button type="submit" class="btn btn-primary">保存</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">项目信息</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6>{{ project.project_name }}</h6>
+                        <span class="badge bg-primary">{{ project.current_stage or '无阶段' }}</span>
+                    </div>
+                    
+                    <div class="mb-2">
+                        <strong>相关单位:</strong>
+                        <ul class="list-unstyled mt-2">
+                            {% if project.end_user %}
+                            <li class="mb-1"><i class="fas fa-building me-1 text-primary"></i> 直接用户: {{ project.end_user }}</li>
+                            {% endif %}
+                            {% if project.design_issues %}
+                            <li class="mb-1"><i class="fas fa-drafting-compass me-1 text-primary"></i> 设计院: {{ project.design_issues }}</li>
+                            {% endif %}
+                            {% if project.contractor %}
+                            <li class="mb-1"><i class="fas fa-hard-hat me-1 text-primary"></i> 总承包: {{ project.contractor }}</li>
+                            {% endif %}
+                            {% if project.system_integrator %}
+                            <li class="mb-1"><i class="fas fa-cogs me-1 text-primary"></i> 系统集成: {{ project.system_integrator }}</li>
+                            {% endif %}
+                            {% if project.dealer %}
+                            <li class="mb-1"><i class="fas fa-store me-1 text-primary"></i> 经销商: {{ project.dealer }}</li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 设置今天的日期为默认值
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('date').value = today;
+    
+    // 获取表单元素
+    const companySelect = document.getElementById('company_id');
+    const contactSelect = document.getElementById('contact_id');
+    
+    // 监听企业选择变化
+    companySelect.addEventListener('change', function() {
+        const companyId = this.value;
+        
+        // 清空联系人下拉菜单
+        contactSelect.innerHTML = '<option value="">-- 加载中... --</option>';
+        contactSelect.disabled = true;
+        
+        if (!companyId) {
+            contactSelect.innerHTML = '<option value="">-- 请先选择企业（可选） --</option>';
+            contactSelect.disabled = true;
+            return;
+        }
+        
+        // 请求该企业的联系人列表
+        fetch(`/project/api/get_company_contacts/${companyId}`)
+            .then(response => response.json())
+            .then(data => {
+                contactSelect.disabled = false;
+                
+                if (data.success && data.data.length > 0) {
+                    contactSelect.innerHTML = '';
+                    
+                    // 添加空选项
+                    const emptyOption = document.createElement('option');
+                    emptyOption.value = '';
+                    emptyOption.textContent = '-- 请选择联系人（可选） --';
+                    contactSelect.appendChild(emptyOption);
+                    
+                    // 添加联系人选项
+                    data.data.forEach(contact => {
+                        const option = document.createElement('option');
+                        option.value = contact.id;
+                        option.textContent = contact.name + (contact.position ? ` (${contact.position})` : '');
+                        contactSelect.appendChild(option);
+                    });
+                } else {
+                    contactSelect.innerHTML = '<option value="">-- 该企业无联系人 --</option>';
+                }
+            })
+            .catch(error => {
+                console.error('获取联系人失败:', error);
+                contactSelect.innerHTML = '<option value="">-- 加载联系人失败 --</option>';
+                contactSelect.disabled = true;
+            });
+    });
+    
+    // 表单验证
+    const actionForm = document.getElementById('actionForm');
+    actionForm.addEventListener('submit', function(event) {
+        if (!this.checkValidity()) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        
+        // 添加表单验证样式
+        this.classList.add('was-validated');
+    });
+});
+</script>
+{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+.timeline-container {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline-item {
+    position: relative;
+    padding-bottom: 20px;
+}
+
+.timeline-marker {
+    position: absolute;
+    top: 0;
+    left: -30px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: #0d6efd;
+    z-index: 10;
+}
+
+.timeline-marker::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 20px;
+    bottom: -20px;
+    width: 2px;
+    background-color: #dee2e6;
+    transform: translateX(-50%);
+}
+
+.timeline-item:last-child .timeline-marker::before {
+    display: none;
+}
+
+.timeline-content {
+    padding-left: 15px;
+}
+</style>
+{% endblock %} 

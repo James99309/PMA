@@ -1,0 +1,366 @@
+<!-- 项目统计总览面板 -->
+<div id="projectStatisticsPanel" class="project-statistics-panel collapse show">
+    <div class="card">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+                <span><i class="fas fa-chart-bar me-1"></i> 项目统计总览</span>
+            </div>
+            <!-- 删除时间周期切换按钮组 -->
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <!-- 加载中提示 -->
+                <div id="statisticsLoading" class="col-12 text-center py-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-2">正在加载统计数据...</p>
+                </div>
+                
+                <!-- 统计内容容器 -->
+                <div id="statisticsCards" class="col-12 d-none">
+                    <!-- 项目统计概览 - 顶部水平展示 -->
+                    <div class="row g-3 mb-4">
+                        <!-- 有效项目总览卡片 -->
+                        <div class="col-md-3">
+                            <div class="card border-0 shadow-sm h-100 bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title text-primary">
+                                        <i class="fas fa-project-diagram me-1"></i> 有效项目
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="当前有效的项目总数和总金额（排除失败、签约、搁置等状态）"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                        <div>
+                                            <span class="fs-5 fw-bold" id="validProjectsCount">0</span>
+                                            <span class="text-muted ms-1">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-5 fw-bold" id="validProjectsAmount">0</span>
+                                            <span class="text-muted ms-1">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 投标项目卡片 -->
+                        <div class="col-md-3">
+                            <div class="card border-0 shadow-sm h-100 bg-warning bg-opacity-10">
+                                <div class="card-body">
+                                    <h6 class="card-title text-warning">
+                                        <i class="fas fa-file-contract me-1"></i> 投标中
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="当前处于投标阶段的项目统计"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                        <div>
+                                            <span class="fs-5 fw-bold" id="biddingProjectsCount">0</span>
+                                            <span class="text-muted ms-1">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-5 fw-bold" id="biddingProjectsAmount">0</span>
+                                            <span class="text-muted ms-1">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 中标项目卡片 -->
+                        <div class="col-md-3">
+                            <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10">
+                                <div class="card-body">
+                                    <h6 class="card-title text-success">
+                                        <i class="fas fa-award me-1"></i> 中标
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="当前中标阶段的项目统计"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                        <div>
+                                            <span class="fs-5 fw-bold" id="wonProjectsCount">0</span>
+                                            <span class="text-muted ms-1">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-5 fw-bold" id="wonProjectsAmount">0</span>
+                                            <span class="text-muted ms-1">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 业务推进卡片 -->
+                        <div class="col-md-3">
+                            <div class="card border-0 shadow-sm h-100 bg-info bg-opacity-10">
+                                <div class="card-body">
+                                    <h6 class="card-title text-info">
+                                        <i class="fas fa-chart-line me-1"></i> 业务推进
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="本周/本月内状态有更新的项目统计"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                        <div>
+                                            <span class="fs-5 fw-bold" id="updatedProjectsCount">0</span>
+                                            <span class="text-muted ms-1">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-5 fw-bold" id="updatedProjectsAmount">0</span>
+                                            <span class="text-muted ms-1">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 阶段分布和趋势统计 - 水平布局 -->
+                    <div class="row">
+                        <!-- 左侧阶段分布区域 (40%) -->
+                        <div class="col-md-5">
+                            <div class="card border-0 shadow-sm mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-title text-primary mb-3">阶段分布统计</h6>
+                                    <div id="stageDistributionChart" style="height: 350px; min-height: 250px;">
+                                        <div class="text-center py-5">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">加载中...</span>
+                                            </div>
+                                            <p class="mt-2">正在加载图表数据...</p>
+                                        </div>
+                                    </div>
+                                    <!-- 切换器 -->
+                                    <div class="text-center mt-2">
+                                        <span class="chart-toggle-dot active" data-chart-type="count" title="项目数量分布"></span>
+                                        <span class="chart-toggle-dot" data-chart-type="amount" title="项目金额分布"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 右侧趋势区域 (60%) -->
+                        <div class="col-md-7">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="card-title text-primary mb-0">阶段趋势分析</h6>
+                                        <div>
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <button type="button" class="btn btn-outline-primary trend-period-btn active" data-period="week">周趋势</button>
+                                                <button type="button" class="btn btn-outline-primary trend-period-btn" data-period="month">月趋势</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 趋势图表容器 -->
+                                    <div id="stageTrendChart" style="height: 300px; min-height: 250px;">
+                                        <div class="text-center py-5">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">加载中...</span>
+                                            </div>
+                                            <p class="mt-2">正在加载趋势数据...</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 阶段切换器 -->
+                                    <div class="text-center mt-3">
+                                        <div id="stageTrendToggle" class="stage-toggle-container">
+                                            <!-- 动态生成阶段切换点 -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 错误提示 -->
+                <div id="statisticsError" class="col-12 d-none">
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <span id="errorMessage">加载统计数据失败</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 项目统计面板切换按钮和账户选择器 -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="dropdown account-selector">
+        <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="accountSelectorBtn" data-bs-toggle="dropdown" aria-expanded="false">
+            全部账户
+        </button>
+        <ul class="dropdown-menu" id="accountSelectorMenu" aria-labelledby="accountSelectorBtn">
+            <li><a class="dropdown-item active" href="#" data-account-id="all">全部账户</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <!-- 账户列表将通过JS动态加载 -->
+            <li><a class="dropdown-item text-center"><div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">加载中...</span></div></a></li>
+        </ul>
+    </div>
+    <button id="toggleStatisticsBtn" class="btn btn-outline-primary">
+        <i class="fas fa-chart-bar me-1"></i> 隐藏统计总览
+    </button>
+</div>
+
+<style>
+/* 项目统计面板样式 */
+.project-statistics-panel {
+    margin-bottom: 20px;
+}
+
+.project-statistics-panel .card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.project-statistics-panel .card-header {
+    padding: 0.75rem 1rem;
+}
+
+.project-statistics-panel .period-btn,
+.project-statistics-panel .trend-period-btn {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.project-statistics-panel .period-btn.active,
+.project-statistics-panel .trend-period-btn.active {
+    background-color: white;
+    color: #0d6efd;
+}
+
+/* 统计卡片样式 */
+.project-statistics-panel .card-body {
+    padding: 1rem;
+}
+
+.project-statistics-panel .card-title {
+    margin-bottom: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+/* 数字格式化 */
+.project-statistics-panel .fs-5 {
+    font-size: 1.25rem!important;
+}
+
+/* 动画效果 */
+.project-statistics-panel.collapsing {
+    transition: height .35s ease;
+}
+
+/* 图表切换点样式 */
+.chart-toggle-dot {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    margin: 0 8px;
+    border-radius: 50%;
+    border: 2px solid #1890ff;
+    background: #fff;
+    cursor: pointer;
+    transition: background 0.3s, box-shadow 0.3s;
+    box-shadow: 0 0 0 0 rgba(24,144,255,0.2);
+    position: relative;
+    top: -10px;
+}
+.chart-toggle-dot.active {
+    background: #1890ff;
+    box-shadow: 0 0 0 6px rgba(24,144,255,0.12);
+    border-color: #1890ff;
+    animation: dotPulse 0.4s;
+}
+
+/* 阶段切换点样式 */
+.stage-toggle-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+}
+.stage-toggle-dot {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.3s, box-shadow 0.3s;
+    box-shadow: 0 0 0 0 rgba(24,144,255,0.2);
+    position: relative;
+    border: 2px solid transparent;
+}
+.stage-toggle-dot.active {
+    transform: scale(1.2);
+    box-shadow: 0 0 0 4px rgba(24,144,255,0.12);
+    animation: dotPulse 0.4s;
+    border-color: #fff;
+}
+.stage-toggle-dot:hover {
+    transform: scale(1.1);
+}
+
+.stage-toggle-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 5px;
+    cursor: pointer;
+}
+
+.stage-toggle-label {
+    font-size: 11px;
+    margin-top: 4px;
+    white-space: nowrap;
+    transition: all 0.3s;
+}
+
+.stage-toggle-label.active {
+    font-weight: bold;
+}
+
+@keyframes dotPulse {
+    0% { box-shadow: 0 0 0 0 rgba(24,144,255,0.2); }
+    70% { box-shadow: 0 0 0 8px rgba(24,144,255,0.12); }
+    100% { box-shadow: 0 0 0 0 rgba(24,144,255,0.2); }
+}
+
+/* 趋势图控制样式 */
+.trend-controls {
+    margin-top: 5px;
+    padding: 5px;
+    display: none; /* 隐藏控制按钮 */
+}
+
+.trend-controls button {
+    display: none; /* 隐藏控制按钮 */
+}
+
+/* 确保ECharts滚动条可见 */
+.project-statistics-panel .card-body .datazoom-slider-horizontal {
+    height: 25px !important;
+    margin-top: 10px;
+}
+
+/* 图表区域增加过渡效果 */
+#stageTrendChart {
+    transition: all 0.3s ease;
+}
+
+/* 添加账户选择器相关CSS样式 */
+.account-selector .dropdown-toggle {
+    min-width: 120px;
+    text-align: left;
+}
+
+.account-selector .dropdown-menu {
+    max-height: 300px;
+    overflow-y: auto;
+}
+</style> 

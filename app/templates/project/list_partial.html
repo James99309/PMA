@@ -1,0 +1,52 @@
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_authorization_code, render_datetime %}
+
+{% for project in projects %}
+<tr>
+    {% if has_permission('project', 'delete') %}
+    <td>
+        <div class="form-check">
+            <input class="form-check-input project-checkbox" type="checkbox" value="{{ project.id }}"
+                   {% if current_user.role != 'admin' and current_user.id != project.owner_id %}disabled{% endif %}>
+        </div>
+    </td>
+    {% endif %}
+    <td>{{ render_owner(project.owner) if project.owner else '' }}</td>
+    <td>
+        {% if project.authorization_code %}
+            {{ render_authorization_code(project.authorization_code, project.project_type) }}
+        {% elif project.authorization_status == 'pending' %}
+            <span class="badge bg-warning">审批中</span>
+        {% elif project.authorization_status == 'rejected' %}
+            <span class="badge bg-danger">已驳回</span>
+        {% else %}
+            <span class="badge bg-secondary">未申请</span>
+        {% endif %}
+    </td>
+    <td>
+        <a href="{{ url_for('project.view_project', project_id=project.id) }}" class="project-link">
+            {{ project.project_name }}
+        </a>
+    </td>
+    <td>{{ project.current_stage if project.current_stage else '' }}</td>
+    <td>{{ render_project_type(project.project_type) if project.project_type else '' }}</td>
+    <td>
+        {% if project.quotation_customer and project.quotations.count() > 0 %}
+        <a href="{{ url_for('quotation.view_quotation', id=project.quotations.order_by(Quotation.created_at.desc()).first().id) }}"
+           class="quotation-link" title="查看报价单详情">
+            {{ '{:,.2f}'.format(project.quotation_customer) }}
+        </a>
+        {% else %}
+        {{ '{:,.2f}'.format(project.quotation_customer) if project.quotation_customer else '' }}
+        {% endif %}
+    </td>
+    <td>{{ project.report_source if project.report_source else '' }}</td>
+    <td>{{ project.end_user if project.end_user else '' }}</td>
+    <td>{{ project.design_issues if project.design_issues else '' }}</td>
+    <td>{{ project.contractor if project.contractor else '' }}</td>
+    <td>{{ project.system_integrator if project.system_integrator else '' }}</td>
+    <td>{{ render_date(project.delivery_forecast) }}</td>
+    <td>{{ render_date(project.report_time) }}</td>
+    <td>{{ render_datetime(project.updated_at) }}</td>
+    <td>{{ render_datetime(project.created_at) }}</td>
+</tr>
+{% endfor %} 

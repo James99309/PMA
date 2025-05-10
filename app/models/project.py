@@ -71,4 +71,42 @@ class Project(db.Model):
         调用标准化的授权编号生成宏
         请参阅 app.utils.authorization 模块了解详细规则
         """
-        return gen_auth_code(project_type) 
+        return gen_auth_code(project_type)
+
+@event.listens_for(Project, 'before_update')
+def project_before_update(mapper, connection, target):
+    """项目更新前事件监听器"""
+    if target.current_stage != target._current_stage_previous and hasattr(target, '_current_stage_previous'):
+        # 阶段变更，添加到描述字段
+        from_stage = target._current_stage_previous or '未设置'
+        to_stage = target.current_stage or '未设置'
+        change_time = datetime.now().strftime('%Y-%m-%d %H:%M')
+        stage_change_log = f"[阶段变更] {from_stage} → {to_stage}, 时间: {change_time}"
+        
+        if target.stage_description:
+            target.stage_description = stage_change_log + "\n\n" + target.stage_description
+        else:
+            target.stage_description = stage_change_log
+
+@event.listens_for(Project, 'load')
+def project_on_load(target, context):
+    """项目加载时事件监听器，记录当前阶段值"""
+    target._current_stage_previous = target.current_stage
+
+@event.listens_for(Project, 'after_update')
+def project_after_update(mapper, connection, target):
+    """项目更新后事件监听器，记录阶段变更历史"""
+    if hasattr(target, '_current_stage_previous') and target.current_stage != target._current_stage_previous:
+        # 如果阶段发生变化，记录到历史表
+        try:
+            from app.models.projectpm_stage_history import ProjectStageHistory
+            ProjectStageHistory.add_history_record(
+                project_id=target.id, 
+                from_stage=target._current_stage_previous,
+                to_stage=target.current_stage,
+                change_date=datetime.now(),
+                remarks=f"自动记录: {target._current_stage_previous or '未设置'} → {target.current_stage or '未设置'}"
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"记录阶段历史失败: {str(e)}", exc_info=True) 
