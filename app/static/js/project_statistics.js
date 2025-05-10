@@ -253,9 +253,6 @@ document.addEventListener('DOMContentLoaded', function() {
     statisticsData = null;
     trendData = null;
     
-    // 加载账户列表
-    loadAccountsList();
-    
     // 加载数据
     loadStatisticsData(currentPeriod);
     
@@ -294,9 +291,6 @@ document.addEventListener('DOMContentLoaded', function() {
             // 清除现有图表数据
             statisticsData = null;
             trendData = null;
-            
-            // 加载账户列表
-            loadAccountsList();
             
             // 加载数据
             loadStatisticsData(currentPeriod);
@@ -358,107 +352,6 @@ document.addEventListener('DOMContentLoaded', function() {
             updateStageDistributionChart();
         });
     });
-    
-    // 加载账户列表
-    function loadAccountsList() {
-        if (!accountSelectorMenu) return;
-        
-        // 清除现有账户列表，保留"全部账户"选项和加载指示器
-        const allAccountsItem = accountSelectorMenu.querySelector('a[data-account-id="all"]');
-        const loadingItem = accountSelectorMenu.querySelector('.spinner-border-sm');
-        const loadingItemParent = loadingItem ? loadingItem.closest('li') : null;
-        
-        // 账户列表的分隔线
-        const divider = accountSelectorMenu.querySelector('hr.dropdown-divider');
-        const dividerParent = divider ? divider.closest('li') : null;
-        
-        // 清除已有账户条目
-        accountSelectorMenu.querySelectorAll('li').forEach(li => {
-            if (li !== allAccountsItem.parentElement && li !== loadingItemParent && li !== dividerParent) {
-                li.remove();
-            }
-        });
-        
-        // 显示加载指示器
-        if (loadingItemParent) {
-            loadingItemParent.style.display = 'block';
-        }
-        
-        // 请求账户列表数据
-        fetch(`/projectpm/statistics/api/available_accounts`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('请求失败');
-                }
-                return response.json();
-            })
-            .then(data => {
-                // 隐藏加载指示器
-                if (loadingItemParent) {
-                    loadingItemParent.style.display = 'none';
-                }
-                
-                if (data.success && data.data) {
-                    accounts = data.data;
-                    
-                    // 如果没有账户数据，显示提示
-                    if (accounts.length === 0) {
-                        const noAccountsItem = document.createElement('li');
-                        noAccountsItem.innerHTML = '<a class="dropdown-item text-muted fst-italic">无可用账户数据</a>';
-                        accountSelectorMenu.appendChild(noAccountsItem);
-                        return;
-                    }
-                    
-                    // 添加账户列表
-                    accounts.forEach(account => {
-                        const accountItem = document.createElement('li');
-                        accountItem.innerHTML = `<a class="dropdown-item" href="#" data-account-id="${account.id}">${account.name}</a>`;
-                        accountSelectorMenu.appendChild(accountItem);
-                        // 添加点击事件
-                        const accountLink = accountItem.querySelector('a');
-                        accountLink.addEventListener('click', function(e) {
-                            e.preventDefault();
-                            // 获取账户ID
-                            const accountId = this.getAttribute('data-account-id');
-                            // 更新账户选择器按钮文本
-                            accountSelectorBtn.innerText = this.textContent;
-                            // 更新活跃状态
-                            accountSelectorMenu.querySelectorAll('a.dropdown-item').forEach(item => {
-                                item.classList.remove('active');
-                            });
-                            this.classList.add('active');
-                            // 切换账户
-                            if (typeof AccountSelector !== 'undefined') {
-                                AccountSelector.currentAccountId = parseInt(accountId);
-                            }
-                            // 触发账户变更事件
-                            const event = new CustomEvent('accountChanged', {
-                                detail: { accountId: parseInt(accountId) }
-                            });
-                            document.dispatchEvent(event);
-                        });
-                    });
-                } else {
-                    // 显示错误提示
-                    const errorItem = document.createElement('li');
-                    errorItem.innerHTML = '<a class="dropdown-item text-danger"><i class="fas fa-exclamation-triangle me-1"></i> 加载账户列表失败</a>';
-                    accountSelectorMenu.appendChild(errorItem);
-                }
-            })
-            .catch(error => {
-                console.error('加载账户列表失败:', error);
-                
-                // 隐藏加载指示器
-                if (loadingItemParent) {
-                    loadingItemParent.style.display = 'none';
-                }
-                
-                // 显示错误提示
-                const errorItem = document.createElement('li');
-                errorItem.innerHTML = '<a class="dropdown-item text-danger"><i class="fas fa-exclamation-triangle me-1"></i> 加载账户列表失败</a>';
-                accountSelectorMenu.appendChild(errorItem);
-            });
-    }
     
     // 加载统计数据
     function loadStatisticsData(period) {

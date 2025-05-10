@@ -383,7 +383,7 @@ def create_quotation():
                 if project:
                     total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
                     project.quotation_customer = total
-                    db.session.commit()
+                db.session.commit()
                 
                 flash('报价单创建成功！', 'success')
                 
@@ -602,7 +602,7 @@ def edit_quotation(id):
                 if project:
                     total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
                     project.quotation_customer = total
-                    db.session.commit()
+                db.session.commit()
                 
                 flash('报价单更新成功！', 'success')
                 return redirect(url_for('quotation.list_quotations'))
@@ -685,7 +685,7 @@ def copy_quotation(id):
         if project:
             total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
             project.quotation_customer = total
-            db.session.commit()
+        db.session.commit()
         
         flash('报价单复制成功！', 'success')
         return redirect(url_for('quotation.edit_quotation', id=new_quotation.id))
@@ -715,7 +715,7 @@ def delete_quotation(id):
         if project:
             total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
             project.quotation_customer = total
-            db.session.commit()
+        db.session.commit()
         
         flash('报价单删除成功！', 'success')
         return redirect(url_for('project.view_project', project_id=project_id))
@@ -763,7 +763,7 @@ def batch_delete_quotations():
             if project:
                 total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
                 project.quotation_customer = total
-                db.session.commit()
+        db.session.commit()
         
         if error_ids:
             logger.warning(f"部分报价单删除失败, IDs: {error_ids}")
@@ -936,7 +936,7 @@ def get_all_projects():
         return response
     except Exception as e:
         logger.error(f"获取项目列表失败: {str(e)}")
-        return jsonify({
+    return jsonify({
             'success': False,
             'error': '获取项目列表失败',
             'message': str(e)

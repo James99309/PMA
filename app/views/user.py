@@ -82,9 +82,8 @@ def create_user():
         phone = request.form.get('phone')
         department = request.form.get('department')
         role = request.form.get('role')
-        is_active = 'is_active' in request.form
         is_department_manager = 'is_department_manager' in request.form
-        logger.info(f"[用户创建] 操作人: {current_user.username}, 参数: username={username}, email={email}, role={role}, is_active={is_active}")
+        logger.info(f"[用户创建] 操作人: {current_user.username}, 参数: username={username}, email={email}, role={role}")
         if not email or not email.strip():
             logger.warning(f"[用户创建] 邮箱为空，操作人: {current_user.username}")
             flash('邮箱不能为空', 'danger')
@@ -107,7 +106,7 @@ def create_user():
             department=department,
             is_department_manager=is_department_manager,
             role=role,
-            is_active=is_active
+            is_active=False  # 新建用户默认未激活
         )
         import secrets
         temp_password = secrets.token_urlsafe(12)
@@ -115,26 +114,7 @@ def create_user():
         try:
             db.session.add(user)
             db.session.commit()
-            if is_active:
-                from app.utils.email import send_user_invitation_email
-                user_data = {
-                    "id": user.id,
-                    "username": username,
-                    "real_name": real_name,
-                    "company_name": company_name,
-                    "email": email,
-                    "phone": phone,
-                    "department": department,
-                    "is_department_manager": is_department_manager,
-                    "role": role
-                }
-                email_sent = send_user_invitation_email(user_data)
-                if email_sent:
-                    flash('用户创建成功，邀请邮件已发送至用户邮箱', 'success')
-                else:
-                    flash('用户创建成功，但邀请邮件发送失败，请手动通知用户', 'warning')
-            else:
-                flash('用户创建成功', 'success')
+            flash('用户创建成功', 'success')
             return redirect(url_for('user.list_users'))
         except Exception as db_error:
             db.session.rollback()
@@ -899,4 +879,34 @@ def api_edit_user(user_id):
     except Exception as db_error:
         db.session.rollback()
         logger.error(f"[API用户编辑] 失败: {str(db_error)}", exc_info=True)
-        return jsonify({'success': False, 'message': f'更新失败: {str(db_error)}', 'data': None}), 500 
+        return jsonify({'success': False, 'message': f'更新失败: {str(db_error)}', 'data': None}), 500
+
+@user_bp.route('/send-invitation/<int:user_id>', methods=['POST'])
+@login_required
+def send_invitation(user_id):
+    """发送用户邀请邮件，仅限未激活用户"""
+    user = User.query.get(user_id)
+    if not user:
+        flash('用户不存在', 'danger')
+        return redirect(url_for('user.list_users'))
+    if user.is_active:
+        flash('该用户已激活，无需发送邀请邮件', 'info')
+        return redirect(url_for('user.user_detail', user_id=user_id))
+    from app.utils.email import send_user_invitation_email
+    user_data = {
+        "id": user.id,
+        "username": user.username,
+        "real_name": user.real_name,
+        "company_name": user.company_name,
+        "email": user.email,
+        "phone": user.phone,
+        "department": user.department,
+        "is_department_manager": user.is_department_manager,
+        "role": user.role
+    }
+    email_sent = send_user_invitation_email(user_data)
+    if email_sent:
+        flash('邀请邮件已发送至用户邮箱', 'success')
+    else:
+        flash('邀请邮件发送失败，请手动通知用户', 'warning')
+    return redirect(url_for('user.user_detail', user_id=user_id)) 

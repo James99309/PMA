@@ -133,6 +133,18 @@
     </div>
 </div>
 
+<!-- 发送邀请邮件按钮，单独表单，放在主表单外部，仅编辑未激活用户时显示 -->
+{% if is_edit and user and not user.is_active %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <form method="post" action="{{ url_for('user.send_invitation', user_id=user.id) }}" style="margin-top:10px;display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-primary btn-sm">发送邀请邮件</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
 <!-- 企业名称字典管理弹窗 -->
 <div class="modal fade" id="companyDictModal" tabindex="-1" aria-labelledby="companyDictModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">

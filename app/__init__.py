@@ -25,7 +25,7 @@ PROTECTED_TEMPLATES = [
 ]
 
 def create_app(config_class=Config):
-    app = Flask(__name__)
+    app = Flask(__name__, template_folder='templates')
     app.config.from_object(config_class)
     
     # 设置应用版本
@@ -254,7 +254,9 @@ def create_app(config_class=Config):
             '/auth/register', 
             '/auth/forgot-password',
             # 添加密码重置路径到公开路径，使用startswith确保所有带token的路径都可以访问
-            '/auth/reset-password'
+            '/auth/reset-password',
+            # 添加账户激活路径到公开路径
+            '/auth/activate'
         ]
         
         # 检查是否是API请求（API请求由JWT处理）
@@ -266,6 +268,11 @@ def create_app(config_class=Config):
             if request.path.startswith(path):
                 logger.debug('Public path, skipping auth check')
                 return
+        
+        # 特别处理激活链接路径 - 以/auth/activate/开头的所有URL
+        if request.path.startswith('/auth/activate/'):
+            logger.debug('Activation path, skipping auth check')
+            return
         
         # 检查是否是静态文件
         if request.endpoint and request.endpoint.startswith('static'):

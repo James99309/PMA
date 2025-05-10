@@ -72,6 +72,20 @@
             <dt class="col-sm-3">部门</dt><dd class="col-sm-9">{{ user.department }}</dd>
             <dt class="col-sm-3">角色</dt><dd class="col-sm-9">{{ role_dict.get(user.role, user.role) }}</dd>
             <dt class="col-sm-3">状态</dt><dd class="col-sm-9">{{ '激活' if user.is_active else '禁用' }}</dd>
+            
+            {% if not user.is_active %}
+            <!-- 发送邀请邮件按钮，仅在用户未激活时显示 -->
+            <dt class="col-sm-3">邀请操作</dt>
+            <dd class="col-sm-9">
+                <form method="post" action="{{ url_for('user.send_invitation', user_id=user.id) }}" style="display:inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="fas fa-envelope me-1"></i> 发送邀请邮件
+                    </button>
+                    <small class="text-muted ms-2">向用户发送账户激活邮件</small>
+                </form>
+            </dd>
+            {% endif %}
         </dl>
     </div>
     <!-- 权限 -->

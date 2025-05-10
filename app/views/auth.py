@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, current_app
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.models.user import User, Permission
 from app import db
@@ -269,6 +269,11 @@ def activate_account(token):
     GET: 显示设置密码页面
     POST: 处理用户提交的密码并激活账户
     """
+    # 确保激活页面不会使用现有会话中的用户
+    if current_user.is_authenticated:
+        logout_user()
+        session.clear()
+        
     try:
         # 验证令牌
         s = URLSafeTimedSerializer(current_app.config['SECRET_KEY'])
@@ -311,6 +316,11 @@ def activate_account(token):
             
             try:
                 db.session.commit()
+                
+                # 清除任何可能存在的会话，确保用户需要重新登录
+                session.clear()
+                logout_user()
+                
                 flash('密码设置成功，账户已激活！请登录', 'success')
                 return redirect(url_for('auth.login'))
             except Exception as e:
@@ -332,3 +342,9 @@ def activate_account(token):
         logger.error(f"处理激活链接时出错: {str(e)}", exc_info=True)
         flash('处理激活请求时出错，请联系管理员', 'danger')
         return redirect(url_for('auth.login')) 
+
+# 测试激活模板是否存在和可用
+@auth.route('/test-activate-template')
+def test_activate_template():
+    """测试激活模板渲染"""
+    return render_template('auth/activate.html', token='testtoken') 
