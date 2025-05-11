@@ -266,6 +266,29 @@
     .body-container::-webkit-scrollbar-thumb:hover {
         background: #999;
     }
+
+    /* 移动端卡片视图样式 */
+    @media (max-width: 991.98px) {
+        .card-title {
+            font-size: 1.1rem;
+        }
+        .card-body {
+            padding: 0.75rem;
+        }
+        .btn-group-sm .btn {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+        }
+        .shadow-sm {
+            box-shadow: 0 .125rem .25rem rgba(0,0,0,.075)!important;
+            border-radius: 0.5rem;
+            border: none;
+        }
+        .fa-cube, .fa-ruler-combined, .fa-industry, .fa-balance-scale, .fa-yen-sign, .fa-user, .fa-calendar-plus, .fa-calendar-check {
+            width: 16px;
+            text-align: center;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -273,19 +296,16 @@
 <div class="container-fluid mt-4"
      data-can-edit-product="{{ can_edit_product|lower }}"
      data-can-delete-product="{{ can_delete_product|lower }}">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>产品管理</h2>
-        {% if has_permission('product', 'create') %}
-        <a href="{{ url_for('product_route.create_product_page') }}" class="btn btn-primary">
-            <i class="fas fa-plus"></i> 创建产品
-        </a>
-        {% endif %}
+    <div class="row mb-4 mt-5">
+        <div class="col-12">
+            <h1 class="fw-bold" style="color:#222;">产品库管理</h1>
+        </div>
     </div>
 
     <!-- 查询筛选区域 -->
     <div class="card mb-4">
         <div class="card-header">
-            <i class="fas fa-search"></i> 产品搜索
+            <!-- <i class="fas fa-search"></i> 产品搜索 -->
         </div>
         <div class="card-body">
             <div class="row">
@@ -319,7 +339,12 @@
             </div>
         </div>
         <div class="card-body p-0">
-            <div class="table-container">
+            <!-- 移动端卡片视图 - 仅在小屏幕显示 -->
+            <div class="d-block d-lg-none mb-4" id="product-card-list">
+                <!-- 卡片内容通过JS动态渲染 -->
+            </div>
+            <!-- PC端表格视图 - 仅在大屏幕显示 -->
+            <div class="table-container d-none d-lg-block">
                 <!-- 表头部分 - 固定不动 -->
                 <div class="header-container">
                     <div class="header-scroll" id="header-scroll">
@@ -345,7 +370,6 @@
                         </table>
                     </div>
                 </div>
-
                 <!-- 内容部分 - 可滚动 -->
                 <div class="body-container" style="max-height: 65vh;">
                     <div class="body-scroll" id="body-scroll">
@@ -358,17 +382,16 @@
                         <div id="load-more" class="text-center p-3 d-none">
                             <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
                                 <span class="visually-hidden">加载中...</span>
-                    </div>
+                            </div>
                             <span>加载更多数据...</span>
-                </div>
+                        </div>
                         <!-- 全部加载完成提示 -->
                         <div id="all-loaded" class="text-center p-3 text-muted d-none">
                             <i class="fas fa-check-circle me-1"></i>全部数据已加载完成
-                    </div>
+                        </div>
                     </div>
                 </div>
             </div>
-
             <!-- 滚动控制按钮 -->
             <div class="scroll-controls">
                 <button type="button" class="btn btn-sm btn-light scroll-top" title="滚动到顶部">
@@ -597,29 +620,38 @@
     // 显示产品列表
     function displayProducts(data) {
         const productTable = document.getElementById('product-list');
+        const productCardList = document.getElementById('product-card-list');
+        // 移动端卡片内容
+        if (currentPage === 1 && productCardList) productCardList.innerHTML = '';
 
         // 没有数据时显示提示
         if (!data.items || data.items.length === 0) {
             if (currentPage === 1) {
-            const emptyRow = document.createElement('tr');
-            emptyRow.style.height = '42px'; // 保持固定行高
+                const emptyRow = document.createElement('tr');
+                emptyRow.style.height = '42px'; // 保持固定行高
 
-            const emptyCell = document.createElement('td');
-            emptyCell.setAttribute('colspan', '14'); // 修正colspan值与表头列数一致
-            emptyCell.textContent = '没有找到匹配的产品数据';
-            emptyCell.className = 'text-center py-3';
+                const emptyCell = document.createElement('td');
+                emptyCell.setAttribute('colspan', '14'); // 修正colspan值与表头列数一致
+                emptyCell.textContent = '没有找到匹配的产品数据';
+                emptyCell.className = 'text-center py-3';
 
-            emptyRow.appendChild(emptyCell);
-            productTable.appendChild(emptyRow);
+                emptyRow.appendChild(emptyCell);
+                productTable.appendChild(emptyRow);
+                // 移动端卡片无数据提示
+                if (productCardList) {
+                    const emptyCard = document.createElement('div');
+                    emptyCard.className = 'alert alert-info text-center';
+                    emptyCard.textContent = '没有找到匹配的产品数据';
+                    productCardList.appendChild(emptyCard);
+                }
             }
-
             allLoaded = true;
             return;
         }
 
-        // 遍历数据，创建表格行
+        // 遍历数据，创建表格行和移动端卡片
         data.items.forEach((product, index) => {
-            // 创建产品行
+            // 创建产品行（PC端表格）
             const productRow = document.createElement('tr');
             productRow.style.height = '42px'; // 保持固定行高
             productRow.dataset.index = index; // 添加索引用于同步行
@@ -650,9 +682,55 @@
                 <td class="col-date">${escapeHtml(product.created_at || '')}</td>
                 <td class="col-date">${escapeHtml(product.updated_at || '')}</td>
             `;
-
-            // 添加产品行到主表格
             productTable.appendChild(productRow);
+
+            // 移动端卡片渲染
+            if (productCardList) {
+                const card = document.createElement('div');
+                card.className = 'card mb-3 shadow-sm';
+                card.innerHTML = `
+                    <div class="card-body p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="badge bg-info">${escapeHtml(product.product_mn || '无MN')}</span>
+                            ${getStatusBadge(product.status, product.id)}
+                        </div>
+                        <h5 class="card-title mb-2">
+                            <a href="/products/${product.id}/detail" class="text-decoration-none">
+                                ${escapeHtml(product.product_name || '')}
+                            </a>
+                        </h5>
+                        <div class="small text-muted mb-2">
+                            ${getProductTypeBadge(product.type)}
+                            ${product.category ? ' · ' + escapeHtml(product.category) : ''}
+                        </div>
+                        <div class="small mb-1">
+                            <i class="fas fa-cube text-secondary me-1"></i>型号: ${escapeHtml(product.model || '-')}
+                        </div>
+                        <div class="small mb-1">
+                            <i class="fas fa-ruler-combined text-secondary me-1"></i>规格: ${escapeHtml(product.specification || '-')}
+                        </div>
+                        <div class="small mb-1">
+                            <i class="fas fa-industry text-secondary me-1"></i>品牌: ${escapeHtml(product.brand || '-')}
+                        </div>
+                        <div class="small mb-1">
+                            <i class="fas fa-balance-scale text-secondary me-1"></i>单位: ${escapeHtml(product.unit || '-')}
+                        </div>
+                        <div class="small mb-1">
+                            <i class="fas fa-yen-sign text-secondary me-1"></i>市场价: ${product.retail_price ? product.retail_price.toFixed(2) : '0.00'} 元
+                        </div>
+                        <div class="small mb-1">
+                            <i class="fas fa-user text-secondary me-1"></i>数据所有者: ${escapeHtml(product.owner_name || '-')}
+                        </div>
+                        <div class="small text-muted mt-2">
+                            <i class="fas fa-calendar-plus me-1"></i>创建: ${escapeHtml(product.created_at || '')}
+                        </div>
+                        <div class="small text-muted mt-1">
+                            <i class="fas fa-calendar-check me-1"></i>更新: ${escapeHtml(product.updated_at || '')}
+                        </div>
+                    </div>
+                `;
+                productCardList.appendChild(card);
+            }
         });
     }
 

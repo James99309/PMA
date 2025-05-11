@@ -120,9 +120,13 @@
                                     <th class="text-start">单位</th>
                                     <th class="text-end">市场单价</th>
                                     <th class="text-end">折扣率(%)</th>
+                                    {% if not current_user.role in ['product_manager', 'product'] %}
                                     <th class="text-end">单价</th>
+                                    {% endif %}
                                     <th class="text-end">数量</th>
+                                    {% if not current_user.role in ['product_manager', 'product'] %}
                                     <th class="text-end">小计</th>
+                                    {% endif %}
                                 </tr>
                             </thead>
                             <tbody>
@@ -135,15 +139,23 @@
                                     <td>{{ detail.unit }}</td>
                                     <td class="text-end">{{ render_currency(detail.market_price) }}</td>
                                     <td class="text-end">{{ "%.1f"|format(detail.discount * 100) }}</td>
+                                    {% if not current_user.role in ['product_manager', 'product'] %}
                                     <td class="text-end">{{ render_currency(detail.unit_price) }}</td>
+                                    {% endif %}
                                     <td class="text-end">{{ detail.quantity }}</td>
+                                    {% if not current_user.role in ['product_manager', 'product'] %}
                                     <td class="text-end fw-bold">{{ render_currency(detail.total_price) }}</td>
+                                    {% endif %}
                                 </tr>
                                 {% endfor %}
                             </tbody>
                             <tfoot>
                                 <tr class="bg-light">
+                                    {% if current_user.role in ['product_manager', 'product'] %}
+                                    <td colspan="7" class="text-end fw-bold">总计金额：</td>
+                                    {% else %}
                                     <td colspan="9" class="text-end fw-bold">总计金额：</td>
+                                    {% endif %}
                                     <td class="text-end fw-bold">{{ render_currency(quotation.amount) }}</td>
                                 </tr>
                             </tfoot>

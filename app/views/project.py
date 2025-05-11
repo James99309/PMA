@@ -20,7 +20,7 @@ from app.permissions import check_permission, Permissions
 from werkzeug.utils import secure_filename
 import os
 from flask_wtf.csrf import CSRFProtect
-from app.models.action import Action
+from app.models.action import Action, ActionReply
 
 csrf = CSRFProtect()
 
@@ -966,3 +966,41 @@ def get_company_contacts(company_id):
             'success': False,
             'message': f'获取企业联系人失败: {str(e)}'
         }), 500 
+
+# 获取行动记录的所有回复（树形结构）
+@project.route('/action/<int:action_id>/replies')
+@login_required
+@permission_required('customer', 'view')
+def get_action_replies(action_id):
+    action = Action.query.get_or_404(action_id)
+    replies = ActionReply.query.filter_by(action_id=action_id, parent_reply_id=None).order_by(ActionReply.created_at.asc()).all()
+    def build_tree(reply):
+        return {
+            'id': reply.id,
+            'content': reply.content,
+            'owner': reply.owner.real_name or reply.owner.username,
+            'created_at': reply.created_at.strftime('%Y-%m-%d %H:%M'),
+            'children': [build_tree(child) for child in reply.children]
+        }
+    return jsonify([build_tree(r) for r in replies])
+
+# 添加回复
+@project.route('/action/<int:action_id>/reply', methods=['POST'])
+@login_required
+@permission_required('customer', 'create')
+def add_action_reply(action_id):
+    action = Action.query.get_or_404(action_id)
+    data = request.get_json()
+    content = data.get('content', '').strip()
+    parent_reply_id = data.get('parent_reply_id')
+    if not content:
+        return jsonify({'success': False, 'message': '回复内容不能为空'}), 400
+    reply = ActionReply(
+        action_id=action_id,
+        parent_reply_id=parent_reply_id,
+        content=content,
+        owner_id=current_user.id
+    )
+    db.session.add(reply)
+    db.session.commit()
+    return jsonify({'success': True}) 

@@ -115,17 +115,13 @@ def search_contacts():
 @customer.route('/view/<int:company_id>')
 @permission_required('customer', 'view')
 def view_company(company_id):
-    company = Company.query.get_or_404(company_id)
-    
-    # 检查查看权限
-    allowed_user_ids = current_user.get_viewable_user_ids()
-    if current_user.role != 'admin' and company.owner_id not in allowed_user_ids:
+    # 用get_viewable_data统一权限判断
+    company = get_viewable_data(Company, current_user).filter(Company.id == company_id).first()
+    if not company:
         flash('您没有权限查看此企业信息', 'danger')
         return redirect(url_for('customer.list_companies'))
-    
     # 获取企业的联系人列表
     contacts = Contact.query.filter_by(company_id=company_id).all()
-    
     # 预加载所有联系人的所有者信息
     owner_ids = [contact.owner_id for contact in contacts if contact.owner_id]
     if owner_ids:
@@ -133,11 +129,9 @@ def view_company(company_id):
         for contact in contacts:
             if contact.owner_id and contact.owner_id in owners:
                 contact.owner = owners[contact.owner_id]
-    
     # 如果需要，确保公司的动作记录已正确加载并按日期排序
     if hasattr(company, 'actions') and company.actions:
         company.actions.sort(key=lambda x: x.date, reverse=True)
-    
     # 查询与该企业相关的所有项目
     projects = Project.query.filter(
         or_(
@@ -148,7 +142,6 @@ def view_company(company_id):
             Project.dealer == company.company_name
         )
     ).all()
-    
     # 获取公司的行动记录
     page = request.args.get('page', 1, type=int)
     query = Action.query.filter_by(company_id=company_id)
@@ -156,16 +149,13 @@ def view_company(company_id):
         page=page, per_page=10, error_out=False
     )
     actions = pagination.items
-    
     # 提前加载行动记录所有者信息，避免N+1查询
     user_ids = [action.owner_id for action in actions if action.owner_id]
     users = User.query.filter(User.id.in_(set(user_ids))).all()
     user_map = {user.id: user for user in users}
-    
     for action in actions:
         if action.owner_id and action.owner_id in user_map:
             action.owner = user_map[action.owner_id]
-    
     # 国家代码到名称的映射
     country_code_to_name = {
         "CN": "中国", "US": "美国", "JP": "日本", "DE": "德国", "FR": "法国", "GB": "英国", "CA": "加拿大", "AU": "澳大利亚", "NZ": "新西兰", "IN": "印度", "RU": "俄罗斯", "BR": "巴西", "ZA": "南非", "SG": "新加坡", "MY": "马来西亚", "TH": "泰国", "ID": "印度尼西亚", "PH": "菲律宾", "VN": "越南", "KR": "韩国", "AE": "阿联酋", "SA": "沙特阿拉伯", "IT": "意大利", "ES": "西班牙", "NL": "荷兰", "CH": "瑞士", "SE": "瑞典", "NO": "挪威", "FI": "芬兰", "DK": "丹麦", "BE": "比利时"
@@ -905,7 +895,7 @@ def import_contacts():
         updated_count = 0
         skipped_count = 0
         error_count = 0
-        error_details = []
+        error_details = []  # 添加错误详情列表
         contact_name_map = {}  # (name, company) -> contact_id
         for contact_data in contacts:
             company_name = contact_data.get('company_name', '')
@@ -1567,18 +1557,13 @@ def delete_action_api(action_id):
 @permission_required('customer', 'view')
 def view_contact(contact_id):
     """查看联系人详情页面"""
-    contact = Contact.query.get_or_404(contact_id)
-    company = contact.company
-
-    # 检查查看权限
-    allowed_user_ids = current_user.get_viewable_user_ids()
-    if current_user.role != 'admin' and contact.owner_id not in allowed_user_ids:
+    contact = get_viewable_data(Contact, current_user).filter(Contact.id == contact_id).first()
+    if not contact:
         flash('您没有权限查看此联系人信息', 'danger')
-        return redirect(url_for('customer.view_company', company_id=company.id))
-
+        return redirect(url_for('customer.list_companies'))
+    company = contact.company
     # 获取该联系人的所有行动记录，按时间倒序排列
     actions = Action.query.filter_by(contact_id=contact.id).order_by(Action.created_at.desc()).all()
-
     # 预加载所有行动记录的所有者信息
     owner_ids = [action.owner_id for action in actions if action.owner_id]
     if owner_ids:
@@ -1586,7 +1571,6 @@ def view_contact(contact_id):
         for action in actions:
             if action.owner_id and action.owner_id in owners:
                 action.owner = owners[action.owner_id]
-
     return render_template('customer/contact_view.html', contact=contact, company=company, actions=actions)
 
 @customer.route('/<int:company_id>/add_action', methods=['GET', 'POST'])

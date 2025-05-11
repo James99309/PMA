@@ -1160,7 +1160,7 @@ def get_quotation_details(id):
                     subtotal_value = 0
                     current_app.logger.error(f"小计格式错误: {subtotal}")
                 
-                details.append({
+                detail_data = {
                     'product_name': detail.product_name or '',
                     'product_model': detail.product_model or '',
                     'product_desc': detail.product_desc or '',
@@ -1168,11 +1168,16 @@ def get_quotation_details(id):
                     'unit': detail.unit or '',
                     'market_price': market_price,
                     'discount_rate': float(discount_rate),
-                    'unit_price': unit_price,
                     'quantity': detail.quantity or 1,
-                    'subtotal': subtotal_value,
                     'product_mn': product_mn
-                })
+                }
+                
+                # 如果不是产品经理角色，添加单价和小计字段
+                if current_user.role not in ['product_manager', 'product']:
+                    detail_data['unit_price'] = unit_price
+                    detail_data['subtotal'] = subtotal_value
+                
+                details.append(detail_data)
             except Exception as detail_error:
                 # 记录明细处理错误但继续处理其他明细
                 error_message = f"处理报价单明细错误: {str(detail_error)}"

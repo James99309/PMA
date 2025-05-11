@@ -162,7 +162,7 @@ function deleteContact(companyId, contactId) {
             },
             success: function(response) {
                 if (response.success !== false) {
-                    window.location.reload();
+                window.location.reload();
                 } else {
                     alert('删除联系人失败: ' + (response.message || '未知错误'));
                 }

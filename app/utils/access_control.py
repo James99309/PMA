@@ -41,6 +41,9 @@ def get_viewable_data(model_class, user, special_filters=None):
     
     # 处理特殊角色权限
     if model_class.__name__ == 'Project':
+        # 产品经理可以查看所有项目
+        if user.role in ['product_manager', 'product']:
+            return model_class.query.filter(*special_filters if special_filters else [])
         # 渠道经理：可以查看所有渠道跟进项目 + 自己的项目
         if user.role == 'channel_manager':
             return model_class.query.filter(
@@ -94,8 +97,8 @@ def get_viewable_data(model_class, user, special_filters=None):
     # 报价单特殊权限
     if model_class.__name__ == 'Quotation':
         # 产品经理和解决方案经理可以查看所有报价单
-        if user.role in ['product_manager', 'solution_manager']:
-            return model_class.query.filter(*special_filters)
+        if user.role in ['product_manager', 'solution_manager', 'product', 'solution']:
+            return model_class.query.filter(*special_filters if special_filters else [])
         # 服务经理可以查看自己的报价单以及与业务机会项目相关的报价单
         elif user.role in ['service', 'service_manager']:
             # 获取所有业务机会项目的ID
@@ -125,6 +128,9 @@ def get_viewable_data(model_class, user, special_filters=None):
     
     # 客户特殊权限处理
     if model_class.__name__ in ['Company', 'Contact']:
+        # 产品经理可以查看所有客户信息
+        if user.role in ['product_manager', 'product']:
+            return model_class.query.filter(*special_filters if special_filters else [])
         # 渠道经理不能看到其他账户的客户信息
         if user.role == 'channel_manager':
             return model_class.query.filter(

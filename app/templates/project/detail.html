@@ -9,6 +9,7 @@
 {% endblock %}
 
 {% block content %}
+<div class="module-title-bar mb-3"><h2 class="module-title">项目管理</h2></div>
 <div class="container mt-4">
     <div class="row mb-3">
         <div class="col-md-12">
@@ -317,7 +318,7 @@
                             <div class="timeline-item">
                                 <div class="timeline-marker"></div>
                                 <div class="timeline-content">
-                                    <div class="card mb-2">
+                                    <div class="card mb-3 action-record" data-action-id="{{ action.id }}">
                                         <div class="card-header d-flex justify-content-between align-items-center bg-light py-2">
                                             <div>
                                                 {% if action.contact_id %}
@@ -351,6 +352,19 @@
                                                     {% endif %}
                                                 </div>
                                             </div>
+                                            <!-- 回复区 -->
+                                            <div class="replies-container mt-2" id="replies-{{ action.id }}">
+                                                <!-- AJAX加载回复树 -->
+                                            </div>
+                                            {% if action.replies.count() > 0 %}
+                                            <button class="btn btn-link btn-sm mt-1 p-0 reply-toggle-btn" data-action-id="{{ action.id }}">展开</button>
+                                            {% endif %}
+                                            <div class="reply-form mt-2" id="reply-form-{{ action.id }}" style="display:none">
+                                                <textarea class="form-control mb-2" rows="2" placeholder="输入回复内容..."></textarea>
+                                                <button class="btn btn-primary btn-sm submit-reply">提交</button>
+                                                <button class="btn btn-secondary btn-sm cancel-reply">取消</button>
+                                            </div>
+                                            <button class="btn btn-link btn-sm mt-1 p-0 show-reply-form-btn" data-action-id="{{ action.id }}">回复</button>
                                         </div>
                                     </div>
                                 </div>
@@ -495,6 +509,7 @@
 {{ super() }}
 <!-- 引入项目阶段进度条脚本 -->
 <script src="{{ url_for('static', filename='js/project_stages.js') }}"></script>
+<script src="/static/js/project_action_reply.js"></script>
 
 <script>
     $(document).ready(function() {
