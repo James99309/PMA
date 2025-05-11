@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_owner, render_date %}
+{% from 'macros/ui_helpers.html' import render_owner, render_date, render_button %}
 
 {% block content %}
 <div class="container-fluid mt-4">
@@ -9,9 +9,7 @@
             <p class="text-muted mb-0">企业代码：<span class="badge bg-info">{{ company.company_code }}</span></p>
         </div>
         <div class="col text-end">
-            <a href="{{ url_for('customer.list_companies') }}" class="btn btn-outline-secondary me-2">
-                <i class="fas fa-arrow-left"></i> 返回
-            </a>
+            {{ render_button('返回', url_for('customer.list_companies'), 'btn btn-outline-secondary me-2') }}
             {% if has_permission('customer', 'create') and (company.owner_id == current_user.id or current_user.role == 'admin') %}
             <a href="{{ url_for('customer.add_contact', company_id=company.id) }}" class="btn btn-primary">
                 <i class="fas fa-plus"></i> 添加联系人

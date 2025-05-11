@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_authorization_code %}
+{% import 'macros/ui_helpers.html' as ui %}
 
 {% block content %}
 <div class="container mt-4">
@@ -158,8 +159,8 @@
                 </div>
 
                 <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                    <button type="submit" class="btn btn-primary me-md-2">保存</button>
-                    <a href="{{ url_for('project.list_projects') }}" class="btn btn-secondary">取消</a>
+                    {{ ui.render_button("保存", type="submit", color="primary", extra_class="me-md-2") }}
+                    {{ ui.render_button("取消", href=url_for('project.list_projects'), color="secondary") }}
                 </div>
             </div>
         </div>

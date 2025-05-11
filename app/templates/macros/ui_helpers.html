@@ -107,3 +107,24 @@
 
   {% endif %}
 {% endmacro %}
+
+{% macro render_button(text, href=None, color="primary", size="md", icon=None, rounded="pill", extra_class="", type="a", attrs=None) %}
+  {%- set btn_class = "btn btn-outline-" + color %}
+  {%- if rounded %} {%- set btn_class = btn_class + " rounded-" + rounded %} {%- endif %}
+  {%- if size == "sm" %} {%- set btn_class = btn_class + " btn-sm" %} {%- endif %}
+  {%- if size == "lg" %} {%- set btn_class = btn_class + " btn-lg" %} {%- endif %}
+  {%- if extra_class %} {%- set btn_class = btn_class + " " + extra_class %} {%- endif %}
+  {% if type == "a" %}
+    <a href="{{ href or '#' }}" class="{{ btn_class }}" {{ attrs|safe }}>
+      {% if icon %}<i class="{{ icon }} me-1"></i>{% endif %}{{ text }}
+    </a>
+  {% elif type == "button" %}
+    <button type="button" class="{{ btn_class }}" {{ attrs|safe }}>
+      {% if icon %}<i class="{{ icon }} me-1"></i>{% endif %}{{ text }}
+    </button>
+  {% elif type == "submit" %}
+    <button type="submit" class="{{ btn_class }}" {{ attrs|safe }}>
+      {% if icon %}<i class="{{ icon }} me-1"></i>{% endif %}{{ text }}
+    </button>
+  {% endif %}
+{% endmacro %}

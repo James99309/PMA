@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_authorization_code, render_datetime %}
+{% import 'macros/ui_helpers.html' as ui %}
 
 {% block title %}项目管理{% endblock %}
 
@@ -76,16 +77,10 @@
                     </div>
                 </div>
                 <div>
-                    {% if has_permission('project', 'create') and current_user.role == 'admin' %}
-                    <button id="importProjectsBtn" class="btn btn-info me-2">
-                        <i class="fas fa-file-import"></i> 批量导入
-                    </button>
-                    {% endif %}
-                    {% if has_permission('project', 'create') %}
-                    <a href="{{ url_for('project.add_project') }}" class="btn btn-primary me-2">
-                        <i class="fas fa-plus"></i> 创建项目
-                    </a>
-                    {% endif %}
+                    {# 批量导入按钮 #}
+                    {{ ui.render_button("批量导入", type="button", color="info", icon="fas fa-file-import", attrs='id="importProjectsBtn"', extra_class="me-2") }}
+                    {# 创建项目按钮 #}
+                    {{ ui.render_button("创建项目", href=url_for('project.add_project'), color="primary", icon="fas fa-plus", attrs='', extra_class="me-2") }}
                     {% if has_permission('project', 'delete') %}
                     <button id="batchDeleteBtn" class="btn btn-danger" style="display: none;">
                         <i class="fas fa-trash"></i> 批量删除

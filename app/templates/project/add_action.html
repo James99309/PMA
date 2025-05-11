@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import 'macros/ui_helpers.html' as ui %}
 
 {% block title %}添加行动记录{% endblock %}
 
@@ -66,8 +67,8 @@
                         </div>
                         
                         <div class="d-flex justify-content-end">
-                            <a href="{{ url_for('project.view_project', project_id=project.id) }}" class="btn btn-secondary me-2">取消</a>
-                            <button type="submit" class="btn btn-primary">保存</button>
+                            {{ ui.render_button("取消", href=url_for('project.view_project', project_id=project.id), color="secondary", extra_class="me-2") }}
+                            {{ ui.render_button("保存", type="submit", color="primary") }}
                         </div>
                     </form>
                 </div>

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_owner, render_date %}
+{% from 'macros/ui_helpers.html' import render_owner, render_date, render_button %}
 
 {% block title %}客户管理{% endblock %}
 
@@ -47,12 +47,10 @@
                             {% if has_permission('customer', 'create') %}
                             {% if current_user.role == 'admin' %}
                             <div class="btn-group">
-                                <button type="button" class="btn btn-info dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-                                    <i class="fas fa-file-import"></i> 导入数据
-                                </button>
+                                {{ render_button('导入数据', '#', color='info', icon='fas fa-file-import', extra_class='dropdown-toggle', type='a') }}
                                 <ul class="dropdown-menu">
-                                    <li><a class="dropdown-item" href="#" id="importCustomers">📥 导入客户</a></li>
-                                    <li><a class="dropdown-item" href="#" id="importContacts">📥 导入联系人</a></li>
+                                    <li>{{ render_button('📥 导入客户', '#', color='info', icon='fas fa-upload', extra_class='dropdown-item', type='a') }}</li>
+                                    <li>{{ render_button('📥 导入联系人', '#', color='info', icon='fas fa-user-plus', extra_class='dropdown-item', type='a') }}</li>
                                 </ul>
                             </div>
                             {% endif %}

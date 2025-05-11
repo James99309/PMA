@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_owner, render_date %}
+{% from 'macros/ui_helpers.html' import render_owner, render_date, render_button %}
 
 {% block title %}{{ contact.name }} - 联系人详情{% endblock %}
 
@@ -16,18 +16,12 @@
             </p>
         </div>
         <div class="col text-end">
-            <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="btn btn-outline-secondary me-2">
-                <i class="fas fa-arrow-left"></i> 返回企业
-            </a>
+            {{ render_button('返回企业', url_for('customer.view_company', company_id=company.id), color='secondary', icon='fas fa-arrow-left') }}
             {% if has_permission('customer', 'edit') and (contact.owner_id == current_user.id or current_user.role == 'admin') %}
-            <a href="{{ url_for('customer.edit_contact', company_id=company.id, contact_id=contact.id) }}" class="btn btn-outline-primary me-2">
-                <i class="fas fa-edit"></i> 编辑联系人
-            </a>
+            {{ render_button('编辑联系人', url_for('customer.edit_contact', company_id=company.id, contact_id=contact.id), color='primary', icon='fas fa-edit') }}
             {% endif %}
             {% if has_permission('customer', 'create') %}
-            <a href="{{ url_for('customer.add_action_for_company', company_id=contact.company_id) }}?contact_id={{ contact.id }}" class="btn btn-primary">
-                <i class="fas fa-plus"></i> 添加行动记录
-            </a>
+            {{ render_button('添加行动记录', url_for('customer.add_action_for_company', company_id=contact.company_id) ~ '?contact_id=' ~ contact.id, color='info', icon='fas fa-plus') }}
             {% endif %}
         </div>
     </div>

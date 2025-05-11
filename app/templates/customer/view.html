@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_owner, render_date, render_project_type %}
+{% from 'macros/ui_helpers.html' import render_owner, render_date, render_project_type, render_button %}
 
 {% block title %}{{ company.company_name }} - 企业详情{% endblock %}
 
@@ -10,27 +10,66 @@
 {% endblock %}
 
 {% block content %}
-<div class="module-title-bar mb-3"><h2 class="module-title">客户管理</h2></div>
+<!-- 标题栏优化，去除"客户管理"，主标题风格与客户列表一致 -->
 <div class="container-fluid mt-4">
-    <!-- 页面标题和操作按钮 -->
-    <div class="row mb-3">
-        <div class="col">
-            <h2 class="text-primary">企业详情</h2>
-        </div>
-        <div class="col text-end">
-            <a href="{{ url_for('customer.list_companies') }}" class="btn btn-outline-secondary me-2">
-                <i class="fas fa-arrow-left"></i> 返回列表
-            </a>
-            {% if has_permission('customer', 'edit') and (company.owner_id == current_user.id or current_user.role == 'admin') %}
-            <a href="{{ url_for('customer.edit_company', company_id=company.id) }}" class="btn btn-outline-primary me-2">
-                <i class="fas fa-edit"></i> 编辑企业
-            </a>
-            {% endif %}
+    <div class="row mb-3 align-items-center">
+        <div class="col-12 d-flex flex-column flex-lg-row align-items-start align-items-lg-center justify-content-between">
+            <h1 class="fw-bold mb-2 mb-lg-0" style="color:#222;">客户详情</h1>
+            <div class="d-flex flex-row flex-wrap gap-2">
+                {{ render_button('返回列表', url_for('customer.list_companies'), color='secondary', icon='fas fa-arrow-left') }}
+                {% if has_permission('customer', 'edit') and (company.owner_id == current_user.id or current_user.role == 'admin') %}
+                  {{ render_button('编辑企业', url_for('customer.edit_company', company_id=company.id), color='primary', icon='fas fa-edit') }}
+                {% endif %}
+            </div>
         </div>
     </div>
 
-    <!-- 企业信息卡片 -->
-    <div class="row mb-4">
+    <!-- 移动端企业信息卡片 -->
+    <div class="d-block d-lg-none mb-4">
+        <div class="card shadow-sm rounded-4 mb-3">
+            <div class="card-body pb-2">
+                <div class="d-flex align-items-center mb-2">
+                    <h4 class="fw-bold mb-0 flex-grow-1" style="word-break:break-all;">{{ company.company_name }}</h4>
+                    <span class="badge ms-2 {% if company.status == '活跃' %}bg-success{% else %}bg-secondary{% endif %}">
+                        {{ company.status }}
+                    </span>
+                </div>
+                <div class="mb-2">
+                    <div class="border rounded-3 p-2 mb-2">
+                        <div class="fw-bold text-secondary small mb-1">基本信息</div>
+                        <div class="row g-1 small">
+                            <div class="col-6">企业类型：{{ company.company_type or '未指定' }}</div>
+                            <div class="col-6">行业：{{ company.industry or '未指定' }}</div>
+                            <div class="col-6">国家/地区：{{ country_code_to_name[company.country] if company.country in country_code_to_name else company.country or '未指定' }}</div>
+                            <div class="col-6">省份：{{ company.region or '未指定' }}</div>
+                        </div>
+                    </div>
+                    <div class="border rounded-3 p-2 mb-2">
+                        <div class="fw-bold text-secondary small mb-1">地址信息</div>
+                        <div class="small">详细地址：{{ company.address or '未指定' }}</div>
+                    </div>
+                    <div class="border rounded-3 p-2 mb-2">
+                        <div class="fw-bold text-secondary small mb-1">时间信息</div>
+                        <div class="row g-1 small">
+                            <div class="col-6">创建时间：{{ render_date(company.created_at) }}</div>
+                            <div class="col-6">更新时间：{{ render_date(company.updated_at) }}</div>
+                        </div>
+                    </div>
+                    <div class="border rounded-3 p-2 mb-2">
+                        <div class="fw-bold text-secondary small mb-1">拥有者信息</div>
+                        <div class="row g-1 small">
+                            <div class="col-6">企业代码：{{ company.company_code or '未指定' }}</div>
+                            <div class="col-6">拥有者：{{ render_owner(company.owner) }}</div>
+                        </div>
+                        <div class="small mt-1">备注：{{ company.notes or '暂无备注' }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PC端企业信息卡片（原有结构） -->
+    <div class="row mb-4 d-none d-lg-block">
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header bg-white border-bottom-0">
@@ -112,9 +151,7 @@
         </div>
         <div class="col-auto">
             {% if has_permission('customer', 'create') and (company.owner_id == current_user.id or current_user.role == 'admin') %}
-            <a href="{{ url_for('customer.add_contact', company_id=company.id) }}" class="btn btn-primary btn-sm">
-                <i class="fas fa-plus"></i> 添加联系人
-            </a>
+              {{ render_button('添加联系人', url_for('customer.add_contact', company_id=company.id), color='primary', icon='fas fa-plus', size='sm') }}
             {% endif %}
         </div>
     </div>
@@ -416,9 +453,7 @@
         </div>
         <div class="col-auto">
             {% if has_permission('customer', 'create') and (company.owner_id == current_user.id or current_user.role == 'admin') %}
-            <a href="{{ url_for('customer.add_action_for_company', company_id=company.id) }}" class="btn btn-primary btn-sm">
-                <i class="fas fa-plus"></i> 添加行动记录
-            </a>
+            {{ render_button('添加行动记录', url_for('customer.add_action_for_company', company_id=company.id), color='primary', icon='fas fa-plus', size='sm') }}
             {% endif %}
         </div>
     </div>
@@ -547,34 +582,36 @@
         padding: 5px 8px;
     }
     
-    /* 移动端卡片视图样式 */
+    /* 移动端企业详情卡片分组样式 */
     @media (max-width: 991.98px) {
-        .card-title {
-            font-size: 1.1rem;
+        .card.shadow-sm.rounded-4 {
+            border-radius: 1.2rem!important;
         }
-        
-        .card-body {
-            padding: 0.75rem;
+        .card-body.pb-2 {
+            padding-bottom: 0.5rem!important;
         }
-        
-        .btn-group-sm .btn {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.75rem;
+        .border.rounded-3 {
+            border-radius: 0.8rem!important;
+            border-width: 1.5px!important;
         }
-        
-        /* 移动端卡片样式优化 */
-        .shadow-sm {
-            box-shadow: 0 .125rem .25rem rgba(0,0,0,.075)!important;
-            border-radius: 0.5rem;
-            border: none;
+        .fw-bold.text-secondary.small {
+            font-size: 0.98rem!important;
+            font-weight: 600!important;
         }
-        
-        /* 移动端图标优化 */
-        .fa-phone, .fa-envelope, .fa-user, .fa-clock,
-        .fa-building, .fa-yen-sign, .fa-shipping-fast {
-            width: 16px;
-            text-align: center;
+        .btn.rounded-pill {
+            border-radius: 2rem!important;
+            font-size: 1rem;
+            padding: 0.35rem 1.2rem;
         }
+        .gap-2 { gap: 0.5rem!important; }
+        .flex-wrap { flex-wrap: wrap!important; }
+        .flex-row { flex-direction: row!important; }
+        .mb-2, .mb-3 { margin-bottom: 0.7rem!important; }
+        .mb-0 { margin-bottom: 0!important; }
+        .mt-1 { margin-top: 0.3rem!important; }
+        .mt-2 { margin-top: 0.7rem!important; }
+        .rounded-4 { border-radius: 1.2rem!important; }
+        .rounded-3 { border-radius: 0.8rem!important; }
     }
     
     /* 时间线样式 */
