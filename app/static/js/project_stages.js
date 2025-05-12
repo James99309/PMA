@@ -408,6 +408,7 @@ class ProjectStageProgress {
     updateStage(targetStage) {
         // 显示加载指示器
         const loadingOverlay = document.createElement('div');
+        loadingOverlay.id = 'stageUpdateLoadingOverlay';
         loadingOverlay.style.position = 'fixed';
         loadingOverlay.style.top = '0';
         loadingOverlay.style.left = '0';
@@ -418,14 +419,12 @@ class ProjectStageProgress {
         loadingOverlay.style.display = 'flex';
         loadingOverlay.style.alignItems = 'center';
         loadingOverlay.style.justifyContent = 'center';
-        
         const loadingIndicator = document.createElement('div');
         loadingIndicator.style.backgroundColor = 'white';
         loadingIndicator.style.padding = '20px';
         loadingIndicator.style.borderRadius = '5px';
         loadingIndicator.style.boxShadow = '0 0 10px rgba(0,0,0,0.2)';
         loadingIndicator.innerHTML = '<div>阶段更新中，请稍候...</div>';
-        
         loadingOverlay.appendChild(loadingIndicator);
         document.body.appendChild(loadingOverlay);
         
@@ -505,5 +504,17 @@ class ProjectStageProgress {
 
 // 文档加载完成后运行
 document.addEventListener('DOMContentLoaded', function() {
+    // 页面加载时自动移除残留的阶段推进loading遮罩层
+    const removeStageLoading = () => {
+        const oldLoading = document.getElementById('stageUpdateLoadingOverlay');
+        if (oldLoading) {
+            oldLoading.parentNode.removeChild(oldLoading);
+        }
+    };
+    removeStageLoading();
+    // 监听页面跳转和刷新，自动移除loading遮罩层
+    window.addEventListener('popstate', removeStageLoading);
+    window.addEventListener('hashchange', removeStageLoading);
+    window.addEventListener('beforeunload', removeStageLoading);
     // 项目阶段进度条初始化由页面调用
 }); 

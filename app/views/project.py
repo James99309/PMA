@@ -847,14 +847,7 @@ def update_project_stage():
         # 更新项目阶段
         old_stage = project.current_stage
         project.current_stage = new_stage
-        
-        # 在阶段说明中添加阶段变更记录
-        change_time = datetime.now()
-        change_record = f"\n[阶段变更] {old_stage} → {new_stage} (更新者: {current_user.username}, 时间: {change_time.strftime('%Y-%m-%d %H:%M:%S')})"
-        if project.stage_description:
-            project.stage_description += change_record
-        else:
-            project.stage_description = change_record
+        # 移除自动写入stage_description的所有逻辑（如有）
         
         # 在一个事务中同时保存项目更新和阶段历史
         try:
@@ -863,11 +856,24 @@ def update_project_stage():
                 project_id=project.id,
                 from_stage=old_stage,
                 to_stage=new_stage,
-                change_date=change_time,
+                change_date=datetime.now(),
                 remarks=f"API推进: {current_user.username}",
                 commit=False  # 不在方法内部提交，与主事务一同提交
             )
-            
+
+            # 新增：插入阶段变更行动记录
+            from app.models.action import Action
+            action = Action(
+                date=datetime.now().date(),
+                contact_id=None,
+                company_id=None,
+                project_id=project.id,
+                communication=f"阶段变更：{old_stage} → {new_stage}",
+                owner_id=current_user.id
+            )
+            db.session.add(action)
+            # 不要单独commit，和主事务一起提交
+
             # 提交所有更改
             db.session.commit()
             current_app.logger.info(f"项目ID={project.id}的阶段从{old_stage}更新为{new_stage}，历史记录已添加")

@@ -13,7 +13,19 @@ from app.utils import version_check
 from flask_wtf.csrf import CSRFProtect
 
 # 配置日志
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('app.log')
+    ]
+)
+
+# 确保所有处理器都设置为DEBUG级别
+for handler in logging.getLogger().handlers:
+    handler.setLevel(logging.DEBUG)
+
 logger = logging.getLogger(__name__)
 
 # 初始化CSRF保护

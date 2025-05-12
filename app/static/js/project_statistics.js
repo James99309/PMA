@@ -43,7 +43,7 @@ const STAGE_COLORS = {
 };
 
 // 当前页面状态
-let currentPeriod = 'all';            // 当前统计周期
+let currentPeriod = 'month';            // 当前统计周期
 let currentStageChartType = 'count';  // 当前阶段分布图类型: count 或 amount
 let currentTrendPeriod = 'week';      // 当前趋势周期: week 或 month
 let currentTrendStage = '发现';        // 当前显示的趋势阶段
@@ -52,132 +52,6 @@ let trendData = null;                 // 保存的趋势数据
 let statisticsData = null;            // 保存的统计数据
 let autoSwitchTimer = null;           // 自动切换定时器
 let accounts = [];                    // 可用的账户列表
-
-// 演示数据模型 - 用于在数据加载失败或无数据时展示
-const DEMO_STATISTICS_DATA = {
-    total_valid_projects: 128,
-    total_valid_amount: 5280000,
-    stage_counts: {
-        '发现': 30,
-        '品牌植入': 22,
-        '招标前': 18,
-        '投标中': 15,
-        '中标': 10,
-        '签约': 12,
-        '失败': 8,
-        '搁置': 5
-    },
-    stage_amounts: {
-        '发现': 1200000,
-        '品牌植入': 980000,
-        '招标前': 850000,
-        '投标中': 720000,
-        '中标': 520000,
-        '签约': 620000,
-        '失败': 280000,
-        '搁置': 110000
-    },
-    bidding_projects_count: 15,
-    bidding_projects_amount: 720000,
-    won_projects_count: 10,
-    won_projects_amount: 520000,
-    updated_projects_count: 24,
-    updated_projects_amount: 1250000,
-    new_projects_count: 8,
-    new_projects_amount: 320000
-};
-
-// 演示趋势数据模型
-const getDemoTrendData = (stage, period) => {
-    // 获取当前日期
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth() + 1; // JavaScript月份从0开始，需要+1
-    
-    // 获取当前周数（ISO周，第一周包含1月4日）
-    const getISOWeek = (date) => {
-        const d = new Date(date);
-        d.setHours(0, 0, 0, 0);
-        d.setDate(d.getDate() + 4 - (d.getDay() || 7));
-        const yearStart = new Date(d.getFullYear(), 0, 1);
-        return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-    };
-    const currentWeek = getISOWeek(currentDate);
-    
-    // 根据当前日期确定数据点数量
-    let daysCount;
-    if (period === 'week') {
-        daysCount = Math.min(24, currentWeek); // 不超过当前周数，最多24周
-    } else {
-        daysCount = Math.min(24, currentMonth); // 不超过当前月数，最多24个月
-    }
-    
-    const labels = [];
-    const data = [];
-    
-    // 生成标签
-    if (period === 'week') {
-        for (let i = 0; i < daysCount; i++) {
-            const weekNum = i + 1; // 从第1周开始
-            labels.push(`${currentYear}-${weekNum.toString().padStart(2, '0')}周`);
-        }
-    } else {
-        for (let i = 0; i < daysCount; i++) {
-            const month = i + 1; // 从1月开始
-            labels.push(`${currentYear}-${month.toString().padStart(2, '0')}月`);
-        }
-    }
-    
-    // 根据阶段生成不同的演示数据趋势
-    let baseVal = 0;
-    let trend = 0;
-    
-    switch(stage) {
-        case '发现':
-            baseVal = 5;
-            trend = 1;
-            break;
-        case '品牌植入':
-            baseVal = 4;
-            trend = 0.3;
-            break;
-        case '招标前':
-            baseVal = 3;
-            trend = 0.5;
-            break;
-        case '投标中':
-            baseVal = 2;
-            trend = 0.7;
-            break;
-        case '中标':
-            baseVal = 1;
-            trend = 0.5;
-            break;
-        case '签约':
-            baseVal = 1;
-            trend = 0.3;
-            break;
-        default:
-            baseVal = 2;
-            trend = 0.2;
-    }
-    
-    // 生成随机但有趋势的数据
-    for (let i = 0; i < daysCount; i++) {
-        const randomFactor = Math.random() * 0.8 + 0.6; // 0.6 ~ 1.4之间的随机因子
-        const trendValue = baseVal + (i * trend * randomFactor);
-        data.push(Math.max(0, Math.round(trendValue)));
-    }
-    
-    return {
-        labels: labels,
-        data: data,
-        color: STAGE_COLORS_COUNT[stage] || 'rgba(2, 103, 5, 0.7)',
-        period: period,
-        stage: stage,
-        total_periods: daysCount  // 添加总周期数
-    };
-};
 
 // 获取所有阶段演示趋势数据
 const getAllDemoTrends = (period) => {
@@ -304,19 +178,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // 总体周期切换
-    periodBtns.forEach(btn => {
-        btn.addEventListener('click', function() {
-            const period = this.getAttribute('data-period');
-            
-            // 更新激活状态
-            periodBtns.forEach(b => b.classList.remove('active'));
-            this.classList.add('active');
-            
-            // 更新当前周期并加载数据
-            currentPeriod = period;
-            loadStatisticsData(period);
-        });
-    });
+    // 移除周期切换按钮逻辑，只保留本月
     
     // 趋势周期切换
     trendPeriodBtns.forEach(btn => {
@@ -472,34 +334,12 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(error => {
                 console.error('加载阶段趋势数据出错:', error);
-                
-                // 使用演示数据作为备选
-                console.log('使用演示趋势数据作为备选');
-                
-                if (stage) {
-                    // 单个阶段的演示数据
-                    const demoData = getDemoTrendData(stage, period);
-                    drawStageTrendChart(demoData);
-                } else {
-                    // 所有阶段的演示数据
-                    trendData = getAllDemoTrends(period);
-                    initStageTrendToggle(trendData);
-                    
-                    // 默认显示第一个阶段
-                    if (trendData.stages && trendData.stages.length > 0) {
-                        currentTrendStage = trendData.stages[0];
-                        drawStageTrendChart(trendData.trends[currentTrendStage]);
-                    }
-                }
-                
-                // 显示小提示，但仍显示演示数据
-                const warningDiv = document.createElement('div');
-                warningDiv.className = 'alert alert-warning p-2 mb-2';
-                warningDiv.style.fontSize = '0.8rem';
-                warningDiv.innerHTML = `<i class="fas fa-exclamation-triangle me-1"></i> 趋势数据加载失败，当前显示的是演示数据。`;
-                
-                // 添加到趋势图表顶部
-                trendChart.parentNode.insertBefore(warningDiv, trendChart);
+                trendChart.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        趋势数据加载失败，请稍后重试
+                    </div>
+                `;
             });
     }
     
@@ -514,27 +354,15 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        if (!trendData) {
-            // 如果没有传入数据，使用演示数据
-            trendData = getDemoTrendData(currentTrendStage, currentTrendPeriod);
-        }
-        
         const chartContainer = document.getElementById('stageTrendChart');
         if (!chartContainer) {
             console.error('找不到图表容器 #stageTrendChart');
             return;
         }
         
-        // 新增：无历史数据提示，可点击切换到演示数据
-        if (!trendData.labels || trendData.labels.length === 0 || trendData.data.every(val => val === 0)) {
-            chartContainer.innerHTML = '<div class="alert alert-warning" id="noHistoryDataTip" style="cursor:pointer;">无历史数据，点击查看演示数据</div>';
-            const tip = document.getElementById('noHistoryDataTip');
-            if (tip) {
-                tip.onclick = function() {
-                    const demoData = getDemoTrendData(currentTrendStage, currentTrendPeriod);
-                    drawStageTrendChart(demoData);
-                };
-            }
+        // 检查数据有效性
+        if (!trendData || !trendData.labels || !trendData.data || trendData.labels.length === 0 || trendData.data.every(val => val === 0)) {
+            chartContainer.innerHTML = '<div class="alert alert-info text-center">暂无历史数据</div>';
             return;
         }
         
@@ -550,23 +378,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         try {
-            // 检查数据有效性
-            if (!trendData.labels || !trendData.data || trendData.labels.length === 0) {
-                console.warn('趋势数据无效，使用演示数据代替');
-                trendData = getDemoTrendData(trendData.stage || currentTrendStage, trendData.period || currentTrendPeriod);
-            }
-            
-            // 检查是否有数据
-            const hasData = trendData.data.some(val => val > 0);
-            if (!hasData) {
-                // 如果没有有效数据，显示空数据提示或使用演示数据
-                trendData = getDemoTrendData(trendData.stage || currentTrendStage, trendData.period || currentTrendPeriod);
-            }
-            
             // 处理已有图表
             if (window.stageTrendChart) {
                 try {
-                    window.stageTrendChart.dispose();
+                    if (typeof window.stageTrendChart.dispose === 'function') {
+                        window.stageTrendChart.dispose();
+                    }
                 } catch (e) {
                     console.warn('趋势图表销毁失败:', e);
                 }
@@ -582,16 +399,11 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             // 根据阶段获取颜色
-            let color;
-            if (trendData.stage) {
-                color = STAGE_COLORS_COUNT[trendData.stage];
-            } else {
-                color = STAGE_COLORS_COUNT[currentTrendStage] || 'rgba(2, 103, 5, 0.7)';
-            }
+            let color = STAGE_COLORS_COUNT[trendData.stage || currentTrendStage] || 'rgba(2, 103, 5, 0.7)';
             
             // 计算默认显示的数据范围 - 最多显示12个周期，优先显示最新数据
             const totalDataPoints = trendData.labels.length;
-            const displayCount = Math.min(12, totalDataPoints); // 默认显示12个点
+            const displayCount = Math.min(12, totalDataPoints);
             const startIndex = Math.max(0, totalDataPoints - displayCount);
             const endIndex = totalDataPoints;
             
@@ -869,18 +681,24 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // 业务推进统计（本期新建+更新的项目）
-        if (period === 'all') {
-            // 全部时间段没有业务推进统计
-            document.getElementById('updatedProjectsCount').textContent = '-';
-            document.getElementById('updatedProjectsAmount').textContent = '-';
+        // 只保留本月逻辑，始终显示真实数据
+        const newCount = stats.new_projects_count || 0;
+        const updatedCount = stats.updated_projects_count || 0;
+        const countEl = document.getElementById('updatedProjectsCount');
+        if (countEl) {
+            countEl.textContent = formatNumber(newCount + updatedCount);
+            console.debug(`[业务推进] count: 新建${newCount} + 更新${updatedCount} = ${newCount + updatedCount}`);
         } else {
-            const newCount = stats.new_projects_count || 0;
-            const updatedCount = stats.updated_projects_count || 0;
-            document.getElementById('updatedProjectsCount').textContent = formatNumber(newCount + updatedCount);
-            
-            const newAmount = stats.new_projects_amount || 0;
-            const updatedAmount = stats.updated_projects_amount || 0;
-            document.getElementById('updatedProjectsAmount').textContent = formatNumber(Math.round((newAmount + updatedAmount) / 10000));
+            console.warn('[业务推进] updatedProjectsCount 元素不存在');
+        }
+        const newAmount = stats.new_projects_amount || 0;
+        const updatedAmount = stats.updated_projects_amount || 0;
+        const amountEl = document.getElementById('updatedProjectsAmount');
+        if (amountEl) {
+            amountEl.textContent = formatNumber(Math.round((newAmount + updatedAmount) / 10000));
+            console.debug(`[业务推进] amount: 新建${newAmount} + 更新${updatedAmount} = ${(newAmount + updatedAmount) / 10000} 万元`);
+        } else {
+            console.warn('[业务推进] updatedProjectsAmount 元素不存在');
         }
         
         // 绘制阶段分布图表
@@ -975,7 +793,9 @@ document.addEventListener('DOMContentLoaded', function() {
             // 处理已有图表
             if (window.stageDistributionChart) {
                 try {
-                    window.stageDistributionChart.dispose();
+                    if (typeof window.stageDistributionChart.dispose === 'function') {
+                        window.stageDistributionChart.dispose();
+                    }
                 } catch (e) {
                     console.warn('图表销毁失败:', e);
                 }

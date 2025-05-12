@@ -73,21 +73,6 @@ class Project(db.Model):
         """
         return gen_auth_code(project_type)
 
-@event.listens_for(Project, 'before_update')
-def project_before_update(mapper, connection, target):
-    """项目更新前事件监听器"""
-    if target.current_stage != target._current_stage_previous and hasattr(target, '_current_stage_previous'):
-        # 阶段变更，添加到描述字段
-        from_stage = target._current_stage_previous or '未设置'
-        to_stage = target.current_stage or '未设置'
-        change_time = datetime.now().strftime('%Y-%m-%d %H:%M')
-        stage_change_log = f"[阶段变更] {from_stage} → {to_stage}, 时间: {change_time}"
-        
-        if target.stage_description:
-            target.stage_description = stage_change_log + "\n\n" + target.stage_description
-        else:
-            target.stage_description = stage_change_log
-
 @event.listens_for(Project, 'load')
 def project_on_load(target, context):
     """项目加载时事件监听器，记录当前阶段值"""

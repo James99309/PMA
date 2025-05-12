@@ -9,10 +9,11 @@ import logging
 import json
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
-# 主线阶段定义
+# 主线阶段定义（含签约）
 MAINLINE_STAGES = [
-    '发现', '品牌植入', '招标前', '投标中', '中标'
+    '发现', '品牌植入', '招标前', '招标中', '中标', '签约'
 ]
 
 # 阶段颜色定义
@@ -20,7 +21,7 @@ STAGE_COLORS = {
     '发现': '#8FD14F',       # 淡绿色
     '品牌植入': '#9370DB',   # 淡紫色
     '招标前': '#FFA500',     # 橘黄色
-    '投标中': '#FF4500',     # 橘红色
+    '招标中': '#FF4500',     # 橘红色
     '中标': '#1E90FF',       # 蓝色
     '签约': '#228B22',       # 深绿色
     '失败': '#FF0000',       # 红色
@@ -29,7 +30,7 @@ STAGE_COLORS = {
 }
 
 # 排序顺序
-STAGE_ORDER = ['发现', '品牌植入', '招标前', '投标中', '中标', '签约', '失败', '搁置', '未设置']
+STAGE_ORDER = ['发现', '品牌植入', '招标前', '招标中', '中标', '签约', '失败', '搁置', '未设置']
 
 class ProjectStatistics:
     """项目统计模型"""
@@ -86,7 +87,7 @@ class ProjectStatistics:
             stats['stage_amounts'] = stage_amounts
 
             # 投标中项目统计
-            bidding_projects = [p for p in all_projects if p.current_stage == '投标中']
+            bidding_projects = [p for p in all_projects if p.current_stage == '招标中']
             stats['bidding_projects_count'] = len(bidding_projects)
             stats['bidding_projects_amount'] = sum(p.quotation_customer or 0 for p in bidding_projects)
 
@@ -95,43 +96,31 @@ class ProjectStatistics:
             stats['won_projects_count'] = len(won_projects)
             stats['won_projects_amount'] = sum(p.quotation_customer or 0 for p in won_projects)
 
-            # 业务推进统计（本月/本周主线阶段变更，且不含切换到失败/搁置）
+            # 业务推进统计（本月主线阶段推进，且不含切换到失败/搁置）
             today = datetime.now().date()
-            if period == 'week':
-                start_date = today - timedelta(days=today.weekday())
-            elif period == 'month':
-                start_date = today.replace(day=1)
-            else:
-                start_date = None
-
-            def is_mainline_change(project):
-                # 只统计主线阶段变更，且不统计切换到失败/搁置
-                if not project.stage_description:
-                    return False
-                # 查找本期内的主线阶段变更记录
-                import re
-                pattern = re.compile(r'\[阶段变更\][^\n]*?([\u4e00-\u9fa5A-Za-z0-9_]+) ?(?:→|-) ?([\u4e00-\u9fa5A-Za-z0-9_]+).*?时间: (\d{4}-\d{2}-\d{2})')
-                matches = list(pattern.finditer(project.stage_description))
-                for m in matches:
-                    from_stage, to_stage, change_date = m.group(1), m.group(2), m.group(3)
-                    try:
-                        change_dt = datetime.strptime(change_date, '%Y-%m-%d').date()
-                    except Exception:
-                        continue
-                    if start_date and change_dt < start_date:
-                        continue
-                    # 只统计主线阶段变更且目标阶段不是失败/搁置
-                    if from_stage in MAINLINE_STAGES and to_stage in MAINLINE_STAGES and to_stage not in ['失败', '搁置']:
-                        return True
-                return False
-
-            if period in ['week', 'month']:
-                updated_projects = [p for p in all_projects if is_mainline_change(p)]
-                stats['updated_projects_count'] = len(updated_projects)
-                stats['updated_projects_amount'] = sum(p.quotation_customer or 0 for p in updated_projects)
-            else:
-                stats['updated_projects_count'] = 0
-                stats['updated_projects_amount'] = 0
+            start_date = today.replace(day=1)
+            
+            # 查询本月主线阶段推进的历史记录
+            history_query = db.session.query(ProjectStageHistory.project_id).filter(
+                ProjectStageHistory.change_date >= start_date,
+                ProjectStageHistory.from_stage.in_(MAINLINE_STAGES),
+                ProjectStageHistory.to_stage.in_(MAINLINE_STAGES),
+                ProjectStageHistory.to_stage.notin_(['失败', '搁置'])
+            )
+            if account_id:
+                history_query = history_query.filter(ProjectStageHistory.account_id == account_id)
+            project_ids = set([row.project_id for row in history_query.distinct()])
+            # 修正：直接查找所有有授权编码且在project_ids中的项目
+            updated_projects_query = get_viewable_data(Project, target_user).filter(
+                Project.id.in_(project_ids),
+                Project.authorization_code.isnot(None),
+                func.length(Project.authorization_code) > 0
+            )
+            if account_id:
+                updated_projects_query = updated_projects_query.filter(Project.owner_id == account_id)
+            updated_projects = updated_projects_query.all()
+            stats['updated_projects_count'] = len(updated_projects)
+            stats['updated_projects_amount'] = sum(p.quotation_customer or 0 for p in updated_projects)
 
             # 新建项目统计（本期新建且有授权编码且主线阶段）
             if period in ['week', 'month'] and start_date:
@@ -186,13 +175,15 @@ class ProjectStatistics:
         today = datetime.now().date()
         if period == 'week':
             start_date = today - timedelta(days=today.weekday() + 7*23)
-            time_extract = func.strftime('%Y%W', ProjectStageHistory.change_date)
+            # 修改为PostgreSQL的时间格式化函数
+            time_extract = func.to_char(ProjectStageHistory.change_date, 'YYYYWW')
             period_label = '周'
         else:
             start_date = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
             start_date = start_date.replace(month=((start_date.month - 23) % 12) or 12, 
                                           year=start_date.year - ((start_date.month - 23) <= 0))
-            time_extract = func.strftime('%Y%m', ProjectStageHistory.change_date)
+            # 修改为PostgreSQL的时间格式化函数
+            time_extract = func.to_char(ProjectStageHistory.change_date, 'YYYYMM')
             period_label = '月'
 
         try:
@@ -202,13 +193,18 @@ class ProjectStatistics:
                 func.length(Project.authorization_code) > 0
             )
             viewable_project_ids = [p.id for p in viewable_projects_query.all()]
+            logger.debug(f"可见的项目IDs: {viewable_project_ids}")
+            
             if not viewable_project_ids:
+                logger.debug("没有可见的项目")
                 return {"labels": [], "data": [], "period": period}
 
-            # 构建历史记录查询，添加账户过滤条件
+            # 构建历史记录查询，添加账户过滤条件和时间范围过滤
             history_query = db.session.query(ProjectStageHistory).filter(
                 ProjectStageHistory.project_id.in_(viewable_project_ids),
-                ProjectStageHistory.to_stage == stage
+                ProjectStageHistory.to_stage == stage,
+                ProjectStageHistory.change_date >= start_date,  # 添加时间范围过滤
+                ProjectStageHistory.change_date <= datetime.now()  # 添加时间范围过滤
             )
             
             # 如果指定了账户，添加账户过滤条件
@@ -248,6 +244,11 @@ class ProjectStatistics:
             query = query.group_by('time_point').order_by('time_point')
 
             result = query.all()
+            
+            # 添加调试日志
+            logger.debug(f"趋势查询结果: {result}")
+            logger.debug(f"查询开始日期: {start_date}, 结束日期: {today}")
+            logger.debug(f"SQL查询: {str(query.statement.compile(compile_kwargs={'literal_binds': True}))}")
 
             # 生成所有时间点
             time_points = []
@@ -274,14 +275,20 @@ class ProjectStatistics:
                     else:
                         current_date = current_date.replace(month=month+1)
 
-            result_dict = {r[0]: r[1] for r in result}
+            # 添加调试日志
+            logger.debug(f"生成的时间点: {time_points}")
+
+            result_dict = {str(r[0]): r[1] for r in result}
             trend_data = []
             labels = []
             for time_key, time_label in time_points:
                 labels.append(time_label)
-                trend_data.append(result_dict.get(time_key, 0))
+                trend_data.append(result_dict.get(str(time_key), 0))
 
-            return {
+            # 添加调试日志
+            logger.debug(f"最终趋势数据: labels={labels}, data={trend_data}")
+
+            return_data = {
                 "labels": labels,
                 "data": trend_data,
                 "color": STAGE_COLORS.get(stage, '#1890ff'),
@@ -290,6 +297,8 @@ class ProjectStatistics:
                 "total_periods": len(time_points),
                 "account_id": account_id
             }
+            logger.debug(f"返回数据: {return_data}")
+            return return_data
         except Exception as e:
             logger.error(f"获取阶段趋势数据出错: {str(e)}", exc_info=True)
             return {"labels": [], "data": [], "period": period}
