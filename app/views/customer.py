@@ -1598,12 +1598,13 @@ def add_action_for_company(company_id):
         project_id = request.form.get('project_id') or None
         communication = request.form.get('communication')
         date = request.form.get('date')
-        if not contact_id or not communication or not date:
+        # 只校验沟通情况和日期
+        if not communication or not date:
             flash('请填写所有必填项', 'danger')
         else:
             action = Action(
                 date=datetime.strptime(date, '%Y-%m-%d'),
-                contact_id=contact_id,
+                contact_id=contact_id if contact_id else None,
                 company_id=company_id,
                 project_id=project_id,
                 communication=communication,

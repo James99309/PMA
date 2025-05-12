@@ -31,7 +31,7 @@ class ProjectStageHistory(db.Model):
         return f'<ProjectStageHistory {self.project_id} {self.from_stage} -> {self.to_stage}>'
     
     @staticmethod
-    def add_history_record(project_id, from_stage, to_stage, change_date=None, remarks=None, account_id=None):
+    def add_history_record(project_id, from_stage, to_stage, change_date=None, remarks=None, account_id=None, commit=True):
         """添加阶段变更记录
         
         Args:
@@ -41,6 +41,7 @@ class ProjectStageHistory(db.Model):
             change_date: 变更时间（默认为当前时间）
             remarks: 备注说明
             account_id: 账户ID，用于支持按账户切换统计
+            commit: 是否在添加记录后提交事务（默认为True）
         """
         if change_date is None:
             change_date = func.now()
@@ -69,5 +70,6 @@ class ProjectStageHistory(db.Model):
         )
         
         db.session.add(record)
-        db.session.commit()
+        if commit:
+            db.session.commit()
         return record 

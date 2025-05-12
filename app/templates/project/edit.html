@@ -93,7 +93,8 @@
                     </div>
                     <div class="col-md-6">
                         <label for="current_stage" class="form-label mb-2">当前阶段</label>
-                        <input type="text" class="form-control" id="current_stage" name="current_stage" value="{{ project.current_stage if project else '' }}" disabled>
+                        <input type="text" class="form-control" id="current_stage" name="current_stage_display" value="{{ project.current_stage if project else '' }}" readonly>
+                        <input type="hidden" name="current_stage" value="{{ project.current_stage if project else '' }}">
                     </div>
                 </div>
 

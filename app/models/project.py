@@ -92,10 +92,18 @@ def project_before_update(mapper, connection, target):
 def project_on_load(target, context):
     """项目加载时事件监听器，记录当前阶段值"""
     target._current_stage_previous = target.current_stage
+    # 添加标志位，用于跳过重复的历史记录（默认为False）
+    target._skip_history_recording = False
 
 @event.listens_for(Project, 'after_update')
 def project_after_update(mapper, connection, target):
     """项目更新后事件监听器，记录阶段变更历史"""
+    # 检查是否需要跳过历史记录（如通过API已经添加了历史记录）
+    if hasattr(target, '_skip_history_recording') and target._skip_history_recording:
+        # 执行完一次后重置标志，确保下次更新时正常工作
+        target._skip_history_recording = False
+        return
+        
     if hasattr(target, '_current_stage_previous') and target.current_stage != target._current_stage_previous:
         # 如果阶段发生变化，记录到历史表
         try:

@@ -45,14 +45,10 @@
                         <div class="mb-3">
                             <label for="contact_id" class="form-label">联系人</label>
                             <select class="form-select" id="contact_id" name="contact_id">
-                                <option value="">-- 请先选择企业（可选） --</option>
-                                {% if selected_company %}
-                                    {% for contact in company_contacts %}
-                                    <option value="{{ contact.id }}">
-                                        {{ contact.name }} {% if contact.position %}({{ contact.position }}){% endif %}
-                                    </option>
-                                    {% endfor %}
-                                {% endif %}
+                                <option value="">请先选择联系人</option>
+                                {% for contact in company_contacts %}
+                                <option value="{{ contact.id }}">{{ contact.name }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                         

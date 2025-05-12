@@ -25,7 +25,7 @@ class ProjectStageProgress {
             { id: 7, name: '搁置', value: '搁置' }
         ];
         this.stages = [...this.mainStages, ...this.branchStages];
-        this.lastMainStage = this.mainStages.find(s => s.value === this.currentStage) ? this.currentStage : this.mainStages[0].value;
+        this.lastMainStage = this.getLastMainStageBeforeBranch();
 
         // 初始化
         this.init();
@@ -188,11 +188,10 @@ class ProjectStageProgress {
                 stageMarker.addEventListener('mouseleave', () => {
                     stageMarker.classList.remove('stage-current');
                 });
-                // 点击推进
+                // 点击推进 - 修复：不再直接更新this.currentStage，而是直接调用API
                 stageMarker.addEventListener('click', () => {
-                    this.currentStage = stage.value;
-                    this.currentStageIndex = this.getStageIndex(this.currentStage);
-                    this.init();
+                    // 不再本地更新状态，直接调用API
+                    this.updateStage(stage.value);
                 });
                 progressBar.appendChild(stageMarker);
                 return;
@@ -339,12 +338,6 @@ class ProjectStageProgress {
         container.innerHTML = '';
         container.appendChild(progressContainer);
 
-        // 同步更新详情卡片中的当前阶段字段
-        const currentStageText = document.getElementById('currentStageText');
-        if (currentStageText) {
-            currentStageText.textContent = this.currentStage;
-        }
-
         // 添加确认推进模态框
         this.renderAdvanceModal(container);
     }
@@ -413,12 +406,36 @@ class ProjectStageProgress {
      * 通用阶段切换方法，调用后端API
      */
     updateStage(targetStage) {
+        // 显示加载指示器
+        const loadingOverlay = document.createElement('div');
+        loadingOverlay.style.position = 'fixed';
+        loadingOverlay.style.top = '0';
+        loadingOverlay.style.left = '0';
+        loadingOverlay.style.width = '100%';
+        loadingOverlay.style.height = '100%';
+        loadingOverlay.style.backgroundColor = 'rgba(0,0,0,0.3)';
+        loadingOverlay.style.zIndex = '9999';
+        loadingOverlay.style.display = 'flex';
+        loadingOverlay.style.alignItems = 'center';
+        loadingOverlay.style.justifyContent = 'center';
+        
+        const loadingIndicator = document.createElement('div');
+        loadingIndicator.style.backgroundColor = 'white';
+        loadingIndicator.style.padding = '20px';
+        loadingIndicator.style.borderRadius = '5px';
+        loadingIndicator.style.boxShadow = '0 0 10px rgba(0,0,0,0.2)';
+        loadingIndicator.innerHTML = '<div>阶段更新中，请稍候...</div>';
+        
+        loadingOverlay.appendChild(loadingIndicator);
+        document.body.appendChild(loadingOverlay);
+        
         // 发送请求到服务器更新阶段
         fetch(this.updateUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': this.csrfToken
+                'X-CSRFToken': this.csrfToken,
+                'Cache-Control': 'no-cache, no-store'
             },
             body: JSON.stringify({
                 project_id: this.projectId,
@@ -427,21 +444,32 @@ class ProjectStageProgress {
         })
         .then(response => {
             if (!response.ok) {
-                throw new Error('网络请求失败');
+                throw new Error(`网络请求失败: ${response.status} ${response.statusText}`);
             }
             return response.json();
         })
         .then(data => {
             if (data.success) {
-                // 更新成功，刷新页面
-                window.location.reload();
+                console.log('项目阶段已成功更新为: ' + targetStage);
+                
+                // 强制完全刷新页面（不使用缓存）
+                // 使用 location.reload(true) 强制浏览器不使用缓存
+                // 并添加时间戳参数确保是全新请求
+                window.location.href = window.location.href.split('?')[0] + 
+                    '?_nocache=' + new Date().getTime();
             } else {
-                alert('更新阶段失败: ' + data.message);
+                const errorMsg = data.message || '未知错误';
+                console.error('更新阶段失败: ' + errorMsg);
+                alert('更新阶段失败: ' + errorMsg);
+                // 移除加载指示器
+                document.body.removeChild(loadingOverlay);
             }
         })
         .catch(error => {
             console.error('更新阶段错误:', error);
-            alert('更新阶段时发生错误，请重试');
+            alert('更新阶段时发生错误: ' + error.message);
+            // 移除加载指示器
+            document.body.removeChild(loadingOverlay);
         });
     }
 
@@ -452,6 +480,26 @@ class ProjectStageProgress {
         const nextStage = this.getNextStage();
         if (!nextStage) return;
         this.updateStage(nextStage.value);
+    }
+
+    /**
+     * 获取分支前的主线阶段
+     * 如果当前为分支阶段，则返回分支前的主线阶段，否则返回当前主线阶段
+     */
+    getLastMainStageBeforeBranch() {
+        // 如果没有历史，默认返回"发现"
+        if (!this.stageHistory || !Array.isArray(this.stageHistory) || this.stageHistory.length === 0) {
+            return this.mainStages[0].value;
+        }
+        // 倒序查找最后一个主线阶段
+        for (let i = this.stageHistory.length - 1; i >= 0; i--) {
+            const s = this.stageHistory[i];
+            if (this.mainStages.some(m => m.value === s.stage)) {
+                return s.stage;
+            }
+        }
+        // 找不到则返回"发现"
+        return this.mainStages[0].value;
     }
 }
 

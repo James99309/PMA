@@ -56,7 +56,7 @@
 
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                             {{ render_button('取消', url_for('customer.list_contacts', company_id=company.id), color='secondary', icon='fas fa-arrow-left') }}
-                            {{ render_button('保存', None, color='primary', icon='fas fa-save', type='button', extra_class='ms-md-2', size='md') }}
+                            {{ render_button('保存', None, color='primary', icon='fas fa-save', type='submit', extra_class='ms-md-2', size='md') }}
                         </div>
                     </form>
                 </div>

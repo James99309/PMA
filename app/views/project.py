@@ -21,6 +21,7 @@ from werkzeug.utils import secure_filename
 import os
 from flask_wtf.csrf import CSRFProtect
 from app.models.action import Action, ActionReply
+from app.models.projectpm_stage_history import ProjectStageHistory  # 导入阶段历史记录模型
 
 csrf = CSRFProtect()
 
@@ -324,17 +325,25 @@ def edit_project(project_id):
     
     if request.method == 'POST':
         try:
+            # 必填项校验
+            if not request.form.get('project_name'):
+                flash('项目名称不能为空', 'danger')
+                return render_template('project/edit.html', project=project, companies=get_company_data())
+            if not request.form.get('report_time'):
+                flash('报备日期不能为空', 'danger')
+                return render_template('project/edit.html', project=project, companies=get_company_data())
+            if not request.form.get('current_stage'):
+                flash('当前阶段不能为空', 'danger')
+                return render_template('project/edit.html', project=project, companies=get_company_data())
             # 解析日期
             if request.form.get('report_time'):
                 project.report_time = datetime.strptime(request.form['report_time'], '%Y-%m-%d').date()
             else:
                 project.report_time = None
-                
             if request.form.get('delivery_forecast'):
                 project.delivery_forecast = datetime.strptime(request.form['delivery_forecast'], '%Y-%m-%d').date()
             else:
                 project.delivery_forecast = None
-            
             # 更新项目信息
             project.project_name = request.form['project_name']
             project.report_source = request.form.get('report_source')
@@ -346,33 +355,30 @@ def edit_project(project_id):
             project.contractor = request.form.get('contractor')
             project.system_integrator = request.form.get('system_integrator')
             project.stage_description = request.form.get('stage_description')
-            
             # 更新项目类型
             new_project_type = request.form.get('project_type', 'normal')
-            
-            # 项目类型中英文转换
             type_mapping = {
                 '渠道跟进': 'channel_follow',
                 '销售重点': 'sales_focus',
+                '业务机会': 'business_opportunity',
                 'normal': 'normal'
             }
-            
-            # 如果是中文类型，转换为英文代码
             if new_project_type in type_mapping:
                 new_project_type = type_mapping[new_project_type]
-                
             if new_project_type != project.project_type:
                 project.project_type = new_project_type
-                
-                # 不再自动更新授权编号，即使项目类型变更
-                # 授权编号必须通过申请流程获得
-            
             db.session.commit()
             flash('项目更新成功！', 'success')
             return redirect(url_for('project.view_project', project_id=project.id))
         except Exception as e:
+            import sqlalchemy
             db.session.rollback()
-            flash(f'保存失败：{str(e)}', 'danger')
+            # 详细日志
+            logger.error(f"编辑项目保存异常，表单内容: {dict(request.form)}，异常类型: {type(e).__name__}, 信息: {str(e)}")
+            if isinstance(e, sqlalchemy.exc.InvalidRequestError) and 'closed' in str(e).lower():
+                flash('保存失败：数据库会话已关闭，请刷新页面后重试。如多次出现请联系管理员。', 'danger')
+            else:
+                flash(f'保存失败：{type(e).__name__}: {str(e)}', 'danger')
     
     # 获取公司列表 - 修改为字典格式
     company_query = get_viewable_data(Company, current_user)
@@ -810,8 +816,17 @@ def update_project_stage():
         if not project_id or not new_stage:
             return jsonify({'success': False, 'message': '项目ID和阶段不能为空'}), 400
             
-        # 查询项目
-        project = Project.query.get_or_404(project_id)
+        # 查询项目 - 使用 with_for_update() 锁定行，防止并发更新
+        try:
+            project = db.session.query(Project).with_for_update().filter(Project.id == project_id).first()
+            if not project:
+                return jsonify({'success': False, 'message': '项目不存在'}), 404
+                
+            # 设置跳过自动历史记录的标志，因为我们会手动添加
+            project._skip_history_recording = True
+        except Exception as e:
+            current_app.logger.error(f"查询项目时发生错误: {str(e)}")
+            return jsonify({'success': False, 'message': f'查询错误: {str(e)}'}), 500
         
         # 检查权限
         allowed = False
@@ -834,29 +849,54 @@ def update_project_stage():
         project.current_stage = new_stage
         
         # 在阶段说明中添加阶段变更记录
-        change_record = f"\n[阶段变更] {old_stage} → {new_stage} (更新者: {current_user.username}, 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')})"
+        change_time = datetime.now()
+        change_record = f"\n[阶段变更] {old_stage} → {new_stage} (更新者: {current_user.username}, 时间: {change_time.strftime('%Y-%m-%d %H:%M:%S')})"
         if project.stage_description:
             project.stage_description += change_record
         else:
             project.stage_description = change_record
-            
-        # 保存更新
-        db.session.commit()
         
-        return jsonify({
-            'success': True, 
-            'message': '项目阶段已更新',
-            'data': {
-                'project_id': project.id,
-                'current_stage': project.current_stage,
-                'old_stage': old_stage
-            }
-        }), 200
+        # 在一个事务中同时保存项目更新和阶段历史
+        try:
+            # 创建阶段历史记录但不提交
+            ProjectStageHistory.add_history_record(
+                project_id=project.id,
+                from_stage=old_stage,
+                to_stage=new_stage,
+                change_date=change_time,
+                remarks=f"API推进: {current_user.username}",
+                commit=False  # 不在方法内部提交，与主事务一同提交
+            )
+            
+            # 提交所有更改
+            db.session.commit()
+            current_app.logger.info(f"项目ID={project.id}的阶段从{old_stage}更新为{new_stage}，历史记录已添加")
+            
+            # 验证更新是否生效
+            db.session.refresh(project)
+            if project.current_stage != new_stage:
+                current_app.logger.error(f"项目阶段推进后数据库未更新: 项目ID={project.id}, 期望={new_stage}, 实际={project.current_stage}")
+                return jsonify({'success': False, 'message': '数据库更新失败，请联系管理员'}), 500
+            
+            return jsonify({
+                'success': True, 
+                'message': '项目阶段已更新',
+                'data': {
+                    'project_id': project.id,
+                    'current_stage': project.current_stage,
+                    'old_stage': old_stage
+                }
+            }), 200
+            
+        except Exception as db_err:
+            db.session.rollback()
+            current_app.logger.error(f"提交阶段更新到数据库失败: {str(db_err)}")
+            return jsonify({'success': False, 'message': f'数据库错误: {str(db_err)}'}), 500
         
     except Exception as e:
         current_app.logger.error(f"更新项目阶段出错: {str(e)}")
         db.session.rollback()
-        return jsonify({'success': False, 'message': f'服务器错误: {str(e)}'}), 500 
+        return jsonify({'success': False, 'message': f'服务器错误: {str(e)}'}), 500
 
 @project.route('/add_action/<int:project_id>', methods=['GET', 'POST'])
 @permission_required('customer', 'create')

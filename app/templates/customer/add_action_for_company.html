@@ -15,7 +15,7 @@
     </div>
     <div class="card">
         <div class="card-body">
-            <form method="POST">
+            <form method="POST" novalidate>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="row mb-3">
                     <div class="col-md-6">
@@ -23,8 +23,8 @@
                         <input type="text" class="form-control" value="{{ company.company_name }}" readonly>
                     </div>
                     <div class="col-md-6">
-                        <label for="contact_id" class="form-label">联系人 <span class="text-danger">*</span></label>
-                        <select class="form-select" id="contact_id" name="contact_id" required onchange="window.location.href='{{ url_for('customer.add_action_for_company', company_id=company.id) }}?contact_id=' + this.value;">
+                        <label for="contact_id" class="form-label">联系人</label>
+                        <select class="form-select" id="contact_id" name="contact_id" onchange="window.location.href='{{ url_for('customer.add_action_for_company', company_id=company.id) }}?contact_id=' + this.value">
                             <option value="">请选择联系人</option>
                             {% for contact in contacts %}
                             <option value="{{ contact.id }}" {% if selected_contact and contact.id == selected_contact.id %}selected{% endif %}>{{ contact.name }}</option>
@@ -45,11 +45,13 @@
                     <div class="col-md-6">
                         <label for="date" class="form-label">日期 <span class="text-danger">*</span></label>
                         <input type="date" class="form-control" id="date" name="date" value="{{ request.form.date or '' }}" required>
+                        <div class="invalid-feedback">请选择日期</div>
                     </div>
                 </div>
                 <div class="mb-3">
                     <label for="communication" class="form-label">沟通情况 <span class="text-danger">*</span></label>
                     <textarea class="form-control" id="communication" name="communication" rows="4" required>{{ request.form.communication or '' }}</textarea>
+                    <div class="invalid-feedback">请填写沟通情况</div>
                 </div>
                 <div class="d-flex justify-content-end">
                     {{ render_button('保存', None, color='primary', icon='fas fa-save', type='submit') }}
@@ -84,4 +86,16 @@
     </div>
     {% endif %}
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var form = document.querySelector('form');
+  form.addEventListener('submit', function(event) {
+    if (!form.checkValidity()) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    form.classList.add('was-validated');
+  });
+});
+</script>
 {% endblock %} 

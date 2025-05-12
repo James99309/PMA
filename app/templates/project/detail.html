@@ -10,7 +10,6 @@
 {% endblock %}
 
 {% block content %}
-<div class="module-title-bar mb-3"><h2 class="module-title">项目管理</h2></div>
 <div class="container mt-4">
     <div class="row mb-3">
         <div class="col-md-12">
@@ -47,20 +46,20 @@
                          (current_user.role == 'channel_manager' and project.project_type == '渠道跟进') or
                          (current_user.role == 'marketing_director' and project.project_type in ['渠道跟进', '销售重点']) or
                          (current_user.role in ['service', 'service_manager'] and project.project_type == '业务机会') %}
-                    {{ ui.render_button("批准", type="button", color="success", icon="fas fa-check", data_bs_toggle="modal", data_bs_target="#approveAuthorizationModal") }}
-                    {{ ui.render_button("驳回", type="button", color="danger", icon="fas fa-times", data_bs_toggle="modal", data_bs_target="#rejectAuthorizationModal") }}
+                    {{ ui.render_button("批准", type="button", color="success", icon="fas fa-check", attrs='data-bs-toggle="modal" data-bs-target="#approveAuthorizationModal"') }}
+                    {{ ui.render_button("驳回", type="button", color="danger", icon="fas fa-times", attrs='data-bs-toggle="modal" data-bs-target="#rejectAuthorizationModal"') }}
                     {% endif %}
                 </div>
                 {% elif current_user.id == project.owner_id or current_user.role == 'admin' %}
                 <!-- 添加撤回授权按钮 -->
-                {{ ui.render_button("撤回申请", type="button", color="warning", icon="fas fa-undo", data_bs_toggle="modal", data_bs_target="#revokeAuthorizationModal", extra_class="ms-3") }}
+                {{ ui.render_button("撤回申请", type="button", color="warning", icon="fas fa-undo", attrs='data-bs-toggle="modal" data-bs-target="#revokeAuthorizationModal"', extra_class="ms-3") }}
                 {% endif %}
             </div>
             {% elif project.authorization_status == 'rejected' %}
             <div class="mt-2 d-flex align-items-center">
                 <span class="badge bg-danger">已驳回</span>
                 {% if current_user.id == project.owner_id or current_user.role == 'admin' %}
-                {{ ui.render_button("再次申请", type="button", color="primary", icon="fas fa-redo", data_bs_toggle="modal", data_bs_target="#applyAuthorizationModal", extra_class="ms-3") }}
+                {{ ui.render_button("再次申请", type="button", color="primary", icon="fas fa-redo", attrs='data-bs-toggle="modal" data-bs-target="#applyAuthorizationModal"', extra_class="ms-3") }}
                 {% endif %}
             </div>
             
@@ -74,7 +73,7 @@
                 <span class="badge bg-secondary">未申请</span>
                 
                 {% if current_user.id == project.owner_id or current_user.role == 'admin' %}
-                {{ ui.render_button("申请授权编号", type="button", color="primary", icon="fas fa-file-signature", data_bs_toggle="modal", data_bs_target="#applyAuthorizationModal", extra_class="ms-3") }}
+                {{ ui.render_button("申请授权编号", type="button", color="primary", icon="fas fa-file-signature", attrs='data-bs-toggle="modal" data-bs-target="#applyAuthorizationModal"', extra_class="ms-3") }}
                 {% endif %}
             </div>
             {% endif %}
@@ -125,7 +124,7 @@
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>当前阶段：</strong></div>
-                                <div class="col-md-8">{{ project.current_stage or '无' }}</div>
+                                <div class="col-md-8" id="currentStageText">{{ project.current_stage or '无' }}</div>
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>报价总额：</strong></div>
@@ -312,10 +311,6 @@
                                                 {% endif %}
                                                 {% if action.company_id %}
                                                 <span class="badge bg-info ms-2">{{ action.company.company_name }}</span>
-                                                {% endif %}
-                                                {% if not action.contact_id and not action.company_id %}
-                                                <i class="fas fa-info-circle me-1"></i>
-                                                <span class="text-muted">无关联企业/联系人</span>
                                                 {% endif %}
                                             </div>
                                         </div>
