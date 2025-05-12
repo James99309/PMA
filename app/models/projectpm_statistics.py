@@ -86,10 +86,10 @@ class ProjectStatistics:
                     stage_amounts[stage] = amount
             stats['stage_amounts'] = stage_amounts
 
-            # 投标中项目统计
+            # 招标中项目统计
             bidding_projects = [p for p in all_projects if p.current_stage == '招标中']
-            stats['bidding_projects_count'] = len(bidding_projects)
-            stats['bidding_projects_amount'] = sum(p.quotation_customer or 0 for p in bidding_projects)
+            stats['tendering_projects_count'] = len(bidding_projects)
+            stats['tendering_projects_amount'] = sum(p.quotation_customer or 0 for p in bidding_projects)
 
             # 中标项目统计
             won_projects = [p for p in all_projects if p.current_stage == '中标']
@@ -151,8 +151,8 @@ class ProjectStatistics:
                 'new_projects_amount': 0,
                 'updated_projects_count': 0,
                 'updated_projects_amount': 0,
-                'bidding_projects_count': 0,
-                'bidding_projects_amount': 0,
+                'tendering_projects_count': 0,
+                'tendering_projects_amount': 0,
                 'won_projects_count': 0,
                 'won_projects_amount': 0
             } 

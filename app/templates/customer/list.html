@@ -44,22 +44,87 @@
                             <div class="form-text small text-muted">输入联系人姓名搜索，点击跳转到对应企业</div>
                         </div>
                         <div class="col-md-4 text-end">
-                            {% if has_permission('customer', 'create') %}
-                            {% if current_user.role == 'admin' %}
-                            <div class="btn-group">
-                                {{ render_button('导入数据', '#', color='info', icon='fas fa-file-import', extra_class='dropdown-toggle', type='a') }}
-                                <ul class="dropdown-menu">
-                                    <li>{{ render_button('📥 导入客户', '#', color='info', icon='fas fa-upload', extra_class='dropdown-item', type='a') }}</li>
-                                    <li>{{ render_button('📥 导入联系人', '#', color='info', icon='fas fa-user-plus', extra_class='dropdown-item', type='a') }}</li>
-                                </ul>
-                            </div>
-                            {% endif %}
-                            {% endif %}
+                            {%- if has_permission('customer', 'create') %}
+                                {%- if current_user.role == 'admin' %}
+                                <div class="btn-group d-none d-lg-inline-flex">
+                                    {{ render_button('导入数据', '#', color='info', icon='fas fa-file-import', extra_class='dropdown-toggle', type='a', attrs='id="importDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false"') }}
+                                    <ul class="dropdown-menu">
+                                        <li>{{ render_button('📥 导入客户', '#', color='info', icon='fas fa-upload', extra_class='dropdown-item', type='a', attrs='id="importCustomers"') }}</li>
+                                        <li>{{ render_button('📥 导入联系人', '#', color='info', icon='fas fa-user-plus', extra_class='dropdown-item', type='a', attrs='id="importContacts"') }}</li>
+                                    </ul>
+                                </div>
+                                {{ render_button('添加企业', url_for('customer.add_company'), color='primary', icon='fas fa-plus', extra_class='ms-2 d-none d-lg-inline-flex') }}
+                                {%- else %}
+                                {{ render_button('添加企业', url_for('customer.add_company'), color='primary', icon='fas fa-plus', extra_class='d-none d-lg-inline-flex') }}
+                                {%- endif %}
+                            {%- endif %}
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- 移动端+号浮动按钮，仅小屏幕显示 -->
+    <div class="d-lg-none">
+        {%- if has_permission('customer', 'create') %}
+        <button id="mobileFabBtn" class="btn btn-primary rounded-circle shadow position-fixed" style="right: 24px; bottom: 24px; width: 56px; height: 56px; z-index: 1050; font-size: 2rem; display: flex; align-items: center; justify-content: center;">
+            <i class="fas fa-plus"></i>
+        </button>
+        <div id="mobileFabMenu" class="card shadow position-fixed" style="right: 24px; bottom: 90px; min-width: 140px; z-index: 1051; display: none;">
+            <ul class="list-group list-group-flush">
+                {%- if current_user.role == 'admin' %}
+                <li class="list-group-item p-2">
+                    <a href="#" id="mobileImportBtn" class="text-info text-decoration-none"><i class="fas fa-file-import me-2"></i>导入客户</a>
+                </li>
+                <li class="list-group-item p-2">
+                    <a href="#" id="mobileImportContactBtn" class="text-info text-decoration-none"><i class="fas fa-user-plus me-2"></i>导入联系人</a>
+                </li>
+                <li class="list-group-item p-2">
+                    <a href="{{ url_for('customer.add_company') }}" class="text-primary text-decoration-none"><i class="fas fa-plus me-2"></i>添加企业</a>
+                </li>
+                {%- else %}
+                <li class="list-group-item p-2">
+                    <a href="{{ url_for('customer.add_company') }}" class="text-primary text-decoration-none"><i class="fas fa-plus me-2"></i>添加企业</a>
+                </li>
+                {%- endif %}
+            </ul>
+        </div>
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var fabBtn = document.getElementById('mobileFabBtn');
+            var fabMenu = document.getElementById('mobileFabMenu');
+            if (fabBtn && fabMenu) {
+                fabBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    fabMenu.style.display = fabMenu.style.display === 'none' ? 'block' : 'none';
+                });
+                document.addEventListener('click', function(e) {
+                    if (!fabBtn.contains(e.target) && !fabMenu.contains(e.target)) {
+                        fabMenu.style.display = 'none';
+                    }
+                });
+            }
+            // 移动端导入按钮联动PC端导入
+            var importBtn = document.getElementById('importCustomers');
+            var importContactBtn = document.getElementById('importContacts');
+            var mobileImportBtn = document.getElementById('mobileImportBtn');
+            var mobileImportContactBtn = document.getElementById('mobileImportContactBtn');
+            if (importBtn && mobileImportBtn) {
+                mobileImportBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    importBtn.click();
+                });
+            }
+            if (importContactBtn && mobileImportContactBtn) {
+                mobileImportContactBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    importContactBtn.click();
+                });
+            }
+        });
+        </script>
+        {%- endif %}
     </div>
 
     <!-- 移动端卡片视图 - 仅在小屏幕显示 -->

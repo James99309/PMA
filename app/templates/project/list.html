@@ -76,10 +76,8 @@
                         <label class="form-check-label" for="showMyProjectsSwitch" style="white-space: nowrap; margin-left: 5px; display: inline-block; vertical-align: middle;">只看自己</label>
                     </div>
                 </div>
-                <div>
-                    {# 批量导入按钮 #}
+                <div class="d-none d-lg-block">
                     {{ ui.render_button("批量导入", type="button", color="info", icon="fas fa-file-import", attrs='id="importProjectsBtn"', extra_class="me-2") }}
-                    {# 创建项目按钮 #}
                     {{ ui.render_button("创建项目", href=url_for('project.add_project'), color="primary", icon="fas fa-plus", attrs='', extra_class="me-2") }}
                     {% if has_permission('project', 'delete') %}
                     <button id="batchDeleteBtn" class="btn btn-danger" style="display: none;">
@@ -88,6 +86,48 @@
                     {% endif %}
                 </div>
             </div>
+
+            <!-- 移动端+号浮动按钮，仅小屏幕显示 -->
+            <div class="d-lg-none">
+                <button id="mobileFabBtn" class="btn btn-primary rounded-circle shadow position-fixed" style="right: 24px; bottom: 24px; width: 56px; height: 56px; z-index: 1050; font-size: 2rem; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-plus"></i>
+                </button>
+                <div id="mobileFabMenu" class="card shadow position-fixed" style="right: 24px; bottom: 90px; min-width: 140px; z-index: 1051; display: none;">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item p-2">
+                            <a href="#" id="mobileImportBtn" class="text-info text-decoration-none"><i class="fas fa-file-import me-2"></i>批量导入</a>
+                        </li>
+                        <li class="list-group-item p-2">
+                            <a href="{{ url_for('project.add_project') }}" class="text-primary text-decoration-none"><i class="fas fa-plus me-2"></i>创建项目</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                var fabBtn = document.getElementById('mobileFabBtn');
+                var fabMenu = document.getElementById('mobileFabMenu');
+                if (fabBtn && fabMenu) {
+                    fabBtn.addEventListener('click', function() {
+                        fabMenu.style.display = fabMenu.style.display === 'none' ? 'block' : 'none';
+                    });
+                    document.addEventListener('click', function(e) {
+                        if (!fabBtn.contains(e.target) && !fabMenu.contains(e.target)) {
+                            fabMenu.style.display = 'none';
+                        }
+                    });
+                }
+                var importBtn = document.getElementById('importProjectsBtn');
+                var mobileImportBtn = document.getElementById('mobileImportBtn');
+                if (importBtn && mobileImportBtn) {
+                    mobileImportBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        importBtn.click();
+                    });
+                }
+            });
+            </script>
 
             <!-- 移动端卡片视图 - 仅在小屏幕显示 -->
             <div class="d-block d-lg-none mb-4">

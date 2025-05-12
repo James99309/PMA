@@ -4,14 +4,14 @@
  */
 
 // 阶段常量定义
-const STAGE_ORDER = ['发现', '品牌植入', '招标前', '投标中', '中标', '签约', '失败', '搁置'];
+const STAGE_ORDER = ['发现', '品牌植入', '招标前', '招标中', '中标', '签约', '失败', '搁置'];
 
 // 阶段颜色定义 - 项目数量颜色
 const STAGE_COLORS_COUNT = {
     '发现': 'rgba(2, 103, 5, 0.05)',      // 026705 透明度 5%
     '品牌植入': 'rgba(2, 103, 5, 0.2)',   // 026705 透明度 20%
     '招标前': 'rgba(2, 103, 5, 0.3)',     // 026705 透明度 30%
-    '投标中': 'rgba(2, 103, 5, 0.5)',     // 026705 透明度 50%
+    '招标中': 'rgba(2, 103, 5, 0.5)',     // 026705 透明度 50%
     '中标': 'rgba(2, 103, 5, 0.7)',       // 026705 透明度 70%
     '签约': 'rgba(2, 103, 5, 1)',         // 026705 透明度 100%
     '失败': 'rgba(108, 3, 3, 1)',         // 6C0303 透明度 100%
@@ -23,7 +23,7 @@ const STAGE_COLORS_AMOUNT = {
     '发现': 'rgba(7, 70, 160, 0.05)',     // 0746A0 透明度 5%
     '品牌植入': 'rgba(7, 70, 160, 0.2)',  // 0746A0 透明度 20%
     '招标前': 'rgba(7, 70, 160, 0.3)',    // 0746A0 透明度 30%
-    '投标中': 'rgba(7, 70, 160, 0.5)',    // 0746A0 透明度 50%
+    '招标中': 'rgba(7, 70, 160, 0.5)',    // 0746A0 透明度 50%
     '中标': 'rgba(7, 70, 160, 0.7)',      // 0746A0 透明度 70%
     '签约': 'rgba(7, 70, 160, 1)',        // 0746A0 透明度 100%
     '失败': 'rgba(108, 3, 3, 1)',         // 6C0303 透明度 100%
@@ -35,7 +35,7 @@ const STAGE_COLORS = {
     '发现': 'rgba(2, 103, 5, 0.05)',
     '品牌植入': 'rgba(2, 103, 5, 0.2)',
     '招标前': 'rgba(2, 103, 5, 0.3)',
-    '投标中': 'rgba(2, 103, 5, 0.5)',
+    '招标中': 'rgba(2, 103, 5, 0.5)',
     '中标': 'rgba(2, 103, 5, 0.7)',
     '签约': 'rgba(2, 103, 5, 1)',
     '失败': 'rgba(108, 3, 3, 1)',
@@ -654,17 +654,17 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('validProjectsCount').textContent = formatNumber(stats.total_valid_projects || 0);
         document.getElementById('validProjectsAmount').textContent = formatNumber(Math.round((stats.total_valid_amount || 0) / 10000));
         
-        // 更新投标项目数据
-        if (stats.stage_counts && stats.stage_counts['投标中']) {
-            document.getElementById('biddingProjectsCount').textContent = formatNumber(stats.stage_counts['投标中'] || 0);
+        // 更新招标项目数据
+        if (stats.stage_counts && stats.stage_counts['招标中']) {
+            document.getElementById('tenderingProjectsCount').textContent = formatNumber(stats.stage_counts['招标中'] || 0);
         } else {
-            document.getElementById('biddingProjectsCount').textContent = '0';
+            document.getElementById('tenderingProjectsCount').textContent = '0';
         }
         
-        if (stats.stage_amounts && stats.stage_amounts['投标中']) {
-            document.getElementById('biddingProjectsAmount').textContent = formatNumber(Math.round((stats.stage_amounts['投标中'] || 0) / 10000));
+        if (stats.stage_amounts && stats.stage_amounts['招标中']) {
+            document.getElementById('tenderingProjectsAmount').textContent = formatNumber(Math.round((stats.stage_amounts['招标中'] || 0) / 10000));
         } else {
-            document.getElementById('biddingProjectsAmount').textContent = '0';
+            document.getElementById('tenderingProjectsAmount').textContent = '0';
         }
         
         // 更新中标项目数据
