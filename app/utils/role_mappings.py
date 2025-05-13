@@ -19,7 +19,7 @@ ROLE_NAME_MAPPINGS = {
     'service': '服务人员',
     'service_manager': '服务经理',
     'channel_manager': '渠道经理',
-    'marketing_director': '营销总监',
+    'sales_director': '营销总监',
     'dealer': '代理商',
     
     # 兼容系统中已有的其他角色

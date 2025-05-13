@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from app import db
 from app.models.product_code import ProductCategory, ProductSubcategory, ProductCodeField, ProductCodeFieldOption, ProductCode, ProductCodeFieldValue
 from app.models.product import Product
-from app.permissions import admin_required, product_manager_required
+from app.permissions import admin_required, product_manager_required, permission_required
 import json
 import random
 import string
@@ -701,14 +701,14 @@ def edit_option(id):
 # 产品经理视图 - 创建产品编码
 @product_code_bp.route('/generator', methods=['GET'])
 @login_required
-@product_manager_required
+@permission_required('product_code', 'create')
 def generator():
     categories = ProductCategory.query.all()
     return render_template('product_code/generator.html', categories=categories)
 
 @product_code_bp.route('/api/category/<int:id>/subcategories', methods=['GET'])
 @login_required
-@product_manager_required
+@permission_required('product_code', 'view')
 def api_category_subcategories(id):
     # 按display_order字段升序排序
     subcategories = ProductSubcategory.query.filter_by(category_id=id).order_by(ProductSubcategory.display_order).all()
@@ -720,7 +720,7 @@ def api_category_subcategories(id):
 
 @product_code_bp.route('/api/subcategory/<int:id>/fields', methods=['GET'])
 @login_required
-@product_manager_required
+@permission_required('product_code', 'view')
 def api_subcategory_fields(id):
     # 获取子分类特定的字段
     subcategory_fields = ProductCodeField.query.filter_by(subcategory_id=id).order_by(ProductCodeField.position).all()
@@ -749,7 +749,7 @@ def api_subcategory_fields(id):
 
 @product_code_bp.route('/generate-preview', methods=['POST'])
 @login_required
-@product_manager_required
+@permission_required('product_code', 'create')
 def generate_preview():
     data = request.json
     category_id = data.get('category_id')
@@ -793,7 +793,7 @@ def generate_preview():
 
 @product_code_bp.route('/save', methods=['POST'])
 @login_required
-@product_manager_required
+@permission_required('product_code', 'create')
 def save_code():
     data = request.json
     category_id = data.get('category_id')
@@ -846,7 +846,7 @@ def save_code():
 # API - 获取现有产品列表
 @product_code_bp.route('/api/products', methods=['GET'])
 @login_required
-@product_manager_required
+@permission_required('product_code', 'view')
 def api_products():
     search = request.args.get('search', '')
     products = Product.query.filter(

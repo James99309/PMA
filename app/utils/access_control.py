@@ -55,7 +55,7 @@ def get_viewable_data(model_class, user, special_filters=None):
             )
         
         # 营销总监：可以查看所有渠道跟进和销售重点项目 + 自己的项目
-        if user.role == 'marketing_director':
+        if user.role == 'sales_director':
             return model_class.query.filter(
                 db.or_(
                     model_class.owner_id == user.id,

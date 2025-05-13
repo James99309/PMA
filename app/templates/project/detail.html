@@ -50,12 +50,12 @@
             <div class="mt-2 d-flex align-items-center">
                 <span class="badge bg-warning">审批中</span>
                 
-                {% if current_user.role in ['channel_manager', 'marketing_director', 'admin', 'service', 'service_manager'] %}
+                {% if current_user.role in ['channel_manager', 'sales_director', 'admin', 'service', 'service_manager'] %}
                 <div class="ms-3 btn-group">
                     <!-- 根据项目类型和用户角色决定是否显示批准按钮 -->
                     {% if current_user.role == 'admin' or
                          (current_user.role == 'channel_manager' and project.project_type == '渠道跟进') or
-                         (current_user.role == 'marketing_director' and project.project_type in ['渠道跟进', '销售重点']) or
+                         (current_user.role == 'sales_director' and project.project_type in ['渠道跟进', '销售重点']) or
                          (current_user.role in ['service', 'service_manager'] and project.project_type == '业务机会') %}
                     {{ ui.render_button("批准", type="button", color="success", icon="fas fa-check", attrs='data-bs-toggle="modal" data-bs-target="#approveAuthorizationModal"') }}
                     {{ ui.render_button("驳回", type="button", color="danger", icon="fas fa-times", attrs='data-bs-toggle="modal" data-bs-target="#rejectAuthorizationModal"') }}

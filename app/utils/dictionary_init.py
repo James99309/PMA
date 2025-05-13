@@ -25,7 +25,7 @@ DEFAULT_ROLES = [
     {"key": "service", "value": "服务", "sort_order": 60},
     {"key": "service_manager", "value": "服务经理", "sort_order": 70},
     {"key": "channel_manager", "value": "渠道经理", "sort_order": 80},
-    {"key": "marketing_director", "value": "营销总监", "sort_order": 90},
+    {"key": "sales_director", "value": "营销总监", "sort_order": 90},
     {"key": "dealer", "value": "代理商", "sort_order": 100}
 ]
 

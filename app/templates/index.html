@@ -3,13 +3,15 @@
 {% block title %}仪表盘 - 项目管理系统{% endblock %}
 
 {% block content %}
+{% from 'macros/ui_helpers.html' import render_project_type %}
+
 {# 角色名称映射 #}
 {% set role_names = {
     'admin': '管理员',
     'user': '普通用户',
     'sales': '销售人员',
     'channel_manager': '渠道经理',
-    'marketing_director': '营销总监',
+    'sales_director': '营销总监',
     'service': '服务人员',
     'service_manager': '服务经理',
     'dealer': '经销商',
@@ -44,7 +46,7 @@
                                         <a href="{{ url_for('project.view_project', project_id=project.id) }}" class="text-decoration-none text-primary">{{ project.project_name }}</a>
                                     </div>
                                     <div class="mt-2">
-                                        <span style="background: #f5f5f5; color: #3098af; border-radius: 8px; padding: 2px 8px; font-weight: 600; font-size: 0.65rem; display: inline-block;">{{ project.project_type or '未分类' }}</span>
+                                        <span style="background: #f5f5f5; color: #3098af; border-radius: 8px; padding: 2px 8px; font-weight: 600; font-size: 0.65rem; display: inline-block;">{{ render_project_type(project.project_type) }}</span>
                                     </div>
                                 </div>
                                 <div class="text-end" style="color: #888; font-size: 0.65rem; min-width: 90px;">

@@ -8,9 +8,10 @@ from app.models import User
 from app.routes.product import bp as product_bp
 from app.routes.product_code import product_code_bp
 from app.routes.product_management import product_management_bp
-from datetime import timedelta
+from datetime import timedelta, datetime
 from app.utils import version_check
 from flask_wtf.csrf import CSRFProtect
+from app.utils.dictionary_helpers import project_type_to_cn
 
 # 配置日志
 logging.basicConfig(
@@ -394,6 +395,17 @@ def create_app(config_class=Config):
     app.jinja_env.filters['format_date'] = format_date
     app.jinja_env.filters['format_datetime'] = format_datetime
     app.jinja_env.filters['format_currency'] = format_currency
+    app.jinja_env.filters['project_type_to_cn'] = project_type_to_cn
+
+    def datetimeformat(value):
+        if not value:
+            return '-'
+        try:
+            return datetime.fromtimestamp(float(value)).strftime('%Y-%m-%d %H:%M:%S')
+        except Exception:
+            return str(value)
+
+    app.jinja_env.filters['datetimeformat'] = datetimeformat
 
     # 导入并运行模板检查
     # try:

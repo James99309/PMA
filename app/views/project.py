@@ -22,6 +22,7 @@ import os
 from flask_wtf.csrf import CSRFProtect
 from app.models.action import Action, ActionReply
 from app.models.projectpm_stage_history import ProjectStageHistory  # 导入阶段历史记录模型
+from app.utils.dictionary_helpers import project_type_to_cn
 
 csrf = CSRFProtect()
 
@@ -126,8 +127,8 @@ def view_project(project_id):
     # 渠道经理可以查看渠道跟进项目
     elif current_user.role == 'channel_manager' and project.project_type in ['channel_follow', '渠道跟进']:
         has_permission = True
-    # 营销总监可以查看渠道跟进和销售重点项目
-    elif current_user.role == 'marketing_director' and project.project_type in ['channel_follow', 'sales_focus', '渠道跟进', '销售重点']:
+    # 销售总监可以查看渠道跟进和销售重点项目
+    elif current_user.role == 'sales_director' and project.project_type in ['channel_follow', 'sales_focus', '渠道跟进', '销售重点']:
         has_permission = True
     # 服务经理可以查看业务机会项目
     elif current_user.role in ['service', 'service_manager'] and project.project_type == '业务机会':
@@ -249,20 +250,15 @@ def add_project():
             
             # 获取项目类型
             project_type = request.form.get('project_type', 'normal')
-            logger.info(f"原始项目类型: {project_type}")
-            
-            # 项目类型中英文转换
-            type_mapping = {
+            project_type = {
                 '渠道跟进': 'channel_follow',
                 '销售重点': 'sales_focus',
                 '业务机会': 'business_opportunity',
-                'normal': 'normal'
-            }
-            
-            # 如果是中文类型，转换为英文代码
-            if project_type in type_mapping:
-                project_type = type_mapping[project_type]
-                logger.info(f"转换后的项目类型: {project_type}")
+                'normal': 'normal',
+                'channel_follow': 'channel_follow',
+                'sales_focus': 'sales_focus',
+                'business_opportunity': 'business_opportunity'
+            }.get(project_type, 'normal')
             
             # 不再自动生成授权编号，授权编号必须通过申请流程获得
             authorization_code = None
@@ -357,14 +353,15 @@ def edit_project(project_id):
             project.stage_description = request.form.get('stage_description')
             # 更新项目类型
             new_project_type = request.form.get('project_type', 'normal')
-            type_mapping = {
+            new_project_type = {
                 '渠道跟进': 'channel_follow',
                 '销售重点': 'sales_focus',
                 '业务机会': 'business_opportunity',
-                'normal': 'normal'
-            }
-            if new_project_type in type_mapping:
-                new_project_type = type_mapping[new_project_type]
+                'normal': 'normal',
+                'channel_follow': 'channel_follow',
+                'sales_focus': 'sales_focus',
+                'business_opportunity': 'business_opportunity'
+            }.get(new_project_type, 'normal')
             if new_project_type != project.project_type:
                 project.project_type = new_project_type
             db.session.commit()
@@ -557,8 +554,8 @@ def approve_authorization(project_id):
         # 渠道经理可以批准渠道跟进项目
         elif current_db_user.role == 'channel_manager' and project.project_type == '渠道跟进':
             can_approve = True
-        # 营销总监可以批准销售重点项目
-        elif current_db_user.role == 'marketing_director' and project.project_type == '销售重点':
+        # 销售总监可以批准销售重点项目
+        elif current_db_user.role == 'sales_director' and project.project_type == '销售重点':
             can_approve = True
         # 销售经理不能批准业务机会项目
         elif current_db_user.role == 'sales' and project.project_type != '业务机会':
@@ -585,15 +582,7 @@ def approve_authorization(project_id):
         approval_note = request.form.get('approval_note', '')
         
         # 生成授权编号 - 先将英文类型映射为中文
-        type_mapping = {
-            'channel_follow': '渠道跟进',
-            'sales_focus': '销售重点',
-            'business_opportunity': '业务机会',
-            '渠道跟进': '渠道跟进',
-            '销售重点': '销售重点',
-            '业务机会': '业务机会'
-        }
-        project_type_for_code = type_mapping.get(project.project_type, project.project_type)
+        project_type_for_code = project_type_to_cn(project.project_type)
         authorization_code = Project.generate_authorization_code(project_type_for_code)
         
         if not authorization_code:
@@ -641,8 +630,8 @@ def reject_authorization(project_id):
         # 渠道经理可以拒绝渠道跟进项目
         elif current_db_user.role == 'channel_manager' and project.project_type == '渠道跟进':
             can_reject = True
-        # 营销总监可以拒绝销售重点项目
-        elif current_db_user.role == 'marketing_director' and project.project_type == '销售重点':
+        # 销售总监可以拒绝销售重点项目
+        elif current_db_user.role == 'sales_director' and project.project_type == '销售重点':
             can_reject = True
         # 销售经理不能拒绝业务机会项目
         elif current_db_user.role == 'sales' and project.project_type != '业务机会':

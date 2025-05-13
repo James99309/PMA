@@ -13,24 +13,30 @@
     }
     
     .user-table {
-        min-width: 1400px !important; /* 增加最小宽度，确保横向滚动 */
+        min-width: 1800px !important;
         width: 100%;
         table-layout: fixed;
     }
     
+    .user-table th, .user-table td {
+        white-space: nowrap !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
     /* 固定列宽 */
-    .user-table th:nth-child(1) { width: 50px; } /* ID列 */
-    .user-table th:nth-child(2) { width: 100px; } /* 用户名列 */
-    .user-table th:nth-child(3) { width: 100px; } /* 真实姓名列 */
-    .user-table th:nth-child(4) { width: 150px; } /* 邮箱地址列 */
-    .user-table th:nth-child(5) { width: 150px; } /* 企业名称列 */
-    .user-table th:nth-child(6) { width: 100px; } /* 部门列 */
-    .user-table th:nth-child(7) { width: 100px; } /* 部门负责人列 */
-    .user-table th:nth-child(8) { width: 100px; } /* 角色列 */
-    .user-table th:nth-child(9) { width: 100px; } /* 创建时间列 */
-    .user-table th:nth-child(10) { width: 100px; } /* 更新时间列 */
-    .user-table th:nth-child(11) { width: 100px; } /* 状态列 */
-    .user-table th:nth-child(12) { width: 150px; } /* 操作列 */
+    .user-table th:nth-child(1) { width: 80px; min-width: 80px; max-width: 80px; }   /* ID */
+    .user-table th:nth-child(2) { width: 100px; min-width: 100px; }   /* 状态 */
+    .user-table th:nth-child(3) { width: 120px; min-width: 120px; }   /* 真实姓名 */
+    .user-table th:nth-child(4) { width: 120px; min-width: 120px; }   /* 用户名 */
+    .user-table th:nth-child(5) { width: 220px; min-width: 180px; }   /* 邮箱地址 */
+    .user-table th:nth-child(6) { width: 180px; min-width: 150px; }   /* 企业名称 */
+    .user-table th:nth-child(7) { width: 140px; min-width: 120px; }   /* 部门 */
+    .user-table th:nth-child(8) { width: 80px; min-width: 80px; }     /* 负责人 */
+    .user-table th:nth-child(9) { width: 120px; min-width: 100px; }   /* 角色 */
+    .user-table th:nth-child(10) { width: 160px; min-width: 140px; }  /* 更新时间 */
+    .user-table th:nth-child(11) { width: 160px; min-width: 140px; }  /* 创建时间 */
+    .user-table th:nth-child(12) { width: 150px; min-width: 120px; }  /* 操作 */
     
     /* 响应式设计 */
     @media (max-width: 1200px) {
@@ -63,9 +69,13 @@
             <small class="text-muted">共 {{ total }} 个用户</small>
         </div>
         <div class="d-flex">
-            <form class="d-flex me-2" method="GET">
-                <input type="text" name="search" class="form-control me-2" placeholder="搜索用户..." value="{{ request.args.get('search', '') }}">
-                <button type="submit" class="btn btn-outline-primary">搜索</button>
+            <form class="d-flex me-2" method="GET" onsubmit="return true;">
+                <div class="input-group">
+                    <input type="text" name="search" class="form-control" placeholder="搜索用户..." value="{{ request.args.get('search', '') }}" onkeydown="if(event.key==='Enter'){this.form.submit();return false;}">
+                    <span class="input-group-text" style="cursor:pointer;" onclick="this.closest('form').submit();">
+                        <i class="fas fa-search"></i>
+                    </span>
+                </div>
             </form>
             <div class="dropdown">
                 <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="filterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
@@ -86,58 +96,57 @@
     </div>
     <div class="card-body p-0" style="overflow: hidden; max-width: 100%;">
         <div class="table-container" style="overflow-x: scroll !important;">
-            <table class="table table-hover mb-0 user-table" style="min-width: 1400px; width: 100%;">
+            <table class="table table-hover mb-0 user-table" style="min-width: 1800px; width: 100%;">
                 <thead class="table-light">
                     <tr>
-                        <th scope="col"><input type="checkbox" id="selectAllUsers"></th>
-                        <th scope="col">#</th>
-                        <th scope="col">用户名</th>
-                        <th scope="col">真实姓名</th>
-                        <th scope="col">邮箱地址</th>
-                        <th scope="col">企业名称</th>
-                        <th scope="col">部门</th>
-                        <th scope="col">部门负责人</th>
-                        <th scope="col">角色</th>
-                        <th scope="col">创建时间</th>
-                        <th scope="col">更新时间</th>
-                        <th scope="col">状态</th>
-                        <th scope="col" class="action-column">操作</th>
+                        <th scope="col" style="white-space:nowrap;"><input type="checkbox" id="selectAllUsers"></th>
+                        <th scope="col" style="white-space:nowrap;">ID</th>
+                        <th scope="col" style="white-space:nowrap;">状态</th>
+                        <th scope="col" style="white-space:nowrap;">真实姓名</th>
+                        <th scope="col" style="white-space:nowrap;">用户名</th>
+                        <th scope="col" style="white-space:nowrap;">邮箱地址</th>
+                        <th scope="col" style="white-space:nowrap;">企业名称</th>
+                        <th scope="col" style="white-space:nowrap;">部门</th>
+                        <th scope="col" style="white-space:nowrap;">负责人</th>
+                        <th scope="col" style="white-space:nowrap;">角色</th>
+                        <th scope="col" style="white-space:nowrap;">更新时间</th>
+                        <th scope="col" style="white-space:nowrap;">创建时间</th>
+                        <th scope="col" class="action-column" style="white-space:nowrap;">操作</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% if users %}
                         {% for user in users %}
                         <tr>
-                            <td><input type="checkbox" class="user-checkbox" value="{{ user.id }}"></td>
-                            <td>{{ user.id }}</td>
-                            <td>
-                                <a href="{{ url_for('user.user_detail', user_id=user.id) }}">{{ user.username }}</a>
-                            </td>
-                            <td>{{ user.real_name }}</td>
-                            <td>{{ user.email }}</td>
-                            <td>{{ company_dict.get(user.company_name, user.company_name or '-') }}</td>
-                            <td>{{ user.department|default('-') }}</td>
-                            <td>
-                                {% if user.is_department_manager %}
-                                <span class="badge bg-success">是</span>
-                                {% else %}
-                                <span class="badge bg-secondary">否</span>
-                                {% endif %}
-                            </td>
-                            <td>{{ role_dict.get(user.role, user.role or '-') }}</td>
-                            <td>{{ user.created_at|default('-') }}</td>
-                            <td>{{ user.updated_at|default('-') }}</td>
-                            <td>
+                            <td style="white-space:nowrap;"><input type="checkbox" class="user-checkbox" value="{{ user.id }}"></td>
+                            <td style="white-space:nowrap;">{{ user.id }}</td>
+                            <td style="white-space:nowrap;">
                                 {% if user.is_active %}
                                 <span class="badge bg-success">已激活</span>
                                 {% else %}
                                 <span class="badge bg-warning text-dark">未激活</span>
                                 {% endif %}
                             </td>
-                            <td class="action-column">
-                                <a href="#" class="text-danger delete-user" data-id="{{ user.id }}" data-username="{{ user.username }}">
-                                    <i class="fas fa-trash-alt"></i>
-                                </a>
+                            <td style="white-space:nowrap;">{{ user.real_name }}</td>
+                            <td style="white-space:nowrap;"><a href="{{ url_for('user.user_detail', user_id=user.id) }}">{{ user.username }}</a></td>
+                            <td style="white-space:nowrap;">{{ user.email }}</td>
+                            <td style="white-space:nowrap;">{{ company_dict.get(user.company_name, user.company_name or '-') }}</td>
+                            <td style="white-space:nowrap;">{{ user.department|default('-') }}</td>
+                            <td style="white-space:nowrap;">
+                                {% if user.is_department_manager %}
+                                <span class="badge bg-success">是</span>
+                                {% else %}
+                                <span class="badge bg-secondary">否</span>
+                                {% endif %}
+                            </td>
+                            <td style="white-space:nowrap;">{{ role_dict.get(user.role, user.role or '-') }}</td>
+                            <td style="white-space:nowrap;">{% if user.updated_at %}{{ user.updated_at|datetimeformat }}{% else %}-{% endif %}</td>
+                            <td style="white-space:nowrap;">{% if user.created_at %}{{ user.created_at|datetimeformat }}{% else %}-{% endif %}</td>
+                            <td class="action-column" style="white-space:nowrap;">
+                                <form method="POST" action="{{ url_for('user.delete_user', user_id=user.id) }}" style="display:inline;" onsubmit="return confirm('确定要删除该用户吗？');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-danger">删除</button>
+                                </form>
                             </td>
                         </tr>
                         {% endfor %}

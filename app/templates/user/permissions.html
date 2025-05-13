@@ -70,6 +70,10 @@
                     </div>
                 </div>
 
+                <div class="alert alert-info mb-3">
+                    <strong>说明：</strong> 角色权限已分配的模块权限不可在此单独修改，仅可补充角色未分配的权限。若需调整角色权限，请前往角色权限管理。
+                </div>
+
                 <hr>
 
                 <!-- 权限矩阵表单 -->
@@ -88,45 +92,32 @@
                                 </tr>
                             </thead>
                             <tbody>
+                                {% set module_name_map = {} %}
+                                {% set module_desc_map = {} %}
+                                {% for m in modules %}
+                                    {% set _ = module_name_map.update({m.id: m.name}) %}
+                                    {% set _ = module_desc_map.update({m.id: m.description}) %}
+                                {% endfor %}
                                 {% for module in modules %}
                                 <tr>
                                     <input type="hidden" name="module" value="{{ module.id }}">
                                     <td>
-                                        <strong>{{ module.name }}</strong>
-                                        <small class="text-muted d-block">{{ module.description }}</small>
+                                        <strong>{{ module_name_map.get(module.id, module.id) }}</strong>
+                                        {% if module_desc_map.get(module.id) %}
+                                            <small class="text-muted d-block">{{ module_desc_map.get(module.id) }}</small>
+                                        {% endif %}
                                     </td>
+                                    {% for action in ['view', 'create', 'edit', 'delete'] %}
                                     <td class="text-center">
                                         <div class="form-check form-check-inline">
                                             <input class="form-check-input perm-checkbox" type="checkbox"
-                                                   id="view_{{ module.id }}" name="view_{{ module.id }}" data-module="{{ module.id }}" data-action="view"
-                                                   {% if module.id in permissions and permissions[module.id].can_view %}checked{% endif %}>
-                                            <label class="form-check-label" for="view_{{ module.id }}"></label>
+                                                   id="{{ action }}_{{ module.id }}" name="{{ action }}_{{ module.id }}" data-module="{{ module.id }}" data-action="{{ action }}"
+                                                   {% if module.id in permissions and permissions[module.id]['can_' + action] %}checked{% endif %}>
+                                            <label class="form-check-label" for="{{ action }}_{{ module.id }}"></label>
+                                            <span class="role-perm-tip" style="display:none;color:#888;font-size:12px;">(角色权限)</span>
                                         </div>
                                     </td>
-                                    <td class="text-center">
-                                        <div class="form-check form-check-inline">
-                                            <input class="form-check-input perm-checkbox" type="checkbox"
-                                                   id="create_{{ module.id }}" name="create_{{ module.id }}" data-module="{{ module.id }}" data-action="create"
-                                                   {% if module.id in permissions and permissions[module.id].can_create %}checked{% endif %}>
-                                            <label class="form-check-label" for="create_{{ module.id }}"></label>
-                                        </div>
-                                    </td>
-                                    <td class="text-center">
-                                        <div class="form-check form-check-inline">
-                                            <input class="form-check-input perm-checkbox" type="checkbox"
-                                                   id="edit_{{ module.id }}" name="edit_{{ module.id }}" data-module="{{ module.id }}" data-action="edit"
-                                                   {% if module.id in permissions and permissions[module.id].can_edit %}checked{% endif %}>
-                                            <label class="form-check-label" for="edit_{{ module.id }}"></label>
-                                        </div>
-                                    </td>
-                                    <td class="text-center">
-                                        <div class="form-check form-check-inline">
-                                            <input class="form-check-input perm-checkbox" type="checkbox"
-                                                   id="delete_{{ module.id }}" name="delete_{{ module.id }}" data-module="{{ module.id }}" data-action="delete"
-                                                   {% if module.id in permissions and permissions[module.id].can_delete %}checked{% endif %}>
-                                            <label class="form-check-label" for="delete_{{ module.id }}"></label>
-                                        </div>
-                                    </td>
+                                    {% endfor %}
                                     <td class="text-center">
                                         <div class="form-check form-check-inline">
                                             <input class="form-check-input perm-all-checkbox" type="checkbox" id="all_{{ module.id }}" data-module="{{ module.id }}">
@@ -202,20 +193,30 @@
 
         if(selectAllBtn) {
             selectAllBtn.addEventListener('click', function() {
-                checkboxes.forEach(checkbox => checkbox.checked = true);
+                checkboxes.forEach(checkbox => {
+                    if (!checkbox.disabled && checkbox.classList.contains('perm-checkbox')) {
+                        checkbox.checked = true;
+                    }
+                });
             });
         }
 
         if(selectNoneBtn) {
             selectNoneBtn.addEventListener('click', function() {
-                checkboxes.forEach(checkbox => checkbox.checked = false);
+                checkboxes.forEach(checkbox => {
+                    if (!checkbox.disabled && checkbox.classList.contains('perm-checkbox')) {
+                        checkbox.checked = false;
+                    }
+                });
             });
         }
 
         if(selectViewBtn) {
             selectViewBtn.addEventListener('click', function() {
                 checkboxes.forEach(checkbox => {
-                    checkbox.checked = checkbox.id.startsWith('view_');
+                    if (!checkbox.disabled && checkbox.classList.contains('perm-checkbox')) {
+                        checkbox.checked = checkbox.id.startsWith('view_');
+                    }
                 });
             });
         }
@@ -224,9 +225,10 @@
         document.querySelectorAll('.perm-all-checkbox').forEach(function(allCb) {
             allCb.addEventListener('change', function() {
                 const moduleId = this.getAttribute('data-module');
-                const checked = this.checked;
                 document.querySelectorAll('.perm-checkbox[data-module="' + moduleId + '"]').forEach(function(cb) {
-                    cb.checked = checked;
+                    if (!cb.disabled) {
+                        cb.checked = allCb.checked;
+                    }
                 });
             });
         });
@@ -235,7 +237,7 @@
             cb.addEventListener('change', function() {
                 const moduleId = this.getAttribute('data-module');
                 const allCbs = document.querySelectorAll('.perm-checkbox[data-module="' + moduleId + '"]');
-                const allChecked = Array.from(allCbs).every(x => x.checked);
+                const allChecked = Array.from(allCbs).filter(x => !x.disabled).every(x => x.checked);
                 document.querySelector('.perm-all-checkbox[data-module="' + moduleId + '"]').checked = allChecked;
             });
         });
@@ -243,8 +245,20 @@
         document.querySelectorAll('.perm-all-checkbox').forEach(function(allCb) {
             const moduleId = allCb.getAttribute('data-module');
             const allCbs = document.querySelectorAll('.perm-checkbox[data-module="' + moduleId + '"]');
-            const allChecked = Array.from(allCbs).every(x => x.checked);
+            const allChecked = Array.from(allCbs).filter(x => !x.disabled).every(x => x.checked);
             allCb.checked = allChecked;
+        });
+
+        // 禁用角色权限已有的复选框
+        var rolePermissions = {{ role_permissions|tojson|safe }};
+        document.querySelectorAll('.perm-checkbox').forEach(function(cb) {
+            var module = cb.getAttribute('data-module');
+            var action = cb.getAttribute('data-action');
+            if (rolePermissions[module] && rolePermissions[module]['can_' + action]) {
+                cb.disabled = true;
+                var tip = cb.parentNode.querySelector('.role-perm-tip');
+                if (tip) tip.style.display = 'inline';
+            }
         });
     });
 </script>

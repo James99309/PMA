@@ -42,4 +42,15 @@ def get_dictionary_value(dict_type, key):
     cache = getattr(g, cache_name)
     return cache.get(key, key)
 
+
+def project_type_to_cn(key):
+    """项目类型key转中文"""
+    mapping = {
+        'channel_follow': '渠道跟进',
+        'sales_focus': '销售重点',
+        'business_opportunity': '业务机会',
+        'normal': '普通项目'
+    }
+    return mapping.get(key, key)
+
 # TODO: 可扩展更多字典类型的获取方法 

@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from app import db
 from app.models.product_code import ProductCategory, ProductSubcategory, ProductCodeField, ProductCodeFieldOption, ProductRegion
 from app.models.dev_product import DevProduct, DevProductSpec
-from app.permissions import admin_required, product_manager_required
+from app.permissions import admin_required, product_manager_required, permission_required
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime
 import random
@@ -61,7 +61,7 @@ def save_product_image(file):
 # 产品管理首页 - 展示研发产品库列表
 @product_management_bp.route('/', methods=['GET'])
 @login_required
-@product_manager_required
+@permission_required('product_code', 'view')
 def index():
     # 如果是管理员，可以查看所有研发产品
     if current_user.role == 'admin':
@@ -81,7 +81,7 @@ def index():
 # 新增产品
 @product_management_bp.route('/new', methods=['GET'])
 @login_required
-@product_manager_required
+@permission_required('product_code', 'create')
 def new_product():
     # 获取所有产品分类
     categories = ProductCategory.query.all()
@@ -95,7 +95,7 @@ def new_product():
 # 获取子分类API
 @product_management_bp.route('/api/category/<int:category_id>/subcategories', methods=['GET'])
 @login_required
-@product_manager_required
+@permission_required('product_code', 'view')
 def get_subcategories(category_id):
     # 修改查询，按照display_order升序排序
     subcategories = ProductSubcategory.query.filter_by(category_id=category_id).order_by(ProductSubcategory.display_order).all()
@@ -109,7 +109,7 @@ def get_subcategories(category_id):
 # 获取销售区域选项API
 @product_management_bp.route('/api/region-options', methods=['GET'])
 @login_required
-@product_manager_required
+@permission_required('product_code', 'view')
 def get_region_options():
     try:
         # 从ProductRegion模型中获取销售区域
@@ -272,7 +272,7 @@ def add_spec_option_if_not_exists(field_id, option_value, product_model):
 # 保存新产品
 @product_management_bp.route('/save', methods=['POST'])
 @login_required
-@product_manager_required
+@permission_required('product_code', 'create')
 def save():
     """保存新产品"""
     try:
@@ -542,7 +542,7 @@ def save():
 # 编辑产品
 @product_management_bp.route('/<int:id>/edit', methods=['GET'])
 @login_required
-@product_manager_required
+@permission_required('product_code', 'edit')
 def edit_product(id):
     from sqlalchemy.orm import joinedload
     
@@ -593,7 +593,7 @@ def edit_product(id):
 # 更新产品
 @product_management_bp.route('/<int:id>/update', methods=['POST'])
 @login_required
-@product_manager_required
+@permission_required('product_code', 'edit')
 def update_product(id):
     dev_product = DevProduct.query.get_or_404(id)
     
@@ -759,7 +759,7 @@ def update_product(id):
 # 删除产品
 @product_management_bp.route('/<int:id>/delete', methods=['POST'])
 @login_required
-@product_manager_required
+@permission_required('product_code', 'delete')
 def delete_product(id):
     dev_product = DevProduct.query.get_or_404(id)
     
@@ -786,7 +786,7 @@ def delete_product(id):
 # 批量删除产品
 @product_management_bp.route('/batch-delete', methods=['POST'])
 @login_required
-@product_manager_required
+@permission_required('product_code', 'delete')
 def batch_delete_products():
     # 获取产品ID列表
     product_ids_str = request.form.get('product_ids', '')
@@ -854,7 +854,7 @@ def batch_delete_products():
 # 申请入库
 @product_management_bp.route('/<int:id>/apply', methods=['POST'])
 @login_required
-@product_manager_required
+@permission_required('product_code', 'edit')
 def apply_product(id):
     dev_product = DevProduct.query.get_or_404(id)
     
@@ -930,7 +930,7 @@ def approve_product(id):
 # 产品详情
 @product_management_bp.route('/<int:id>', methods=['GET'])
 @login_required
-@product_manager_required
+@permission_required('product_code', 'view')
 def product_detail(id):
     from sqlalchemy.orm import joinedload
     
@@ -975,7 +975,7 @@ def product_detail(id):
 # 根据子分类ID获取产品型号列表
 @product_management_bp.route('/api/subcategory/<int:subcategory_id>/models', methods=['GET'])
 @login_required
-@product_manager_required
+@permission_required('product_code', 'view')
 def get_models_by_subcategory(subcategory_id):
     """根据子分类ID获取产品型号列表"""
     try:
@@ -1004,7 +1004,7 @@ def get_models_by_subcategory(subcategory_id):
 # 根据子分类ID获取规格字段列表
 @product_management_bp.route('/api/subcategory/<int:subcategory_id>/spec-fields', methods=['GET'])
 @login_required
-@product_manager_required
+@permission_required('product_code', 'view')
 def get_spec_fields_by_subcategory(subcategory_id):
     """根据子分类ID获取规格字段列表"""
     try:
@@ -1069,7 +1069,7 @@ def view_product(product_id):
 # 添加新的规格指标
 @product_management_bp.route('/api/add-spec-option', methods=['POST'])
 @login_required
-@product_manager_required
+@permission_required('product_code', 'edit')
 def add_spec_option():
     """添加新的规格指标并返回其编码"""
     try:

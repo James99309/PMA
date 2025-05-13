@@ -70,7 +70,7 @@
             <dt class="col-sm-3">手机号</dt><dd class="col-sm-9">{{ user.phone }}</dd>
             <dt class="col-sm-3">公司</dt><dd class="col-sm-9">{{ user.company_name }}</dd>
             <dt class="col-sm-3">部门</dt><dd class="col-sm-9">{{ user.department }}</dd>
-            <dt class="col-sm-3">角色</dt><dd class="col-sm-9">{{ role_dict.get(user.role, user.role) }}</dd>
+            <dt class="col-sm-3">角色</dt><dd class="col-sm-9">{{ role_dict.get(user.role, user.role or '-') }}</dd>
             <dt class="col-sm-3">状态</dt><dd class="col-sm-9">{{ '激活' if user.is_active else '禁用' }}</dd>
             
             {% if not user.is_active %}
@@ -131,7 +131,7 @@
     <div class="tab-pane fade" id="aff" role="tabpanel" aria-labelledby="aff-tab">
         <dl class="row mt-3">
             <dt class="col-sm-3">部门</dt><dd class="col-sm-9">{{ affiliations.department }}</dd>
-            <dt class="col-sm-3">角色</dt><dd class="col-sm-9">{{ role_dict.get(user.role, user.role) }}</dd>
+            <dt class="col-sm-3">角色</dt><dd class="col-sm-9">{{ role_dict.get(user.role, user.role or '-') }}</dd>
         </dl>
         {% if affiliations.affiliation_users and affiliations.affiliation_users|length > 0 %}
         <div class="mt-4">
@@ -154,7 +154,7 @@
                             <td>{{ u.real_name }}</td>
                             <td>{{ u.department }}</td>
                             <td>{{ u.company_name }}</td>
-                            <td>{{ role_dict.get(u.role, u.role) }}</td>
+                            <td>{{ role_dict.get(u.role, u.role or '-') }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>

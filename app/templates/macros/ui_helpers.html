@@ -1,13 +1,9 @@
 {% macro render_project_type(type) %}
-  {% if type in ['channel_follow', '渠道跟进'] %}
-    <span class="badge bg-info">渠道跟进</span>
-  {% elif type in ['sales_focus', '销售重点'] %}
-    <span class="badge bg-primary">销售重点</span>
-  {% elif type in ['business_opportunity', '业务机会'] %}
-    <span class="badge bg-success">业务机会</span>
-  {% else %}
-    <span class="badge bg-secondary">{{ type }}</span>
-  {% endif %}
+    {% set color = '#6c757d' %}
+    {% if type == 'sales_focus' %}{% set color = '#0B6EFD' %}{% endif %}
+    {% if type == 'channel_follow' %}{% set color = '#5BC0DE' %}{% endif %}
+    {% if type == 'business_opportunity' %}{% set color = '#198754' %}{% endif %}
+    <span class="badge" style="background-color: {{ color }}; color: #fff;">{{ type|project_type_to_cn }}</span>
 {% endmacro %}
 
 {% macro render_owner(owner) %}

@@ -94,7 +94,7 @@ def add_dictionary(dict_type):
         value_map = {
             '客户销售': 'customer_sales',
             '渠道经理': 'channel_manager',
-            '营销总监': 'marketing_director',
+            '营销总监': 'sales_director',
             '服务': 'service',
             '服务经理': 'service_manager',
             '产品经理': 'product_manager',

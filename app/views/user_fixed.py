@@ -175,6 +175,9 @@ def edit_user(user_id):
             flash('用户不存在', 'danger')
             return redirect(url_for('user.list_users'))
         
+        old_department = user.department
+        old_company = user.company_name
+        old_manager = user.is_department_manager
         user.real_name = real_name
         user.company_name = company
         user.email = email
@@ -188,6 +191,20 @@ def edit_user(user_id):
             user.set_password(password)
             try:
                 db.session.commit()
+                from app.models.user import sync_department_manager_affiliations, remove_department_manager_affiliations, sync_affiliations_for_new_member, transfer_member_affiliations_on_department_change
+                # 负责人变为True
+                if not old_manager and is_department_manager:
+                    sync_department_manager_affiliations(user)
+                # 负责人变为False
+                elif old_manager and not is_department_manager:
+                    remove_department_manager_affiliations(user)
+                # 部门或公司变更，且仍为负责人
+                elif is_department_manager and (old_department != department or old_company != company):
+                    remove_department_manager_affiliations(user)
+                    sync_department_manager_affiliations(user)
+                # 普通成员变更部门/公司，自动为新部门负责人添加归属，并同步转移归属
+                if (old_department != department or old_company != company) and not is_department_manager:
+                    transfer_member_affiliations_on_department_change(user, old_department, old_company)
                 flash('用户信息更新成功', 'success')
                 return redirect(url_for('user.list_users'))
             except Exception as db_error:
@@ -806,27 +823,10 @@ def save_affiliations_api(user_id):
         if current_user.role != 'admin' and current_user.id != user_id and not current_user.has_permission('user', 'edit'):
             return jsonify({
                 'success': False,
-                'message': '无权限执行此操作'
+                'message': '无权限操作此数据'
             }), 403
         
-        # 获取请求数据
-        data = request.get_json()
-        if not data or 'owner_ids' not in data:
-            return jsonify({
-                'success': False,
-                'message': '无效的请求数据，缺少owner_ids字段'
-            }), 400
-        
-        owner_ids = data.get('owner_ids', [])
-        
-        # 确保owner_ids是列表类型
-        if not isinstance(owner_ids, list):
-            return jsonify({
-                'success': False,
-                'message': 'owner_ids必须是数组类型'
-            }), 400
-        
-        # 获取目标用户
+        # 检查用户是否存在
         target_user = User.query.get(user_id)
         if not target_user:
             return jsonify({
@@ -834,12 +834,22 @@ def save_affiliations_api(user_id):
                 'message': '用户不存在'
             }), 404
         
+        # 获取提交的所有者ID列表
+        data = request.get_json()
+        owner_ids = data.get('owner_ids', [])
+        
+        # 检查数据格式
+        if not isinstance(owner_ids, list):
+            return jsonify({
+                'success': False,
+                'message': '无效的数据格式，owner_ids必须是数组'
+            }), 400
+        
         try:
-            # 删除现有的所有归属关系 - 同时处理两个表
-            DataAffiliation.query.filter_by(viewer_id=user_id).delete()
+            # 删除现有的所有归属关系
             Affiliation.query.filter_by(viewer_id=user_id).delete()
             
-            # 创建新的归属关系 - 同时添加到两个表
+            # 创建新的归属关系
             added_count = 0
             for owner_id in owner_ids:
                 try:
@@ -849,10 +859,6 @@ def save_affiliations_api(user_id):
                     # 确保所有者ID存在且有效
                     owner = User.query.get(owner_id)
                     if owner and owner.id != user_id:  # 不能将自己设为自己的数据所有者
-                        # 添加到DataAffiliation表
-                        data_affiliation = DataAffiliation(viewer_id=user_id, owner_id=owner_id)
-                        db.session.add(data_affiliation)
-                        
                         # 添加到Affiliation表
                         affiliation = Affiliation(viewer_id=user_id, owner_id=owner_id)
                         db.session.add(affiliation)

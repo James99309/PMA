@@ -2,7 +2,7 @@ from flask import request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.api.v1 import api_v1_bp
 from app.api.v1.utils import api_response
-from app.models.user import User, Affiliation, DataAffiliation
+from app.models.user import User, Affiliation
 from app.decorators import permission_required
 from app import db
 import logging
@@ -123,8 +123,8 @@ def get_user_affiliations(user_id):
             )
     
     try:
-        # 获取用户可查看的数据所有者
-        affiliations = DataAffiliation.query.filter_by(viewer_id=user_id).all()
+        # 修改为使用Affiliation表
+        affiliations = Affiliation.query.filter_by(viewer_id=user_id).all()
         
         # 格式化数据
         result = []
@@ -293,7 +293,6 @@ def set_user_affiliations(user_id):
             )
         # 允许owner_ids为空，表示清空归属关系
         if len(owner_ids) == 0:
-            DataAffiliation.query.filter_by(viewer_id=user_id).delete()
             Affiliation.query.filter_by(viewer_id=user_id).delete()
             db.session.commit()
             logger.info(f"用户 {user_id} 的归属关系已全部清空")
@@ -317,13 +316,12 @@ def set_user_affiliations(user_id):
         )
     
     try:
-        # 删除现有的所有归属关系 - 同时处理两个表
-        old_count = DataAffiliation.query.filter_by(viewer_id=user_id).count()
-        DataAffiliation.query.filter_by(viewer_id=user_id).delete()
+        # 删除现有的所有归属关系 - 只处理Affiliation表
+        old_count = Affiliation.query.filter_by(viewer_id=user_id).count()
         Affiliation.query.filter_by(viewer_id=user_id).delete()
         logger.info(f"已删除用户 {target_user.username} 的 {old_count} 条现有数据归属关系")
         
-        # 创建新的归属关系 - 同时添加到两个表
+        # 创建新的归属关系 - 只添加到Affiliation表
         added_count = 0
         for owner_id in owner_ids:
             try:
@@ -333,10 +331,6 @@ def set_user_affiliations(user_id):
                 # 确保所有者ID存在且有效
                 owner = User.query.get(owner_id)
                 if owner and owner.id != user_id:  # 不能将自己设为自己的数据所有者
-                    # 添加到DataAffiliation表
-                    data_affiliation = DataAffiliation(viewer_id=user_id, owner_id=owner_id)
-                    db.session.add(data_affiliation)
-                    
                     # 添加到Affiliation表
                     affiliation = Affiliation(viewer_id=user_id, owner_id=owner_id)
                     db.session.add(affiliation)

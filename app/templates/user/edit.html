@@ -304,6 +304,21 @@
                     console.error('API请求错误:', error);
                 });
         }
+
+        var deptSelect = document.getElementById('department');
+        var managerCheckbox = document.getElementById('is_department_manager');
+        function toggleManagerCheckbox() {
+            if (deptSelect.value) {
+                managerCheckbox.disabled = false;
+            } else {
+                managerCheckbox.checked = false;
+                managerCheckbox.disabled = true;
+            }
+        }
+        if (deptSelect && managerCheckbox) {
+            deptSelect.addEventListener('change', toggleManagerCheckbox);
+            toggleManagerCheckbox();
+        }
     });
 
     // 加载角色选项

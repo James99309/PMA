@@ -31,6 +31,7 @@ class User(db.Model, UserMixin):
     wechat_avatar = db.Column(db.String(256))  # 微信头像URL
     _is_active = db.Column(db.Boolean, default=False, name="is_active")  # 账号是否激活，使用不同名称避免与属性冲突
     created_at = db.Column(db.Float)
+    updated_at = db.Column(db.Float, default=time.time, onupdate=time.time)
     last_login = db.Column(db.Float)  # 最后登录时间
     
     # 关系
@@ -39,6 +40,7 @@ class User(db.Model, UserMixin):
     def __init__(self, **kwargs):
         super(User, self).__init__(**kwargs)
         self.created_at = time.time()
+        self.updated_at = time.time()
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -95,6 +97,8 @@ class User(db.Model, UserMixin):
             'is_active': self.is_active,
             'is_profile_complete': self.is_profile_complete,
             'role': self.role,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at,
             'last_login': self.last_login
         }
     
@@ -330,36 +334,82 @@ class Affiliation(db.Model):
         return f'<Affiliation {self.owner_id}->{self.viewer_id}>'
 
 
-class DataAffiliation(db.Model):
+class DataAffiliation(Affiliation):
     """
-    用户数据归属关系模型：定义用户之间的数据查看关系
-    与Affiliation类似，但专门用于前端数据归属关系管理
-    owner_id: 数据所有者ID
-    viewer_id: 数据查看者ID
+    兼容层：与Affiliation完全相同，用于保持向后兼容
+    实际上直接使用Affiliation的功能
+    
+    这个类将逐步淘汰，所有新代码应直接使用Affiliation
     """
-    __tablename__ = 'data_affiliations'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    owner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # 数据所有者ID
-    viewer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)  # 可查看者ID
-    created_at = db.Column(db.Float, default=time.time)  # 创建时间
-    
-    # 与User模型的关系
-    owner = db.relationship('User', foreign_keys=[owner_id], backref=db.backref('data_shared_with', lazy='dynamic'))
-    viewer = db.relationship('User', foreign_keys=[viewer_id], backref=db.backref('can_view_data_from', lazy='dynamic'))
-    
-    __table_args__ = (
-        db.UniqueConstraint('owner_id', 'viewer_id', name='uix_data_owner_viewer'),
-    )
-    
-    def to_dict(self):
-        """将数据归属关系转为字典，用于API响应"""
-        return {
-            'id': self.id,
-            'owner_id': self.owner_id,
-            'viewer_id': self.viewer_id,
-            'created_at': self.created_at
-        }
+    __table__ = Affiliation.__table__
     
     def __repr__(self):
-        return f'<DataAffiliation {self.owner_id}->{self.viewer_id}>' 
+        return f'<DataAffiliation(兼容层) {self.owner_id}->{self.viewer_id}>'
+
+def sync_department_manager_affiliations(manager_user):
+    """
+    同步部门负责人与本部门所有成员的归属关系（viewer为负责人，owner为成员，不能包括自己）
+    """
+    from app import db
+    if not manager_user.is_department_manager or not manager_user.department or not manager_user.company_name:
+        return
+    # 获取本部门所有成员（不包括自己）
+    members = User.query.filter(
+        User.department == manager_user.department,
+        User.company_name == manager_user.company_name,
+        User.id != manager_user.id
+    ).all()
+    for member in members:
+        # 检查是否已存在归属关系
+        exists = Affiliation.query.filter_by(owner_id=member.id, viewer_id=manager_user.id).first()
+        if not exists:
+            db.session.add(Affiliation(owner_id=member.id, viewer_id=manager_user.id))
+    db.session.commit()
+
+def remove_department_manager_affiliations(manager_user):
+    """
+    移除该负责人和本部门成员的所有归属关系
+    """
+    from app import db
+    if not manager_user.department or not manager_user.company_name:
+        return
+    Affiliation.query.filter(
+        Affiliation.viewer_id == manager_user.id,
+        Affiliation.owner.has(department=manager_user.department, company_name=manager_user.company_name)
+    ).delete(synchronize_session=False)
+    db.session.commit()
+
+def sync_affiliations_for_new_member(new_member):
+    """
+    新成员加入部门时，自动为本部门所有负责人添加归属关系
+    """
+    from app import db
+    if not new_member.department or not new_member.company_name:
+        return
+    managers = User.query.filter_by(department=new_member.department, company_name=new_member.company_name, is_department_manager=True).all()
+    for manager in managers:
+        if manager.id == new_member.id:
+            continue
+        exists = Affiliation.query.filter_by(owner_id=new_member.id, viewer_id=manager.id).first()
+        if not exists:
+            db.session.add(Affiliation(owner_id=new_member.id, viewer_id=manager.id))
+    db.session.commit()
+
+def transfer_member_affiliations_on_department_change(user, old_department, old_company):
+    """
+    当员工部门或公司变更时，自动将其从原部门所有负责人的归属关系中移除，并添加到新部门所有负责人的归属关系中。
+    """
+    from app import db
+    # 1. 移除原部门所有负责人对该员工的归属
+    if old_department and old_company:
+        old_managers = User.query.filter_by(department=old_department, company_name=old_company, is_department_manager=True).all()
+        for manager in old_managers:
+            db.session.query(Affiliation).filter_by(owner_id=user.id, viewer_id=manager.id).delete()
+    # 2. 添加到新部门所有负责人的归属
+    if user.department and user.company_name:
+        new_managers = User.query.filter_by(department=user.department, company_name=user.company_name, is_department_manager=True).all()
+        for manager in new_managers:
+            exists = Affiliation.query.filter_by(owner_id=user.id, viewer_id=manager.id).first()
+            if not exists and manager.id != user.id:
+                db.session.add(Affiliation(owner_id=user.id, viewer_id=manager.id))
+    db.session.commit() 

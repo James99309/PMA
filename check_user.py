@@ -1,37 +1,17 @@
-from app import create_app, db
-from app.models import User
+from app import create_app
+from app.models.user import User, Permission
+from app.models.role_permissions import RolePermission
 
-def check_admin_user():
-    app = create_app()
-    with app.app_context():
-        admin = User.query.filter_by(username='admin').first()
-        if admin:
-            print(f"用户ID: {admin.id}")
-            print(f"用户名: {admin.username}")
-            print(f"角色: {admin.role}")
-            print(f"密码哈希: {admin.password_hash[:30]}...")
-            if hasattr(admin, 'is_active'):
-                print(f"登录状态: {'正常' if admin.is_active else '禁用'}")
-        else:
-            print("admin用户不存在")
-
-if __name__ == "__main__":
-    check_admin_user() 
-from app.models import User
-
-def check_admin_user():
-    app = create_app()
-    with app.app_context():
-        admin = User.query.filter_by(username='admin').first()
-        if admin:
-            print(f"用户ID: {admin.id}")
-            print(f"用户名: {admin.username}")
-            print(f"角色: {admin.role}")
-            print(f"密码哈希: {admin.password_hash[:30]}...")
-            if hasattr(admin, 'is_active'):
-                print(f"登录状态: {'正常' if admin.is_active else '禁用'}")
-        else:
-            print("admin用户不存在")
-
-if __name__ == "__main__":
-    check_admin_user() 
+app = create_app()
+with app.app_context():
+    user = User.query.filter_by(username='shengyh').first()
+    print(f'用户信息: ID={user.id if user else None}, 角色={user.role if user else None}')
+    
+    # 查询用户的个人权限
+    if user:
+        permissions = Permission.query.filter_by(user_id=user.id, module='customer').first()
+        print(f'个人权限: {permissions.__dict__ if permissions else "无个人权限"}')
+        
+        # 查询角色权限
+        role_permissions = RolePermission.query.filter_by(role=user.role, module='customer').first()
+        print(f'角色权限: {role_permissions.__dict__ if role_permissions else "无角色权限"}')

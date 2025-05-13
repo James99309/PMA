@@ -1,0 +1,15 @@
+INFO:config:原始DATABASE_URL: postgresql://nijie@localhost:5432/pma_local
+INFO:app:数据库表创建成功
+INFO:app.utils.version_check:版本信息已保存到 app_version.json
+INFO:app.utils.version_check:模块 user 代码一致
+INFO:app.utils.version_check:模块 customer 代码一致
+INFO:app.utils.version_check:模块 project 代码一致
+INFO:app.utils.version_check:模块 quotation 代码一致
+INFO:app.utils.version_check:模块 product 代码一致
+INFO:app:应用版本检查完成
+INFO:app:数据所有权初始化已被关闭
+INFO:app:字典数据初始化已被关闭
+Traceback (most recent call last):
+  File "/Users/nijie/Documents/PMA/check_template_perm.py", line 16, in <module>
+    from flask import _request_ctx_stack
+ImportError: cannot import name '_request_ctx_stack' from 'flask' (/Users/nijie/Documents/PMA/venv312/lib/python3.13/site-packages/flask/__init__.py)

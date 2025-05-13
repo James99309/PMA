@@ -169,7 +169,7 @@ def send_user_invitation_email(user_data):
             'service_manager': '服务经理',
             'channel': '渠道经理',
             'channel_manager': '渠道经理',
-            'marketing_director': '营销总监',
+            'sales_director': '营销总监',
             'agent': '代理商',
             'dealer': '代理商',
             'user': '普通用户'

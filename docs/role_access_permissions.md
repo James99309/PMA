@@ -70,7 +70,7 @@ class Quotation(db.Model):
 - 产品经理 (product): 管理产品和查看所有报价
 - 解决方案经理 (solution): 查看所有报价和编辑项目
 - 渠道经理 (channel_manager): 查看所有渠道跟进项目
-- 营销总监 (marketing_director): 查看所有渠道跟进和销售重点项目
+- 营销总监 (sales_director): 查看所有渠道跟进和销售重点项目
 - 代理商 (dealer): 仅查看自己的数据
 - 普通用户 (user): 仅查看自己的数据
 
@@ -101,7 +101,7 @@ def get_viewable_data(model_class, current_user, special_filters=None):
             )
         
         # 营销总监：可以查看所有渠道跟进和销售重点项目 + 自己的项目
-        if current_user.role == 'marketing_director':
+        if current_user.role == 'sales_director':
             return model_class.query.filter(
                 db.or_(
                     model_class.owner_id == current_user.id,
