@@ -969,20 +969,20 @@ $(document).ready(function() {
     {% if preset_project_id %}
     <script>
     $(function() {
-        // 预设项目ID时，直接加载项目信息
-        $.ajax({
-            url: '/quotation/get_project/{{ preset_project_id }}',
-            method: 'GET',
-            success: function(project) {
-                console.log('获取到预设项目信息:', project);
-                // 填充项目相关信息
-                $('#project_stage').val(project.current_stage || '');
-                $('#project_type').val(project.project_type || '');
-            },
-            error: function(xhr, status, error) {
-                console.error('获取项目信息失败:', error);
-            }
-        });
+    // 预设项目ID时，直接加载项目信息
+    $.ajax({
+        url: '/quotation/get_project/{{ preset_project_id }}',
+        method: 'GET',
+        success: function(project) {
+            console.log('获取到预设项目信息:', project);
+            // 填充项目相关信息
+            $('#project_stage').val(project.current_stage || '');
+            $('#project_type').val(project.project_type || '');
+        },
+        error: function(xhr, status, error) {
+            console.error('获取项目信息失败:', error);
+        }
+    });
     });
     </script>
     {% endif %}

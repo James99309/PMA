@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from fuzzywuzzy import fuzz  # 用于计算字符串相似度
 import re
 from app.models.quotation import Quotation, QuotationDetail
-from app.utils.dictionary_helpers import company_type_label
+from app.utils.dictionary_helpers import company_type_label, COMPANY_TYPE_LABELS
 
 logger = logging.getLogger(__name__)
 
@@ -22,15 +22,17 @@ api_bp = Blueprint('api', __name__)
 def get_companies_by_type(company_type):
     """
     获取指定类型的公司列表
-    company_type可以是：users（直接用户）, designers（设计院）, contractors（总承包）, 
-    integrators（系统集成商）, dealers（经销商）
+    company_type可以是：user（直接用户）, designer（设计院）, contractor（总承包）, 
+    integrator（系统集成商）, dealer（经销商）
     """
-    cn_type = company_type_label(company_type)
-    if cn_type == company_type:
+    # 验证company_type是否有效
+    if company_type not in COMPANY_TYPE_LABELS:
         return jsonify({'error': '无效的公司类型'}), 400
+    
     companies = Company.query.filter_by(
-        company_type=cn_type
+        company_type=company_type
     ).order_by(Company.company_name).all()
+    
     return jsonify({
         'companies': [{
             'id': company.id,

@@ -57,6 +57,27 @@ def list_companies():
             if company.owner_id and company.owner_id in owners:
                 company.owner = owners[company.owner_id]
     
+    # 为每个公司添加联系人创建者ID列表
+    company_ids = [company.id for company in companies]
+    contact_owners = db.session.query(Contact.company_id, Contact.owner_id).filter(
+        Contact.company_id.in_(company_ids)
+    ).distinct().all()
+    
+    # 调试信息
+    print(f"公司ID列表: {company_ids}")
+    print(f"联系人所有者关系: {contact_owners}")
+    
+    # 创建公司ID到联系人创建者ID列表的映射
+    company_contact_owners = {}
+    for company_id, owner_id in contact_owners:
+        if company_id not in company_contact_owners:
+            company_contact_owners[company_id] = []
+        company_contact_owners[company_id].append(owner_id)
+    
+    # 将映射添加到公司对象
+    for company in companies:
+        company.contact_owner_ids = company_contact_owners.get(company.id, [])
+    
     # 国家代码到名称的映射
     country_code_to_name = {
         "CN": "中国", "US": "美国", "JP": "日本", "DE": "德国", "FR": "法国", "GB": "英国", "CA": "加拿大", "AU": "澳大利亚", "NZ": "新西兰", "IN": "印度", "RU": "俄罗斯", "BR": "巴西", "ZA": "南非", "SG": "新加坡", "MY": "马来西亚", "TH": "泰国", "ID": "印度尼西亚", "PH": "菲律宾", "VN": "越南", "KR": "韩国", "AE": "阿联酋", "SA": "沙特阿拉伯", "IT": "意大利", "ES": "西班牙", "NL": "荷兰", "CH": "瑞士", "SE": "瑞典", "NO": "挪威", "FI": "芬兰", "DK": "丹麦", "BE": "比利时"
@@ -85,7 +106,45 @@ def search_companies():
     query = query.filter(Company.company_name.ilike(f'%{search}%'))
     companies = query.all()
     
-    return render_template('customer/list.html', companies=companies, search_term=search,
+    # 预加载所有企业的所有者信息
+    owner_ids = [company.owner_id for company in companies if company.owner_id]
+    if owner_ids:
+        owners = {user.id: user for user in User.query.filter(User.id.in_(owner_ids)).all()}
+        for company in companies:
+            if company.owner_id and company.owner_id in owners:
+                company.owner = owners[company.owner_id]
+    
+    # 为每个公司添加联系人创建者ID列表
+    company_ids = [company.id for company in companies]
+    contact_owners = db.session.query(Contact.company_id, Contact.owner_id).filter(
+        Contact.company_id.in_(company_ids)
+    ).distinct().all()
+    
+    # 创建公司ID到联系人创建者ID列表的映射
+    company_contact_owners = {}
+    for company_id, owner_id in contact_owners:
+        if company_id not in company_contact_owners:
+            company_contact_owners[company_id] = []
+        company_contact_owners[company_id].append(owner_id)
+    
+    # 将映射添加到公司对象
+    for company in companies:
+        company.contact_owner_ids = company_contact_owners.get(company.id, [])
+    
+    # 获取排序参数，提供默认值
+    sort_field = request.args.get('sort', 'company_name')
+    sort_order = request.args.get('order', 'asc')
+    
+    # 国家代码到名称的映射
+    country_code_to_name = {
+        "CN": "中国", "US": "美国", "JP": "日本", "DE": "德国", "FR": "法国", "GB": "英国", "CA": "加拿大", "AU": "澳大利亚", "NZ": "新西兰", "IN": "印度", "RU": "俄罗斯", "BR": "巴西", "ZA": "南非", "SG": "新加坡", "MY": "马来西亚", "TH": "泰国", "ID": "印度尼西亚", "PH": "菲律宾", "VN": "越南", "KR": "韩国", "AE": "阿联酋", "SA": "沙特阿拉伯", "IT": "意大利", "ES": "西班牙", "NL": "荷兰", "CH": "瑞士", "SE": "瑞典", "NO": "挪威", "FI": "芬兰", "DK": "丹麦", "BE": "比利时"
+    }
+    return render_template('customer/list.html', 
+                          companies=companies, 
+                          search_term=search, 
+                          sort_field=sort_field, 
+                          sort_order=sort_order,
+                          country_code_to_name=country_code_to_name,
                           COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
                           INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
                           STATUS_OPTIONS=STATUS_OPTIONS)
@@ -125,18 +184,20 @@ def search_contacts():
 @customer.route('/view/<int:company_id>')
 @permission_required('customer', 'view')
 def view_company(company_id):
-    # 用get_viewable_data统一权限判断
-    company = get_viewable_data(Company, current_user).filter(Company.id == company_id).first()
-    if not company:
-        flash('您没有权限查看此企业信息', 'danger')
-        return redirect(url_for('customer.list_companies'))
-    # 获取企业的联系人列表
-    contacts = Contact.query.filter_by(company_id=company_id).all()
+    # 修改为直接通过ID查询企业，不再通过get_viewable_data过滤
+    company = Company.query.get_or_404(company_id)
+    
+    # 当前用户是否为客户owner（只有owner可以编辑）
+    can_edit_company = (company.owner_id == current_user.id or current_user.role == 'admin')
+    # 所有联系人
+    all_contacts = Contact.query.filter_by(company_id=company_id).all()
+    # 只显示当前用户创建的联系人
+    my_contacts = [c for c in all_contacts if c.owner_id == current_user.id]
     # 预加载所有联系人的所有者信息
-    owner_ids = [contact.owner_id for contact in contacts if contact.owner_id]
+    owner_ids = [contact.owner_id for contact in all_contacts if contact.owner_id]
     if owner_ids:
         owners = {user.id: user for user in User.query.filter(User.id.in_(owner_ids)).all()}
-        for contact in contacts:
+        for contact in all_contacts:
             if contact.owner_id and contact.owner_id in owners:
                 contact.owner = owners[contact.owner_id]
     # 如果需要，确保公司的动作记录已正确加载并按日期排序
@@ -152,6 +213,12 @@ def view_company(company_id):
             Project.dealer == company.company_name
         )
     ).all()
+    
+    # 筛选用户有权限查看的项目
+    from app.utils.access_control import get_viewable_data
+    viewable_project_ids = [p.id for p in get_viewable_data(Project, current_user).all()]
+    viewable_projects = [p for p in projects if p.id in viewable_project_ids]
+    
     # 获取公司的行动记录
     page = request.args.get('page', 1, type=int)
     query = Action.query.filter_by(company_id=company_id)
@@ -159,6 +226,11 @@ def view_company(company_id):
         page=page, per_page=10, error_out=False
     )
     actions = pagination.items
+    
+    # 筛选出用户有权限查看的联系人的行动记录
+    viewable_contact_ids = [c.id for c in my_contacts]
+    viewable_actions = [a for a in actions if a.contact_id in viewable_contact_ids or a.owner_id == current_user.id]
+    
     # 提前加载行动记录所有者信息，避免N+1查询
     user_ids = [action.owner_id for action in actions if action.owner_id]
     users = User.query.filter(User.id.in_(set(user_ids))).all()
@@ -172,10 +244,14 @@ def view_company(company_id):
     }
     return render_template('customer/view.html', 
                           company=company, 
-                          contacts=contacts, 
+                          can_edit_company=can_edit_company,
+                          contacts=my_contacts, 
+                          all_contacts=all_contacts,  # 用于查重
                           actions=actions, 
+                          viewable_actions=viewable_actions,
                           pagination=pagination,
                           projects=projects,
+                          viewable_projects=viewable_projects,
                           country_code_to_name=country_code_to_name,
                           COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
                           INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
@@ -292,32 +368,57 @@ def list_contacts(company_id):
 @permission_required('customer', 'create')
 def add_contact(company_id):
     company = Company.query.get_or_404(company_id)
-    
-    # 检查创建权限
-    if not can_edit_data(company, current_user):
-        flash('您没有权限为此企业添加联系人', 'danger')
-        return redirect(url_for('customer.list_contacts', company_id=company_id))
-    
+    # 允许所有人添加联系人，但只显示自己创建的联系人
     if request.method == 'POST':
+        name = request.form['name']
+        # 查重：同公司下所有联系人（不论owner）
+        duplicate = Contact.query.filter_by(company_id=company_id, name=name).first()
+        if duplicate:
+            # 如果当前用户不可见，提示不可见
+            if duplicate.owner_id != current_user.id:
+                flash('该客户已有同名联系人（不可见）', 'danger')
+                return redirect(url_for('customer.view_company', company_id=company_id))
+            else:
+                flash('该客户已有同名联系人', 'danger')
+                return redirect(url_for('customer.view_company', company_id=company_id))
+        
+        # 创建新联系人
         contact = Contact(
             company_id=company_id,
-            name=request.form['name'],
+            name=name,
             department=request.form['department'],
             position=request.form['position'],
             phone=request.form['phone'],
             email=request.form['email'],
             notes=request.form['notes'],
-            owner_id=current_user.id  # 设置联系人所有者为当前用户
+            owner_id=current_user.id
         )
+        
+        # 添加到数据库
         db.session.add(contact)
         db.session.commit()
         
+        # 设置为主要联系人（如果勾选）
         if request.form.get('is_primary'):
             contact.set_as_primary()
             
+        # 尝试刷新关系，确保显示在列表中
+        try:
+            # 刷新会话，确保所有关系都已更新
+            db.session.refresh(contact)
+            db.session.refresh(company)
+            # 记录日志，帮助调试
+            print(f"联系人 {name} 已添加到公司 {company.company_name}，所有者ID: {current_user.id}")
+        except Exception as e:
+            # 记录但不阻止流程
+            print(f"刷新联系人关系时出错: {str(e)}")
+            
         flash('联系人添加成功！', 'success')
         return redirect(url_for('customer.view_company', company_id=company_id))
-    return render_template('customer/add_contact.html', company=company, COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
+        
+    # GET请求显示表单
+    return render_template('customer/add_contact.html', company=company, 
+                          COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
                           INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
                           STATUS_OPTIONS=STATUS_OPTIONS)
 
@@ -1579,15 +1680,12 @@ def delete_action_api(action_id):
 @customer.route('/contacts/<int:contact_id>/view')
 @permission_required('customer', 'view')
 def view_contact(contact_id):
-    """查看联系人详情页面"""
-    contact = get_viewable_data(Contact, current_user).filter(Contact.id == contact_id).first()
-    if not contact:
+    contact = Contact.query.get_or_404(contact_id)
+    if contact.owner_id != current_user.id:
         flash('您没有权限查看此联系人信息', 'danger')
         return redirect(url_for('customer.list_companies'))
     company = contact.company
-    # 获取该联系人的所有行动记录，按时间倒序排列
     actions = Action.query.filter_by(contact_id=contact.id).order_by(Action.created_at.desc()).all()
-    # 预加载所有行动记录的所有者信息
     owner_ids = [action.owner_id for action in actions if action.owner_id]
     if owner_ids:
         owners = {user.id: user for user in User.query.filter(User.id.in_(owner_ids)).all()}
@@ -1603,11 +1701,8 @@ def view_contact(contact_id):
 @permission_required('customer', 'create')
 def add_action_for_company(company_id):
     company = Company.query.get_or_404(company_id)
-    allowed_user_ids = current_user.get_viewable_user_ids()
-    if current_user.role != 'admin' and company.owner_id not in allowed_user_ids:
-        flash('您没有权限为该企业添加行动记录', 'danger')
-        return redirect(url_for('customer.view_company', company_id=company_id))
-    contacts = Contact.query.filter_by(company_id=company_id).all()
+    # 只允许为自己创建的联系人添加行动记录
+    contacts = Contact.query.filter_by(company_id=company_id, owner_id=current_user.id).all()
     projects = Project.query.filter(
         or_(
             Project.end_user == company.company_name,
@@ -1621,10 +1716,15 @@ def add_action_for_company(company_id):
     contact_actions = []
     contact_id = request.args.get('contact_id') if request.method == 'GET' else request.form.get('contact_id')
     if request.method == 'POST':
+        # 只能为自己创建的联系人添加
+        if contact_id:
+            contact = Contact.query.get(contact_id)
+            if not contact or contact.owner_id != current_user.id:
+                flash('只能为自己创建的联系人添加跟进记录', 'danger')
+                return redirect(url_for('customer.view_company', company_id=company_id))
         project_id = request.form.get('project_id') or None
         communication = request.form.get('communication')
         date = request.form.get('date')
-        # 只校验沟通情况和日期
         if not communication or not date:
             flash('请填写所有必填项', 'danger')
         else:

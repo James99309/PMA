@@ -157,10 +157,31 @@ def get_viewable_data(model_class, user, special_filters=None):
             for affiliation in affiliations:
                 viewable_user_ids.append(affiliation.owner_id)
                 
-            return model_class.query.filter(
-                model_class.owner_id.in_(viewable_user_ids),
-                *special_filters
-            )
+            # 针对Company类特殊处理，显示自己创建了联系人的企业
+            if model_class.__name__ == 'Company':
+                from app.models.customer import Contact
+                # 获取用户创建的所有联系人所属的公司ID列表
+                user_contact_company_ids = db.session.query(Contact.company_id).filter(
+                    Contact.owner_id == user.id
+                ).distinct().all()
+                user_contact_company_ids = [company_id for (company_id,) in user_contact_company_ids]
+                
+                # 打印日志，帮助调试
+                print(f"用户 {user.username} (ID: {user.id}) 创建的联系人所属公司IDs: {user_contact_company_ids}")
+                
+                # 合并条件：展示用户有权限查看的公司或用户创建了联系人的公司
+                return model_class.query.filter(
+                    db.or_(
+                        model_class.owner_id.in_(viewable_user_ids),
+                        model_class.id.in_(user_contact_company_ids)
+                    ),
+                    *special_filters
+                )
+            else:  # Contact类按原有逻辑
+                return model_class.query.filter(
+                    model_class.owner_id.in_(viewable_user_ids),
+                    *special_filters
+                )
     
     # 行动记录的特殊处理
     if model_class.__name__ == 'Action':

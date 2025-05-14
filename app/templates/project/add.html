@@ -89,7 +89,7 @@
                         <label for="end_user" class="form-label mb-2">直接用户</label>
                         <select class="form-select" id="end_user" name="end_user">
                             <option value="">请选择用户</option>
-                            {% for user in end_users %}
+                            {% for user in user %}
                             <option value="{{ user.company_name }}">{{ user.company_name }}</option>
                             {% endfor %}
                         </select>
@@ -98,7 +98,7 @@
                         <label for="design_issues" class="form-label mb-2">设计院及顾问</label>
                         <select class="form-select" id="design_issues" name="design_issues">
                             <option value="">请选择设计院及顾问</option>
-                            {% for designer in designers %}
+                            {% for designer in designer %}
                             <option value="{{ designer.company_name }}">{{ designer.company_name }}</option>
                             {% endfor %}
                         </select>
@@ -110,7 +110,7 @@
                         <label for="contractor" class="form-label mb-2">总承包单位</label>
                         <select class="form-select" id="contractor" name="contractor">
                             <option value="">请选择总承包单位</option>
-                            {% for contractor in contractors %}
+                            {% for contractor in contractor %}
                             <option value="{{ contractor.company_name }}">{{ contractor.company_name }}</option>
                             {% endfor %}
                         </select>
@@ -119,7 +119,7 @@
                         <label for="system_integrator" class="form-label mb-2">系统集成商</label>
                         <select class="form-select" id="system_integrator" name="system_integrator">
                             <option value="">请选择系统集成商</option>
-                            {% for integrator in integrators %}
+                            {% for integrator in integrator %}
                             <option value="{{ integrator.company_name }}">{{ integrator.company_name }}</option>
                             {% endfor %}
                         </select>
@@ -131,7 +131,7 @@
                         <label for="dealer" class="form-label mb-2">经销商</label>
                         <select class="form-select" id="dealer" name="dealer">
                             <option value="">请选择经销商</option>
-                            {% for dealer in dealers %}
+                            {% for dealer in dealer %}
                             <option value="{{ dealer.company_name }}">{{ dealer.company_name }}</option>
                             {% endfor %}
                         </select>
@@ -229,11 +229,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // 初始化加载所有类型的公司数据
-    loadCompanies('users', 'end_user');
-    loadCompanies('designers', 'design_issues');
-    loadCompanies('contractors', 'contractor');
-    loadCompanies('integrators', 'system_integrator');
-    loadCompanies('dealers', 'dealer');
+    loadCompanies('user', 'end_user');
+    loadCompanies('designer', 'design_issues');
+    loadCompanies('contractor', 'contractor');
+    loadCompanies('integrator', 'system_integrator');
+    loadCompanies('dealer', 'dealer');
 });
 </script>
 

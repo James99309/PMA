@@ -22,7 +22,7 @@ import os
 from flask_wtf.csrf import CSRFProtect
 from app.models.action import Action, ActionReply
 from app.models.projectpm_stage_history import ProjectStageHistory  # 导入阶段历史记录模型
-from app.utils.dictionary_helpers import project_type_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS
+from app.utils.dictionary_helpers import project_type_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS
 
 csrf = CSRFProtect()
 
@@ -308,11 +308,8 @@ def add_project():
 def get_company_data():
     company_query = get_viewable_data(Company, current_user)
     return {
-        'end_users': company_query.filter_by(company_type='用户').all(),
-        'designers': company_query.filter_by(company_type='设计院及顾问').all(),
-        'contractors': company_query.filter_by(company_type='总承包单位').all(),
-        'integrators': company_query.filter_by(company_type='系统集成商').all(),
-        'dealers': company_query.filter_by(company_type='经销商').all()
+        key: company_query.filter_by(company_type=key).all()
+        for key in COMPANY_TYPE_LABELS.keys()
     }
 
 @project.route('/edit/<int:project_id>', methods=['GET', 'POST'])
@@ -384,14 +381,12 @@ def edit_project(project_id):
             else:
                 flash(f'保存失败：{type(e).__name__}: {str(e)}', 'danger')
     
-    # 获取公司列表 - 修改为字典格式
+    # 使用集中定义的字典生成公司数据
+    from app.utils.dictionary_helpers import COMPANY_TYPE_LABELS
     company_query = get_viewable_data(Company, current_user)
     companies = {
-        'users': company_query.filter_by(company_type='用户').all(),
-        'designers': company_query.filter_by(company_type='设计院及顾问').all(),
-        'contractors': company_query.filter_by(company_type='总承包单位').all(),
-        'integrators': company_query.filter_by(company_type='系统集成商').all(),
-        'dealers': company_query.filter_by(company_type='经销商').all()
+        key: company_query.filter_by(company_type=key).all()
+        for key in COMPANY_TYPE_LABELS.keys()
     }
     
     return render_template('project/edit.html', project=project, companies=companies)
@@ -559,16 +554,16 @@ def approve_authorization(project_id):
         if current_db_user.role == 'admin':
             can_approve = True
         # 渠道经理可以批准渠道跟进项目
-        elif current_db_user.role == 'channel_manager' and project.project_type == '渠道跟进':
+        elif current_db_user.role == 'channel_manager' and project.project_type == 'channel_follow':
             can_approve = True
         # 销售总监可以批准销售重点项目
-        elif current_db_user.role == 'sales_director' and project.project_type == '销售重点':
+        elif current_db_user.role == 'sales_director' and project.project_type == 'sales_focus':
             can_approve = True
         # 销售经理不能批准业务机会项目
-        elif current_db_user.role == 'sales' and project.project_type != '业务机会':
+        elif current_db_user.role == 'sales' and project.project_type != 'business_opportunity':
             can_approve = True
         # 服务经理可以批准业务机会项目
-        elif current_db_user.role in ['service', 'service_manager'] and project.project_type == '业务机会':
+        elif current_db_user.role in ['service', 'service_manager'] and project.project_type == 'business_opportunity':
             can_approve = True
 
         if not can_approve:
@@ -635,16 +630,16 @@ def reject_authorization(project_id):
         if current_db_user.role == 'admin':
             can_reject = True
         # 渠道经理可以拒绝渠道跟进项目
-        elif current_db_user.role == 'channel_manager' and project.project_type == '渠道跟进':
+        elif current_db_user.role == 'channel_manager' and project.project_type == 'channel_follow':
             can_reject = True
         # 销售总监可以拒绝销售重点项目
-        elif current_db_user.role == 'sales_director' and project.project_type == '销售重点':
+        elif current_db_user.role == 'sales_director' and project.project_type == 'sales_focus':
             can_reject = True
         # 销售经理不能拒绝业务机会项目
-        elif current_db_user.role == 'sales' and project.project_type != '业务机会':
+        elif current_db_user.role == 'sales' and project.project_type != 'business_opportunity':
             can_reject = True
         # 服务经理可以拒绝业务机会项目
-        elif current_db_user.role in ['service', 'service_manager'] and project.project_type == '业务机会':
+        elif current_db_user.role in ['service', 'service_manager'] and project.project_type == 'business_opportunity':
             can_reject = True
 
         if not can_reject:

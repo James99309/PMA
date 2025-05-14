@@ -770,23 +770,30 @@ def batch_delete_users():
         else:
             # 表单方式，user_ids为多个同名字段
             user_ids = request.form.getlist('user_ids')
+            
         if not user_ids or not isinstance(user_ids, list):
             return jsonify({'success': False, 'message': '未指定要删除的用户', 'data': None}), 400
+            
         # 转换为整数
         try:
             user_ids = [int(uid) for uid in user_ids]
         except Exception:
             return jsonify({'success': False, 'message': '用户ID格式错误', 'data': None}), 400
+            
         deleted, deactivated = [], []
         allowed_users = get_viewable_data(User, current_user).filter(User.id.in_(user_ids)).all()
         allowed_user_ids = {u.id for u in allowed_users}
+        
         logger.info(f"[批量用户删除] 操作人: {current_user.username}, 目标用户ID列表: {user_ids}")
+        
         for uid in user_ids:
             if uid not in allowed_user_ids:
                 continue
+                
             user = next((u for u in allowed_users if u.id == uid), None)
             if not user:
                 continue
+                
             has_data = False
             if Project.query.filter_by(owner_id=user.id).first():
                 has_data = True
@@ -794,23 +801,28 @@ def batch_delete_users():
                 has_data = True
             if Quotation.query.filter_by(owner_id=user.id).first():
                 has_data = True
+                
             if not has_data:
                 db.session.delete(user)
                 deleted.append(user.username)
             else:
                 user.is_active = False
                 deactivated.append(user.username)
+                
         db.session.commit()
         logger.info(f"[批量用户删除] 成功，已删除: {deleted}, 已禁用: {deactivated}")
+        
         # 判断请求类型，返回JSON或重定向
         if request.is_json:
             return jsonify({'success': True, 'message': '批量删除完成', 'data': {'deleted': deleted, 'deactivated': deactivated}})
         else:
             flash(f'批量删除完成，已删除: {deleted}，已禁用: {deactivated}', 'success')
             return redirect(url_for('user.list_users'))
+            
     except Exception as e:
         db.session.rollback()
         logger.error(f"[批量用户删除] 失败: {str(e)}", exc_info=True)
+        
         if request.is_json:
             return jsonify({'success': False, 'message': str(e), 'data': None}), 500
         else:

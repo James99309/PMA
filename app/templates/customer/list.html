@@ -3,11 +3,23 @@
 
 {% block title %}客户管理{% endblock %}
 
+{% block head %}
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
     <div class="row mb-4 mt-5">
         <div class="col-12">
             <h1 class="fw-bold" style="color:#222;">客户列表</h1>
+        </div>
+    </div>
+    <!-- 添加刷新关系按钮 -->
+    <div class="row mb-2">
+        <div class="col-12 text-end">
+            <!-- 已删除刷新联系人关系按钮和说明 -->
         </div>
     </div>
     <!-- 删除原有的企业列表标题 -->
@@ -31,7 +43,7 @@
                                 </span>
                                 <div id="companySearchResults" class="dropdown-menu w-100" style="max-height: 300px; overflow-y: auto; left: 0; top: 100%; margin-top: 2px;"></div>
                             </div>
-                            <div class="form-text small text-muted">输入企业名称进行搜索，可查看所有企业</div>
+                            <div class="form-text small text-muted">输入企业名称进行搜索，可查看所有企业的基本信息（含非自己的客户）</div>
                         </div>
                         <div class="col-md-4">
                             <div class="position-relative">
@@ -41,7 +53,7 @@
                                 </span>
                                 <div id="contactSearchResults" class="dropdown-menu w-100" style="max-height: 300px; overflow-y: auto; left: 0; top: 100%; margin-top: 2px;"></div>
                             </div>
-                            <div class="form-text small text-muted">输入联系人姓名搜索，点击跳转到对应企业</div>
+                            <div class="form-text small text-muted">输入联系人姓名搜索，点击可跳转到相应企业</div>
                         </div>
                         <div class="col-md-4 text-end">
                             {%- if has_permission('customer', 'create') %}
@@ -148,6 +160,9 @@
                     <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="text-decoration-none text-dark">
                         {{ company.company_name }}
                     </a>
+                    {% if company.owner_id != current_user.id and current_user.id in company.contact_owner_ids %}
+                    <span class="badge bg-info ms-1" style="font-size: 0.6em;">已创建联系人</span>
+                    {% endif %}
                 </h5>
                 <div class="small text-muted mb-2">
                     {{ company.company_type|company_type_label }} · {{ company.industry|industry_label }}
@@ -197,10 +212,10 @@
                                 </div>
                             </th>
                             {% endif %}
-                            <th class="px-3 py-3" style="min-width: 130px;">
-                                <a href="{{ url_for('customer.list_companies', sort='company_code', order='asc' if sort_field == 'company_code' and sort_order == 'desc' else 'desc', search=search_term) }}" class="text-dark d-flex align-items-center {{ 'current-sort' if sort_field == 'company_code' }}">
-                                    企业代码
-                                    {% if sort_field == 'company_code' %}
+                            <th class="px-3 py-3" style="min-width: 100px;">
+                                <a href="{{ url_for('customer.list_companies', sort='owner_id', order='asc' if sort_field == 'owner_id' and sort_order == 'desc' else 'desc', search=search_term) }}" class="text-dark d-flex align-items-center {{ 'current-sort' if sort_field == 'owner_id' }}">
+                                    拥有人
+                                    {% if sort_field == 'owner_id' %}
                                     <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }} ms-1"></i>
                                     {% else %}
                                     <i class="fas fa-sort ms-1 text-muted"></i>
@@ -269,16 +284,6 @@
                                 </a>
                             </th>
                             <th class="px-3 py-3" style="min-width: 200px;">备注</th>
-                            <th class="px-3 py-3" style="min-width: 100px;">
-                                <a href="{{ url_for('customer.list_companies', sort='owner_id', order='asc' if sort_field == 'owner_id' and sort_order == 'desc' else 'desc', search=search_term) }}" class="text-dark d-flex align-items-center {{ 'current-sort' if sort_field == 'owner_id' }}">
-                                    拥有人
-                                    {% if sort_field == 'owner_id' %}
-                                    <i class="fas fa-sort-{{ 'down' if sort_order == 'desc' else 'up' }} ms-1"></i>
-                                    {% else %}
-                                    <i class="fas fa-sort ms-1 text-muted"></i>
-                                    {% endif %}
-                                </a>
-                            </th>
                             <th class="px-3 py-3" style="min-width: 120px;">
                                 <a href="{{ url_for('customer.list_companies', sort='updated_at', order='asc' if sort_field == 'updated_at' and sort_order == 'desc' else 'desc', search=search_term) }}" class="text-dark d-flex align-items-center {{ 'current-sort' if sort_field == 'updated_at' }}">
                                     更新时间
@@ -319,11 +324,14 @@
                                 </div>
                             </td>
                             {% endif %}
-                            <td class="px-3"><span class="badge bg-info">{{ company.company_code }}</span></td>
+                            <td class="px-3">{{ render_owner(company.owner) }}</td>
                             <td class="px-3">
                                 <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="text-decoration-none">
                                     {{ company.company_name }}
                                 </a>
+                                {% if company.owner_id != current_user.id and current_user.id in company.contact_owner_ids %}
+                                <span class="badge bg-info ms-1" style="font-size: 0.7em;">已创建联系人</span>
+                                {% endif %}
                             </td>
                             <td class="px-3">{{ company.company_type|company_type_label }}</td>
                             <td class="px-3">{{ company.industry|industry_label }}</td>
@@ -334,7 +342,6 @@
                                 <span class="badge {% if company.status == 'active' %}bg-success{% else %}bg-secondary{% endif %}">{{ company.status|status_label }}</span>
                             </td>
                             <td class="px-3">{{ company.notes }}</td>
-                            <td class="px-3">{{ render_owner(company.owner) }}</td>
                             <td class="px-3">{{ render_date(company.updated_at) }}</td>
                             <td class="px-3">{{ render_date(company.created_at) }}</td>
                         </tr>
@@ -1624,7 +1631,7 @@ function initCompanySearch() {
                     // 添加标题
                     const headerDiv = document.createElement('div');
                     headerDiv.className = 'suggestions-header';
-                    headerDiv.textContent = '相似企业（仅供参考）';
+                    headerDiv.textContent = '企业搜索结果';
                     companyResults.appendChild(headerDiv);
                     
                     // 添加结果项
@@ -1661,10 +1668,17 @@ function initCompanySearch() {
                             contentDiv.appendChild(ownerSpan);
                         }
                         
-                        // 添加点击事件处理，点击搜索结果项直接填充输入框
+                        // 添加企业访问权限视觉提示
+                        if (!company.has_permission) {
+                            const permissionBadge = document.createElement('span');
+                            permissionBadge.className = 'badge bg-secondary ms-2';
+                            permissionBadge.textContent = '只读';
+                            contentDiv.appendChild(permissionBadge);
+                        }
+                        
+                        // 添加点击事件处理，点击搜索结果项直接跳转到企业详情页
                         item.addEventListener('click', function() {
-                            companyInput.value = company.name;
-                            companyResults.classList.remove('show');
+                            window.location.href = `/customer/view/${company.id}`;
                         });
                         
                         item.appendChild(contentDiv);
@@ -1675,7 +1689,12 @@ function initCompanySearch() {
                     if (data.results.length > 0) {
                         const noticeDiv = document.createElement('div');
                         noticeDiv.className = 'reference-notice';
-                        noticeDiv.textContent = '点击可直接选择企业进行查询';
+                        noticeDiv.textContent = '点击企业名称可直接查看详情';
+                        companyResults.appendChild(noticeDiv);
+                    } else {
+                        const noticeDiv = document.createElement('div');
+                        noticeDiv.className = 'reference-notice';
+                        noticeDiv.textContent = '没有找到匹配的企业';
                         companyResults.appendChild(noticeDiv);
                     }
                     
