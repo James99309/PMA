@@ -18,7 +18,7 @@ class ProjectStageProgress {
             this.branchStages = options.stageDefs.branchStages;
         } else {
             // 兼容旧写法，手动插入批价阶段
-            this.mainStages = [
+        this.mainStages = [
                 { id: 0, key: 'discover', name: '发现' },
                 { id: 1, key: 'embed', name: '植入' },
                 { id: 2, key: 'pre_tender', name: '招标前' },
@@ -26,11 +26,11 @@ class ProjectStageProgress {
                 { id: 4, key: 'awarded', name: '中标' },
                 { id: 5, key: 'quoted', name: '批价' },
                 { id: 6, key: 'signed', name: '签约' }
-            ];
-            this.branchStages = [
+        ];
+        this.branchStages = [
                 { id: 7, key: 'lost', name: '失败' },
                 { id: 8, key: 'paused', name: '搁置' }
-            ];
+        ];
         }
         this.stages = [...this.mainStages, ...this.branchStages];
         this.lastMainStage = this.getLastMainStageBeforeBranch();

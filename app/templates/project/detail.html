@@ -28,21 +28,21 @@
             <div class="d-flex flex-wrap align-items-center justify-content-between mb-2">
                 <div>
                     {{ ui.render_button("返回列表", href=url_for('project.list_projects'), color="secondary", icon="fas fa-arrow-left") }}
-                    {% if project.current_stage != '签约' or current_user.role == 'admin' %}
+                    {% if current_stage_key != 'signed' %}
                         {% if current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) %}
                         {{ ui.render_button("编辑项目", href=url_for('project.edit_project', project_id=project.id), color="primary", icon="fas fa-edit", extra_class="ms-2") }}
                         {% endif %}
                     {% endif %}
                 </div>
-                {% if project.current_stage != '签约' or current_user.role == 'admin' %}
-                        {% if current_user.has_permission('project', 'delete') and (current_user.role == 'admin' or current_user.id == project.owner_id) %}
+                {% if current_stage_key != 'signed' %}
+                    {% if current_user.has_permission('project', 'delete') and (current_user.role == 'admin' or current_user.id == project.owner_id) %}
                     <form action="{{ url_for('project.delete_project', project_id=project.id) }}" method="post" style="display:inline;" onsubmit="return confirm('确定要删除此项目吗？此操作不可恢复。');">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             {{ ui.render_button("删除项目", type="submit", color="danger", icon="fas fa-trash") }}
                         </form>
-                        {% endif %}
                     {% endif %}
-                </div>
+                {% endif %}
+            </div>
             <!-- 授权编号/状态区域整体上移 -->
             {% if project.authorization_code %}
             <div class="mt-2">
@@ -142,6 +142,12 @@
        class="quotation-link" title="查看报价单详情">
         {{ render_currency(project.quotation_customer) }}
     </a>
+    {% if current_stage_key != 'signed' %}
+        <!-- 这里插入报价单的编辑和删除按钮（如有） -->
+        {# 例如：#}
+        {# {{ ui.render_button("编辑报价单", href=url_for('quotation.edit_quotation', id=project.quotations.order_by(Quotation.created_at.desc()).first().id), color="primary", icon="fas fa-edit", extra_class="btn-sm ms-2") }} #}
+        {# {{ ui.render_button("删除报价单", href=url_for('quotation.delete_quotation', id=project.quotations.order_by(Quotation.created_at.desc()).first().id), color="danger", icon="fas fa-trash", extra_class="btn-sm ms-2") }} #}
+    {% endif %}
 {% else %}
     {% if current_user.has_permission('quotation', 'create') %}
     <form action="{{ url_for('quotation.create_quotation') }}" method="GET" style="display:inline;">
@@ -615,18 +621,16 @@
             });
         });
 
-        // 在文档加载完成后初始化项目阶段进度条
-        {% if project and project.current_stage %}
-        var stageProgress = new ProjectStageProgress({
+        // 初始化项目阶段进度条
+        new ProjectStageProgress({
             containerId: 'projectStageProgress',
-            projectId: {{ project.id|tojson }},
-            currentStage: {{ project.current_stage|tojson }},
-            csrfToken: {{ csrf_token()|tojson }},
-            updateUrl: {{ url_for('project.update_project_stage')|tojson }},
-            canEdit: {{ ((current_user.role == 'admin' and project.current_stage == '签约') or ((current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id)) and project.current_stage != '签约'))|tojson }},
-            stageHistory: {{ stageHistory|tojson }}
+            projectId: {{ project.id }},
+            currentStage: '{{ current_stage_key }}',
+            csrfToken: '{{ csrf_token() }}',
+            updateUrl: "{{ url_for('project.update_project_stage') }}",
+            stageHistory: {{ stageHistory|tojson }},
+            canEdit: {% if current_stage_key == 'signed' %}false{% elif current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) %}true{% else %}false{% endif %}
         });
-        {% endif %}
     });
 
     // 删除行动记录函数

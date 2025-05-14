@@ -219,7 +219,14 @@ def view_project(project_id):
     # 查询项目相关的行动记录，按时间倒序排列
     project_actions = Action.query.filter_by(project_id=project_id).order_by(Action.date.desc(), Action.created_at.desc()).all()
 
-    return render_template('project/detail.html', project=project, Quotation=Quotation, related_companies=related_companies, stageHistory=stage_history, project_actions=project_actions)
+    # 传递阶段key给前端，确保一致性
+    current_stage_key = project.current_stage
+    # 如果是中文名，反查key
+    if current_stage_key not in PROJECT_STAGE_LABELS:
+        reverse_lookup = {v['zh']: k for k, v in PROJECT_STAGE_LABELS.items()}
+        current_stage_key = reverse_lookup.get(current_stage_key, current_stage_key)
+
+    return render_template('project/detail.html', project=project, Quotation=Quotation, related_companies=related_companies, stageHistory=stage_history, project_actions=project_actions, current_stage_key=current_stage_key)
 
 @project.route('/add', methods=['GET', 'POST'])
 @permission_required('project', 'create')
@@ -424,7 +431,7 @@ def delete_project(project_id):
             for quotation in quotations:
                 db.session.delete(quotation)
             logger.info(f"删除项目 {project_id} 前，已删除关联的 {len(quotations)} 个报价单")
-
+        
         # 先删除项目关联的所有阶段历史记录
         from app.models.projectpm_stage_history import ProjectStageHistory
         stage_histories = ProjectStageHistory.query.filter_by(project_id=project_id).all()
