@@ -4,7 +4,7 @@ from app.models.project import Project
 from app.models.customer import Company, Contact
 from app.models.product import Product  # 添加产品模型导入
 from datetime import datetime
-from sqlalchemy import or_, func
+from sqlalchemy import or_
 from app import db
 from flask_login import login_required, current_user
 from app.decorators import permission_required  # 添加权限装饰器导入
@@ -1474,49 +1474,37 @@ def save_quotation(id):
             'message': f'{error_type}: {str(e)}'
         }), 500
 
-@quotation.route('/search_projects', methods=['GET'])
+@quotation.route('/search_projects')
 @login_required
 def search_projects():
-    """用于Select2的项目搜索API，支持按项目名称或拼音模糊搜索，并排除已有报价单的项目"""
-    search_term = request.args.get('term', '')
-    
-    if not search_term or len(search_term.strip()) < 1:
-        return jsonify([])
+    """搜索未关联报价单的项目，支持名称模糊查询"""
+    try:
+        term = request.args.get('term', '').strip()
+        logger.debug(f"搜索项目，关键词: {term}")
         
-    # 查询可用项目（排除已有报价单的项目）
-    from sqlalchemy import or_, func
-    
-    # 创建基础查询：获取当前用户可见的项目
-    base_query = get_viewable_data(Project, current_user)
-    
-    # 过滤条件1：排除已有报价单的项目
-    subquery = db.session.query(Quotation.project_id).distinct().subquery()
-    base_query = base_query.filter(~Project.id.in_(subquery))
-    
-    # 过滤条件2：搜索词模糊匹配（项目名称或拼音）
-    search_term = f"%{search_term}%"
-    search_query = base_query.filter(
-        or_(
-            Project.project_name.ilike(search_term),
-            func.lower(Project.pinyin).ilike(func.lower(search_term)),
-            Project.keywords.ilike(search_term)
-        )
-    )
-    
-    # 限制返回数量，避免结果过多
-    projects = search_query.limit(20).all()
-    
-    # 格式化为Select2所需的格式
-    results = []
-    for project in projects:
-        # 准备显示文本：项目名称+授权码（如有）
-        display_text = project.project_name
-        if project.authorization_code:
-            display_text += f" ({project.authorization_code})"
-            
-        results.append({
-            'id': project.id,
-            'text': display_text
-        })
-    
-    return jsonify(results) 
+        # 查询已关联报价单的项目ID
+        subquery = db.session.query(Quotation.project_id).distinct()
+        
+        # 构建基本查询：当前用户可见且未关联报价单的项目
+        query = get_viewable_data(Project, current_user).filter(~Project.id.in_(subquery))
+        
+        # 如果有搜索关键词，添加模糊查询条件
+        if term:
+            like_term = f"%{term}%"
+            query = query.filter(Project.project_name.ilike(like_term))
+        
+        # 按创建时间降序排列并限制返回数量
+        projects = query.order_by(Project.created_at.desc()).limit(20).all()
+        
+        # 构建结果
+        results = [{'id': p.id, 'text': p.project_name} for p in projects]
+        logger.debug(f"搜索结果: 找到 {len(results)} 个项目")
+        
+        # 设置缓存控制头
+        response = jsonify(results)
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        return response
+        
+    except Exception as e:
+        logger.error(f"搜索项目失败: {str(e)}")
+        return jsonify([]), 500 
