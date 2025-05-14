@@ -11,19 +11,27 @@ class ProjectStageProgress {
         this.stageHistory = options.stageHistory || null;
         this.canEdit = options.canEdit || false;
 
-        // 项目阶段定义
-        this.mainStages = [
-            { id: 0, name: '发现', value: '发现' },
-            { id: 1, name: '品牌植入', value: '品牌植入' },
-            { id: 2, name: '招标前', value: '招标前' },
-            { id: 3, name: '招标中', value: '招标中' },
-            { id: 4, name: '中标', value: '中标' },
-            { id: 5, name: '签约', value: '签约' }
-        ];
-        this.branchStages = [
-            { id: 6, name: '失败', value: '失败' },
-            { id: 7, name: '搁置', value: '搁置' }
-        ];
+        // 项目阶段定义（由后端传递标准结构，避免硬编码）
+        if (options && options.stageDefs) {
+            // 后端传递的标准结构，支持key和label
+            this.mainStages = options.stageDefs.mainStages;
+            this.branchStages = options.stageDefs.branchStages;
+        } else {
+            // 兼容旧写法，手动插入批价阶段
+            this.mainStages = [
+                { id: 0, key: 'discover', name: '发现' },
+                { id: 1, key: 'embed', name: '植入' },
+                { id: 2, key: 'pre_tender', name: '招标前' },
+                { id: 3, key: 'tendering', name: '招标中' },
+                { id: 4, key: 'awarded', name: '中标' },
+                { id: 5, key: 'quoted', name: '批价' },
+                { id: 6, key: 'signed', name: '签约' }
+            ];
+            this.branchStages = [
+                { id: 7, key: 'lost', name: '失败' },
+                { id: 8, key: 'paused', name: '搁置' }
+            ];
+        }
         this.stages = [...this.mainStages, ...this.branchStages];
         this.lastMainStage = this.getLastMainStageBeforeBranch();
 
@@ -52,7 +60,7 @@ class ProjectStageProgress {
      * 获取阶段索引
      */
     getStageIndex(stageName) {
-        const stageIndex = this.stages.findIndex(stage => stage.value === stageName);
+        const stageIndex = this.stages.findIndex(stage => stage.key === stageName);
         return stageIndex >= 0 ? stageIndex : 0;
     }
 
@@ -61,7 +69,7 @@ class ProjectStageProgress {
      */
     getNextStage() {
         // 如果当前是失败阶段，无下一阶段
-        if (this.currentStage === '失败') {
+        if (this.currentStage === 'lost') {
             return null;
         }
         
@@ -89,7 +97,7 @@ class ProjectStageProgress {
             // 无历史记录，所有阶段天数显示为"未知"
             this.stageDurations = this.stages.map(stage => {
                 return {
-                    stageName: stage.value,
+                    stageName: stage.key,
                     days: '未知'
                 };
             });
@@ -138,10 +146,10 @@ class ProjectStageProgress {
         this.mainStages.forEach((stage, index) => {
             const stageMarker = document.createElement('div');
             stageMarker.className = 'stage-marker';
-            stageMarker.dataset.stage = stage.value;
+            stageMarker.dataset.stage = stage.key;
 
             // 状态样式
-            if (this.currentStage === '失败' || this.currentStage === '搁置') {
+            if (this.currentStage === 'lost' || this.currentStage === 'paused') {
                 stageMarker.classList.add('stage-disabled');
             } else if (index < this.getStageIndex(this.currentStage)) {
                 stageMarker.classList.add('stage-completed');
@@ -162,11 +170,11 @@ class ProjectStageProgress {
                 stageName.textContent = stage.name;
                 stageMarker.appendChild(stageName);
                 // 推进信息
-                const durationItem = this.stageDurations.find(item => item.stageName === stage.value);
+                const durationItem = this.stageDurations.find(item => item.stageName === stage.key);
                 const days = durationItem ? durationItem.days : '未知';
                 let stageExtra = '';
                 if (this.stageHistory && Array.isArray(this.stageHistory)) {
-                    const historyItem = this.stageHistory.find(item => item.stage === stage.value);
+                    const historyItem = this.stageHistory.find(item => item.stage === stage.key);
                     if (historyItem && historyItem.startDate && typeof days === 'number' && days > 0) {
                         stageExtra = `${historyItem.startDate.split(' ')[0]}｜${days}天`;
                     } else if (historyItem && historyItem.startDate) {
@@ -191,7 +199,7 @@ class ProjectStageProgress {
                 // 点击推进 - 修复：不再直接更新this.currentStage，而是直接调用API
                 stageMarker.addEventListener('click', () => {
                     // 不再本地更新状态，直接调用API
-                    this.updateStage(stage.value);
+                    this.updateStage(stage.key);
                 });
                 progressBar.appendChild(stageMarker);
                 return;
@@ -200,14 +208,14 @@ class ProjectStageProgress {
             // 圆点
             const stageDot = document.createElement('div');
             stageDot.className = 'stage-dot';
-            if (this.currentStage === '失败' || this.currentStage === '搁置') {
+            if (this.currentStage === 'lost' || this.currentStage === 'paused') {
                 stageDot.classList.add('dot-disabled');
             }
-            if (index < this.getStageIndex(this.currentStage) && this.currentStage !== '失败' && this.currentStage !== '搁置') {
+            if (index < this.getStageIndex(this.currentStage) && this.currentStage !== 'lost' && this.currentStage !== 'paused') {
                 const icon = document.createElement('i');
                 icon.className = 'fas fa-check';
                 stageDot.appendChild(icon);
-            } else if (index === this.getStageIndex(this.currentStage) && this.currentStage !== '失败' && this.currentStage !== '搁置') {
+            } else if (index === this.getStageIndex(this.currentStage) && this.currentStage !== 'lost' && this.currentStage !== 'paused') {
                 const icon = document.createElement('i');
                 icon.className = 'fas fa-circle';
                 stageDot.appendChild(icon);
@@ -221,11 +229,11 @@ class ProjectStageProgress {
             stageMarker.appendChild(stageName);
 
             // 推进信息
-            const durationItem = this.stageDurations.find(item => item.stageName === stage.value);
+            const durationItem = this.stageDurations.find(item => item.stageName === stage.key);
             const days = durationItem ? durationItem.days : '未知';
             let stageExtra = '';
             if (this.stageHistory && Array.isArray(this.stageHistory)) {
-                const historyItem = this.stageHistory.find(item => item.stage === stage.value);
+                const historyItem = this.stageHistory.find(item => item.stage === stage.key);
                 if (historyItem && historyItem.startDate && typeof days === 'number' && days > 0) {
                     stageExtra = `${historyItem.startDate.split(' ')[0]}｜${days}天`;
                 } else if (historyItem && historyItem.startDate) {
@@ -250,14 +258,14 @@ class ProjectStageProgress {
         this.branchStages.forEach(branch => {
             const branchMarker = document.createElement('div');
             branchMarker.className = 'stage-marker stage-branch';
-            branchMarker.dataset.stage = branch.value;
+            branchMarker.dataset.stage = branch.key;
 
             // 状态样式
-            if (this.currentStage === branch.value) {
+            if (this.currentStage === branch.key) {
                 branchMarker.classList.add('stage-current');
-                if (branch.value === '失败') {
+                if (branch.key === 'lost') {
                     branchMarker.classList.add('stage-failed');
-                } else if (branch.value === '搁置') {
+                } else if (branch.key === 'paused') {
                     branchMarker.classList.add('stage-pending');
                 }
             }
@@ -265,18 +273,18 @@ class ProjectStageProgress {
             // 圆点
             const branchDot = document.createElement('div');
             branchDot.className = 'stage-dot';
-            if (branch.value === '失败') {
+            if (branch.key === 'lost') {
                 // 添加X图标
                 branchDot.innerHTML = '<i class="fas fa-times"></i>';
-            } else if (branch.value === '搁置') {
+            } else if (branch.key === 'paused') {
                 // 添加感叹号图标
                 branchDot.innerHTML = '<i class="fas fa-exclamation"></i>';
             }
-            if (this.currentStage === branch.value) {
-                if (branch.value === '失败') {
+            if (this.currentStage === branch.key) {
+                if (branch.key === 'lost') {
                     branchDot.style.backgroundColor = '#e74c3c';
                     branchDot.style.borderColor = '#e74c3c';
-                } else if (branch.value === '搁置') {
+                } else if (branch.key === 'paused') {
                     branchDot.style.backgroundColor = '#555';
                     branchDot.style.borderColor = '#555';
                 }
@@ -286,12 +294,12 @@ class ProjectStageProgress {
                 branchDot.style.cursor = 'pointer';
                 branchDot.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    let msg = this.currentStage === branch.value
+                    let msg = this.currentStage === branch.key
                         ? `确定要恢复到主线阶段吗？`
-                        : `确定要将项目阶段切换为"${branch.value}"吗？`;
+                        : `确定要将项目阶段切换为"${branch.key}"吗？`;
                     if (window.confirm(msg)) {
                         // 统一通过API切换，无论是分支还是恢复主线
-                        let targetStage = (this.currentStage === branch.value) ? this.lastMainStage : branch.value;
+                        let targetStage = (this.currentStage === branch.key) ? this.lastMainStage : branch.key;
                         this.updateStage(targetStage);
                     }
                 });
@@ -308,11 +316,11 @@ class ProjectStageProgress {
             branchMarker.appendChild(branchName);
 
             // 推进信息
-            const durationItem = this.stageDurations.find(item => item.stageName === branch.value);
+            const durationItem = this.stageDurations.find(item => item.stageName === branch.key);
             const days = durationItem ? durationItem.days : '未知';
             let stageExtra = '';
             if (this.stageHistory && Array.isArray(this.stageHistory)) {
-                const historyItem = this.stageHistory.find(item => item.stage === branch.value);
+                const historyItem = this.stageHistory.find(item => item.stage === branch.key);
                 if (historyItem && historyItem.startDate && typeof days === 'number' && days > 0) {
                     stageExtra = `${historyItem.startDate.split(' ')[0]}｜${days}天`;
                 } else if (historyItem && historyItem.startDate) {
@@ -478,7 +486,7 @@ class ProjectStageProgress {
     advanceStage() {
         const nextStage = this.getNextStage();
         if (!nextStage) return;
-        this.updateStage(nextStage.value);
+        this.updateStage(nextStage.key);
     }
 
     /**
@@ -488,17 +496,17 @@ class ProjectStageProgress {
     getLastMainStageBeforeBranch() {
         // 如果没有历史，默认返回"发现"
         if (!this.stageHistory || !Array.isArray(this.stageHistory) || this.stageHistory.length === 0) {
-            return this.mainStages[0].value;
+            return this.mainStages[0].key;
         }
         // 倒序查找最后一个主线阶段
         for (let i = this.stageHistory.length - 1; i >= 0; i--) {
             const s = this.stageHistory[i];
-            if (this.mainStages.some(m => m.value === s.stage)) {
+            if (this.mainStages.some(m => m.key === s.stage)) {
                 return s.stage;
             }
         }
         // 找不到则返回"发现"
-        return this.mainStages[0].value;
+        return this.mainStages[0].key;
     }
 }
 

@@ -16,7 +16,7 @@ PROJECT_TYPE_LABELS = {
 
 PROJECT_STAGE_LABELS = {
     'discover': {'zh': '发现', 'en': 'Discover'},
-    'embed': {'zh': '品牌植入', 'en': 'Embed'},
+    'embed': {'zh': '植入', 'en': 'Embed'},
     'pre_tender': {'zh': '招标前', 'en': 'Pre-tender'},
     'tendering': {'zh': '招标中', 'en': 'Tendering'},
     'awarded': {'zh': '中标', 'en': 'Awarded'},
