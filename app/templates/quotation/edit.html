@@ -306,6 +306,35 @@ input[type="number"].quantity {
     width: auto;
     min-width: 200px;
 }
+
+.discount-rate-group .form-control.discount-rate {
+  padding-right: 0.5em;
+  min-width: 70px;
+  text-align: right;
+}
+
+.discount-rate-group .input-group-text {
+  min-width: 2em;
+  justify-content: center;
+}
+
+.discount-rate-container {
+    position: relative;
+    display: inline-block;
+    width: calc(100% - 24px); /* 预留%号宽度 */
+    vertical-align: middle;
+}
+.discount-rate-percent {
+    display: inline-block;
+    width: 18px;
+    text-align: left;
+    margin-left: 2px;
+    color: #666;
+    font-size: 0.95em;
+    vertical-align: middle;
+    position: relative;
+    top: 2px;
+}
 </style>
 {% endblock %}
 
@@ -449,9 +478,9 @@ input[type="number"].quantity {
                                                     </td>
                                                     <td>
                                                         <div class="discount-rate-container">
-                                                            <input type="number" class="form-control discount-rate" name="discount_rate[]" 
-                                                                   value="100.0" min="0" step="0.1" max="1000" required>
+                                                            <input type="number" class="form-control discount-rate" name="discount_rate[]" value="{{ item.discount_rate if item.discount_rate is defined else 100.0 }}" min="0" step="0.1" max="1000" required style="text-align:right;">
                                                         </div>
+                                                        <span class="discount-rate-percent">%</span>
                                                     </td>
                                                     <td>
                                                         <input type="text" class="form-control discounted-price" name="discounted_price[]" 
@@ -500,9 +529,9 @@ input[type="number"].quantity {
                                                     </td>
                                                     <td>
                                                         <div class="discount-rate-container">
-                                                            <input type="number" class="form-control discount-rate" name="discount_rate[]" 
-                                                                   value="100.0" min="0" step="0.1" max="1000" required>
+                                                            <input type="number" class="form-control discount-rate" name="discount_rate[]" value="100.0" min="0" step="0.1" max="1000" required style="text-align:right;">
                                                         </div>
+                                                        <span class="discount-rate-percent">%</span>
                                                     </td>
                                                     <td>
                                                         <input type="text" class="form-control discounted-price" name="discounted_price[]" 
@@ -938,20 +967,24 @@ $(document).ready(function() {
     
     // 如果URL中有project_id参数，自动选择项目并加载项目信息
     {% if preset_project_id %}
-    // 预设项目ID时，直接加载项目信息
-    $.ajax({
-        url: '/quotation/get_project/{{ preset_project_id }}',
-        method: 'GET',
-        success: function(project) {
-            console.log('获取到预设项目信息:', project);
-            // 填充项目相关信息
-            $('#project_stage').val(project.current_stage || '');
-            $('#project_type').val(project.project_type || '');
-        },
-        error: function(xhr, status, error) {
-            console.error('获取项目信息失败:', error);
-        }
+    <script>
+    $(function() {
+        // 预设项目ID时，直接加载项目信息
+        $.ajax({
+            url: '/quotation/get_project/{{ preset_project_id }}',
+            method: 'GET',
+            success: function(project) {
+                console.log('获取到预设项目信息:', project);
+                // 填充项目相关信息
+                $('#project_stage').val(project.current_stage || '');
+                $('#project_type').val(project.project_type || '');
+            },
+            error: function(xhr, status, error) {
+                console.error('获取项目信息失败:', error);
+            }
+        });
     });
+    </script>
     {% endif %}
     
     // 监听表单提交事件
@@ -1265,8 +1298,7 @@ $(document).ready(function() {
             // 计算折扣率（保留1位小数）
             var discountRate = (discountedPrice / marketPrice) * 100;
             discountRate = Math.max(0, discountRate); // 确保为正数
-            
-            // 更新折扣率
+            // 保留1位小数
             $row.find('.discount-rate').val(discountRate.toFixed(1));
         }
         
@@ -1303,9 +1335,9 @@ $(document).ready(function() {
                 </td>
                 <td>
                     <div class="discount-rate-container">
-                        <input type="number" class="form-control discount-rate" name="discount_rate[]" 
-                               value="100.0" min="0" step="0.1" required>
+                        <input type="number" class="form-control discount-rate" name="discount_rate[]" value="100.0" min="0" step="0.1" max="1000" required style="text-align:right;">
                     </div>
+                    <span class="discount-rate-percent">%</span>
                 </td>
                 <td>
                     <input type="text" class="form-control discounted-price" name="discounted_price[]" 
@@ -2132,9 +2164,9 @@ function initializeQuotationDetails(details) {
                     </td>
                     <td>
                         <div class="discount-rate-container">
-                            <input type="number" class="form-control discount-rate" name="discount_rate[]" 
-                                value="100.0" min="0" step="0.1" required>
+                            <input type="number" class="form-control discount-rate" name="discount_rate[]" value="100.0" min="0" step="0.1" max="1000" required style="text-align:right;">
                         </div>
+                        <span class="discount-rate-percent">%</span>
                     </td>
                     <td>
                         <input type="text" class="form-control discounted-price" name="discounted_price[]" 
@@ -2206,9 +2238,9 @@ function initializeQuotationDetails(details) {
                         </td>
                         <td>
                             <div class="discount-rate-container">
-                                <input type="number" class="form-control discount-rate" name="discount_rate[]" 
-                                    value="${safeDetail.discount_rate}" min="0" step="0.1" required>
+                                <input type="number" class="form-control discount-rate" name="discount_rate[]" value="${safeDetail.discount_rate}" min="0" step="0.1" max="1000" required style="text-align:right;">
                             </div>
+                            <span class="discount-rate-percent">%</span>
                         </td>
                         <td>
                             <input type="text" class="form-control discounted-price" name="discounted_price[]" 
@@ -2384,7 +2416,7 @@ $(document).ready(function() {
             if (marketPrice > 0) {
                 var discountRate = (discountedPrice / marketPrice) * 100;
                 discountRate = Math.max(0, discountRate);
-                $row.find('.discount-rate').val(discountRate.toFixed(1));
+                $row.find('.discount-rate').val(discountRate.toFixed(1)); // 保留1位小数
             }
             
             // 更新小计
@@ -2452,4 +2484,24 @@ function updateRowSubtotal($row) {
     updateGrandTotal();
 }
 </script>
+{% if preset_project_id %}
+<script>
+$(function() {
+    // 预设项目ID时，直接加载项目信息
+    $.ajax({
+        url: '/quotation/get_project/{{ preset_project_id }}',
+        method: 'GET',
+        success: function(project) {
+            console.log('获取到预设项目信息:', project);
+            // 填充项目相关信息
+            $('#project_stage').val(project.current_stage || '');
+            $('#project_type').val(project.project_type || '');
+        },
+        error: function(xhr, status, error) {
+            console.error('获取项目信息失败:', error);
+        }
+    });
+});
+</script>
+{% endif %}
 {% endblock %}

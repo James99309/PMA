@@ -929,28 +929,26 @@ def api_edit_user(user_id):
         user.is_department_manager = is_department_manager
         if password and password.strip():
             user.set_password(password)
-        try:
-            db.session.commit()
-            from app.models.user import sync_department_manager_affiliations, remove_department_manager_affiliations, sync_affiliations_for_new_member, transfer_member_affiliations_on_department_change
-            # 负责人变为True
-            if not old_manager and is_department_manager:
-                sync_department_manager_affiliations(user)
-            # 负责人变为False
-            elif old_manager and not is_department_manager:
-                remove_department_manager_affiliations(user)
-            # 部门或公司变更，且仍为负责人
-            elif is_department_manager and (old_department != department or old_company != company):
-                remove_department_manager_affiliations(user)
-                sync_department_manager_affiliations(user)
-            # 普通成员变更部门/公司，自动为新部门负责人添加归属，并同步转移归属
-            if (old_department != department or old_company != company) and not is_department_manager:
-                transfer_member_affiliations_on_department_change(user, old_department, old_company)
-            logger.info(f"[API用户编辑] 成功，目标用户: {user.username}")
-            return jsonify({'success': True, 'message': '用户信息更新成功', 'data': user.to_dict()})
-        except Exception as db_error:
-            db.session.rollback()
-            logger.error(f"[API用户编辑] 失败: {str(db_error)}", exc_info=True)
-            return jsonify({'success': False, 'message': f'更新失败: {str(db_error)}', 'data': None}), 500
+        
+        # 移除嵌套的try，整合成单一try-except结构
+        db.session.commit()
+        from app.models.user import sync_department_manager_affiliations, remove_department_manager_affiliations, sync_affiliations_for_new_member, transfer_member_affiliations_on_department_change
+        # 负责人变为True
+        if not old_manager and is_department_manager:
+            sync_department_manager_affiliations(user)
+        # 负责人变为False
+        elif old_manager and not is_department_manager:
+            remove_department_manager_affiliations(user)
+        # 部门或公司变更，且仍为负责人
+        elif is_department_manager and (old_department != department or old_company != company):
+            remove_department_manager_affiliations(user)
+            sync_department_manager_affiliations(user)
+        # 普通成员变更部门/公司，自动为新部门负责人添加归属，并同步转移归属
+        if (old_department != department or old_company != company) and not is_department_manager:
+            transfer_member_affiliations_on_department_change(user, old_department, old_company)
+        
+        logger.info(f"[API用户编辑] 成功，目标用户: {user.username}")
+        return jsonify({'success': True, 'message': '用户信息更新成功', 'data': user.to_dict()})
     except Exception as e:
         db.session.rollback()
         logger.error(f"[API用户编辑] 失败: {str(e)}", exc_info=True)

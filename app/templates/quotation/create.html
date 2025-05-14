@@ -32,16 +32,15 @@
                             <!-- 项目选择 -->
                             <div class="col-md-12">
                                 <label for="project_id" class="form-label">关联项目</label>
-                                {% if preset_project_id %}
-                                <!-- 如果有预设项目，则显示只读项目名 -->
-                                <input type="hidden" name="project_id" value="{{ preset_project_id }}">
-                                <input type="text" class="form-control" value="{{ selected_project.project_name }} {% if selected_project.authorization_code %}({{ selected_project.authorization_code }}){% endif %}" readonly>
-                                {% else %}
-                                <!-- 动态搜索项目 -->
-                                <select class="form-select project-select" id="project_id" name="project_id" required>
-                                    <option value="">搜索或选择项目...</option>
+                                <select class="form-select" id="project_id" name="project_id" required
+                                    {% if preset_project_id %}disabled{% endif %}>
+                                    <option value="">-- 请选择项目 --</option>
+                                    {% for project in projects %}
+                                    <option value="{{ project.id }}" {% if preset_project_id and preset_project_id|int == project.id %}selected{% endif %}>
+                                        {{ project.project_name }} {% if project.authorization_code %}({{ project.authorization_code }}){% endif %}
+                                    </option>
+                                    {% endfor %}
                                 </select>
-                                {% endif %}
                             </div>
                         </div>
 
@@ -118,9 +117,8 @@
                                                     <input type="text" class="form-control product-price" name="product_price[]" readonly>
                                                 </td>
                                                 <td>
-                                                    <div class="discount-rate-container">
-                                                        <input type="number" class="form-control discount-rate" name="discount_rate[]" 
-                                               value="100.0" min="0" step="0.1" max="500" required>
+                                                    <div class="discount-rate-group">
+                                                        <input type="number" class="form-control discount-rate" name="discount_rate[]" value="100.0" min="0" step="0.1" max="1000" required style="text-align:right;">
                                                     </div>
                                                 </td>
                                                 <td>
@@ -253,71 +251,14 @@ input[type="number"].form-control {
     pointer-events: none;
 }
 
-/* Select2 样式美化 */
-.select2-container--bootstrap4 .select2-selection {
-    height: calc(1.5em + 0.75rem + 2px) !important;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.875rem;
-    border-radius: 0.25rem;
-    border: 1px solid #ced4da;
+.discount-rate-group .form-control.discount-rate {
+  padding-right: 0.5em;
+  min-width: 70px;
+  text-align: right;
 }
-
-.select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
-    line-height: calc(1.5em + 0.25rem);
-    padding-left: 0;
-    color: #495057;
-}
-
-.select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow {
-    height: calc(1.5em + 0.75rem);
-}
-
-.select2-container--bootstrap4 .select2-results__option--highlighted[aria-selected] {
-    background-color: #16a0bf !important;
-}
-
-.select2-container--bootstrap4 .select2-search--dropdown .select2-search__field {
-    padding: 0.375rem 0.75rem;
-    border: 1px solid #ced4da;
-    border-radius: 0.25rem;
-}
-
-.select2-container--bootstrap4 .select2-results__option {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.875rem;
-}
-
-.select2-result-project {
-    padding: 3px;
-}
-
-.select2-result-project__title {
-    font-weight: bold;
-    margin-bottom: 2px;
-}
-
-.select2-container--bootstrap4 .select2-dropdown {
-    border-color: #80bdff;
-    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-}
-
-/* 美化 Select2 下拉菜单的滚动条 */
-.select2-results__options::-webkit-scrollbar {
-    width: 8px;
-}
-
-.select2-results__options::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 4px;
-}
-
-.select2-results__options::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 4px;
-}
-
-.select2-results__options::-webkit-scrollbar-thumb:hover {
-    background: #555;
+.discount-rate-group .input-group-text {
+  min-width: 2em;
+  justify-content: center;
 }
 </style>
 
@@ -423,72 +364,6 @@ $(document).ready(function() {
     
     // 初始化首行产品计算
     initializeFirstRow();
-    
-    // 初始化项目选择的 Select2
-    $('.project-select').select2({
-        theme: 'bootstrap4',
-        placeholder: '输入项目名称/拼音/英文关键词搜索...',
-        allowClear: true,
-        language: {
-            noResults: function() {
-                return "未找到匹配项目";
-            },
-            searching: function() {
-                return "搜索中...";
-            },
-            inputTooShort: function() {
-                return "请至少输入1个字符";
-            }
-        },
-        minimumInputLength: 1,
-        ajax: {
-            url: "{{ url_for('quotation.search_projects') }}",
-            dataType: 'json',
-            delay: 300,
-            data: function(params) {
-                return {
-                    term: params.term
-                };
-            },
-            processResults: function(data) {
-                return {
-                    results: data
-                };
-            },
-            cache: true
-        },
-        escapeMarkup: function(markup) {
-            return markup;
-        },
-        templateResult: formatProject,
-        templateSelection: formatProjectSelection
-    });
-    
-    // 格式化项目搜索结果
-    function formatProject(project) {
-        if (project.loading) {
-            return project.text;
-        }
-        
-        return '<div class="select2-result-project">' +
-            '<div class="select2-result-project__title">' + project.text + '</div>' +
-            '</div>';
-    }
-    
-    // 格式化选中项目的显示
-    function formatProjectSelection(project) {
-        return project.text || project.id;
-    }
-    
-    // 项目改变时触发数据获取
-    $('#project_id').on('change', function() {
-        var projectId = $(this).val();
-        if (projectId) {
-            fetchProjectData(projectId);
-        } else {
-            $('#project_stage, #project_type').val('');
-        }
-    });
     
     // 监听项目选择变化
     $('#project_id').on('change', function() {
@@ -732,6 +607,11 @@ function initializeProductAutocomplete() {
             $.ajax({
                 url: '/quotation/products/categories',
                 method: 'GET',
+                cache: false, // 禁用AJAX缓存
+                headers: {
+                    'Pragma': 'no-cache',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate'
+                },
                 data: {
                     '_': new Date().getTime() // 添加时间戳参数避免缓存
                 },
@@ -1495,8 +1375,8 @@ function calculateDiscountRateFromPrice($row) {
             discountRate = 100;
         }
         
-        // 设置折扣率
-        $row.find('.discount-rate').val(discountRate.toFixed(2));
+        // 设置折扣率，始终保留1位小数
+        $row.find('.discount-rate').val(discountRate.toFixed(1));
         
         // 计算行价格（使用单价而不是重新计算）
         // 计算小计

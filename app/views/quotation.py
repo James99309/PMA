@@ -1472,39 +1472,4 @@ def save_quotation(id):
         return jsonify({
             'status': 'error',
             'message': f'{error_type}: {str(e)}'
-        }), 500
-
-@quotation.route('/search_projects')
-@login_required
-def search_projects():
-    """搜索未关联报价单的项目，支持名称模糊查询"""
-    try:
-        term = request.args.get('term', '').strip()
-        logger.debug(f"搜索项目，关键词: {term}")
-        
-        # 查询已关联报价单的项目ID
-        subquery = db.session.query(Quotation.project_id).distinct()
-        
-        # 构建基本查询：当前用户可见且未关联报价单的项目
-        query = get_viewable_data(Project, current_user).filter(~Project.id.in_(subquery))
-        
-        # 如果有搜索关键词，添加模糊查询条件
-        if term:
-            like_term = f"%{term}%"
-            query = query.filter(Project.project_name.ilike(like_term))
-        
-        # 按创建时间降序排列并限制返回数量
-        projects = query.order_by(Project.created_at.desc()).limit(20).all()
-        
-        # 构建结果
-        results = [{'id': p.id, 'text': p.project_name} for p in projects]
-        logger.debug(f"搜索结果: 找到 {len(results)} 个项目")
-        
-        # 设置缓存控制头
-        response = jsonify(results)
-        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-        return response
-        
-    except Exception as e:
-        logger.error(f"搜索项目失败: {str(e)}")
-        return jsonify([]), 500 
+        }), 500 
