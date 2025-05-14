@@ -3,50 +3,87 @@
  * 负责加载、展示和切换项目统计数据
  */
 
-// 阶段常量定义
-const STAGE_ORDER = ['发现', '品牌植入', '招标前', '招标中', '中标', '签约', '失败', '搁置'];
+// 阶段常量定义（用英文key，顺序与后端一致）
+const STAGE_ORDER = [
+    'discover', 'embed', 'pre_tender', 'tendering', 'awarded', 'quoted', 'signed', 'lost', 'paused'
+];
+
+// 阶段key到中文的映射 - 初始化为空，完全依赖API拉取
+let STAGE_LABELS = {};
+
+// 从后端获取最新的阶段标签映射
+function loadStageLabels() {
+    fetch('/projectpm/statistics/api/stage_labels')
+        .then(response => {
+            if (!response.ok) {
+                console.warn('获取阶段标签映射失败，使用默认值');
+                return null;
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data && data.success && data.labels) {
+                // 更新全局STAGE_LABELS对象
+                STAGE_LABELS = data.labels;
+                console.log('成功加载阶段标签映射');
+            }
+        })
+        .catch(error => {
+            console.warn('获取阶段标签失败，使用默认值:', error);
+        });
+}
+
+// 阶段key转中文label的辅助函数
+function project_stage_label(key) {
+    if (!key) return '未设置';
+    // 如果存在对应的标签则返回，否则返回key本身
+    if (STAGE_LABELS[key] && STAGE_LABELS[key]['zh']) {
+        return STAGE_LABELS[key]['zh'];
+    }
+    return STAGE_LABELS[key] || key;
+}
 
 // 阶段颜色定义 - 项目数量颜色
 const STAGE_COLORS_COUNT = {
-    '发现': 'rgba(2, 103, 5, 0.05)',      // 026705 透明度 5%
-    '品牌植入': 'rgba(2, 103, 5, 0.2)',   // 026705 透明度 20%
-    '招标前': 'rgba(2, 103, 5, 0.3)',     // 026705 透明度 30%
-    '招标中': 'rgba(2, 103, 5, 0.5)',     // 026705 透明度 50%
-    '中标': 'rgba(2, 103, 5, 0.7)',       // 026705 透明度 70%
-    '签约': 'rgba(2, 103, 5, 1)',         // 026705 透明度 100%
-    '失败': 'rgba(108, 3, 3, 1)',         // 6C0303 透明度 100%
-    '搁置': 'rgba(189, 194, 189, 1)'      // BDC2BD 透明度 100%
+    'discover': 'rgba(2, 103, 5, 0.05)',      // 026705 透明度 5%
+    'embed': 'rgba(2, 103, 5, 0.2)',   // 026705 透明度 20%
+    'pre_tender': 'rgba(2, 103, 5, 0.3)',     // 026705 透明度 30%
+    'tendering': 'rgba(2, 103, 5, 0.5)',     // 026705 透明度 50%
+    'awarded': 'rgba(2, 103, 5, 0.7)',       // 026705 透明度 70%
+    'signed': 'rgba(2, 103, 5, 1)',         // 026705 透明度 100%
+    'lost': 'rgba(108, 3, 3, 1)',         // 6C0303 透明度 100%
+    'paused': 'rgba(189, 194, 189, 1)'      // BDC2BD 透明度 100%
 };
 
 // 阶段颜色定义 - 项目金额颜色
 const STAGE_COLORS_AMOUNT = {
-    '发现': 'rgba(7, 70, 160, 0.05)',     // 0746A0 透明度 5%
-    '品牌植入': 'rgba(7, 70, 160, 0.2)',  // 0746A0 透明度 20%
-    '招标前': 'rgba(7, 70, 160, 0.3)',    // 0746A0 透明度 30%
-    '招标中': 'rgba(7, 70, 160, 0.5)',    // 0746A0 透明度 50%
-    '中标': 'rgba(7, 70, 160, 0.7)',      // 0746A0 透明度 70%
-    '签约': 'rgba(7, 70, 160, 1)',        // 0746A0 透明度 100%
-    '失败': 'rgba(108, 3, 3, 1)',         // 6C0303 透明度 100%
-    '搁置': 'rgba(189, 194, 189, 1)'      // BDC2BD 透明度 100%
+    'discover': 'rgba(7, 70, 160, 0.05)',     // 0746A0 透明度 5%
+    'embed': 'rgba(7, 70, 160, 0.2)',  // 0746A0 透明度 20%
+    'pre_tender': 'rgba(7, 70, 160, 0.3)',    // 0746A0 透明度 30%
+    'tendering': 'rgba(7, 70, 160, 0.5)',    // 0746A0 透明度 50%
+    'awarded': 'rgba(7, 70, 160, 0.7)',      // 0746A0 透明度 70%
+    'signed': 'rgba(7, 70, 160, 1)',        // 0746A0 透明度 100%
+    'lost': 'rgba(108, 3, 3, 1)',         // 6C0303 透明度 100%
+    'paused': 'rgba(189, 194, 189, 1)'      // BDC2BD 透明度 100%
 };
 
 // 原来的兼容性颜色定义
 const STAGE_COLORS = {
-    '发现': 'rgba(2, 103, 5, 0.05)',
-    '品牌植入': 'rgba(2, 103, 5, 0.2)',
-    '招标前': 'rgba(2, 103, 5, 0.3)',
-    '招标中': 'rgba(2, 103, 5, 0.5)',
-    '中标': 'rgba(2, 103, 5, 0.7)',
-    '签约': 'rgba(2, 103, 5, 1)',
-    '失败': 'rgba(108, 3, 3, 1)',
-    '搁置': 'rgba(189, 194, 189, 1)'
+    'discover': 'rgba(2, 103, 5, 0.05)',
+    'embed': 'rgba(2, 103, 5, 0.2)',
+    'pre_tender': 'rgba(2, 103, 5, 0.3)',
+    'tendering': 'rgba(2, 103, 5, 0.5)',
+    'awarded': 'rgba(2, 103, 5, 0.7)',
+    'signed': 'rgba(2, 103, 5, 1)',
+    'lost': 'rgba(108, 3, 3, 1)',
+    'paused': 'rgba(189, 194, 189, 1)'
 };
 
 // 当前页面状态
 let currentPeriod = 'month';            // 当前统计周期
 let currentStageChartType = 'count';  // 当前阶段分布图类型: count 或 amount
 let currentTrendPeriod = 'week';      // 当前趋势周期: week 或 month
-let currentTrendStage = '发现';        // 当前显示的趋势阶段
+let currentTrendStage = 'discover';        // 当前显示的趋势阶段
 let currentAccountId = null;          // 当前选中的账户ID，null表示"全部账户"
 let trendData = null;                 // 保存的趋势数据
 let statisticsData = null;            // 保存的统计数据
@@ -76,6 +113,9 @@ function convertToWan(amount) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    // 加载最新的阶段标签映射
+    loadStageLabels();
+    
     // 初始化工具提示
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
@@ -417,7 +457,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const option = {
                 animation: true,
                 title: {
-                    text: trendData.stage || '趋势分析', // 简化标题，去掉"阶段"二字
+                    text: project_stage_label(trendData.stage) || '趋势分析', // 用中文
                     left: 'center',
                     top: 0,
                     textStyle: {
@@ -442,7 +482,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     formatter: function(params) {
                         const time = params[0].name;
                         const val = params[0].value;
-                        return `<b>${time}</b><br/>${trendData.stage || '项目'}数: <b>${val}</b>个`;
+                        return `<b>${time}</b><br/>${project_stage_label(trendData.stage) || '项目'}数: <b>${val}</b>个`;
                     }
                 },
                 grid: {
@@ -584,7 +624,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 添加阶段名称标签
                 const label = document.createElement('span');
                 label.className = 'stage-toggle-label';
-                label.textContent = stage;
+                label.textContent = project_stage_label(stage);
                 label.style.color = color;
                 
                 // 创建点和标签的容器
@@ -654,51 +694,44 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('validProjectsCount').textContent = formatNumber(stats.total_valid_projects || 0);
         document.getElementById('validProjectsAmount').textContent = formatNumber(Math.round((stats.total_valid_amount || 0) / 10000));
         
-        // 更新招标项目数据
-        if (stats.stage_counts && stats.stage_counts['招标中']) {
-            document.getElementById('tenderingProjectsCount').textContent = formatNumber(stats.stage_counts['招标中'] || 0);
+        // 更新招标中项目数据（英文key）
+        if (stats.stage_counts && stats.stage_counts['tendering']) {
+            document.getElementById('tenderingProjectsCount').textContent = formatNumber(stats.stage_counts['tendering'] || 0);
         } else {
             document.getElementById('tenderingProjectsCount').textContent = '0';
         }
         
-        if (stats.stage_amounts && stats.stage_amounts['招标中']) {
-            document.getElementById('tenderingProjectsAmount').textContent = formatNumber(Math.round((stats.stage_amounts['招标中'] || 0) / 10000));
+        if (stats.stage_amounts && stats.stage_amounts['tendering']) {
+            document.getElementById('tenderingProjectsAmount').textContent = formatNumber(Math.round((stats.stage_amounts['tendering'] || 0) / 10000));
         } else {
             document.getElementById('tenderingProjectsAmount').textContent = '0';
         }
         
-        // 更新中标项目数据
-        if (stats.stage_counts && stats.stage_counts['中标']) {
-            document.getElementById('wonProjectsCount').textContent = formatNumber(stats.stage_counts['中标'] || 0);
+        // 更新中标项目数据（英文key）
+        if (stats.stage_counts && stats.stage_counts['awarded']) {
+            document.getElementById('wonProjectsCount').textContent = formatNumber(stats.stage_counts['awarded'] || 0);
         } else {
             document.getElementById('wonProjectsCount').textContent = '0';
         }
         
-        if (stats.stage_amounts && stats.stage_amounts['中标']) {
-            document.getElementById('wonProjectsAmount').textContent = formatNumber(Math.round((stats.stage_amounts['中标'] || 0) / 10000));
+        if (stats.stage_amounts && stats.stage_amounts['awarded']) {
+            document.getElementById('wonProjectsAmount').textContent = formatNumber(Math.round((stats.stage_amounts['awarded'] || 0) / 10000));
         } else {
             document.getElementById('wonProjectsAmount').textContent = '0';
         }
         
         // 业务推进统计（本期新建+更新的项目）
-        // 只保留本月逻辑，始终显示真实数据
         const newCount = stats.new_projects_count || 0;
         const updatedCount = stats.updated_projects_count || 0;
         const countEl = document.getElementById('updatedProjectsCount');
         if (countEl) {
             countEl.textContent = formatNumber(newCount + updatedCount);
-            console.debug(`[业务推进] count: 新建${newCount} + 更新${updatedCount} = ${newCount + updatedCount}`);
-        } else {
-            console.warn('[业务推进] updatedProjectsCount 元素不存在');
         }
         const newAmount = stats.new_projects_amount || 0;
         const updatedAmount = stats.updated_projects_amount || 0;
         const amountEl = document.getElementById('updatedProjectsAmount');
         if (amountEl) {
             amountEl.textContent = formatNumber(Math.round((newAmount + updatedAmount) / 10000));
-            console.debug(`[业务推进] amount: 新建${newAmount} + 更新${updatedAmount} = ${(newAmount + updatedAmount) / 10000} 万元`);
-        } else {
-            console.warn('[业务推进] updatedProjectsAmount 元素不存在');
         }
         
         // 绘制阶段分布图表
@@ -706,8 +739,6 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 drawStageDistributionChart();
             } catch (err) {
-                console.error('绘制阶段分布图表出错:', err);
-                // 错误恢复: 清空统计数据并重新使用演示数据进行绘制
                 statisticsData = DEMO_STATISTICS_DATA;
                 drawStageDistributionChart();
             }
@@ -813,6 +844,9 @@ document.addEventListener('DOMContentLoaded', function() {
             // 图表标题 - 简化标题
             const chartTitle = currentStageChartType === 'count' ? '项目数量' : '项目金额(万元)';
             
+            // 阶段标签映射为中文
+            const stageLabels = stages.map(stage => project_stage_label(stage));
+            
             // 图表配置
             const option = {
                 animation: true,
@@ -848,7 +882,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 xAxis: {
                     type: 'category',
-                    data: stages,
+                    data: stageLabels,
                     axisLabel: { 
                         interval: 0, 
                         rotate: 0,

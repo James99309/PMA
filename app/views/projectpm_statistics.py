@@ -5,6 +5,7 @@ from flask_login import login_required, current_user
 import logging
 from sqlalchemy import distinct
 from sqlalchemy import func
+from app.utils.dictionary_helpers import PROJECT_STAGE_LABELS
 
 logger = logging.getLogger(__name__)
 
@@ -140,4 +141,20 @@ def get_available_accounts_api():
         return jsonify({
             'success': False,
             'message': f'获取可用账户列表失败: {str(e)}'
+        }), 500
+
+# 添加新的API端点，提供阶段标签映射
+@projectpm_statistics.route('/api/stage_labels', methods=['GET'])
+def get_stage_labels_api():
+    """返回项目阶段标签映射，供前端使用"""
+    try:
+        return jsonify({
+            'success': True,
+            'labels': PROJECT_STAGE_LABELS
+        })
+    except Exception as e:
+        logger.error(f"获取阶段标签映射失败: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'获取阶段标签映射失败: {str(e)}'
         }), 500 

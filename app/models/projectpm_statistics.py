@@ -7,30 +7,19 @@ from datetime import datetime, timedelta
 from flask_login import current_user
 import logging
 import json
+from app.utils.dictionary_helpers import PROJECT_STAGE_LABELS
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 # 主线阶段定义（含签约）
-MAINLINE_STAGES = [
-    '发现', '植入', '招标前', '招标中', '中标', '批价', '签约'
-]
+MAINLINE_STAGES = [k for k in PROJECT_STAGE_LABELS.keys() if k not in ('lost', 'paused')]
 
 # 阶段颜色定义
-STAGE_COLORS = {
-    '发现': '#8FD14F',       # 淡绿色
-    '品牌植入': '#9370DB',   # 淡紫色
-    '招标前': '#FFA500',     # 橘黄色
-    '招标中': '#FF4500',     # 橘红色
-    '中标': '#1E90FF',       # 蓝色
-    '签约': '#228B22',       # 深绿色
-    '失败': '#FF0000',       # 红色
-    '搁置': '#AAAAAA',       # 淡灰色
-    '未设置': '#CCCCCC'      # 灰色
-}
+STAGE_COLORS = {k: v['zh'] for k, v in PROJECT_STAGE_LABELS.items()}
 
 # 排序顺序
-STAGE_ORDER = ['发现', '植入', '招标前', '招标中', '中标', '批价', '签约', '失败', '搁置', '未设置']
+STAGE_ORDER = list(PROJECT_STAGE_LABELS.keys()) + ['unset']
 
 class ProjectStatistics:
     """项目统计模型"""
@@ -57,18 +46,18 @@ class ProjectStatistics:
                 query = query.filter(Project.owner_id == account_id)
             all_projects = query.all()
 
-            # 有效项目：主线阶段
-            valid_stages = MAINLINE_STAGES
+            # 有效项目：主线阶段，且排除签约阶段
+            valid_stages = [k for k in MAINLINE_STAGES if k != 'signed']
             valid_projects = [p for p in all_projects if (p.current_stage in valid_stages)]
             stats = {}
             stats['total_valid_projects'] = len(valid_projects)
             stats['total_valid_amount'] = sum(p.quotation_customer or 0 for p in valid_projects)
 
             # 各阶段项目数量
-            default_stages = MAINLINE_STAGES + ['签约', '失败', '搁置', '未设置']
+            default_stages = list(PROJECT_STAGE_LABELS.keys()) + ['unset']
             stage_counts = {stage: 0 for stage in default_stages}
             for p in all_projects:
-                stage = p.current_stage or '未设置'
+                stage = p.current_stage or 'unset'
                 if stage in stage_counts:
                     stage_counts[stage] += 1
                 else:
@@ -78,7 +67,7 @@ class ProjectStatistics:
             # 各阶段金额
             stage_amounts = {stage: 0 for stage in default_stages}
             for p in all_projects:
-                stage = p.current_stage or '未设置'
+                stage = p.current_stage or 'unset'
                 amount = p.quotation_customer or 0
                 if stage in stage_amounts:
                     stage_amounts[stage] += amount
@@ -87,12 +76,12 @@ class ProjectStatistics:
             stats['stage_amounts'] = stage_amounts
 
             # 招标中项目统计
-            bidding_projects = [p for p in all_projects if p.current_stage == '招标中']
+            bidding_projects = [p for p in all_projects if p.current_stage == 'tendering']
             stats['tendering_projects_count'] = len(bidding_projects)
             stats['tendering_projects_amount'] = sum(p.quotation_customer or 0 for p in bidding_projects)
 
             # 中标项目统计
-            won_projects = [p for p in all_projects if p.current_stage == '中标']
+            won_projects = [p for p in all_projects if p.current_stage == 'awarded']
             stats['won_projects_count'] = len(won_projects)
             stats['won_projects_amount'] = sum(p.quotation_customer or 0 for p in won_projects)
 
@@ -105,7 +94,7 @@ class ProjectStatistics:
                 ProjectStageHistory.change_date >= start_date,
                 ProjectStageHistory.from_stage.in_(MAINLINE_STAGES),
                 ProjectStageHistory.to_stage.in_(MAINLINE_STAGES),
-                ProjectStageHistory.to_stage.notin_(['失败', '搁置'])
+                ProjectStageHistory.to_stage.notin_(['lost', 'paused'])
             )
             if account_id:
                 history_query = history_query.filter(ProjectStageHistory.account_id == account_id)
@@ -141,7 +130,7 @@ class ProjectStatistics:
         except Exception as e:
             logger.error(f"生成项目统计数据出错: {str(e)}", exc_info=True)
             # 返回空统计数据
-            default_stages = MAINLINE_STAGES + ['签约', '失败', '搁置', '未设置']
+            default_stages = list(PROJECT_STAGE_LABELS.keys()) + ['unset']
             return {
                 'total_valid_projects': 0,
                 'total_valid_amount': 0,
@@ -316,7 +305,7 @@ class ProjectStatistics:
             dict: 包含所有阶段趋势数据的字典
         """
         # 关键阶段 - 去掉未设置阶段
-        key_stages = [stage for stage in STAGE_ORDER if stage != '未设置']
+        key_stages = [stage for stage in STAGE_ORDER if stage != 'unset']
         result = {}
         
         for stage in key_stages:

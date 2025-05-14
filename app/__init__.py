@@ -431,4 +431,8 @@ def create_app(config_class=Config):
     # 注册为全局函数，便于模板直接调用
     app.jinja_env.globals['project_stage_label'] = project_stage_label
 
+    # 统计图表
+    from app.views.projectpm_statistics import projectpm_statistics
+    app.register_blueprint(projectpm_statistics, url_prefix='/projectpm/statistics')
+
     return app 
