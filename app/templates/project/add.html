@@ -58,7 +58,7 @@
                     </div>
                     <div class="col-md-6">
                         <label for="current_stage" class="form-label mb-2">当前阶段</label>
-                        <input type="text" class="form-control" id="current_stage_display" value="{{ PROJECT_STAGE_LABELS['discover']['zh'] }}" readonly>
+                        <input type="text" class="form-control" id="current_stage_display" value="{{ project_stage_label('discover') }}" readonly>
                         <input type="hidden" name="current_stage" value="discover">
                     </div>
                 </div>

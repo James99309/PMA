@@ -428,4 +428,7 @@ def create_app(config_class=Config):
 
     app.jinja_env.globals['now'] = datetime.datetime.now
 
+    # 注册为全局函数，便于模板直接调用
+    app.jinja_env.globals['project_stage_label'] = project_stage_label
+
     return app 

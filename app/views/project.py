@@ -249,16 +249,15 @@ def add_project():
                 delivery_forecast = datetime.strptime(request.form['delivery_forecast'], '%Y-%m-%d').date()
             
             # 获取项目类型
-            project_type = request.form.get('project_type', 'normal')
-            project_type = {
-                '渠道跟进': 'channel_follow',
-                '销售重点': 'sales_focus',
-                '业务机会': 'business_opportunity',
-                'normal': 'normal',
-                'channel_follow': 'channel_follow',
-                'sales_focus': 'sales_focus',
-                'business_opportunity': 'business_opportunity'
-            }.get(project_type, 'normal')
+            from app.utils.dictionary_helpers import PROJECT_TYPE_LABELS
+            project_type = request.form.get('project_type', '').strip()
+            if not project_type:
+                project_type = None
+            elif project_type not in PROJECT_TYPE_LABELS:
+                # 反查中文 label 对应的 key
+                reverse_lookup = {v['zh']: k for k, v in PROJECT_TYPE_LABELS.items()}
+                project_type = reverse_lookup.get(project_type, None)
+            # 如果 project_type 是合法英文 key，则保留原样
             
             # 不再自动生成授权编号，授权编号必须通过申请流程获得
             authorization_code = None
@@ -389,7 +388,14 @@ def edit_project(project_id):
         for key in COMPANY_TYPE_LABELS.keys()
     }
     
-    return render_template('project/edit.html', project=project, companies=companies)
+    return render_template(
+        'project/edit.html',
+        project=project,
+        companies=companies,
+        PRODUCT_SITUATION_OPTIONS=PRODUCT_SITUATION_OPTIONS,
+        REPORT_SOURCE_OPTIONS=REPORT_SOURCE_OPTIONS,
+        PROJECT_TYPE_OPTIONS=PROJECT_TYPE_OPTIONS
+    )
 
 @project.route('/delete/<int:project_id>', methods=['POST'])
 @permission_required('project', 'delete')
@@ -414,24 +420,28 @@ def delete_project(project_id):
         # 先删除项目关联的所有报价单
         from app.models.quotation import Quotation
         quotations = Quotation.query.filter_by(project_id=project_id).all()
-        
         if quotations:
             for quotation in quotations:
                 db.session.delete(quotation)
-            
             logger.info(f"删除项目 {project_id} 前，已删除关联的 {len(quotations)} 个报价单")
-        
+
+        # 先删除项目关联的所有阶段历史记录
+        from app.models.projectpm_stage_history import ProjectStageHistory
+        stage_histories = ProjectStageHistory.query.filter_by(project_id=project_id).all()
+        if stage_histories:
+            for history in stage_histories:
+                db.session.delete(history)
+            logger.info(f"删除项目 {project_id} 前，已删除关联的 {len(stage_histories)} 条阶段历史记录")
+
         # 再删除项目
         db.session.delete(project)
         db.session.commit()
-        
         # 检查是否是AJAX请求
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({
                 'success': True,
                 'message': '项目删除成功！'
             })
-            
         flash('项目删除成功！', 'success')
     except Exception as e:
         db.session.rollback()
