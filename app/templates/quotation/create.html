@@ -32,15 +32,16 @@
                             <!-- 项目选择 -->
                             <div class="col-md-12">
                                 <label for="project_id" class="form-label">关联项目</label>
-                                <select class="form-select" id="project_id" name="project_id" required
-                                    {% if preset_project_id %}disabled{% endif %}>
-                                    <option value="">-- 请选择项目 --</option>
-                                    {% for project in projects %}
-                                    <option value="{{ project.id }}" {% if preset_project_id and preset_project_id|int == project.id %}selected{% endif %}>
-                                        {{ project.project_name }} {% if project.authorization_code %}({{ project.authorization_code }}){% endif %}
-                                    </option>
-                                    {% endfor %}
+                                {% if preset_project_id %}
+                                <!-- 如果有预设项目，则显示只读项目名 -->
+                                <input type="hidden" name="project_id" value="{{ preset_project_id }}">
+                                <input type="text" class="form-control" value="{{ selected_project.project_name }} {% if selected_project.authorization_code %}({{ selected_project.authorization_code }}){% endif %}" readonly>
+                                {% else %}
+                                <!-- 动态搜索项目 -->
+                                <select class="form-select project-select" id="project_id" name="project_id" required>
+                                    <option value="">搜索或选择项目...</option>
                                 </select>
+                                {% endif %}
                             </div>
                         </div>
 
@@ -251,6 +252,120 @@ input[type="number"].form-control {
     color: #666;
     pointer-events: none;
 }
+
+/* Select2 样式美化 - 更新为与截图一致的样式 */
+.select2-container--bootstrap4 .select2-selection {
+    height: 38px !important;
+    padding: 0.375rem 0.75rem;
+    font-size: 1rem;
+    border-radius: 0.375rem;
+    border: 1px solid #ced4da;
+    background-color: #fff;
+}
+
+.select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
+    line-height: 1.5;
+    padding-left: 0;
+    color: #495057;
+}
+
+.select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow {
+    height: 36px;
+}
+
+.select2-container--bootstrap4 .select2-results__option--highlighted[aria-selected] {
+    background-color: #16a0bf !important;
+}
+
+.select2-container--bootstrap4 .select2-search--dropdown .select2-search__field {
+    padding: 0.375rem 0.75rem;
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    box-shadow: none;
+}
+
+.select2-container--bootstrap4 .select2-results__option {
+    padding: 0.75rem;
+    font-size: 1rem;
+}
+
+.select2-dropdown {
+    border: none;
+    border-radius: 0.5rem;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+}
+
+.select2-container--open .select2-dropdown {
+    margin-top: 5px;
+}
+
+.select2-search--dropdown {
+    padding: 10px 15px;
+}
+
+.select2-results__option {
+    padding: 10px 15px;
+}
+
+.select2-container--default .select2-results > .select2-results__options {
+    max-height: 360px;
+}
+
+/* 更新下拉箭头与截图一致 */
+.select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow b {
+    border-color: #16a0bf transparent transparent transparent;
+    border-width: 6px 4px 0 4px;
+}
+
+.select2-container--bootstrap4.select2-container--open .select2-selection--single .select2-selection__arrow b {
+    border-color: transparent transparent #16a0bf transparent;
+    border-width: 0 4px 6px 4px;
+}
+
+/* 美化 Select2 下拉菜单的滚动条 */
+.select2-results__options::-webkit-scrollbar {
+    width: 8px;
+}
+
+.select2-results__options::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.select2-results__options::-webkit-scrollbar-thumb {
+    background: #ddd;
+    border-radius: 4px;
+}
+
+.select2-results__options::-webkit-scrollbar-thumb:hover {
+    background: #bbb;
+}
+
+/* 美化结果项样式 */
+.select2-result-project {
+    padding: 0;
+    line-height: 1.3;
+}
+
+.select2-result-project__title {
+    font-weight: 500;
+}
+
+.select2-search__field:focus {
+    outline: none;
+    border-color: #16a0bf !important;
+}
+
+/* 搜索框右侧添加搜索图标 */
+.select2-search--dropdown:after {
+    content: '\f002';
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+    position: absolute;
+    right: 25px;
+    top: 20px;
+    color: #16a0bf;
+}
 </style>
 
 {% endblock %}
@@ -355,6 +470,72 @@ $(document).ready(function() {
     
     // 初始化首行产品计算
     initializeFirstRow();
+    
+    // 初始化项目选择的 Select2
+    $('.project-select').select2({
+        theme: 'bootstrap4',
+        placeholder: '请输入项目名称/拼音关键词搜索',
+        allowClear: true,
+        language: {
+            noResults: function() {
+                return "未找到匹配项目";
+            },
+            searching: function() {
+                return "搜索中...";
+            },
+            inputTooShort: function() {
+                return "请至少输入1个字符";
+            }
+        },
+        minimumInputLength: 1,
+        ajax: {
+            url: "{{ url_for('quotation.search_projects') }}",
+            dataType: 'json',
+            delay: 300,
+            data: function(params) {
+                return {
+                    term: params.term
+                };
+            },
+            processResults: function(data) {
+                return {
+                    results: data
+                };
+            },
+            cache: true
+        },
+        escapeMarkup: function(markup) {
+            return markup;
+        },
+        templateResult: formatProject,
+        templateSelection: formatProjectSelection
+    });
+    
+    // 格式化项目搜索结果
+    function formatProject(project) {
+        if (project.loading) {
+            return project.text;
+        }
+        
+        return '<div class="select2-result-project">' +
+            '<div class="select2-result-project__title">' + project.text + '</div>' +
+            '</div>';
+    }
+    
+    // 格式化选中项目的显示
+    function formatProjectSelection(project) {
+        return project.text || project.id;
+    }
+    
+    // 项目改变时触发数据获取
+    $('#project_id').on('change', function() {
+        var projectId = $(this).val();
+        if (projectId) {
+            fetchProjectData(projectId);
+        } else {
+            $('#project_stage, #project_type').val('');
+        }
+    });
     
     // 监听项目选择变化
     $('#project_id').on('change', function() {
@@ -598,11 +779,6 @@ function initializeProductAutocomplete() {
             $.ajax({
                 url: '/quotation/products/categories',
                 method: 'GET',
-                cache: false, // 禁用AJAX缓存
-                headers: {
-                    'Pragma': 'no-cache',
-                    'Cache-Control': 'no-cache, no-store, must-revalidate'
-                },
                 data: {
                     '_': new Date().getTime() // 添加时间戳参数避免缓存
                 },

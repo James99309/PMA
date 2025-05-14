@@ -215,7 +215,7 @@
             selectViewBtn.addEventListener('click', function() {
                 checkboxes.forEach(checkbox => {
                     if (!checkbox.disabled && checkbox.classList.contains('perm-checkbox')) {
-                        checkbox.checked = checkbox.id.startsWith('view_');
+                    checkbox.checked = checkbox.id.startsWith('view_');
                     }
                 });
             });

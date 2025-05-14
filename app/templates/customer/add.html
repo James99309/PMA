@@ -53,37 +53,31 @@
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label for="industry" class="form-label">行业 <span class="text-danger">*</span></label>
-                                <select class="form-select" id="industry" name="industry" required disabled>
+                                <select class="form-select" id="industry" name="industry" required>
                                     <option value="">请选择行业</option>
-                                    <option value="制造业">制造业</option>
-                                    <option value="商业地产">商业地产</option>
-                                    <option value="石油能源">石油能源</option>
-                                    <option value="化工医药">化工医药</option>
-                                    <option value="医疗卫生">医疗卫生</option>
-                                    <option value="交通运输">交通运输</option>
-                                    <option value="政府机构">政府机构</option>
-                                    <option value="教育">教育</option>
-                                    <option value="其他">其他</option>
+                                    {% for value, label in INDUSTRY_OPTIONS %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                    {% endfor %}
                                 </select>
                             </div>
                             <div class="col-md-6">
                                 <label for="company_type" class="form-label">企业类型 <span class="text-danger">*</span></label>
-                                <select class="form-select" id="company_type" name="company_type" required disabled>
-                                    <option value="">-- 请选择企业类型 --</option>
-                                    <option value="用户">用户</option>
-                                    <option value="经销商">经销商</option>
-                                    <option value="系统集成商">系统集成商</option>
-                                    <option value="设计院及顾问">设计院及顾问</option>
-                                    <option value="总承包单位">总承包单位</option>
+                                <select class="form-select" id="company_type" name="company_type" required>
+                                    <option value="">请选择企业类型</option>
+                                    {% for value, label in COMPANY_TYPE_OPTIONS %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                    {% endfor %}
                                 </select>
                             </div>
                         </div>
 
                         <div class="mb-3">
                             <label for="status" class="form-label">状态</label>
-                            <select class="form-select" id="status" name="status" disabled>
-                                <option value="活跃">活跃</option>
-                                <option value="非活跃">非活跃</option>
+                            <select class="form-select" id="status" name="status">
+                                <option value="">请选择状态</option>
+                                {% for value, label in STATUS_OPTIONS %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
                             </select>
                         </div>
 

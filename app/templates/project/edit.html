@@ -62,18 +62,18 @@
                         <label for="report_source" class="form-label mb-2">报备来源</label>
                         <select class="form-select" id="report_source" name="report_source">
                             <option value="">请选择报备来源</option>
-                            <option value="销售" {% if project and project.report_source == '销售' %}selected{% endif %}>销售</option>
-                            <option value="经销商" {% if project and project.report_source == '经销商' %}selected{% endif %}>经销商</option>
-                            <option value="渠道" {% if project and project.report_source == '渠道' %}selected{% endif %}>渠道</option>
+                            {% for k, v in REPORT_SOURCE_OPTIONS %}
+                            <option value="{{ k }}" {% if project and project.report_source == k %}selected{% endif %}>{{ v }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                     <div class="col-md-6">
                         <label for="project_type" class="form-label mb-2">项目类型</label>
                         <select class="form-select" id="project_type" name="project_type" {% if project and project.project_type %}disabled{% endif %}>
                             <option value="">-- 请选择项目类型 --</option>
-                            <option value="sales_focus" {% if project and project.project_type in ['sales_focus', '销售重点'] %}selected{% endif %}>销售重点</option>
-                            <option value="channel_follow" {% if project and project.project_type in ['channel_follow', '渠道跟进'] %}selected{% endif %}>渠道跟进</option>
-                            <option value="business_opportunity" {% if project and project.project_type in ['business_opportunity', '业务机会'] %}selected{% endif %}>业务机会</option>
+                            {% for k, v in PROJECT_TYPE_OPTIONS %}
+                            <option value="{{ k }}" {% if project and project.project_type == k %}selected{% endif %}>{{ v }}</option>
+                            {% endfor %}
                         </select>
                         {% if project %}
                         <input type="hidden" name="project_type" value="{{ project.project_type }}">
@@ -86,9 +86,9 @@
                         <label for="product_situation" class="form-label mb-2">品牌情况</label>
                         <select class="form-select" id="product_situation" name="product_situation">
                             <option value="">请选择品牌情况</option>
-                            <option value="入围" {% if project and project.product_situation == '入围' %}selected{% endif %}>入围</option>
-                            <option value="围标" {% if project and project.product_situation == '围标' %}selected{% endif %}>围标</option>
-                            <option value="不确定" {% if project and project.product_situation == '不确定' %}selected{% endif %}>不确定</option>
+                            {% for k, v in PRODUCT_SITUATION_OPTIONS %}
+                            <option value="{{ k }}" {% if project and project.product_situation == k %}selected{% endif %}>{{ v }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                     <div class="col-md-6">

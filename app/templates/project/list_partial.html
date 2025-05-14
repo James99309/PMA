@@ -15,9 +15,9 @@
         {% if project.authorization_code %}
             {{ render_authorization_code(project.authorization_code, project.project_type) }}
         {% elif project.authorization_status == 'pending' %}
-            <span class="badge bg-warning">审批中</span>
+            <span class="badge bg-warning">{% if project.authorization_status %}{{ project.authorization_status|authorization_status_label('zh') }}{% else %}无{% endif %}</span>
         {% elif project.authorization_status == 'rejected' %}
-            <span class="badge bg-danger">已驳回</span>
+            <span class="badge bg-danger">{% if project.authorization_status %}{{ project.authorization_status|authorization_status_label('zh') }}{% else %}无{% endif %}</span>
         {% else %}
             <span class="badge bg-secondary">未申请</span>
         {% endif %}
@@ -27,8 +27,8 @@
             {{ project.project_name }}
         </a>
     </td>
-    <td>{{ project.current_stage if project.current_stage else '' }}</td>
-    <td>{{ render_project_type(project.project_type) if project.project_type else '' }}</td>
+    <td>{% if project.current_stage %}{{ project.current_stage|project_stage_label('zh') }}{% else %}无{% endif %}</td>
+    <td>{% if project.project_type %}{{ project.project_type|project_type_label('zh') }}{% else %}无{% endif %}</td>
     <td>
         {% if project.quotation_customer and project.quotations.count() > 0 %}
         <a href="{{ url_for('quotation.view_quotation', id=project.quotations.order_by(Quotation.created_at.desc()).first().id) }}"
@@ -39,7 +39,7 @@
         {{ '{:,.2f}'.format(project.quotation_customer) if project.quotation_customer else '' }}
         {% endif %}
     </td>
-    <td>{{ project.report_source if project.report_source else '' }}</td>
+    <td>{% if project.report_source %}{{ project.report_source|report_source_label('zh') }}{% else %}无{% endif %}</td>
     <td>{{ project.end_user if project.end_user else '' }}</td>
     <td>{{ project.design_issues if project.design_issues else '' }}</td>
     <td>{{ project.contractor if project.contractor else '' }}</td>

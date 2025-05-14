@@ -4,7 +4,7 @@ from app.models.project import Project
 from app.models.customer import Company, Contact
 from app.models.product import Product  # 添加产品模型导入
 from datetime import datetime
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from app import db
 from flask_login import login_required, current_user
 from app.decorators import permission_required  # 添加权限装饰器导入
@@ -407,8 +407,9 @@ def create_quotation():
                 print(f"Error: {str(e)}")  # 添加错误日志
     
     # GET 请求处理
-    # 获取所有项目
-    projects = get_viewable_data(Project, current_user).all()
+    # 只显示未有报价单的项目
+    subquery = db.session.query(Quotation.project_id).distinct()
+    projects = get_viewable_data(Project, current_user).filter(~Project.id.in_(subquery)).all()
     
     # 创建一个新的空报价单对象
     quotation = Quotation()
@@ -1471,4 +1472,51 @@ def save_quotation(id):
         return jsonify({
             'status': 'error',
             'message': f'{error_type}: {str(e)}'
-        }), 500 
+        }), 500
+
+@quotation.route('/search_projects', methods=['GET'])
+@login_required
+def search_projects():
+    """用于Select2的项目搜索API，支持按项目名称或拼音模糊搜索，并排除已有报价单的项目"""
+    search_term = request.args.get('term', '')
+    
+    if not search_term or len(search_term.strip()) < 1:
+        return jsonify([])
+        
+    # 查询可用项目（排除已有报价单的项目）
+    from sqlalchemy import or_, func
+    
+    # 创建基础查询：获取当前用户可见的项目
+    base_query = get_viewable_data(Project, current_user)
+    
+    # 过滤条件1：排除已有报价单的项目
+    subquery = db.session.query(Quotation.project_id).distinct().subquery()
+    base_query = base_query.filter(~Project.id.in_(subquery))
+    
+    # 过滤条件2：搜索词模糊匹配（项目名称或拼音）
+    search_term = f"%{search_term}%"
+    search_query = base_query.filter(
+        or_(
+            Project.project_name.ilike(search_term),
+            func.lower(Project.pinyin).ilike(func.lower(search_term)),
+            Project.keywords.ilike(search_term)
+        )
+    )
+    
+    # 限制返回数量，避免结果过多
+    projects = search_query.limit(20).all()
+    
+    # 格式化为Select2所需的格式
+    results = []
+    for project in projects:
+        # 准备显示文本：项目名称+授权码（如有）
+        display_text = project.project_name
+        if project.authorization_code:
+            display_text += f" ({project.authorization_code})"
+            
+        results.append({
+            'id': project.id,
+            'text': display_text
+        })
+    
+    return jsonify(results) 

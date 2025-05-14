@@ -45,27 +45,18 @@
                                 <label for="industry" class="form-label">行业</label>
                                 <select class="form-select" id="industry" name="industry">
                                     <option value="">请选择行业</option>
-                                    <option value="制造业" {% if company.industry == '制造业' %}selected{% endif %}>制造业</option>
-                                    <option value="建筑业" {% if company.industry == '建筑业' %}selected{% endif %}>建筑业</option>
-                                    <option value="房地产业" {% if company.industry == '房地产业' %}selected{% endif %}>房地产业</option>
-                                    <option value="批发和零售业" {% if company.industry == '批发和零售业' %}selected{% endif %}>批发和零售业</option>
-                                    <option value="交通运输业" {% if company.industry == '交通运输业' %}selected{% endif %}>交通运输业</option>
-                                    <option value="信息技术服务" {% if company.industry == '信息技术服务' %}selected{% endif %}>信息技术服务</option>
-                                    <option value="金融业" {% if company.industry == '金融业' %}selected{% endif %}>金融业</option>
-                                    <option value="教育" {% if company.industry == '教育' %}selected{% endif %}>教育</option>
-                                    <option value="医疗卫生" {% if company.industry == '医疗卫生' %}selected{% endif %}>医疗卫生</option>
-                                    <option value="其他" {% if company.industry == '其他' %}selected{% endif %}>其他</option>
+                                    {% for value, label in INDUSTRY_OPTIONS %}
+                                    <option value="{{ value }}" {% if company.industry == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
                                 </select>
                             </div>
                             <div class="col-md-6">
                                 <label for="company_type" class="form-label">企业类型</label>
                                 <select class="form-select" id="company_type" name="company_type" required>
-                                    <option value="">-- 请选择企业类型 --</option>
-                                    <option value="用户" {% if company.company_type == '用户' %}selected{% endif %}>用户</option>
-                                    <option value="经销商" {% if company.company_type == '经销商' %}selected{% endif %}>经销商</option>
-                                    <option value="系统集成商" {% if company.company_type == '系统集成商' %}selected{% endif %}>系统集成商</option>
-                                    <option value="设计院及顾问" {% if company.company_type == '设计院及顾问' %}selected{% endif %}>设计院及顾问</option>
-                                    <option value="总承包单位" {% if company.company_type == '总承包单位' %}selected{% endif %}>总承包单位</option>
+                                    <option value="">请选择企业类型</option>
+                                    {% for value, label in COMPANY_TYPE_OPTIONS %}
+                                    <option value="{{ value }}" {% if company.company_type == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
                                 </select>
                             </div>
                         </div>
@@ -73,8 +64,10 @@
                         <div class="mb-3">
                             <label for="status" class="form-label">状态</label>
                             <select class="form-select" id="status" name="status">
-                                <option value="活跃" {% if company.status == '活跃' %}selected{% endif %}>活跃</option>
-                                <option value="非活跃" {% if company.status == '非活跃' %}selected{% endif %}>非活跃</option>
+                                <option value="">请选择状态</option>
+                                {% for value, label in STATUS_OPTIONS %}
+                                <option value="{{ value }}" {% if company.status == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
                             </select>
                         </div>
 

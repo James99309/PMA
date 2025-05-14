@@ -21,7 +21,7 @@
                     </div>
                     <div class="col-md-6">
                         <label for="report_time" class="form-label mb-2">报备日期</label>
-                        <input type="date" class="form-control" id="report_time" name="report_time" required>
+                        <input type="date" class="form-control" id="report_time" name="report_time" required value="{{ (request.form.report_time or (now().strftime('%Y-%m-%d'))) }}">
                     </div>
                 </div>
 
@@ -30,18 +30,18 @@
                         <label for="report_source" class="form-label mb-2">报备来源</label>
                         <select class="form-select" id="report_source" name="report_source">
                             <option value="">请选择报备来源</option>
-                            <option value="销售">销售</option>
-                            <option value="经销商">经销商</option>
-                            <option value="渠道">渠道</option>
+                            {% for k, v in REPORT_SOURCE_OPTIONS %}
+                            <option value="{{ k }}">{{ v }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                     <div class="col-md-6">
                         <label for="project_type" class="form-label mb-2">项目类型</label>
                         <select class="form-select" id="project_type" name="project_type">
                             <option value="">-- 请选择项目类型 --</option>
-                            <option value="销售重点">销售重点</option>
-                            <option value="渠道跟进">渠道跟进</option>
-                            <option value="业务机会">业务机会</option>
+                            {% for k, v in PROJECT_TYPE_OPTIONS %}
+                            <option value="{{ k }}">{{ v }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                 </div>
@@ -51,22 +51,15 @@
                         <label for="product_situation" class="form-label mb-2">品牌情况</label>
                         <select class="form-select" id="product_situation" name="product_situation">
                             <option value="">请选择品牌情况</option>
-                            <option value="入围">入围</option>
-                            <option value="围标">围标</option>
-                            <option value="不确定">不确定</option>
+                            {% for k, v in PRODUCT_SITUATION_OPTIONS %}
+                            <option value="{{ k }}">{{ v }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                     <div class="col-md-6">
                         <label for="current_stage" class="form-label mb-2">当前阶段</label>
-                        <select class="form-select" id="current_stage" name="current_stage" required>
-                            <option value="">请选择阶段</option>
-                            <option value="发现">发现</option>
-                            <option value="品牌植入">品牌植入</option>
-                            <option value="招标前">招标前</option>
-                            <option value="招标中">招标中</option>
-                            <option value="中标">中标</option>
-                            <option value="失败">失败</option>
-                        </select>
+                        <input type="text" class="form-control" id="current_stage_display" value="{{ PROJECT_STAGE_LABELS['discover']['zh'] }}" readonly>
+                        <input type="hidden" name="current_stage" value="discover">
                     </div>
                 </div>
 
@@ -79,7 +72,7 @@
                     </div>
                     <div class="col-md-6">
                         <label for="delivery_forecast" class="form-label mb-2">出货预测日期</label>
-                        <input type="date" class="form-control" id="delivery_forecast" name="delivery_forecast">
+                        <input type="date" class="form-control" id="delivery_forecast" name="delivery_forecast" value="{{ (request.form.delivery_forecast or (now().strftime('%Y-%m-%d'))) }}">
                     </div>
                 </div>
             </div>

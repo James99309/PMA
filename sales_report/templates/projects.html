@@ -29,7 +29,7 @@
                     <tr>
                         <td>{{ project.project_number }}</td>
                         <td>{{ project.project_name }}</td>
-                        <td>{{ project.current_stage }}</td>
+                        <td>{% if project.current_stage %}{{ project.current_stage|project_stage_label('zh') }}{% else %}无{% endif %}</td>
                         <td>{{ project.authorization_number }}</td>
                         <td>{{ project.distributor }}</td>
                         <td>{{ project.project_type }}</td>

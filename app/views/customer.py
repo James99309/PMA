@@ -11,6 +11,7 @@ from sqlalchemy import or_, func, desc, text
 from datetime import datetime
 import difflib
 import json
+from app.utils.dictionary_helpers import COMPANY_TYPE_OPTIONS, INDUSTRY_OPTIONS, STATUS_OPTIONS
 
 customer = Blueprint('customer', __name__)
 
@@ -65,7 +66,10 @@ def list_companies():
                           search_term=search, 
                           sort_field=sort_field, 
                           sort_order=sort_order,
-                          country_code_to_name=country_code_to_name)
+                          country_code_to_name=country_code_to_name,
+                          COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
+                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
+                          STATUS_OPTIONS=STATUS_OPTIONS)
 
 @customer.route('/search', methods=['GET'])
 @permission_required('customer', 'view')
@@ -81,7 +85,10 @@ def search_companies():
     query = query.filter(Company.company_name.ilike(f'%{search}%'))
     companies = query.all()
     
-    return render_template('customer/list.html', companies=companies, search_term=search)
+    return render_template('customer/list.html', companies=companies, search_term=search,
+                          COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
+                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
+                          STATUS_OPTIONS=STATUS_OPTIONS)
 
 @customer.route('/search_contacts', methods=['GET'])
 @permission_required('customer', 'view')
@@ -110,7 +117,10 @@ def search_contacts():
             contact.company = companies[contact.company_id]
     
     # 返回搜索结果专用模板，不使用contacts.html
-    return render_template('customer/search_results.html', contacts=contacts, search_term=search)
+    return render_template('customer/search_results.html', contacts=contacts, search_term=search,
+                          COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
+                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
+                          STATUS_OPTIONS=STATUS_OPTIONS)
 
 @customer.route('/view/<int:company_id>')
 @permission_required('customer', 'view')
@@ -166,7 +176,10 @@ def view_company(company_id):
                           actions=actions, 
                           pagination=pagination,
                           projects=projects,
-                          country_code_to_name=country_code_to_name)
+                          country_code_to_name=country_code_to_name,
+                          COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
+                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
+                          STATUS_OPTIONS=STATUS_OPTIONS)
 
 @customer.route('/add', methods=['GET', 'POST'])
 @permission_required('customer', 'create')
@@ -194,7 +207,9 @@ def add_company():
             # 增强日志输出，包含表单内容和traceback
             flash('保存失败：' + str(e) + '<br>表单内容：' + str(dict(request.form)) + '<br>' + traceback.format_exc(), 'danger')
     
-    return render_template('customer/add.html')
+    return render_template('customer/add.html', COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
+                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
+                          STATUS_OPTIONS=STATUS_OPTIONS)
 
 @customer.route('/edit/<int:company_id>', methods=['GET', 'POST'])
 @permission_required('customer', 'edit')
@@ -224,7 +239,9 @@ def edit_company(company_id):
             db.session.rollback()
             flash('保存失败：' + str(e), 'danger')
     
-    return render_template('customer/edit.html', company=company)
+    return render_template('customer/edit.html', company=company, COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
+                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
+                          STATUS_OPTIONS=STATUS_OPTIONS)
 
 @customer.route('/delete/<int:company_id>', methods=['POST'])
 @permission_required('customer', 'delete')
@@ -267,7 +284,9 @@ def list_contacts(company_id):
             if contact.owner_id and contact.owner_id in owners:
                 contact.owner = owners[contact.owner_id]
     
-    return render_template('customer/contacts.html', company=company)
+    return render_template('customer/contacts.html', company=company, COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
+                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
+                          STATUS_OPTIONS=STATUS_OPTIONS)
 
 @customer.route('/<int:company_id>/contacts/add', methods=['GET', 'POST'])
 @permission_required('customer', 'create')
@@ -298,7 +317,9 @@ def add_contact(company_id):
             
         flash('联系人添加成功！', 'success')
         return redirect(url_for('customer.view_company', company_id=company_id))
-    return render_template('customer/add_contact.html', company=company)
+    return render_template('customer/add_contact.html', company=company, COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
+                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
+                          STATUS_OPTIONS=STATUS_OPTIONS)
 
 @customer.route('/<int:company_id>/contacts/<int:contact_id>/edit', methods=['GET', 'POST'])
 @permission_required('customer', 'edit')
@@ -328,7 +349,9 @@ def edit_contact(company_id, contact_id):
         db.session.commit()
         flash('联系人信息更新成功！', 'success')
         return redirect(url_for('customer.list_contacts', company_id=contact.company_id))
-    return render_template('customer/edit_contact.html', contact=contact)
+    return render_template('customer/edit_contact.html', contact=contact, COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
+                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
+                          STATUS_OPTIONS=STATUS_OPTIONS)
 
 @customer.route('/<int:company_id>/contacts/<int:contact_id>/delete', methods=['POST'])
 @permission_required('customer', 'delete')
@@ -1571,7 +1594,10 @@ def view_contact(contact_id):
         for action in actions:
             if action.owner_id and action.owner_id in owners:
                 action.owner = owners[action.owner_id]
-    return render_template('customer/contact_view.html', contact=contact, company=company, actions=actions)
+    return render_template('customer/contact_view.html', contact=contact, company=company, actions=actions,
+                          COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
+                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
+                          STATUS_OPTIONS=STATUS_OPTIONS)
 
 @customer.route('/<int:company_id>/add_action', methods=['GET', 'POST'])
 @permission_required('customer', 'create')
@@ -1617,4 +1643,7 @@ def add_action_for_company(company_id):
     if contact_id:
         selected_contact = Contact.query.get(contact_id)
         contact_actions = Action.query.filter_by(contact_id=contact_id).order_by(Action.created_at.desc()).all()
-    return render_template('customer/add_action_for_company.html', company=company, contacts=contacts, projects=projects, selected_contact=selected_contact, contact_actions=contact_actions) 
+    return render_template('customer/add_action_for_company.html', company=company, contacts=contacts, projects=projects, selected_contact=selected_contact, contact_actions=contact_actions,
+                          COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
+                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
+                          STATUS_OPTIONS=STATUS_OPTIONS) 

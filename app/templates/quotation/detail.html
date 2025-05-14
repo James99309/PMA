@@ -59,11 +59,11 @@
                                 </tr>
                                 <tr>
                                     <th class="bg-light">项目阶段</th>
-                                    <td>{{ quotation.project.current_stage }}</td>
+                                    <td>{% if quotation.project.current_stage %}{{ quotation.project.current_stage|project_stage_label('zh') }}{% else %}无{% endif %}</td>
                                 </tr>
                                 <tr>
                                     <th class="bg-light">项目类型</th>
-                                    <td>{{ render_project_type(quotation.project.project_type) }}</td>
+                                    <td>{% if quotation.project.project_type %}{{ quotation.project.project_type|project_type_label('zh') }}{% else %}无{% endif %}</td>
                                 </tr>
                                 <tr>
                                     <th class="bg-light">报价总额</th>

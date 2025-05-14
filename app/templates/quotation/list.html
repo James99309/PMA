@@ -110,7 +110,7 @@
             <div class="card-body p-3">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="badge bg-info">{{ render_quotation_number(quotation.quotation_number) }}</span>
-                    <span class="badge bg-primary">{{ quotation.project.current_stage or '未设置' }}</span>
+                    <span class="badge bg-primary">{% if quotation.project.current_stage %}{{ quotation.project.current_stage|project_stage_label('zh') }}{% else %}未设置{% endif %}</span>
                 </div>
                 <h5 class="card-title mb-2">
                     <a href="{{ url_for('quotation.view_quotation', id=quotation.id) }}" class="text-decoration-none">
@@ -248,8 +248,8 @@
                                     {{ quotation.project.project_name }}
                                 </a>
                             </td>
-                            <td class="px-3">{{ quotation.project.current_stage }}</td>
-                            <td class="px-3">{{ render_project_type(quotation.project.project_type) }}</td>
+                            <td class="px-3">{% if quotation.project.current_stage %}{{ quotation.project.current_stage|project_stage_label('zh') }}{% else %}无{% endif %}</td>
+                            <td class="px-3">{% if quotation.project.project_type %}{{ quotation.project.project_type|project_type_label('zh') }}{% else %}无{% endif %}</td>
                             <td class="px-3">
                                 <a href="{{ url_for('quotation.view_quotation', id=quotation.id) }}">
                                     {{ render_currency(quotation.amount) }}

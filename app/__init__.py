@@ -11,7 +11,11 @@ from app.routes.product_management import product_management_bp
 from datetime import timedelta, datetime
 from app.utils import version_check
 from flask_wtf.csrf import CSRFProtect
-from app.utils.dictionary_helpers import project_type_to_cn
+from app.utils.filters import project_type_style, project_stage_style, format_date, format_datetime, format_currency
+from app.utils.dictionary_helpers import (
+    project_type_label, project_stage_label, report_source_label, authorization_status_label, company_type_label, product_situation_label, industry_label, status_label
+)
+import datetime
 
 # 配置日志
 logging.basicConfig(
@@ -395,7 +399,14 @@ def create_app(config_class=Config):
     app.jinja_env.filters['format_date'] = format_date
     app.jinja_env.filters['format_datetime'] = format_datetime
     app.jinja_env.filters['format_currency'] = format_currency
-    app.jinja_env.filters['project_type_to_cn'] = project_type_to_cn
+    app.jinja_env.filters['project_type_label'] = project_type_label
+    app.jinja_env.filters['project_stage_label'] = project_stage_label
+    app.jinja_env.filters['report_source_label'] = report_source_label
+    app.jinja_env.filters['authorization_status_label'] = authorization_status_label
+    app.jinja_env.filters['company_type_label'] = company_type_label
+    app.jinja_env.filters['product_situation_label'] = product_situation_label
+    app.jinja_env.filters['industry_label'] = industry_label
+    app.jinja_env.filters['status_label'] = status_label
 
     def datetimeformat(value):
         if not value:
@@ -414,5 +425,7 @@ def create_app(config_class=Config):
     #     check_templates()
     # except Exception as e:
     #     app.logger.warning(f"模板检查时出错: {str(e)}")
+
+    app.jinja_env.globals['now'] = datetime.datetime.now
 
     return app 

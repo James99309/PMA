@@ -6,7 +6,7 @@ from app.models.project import Project
 from app.utils.access_control import get_viewable_data
 from app.models.quotation import Quotation
 from app.models.customer import Company
-from app.utils.dictionary_helpers import project_type_to_cn
+from app.utils.dictionary_helpers import project_type_label
 
 logger = logging.getLogger(__name__)
 main = Blueprint('main', __name__)
@@ -25,5 +25,5 @@ def index():
     # 在index视图中，recent_projects处理类型key转中文
     for p in recent_projects:
         if hasattr(p, 'project_type'):
-            p.project_type_display = project_type_to_cn(p.project_type)
+            p.project_type_display = project_type_label(p.project_type)
     return render_template('index.html', now=datetime.now(), recent_projects=recent_projects, recent_quotations=recent_quotations, recent_companies=recent_companies) 

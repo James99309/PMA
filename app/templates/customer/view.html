@@ -30,16 +30,14 @@
             <div class="card-body pb-2">
                 <div class="d-flex align-items-center mb-2">
                     <h4 class="fw-bold mb-0 flex-grow-1" style="word-break:break-all;">{{ company.company_name }}</h4>
-                    <span class="badge ms-2 {% if company.status == '活跃' %}bg-success{% else %}bg-secondary{% endif %}">
-                        {{ company.status }}
-                    </span>
+                    <span class="badge ms-2 {% if company.status == 'active' %}bg-success{% else %}bg-secondary{% endif %}">{{ company.status|status_label }}</span>
                 </div>
                 <div class="mb-2">
                     <div class="border rounded-3 p-2 mb-2">
                         <div class="fw-bold text-secondary small mb-1">基本信息</div>
                         <div class="row g-1 small">
-                            <div class="col-6">企业类型：{{ company.company_type or '未指定' }}</div>
-                            <div class="col-6">行业：{{ company.industry or '未指定' }}</div>
+                            <div class="col-6">企业类型：{{ company.company_type|company_type_label if company.company_type else '未指定' }}</div>
+                            <div class="col-6">行业：{{ company.industry|industry_label if company.industry else '未指定' }}</div>
                             <div class="col-6">国家/地区：{{ country_code_to_name[company.country] if company.country in country_code_to_name else company.country or '未指定' }}</div>
                             <div class="col-6">省份：{{ company.region or '未指定' }}</div>
                         </div>
@@ -75,9 +73,7 @@
                 <div class="card-header bg-white border-bottom-0">
                     <h5 class="mb-0 fw-bold">
                         <i class="fas fa-building me-2"></i>{{ company.company_name }}
-                        <span class="badge ms-2 {% if company.status == '活跃' %}bg-success{% else %}bg-secondary{% endif %}">
-                            {{ company.status }}
-                        </span>
+                        <span class="badge ms-2 {% if company.status == 'active' %}bg-success{% else %}bg-secondary{% endif %}">{{ company.status|status_label }}</span>
                     </h5>
                 </div>
                 <div class="card-body pt-2">
@@ -86,11 +82,11 @@
                         <div class="row">
                             <div class="col-md-3">
                                 <label class="info-label text-secondary">企业类型</label>
-                                <div>{{ company.company_type or '未指定' }}</div>
+                                <div>{{ company.company_type|company_type_label if company.company_type else '未指定' }}</div>
                             </div>
                             <div class="col-md-3">
                                 <label class="info-label text-secondary">行业</label>
-                                <div>{{ company.industry or '未指定' }}</div>
+                                <div>{{ company.industry|industry_label if company.industry else '未指定' }}</div>
                             </div>
                             <div class="col-md-3">
                                 <label class="info-label text-secondary">国家/地区</label>
@@ -343,9 +339,7 @@
             <div class="card-body p-3">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="badge bg-info">{{ project.project_code }}</span>
-                    <span class="badge {% if project.current_stage == '已完成' %}bg-success{% elif project.current_stage == '已丢单' %}bg-danger{% else %}bg-primary{% endif %}">
-                        {{ project.current_stage }}
-                    </span>
+                    <span class="badge {% if project.current_stage == 'signed' %}bg-success{% elif project.current_stage == 'lost' %}bg-danger{% else %}bg-primary{% endif %}">{% if project.current_stage %}{{ project.current_stage|project_stage_label('zh') }}{% else %}无{% endif %}</span>
                 </div>
                 
                 <h5 class="card-title mb-2">
@@ -371,7 +365,7 @@
                 
                 <div class="small mb-1">
                     <i class="fas fa-clock text-secondary me-1"></i> 报备: {{ render_date(project.report_time) }}
-                    {% if project.report_source %} ({{ project.report_source }}){% endif %}
+                    {% if project.report_source %} ({{ project.report_source|report_source_label('zh') }}){% endif %}
                 </div>
                 
                 {% if project.delivery_forecast %}
@@ -421,10 +415,10 @@
                                     </a>
                                 </td>
                                 <td>{{ render_date(project.report_time) }}</td>
-                                <td>{{ project.report_source }}</td>
-                                <td>{{ render_project_type(project.project_type) }}</td>
-                                <td>{{ project.product_situation }}</td>
-                                <td>{{ project.current_stage }}</td>
+                                <td>{% if project.report_source %}{{ project.report_source|report_source_label('zh') }}{% else %}无{% endif %}</td>
+                                <td>{% if project.project_type %}{{ project.project_type|project_type_label('zh') }}{% else %}无{% endif %}</td>
+                                <td>{% if project.product_situation %}{{ project.product_situation|product_situation_label('zh') }}{% else %}无{% endif %}</td>
+                                <td>{% if project.current_stage %}{{ project.current_stage|project_stage_label('zh') }}{% else %}无{% endif %}</td>
                                 <td>{{ '{:,.2f}'.format(project.quotation_customer) if project.quotation_customer }}</td>
                                 <td>{{ project.end_user }}</td>
                                 <td>{{ project.design_issues }}</td>

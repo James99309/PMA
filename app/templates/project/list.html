@@ -381,7 +381,7 @@
                                         {{ project.project_name }}
                                     </a>
                                 </td>
-                                <td>{{ project.current_stage if project.current_stage else '' }}</td>
+                                <td>{% if project.current_stage %}{{ project.current_stage|project_stage_label('zh') }}{% else %}未设置{% endif %}</td>
                                 <td>{{ render_project_type(project.project_type) if project.project_type else '' }}</td>
                                 <td>
                                     {% if project.quotation_customer and project.quotations.count() > 0 %}
@@ -393,7 +393,7 @@
                                     {{ '{:,.2f}'.format(project.quotation_customer) if project.quotation_customer else '' }}
                                     {% endif %}
                                 </td>
-                                <td>{{ project.report_source if project.report_source else '' }}</td>
+                                <td>{% if project.report_source %}{{ project.report_source|report_source_label('zh') }}{% else %}无{% endif %}</td>
                                 <td>{{ project.end_user if project.end_user else '' }}</td>
                                 <td>{{ project.design_issues if project.design_issues else '' }}</td>
                                 <td>{{ project.contractor if project.contractor else '' }}</td>

@@ -24,24 +24,26 @@
 <div class="container mt-4 project-detail-main">
     <div class="row mb-3">
         <div class="col-md-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <h2>项目详情</h2>
-                <div class="d-flex align-items-center">
+            <h2>{{ project.project_name }}</h2>
+            <div class="d-flex flex-wrap align-items-center justify-content-between mb-2">
+                <div>
                     {{ ui.render_button("返回列表", href=url_for('project.list_projects'), color="secondary", icon="fas fa-arrow-left") }}
                     {% if project.current_stage != '签约' or current_user.role == 'admin' %}
                         {% if current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) %}
                         {{ ui.render_button("编辑项目", href=url_for('project.edit_project', project_id=project.id), color="primary", icon="fas fa-edit", extra_class="ms-2") }}
                         {% endif %}
+                    {% endif %}
+                </div>
+                {% if project.current_stage != '签约' or current_user.role == 'admin' %}
                         {% if current_user.has_permission('project', 'delete') and (current_user.role == 'admin' or current_user.id == project.owner_id) %}
-                        <form action="{{ url_for('project.delete_project', project_id=project.id) }}" method="post" style="display:inline; margin-left: 10px;" onsubmit="return confirm('确定要删除此项目吗？此操作不可恢复。');">
+                    <form action="{{ url_for('project.delete_project', project_id=project.id) }}" method="post" style="display:inline;" onsubmit="return confirm('确定要删除此项目吗？此操作不可恢复。');">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             {{ ui.render_button("删除项目", type="submit", color="danger", icon="fas fa-trash") }}
                         </form>
                         {% endif %}
                     {% endif %}
                 </div>
-            </div>
-            
+            <!-- 授权编号/状态区域整体上移 -->
             {% if project.authorization_code %}
             <div class="mt-2">
                 <span class="authorization-code fw-bold">{{ render_authorization_code(project.authorization_code, project.project_type, size="medium") }}</span>
@@ -49,10 +51,8 @@
             {% elif project.authorization_status == 'pending' %}
             <div class="mt-2 d-flex align-items-center">
                 <span class="badge bg-warning">审批中</span>
-                
                 {% if current_user.role in ['channel_manager', 'sales_director', 'admin', 'service', 'service_manager'] %}
                 <div class="ms-3 btn-group">
-                    <!-- 根据项目类型和用户角色决定是否显示批准按钮 -->
                     {% if current_user.role == 'admin' or
                          (current_user.role == 'channel_manager' and project.project_type == '渠道跟进') or
                          (current_user.role == 'sales_director' and project.project_type in ['渠道跟进', '销售重点']) or
@@ -62,7 +62,6 @@
                     {% endif %}
                 </div>
                 {% elif current_user.id == project.owner_id or current_user.role == 'admin' %}
-                <!-- 添加撤回授权按钮 -->
                 {{ ui.render_button("撤回申请", type="button", color="warning", icon="fas fa-undo", attrs='data-bs-toggle="modal" data-bs-target="#revokeAuthorizationModal"', extra_class="ms-3") }}
                 {% endif %}
             </div>
@@ -73,7 +72,6 @@
                 {{ ui.render_button("再次申请", type="button", color="primary", icon="fas fa-redo", attrs='data-bs-toggle="modal" data-bs-target="#applyAuthorizationModal"', extra_class="ms-3") }}
                 {% endif %}
             </div>
-            
             {% if project.feedback %}
             <div class="alert alert-danger mt-2">
                 <strong>驳回原因：</strong> {{ project.feedback }}
@@ -82,7 +80,6 @@
             {% else %}
             <div class="mt-2 d-flex align-items-center">
                 <span class="badge bg-secondary">未申请</span>
-                
                 {% if current_user.id == project.owner_id or current_user.role == 'admin' %}
                 {{ ui.render_button("申请授权编号", type="button", color="primary", icon="fas fa-file-signature", attrs='data-bs-toggle="modal" data-bs-target="#applyAuthorizationModal"', extra_class="ms-3") }}
                 {% endif %}
@@ -127,15 +124,15 @@
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>报备来源：</strong></div>
-                                <div class="col-md-8">{{ project.report_source or '无' }}</div>
+                                <div class="col-md-8">{% if project.report_source %}{{ project.report_source|report_source_label('zh') }}{% else %}无{% endif %}</div>
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>品牌情况：</strong></div>
-                                <div class="col-md-8">{{ project.product_situation or '无' }}</div>
+                                <div class="col-md-8">{% if project.product_situation %}{{ project.product_situation|product_situation_label('zh') }}{% else %}无{% endif %}</div>
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>当前阶段：</strong></div>
-                                <div class="col-md-8" id="currentStageText">{{ project.current_stage or '无' }}</div>
+                                <div class="col-md-8" id="currentStageText">{% if project.current_stage %}{{ project.current_stage|project_stage_label('zh') }}{% else %}无{% endif %}</div>
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>报价总额：</strong></div>
@@ -160,7 +157,7 @@
                         <div class="col-md-6">
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>项目类型：</strong></div>
-                                <div class="col-md-8">{{ render_project_type(project.project_type) }}</div>
+                                <div class="col-md-8">{% if project.project_type %}{{ project.project_type|project_type_label('zh') }}{% else %}无{% endif %}</div>
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>拥有人：</strong></div>
@@ -626,7 +623,7 @@
             currentStage: {{ project.current_stage|tojson }},
             csrfToken: {{ csrf_token()|tojson }},
             updateUrl: {{ url_for('project.update_project_stage')|tojson }},
-            canEdit: {{ ((current_user.role == 'admin' and project.current_stage == '签约') or (current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) and project.current_stage != '签约'))|tojson }},
+            canEdit: {{ ((current_user.role == 'admin' and project.current_stage == '签约') or ((current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id)) and project.current_stage != '签约'))|tojson }},
             stageHistory: {{ stageHistory|tojson }}
         });
         {% endif %}

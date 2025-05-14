@@ -22,7 +22,7 @@ import os
 from flask_wtf.csrf import CSRFProtect
 from app.models.action import Action, ActionReply
 from app.models.projectpm_stage_history import ProjectStageHistory  # 导入阶段历史记录模型
-from app.utils.dictionary_helpers import project_type_to_cn
+from app.utils.dictionary_helpers import project_type_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS
 
 csrf = CSRFProtect()
 
@@ -229,15 +229,15 @@ def add_project():
             # 验证必填字段
             if not request.form.get('project_name'):
                 flash('项目名称不能为空', 'danger')
-                return render_template('project/add.html', **get_company_data())
+                return render_template('project/add.html', REPORT_SOURCE_OPTIONS=REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS=PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS=PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS=PROJECT_STAGE_LABELS, **get_company_data())
                 
             if not request.form.get('report_time'):
                 flash('报备日期不能为空', 'danger')
-                return render_template('project/add.html', **get_company_data())
+                return render_template('project/add.html', REPORT_SOURCE_OPTIONS=REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS=PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS=PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS=PROJECT_STAGE_LABELS, **get_company_data())
                 
             if not request.form.get('current_stage'):
                 flash('当前阶段不能为空', 'danger')
-                return render_template('project/add.html', **get_company_data())
+                return render_template('project/add.html', REPORT_SOURCE_OPTIONS=REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS=PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS=PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS=PROJECT_STAGE_LABELS, **get_company_data())
             
             # 解析日期
             report_time = None
@@ -295,7 +295,14 @@ def add_project():
             logger.error(f"保存项目失败: {str(e)}", exc_info=True)
             flash(f'保存失败：{str(e)}', 'danger')
     
-    return render_template('project/add.html', **get_company_data())
+    return render_template(
+        'project/add.html',
+        REPORT_SOURCE_OPTIONS=REPORT_SOURCE_OPTIONS,
+        PROJECT_TYPE_OPTIONS=PROJECT_TYPE_OPTIONS,
+        PRODUCT_SITUATION_OPTIONS=PRODUCT_SITUATION_OPTIONS,
+        PROJECT_STAGE_LABELS=PROJECT_STAGE_LABELS,
+        **get_company_data()
+    )
 
 # 辅助函数，获取公司数据
 def get_company_data():
@@ -582,7 +589,7 @@ def approve_authorization(project_id):
         approval_note = request.form.get('approval_note', '')
         
         # 生成授权编号 - 先将英文类型映射为中文
-        project_type_for_code = project_type_to_cn(project.project_type)
+        project_type_for_code = project_type_label(project.project_type)
         authorization_code = Project.generate_authorization_code(project_type_for_code)
         
         if not authorization_code:
