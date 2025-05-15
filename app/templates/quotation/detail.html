@@ -30,15 +30,15 @@
                                 {# 签约阶段不显示编辑、删除、复制按钮 #}
                             {% else %}
                                 <!-- 编辑、删除、复制按钮原位保留，仅在非签约阶段显示 -->
-                                {% if current_user.has_permission('quotation', 'edit') %}
+                                {% if can_edit_data(quotation, current_user) %}
                                     <a href="{{ url_for('quotation.edit_quotation', id=quotation.id) }}" class="btn btn-primary btn-sm me-2"><i class="fas fa-edit"></i> 编辑</a>
-                            {% endif %}
+                                {% endif %}
                                 {% if current_user.has_permission('quotation', 'delete') %}
                                     <form action="{{ url_for('quotation.delete_quotation', id=quotation.id) }}" method="post" style="display:inline;" onsubmit="return confirm('确定要删除此报价单吗？此操作不可恢复。');">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <button type="submit" class="btn btn-danger btn-sm me-2"><i class="fas fa-trash"></i> 删除</button>
                                     </form>
-                            {% endif %}
+                                {% endif %}
                                 <a href="{{ url_for('quotation.copy_quotation', id=quotation.id) }}" class="btn btn-secondary btn-sm"><i class="fas fa-copy"></i> 复制</a>
                             {% endif %}
                         </div>

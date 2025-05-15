@@ -1763,19 +1763,3 @@ def update_company_sharing(company_id):
     db.session.commit()
     flash('客户共享设置已更新', 'success')
     return redirect(url_for('customer.view_company', company_id=company_id))
-
-# 注册常用权限函数为模板全局函数
-@customer.app_context_processor
-def inject_permission_funcs():
-    from app.utils.access_control import (
-        can_view_company, can_edit_company_info, can_edit_company_sharing,
-        can_view_contact, can_edit_contact, can_delete_contact
-    )
-    return dict(
-        can_view_company=can_view_company,
-        can_edit_company_info=can_edit_company_info,
-        can_edit_company_sharing=can_edit_company_sharing,
-        can_view_contact=can_view_contact,
-        can_edit_contact=can_edit_contact,
-        can_delete_contact=can_delete_contact
-    )

@@ -441,4 +441,8 @@ def create_app(config_class=Config):
 
     app.jinja_env.globals['get_role_display_name'] = get_role_display_name
 
+    # 注册全局权限函数上下文处理器
+    from app.context_processors import inject_permission_functions
+    app.context_processor(inject_permission_functions)
+
     return app 

@@ -18,27 +18,29 @@ logger = logging.getLogger(__name__)
 def get_viewable_data(model_class, user, special_filters=None):
     """
     通用数据访问控制函数，根据用户权限返回可查看的数据集
-    
-    参数:
-        model_class: 数据模型类
-        user: 用户对象
-        special_filters: 额外的过滤条件列表
-    
-    返回:
-        查询结果集
+    针对 Project 模型，遵循：
+    1. 当前用户是项目的 owner_id
+    2. 当前用户是项目所有者的上级（归属链）
+    3. 当前用户的 ID 被包含在 shared_with_users（如有该字段）
+    目前项目暂未支持共享字段，仅用 owner_id 与归属链判断
     """
     if special_filters is None:
         special_filters = []
-    
-    # 记录日志
     logger.debug(f"用户 {user.username} (ID: {user.id}, 角色: {user.role}) 查询 {model_class.__name__} 数据")
-    
-    # 产品数据不受限制
-    if model_class.__name__ == 'Product':
-        return model_class.query.filter(*special_filters)
-    
     # 管理员可以查看所有数据
     if user.role == 'admin':
+        return model_class.query.filter(*special_filters)
+    # 针对 Project 权限逻辑
+    if model_class.__name__ == 'Project':
+        # 1. 直接归属
+        owned_query = model_class.query.filter(model_class.owner_id == user.id)
+        # 2. 归属链（Affiliation）
+        affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
+        subordinate_query = model_class.query.filter(model_class.owner_id.in_(affiliation_owner_ids))
+        # 合并去重
+        return owned_query.union(subordinate_query).filter(*special_filters)
+    # 其他模型按原逻辑
+    if model_class.__name__ == 'Product':
         return model_class.query.filter(*special_filters)
     
     # 处理特殊角色权限
@@ -98,35 +100,32 @@ def get_viewable_data(model_class, user, special_filters=None):
     
     # 报价单特殊权限
     if model_class.__name__ == 'Quotation':
-        # 产品经理和解决方案经理可以查看所有报价单
+        # 管理员特殊角色直接返回全部
         if user.role in ['product_manager', 'solution_manager', 'product', 'solution']:
             return model_class.query.filter(*special_filters if special_filters else [])
-        # 服务经理可以查看自己的报价单以及与业务机会项目相关的报价单
-        elif user.role in ['service', 'service_manager']:
+        
+        # 1. 直接归属（自己创建的报价单）
+        owned_query = model_class.query.filter(model_class.owner_id == user.id)
+        
+        # 2. 归属链（Affiliation - 下级创建的报价单，参考Project模块逻辑）
+        affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
+        subordinate_query = model_class.query.filter(model_class.owner_id.in_(affiliation_owner_ids))
+        
+        # 3. 角色特殊处理
+        special_query = None
+        # 服务经理特殊处理
+        if user.role in ['service', 'service_manager']:
             # 获取所有业务机会项目的ID
             business_opportunity_projects = Project.query.filter_by(project_type='业务机会').all()
             business_opportunity_project_ids = [p.id for p in business_opportunity_projects]
-            
-            # 返回自己的报价单和业务机会项目相关的报价单
-            return model_class.query.filter(
-                db.or_(
-                    model_class.owner_id == user.id,
-                    model_class.project_id.in_(business_opportunity_project_ids)
-                ),
-                *special_filters
-            )
-        # 销售角色：查看自己的报价单 + 通过归属关系可见的报价单
-        elif user.role == 'sales':
-            # 获取通过归属关系可以查看的用户ID列表
-            viewable_user_ids = [user.id]
-            affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-            for affiliation in affiliations:
-                viewable_user_ids.append(affiliation.owner_id)
-                
-            return model_class.query.filter(
-                model_class.owner_id.in_(viewable_user_ids),
-                *special_filters
-            )
+            # 业务机会项目相关的报价单
+            special_query = model_class.query.filter(model_class.project_id.in_(business_opportunity_project_ids))
+        
+        # 合并查询条件
+        if special_query:
+            return owned_query.union(subordinate_query).union(special_query).filter(*special_filters)
+        else:
+            return owned_query.union(subordinate_query).filter(*special_filters)
     
     # 客户特殊权限处理
     if model_class.__name__ in ['Company', 'Contact']:
@@ -357,3 +356,20 @@ def can_delete_contact(user, contact):
         return True
     # 联系人创建者可以删除自己创建的联系人
     return user.id == contact.owner_id 
+
+def can_view_project(user, project):
+    """
+    判断用户是否有权查看该项目：
+    1. 归属人
+    2. 归属链
+    3. 共享（如有 shared_with_users 字段，暂未支持）
+    """
+    if user.role == 'admin':
+        return True
+    if user.id == project.owner_id:
+        return True
+    from app.models.user import Affiliation
+    affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
+    if project.owner_id in affiliation_owner_ids:
+        return True
+    return False 

@@ -8,7 +8,7 @@ from sqlalchemy import or_
 from app import db
 from flask_login import login_required, current_user
 from app.decorators import permission_required  # 添加权限装饰器导入
-from app.utils.access_control import get_viewable_data, can_edit_data
+from app.utils.access_control import get_viewable_data, can_edit_data, can_view_project
 import logging
 from decimal import Decimal
 import json
@@ -638,18 +638,14 @@ def edit_quotation(id):
 
 @quotation.route('/<int:id>/copy', methods=['POST'])
 @login_required
-@permission_required('quotation', 'create')  # 添加创建权限装饰器，复制操作需要创建权限
+@permission_required('quotation', 'create')
 def copy_quotation(id):
     try:
-        # 获取原始报价单
         original_quotation = Quotation.query.get_or_404(id)
-        
-        # 检查查看原始报价单的权限
-        query = get_viewable_data(Quotation, current_user, [Quotation.id == id])
-        if not query.first():
+        if not can_view_quotation(current_user, original_quotation):
+            logger.debug(f"{current_user.username} 无权复制报价单 {original_quotation.id}")
             flash('您没有权限复制此报价单', 'danger')
             return redirect(url_for('quotation.list_quotations'))
-        
         # 创建新报价单
         new_quotation = Quotation(
             project_id=original_quotation.project_id,
@@ -697,16 +693,14 @@ def copy_quotation(id):
 
 @quotation.route('/<int:id>/delete', methods=['POST'])
 @login_required
-@permission_required('quotation', 'delete')  # 添加删除权限装饰器
+@permission_required('quotation', 'delete')
 def delete_quotation(id):
     try:
         quotation = Quotation.query.get_or_404(id)
-        
-        # 检查删除权限
         if not can_edit_data(quotation, current_user):
+            logger.debug(f"{current_user.username} 无权删除报价单 {quotation.id}")
             flash('您没有权限删除此报价单', 'danger')
             return redirect(url_for('quotation.list_quotations'))
-        
         project_id = quotation.project_id
         db.session.delete(quotation)
         db.session.commit()
@@ -729,35 +723,22 @@ def delete_quotation(id):
 @login_required
 @permission_required('quotation', 'delete')
 def batch_delete_quotations():
-    """批量删除报价单"""
     try:
         data = request.get_json()
         quotation_ids = data.get('quotation_ids', [])
-        
         if not quotation_ids:
-            return jsonify({
-                'success': False,
-                'message': '未选择任何报价单'
-            })
-        
-        # 验证权限并删除报价单
+            return jsonify({'success': False, 'message': '未选择任何报价单'})
         deleted_count = 0
         error_ids = []
-        
         for quotation_id in quotation_ids:
-            try:
-                quotation = Quotation.query.get(quotation_id)
-                if quotation and can_edit_data(quotation, current_user):
-                    db.session.delete(quotation)
-                    deleted_count += 1
-                else:
-                    error_ids.append(quotation_id)
-            except Exception as e:
-                logger.error(f"删除报价单 {quotation_id} 时出错: {str(e)}")
+            quotation = Quotation.query.get(quotation_id)
+            if quotation and can_edit_data(quotation, current_user):
+                db.session.delete(quotation)
+                deleted_count += 1
+            else:
+                logger.debug(f"{current_user.username} 无权批量删除报价单 {quotation_id}")
                 error_ids.append(quotation_id)
-        
         db.session.commit()
-        
         # 强制刷新项目金额
         for project_id in set(quotation.project_id for quotation in Quotation.query.filter(Quotation.id.in_(quotation_ids)).all()):
             project = Project.query.get(project_id)
@@ -765,28 +746,10 @@ def batch_delete_quotations():
                 total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
                 project.quotation_customer = total
         db.session.commit()
-        
-        if error_ids:
-            logger.warning(f"部分报价单删除失败, IDs: {error_ids}")
-            return jsonify({
-                'success': True,
-                'message': f'成功删除 {deleted_count} 个报价单，{len(error_ids)} 个删除失败',
-                'deleted_count': deleted_count,
-                'error_ids': error_ids
-            })
-        else:
-            return jsonify({
-                'success': True,
-                'message': f'成功删除 {deleted_count} 个报价单',
-                'deleted_count': deleted_count
-            })
+        return jsonify({'success': True, 'deleted': deleted_count, 'error_ids': error_ids})
     except Exception as e:
-        db.session.rollback()
-        logger.error(f"批量删除报价单时出错: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'message': f'删除失败: {str(e)}'
-        }), 500
+        logger.error(f"批量删除报价单时出错: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
 
 @quotation.route('/get_project_customers/<int:project_id>')
 def get_project_customers(project_id):
@@ -1090,18 +1053,19 @@ def get_products_by_category():
 
 @quotation.route('/<int:id>/detail')
 @login_required
-@permission_required('quotation', 'view')  # 添加查看权限装饰器
+@permission_required('quotation', 'view')
 def view_quotation(id):
     try:
-        # 获取报价单详情
         quotation = Quotation.query.get_or_404(id)
-        
-        # 使用访问控制函数检查查看权限
-        query = get_viewable_data(Quotation, current_user, [Quotation.id == id])
-        if not query.first():
+        if not can_view_quotation(current_user, quotation):
+            logger.debug(f"{current_user.username} 无权访问报价单 {quotation.id}")
             flash('您没有权限查看此报价单', 'danger')
             return redirect(url_for('quotation.list_quotations'))
-        
+        # 项目权限校验
+        if quotation.project and not can_view_project(current_user, quotation.project):
+            logger.debug(f"{current_user.username} 无权访问报价单 {quotation.id} 关联项目 {quotation.project_id}")
+            flash('您没有权限查看该报价单关联的项目', 'danger')
+            return redirect(url_for('quotation.list_quotations'))
         return render_template('quotation/detail.html', quotation=quotation)
     except Exception as e:
         flash(f'加载报价单详情失败：{str(e)}', 'danger')
@@ -1111,14 +1075,10 @@ def view_quotation(id):
 @login_required
 def get_quotation_details(id):
     try:
-        # 获取报价单
         quotation = Quotation.query.get_or_404(id)
-        
-        # 检查访问权限
-        query = get_viewable_data(Quotation, current_user, [Quotation.id == id])
-        if not query.first():
+        if not can_view_quotation(current_user, quotation):
+            logger.debug(f"{current_user.username} 无权访问报价单 {quotation.id}")
             return jsonify({'success': False, 'error': '无权访问此报价单'}), 403
-        
         # 处理报价单明细数据
         details = []
         detail_errors = []
@@ -1472,4 +1432,31 @@ def save_quotation(id):
         return jsonify({
             'status': 'error',
             'message': f'{error_type}: {str(e)}'
-        }), 500 
+        }), 500
+
+def can_view_quotation(user, quotation):
+    """
+    判断用户是否有权查看该报价单：
+    1. 归属人
+    2. 归属链
+    暂不考虑共享
+    """
+    if user.role == 'admin':
+        return True
+    if user.id == quotation.owner_id:
+        return True
+    from app.models.user import Affiliation
+    affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
+    if quotation.owner_id in affiliation_owner_ids:
+        return True
+    return False
+
+# 已在全局context_processor中注册，此处不再重复注册
+# @quotation.app_context_processor
+# def inject_permission_funcs():
+#     from app.utils.access_control import can_edit_data, can_view_project
+#     return dict(
+#         can_edit_data=can_edit_data,
+#         can_view_project=can_view_project,
+#         can_view_quotation=can_view_quotation
+#     ) 
