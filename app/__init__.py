@@ -13,7 +13,7 @@ from app.utils import version_check
 from flask_wtf.csrf import CSRFProtect
 from app.utils.filters import project_type_style, project_stage_style, format_date, format_datetime, format_currency
 from app.utils.dictionary_helpers import (
-    project_type_label, project_stage_label, report_source_label, authorization_status_label, company_type_label, product_situation_label, industry_label, status_label
+    project_type_label, project_stage_label, report_source_label, authorization_status_label, company_type_label, product_situation_label, industry_label, status_label, brand_status_label, reporting_source_label, share_permission_label, user_label, get_role_display_name
 )
 import datetime
 
@@ -407,6 +407,10 @@ def create_app(config_class=Config):
     app.jinja_env.filters['product_situation_label'] = product_situation_label
     app.jinja_env.filters['industry_label'] = industry_label
     app.jinja_env.filters['status_label'] = status_label
+    app.jinja_env.filters['brand_status_label'] = brand_status_label
+    app.jinja_env.filters['reporting_source_label'] = reporting_source_label
+    app.jinja_env.filters['user_label'] = user_label
+    app.jinja_env.filters['share_permission_label'] = share_permission_label
 
     def datetimeformat(value):
         if not value:
@@ -434,5 +438,7 @@ def create_app(config_class=Config):
     # 统计图表
     from app.views.projectpm_statistics import projectpm_statistics
     app.register_blueprint(projectpm_statistics, url_prefix='/projectpm/statistics')
+
+    app.jinja_env.globals['get_role_display_name'] = get_role_display_name
 
     return app 

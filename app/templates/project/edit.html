@@ -315,7 +315,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const select = document.getElementById(selectId);
             select.innerHTML = '<option value="">请选择</option>';
 
-            data.companies.forEach(company => {
+            (data.companies || data).forEach(company => {
                 const option = document.createElement('option');
                 option.value = company.name;
                 option.textContent = company.name;

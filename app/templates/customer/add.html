@@ -72,16 +72,6 @@
                         </div>
 
                         <div class="mb-3">
-                            <label for="status" class="form-label">状态</label>
-                            <select class="form-select" id="status" name="status">
-                                <option value="">请选择状态</option>
-                                {% for value, label in STATUS_OPTIONS %}
-                                <option value="{{ value }}">{{ label }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-
-                        <div class="mb-3">
                             <label for="notes" class="form-label">备注</label>
                             <textarea class="form-control" id="notes" name="notes" rows="3" disabled></textarea>
                         </div>
@@ -203,7 +193,7 @@ $(document).ready(function() {
     // 添加启用/禁用表单字段的函数
     function toggleFormFields(enable) {
         const formFields = [
-            '#country', '#region', '#address', '#industry', '#company_type', '#status', '#notes',
+            '#country', '#region', '#address', '#industry', '#company_type', '#notes',
             '#contact_name', '#contact_department', '#contact_position', '#contact_phone', '#contact_email', '#contact_notes',
             'button[type="submit"]'
         ];
@@ -384,7 +374,6 @@ $(document).ready(function() {
         $('#address').val(company.address || '');
         $('#industry').val(company.industry || '');
         $('#company_type').val(company.company_type || '');
-        $('#status').val(company.status || 'active');
         $('#notes').val(company.notes || '');
     }
     

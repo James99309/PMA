@@ -213,7 +213,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const select = document.getElementById(selectId);
             select.innerHTML = '<option value="">请选择</option>';
 
-            data.companies.forEach(company => {
+            (data.companies || data).forEach(company => {
                 const option = document.createElement('option');
                 option.value = company.name;
                 option.textContent = company.name;
@@ -222,7 +222,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 option.setAttribute('data-phone', company.phone);
                 select.appendChild(option);
             });
-            console.log(`成功加载了${data.companies.length}个${type}类型的公司`);
+            var companies = data.companies || data;
+            console.log(`成功加载了${companies.length}个${type}类型的公司`);
         } catch (error) {
             console.error(`加载${type}类型公司数据失败:`, error);
         }

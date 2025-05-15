@@ -17,8 +17,14 @@
         </div>
         <div class="col text-end">
             {{ render_button('返回企业', url_for('customer.view_company', company_id=company.id), color='secondary', icon='fas fa-arrow-left') }}
-            {% if has_permission('customer', 'edit') and (contact.owner_id == current_user.id or current_user.role == 'admin') %}
+            {% if has_permission('customer', 'edit') and can_edit_contact(current_user, contact) %}
             {{ render_button('编辑联系人', url_for('customer.edit_contact', company_id=company.id, contact_id=contact.id), color='primary', icon='fas fa-edit') }}
+            {% endif %}
+            {% if has_permission('customer', 'delete') and can_delete_contact(current_user, contact) %}
+            <form method="post" action="{{ url_for('customer.delete_contact', company_id=company.id, contact_id=contact.id) }}" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-danger"><i class="fas fa-trash"></i> 删除联系人</button>
+            </form>
             {% endif %}
             {% if has_permission('customer', 'create') %}
             {{ render_button('添加行动记录', url_for('customer.add_action_for_company', company_id=contact.company_id) ~ '?contact_id=' ~ contact.id, color='info', icon='fas fa-plus') }}

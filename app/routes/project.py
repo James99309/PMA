@@ -7,6 +7,7 @@ from datetime import datetime
 import logging
 from app.decorators import permission_required  # 添加导入权限装饰器
 import json
+from app.utils.access_control import get_viewable_data
 
 logger = logging.getLogger(__name__)
 
@@ -121,12 +122,14 @@ def edit_project(id):
     # 前端会根据 project.project_type 的值来正确选择下拉菜单中的选项
     
     # 获取所有可用的公司信息
-    companies = {}
-    companies['users'] = get_companies_by_type('最终用户')
-    companies['designers'] = get_companies_by_type('设计单位')
-    companies['contractors'] = get_companies_by_type('总承包商')
-    companies['system_integrators'] = get_companies_by_type('系统集成商')
-    companies['dealers'] = get_companies_by_type('代理商')
+    company_query = get_viewable_data(Company, current_user)
+    companies = {
+        'users': company_query.filter_by(company_type='用户').all(),
+        'designers': company_query.filter_by(company_type='设计院及顾问').all(),
+        'contractors': company_query.filter_by(company_type='总承包单位').all(),
+        'integrators': company_query.filter_by(company_type='系统集成商').all(),
+        'dealers': company_query.filter_by(company_type='经销商').all()
+    }
     
     return render_template(
         'project/edit.html', 
@@ -293,12 +296,13 @@ def list_projects():
         projects = query.all()
         
         # 获取不同类型的公司列表
+        company_query = get_viewable_data(Company, current_user)
         companies = {
-            'users': Company.query.filter_by(company_type='用户').all(),
-            'designers': Company.query.filter_by(company_type='设计院及顾问').all(),
-            'contractors': Company.query.filter_by(company_type='总承包单位').all(),
-            'integrators': Company.query.filter_by(company_type='系统集成商').all(),
-            'dealers': Company.query.filter_by(company_type='经销商').all()
+            'users': company_query.filter_by(company_type='用户').all(),
+            'designers': company_query.filter_by(company_type='设计院及顾问').all(),
+            'contractors': company_query.filter_by(company_type='总承包单位').all(),
+            'integrators': company_query.filter_by(company_type='系统集成商').all(),
+            'dealers': company_query.filter_by(company_type='经销商').all()
         }
         
         # 添加调试日志

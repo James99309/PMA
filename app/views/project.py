@@ -237,11 +237,9 @@ def add_project():
             if not request.form.get('project_name'):
                 flash('项目名称不能为空', 'danger')
                 return render_template('project/add.html', REPORT_SOURCE_OPTIONS=REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS=PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS=PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS=PROJECT_STAGE_LABELS, **get_company_data())
-                
             if not request.form.get('report_time'):
                 flash('报备日期不能为空', 'danger')
                 return render_template('project/add.html', REPORT_SOURCE_OPTIONS=REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS=PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS=PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS=PROJECT_STAGE_LABELS, **get_company_data())
-                
             if not request.form.get('current_stage'):
                 flash('当前阶段不能为空', 'danger')
                 return render_template('project/add.html', REPORT_SOURCE_OPTIONS=REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS=PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS=PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS=PROJECT_STAGE_LABELS, **get_company_data())
@@ -300,6 +298,7 @@ def add_project():
             db.session.rollback()
             logger.error(f"保存项目失败: {str(e)}", exc_info=True)
             flash(f'保存失败：{str(e)}', 'danger')
+            return render_template('project/add.html', REPORT_SOURCE_OPTIONS=REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS=PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS=PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS=PROJECT_STAGE_LABELS, **get_company_data())
     
     return render_template(
         'project/add.html',
@@ -439,7 +438,7 @@ def delete_project(project_id):
             for history in stage_histories:
                 db.session.delete(history)
             logger.info(f"删除项目 {project_id} 前，已删除关联的 {len(stage_histories)} 条阶段历史记录")
-
+        
         # 再删除项目
         db.session.delete(project)
         db.session.commit()

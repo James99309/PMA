@@ -4,7 +4,6 @@ from app.models.customer import Company, Contact, COMPANY_TYPES
 from app.models.user import User
 from app import db
 from app.permissions import permission_required
-from app.utils.access_control import get_viewable_data, can_edit_data
 from app.models.project import Project
 from app.models.action import Action
 from sqlalchemy import or_, func, desc, text
@@ -12,6 +11,11 @@ from datetime import datetime
 import difflib
 import json
 from app.utils.dictionary_helpers import COMPANY_TYPE_OPTIONS, INDUSTRY_OPTIONS, STATUS_OPTIONS
+from app.utils.access_control import (
+    get_viewable_data, can_edit_data, 
+    can_view_company, can_edit_company_info, can_edit_company_sharing, can_delete_company,
+    can_view_contact, can_edit_contact, can_delete_contact
+)
 
 customer = Blueprint('customer', __name__)
 
@@ -181,18 +185,26 @@ def search_contacts():
                           INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
                           STATUS_OPTIONS=STATUS_OPTIONS)
 
-@customer.route('/view/<int:company_id>')
+@customer.route('/<int:company_id>/view')
 @permission_required('customer', 'view')
 def view_company(company_id):
-    # 修改为直接通过ID查询企业，不再通过get_viewable_data过滤
     company = Company.query.get_or_404(company_id)
     
-    # 当前用户是否为客户owner（只有owner可以编辑）
-    can_edit_company = (company.owner_id == current_user.id or current_user.role == 'admin')
+    # 检查当前用户是否有权限查看此企业
+    if not can_view_company(current_user, company):
+        flash('您没有权限查看此客户信息', 'danger')
+        return redirect(url_for('customer.list_companies'))
+    
+    # 当前用户是否为客户owner或有编辑权限
+    can_edit_info = can_edit_company_info(current_user, company)
+    can_edit_sharing = can_edit_company_sharing(current_user, company)
+    
     # 所有联系人
     all_contacts = Contact.query.filter_by(company_id=company_id).all()
-    # 只显示当前用户创建的联系人
-    my_contacts = [c for c in all_contacts if c.owner_id == current_user.id]
+    
+    # 获取用户有权限查看的联系人
+    viewable_contacts = [c for c in all_contacts if can_view_contact(current_user, c)]
+    
     # 预加载所有联系人的所有者信息
     owner_ids = [contact.owner_id for contact in all_contacts if contact.owner_id]
     if owner_ids:
@@ -200,9 +212,11 @@ def view_company(company_id):
         for contact in all_contacts:
             if contact.owner_id and contact.owner_id in owners:
                 contact.owner = owners[contact.owner_id]
+    
     # 如果需要，确保公司的动作记录已正确加载并按日期排序
     if hasattr(company, 'actions') and company.actions:
         company.actions.sort(key=lambda x: x.date, reverse=True)
+    
     # 查询与该企业相关的所有项目
     projects = Project.query.filter(
         or_(
@@ -215,7 +229,6 @@ def view_company(company_id):
     ).all()
     
     # 筛选用户有权限查看的项目
-    from app.utils.access_control import get_viewable_data
     viewable_project_ids = [p.id for p in get_viewable_data(Project, current_user).all()]
     viewable_projects = [p for p in projects if p.id in viewable_project_ids]
     
@@ -228,24 +241,37 @@ def view_company(company_id):
     actions = pagination.items
     
     # 筛选出用户有权限查看的联系人的行动记录
-    viewable_contact_ids = [c.id for c in my_contacts]
+    viewable_contact_ids = [c.id for c in viewable_contacts]
     viewable_actions = [a for a in actions if a.contact_id in viewable_contact_ids or a.owner_id == current_user.id]
     
     # 提前加载行动记录所有者信息，避免N+1查询
-    user_ids = [action.owner_id for action in actions if action.owner_id]
-    users = User.query.filter(User.id.in_(set(user_ids))).all()
+    action_user_ids = [action.owner_id for action in actions if action.owner_id]
+    users = User.query.filter(User.id.in_(set(action_user_ids))).all()
     user_map = {user.id: user for user in users}
     for action in actions:
         if action.owner_id and action.owner_id in user_map:
             action.owner = user_map[action.owner_id]
+    
+    # 获取所有可选用户列表（用于共享设置）
+    # 修复：直接使用_is_active字段会漏掉管理员用户，需要改用属性方法判断
+    # 通过SQL表达式实现：管理员用户或_is_active=True的用户
+    all_users = User.query.filter(
+        or_(
+            User.role == 'admin',  # 管理员用户
+            User._is_active == True  # 活跃用户
+        )
+    ).all()
+    
     # 国家代码到名称的映射
     country_code_to_name = {
         "CN": "中国", "US": "美国", "JP": "日本", "DE": "德国", "FR": "法国", "GB": "英国", "CA": "加拿大", "AU": "澳大利亚", "NZ": "新西兰", "IN": "印度", "RU": "俄罗斯", "BR": "巴西", "ZA": "南非", "SG": "新加坡", "MY": "马来西亚", "TH": "泰国", "ID": "印度尼西亚", "PH": "菲律宾", "VN": "越南", "KR": "韩国", "AE": "阿联酋", "SA": "沙特阿拉伯", "IT": "意大利", "ES": "西班牙", "NL": "荷兰", "CH": "瑞士", "SE": "瑞典", "NO": "挪威", "FI": "芬兰", "DK": "丹麦", "BE": "比利时"
     }
+    
     return render_template('customer/view.html', 
                           company=company, 
-                          can_edit_company=can_edit_company,
-                          contacts=my_contacts, 
+                          can_edit_company_info=can_edit_info,
+                          can_edit_company_sharing=can_edit_sharing,
+                          contacts=viewable_contacts, 
                           all_contacts=all_contacts,  # 用于查重
                           actions=actions, 
                           viewable_actions=viewable_actions,
@@ -253,6 +279,7 @@ def view_company(company_id):
                           projects=projects,
                           viewable_projects=viewable_projects,
                           country_code_to_name=country_code_to_name,
+                          all_users=all_users,
                           COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
                           INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
                           STATUS_OPTIONS=STATUS_OPTIONS)
@@ -262,21 +289,19 @@ def view_company(company_id):
 def add_company():
     if request.method == 'POST':
         try:
-            company = Company(
-                company_name=request.form['company_name'],
-                country=request.form.get('country'),
-                region=request.form.get('region'),
-                address=request.form.get('address'),
-                industry=request.form.get('industry'),
-                company_type=request.form.get('company_type'),
-                status=request.form.get('status', '活跃'),
-                notes=request.form.get('notes'),
-                owner_id=current_user.id  # 设置当前用户为所有者
-            )
+            data = request.form.to_dict()
+            # 移除csrf_token和所有非Company字段
+            for key in ['csrf_token', 'contact_name', 'contact_department', 'contact_position', 'contact_phone', 'contact_email', 'contact_notes']:
+                data.pop(key, None)
+            # 强制写入活跃状态
+            data['status'] = 'active'
+            # 设置客户归属人为当前用户
+            data['owner_id'] = current_user.id
+            company = Company(**data)
             db.session.add(company)
             db.session.commit()
-            flash('企业添加成功！', 'success')
-            return redirect(url_for('customer.view_company', company_id=company.id))
+            flash('客户创建成功！', 'success')
+            return redirect(url_for('customer.list_companies'))
         except Exception as e:
             db.session.rollback()
             import traceback
@@ -293,23 +318,19 @@ def edit_company(company_id):
     company = Company.query.get_or_404(company_id)
     
     # 检查编辑权限
-    if not can_edit_data(company, current_user):
+    if not can_edit_company_info(current_user, company):
         flash('您没有权限编辑此企业信息', 'danger')
         return redirect(url_for('customer.view_company', company_id=company_id))
     
     if request.method == 'POST':
         try:
-            company.company_name = request.form['company_name']
-            company.country = request.form.get('country')
-            company.region = request.form.get('region')
-            company.address = request.form.get('address')
-            company.industry = request.form.get('industry')
-            company.company_type = request.form.get('company_type')
-            company.status = request.form.get('status')
-            company.notes = request.form.get('notes')
-            
+            data = request.form.to_dict()
+            # 移除status字段，禁止编辑
+            data.pop('status', None)
+            for key, value in data.items():
+                setattr(company, key, value)
             db.session.commit()
-            flash('企业信息更新成功！', 'success')
+            flash('客户信息已更新！', 'success')
             return redirect(url_for('customer.view_company', company_id=company.id))
         except Exception as e:
             db.session.rollback()
@@ -391,7 +412,10 @@ def add_contact(company_id):
             phone=request.form['phone'],
             email=request.form['email'],
             notes=request.form['notes'],
-            owner_id=current_user.id
+            owner_id=current_user.id,
+            # 处理共享控制字段
+            override_share='override_share' in request.form,
+            shared_disabled='shared_disabled' in request.form
         )
         
         # 添加到数据库
@@ -401,24 +425,10 @@ def add_contact(company_id):
         # 设置为主要联系人（如果勾选）
         if request.form.get('is_primary'):
             contact.set_as_primary()
-            
-        # 尝试刷新关系，确保显示在列表中
-        try:
-            # 刷新会话，确保所有关系都已更新
-            db.session.refresh(contact)
-            db.session.refresh(company)
-            # 记录日志，帮助调试
-            print(f"联系人 {name} 已添加到公司 {company.company_name}，所有者ID: {current_user.id}")
-        except Exception as e:
-            # 记录但不阻止流程
-            print(f"刷新联系人关系时出错: {str(e)}")
-            
-        flash('联系人添加成功！', 'success')
-        return redirect(url_for('customer.view_company', company_id=company_id))
         
-    # GET请求显示表单
-    return render_template('customer/add_contact.html', company=company, 
-                          COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
+        flash('联系人添加成功！', 'success')
+        return redirect(url_for('customer.list_contacts', company_id=company_id))
+    return render_template('customer/add_contact.html', company=company, COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
                           INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
                           STATUS_OPTIONS=STATUS_OPTIONS)
 
@@ -429,8 +439,8 @@ def edit_contact(company_id, contact_id):
     company = Company.query.get_or_404(company_id)
     
     # 检查编辑权限
-    if not can_edit_data(company, current_user):
-        flash('您没有权限编辑此企业的联系人', 'danger')
+    if not can_edit_contact(current_user, contact):
+        flash('您没有权限编辑此联系人', 'danger')
         return redirect(url_for('customer.list_contacts', company_id=company_id))
     
     if request.method == 'POST':
@@ -447,6 +457,10 @@ def edit_contact(company_id, contact_id):
         elif contact.is_primary:  # 如果之前是主要联系人，现在取消了
             contact.is_primary = False
             
+        # 处理共享控制设置
+        contact.override_share = 'override_share' in request.form
+        contact.shared_disabled = 'shared_disabled' in request.form
+            
         db.session.commit()
         flash('联系人信息更新成功！', 'success')
         return redirect(url_for('customer.list_contacts', company_id=contact.company_id))
@@ -458,32 +472,14 @@ def edit_contact(company_id, contact_id):
 @permission_required('customer', 'delete')
 def delete_contact(company_id, contact_id):
     contact = Contact.query.get_or_404(contact_id)
-    company = Company.query.get_or_404(company_id)
-    
-    # 权限校验
-    if not can_edit_data(company, current_user):
-        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': False, 'message': '您没有权限删除此联系人'}), 403
-        flash('您没有权限删除此联系人', 'danger')
-        return redirect(url_for('customer.view_company', company_id=company_id))
-    
-    try:
-        # 删除相关行动记录
-        related_actions = Action.query.filter_by(contact_id=contact.id).all()
-        for action in related_actions:
-            db.session.delete(action)
-        db.session.delete(contact)
-        db.session.commit()
-        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': True})
-        flash('联系人已删除', 'success')
-        return redirect(url_for('customer.view_company', company_id=company_id))
-    except Exception as e:
-        db.session.rollback()
-        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': False, 'message': '删除失败：' + str(e)}), 500
-        flash('删除联系人失败', 'danger')
-        return redirect(url_for('customer.view_company', company_id=company_id))
+    # 检查删除权限
+    if not can_delete_contact(current_user, contact):
+        flash('您没有权限删除此联系人，只有联系人的创建者或管理员才能删除', 'danger')
+        return redirect(url_for('customer.list_contacts', company_id=company_id))
+    db.session.delete(contact)
+    db.session.commit()
+    flash('联系人删除成功！', 'success')
+    return redirect(url_for('customer.list_contacts', company_id=company_id))
 
 @customer.route('/api/contacts/<int:contact_id>/add_action', methods=['POST'])
 @permission_required('customer', 'create')
@@ -1681,7 +1677,7 @@ def delete_action_api(action_id):
 @permission_required('customer', 'view')
 def view_contact(contact_id):
     contact = Contact.query.get_or_404(contact_id)
-    if contact.owner_id != current_user.id:
+    if not can_view_contact(current_user, contact):
         flash('您没有权限查看此联系人信息', 'danger')
         return redirect(url_for('customer.list_companies'))
     company = contact.company
@@ -1701,8 +1697,9 @@ def view_contact(contact_id):
 @permission_required('customer', 'create')
 def add_action_for_company(company_id):
     company = Company.query.get_or_404(company_id)
-    # 只允许为自己创建的联系人添加行动记录
-    contacts = Contact.query.filter_by(company_id=company_id, owner_id=current_user.id).all()
+    # 允许为所有有权限的联系人添加行动记录
+    all_contacts = Contact.query.filter_by(company_id=company_id).all()
+    contacts = [c for c in all_contacts if can_view_contact(current_user, c)]
     projects = Project.query.filter(
         or_(
             Project.end_user == company.company_name,
@@ -1716,11 +1713,11 @@ def add_action_for_company(company_id):
     contact_actions = []
     contact_id = request.args.get('contact_id') if request.method == 'GET' else request.form.get('contact_id')
     if request.method == 'POST':
-        # 只能为自己创建的联系人添加
+        # 只能为有权限的联系人添加
         if contact_id:
             contact = Contact.query.get(contact_id)
-            if not contact or contact.owner_id != current_user.id:
-                flash('只能为自己创建的联系人添加跟进记录', 'danger')
+            if not contact or not can_view_contact(current_user, contact):
+                flash('您没有权限为该联系人添加跟进记录', 'danger')
                 return redirect(url_for('customer.view_company', company_id=company_id))
         project_id = request.form.get('project_id') or None
         communication = request.form.get('communication')
@@ -1747,3 +1744,38 @@ def add_action_for_company(company_id):
                           COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
                           INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
                           STATUS_OPTIONS=STATUS_OPTIONS) 
+@customer.route('/<int:company_id>/update_sharing', methods=['POST'])
+@permission_required('customer', 'edit')
+def update_company_sharing(company_id):
+    company = Company.query.get_or_404(company_id)
+    if not can_edit_company_sharing(current_user, company):
+        flash('您没有权限编辑此客户的共享设置', 'danger')
+        return redirect(url_for('customer.view_company', company_id=company_id))
+    shared_with_users = request.form.get('shared_with_users', '')
+    if isinstance(shared_with_users, str):
+        shared_with_users = [uid for uid in shared_with_users.split(',') if uid.strip()]
+    # 兼容老的getlist方式
+    if not shared_with_users:
+        shared_with_users = request.form.getlist('shared_with_users')
+    share_contacts = 'share_contacts' in request.form
+    company.shared_with_users = [int(uid) for uid in shared_with_users]
+    company.share_contacts = share_contacts
+    db.session.commit()
+    flash('客户共享设置已更新', 'success')
+    return redirect(url_for('customer.view_company', company_id=company_id))
+
+# 注册常用权限函数为模板全局函数
+@customer.app_context_processor
+def inject_permission_funcs():
+    from app.utils.access_control import (
+        can_view_company, can_edit_company_info, can_edit_company_sharing,
+        can_view_contact, can_edit_contact, can_delete_contact
+    )
+    return dict(
+        can_view_company=can_view_company,
+        can_edit_company_info=can_edit_company_info,
+        can_edit_company_sharing=can_edit_company_sharing,
+        can_view_contact=can_view_contact,
+        can_edit_contact=can_edit_contact,
+        can_delete_contact=can_delete_contact
+    )

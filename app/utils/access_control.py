@@ -10,6 +10,8 @@ from app.models.project import Project
 from app.models.customer import Company, Contact
 from app.models.quotation import Quotation
 from app.models.action import Action
+from sqlalchemy import or_, func, desc, text, cast
+from sqlalchemy.dialects.postgresql import JSONB
 
 logger = logging.getLogger(__name__)
 
@@ -144,20 +146,19 @@ def get_viewable_data(model_class, user, special_filters=None):
             affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
             for affiliation in affiliations:
                 viewable_user_ids.append(affiliation.owner_id)
-                
             return model_class.query.filter(
                 model_class.owner_id.in_(viewable_user_ids),
                 *special_filters
             )
-        # 销售角色：查看自己的客户 + 通过归属关系可见的客户
-        if user.role == 'sales':
+        # 销售角色：查看自己的客户 + 通过归属关系可见的客户 + 被共享的客户
+        if user.role == 'sales' or model_class.__name__ == 'Company':
             # 获取通过归属关系可以查看的用户ID列表
             viewable_user_ids = [user.id]
             affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
             for affiliation in affiliations:
                 viewable_user_ids.append(affiliation.owner_id)
-                
-            # 针对Company类特殊处理，显示自己创建了联系人的企业
+            
+            # Company模型需要特殊处理共享
             if model_class.__name__ == 'Company':
                 from app.models.customer import Contact
                 # 获取用户创建的所有联系人所属的公司ID列表
@@ -166,18 +167,24 @@ def get_viewable_data(model_class, user, special_filters=None):
                 ).distinct().all()
                 user_contact_company_ids = [company_id for (company_id,) in user_contact_company_ids]
                 
-                # 打印日志，帮助调试
-                print(f"用户 {user.username} (ID: {user.id}) 创建的联系人所属公司IDs: {user_contact_company_ids}")
+                # 查找出所有共享给当前用户的公司ID (单独查询)
+                shared_company_ids = []
+                for company in Company.query.all():
+                    if hasattr(company, 'shared_with_users') and company.shared_with_users:
+                        # 确保是列表类型
+                        if isinstance(company.shared_with_users, list) and user.id in company.shared_with_users:
+                            shared_company_ids.append(company.id)
                 
-                # 合并条件：展示用户有权限查看的公司或用户创建了联系人的公司
+                # 合并三个条件
                 return model_class.query.filter(
-                    db.or_(
+                    or_(
                         model_class.owner_id.in_(viewable_user_ids),
-                        model_class.id.in_(user_contact_company_ids)
+                        model_class.id.in_(user_contact_company_ids),
+                        model_class.id.in_(shared_company_ids)
                     ),
                     *special_filters
                 )
-            else:  # Contact类按原有逻辑
+            else:  # Contact模型使用常规查询
                 return model_class.query.filter(
                     model_class.owner_id.in_(viewable_user_ids),
                     *special_filters
@@ -256,4 +263,97 @@ def get_accessible_data(model_class, user, special_filters=None):
     return model_class.query.filter(
         model_class.owner_id == user.id,
         *special_filters
-    ) 
+    )
+
+# --- 权限函数重构 ---
+
+def can_view_company(user, company):
+    """
+    检查用户是否有权限查看指定的客户
+    """
+    if user.role == 'admin':
+        return True
+    if user.id == company.owner_id:
+        return True
+    # 判断是否通过共享获得权限
+    if hasattr(company, 'shared_with_users') and company.shared_with_users:
+        if user.id in company.shared_with_users:
+            return True
+    # 判断是否通过归属关系获得权限
+    affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+    if company.owner_id in [affiliation.owner_id for affiliation in affiliations]:
+        return True
+    # 判断是否创建了该公司下的联系人
+    contact_count = Contact.query.filter_by(company_id=company.id, owner_id=user.id).count()
+    if contact_count > 0:
+        return True
+    return False
+
+def can_edit_company_info(user, company):
+    """
+    判断是否可以编辑客户基本信息
+    """
+    if user.role == 'admin':
+        return True
+    if user.id == company.owner_id:
+        return True
+    return False
+
+def can_edit_company_sharing(user, company):
+    """
+    判断是否可以编辑客户共享设置
+    """
+    if user.role == 'admin':
+        return True
+    if user.id == company.owner_id:
+        return True
+    return False
+
+def can_delete_company(user, company):
+    """
+    只允许admin和拥有者删除
+    """
+    return user.role == 'admin' or user.id == company.owner_id
+
+def can_view_contact(user, contact):
+    """
+    检查用户是否有权限查看指定的联系人
+    """
+    if user.role == 'admin':
+        return True
+    if user.id == contact.owner_id:
+        return True
+    # 判断是否有指定的联系人归属
+    if hasattr(contact, 'assigned_to') and contact.assigned_to == user.id:
+        return True
+    # 判断联系人是否覆盖了公司的共享设置并禁用共享
+    if hasattr(contact, 'override_share') and contact.override_share:
+        if hasattr(contact, 'shared_disabled') and contact.shared_disabled:
+            return False
+    # 检查公司共享设置
+    company = contact.company
+    if hasattr(company, 'shared_with_users') and company.shared_with_users:
+        if user.id in company.shared_with_users:
+            if hasattr(company, 'share_contacts') and company.share_contacts:
+                return True
+    # 判断是否通过归属关系获得权限
+    affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+    if contact.owner_id in [affiliation.owner_id for affiliation in affiliations]:
+        return True
+    return False
+
+def can_edit_contact(user, contact):
+    """
+    检查用户是否有权限编辑指定的联系人
+    """
+    return can_view_contact(user, contact)
+
+def can_delete_contact(user, contact):
+    """
+    检查用户是否有权限删除指定的联系人
+    """
+    # 管理员可以删除任何联系人
+    if user.role == 'admin':
+        return True
+    # 联系人创建者可以删除自己创建的联系人
+    return user.id == contact.owner_id 

@@ -62,16 +62,6 @@
                         </div>
 
                         <div class="mb-3">
-                            <label for="status" class="form-label">状态</label>
-                            <select class="form-select" id="status" name="status">
-                                <option value="">请选择状态</option>
-                                {% for value, label in STATUS_OPTIONS %}
-                                <option value="{{ value }}" {% if company.status == value %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-
-                        <div class="mb-3">
                             <label for="notes" class="form-label">备注</label>
                             <textarea class="form-control" id="notes" name="notes" rows="3">{{ company.notes }}</textarea>
                         </div>

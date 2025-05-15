@@ -1,0 +1,40 @@
+INFO:config:原始DATABASE_URL: postgresql://nijie@localhost:5432/pma_local
+INFO:__main__:端口 8082 已被占用，尝试清理...
+INFO:__main__:已终止占用端口 8082 的进程
+INFO:app:数据库表创建成功
+INFO:app.utils.version_check:版本信息已保存到 app_version.json
+INFO:app.utils.version_check:模块 user 代码一致
+INFO:app.utils.version_check:模块 customer 代码一致
+INFO:app.utils.version_check:模块 project 代码一致
+INFO:app.utils.version_check:模块 quotation 代码一致
+INFO:app.utils.version_check:模块 product 代码一致
+INFO:app:应用版本检查完成
+INFO:app:数据所有权初始化已被关闭
+INFO:app:字典数据初始化已被关闭
+INFO:__main__:启动应用于端口 8082
+数据库连接测试成功!
+ * Serving Flask app 'app'
+ * Debug mode: on
+INFO:werkzeug:[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8082
+ * Running on http://192.168.1.14:8082
+INFO:werkzeug:[33mPress CTRL+C to quit[0m
+INFO:werkzeug: * Restarting with stat
+INFO:config:原始DATABASE_URL: postgresql://nijie@localhost:5432/pma_local
+INFO:app:数据库表创建成功
+INFO:app.utils.version_check:版本信息已保存到 app_version.json
+INFO:app.utils.version_check:模块 user 代码一致
+INFO:app.utils.version_check:模块 customer 代码一致
+INFO:app.utils.version_check:模块 project 代码一致
+INFO:app.utils.version_check:模块 quotation 代码一致
+INFO:app.utils.version_check:模块 product 代码一致
+INFO:app:应用版本检查完成
+INFO:app:数据所有权初始化已被关闭
+INFO:app:字典数据初始化已被关闭
+WARNING:werkzeug: * Debugger is active!
+INFO:werkzeug: * Debugger PIN: 476-865-617
+/opt/homebrew/Cellar/python@3.13/3.13.3/Frameworks/Python.framework/Versions/3.13/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown: {'/mp-ccgoebcs'}
+  warnings.warn(
+/opt/homebrew/Cellar/python@3.13/3.13.3/Frameworks/Python.framework/Versions/3.13/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown: {'/mp-vyezuji0'}
+  warnings.warn(

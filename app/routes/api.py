@@ -13,35 +13,28 @@ from fuzzywuzzy import fuzz  # 用于计算字符串相似度
 import re
 from app.models.quotation import Quotation, QuotationDetail
 from app.utils.dictionary_helpers import company_type_label, COMPANY_TYPE_LABELS
+from app.utils.access_control import get_viewable_data
 
 logger = logging.getLogger(__name__)
 
 api_bp = Blueprint('api', __name__)
 
-@api_bp.route('/companies/<company_type>', methods=['GET'])
+@api_bp.route('/companies/<string:company_type>', methods=['GET'])
+@login_required
 def get_companies_by_type(company_type):
     """
     获取指定类型的公司列表
     company_type可以是：user（直接用户）, designer（设计院）, contractor（总承包）, 
     integrator（系统集成商）, dealer（经销商）
     """
-    # 验证company_type是否有效
     if company_type not in COMPANY_TYPE_LABELS:
         return jsonify({'error': '无效的公司类型'}), 400
-    
-    companies = Company.query.filter_by(
-        company_type=company_type
-    ).order_by(Company.company_name).all()
-    
-    return jsonify({
-        'companies': [{
-            'id': company.id,
-            'name': company.company_name,
-            'type': company.company_type,
-            'contact': company.contacts[0].name if company.contacts else None,
-            'phone': company.contacts[0].phone if company.contacts else None
-        } for company in companies]
-    })
+
+    query = get_viewable_data(Company, current_user)
+    companies = query.filter_by(company_type=company_type).order_by(Company.company_name).all()
+
+    # 直接返回数组，兼容前端
+    return jsonify([{'id': c.id, 'name': c.company_name} for c in companies])
 
 @api_bp.route('/products/categories', methods=['GET'])
 def get_product_categories():

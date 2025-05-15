@@ -142,7 +142,62 @@ def get_dictionary_value(dict_type, key):
     cache = getattr(g, cache_name)
     return cache.get(key, key)
 
+# 品牌状态映射
+BRAND_STATUS_LABELS = {
+    'qualified': {'zh': '品牌入围', 'en': 'Qualified'},
+    'controlled': {'zh': '品牌受控', 'en': 'Controlled'},
+    'not_required': {'zh': '无品牌要求', 'en': 'Not Required'},
+    'unqualified': {'zh': '品牌未入围', 'en': 'Unqualified'}
+}
 
+def brand_status_label(key, lang='zh'):
+    return BRAND_STATUS_LABELS.get(key, {}).get(lang, key)
 
+# 报备来源映射
+REPORTING_SOURCE_LABELS = {
+    'channel': {'zh': '渠道报备', 'en': 'Channel'},
+    'sales': {'zh': '销售线索', 'en': 'Sales Lead'},
+    'marketing': {'zh': '市场拓展', 'en': 'Marketing'}
+}
+
+def reporting_source_label(key, lang='zh'):
+    return REPORTING_SOURCE_LABELS.get(key, {}).get(lang, key)
+
+# 分享权限标签映射
+SHARE_PERMISSION_LABELS = {
+    "read": {"zh": "只读", "en": "Read"},
+    "edit": {"zh": "可编辑", "en": "Edit"}
+}
+
+def share_permission_label(permission_key, lang='zh'):
+    """
+    获取分享权限标签
+    
+    参数:
+        permission_key: 权限键名
+        lang: 语言，默认中文
+        
+    返回:
+        权限标签
+    """
+    if permission_key in SHARE_PERMISSION_LABELS:
+        return SHARE_PERMISSION_LABELS[permission_key][lang]
+    return permission_key
+
+def user_label(user_id, users_dict=None):
+    """
+    获取用户标签
+    
+    参数:
+        user_id: 用户ID
+        users_dict: 用户字典，可选，格式为 {user_id: user_object}
+        
+    返回:
+        用户名或ID
+    """
+    if users_dict and user_id in users_dict:
+        return users_dict[user_id].username
+    # 如果没有传入用户字典，则返回用户ID
+    return str(user_id)
 
 # TODO: 可扩展更多字典类型的获取方法 

@@ -54,6 +54,10 @@ class Company(db.Model):
     notes = db.Column(db.Text)  # 备注
     is_deleted = db.Column(db.Boolean, default=False)  # 是否删除
     
+    # 客户共享字段
+    shared_with_users = db.Column(db.JSON, default=list)  # 被共享用户ID列表，如 [3, 5]
+    share_contacts = db.Column(db.Boolean, default=True)  # 是否共享该客户下所有联系人
+    
     # 所有者字段（关联到用户表）
     owner_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     owner = db.relationship('User', backref=db.backref('companies', lazy='dynamic'))
@@ -83,6 +87,10 @@ class Contact(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     notes = db.Column(db.Text)  # 备注
+    
+    # 共享控制字段
+    override_share = db.Column(db.Boolean, default=False)  # 是否启用联系人级别控制
+    shared_disabled = db.Column(db.Boolean, default=False)  # 如果为TRUE，则即使公司共享也不共享该联系人
     
     # 所有者字段（关联到用户表）
     owner_id = db.Column(db.Integer, db.ForeignKey('users.id'))
