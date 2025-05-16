@@ -1,4 +1,14 @@
 """
+确保 can_edit_company_info 可用于 Jinja2 模板
+"""
+
+try:
+    from flask import current_app as app
+except ImportError:
+    app = None
+
+# --- 权限函数重构 ---
+"""
 数据访问控制工具模块
 用于根据用户角色和权限过滤数据查询
 """
@@ -373,3 +383,71 @@ def can_view_project(user, project):
     if project.owner_id in affiliation_owner_ids:
         return True
     return False 
+
+def register_context_processors(app):
+    """
+    注册权限辅助函数到应用上下文处理器
+    这个函数应该在应用初始化时被调用
+    """
+    @app.context_processor
+    def inject_permission_helpers():
+        return dict(
+            can_edit_company_info=can_edit_company_info,
+            can_edit_company_sharing=can_edit_company_sharing,
+            can_delete_company=can_delete_company,
+            can_view_contact=can_view_contact,
+            can_edit_contact=can_edit_contact,
+            can_delete_contact=can_delete_contact,
+            can_view_project=can_view_project,
+            can_view_company=can_view_company
+        )
+
+def can_change_company_owner(user, company):
+    """
+    判断用户是否有权修改客户的拥有人。
+    - 管理员可修改所有客户
+    - 部门负责人（is_department_manager为True或角色为sales_director/department_manager）可修改本部门成员的客户
+    """
+    if user.role == 'admin':
+        return True
+    # 支持多种部门负责人角色
+    if getattr(user, 'is_department_manager', False) or user.role in ['sales_director', 'department_manager']:
+        from app.models.user import User
+        owner = User.query.get(company.owner_id)
+        if not owner:
+            return False
+        # 只允许操作本部门成员
+        return hasattr(owner, 'department') and hasattr(user, 'department') and owner.department == user.department
+    return False
+
+def can_change_project_owner(user, project):
+    """
+    判断用户是否有权修改项目的拥有人。
+    - 管理员可修改所有项目
+    - 部门负责人（is_department_manager为True或角色为sales_director/department_manager）可修改本部门成员的项目
+    """
+    if user.role == 'admin':
+        return True
+    if getattr(user, 'is_department_manager', False) or user.role in ['sales_director', 'department_manager']:
+        from app.models.user import User
+        owner = User.query.get(project.owner_id)
+        if not owner:
+            return False
+        return hasattr(owner, 'department') and hasattr(user, 'department') and owner.department == user.department
+    return False
+
+def can_change_quotation_owner(user, quotation):
+    """
+    判断用户是否有权修改报价单的拥有人。
+    - 管理员可修改所有报价单
+    - 部门负责人（is_department_manager为True或角色为sales_director/department_manager）可修改本部门成员的报价单
+    """
+    if user.role == 'admin':
+        return True
+    if getattr(user, 'is_department_manager', False) or user.role in ['sales_director', 'department_manager']:
+        from app.models.user import User
+        owner = User.query.get(quotation.owner_id)
+        if not owner:
+            return False
+        return hasattr(owner, 'department') and hasattr(user, 'department') and owner.department == user.department
+    return False

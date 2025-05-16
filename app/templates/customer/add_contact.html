@@ -1,14 +1,15 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button %}
+{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel, render_company_code %}
 
 {% block content %}
+<div class="mt-3"></div>
 <div class="container mt-4">
     <div class="row">
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header">
                     <h4>添加联系人 - {{ company.company_name }}</h4>
-                    <div class="text-muted">企业代码：{{ company.company_code }}</div>
+                    {{ render_company_code(company.company_code) }}
                 </div>
                 <div class="card-body">
                     <form method="POST">
@@ -83,8 +84,7 @@
                         </div>
 
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                            {{ render_button('取消', url_for('customer.list_contacts', company_id=company.id), color='secondary', icon='fas fa-arrow-left') }}
-                            {{ render_button('保存', None, color='primary', icon='fas fa-save', type='submit', extra_class='ms-md-2', size='md') }}
+                            {{ render_confirm_cancel(confirm_text='保存', cancel_text='取消', confirm_href=None, cancel_href=url_for('customer.view_company', company_id=company.id)) }}
                         </div>
                     </form>
                 </div>

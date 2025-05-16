@@ -16,6 +16,7 @@ from app.utils.dictionary_helpers import (
     project_type_label, project_stage_label, report_source_label, authorization_status_label, company_type_label, product_situation_label, industry_label, status_label, brand_status_label, reporting_source_label, share_permission_label, user_label, get_role_display_name
 )
 import datetime
+from app.utils.access_control import can_edit_company_info, can_edit_data, can_change_company_owner
 
 # 配置日志
 logging.basicConfig(
@@ -389,6 +390,16 @@ def create_app(config_class=Config):
             # 默认无权限
             return False
         return {'has_permission': has_permission}
+
+    # 添加公司编辑权限函数到模板上下文
+    @app.context_processor
+    def inject_company_edit_permission():
+        """向模板注入公司编辑权限函数"""
+        return {
+            'can_edit_company_info': can_edit_company_info,
+            'can_edit_data': can_edit_data,
+            'can_change_company_owner': can_change_company_owner
+        }
 
     # 注册自定义过滤器
     from app.utils.filters import project_type_style, project_stage_style, format_date, format_datetime, format_currency

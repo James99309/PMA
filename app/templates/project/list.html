@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_authorization_code, render_datetime %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_authorization_code, render_datetime, render_project_stage %}
 {% import 'macros/ui_helpers.html' as ui %}
 
 {% block title %}项目管理{% endblock %}
@@ -77,8 +77,10 @@
                     </div>
                 </div>
                 <div class="d-none d-lg-block">
-                    {{ ui.render_button("批量导入", type="button", color="info", icon="fas fa-file-import", attrs='id="importProjectsBtn"', extra_class="me-2") }}
-                    {{ ui.render_button("创建项目", href=url_for('project.add_project'), color="primary", icon="fas fa-plus", attrs='', extra_class="me-2") }}
+                    {% if current_user.role == 'admin' %}
+                        {{ ui.render_button("批量导入", type="button", color="info", icon="fas fa-file-import", attrs='id="importProjectsBtn"', extra_class="me-2") }}
+                    {% endif %}
+                    {{ ui.render_button("创建项目", href=url_for('project.add_project'), color="primary", attrs='', extra_class="me-2") }}
                     {% if has_permission('project', 'delete') %}
                     <button id="batchDeleteBtn" class="btn btn-danger" style="display: none;">
                         <i class="fas fa-trash"></i> 批量删除
@@ -94,9 +96,11 @@
                 </button>
                 <div id="mobileFabMenu" class="card shadow position-fixed" style="right: 24px; bottom: 90px; min-width: 140px; z-index: 1051; display: none;">
                     <ul class="list-group list-group-flush">
+                        {% if current_user.role == 'admin' %}
                         <li class="list-group-item p-2">
                             <a href="#" id="mobileImportBtn" class="text-info text-decoration-none"><i class="fas fa-file-import me-2"></i>批量导入</a>
                         </li>
+                        {% endif %}
                         <li class="list-group-item p-2">
                             <a href="{{ url_for('project.add_project') }}" class="text-primary text-decoration-none"><i class="fas fa-plus me-2"></i>创建项目</a>
                         </li>
@@ -139,9 +143,7 @@
                     <div class="card-body p-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="badge bg-info">{{ project.authorization_code or '无编号' }}</span>
-                            <span class="badge {% if project.current_stage == '已完成' %}bg-success{% elif project.current_stage == '已丢单' %}bg-danger{% else %}bg-primary{% endif %}">
-                                {{ project.current_stage or '未设置' }}
-                            </span>
+                            {{ render_project_stage(project.current_stage|project_stage_label('zh')) if project.current_stage else render_project_stage('未设置') }}
                         </div>
                         <h5 class="card-title mb-2">
                             <a href="{{ url_for('project.view_project', project_id=project.id) }}" class="text-decoration-none">
@@ -381,7 +383,7 @@
                                         {{ project.project_name }}
                                     </a>
                                 </td>
-                                <td>{% if project.current_stage %}{{ project.current_stage|project_stage_label('zh') }}{% else %}未设置{% endif %}</td>
+                                <td>{{ render_project_stage(project.current_stage|project_stage_label('zh')) if project.current_stage else render_project_stage('未设置') }}</td>
                                 <td>{{ render_project_type(project.project_type) if project.project_type else '' }}</td>
                                 <td>
                                     {% if project.quotation_customer and project.quotations.count() > 0 %}

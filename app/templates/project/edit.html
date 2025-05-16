@@ -217,9 +217,9 @@
                     <textarea class="form-control" id="stage_description" name="stage_description" rows="3">{{ project.stage_description if project else '' }}</textarea>
                 </div>
 
-                <div class="text-center mt-4">
-                    <button type="submit" class="btn btn-primary me-md-2">保存</button>
-                    <a href="{{ url_for('project.list_projects') }}" class="btn btn-secondary">取消</a>
+                <div class="mb-4 d-flex justify-content-end gap-2">
+                    {{ ui.render_button('返回列表', href=url_for('project.list_projects'), color='secondary') }}
+                    {{ ui.render_button('保存', type='submit', color='primary') }}
                 </div>
             </div>
         </div>

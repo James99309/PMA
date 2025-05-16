@@ -43,11 +43,8 @@
                         </div>
                         <div class="text-end">
                             <button type="button" id="saveButton" class="btn btn-primary me-2">
-                                <i class="fas fa-save"></i> 保存
+                                保存
                             </button>
-                            <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="btn btn-secondary">
-                                <i class="fas fa-times"></i> 取消
-                            </a>
                         </div>
                     </form>
                 </div>
@@ -196,7 +193,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // 恢复保存按钮状态
                 saveButton.disabled = false;
-                saveButton.innerHTML = '<i class="fas fa-save"></i> 保存';
+                saveButton.innerHTML = '保存';
             }
         })
         .catch(error => {
@@ -208,7 +205,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // 恢复保存按钮状态
             saveButton.disabled = false;
-            saveButton.innerHTML = '<i class="fas fa-save"></i> 保存';
+            saveButton.innerHTML = '保存';
         });
     });
 });

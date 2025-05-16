@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros/ui_helpers.html" import render_quotation_number %}
+{% from "macros/ui_helpers.html" import render_quotation_number, render_button %}
 
 {% block head %}
 {{ super() }}
@@ -420,8 +420,8 @@ input[type="number"].quantity {
                             </div>
                             <!-- 项目分类显示 -->
                             <div class="col-md-4">
-                                <label class="form-label">项目分类</label>
-                                <input type="text" class="form-control" id="project_type" value="{% if quotation and quotation.project %}{{ quotation.project.project_type|project_type_label('zh') }}{% elif selected_project %}{{ selected_project.project_type|project_type_label('zh') }}{% endif %}" readonly>
+                                <label class="form-label">项目类型</label>
+                                <input type="text" class="form-control" id="project_type" value="{% if quotation and quotation.project %}{{ quotation.project.project_type|default('') }}{% elif selected_project %}{{ selected_project.project_type|default('') }}{% else %}{% endif %}" readonly>
                             </div>
                         </div>
 
@@ -477,10 +477,9 @@ input[type="number"].quantity {
                                                         <input type="text" class="form-control product-price" name="product_price[]" value="{{ item.market_price }}" readonly>
                                                     </td>
                                                     <td>
-                                                        <div class="discount-rate-container">
+                                                        <div class="discount-rate-group">
                                                             <input type="number" class="form-control discount-rate" name="discount_rate[]" value="{{ item.discount_rate if item.discount_rate is defined else 100.0 }}" min="0" step="0.1" max="1000" required style="text-align:right;">
                                                         </div>
-                                                        <span class="discount-rate-percent">%</span>
                                                     </td>
                                                     <td>
                                                         <input type="text" class="form-control discounted-price" name="discounted_price[]" 
@@ -527,12 +526,11 @@ input[type="number"].quantity {
                                                     <td>
                                                         <input type="text" class="form-control product-price" name="product_price[]" readonly>
                                                     </td>
-                                                    <td>
-                                                        <div class="discount-rate-container">
-                                                            <input type="number" class="form-control discount-rate" name="discount_rate[]" value="100.0" min="0" step="0.1" max="1000" required style="text-align:right;">
-                                                        </div>
-                                                        <span class="discount-rate-percent">%</span>
-                                                    </td>
+                                                <td>
+                                                    <div class="discount-rate-group">
+                                                        <input type="number" class="form-control discount-rate" name="discount_rate[]" value="100.0" min="0" step="0.1" max="1000" required style="text-align:right;">
+                                                    </div>
+                                                </td>
                                                     <td>
                                                         <input type="text" class="form-control discounted-price" name="discounted_price[]" 
                                                                placeholder="输入单价">
@@ -559,9 +557,7 @@ input[type="number"].quantity {
                                     </div>
                                 </div>
                                 <div class="text-end mt-3">
-                                    <button type="button" class="btn btn-primary" id="addProduct">
-                                        <i class="fas fa-plus"></i> 添加产品
-                                    </button>
+                                    {{ render_button('添加产品', '#', color='auxiliary', attrs='type="button" id="addProduct"') }}
                                 </div>
                             </div>
                         </div>
@@ -579,13 +575,13 @@ input[type="number"].quantity {
                         </div>
 
                         <!-- 提交按钮 -->
-                        <div class="text-center">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i> 保存报价单
-                            </button>
-                            <a href="{{ url_for('quotation.list_quotations') }}" class="btn btn-secondary">
-                                <i class="fas fa-times"></i> 取消
-                            </a>
+                        <div class="col-auto ml-auto">
+                            {% if return_to %}
+                            {{ render_button('返回项目详情', return_to, color='secondary') }}
+                            {% else %}
+                            {{ render_button('返回列表', url_for('quotation.list_quotations'), color='secondary') }}
+                            {% endif %}
+                            {{ render_button('保存', None, color='primary', type='submit', attrs='form="quotationForm" id="submit-btn"') }}
                         </div>
                     </form>
                 </div>
@@ -1334,10 +1330,9 @@ $(document).ready(function() {
                     <input type="text" class="form-control product-price" name="product_price[]" readonly>
                 </td>
                 <td>
-                    <div class="discount-rate-container">
+                    <div class="discount-rate-group">
                         <input type="number" class="form-control discount-rate" name="discount_rate[]" value="100.0" min="0" step="0.1" max="1000" required style="text-align:right;">
                     </div>
-                    <span class="discount-rate-percent">%</span>
                 </td>
                 <td>
                     <input type="text" class="form-control discounted-price" name="discounted_price[]" 
@@ -2166,7 +2161,6 @@ function initializeQuotationDetails(details) {
                         <div class="discount-rate-container">
                             <input type="number" class="form-control discount-rate" name="discount_rate[]" value="100.0" min="0" step="0.1" max="1000" required style="text-align:right;">
                         </div>
-                        <span class="discount-rate-percent">%</span>
                     </td>
                     <td>
                         <input type="text" class="form-control discounted-price" name="discounted_price[]" 
@@ -2240,7 +2234,6 @@ function initializeQuotationDetails(details) {
                             <div class="discount-rate-container">
                                 <input type="number" class="form-control discount-rate" name="discount_rate[]" value="${safeDetail.discount_rate}" min="0" step="0.1" max="1000" required style="text-align:right;">
                             </div>
-                            <span class="discount-rate-percent">%</span>
                         </td>
                         <td>
                             <input type="text" class="form-control discounted-price" name="discounted_price[]" 

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import 'macros/ui_helpers.html' as ui %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_authorization_code, render_project_stage %}
 
 {% block title %}添加行动记录{% endblock %}
 
@@ -77,9 +78,9 @@
                     <h5 class="mb-0">项目信息</h5>
                 </div>
                 <div class="card-body">
-                    <div class="mb-3">
-                        <h6>{{ project.project_name }}</h6>
-                        <span class="badge bg-primary">{{ project.current_stage or '无阶段' }}</span>
+                    <div class="d-flex">
+                        <h5 class="me-2">{{ project.project_name }}</h5>
+                        {{ render_project_stage(project.current_stage|project_stage_label('zh') if project.current_stage else '无阶段') }}
                     </div>
                     
                     <div class="mb-2">

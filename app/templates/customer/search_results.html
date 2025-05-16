@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_owner, render_date %}
+{% from 'macros/ui_helpers.html' import render_owner, render_date, render_primary_contact_badge %}
 
 {% block title %}联系人搜索结果{% endblock %}
 
@@ -56,10 +56,8 @@
                                 <td class="px-3">{{ contact.position or '-' }}</td>
                                 <td class="px-3">{{ contact.phone or '-' }}</td>
                                 <td class="px-3">{{ contact.email or '-' }}</td>
-                                <td class="px-3">
-                                    <span class="badge {% if contact.is_primary %}bg-success{% else %}bg-secondary{% endif %}">
-                                        {% if contact.is_primary %}是{% else %}否{% endif %}
-                                    </span>
+                                <td class="px-3 text-center">
+                                    {{ render_primary_contact_badge(contact.is_primary) }}
                                 </td>
                                 <td class="px-3">{{ render_owner(contact.owner) }}</td>
                                 <td class="px-3">{{ render_date(contact.created_at) }}</td>

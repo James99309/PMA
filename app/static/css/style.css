@@ -78,4 +78,17 @@ body {
          local("HelveticaNeue-Bold");
     font-weight: bold;
     font-style: normal;
+}
+
+/* 辅助按钮全局样式 */
+.btn-auxiliary {
+  background-color: #F2F2F2 !important;
+  color: black !important;
+  border: 1px solid #ccc !important;
+  transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+}
+.btn-auxiliary:hover {
+  background-color: black !important;
+  color: white !important;
+  border-color: black !important;
 } 

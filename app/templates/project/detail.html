@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_quotation_number %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_quotation_number, render_project_stage %}
 {% import 'macros/ui_helpers.html' as ui %}
 
 {% block title %}项目详情{% endblock %}
@@ -25,22 +25,16 @@
     <div class="row mb-3">
         <div class="col-md-12">
             <h2>{{ project.project_name }}</h2>
-            <div class="d-flex flex-wrap align-items-center justify-content-between mb-2">
-                <div>
-                    {{ ui.render_button("返回列表", href=url_for('project.list_projects'), color="secondary", icon="fas fa-arrow-left") }}
-                    {% if current_stage_key != 'signed' %}
-                        {% if current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) %}
-                        {{ ui.render_button("编辑项目", href=url_for('project.edit_project', project_id=project.id), color="primary", icon="fas fa-edit", extra_class="ms-2") }}
-                        {% endif %}
-                    {% endif %}
-                </div>
-                {% if current_stage_key != 'signed' %}
-                    {% if current_user.has_permission('project', 'delete') and (current_user.role == 'admin' or current_user.id == project.owner_id) %}
-                    <form action="{{ url_for('project.delete_project', project_id=project.id) }}" method="post" style="display:inline;" onsubmit="return confirm('确定要删除此项目吗？此操作不可恢复。');">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            {{ ui.render_button("删除项目", type="submit", color="danger", icon="fas fa-trash") }}
-                        </form>
-                    {% endif %}
+            <div class="d-flex flex-wrap align-items-center justify-content-end mb-2 gap-2">
+                {{ ui.render_button('返回列表', href=url_for('project.list_projects'), color='secondary') }}
+                {% if current_stage_key != 'signed' and current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) %}
+                    {{ ui.render_button('编辑项目', href=url_for('project.edit_project', project_id=project.id), color='primary') }}
+                {% endif %}
+                {% if current_stage_key != 'signed' and current_user.has_permission('project', 'delete') and (current_user.role == 'admin' or current_user.id == project.owner_id) %}
+                    <form action="{{ url_for('project.delete_project', project_id=project.id) }}" method="post" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        {{ ui.render_button('删除项目', type='submit', color='danger') }}
+                    </form>
                 {% endif %}
             </div>
             <!-- 授权编号/状态区域整体上移 -->
@@ -57,19 +51,19 @@
                          (current_user.role == 'channel_manager' and project.project_type == '渠道跟进') or
                          (current_user.role == 'sales_director' and project.project_type in ['渠道跟进', '销售重点']) or
                          (current_user.role in ['service', 'service_manager'] and project.project_type == '业务机会') %}
-                    {{ ui.render_button("批准", type="button", color="success", icon="fas fa-check", attrs='data-bs-toggle="modal" data-bs-target="#approveAuthorizationModal"') }}
-                    {{ ui.render_button("驳回", type="button", color="danger", icon="fas fa-times", attrs='data-bs-toggle="modal" data-bs-target="#rejectAuthorizationModal"') }}
+                    {{ ui.render_button("批准", type="button", color="success", attrs='data-bs-toggle="modal" data-bs-target="#approveAuthorizationModal"') }}
+                    {{ ui.render_button("驳回", type="button", color="danger", attrs='data-bs-toggle="modal" data-bs-target="#rejectAuthorizationModal"') }}
                     {% endif %}
                 </div>
                 {% elif current_user.id == project.owner_id or current_user.role == 'admin' %}
-                {{ ui.render_button("撤回申请", type="button", color="warning", icon="fas fa-undo", attrs='data-bs-toggle="modal" data-bs-target="#revokeAuthorizationModal"', extra_class="ms-3") }}
+                {{ ui.render_button("撤回申请", type="button", color="warning", attrs='data-bs-toggle="modal" data-bs-target="#revokeAuthorizationModal"', extra_class="ms-3") }}
                 {% endif %}
             </div>
             {% elif project.authorization_status == 'rejected' %}
             <div class="mt-2 d-flex align-items-center">
                 <span class="badge bg-danger">已驳回</span>
                 {% if current_user.id == project.owner_id or current_user.role == 'admin' %}
-                {{ ui.render_button("再次申请", type="button", color="primary", icon="fas fa-redo", attrs='data-bs-toggle="modal" data-bs-target="#applyAuthorizationModal"', extra_class="ms-3") }}
+                {{ ui.render_button("再次申请", type="button", color="auxiliary", attrs='data-bs-toggle="modal" data-bs-target="#applyAuthorizationModal"', extra_class="ms-3") }}
                 {% endif %}
             </div>
             {% if project.feedback %}
@@ -79,9 +73,8 @@
             {% endif %}
             {% else %}
             <div class="mt-2 d-flex align-items-center">
-                <span class="badge bg-secondary">未申请</span>
                 {% if current_user.id == project.owner_id or current_user.role == 'admin' %}
-                {{ ui.render_button("申请授权编号", type="button", color="primary", icon="fas fa-file-signature", attrs='data-bs-toggle="modal" data-bs-target="#applyAuthorizationModal"', extra_class="ms-3") }}
+                {{ ui.render_button("申请授权编号", type="button", color="auxiliary", attrs='data-bs-toggle="modal" data-bs-target="#applyAuthorizationModal"', extra_class="ms-3") }}
                 {% endif %}
             </div>
             {% endif %}
@@ -132,7 +125,7 @@
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>当前阶段：</strong></div>
-                                <div class="col-md-8" id="currentStageText">{% if project.current_stage %}{{ project.current_stage|project_stage_label('zh') }}{% else %}无{% endif %}</div>
+                                <div class="col-md-8" id="currentStageText">{{ render_project_stage(project.current_stage|project_stage_label('zh')) if project.current_stage else render_project_stage('无') }}</div>
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>报价总额：</strong></div>
@@ -153,7 +146,7 @@
     <form action="{{ url_for('quotation.create_quotation') }}" method="GET" style="display:inline;">
         <input type="hidden" name="project_id" value="{{ project.id }}">
         <input type="hidden" name="return_to" value="{{ url_for('project.view_project', project_id=project.id) }}">
-        {{ ui.render_button("添加报价", type="submit", color="primary", icon="fas fa-plus", extra_class="btn-sm") }}
+        {{ ui.render_button('添加报价', type='submit', color='primary', extra_class='btn-sm') }}
     </form>
     {% endif %}
 {% endif %}
@@ -167,7 +160,12 @@
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>拥有人：</strong></div>
-                                <div class="col-md-8">{{ render_owner(project.owner) }}</div>
+                                <div class="col-md-8">
+                                    {{ render_owner(project.owner) }}
+                                    {% if has_change_owner_permission %}
+                                        <button class="btn btn-link btn-sm p-0 ms-2" data-bs-toggle="modal" data-bs-target="#changeOwnerModal">修改</button>
+                                    {% endif %}
+                                </div>
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>预计交付时间：</strong></div>
@@ -303,9 +301,7 @@
             <div class="card" style="height: calc(100% - 0.75rem);">
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">行动记录</h5>
-                    <a href="{{ url_for('project.add_action_for_project', project_id=project.id) }}" class="btn btn-sm btn-primary">
-                        <i class="fas fa-plus"></i> 添加行动记录
-                    </a>
+                    {{ ui.render_button('添加行动记录', href=url_for('project.add_action_for_project', project_id=project.id), color='primary', size='sm') }}
                 </div>
                 <div class="card-body p-0">
                     <div class="timeline-container action-records-scroll" style="height: calc(100vh - 350px); overflow-y: auto; padding: 15px;">
@@ -335,12 +331,7 @@
                                                 <div class="d-flex align-items-center">
                                                     <small class="text-muted me-2">{{ render_owner(action.owner) }}</small>
                                                     {% if has_permission('customer', 'delete') and (action.owner_id == current_user.id or current_user.role == 'admin') %}
-                                                    <button type="button" class="btn btn-sm btn-outline-danger ms-1 delete-action-btn"
-                                                            data-action-id="{{ action.id }}"
-                                                            title="删除行动记录"
-                                                            onclick="deleteAction({{ action.id }})">
-                                                        <i class="fas fa-trash"></i>
-                                                    </button>
+                                                    {{ ui.render_button('删除', '#', color='danger', size='sm', extra_class='ms-1 delete-action-btn', attrs='data-action-id="' ~ action.id ~ '" title="删除行动记录"') }}
                                                     {% endif %}
                                                 </div>
                                             </div>
@@ -357,6 +348,9 @@
                                                 <button class="btn btn-secondary btn-sm cancel-reply">取消</button>
                                             </div>
                                             <button class="btn btn-link btn-sm mt-1 p-0 show-reply-form-btn" data-action-id="{{ action.id }}">回复</button>
+                                            <div class="mt-2">
+                                                {{ ui.render_button('返回项目', href=url_for('project.view_project', project_id=project.id), color='secondary', size='sm') }}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -495,6 +489,38 @@
         </div>
     </div>
 </div>
+
+{% if has_change_owner_permission %}
+<div class="modal fade" id="changeOwnerModal" tabindex="-1" aria-labelledby="changeOwnerModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="post" action="{{ url_for('project.change_project_owner', project_id=project.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="changeOwnerModalLabel">修改项目拥有人</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="new_owner_id" class="form-label">选择新拥有人</label>
+            <select class="form-select" id="new_owner_id" name="new_owner_id" required>
+              {% for user in all_users %}
+                <option value="{{ user.id }}" {% if user.id == project.owner_id %}selected{% endif %}>
+                  {{ user.real_name or user.username }}（{{ user.role }}）
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary">确认修改</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -629,7 +655,7 @@
             csrfToken: '{{ csrf_token() }}',
             updateUrl: "{{ url_for('project.update_project_stage') }}",
             stageHistory: {{ stageHistory|tojson }},
-            canEdit: {% if current_stage_key == 'signed' %}false{% elif current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) %}true{% else %}false{% endif %}
+            canEdit: {% if current_stage_key != 'signed' and current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) %}true{% else %}false{% endif %}
         });
     });
 

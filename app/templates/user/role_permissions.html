@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel %}
 
 {% block title %}权限管理 - 项目管理系统{% endblock %}
 
@@ -121,21 +122,15 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="btn-group" role="group" id="batchButtons" style="display:none;">
-                                    <button type="button" class="btn btn-outline-primary" id="selectAll">全选</button>
-                                    <button type="button" class="btn btn-outline-secondary" id="selectNone">清空</button>
-                                    <button type="button" class="btn btn-outline-info" id="selectView">仅查看</button>
+                                    {{ render_button('全选', '#', color='primary', type='button', attrs='id="selectAll"') }}
+                                    {{ render_button('清空', '#', color='secondary', type='button', attrs='id="selectNone"') }}
+                                    {{ render_button('仅查看', '#', color='info', type='button', attrs='id="selectView"') }}
                                 </div>
                             </div>
                             <div class="col-md-6 text-end">
-                                <button type="button" class="btn btn-success" id="editPermissions">
-                                    <i class="fas fa-edit me-1"></i> 编辑
-                                </button>
-                                <button type="button" class="btn btn-primary" id="savePermissions" style="display:none;">
-                                    <i class="fas fa-save me-1"></i> 保存权限设置
-                                </button>
-                                <a href="{{ url_for('user.list_users') }}" class="btn btn-outline-secondary ms-2">
-                                    <i class="fas fa-arrow-left me-1"></i> 返回列表
-                                </a>
+                                {{ render_button('编辑', '#', color='success', icon='fas fa-edit', type='button', attrs='id="editPermissions"') }}
+                                {{ render_button('保存权限设置', '#', color='primary', icon='fas fa-save', type='button', attrs='id="savePermissions" style="display:none;"') }}
+                                {{ render_button('返回列表', url_for('user.list_users'), color='secondary', icon='fas fa-arrow-left', extra_class='ms-2') }}
                             </div>
                         </div>
                     </div>

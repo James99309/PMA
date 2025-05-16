@@ -5,7 +5,7 @@ from app import db
 from datetime import datetime
 from flask_login import current_user, login_required
 from app.decorators import permission_required
-from app.utils.access_control import get_viewable_data, can_edit_data, get_accessible_data
+from app.utils.access_control import get_viewable_data, can_edit_data, get_accessible_data, can_change_project_owner
 import logging
 import re
 from fuzzywuzzy import fuzz
@@ -23,6 +23,7 @@ from flask_wtf.csrf import CSRFProtect
 from app.models.action import Action, ActionReply
 from app.models.projectpm_stage_history import ProjectStageHistory  # 导入阶段历史记录模型
 from app.utils.dictionary_helpers import project_type_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS
+from sqlalchemy import or_
 
 csrf = CSRFProtect()
 
@@ -226,7 +227,23 @@ def view_project(project_id):
         reverse_lookup = {v['zh']: k for k, v in PROJECT_STAGE_LABELS.items()}
         current_stage_key = reverse_lookup.get(current_stage_key, current_stage_key)
 
-    return render_template('project/detail.html', project=project, Quotation=Quotation, related_companies=related_companies, stageHistory=stage_history, project_actions=project_actions, current_stage_key=current_stage_key)
+    # 查询可选新拥有人
+    all_users = []
+    if can_change_project_owner(current_user, project):
+        if current_user.role == 'admin':
+            all_users = User.query.all()
+        elif getattr(current_user, 'is_department_manager', False) or current_user.role in ['sales_director', 'department_manager']:
+            all_users = User.query.filter(
+                or_(User.role == 'admin', User._is_active == True),
+                User.department == current_user.department
+            ).all()
+        else:
+            all_users = User.query.filter(User.id.in_([current_user.id, project.owner_id])).all()
+        if not all_users:
+            all_users = User.query.filter(User.id.in_([current_user.id, project.owner_id])).all()
+    has_change_owner_permission = can_change_project_owner(current_user, project)
+
+    return render_template('project/detail.html', project=project, Quotation=Quotation, related_companies=related_companies, stageHistory=stage_history, project_actions=project_actions, current_stage_key=current_stage_key, all_users=all_users, has_change_owner_permission=has_change_owner_permission)
 
 @project.route('/add', methods=['GET', 'POST'])
 @permission_required('project', 'create')
@@ -612,6 +629,13 @@ def approve_authorization(project_id):
         project.authorization_status = None  # 清除pending状态
         project.feedback = approval_note if approval_note else None
         
+        # 同步更新所有关联报价单的project_stage和project_type
+        from app.models.quotation import Quotation
+        quotations = Quotation.query.filter_by(project_id=project.id).all()
+        for q in quotations:
+            q.project_stage = project.current_stage
+            q.project_type = project.project_type
+        
         try:
             db.session.commit()
             # 记录日志
@@ -854,7 +878,12 @@ def update_project_stage():
         # 更新项目阶段
         old_stage = project.current_stage
         project.current_stage = new_stage
-        # 移除自动写入stage_description的所有逻辑（如有）
+        # 同步更新所有关联报价单的project_stage和project_type
+        from app.models.quotation import Quotation
+        quotations = Quotation.query.filter_by(project_id=project.id).all()
+        for q in quotations:
+            q.project_stage = new_stage
+            q.project_type = project.project_type
         
         # 在一个事务中同时保存项目更新和阶段历史
         try:
@@ -867,19 +896,6 @@ def update_project_stage():
                 remarks=f"API推进: {current_user.username}",
                 commit=False  # 不在方法内部提交，与主事务一同提交
             )
-
-            # 新增：插入阶段变更行动记录
-            from app.models.action import Action
-            action = Action(
-                date=datetime.now().date(),
-                contact_id=None,
-                company_id=None,
-                project_id=project.id,
-                communication=f"阶段变更：{old_stage} → {new_stage}",
-                owner_id=current_user.id
-            )
-            db.session.add(action)
-            # 不要单独commit，和主事务一起提交
 
             # 提交所有更改
             db.session.commit()
@@ -1056,4 +1072,30 @@ def add_action_reply(action_id):
     )
     db.session.add(reply)
     db.session.commit()
-    return jsonify({'success': True}) 
+    return jsonify({'success': True})
+
+@project.route('/<int:project_id>/change_owner', methods=['POST'])
+@permission_required('project', 'edit')
+def change_project_owner(project_id):
+    project = Project.query.get_or_404(project_id)
+    if not can_change_project_owner(current_user, project):
+        flash('您没有权限修改该项目的拥有人', 'danger')
+        return redirect(url_for('project.view_project', project_id=project_id))
+    new_owner_id = request.form.get('new_owner_id', type=int)
+    if not new_owner_id:
+        flash('请选择新的拥有人', 'danger')
+        return redirect(url_for('project.view_project', project_id=project_id))
+    from app.models.user import User
+    new_owner = User.query.get(new_owner_id)
+    if not new_owner:
+        flash('新拥有人不存在', 'danger')
+        return redirect(url_for('project.view_project', project_id=project_id))
+    project.owner_id = new_owner_id
+    # 同步更新该项目下所有报价单的owner_id为新拥有人
+    from app.models.quotation import Quotation
+    quotations = Quotation.query.filter_by(project_id=project.id).all()
+    for quotation in quotations:
+        quotation.owner_id = new_owner_id
+    db.session.commit()
+    flash('项目拥有人及关联报价单拥有人已更新', 'success')
+    return redirect(url_for('project.view_project', project_id=project_id)) 

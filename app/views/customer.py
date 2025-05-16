@@ -14,7 +14,7 @@ from app.utils.dictionary_helpers import COMPANY_TYPE_OPTIONS, INDUSTRY_OPTIONS,
 from app.utils.access_control import (
     get_viewable_data, can_edit_data, 
     can_view_company, can_edit_company_info, can_edit_company_sharing, can_delete_company,
-    can_view_contact, can_edit_contact, can_delete_contact
+    can_view_contact, can_edit_contact, can_delete_contact, can_change_company_owner
 )
 
 customer = Blueprint('customer', __name__)
@@ -195,10 +195,6 @@ def view_company(company_id):
         flash('您没有权限查看此客户信息', 'danger')
         return redirect(url_for('customer.list_companies'))
     
-    # 当前用户是否为客户owner或有编辑权限
-    can_edit_info = can_edit_company_info(current_user, company)
-    can_edit_sharing = can_edit_company_sharing(current_user, company)
-    
     # 所有联系人
     all_contacts = Contact.query.filter_by(company_id=company_id).all()
     
@@ -267,10 +263,26 @@ def view_company(company_id):
         "CN": "中国", "US": "美国", "JP": "日本", "DE": "德国", "FR": "法国", "GB": "英国", "CA": "加拿大", "AU": "澳大利亚", "NZ": "新西兰", "IN": "印度", "RU": "俄罗斯", "BR": "巴西", "ZA": "南非", "SG": "新加坡", "MY": "马来西亚", "TH": "泰国", "ID": "印度尼西亚", "PH": "菲律宾", "VN": "越南", "KR": "韩国", "AE": "阿联酋", "SA": "沙特阿拉伯", "IT": "意大利", "ES": "西班牙", "NL": "荷兰", "CH": "瑞士", "SE": "瑞典", "NO": "挪威", "FI": "芬兰", "DK": "丹麦", "BE": "比利时"
     }
     
+    # 查询可选新拥有人
+    if can_change_company_owner(current_user, company):
+        if current_user.role == 'admin':
+            # 管理员可以看到所有用户
+            all_users = User.query.all()
+        elif getattr(current_user, 'is_department_manager', False) or current_user.role in ['sales_director', 'department_manager']:
+            # 部门负责人只能选择本部门的活跃用户和管理员
+            all_users = User.query.filter(
+                or_(User.role == 'admin', User._is_active == True),
+                User.department == current_user.department
+            ).all()
+        else:
+            # 其他情况，至少包含当前用户和当前拥有者
+            all_users = User.query.filter(User.id.in_([current_user.id, company.owner_id])).all()
+        # 保险：如果all_users为空，至少包含当前用户和当前拥有者
+        if not all_users:
+            all_users = User.query.filter(User.id.in_([current_user.id, company.owner_id])).all()
+    
     return render_template('customer/view.html', 
                           company=company, 
-                          can_edit_company_info=can_edit_info,
-                          can_edit_company_sharing=can_edit_sharing,
                           contacts=viewable_contacts, 
                           all_contacts=all_contacts,  # 用于查重
                           actions=actions, 
@@ -1688,7 +1700,28 @@ def view_contact(contact_id):
         for action in actions:
             if action.owner_id and action.owner_id in owners:
                 action.owner = owners[action.owner_id]
+    # 传递可选新拥有人
+    all_users = []
+    if current_user.role == 'admin':
+        all_users = User.query.all()
+    elif getattr(current_user, 'is_department_manager', False) or current_user.role in ['sales_director', 'department_manager']:
+        all_users = User.query.filter(
+            or_(User.role == 'admin', User._is_active == True),
+            User.department == current_user.department
+        ).all()
+    else:
+        all_users = User.query.filter(User.id.in_([current_user.id, contact.owner_id])).all()
+    if not all_users:
+        all_users = User.query.filter(User.id.in_([current_user.id, contact.owner_id])).all()
+    # 计算是否有权限显示修改按钮
+    has_change_owner_permission = False
+    if current_user.role == 'admin':
+        has_change_owner_permission = True
+    elif (getattr(current_user, 'is_department_manager', False) or current_user.role in ['sales_director', 'department_manager']) and contact.owner and hasattr(contact.owner, 'department') and contact.owner.department == current_user.department:
+        has_change_owner_permission = True
     return render_template('customer/contact_view.html', contact=contact, company=company, actions=actions,
+                          all_users=all_users,
+                          has_change_owner_permission=has_change_owner_permission,
                           COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
                           INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
                           STATUS_OPTIONS=STATUS_OPTIONS)
@@ -1763,3 +1796,50 @@ def update_company_sharing(company_id):
     db.session.commit()
     flash('客户共享设置已更新', 'success')
     return redirect(url_for('customer.view_company', company_id=company_id))
+
+@customer.route('/<int:company_id>/change_owner', methods=['POST'])
+@permission_required('customer', 'edit')
+def change_company_owner(company_id):
+    company = Company.query.get_or_404(company_id)
+    if not can_change_company_owner(current_user, company):
+        flash('您没有权限修改该客户的拥有人', 'danger')
+        return redirect(url_for('customer.view_company', company_id=company_id))
+    new_owner_id = request.form.get('new_owner_id', type=int)
+    if not new_owner_id:
+        flash('请选择新的拥有人', 'danger')
+        return redirect(url_for('customer.view_company', company_id=company_id))
+    from app.models.user import User
+    new_owner = User.query.get(new_owner_id)
+    if not new_owner:
+        flash('新拥有人不存在', 'danger')
+        return redirect(url_for('customer.view_company', company_id=company_id))
+    company.owner_id = new_owner_id
+    # 同步更新该客户下所有联系人的owner_id为新拥有人
+    contacts = company.contacts
+    for contact in contacts:
+        contact.owner_id = new_owner_id
+    db.session.commit()
+    flash('客户拥有人及所有联系人拥有人已更新', 'success')
+    return redirect(url_for('customer.view_company', company_id=company_id))
+
+@customer.route('/contacts/<int:contact_id>/change_owner', methods=['POST'])
+@permission_required('customer', 'edit')
+def change_contact_owner(contact_id):
+    contact = Contact.query.get_or_404(contact_id)
+    company = contact.company
+    # 权限判断：管理员或本部门负责人可操作
+    if not (current_user.role == 'admin' or (getattr(current_user, 'is_department_manager', False) or current_user.role in ['sales_director', 'department_manager']) and contact.owner and hasattr(contact.owner, 'department') and contact.owner.department == current_user.department):
+        flash('您没有权限修改该联系人的拥有人', 'danger')
+        return redirect(url_for('customer.view_contact', contact_id=contact_id))
+    new_owner_id = request.form.get('new_owner_id', type=int)
+    if not new_owner_id:
+        flash('请选择新的拥有人', 'danger')
+        return redirect(url_for('customer.view_contact', contact_id=contact_id))
+    new_owner = User.query.get(new_owner_id)
+    if not new_owner:
+        flash('新拥有人不存在', 'danger')
+        return redirect(url_for('customer.view_contact', contact_id=contact_id))
+    contact.owner_id = new_owner_id
+    db.session.commit()
+    flash('联系人拥有人已更新', 'success')
+    return redirect(url_for('customer.view_contact', contact_id=contact_id))

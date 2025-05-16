@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button %}
+{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel %}
 
 {% block content %}
 <div class="container mt-4">
@@ -84,8 +84,7 @@
                         </div>
 
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                            {{ render_button('取消', url_for('customer.list_contacts', company_id=contact.company_id), color='secondary', icon='fas fa-arrow-left') }}
-                            {{ render_button('保存', None, color='primary', icon='fas fa-save', type='submit', extra_class='ms-md-2', size='md') }}
+                            {{ render_confirm_cancel(confirm_text='保存', cancel_text='取消', confirm_href=None, cancel_href=url_for('customer.view_company', company_id=contact.company_id)) }}
                         </div>
                     </form>
                 </div>

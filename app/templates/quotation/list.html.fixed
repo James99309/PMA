@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_currency, render_quotation_number %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_currency, render_quotation_number, render_button, render_confirm_cancel %}
 
 {% block content %}
 <div class="container-fluid">
@@ -11,24 +11,16 @@
                         <div class="col-md-8">
                             <div class="input-group">
                                 <input type="text" class="form-control" id="projectSearch" placeholder="搜索项目名称...">
-                                <button class="btn btn-outline-secondary" type="button" id="searchProject">
-                                    <i class="fas fa-search"></i>
-                                </button>
+                                {{ render_button('搜索', '#', color='secondary', icon='fas fa-search', type='button', attrs='id="searchProject"') }}
                             </div>
                         </div>
                         <div class="col-md-4 text-end">
                             {% if has_permission('quotation', 'create') %}
-                            <button class="btn btn-success me-2" id="importQuotationsBtn">
-                                <i class="fas fa-file-import"></i> 批量导入
-                            </button>
+                            {{ render_button('批量导入', '#', color='success', icon='fas fa-file-import', extra_class='me-2', attrs='id="importQuotationsBtn"') }}
                             {% if has_permission('quotation', 'delete') %}
-                            <button class="btn btn-danger me-2" id="batchDeleteBtn" style="display: none;">
-                                <i class="fas fa-trash"></i> 批量删除
-                            </button>
+                            {{ render_button('批量删除', '#', color='danger', icon='fas fa-trash', extra_class='me-2', attrs='id="batchDeleteBtn" style="display: none;"') }}
                             {% endif %}
-                            <a href="{{ url_for('quotation.create_quotation') }}" class="btn btn-primary">
-                                <i class="fas fa-plus"></i> 创建报价单
-                            </a>
+                            {{ render_button('创建报价单', url_for('quotation.create_quotation'), color='primary', icon='fas fa-plus') }}
                             {% endif %}
                         </div>
                     </div>
@@ -177,11 +169,11 @@
 <div class="scroll-controls">
     <button type="button" class="btn btn-sm btn-light scroll-top" title="滚动到顶部">
         <i class="fas fa-chevron-up"></i>
-                                    </button>
+    </button>
     <button type="button" class="btn btn-sm btn-light scroll-bottom" title="滚动到底部">
         <i class="fas fa-chevron-down"></i>
     </button>
-                                </div>
+</div>
 
 <!-- 批量导入报价单模态窗口 -->
 <div class="modal fade" id="importQuotationModal" tabindex="-1" aria-labelledby="importQuotationModalLabel" aria-hidden="true">

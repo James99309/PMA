@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel %}
 
 {% block title %}添加销售区域{% endblock %}
 
@@ -37,8 +38,8 @@
                 </div>
 
                 <div class="mb-3">
-                    <a href="{{ url_for('product_code.origin_fields') }}" class="btn btn-secondary">取消</a>
-                    <button type="submit" class="btn btn-primary">保存</button>
+                    {{ render_button('取消', url_for('product_code.origin_fields'), color='secondary') }}
+                    {{ render_button('保存', None, color='primary', type='submit') }}
                 </div>
             </form>
         </div>

@@ -8,7 +8,7 @@ from sqlalchemy import or_
 from app import db
 from flask_login import login_required, current_user
 from app.decorators import permission_required  # 添加权限装饰器导入
-from app.utils.access_control import get_viewable_data, can_edit_data, can_view_project
+from app.utils.access_control import get_viewable_data, can_edit_data, can_view_project, can_change_quotation_owner
 import logging
 from decimal import Decimal
 import json
@@ -1066,7 +1066,23 @@ def view_quotation(id):
             logger.debug(f"{current_user.username} 无权访问报价单 {quotation.id} 关联项目 {quotation.project_id}")
             flash('您没有权限查看该报价单关联的项目', 'danger')
             return redirect(url_for('quotation.list_quotations'))
-        return render_template('quotation/detail.html', quotation=quotation)
+        # 查询可选新拥有人
+        from app.models.user import User
+        all_users = []
+        if can_change_quotation_owner(current_user, quotation):
+            if current_user.role == 'admin':
+                all_users = User.query.all()
+            elif getattr(current_user, 'is_department_manager', False) or current_user.role in ['sales_director', 'department_manager']:
+                all_users = User.query.filter(
+                    or_(User.role == 'admin', User._is_active == True),
+                    User.department == current_user.department
+                ).all()
+            else:
+                all_users = User.query.filter(User.id.in_([current_user.id, quotation.owner_id])).all()
+            if not all_users:
+                all_users = User.query.filter(User.id.in_([current_user.id, quotation.owner_id])).all()
+        has_change_owner_permission = can_change_quotation_owner(current_user, quotation)
+        return render_template('quotation/detail.html', quotation=quotation, all_users=all_users, has_change_owner_permission=has_change_owner_permission)
     except Exception as e:
         flash(f'加载报价单详情失败：{str(e)}', 'danger')
         return redirect(url_for('quotation.list_quotations'))
@@ -1433,6 +1449,28 @@ def save_quotation(id):
             'status': 'error',
             'message': f'{error_type}: {str(e)}'
         }), 500
+
+@quotation.route('/<int:id>/change_owner', methods=['POST'])
+@login_required
+@permission_required('quotation', 'edit')
+def change_quotation_owner(id):
+    quotation = Quotation.query.get_or_404(id)
+    if not can_change_quotation_owner(current_user, quotation):
+        flash('您没有权限修改该报价单的拥有人', 'danger')
+        return redirect(url_for('quotation.view_quotation', id=id))
+    new_owner_id = request.form.get('new_owner_id', type=int)
+    if not new_owner_id:
+        flash('请选择新的拥有人', 'danger')
+        return redirect(url_for('quotation.view_quotation', id=id))
+    from app.models.user import User
+    new_owner = User.query.get(new_owner_id)
+    if not new_owner:
+        flash('新拥有人不存在', 'danger')
+        return redirect(url_for('quotation.view_quotation', id=id))
+    quotation.owner_id = new_owner_id
+    db.session.commit()
+    flash('报价单拥有人已更新', 'success')
+    return redirect(url_for('quotation.view_quotation', id=id))
 
 def can_view_quotation(user, quotation):
     """

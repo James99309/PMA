@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel %}
 
 {% block title %}产品详情 - {{ product.product_name }}{% endblock %}
 
@@ -138,13 +139,9 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h2>产品详情</h2>
                 <div>
-                    <a href="{{ url_for('product_route.product_list') }}" class="btn btn-secondary">
-                        <i class="fas fa-arrow-left"></i> 返回列表
-                    </a>
+                    {{ render_button('返回列表', url_for('product_route.product_list'), color='secondary', icon='fas fa-arrow-left') }}
                     {% if current_user.has_permission('product', 'edit') %}
-                    <a href="{{ url_for('product_route.edit_product_page', id=product.id) }}" class="btn btn-primary">
-                        <i class="fas fa-edit"></i> 编辑产品
-                    </a>
+                    {{ render_button('编辑产品', url_for('product_route.edit_product_page', id=product.id), color='primary', icon='fas fa-edit') }}
                     {% endif %}
                 </div>
             </div>

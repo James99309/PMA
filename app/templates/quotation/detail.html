@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_currency, render_quotation_number %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_quotation_number, render_currency, render_project_stage, render_button, render_confirm_cancel %}
 
 {% block content %}
 <div class="container-fluid">
@@ -31,15 +31,15 @@
                             {% else %}
                                 <!-- 编辑、删除、复制按钮原位保留，仅在非签约阶段显示 -->
                                 {% if can_edit_data(quotation, current_user) %}
-                                    <a href="{{ url_for('quotation.edit_quotation', id=quotation.id) }}" class="btn btn-primary btn-sm me-2"><i class="fas fa-edit"></i> 编辑</a>
+                                    {{ render_button('编辑', url_for('quotation.edit_quotation', id=quotation.id), color='primary', size='sm', extra_class='me-2') }}
                                 {% endif %}
                                 {% if current_user.has_permission('quotation', 'delete') %}
                                     <form action="{{ url_for('quotation.delete_quotation', id=quotation.id) }}" method="post" style="display:inline;" onsubmit="return confirm('确定要删除此报价单吗？此操作不可恢复。');">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                        <button type="submit" class="btn btn-danger btn-sm me-2"><i class="fas fa-trash"></i> 删除</button>
+                                        {{ render_button('删除', None, color='danger', type='submit', size='sm', extra_class='me-2') }}
                                     </form>
                                 {% endif %}
-                                <a href="{{ url_for('quotation.copy_quotation', id=quotation.id) }}" class="btn btn-secondary btn-sm"><i class="fas fa-copy"></i> 复制</a>
+                                {{ render_button('复制', url_for('quotation.copy_quotation', id=quotation.id), color='secondary', size='sm') }}
                             {% endif %}
                         </div>
                     </div>
@@ -59,7 +59,7 @@
                                 </tr>
                                 <tr>
                                     <th class="bg-light">项目阶段</th>
-                                    <td>{% if quotation.project.current_stage %}{{ quotation.project.current_stage|project_stage_label('zh') }}{% else %}无{% endif %}</td>
+                                    <td>{{ render_project_stage(quotation.project.current_stage|project_stage_label('zh')) if quotation.project.current_stage else render_project_stage('无') }}</td>
                                 </tr>
                                 <tr>
                                     <th class="bg-light">项目类型</th>
@@ -83,7 +83,12 @@
                                 </tr>
                                 <tr>
                                     <th class="bg-light">所有者</th>
-                                    <td>{{ render_owner(quotation.owner) }}</td>
+                                    <td>
+                                        {{ render_owner(quotation.owner) }}
+                                        {% if has_change_owner_permission %}
+                                            <button class="btn btn-link btn-sm p-0 ms-2" data-bs-toggle="modal" data-bs-target="#changeOwnerModal">修改</button>
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 <tr>
                                     <th class="bg-light">直接用户</th>
@@ -169,6 +174,38 @@
 
 <!-- 添加Font Awesome图标库 -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+{% if has_change_owner_permission %}
+<div class="modal fade" id="changeOwnerModal" tabindex="-1" aria-labelledby="changeOwnerModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="post" action="{{ url_for('quotation.change_quotation_owner', id=quotation.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="changeOwnerModalLabel">修改报价单拥有人</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="new_owner_id" class="form-label">选择新拥有人</label>
+            <select class="form-select" id="new_owner_id" name="new_owner_id" required>
+              {% for user in all_users %}
+                <option value="{{ user.id }}" {% if user.id == quotation.owner_id %}selected{% endif %}>
+                  {{ user.real_name or user.username }}（{{ user.role }}）
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary">确认修改</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
 
 {% block scripts %}
 <script>

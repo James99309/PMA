@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel %}
 
 {% block content %}
 <div class="container-fluid">
@@ -9,11 +10,11 @@
                 </div>
         <div class="col-auto ml-auto">
             {% if return_to %}
-            <a href="{{ return_to }}" class="btn btn-secondary">返回项目详情</a>
+            {{ render_button('返回项目详情', return_to, color='secondary') }}
             {% else %}
-            <a href="{{ url_for('quotation.list_quotations') }}" class="btn btn-secondary">返回列表</a>
+            {{ render_button('返回列表', url_for('quotation.list_quotations'), color='secondary') }}
             {% endif %}
-            <button type="submit" form="quotation-form" id="submit-btn" class="btn btn-primary">提交</button>
+            {{ render_button('提交', None, color='primary', type='submit', attrs='form="quotation-form" id="submit-btn"') }}
         </div>
     </div>
 
@@ -144,9 +145,7 @@
                                     </table>
                                 </div>
                                 <div class="text-end mt-3">
-                                    <button type="button" class="btn btn-primary" id="addProduct">
-                                        <i class="fas fa-plus"></i> 添加产品
-                                    </button>
+                                    {{ render_button('添加产品', '#', color='auxiliary', attrs='type="button" id="addProduct"') }}
                                 </div>
                             </div>
                         </div>

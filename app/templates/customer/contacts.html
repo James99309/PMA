@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_owner, render_date, render_button %}
+{% from 'macros/ui_helpers.html' import render_owner, render_date, render_button, render_primary_contact_badge, render_confirm_cancel %}
 
 {% block content %}
 <div class="container-fluid mt-4">
@@ -9,12 +9,7 @@
             <p class="text-muted mb-0">企业代码：<span class="badge bg-info">{{ company.company_code }}</span></p>
         </div>
         <div class="col text-end">
-            {{ render_button('返回', url_for('customer.list_companies'), 'btn btn-outline-secondary me-2') }}
-            {% if has_permission('customer', 'create') and (company.owner_id == current_user.id or current_user.role == 'admin') %}
-            <a href="{{ url_for('customer.add_contact', company_id=company.id) }}" class="btn btn-primary">
-                <i class="fas fa-plus"></i> 添加联系人
-            </a>
-            {% endif %}
+            {{ render_confirm_cancel(confirm_text='返回', cancel_text='添加联系人', confirm_href=url_for('customer.list_companies'), cancel_href=url_for('customer.add_contact', company_id=company.id) if has_permission('customer', 'create') and (company.owner_id == current_user.id or current_user.role == 'admin') else '#', confirm_color='secondary', cancel_color='primary', confirm_first=True, size='md') }}
         </div>
     </div>
 
@@ -43,38 +38,15 @@
                             <td class="px-3">{{ contact.position }}</td>
                             <td class="px-3">{{ contact.phone }}</td>
                             <td class="px-3">{{ contact.email }}</td>
-                            <td class="px-3">
-                                <span class="badge {% if contact.is_primary %}bg-success{% else %}bg-secondary{% endif %}">
-                                    {% if contact.is_primary %}是{% else %}否{% endif %}
-                                </span>
+                            <td class="px-3 text-center">
+                                {{ render_primary_contact_badge(contact.is_primary) }}
                             </td>
                             <td class="px-3">{{ render_owner(contact.owner) }}</td>
                             <td class="px-3">{{ render_date(contact.created_at) }}</td>
                             <td class="px-3">
-                                <!-- 添加行动按钮，不受数据归属影响 -->
-                                <a href="{{ url_for('customer.add_action_for_company', company_id=company.id) }}?contact_id={{ contact.id }}"
-                                   class="btn btn-sm btn-outline-info me-1" 
-                                   title="添加行动记录">
-                                    <i class="fas fa-comment"></i>
-                                </a>
-                                <!-- 编辑按钮，受数据归属影响 -->
-                                <a href="{{ url_for('customer.edit_contact', company_id=company.id, contact_id=contact.id) }}" 
-                                   class="btn btn-sm btn-outline-primary me-1 {% if company.owner_id != current_user.id and current_user.role != 'admin' %}disabled{% endif %}"
-                                   {% if company.owner_id != current_user.id and current_user.role != 'admin' %}
-                                   title="您没有权限编辑此联系人"
-                                   onclick="return false;"
-                                   {% endif %}>
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <!-- 删除按钮，受数据归属影响 -->
-                                <button class="btn btn-sm btn-outline-danger"
-                                    {% if company.owner_id == current_user.id or current_user.role == 'admin' %}
-                                        onclick="deleteContact('{{ company.id }}', '{{ contact.id }}')"
-                                    {% else %}
-                                        onclick="showPermissionError()" disabled title="您没有权限删除此联系人"
-                                    {% endif %}>
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                                {{ render_button('行动', url_for('customer.add_action_for_company', company_id=company.id) ~ '?contact_id=' ~ contact.id, color='info', icon='fas fa-comment', size='sm', extra_class='me-1') }}
+                                {{ render_button('编辑', url_for('customer.edit_contact', company_id=company.id, contact_id=contact.id), color='primary', icon='fas fa-edit', size='sm', extra_class='me-1' + (' disabled' if company.owner_id != current_user.id and current_user.role != 'admin' else '')) }}
+                                {{ render_button('删除', '#', color='danger', icon='fas fa-trash', size='sm', attrs=("onclick=\"deleteContact('" ~ company.id ~ "','" ~ contact.id ~ "')\"" if company.owner_id == current_user.id or current_user.role == 'admin' else 'onclick="showPermissionError()" disabled title="您没有权限删除此联系人"')) }}
                             </td>
                         </tr>
                         {% endfor %}
