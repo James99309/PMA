@@ -95,7 +95,7 @@
                         </div>
                         <div class="col-md-6">
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="is_department_manager" name="is_department_manager" {{ 'checked' if user and user.is_department_manager else '' }}>
+                                <input class="form-check-input" type="checkbox" id="is_department_manager" name="is_department_manager" {% if user and user.is_department_manager %}checked{% endif %}>
                                 <label class="form-check-label" for="is_department_manager">
                                     是部门负责人
                                 </label>
@@ -296,6 +296,11 @@
                         }
                         
                         console.log('已设置部门为:', deptSelect.value);
+                        
+                        // 部门加载完成后，再次调用toggleManagerCheckbox确保正确状态
+                        if (typeof toggleManagerCheckbox === 'function') {
+                            toggleManagerCheckbox();
+                        }
                     } else {
                         console.error('加载部门选项失败:', data.message);
                     }
@@ -308,6 +313,18 @@
         var deptSelect = document.getElementById('department');
         var managerCheckbox = document.getElementById('is_department_manager');
         function toggleManagerCheckbox() {
+            // 如果是编辑页面且用户已是部门负责人，则不禁用选框
+            const isEdit = '{{ is_edit|lower }}' === 'true';
+            const isManager = '{{ user.is_department_manager|default(false)|lower }}' === 'true';
+            
+            if (isEdit && isManager) {
+                // 编辑页面且用户已是部门负责人，保持选中状态并启用
+                managerCheckbox.checked = true;
+                managerCheckbox.disabled = false;
+                return;
+            }
+            
+            // 其他情况下，只有选择了部门才启用选框
             if (deptSelect.value) {
                 managerCheckbox.disabled = false;
             } else {
@@ -317,6 +334,7 @@
         }
         if (deptSelect && managerCheckbox) {
             deptSelect.addEventListener('change', toggleManagerCheckbox);
+            // 初始调用一次，但在部门数据加载完成时会再次调用
             toggleManagerCheckbox();
         }
     });

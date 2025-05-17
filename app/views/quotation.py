@@ -1072,12 +1072,14 @@ def view_quotation(id):
         if can_change_quotation_owner(current_user, quotation):
             if current_user.role == 'admin':
                 all_users = User.query.all()
-            elif getattr(current_user, 'is_department_manager', False) or current_user.role in ['sales_director', 'department_manager']:
+            elif getattr(current_user, 'is_department_manager', False) or current_user.role == 'sales_director':
+                # 部门负责人只能在本部门进行转移
                 all_users = User.query.filter(
                     or_(User.role == 'admin', User._is_active == True),
                     User.department == current_user.department
                 ).all()
             else:
+                # 其他人只能改为自己
                 all_users = User.query.filter(User.id.in_([current_user.id, quotation.owner_id])).all()
             if not all_users:
                 all_users = User.query.filter(User.id.in_([current_user.id, quotation.owner_id])).all()

@@ -23,26 +23,25 @@ customer = Blueprint('customer', __name__)
 @permission_required('customer', 'view')
 def list_companies():
     search = request.args.get('search', '')
+
+    # 字段筛选逻辑已移除，统一初始化查询
+    query = get_viewable_data(Company, current_user)
     
     # 获取排序参数
     sort_field = request.args.get('sort', 'updated_at')
     sort_order = request.args.get('order', 'desc')
     
     # 验证排序字段是否有效
-    valid_sort_fields = ['company_code', 'company_name', 'company_type', 'industry', 
-                         'country', 'region', 'status', 'owner_id', 
+    valid_sort_fields = ['company_code', 'company_name', 'company_type', 'industry',
+                         'country', 'region', 'status', 'owner_id',
                          'updated_at', 'created_at']
-    
+
     if sort_field not in valid_sort_fields:
         sort_field = 'company_name'
-    
-    # 使用通用数据访问控制函数获取查询
-    query = get_viewable_data(Company, current_user)
-    
-    # 添加搜索条件
+
     if search:
         query = query.filter(Company.company_name.ilike(f'%{search}%'))
-    
+
     # 添加排序
     if hasattr(Company, sort_field):
         order_attr = getattr(Company, sort_field)
@@ -50,7 +49,7 @@ def list_companies():
             query = query.order_by(order_attr.desc())
         else:
             query = query.order_by(order_attr.asc())
-        
+
     companies = query.all()
     
     # 预加载所有企业的所有者信息
@@ -268,7 +267,7 @@ def view_company(company_id):
         if current_user.role == 'admin':
             # 管理员可以看到所有用户
             all_users = User.query.all()
-        elif getattr(current_user, 'is_department_manager', False) or current_user.role in ['sales_director', 'department_manager']:
+        elif getattr(current_user, 'is_department_manager', False) or current_user.role == 'sales_director':
             # 部门负责人只能选择本部门的活跃用户和管理员
             all_users = User.query.filter(
                 or_(User.role == 'admin', User._is_active == True),
@@ -1704,7 +1703,7 @@ def view_contact(contact_id):
     all_users = []
     if current_user.role == 'admin':
         all_users = User.query.all()
-    elif getattr(current_user, 'is_department_manager', False) or current_user.role in ['sales_director', 'department_manager']:
+    elif getattr(current_user, 'is_department_manager', False) or current_user.role == 'sales_director':
         all_users = User.query.filter(
             or_(User.role == 'admin', User._is_active == True),
             User.department == current_user.department
@@ -1717,7 +1716,7 @@ def view_contact(contact_id):
     has_change_owner_permission = False
     if current_user.role == 'admin':
         has_change_owner_permission = True
-    elif (getattr(current_user, 'is_department_manager', False) or current_user.role in ['sales_director', 'department_manager']) and contact.owner and hasattr(contact.owner, 'department') and contact.owner.department == current_user.department:
+    elif (getattr(current_user, 'is_department_manager', False) or current_user.role == 'sales_director') and contact.owner and hasattr(contact.owner, 'department') and contact.owner.department == current_user.department:
         has_change_owner_permission = True
     return render_template('customer/contact_view.html', contact=contact, company=company, actions=actions,
                           all_users=all_users,
@@ -1828,7 +1827,7 @@ def change_contact_owner(contact_id):
     contact = Contact.query.get_or_404(contact_id)
     company = contact.company
     # 权限判断：管理员或本部门负责人可操作
-    if not (current_user.role == 'admin' or (getattr(current_user, 'is_department_manager', False) or current_user.role in ['sales_director', 'department_manager']) and contact.owner and hasattr(contact.owner, 'department') and contact.owner.department == current_user.department):
+    if not (current_user.role == 'admin' or (getattr(current_user, 'is_department_manager', False) or current_user.role == 'sales_director') and contact.owner and hasattr(contact.owner, 'department') and contact.owner.department == current_user.department):
         flash('您没有权限修改该联系人的拥有人', 'danger')
         return redirect(url_for('customer.view_contact', contact_id=contact_id))
     new_owner_id = request.form.get('new_owner_id', type=int)

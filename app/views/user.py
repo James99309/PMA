@@ -192,18 +192,6 @@ def edit_user(user_id):
         user.is_department_manager = is_department_manager
         if password and password.strip():
             user.set_password(password)
-        # 新增：保存前校验同企业同部门负责人唯一
-        if is_department_manager:
-            exists_manager = User.query.filter(
-                User.company_name == company,
-                User.department == department,
-                User.is_department_manager == True,
-                User.id != user.id
-            ).first()
-            if exists_manager:
-                flash('同一企业同一部门已存在负责人，不能重复设置！', 'danger')
-                user_data = user.to_dict()
-                return render_template('user/edit.html', user=user_data, is_edit=True)
         try:
             db.session.commit()
             from app.models.user import sync_department_manager_affiliations, remove_department_manager_affiliations, sync_affiliations_for_new_member, transfer_member_affiliations_on_department_change

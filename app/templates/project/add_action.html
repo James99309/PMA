@@ -80,7 +80,7 @@
                 <div class="card-body">
                     <div class="d-flex">
                         <h5 class="me-2">{{ project.project_name }}</h5>
-                        {{ render_project_stage(project.current_stage|project_stage_label('zh') if project.current_stage else '无阶段') }}
+                        {{ render_project_stage(project.current_stage|project_stage_label('zh')) }}
                     </div>
                     
                     <div class="mb-2">

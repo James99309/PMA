@@ -1,5 +1,5 @@
 <!-- 项目统计总览面板 -->
-<div id="projectStatisticsPanel" class="project-statistics-panel collapse show">
+<div id="projectStatisticsPanel" class="project-statistics-panel collapse">
     <div class="card">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center">
@@ -190,23 +190,6 @@
     </div>
 </div>
 
-<!-- 项目统计面板切换按钮和账户选择器 -->
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <div class="dropdown account-selector">
-        <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="accountSelectorBtn" data-bs-toggle="dropdown" aria-expanded="false">
-            全部账户
-        </button>
-        <ul class="dropdown-menu" id="accountSelectorMenu" aria-labelledby="accountSelectorBtn">
-            <li><a class="dropdown-item active" href="#" data-account-id="all">全部账户</a></li>
-            <li><hr class="dropdown-divider"></li>
-            <!-- 账户列表将通过JS动态加载 -->
-            <li><a class="dropdown-item text-center"><div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">加载中...</span></div></a></li>
-        </ul>
-    </div>
-    <button id="toggleStatisticsBtn" class="btn btn-outline-primary">
-        <i class="fas fa-chart-bar me-1"></i> 隐藏统计总览
-    </button>
-</div>
 
 <style>
 /* 项目统计面板样式 */

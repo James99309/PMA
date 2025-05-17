@@ -55,21 +55,87 @@
 -->
 <div class="container-fluid mt-4">
     <div class="row mb-4 mt-5">
-        <div class="col-12">
+        <div class="col-6">
             <h1 class="fw-bold" style="color:#222;">项目列表</h1>
+        </div>
+        <div class="col-6 text-end">
+            {{ ui.render_button("显示统计总览", type="button", color="secondary", attrs='id="toggleStatisticsBtn"', size='sm') }}
         </div>
     </div>
     <div class="row">
         <div class="col">
             <!-- 搜索和添加按钮部分 -->
-            {% include 'project/statistics_dashboard.html' %}
+            <div id="dashboardWrapper" style="display:none;">
+                {% include 'project/statistics_dashboard.html' %}
+            </div>
+            <!-- 账户选择器和统计切换按钮迁移自statistics_dashboard.html -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="dropdown account-selector">
+                    <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="accountSelectorBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                        全部账户
+                    </button>
+                    <ul class="dropdown-menu" id="accountSelectorMenu" aria-labelledby="accountSelectorBtn">
+                        <li><a class="dropdown-item active" href="#" data-account-id="all">全部账户</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-center"><div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">加载中...</span></div></a></li>
+                    </ul>
+                </div>
+                {# 统计总览按钮已移至标题区，此处删除避免重复 #}
+<script>
+// 统计总览显示/隐藏按钮逻辑
+document.addEventListener('DOMContentLoaded', function () {
+  const toggleStatisticsBtn = document.getElementById('toggleStatisticsBtn');
+  const dashboardWrapper = document.getElementById('dashboardWrapper');
+  const statisticsPanel = document.getElementById('projectStatisticsPanel');
+
+  if (toggleStatisticsBtn && dashboardWrapper) {
+    // 确保初始状态：面板是隐藏的，按钮文本显示"显示统计总览"
+    toggleStatisticsBtn.innerHTML = '显示统计总览';
+    dashboardWrapper.style.display = 'none';
+
+    toggleStatisticsBtn.addEventListener('click', function () {
+      if (dashboardWrapper.style.display === 'none') {
+        // 显示面板
+        dashboardWrapper.style.display = 'block';
+        toggleStatisticsBtn.innerHTML = '隐藏统计总览';
+        
+        // 确保Bootstrap collapse也展开
+        if (statisticsPanel && !statisticsPanel.classList.contains('show')) {
+          statisticsPanel.classList.add('show');
+        }
+        
+        // 启动自动切换（如果存在这个函数）
+        if (typeof startAutoSwitch === 'function' && !window.autoSwitchTimer) {
+          startAutoSwitch();
+        }
+      } else {
+        // 隐藏面板
+        dashboardWrapper.style.display = 'none';
+        toggleStatisticsBtn.innerHTML = '显示统计总览';
+        
+        // 确保Bootstrap collapse也收起
+        if (statisticsPanel && statisticsPanel.classList.contains('show')) {
+          statisticsPanel.classList.remove('show');
+        }
+        
+        // 停止自动切换（如果存在这个定时器）
+        if (window.autoSwitchTimer) {
+          clearInterval(window.autoSwitchTimer);
+          window.autoSwitchTimer = null;
+        }
+      }
+    });
+  }
+});
+</script>
+            </div>
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div class="d-flex align-items-center">
-                <div class="input-group" style="max-width: 300px;">
-                    <input type="text" class="form-control" id="searchInput" placeholder="搜索项目名称..." value="{{ search_term }}">
-                    <button class="btn btn-outline-secondary" type="button" id="searchButton">
-                        <i class="fas fa-search"></i>
-                    </button>
+                    <div class="input-group" style="max-width: 300px;">
+                        <input type="text" class="form-control" id="searchInput" placeholder="搜索项目名称..." value="{{ search_term }}">
+                        <button class="btn btn-outline-secondary" type="button" id="searchButton">
+                            <i class="fas fa-search"></i>
+                        </button>
                     </div>
                     <div class="form-check form-switch ms-3 d-flex align-items-center">
                         <input class="form-check-input" type="checkbox" id="showMyProjectsSwitch" {% if request.args.get('my_projects') == '1' %}checked{% endif %}>
@@ -132,6 +198,7 @@
                 }
             });
             </script>
+
 
             <!-- 移动端卡片视图 - 仅在小屏幕显示 -->
             <div class="d-block d-lg-none mb-4">

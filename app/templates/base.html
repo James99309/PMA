@@ -265,7 +265,9 @@
             background-color: var(--pa-blue);
         }
     </style>
+</style>
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    {% import 'macros/ui_helpers.html' as ui %}
     {% block head %}{% endblock %}
 </head>
 <body>
@@ -572,6 +574,23 @@
                 return fetch(url, options);
             };
         });
+
+        // 表头下拉筛选交互脚本
+        function toggleAll(allCheckbox, field) {
+            const options = document.querySelectorAll(`#${field}_options input[type="checkbox"]`);
+            options.forEach(cb => cb.checked = allCheckbox.checked);
+        }
+
+        function filterOptions(input) {
+            const value = input.value.toLowerCase();
+            const container = input.closest('.dropdown-menu').querySelector('.filter-options');
+            const items = container.querySelectorAll('.form-check');
+            items.forEach(item => {
+                const label = item.querySelector('label');
+                const text = label.textContent.toLowerCase();
+                item.style.display = text.includes(value) ? '' : 'none';
+            });
+        }
     </script>
     {% block scripts %}{% endblock %}
 </body>

@@ -30,11 +30,11 @@
 
 {% macro render_authorization_code(code, project_type=None, size="normal") %}
   {% set bg_color = '#6c757d' %}  {# 默认灰 #}
-  {% if code.startswith('CPJ') or project_type == '渠道跟进' %}
+  {% if code and code.startswith('CPJ') or project_type == '渠道跟进' %}
     {% set bg_color = '#5bc0de' %}
-  {% elif code.startswith('SPJ') or project_type == '销售重点' %}
+  {% elif code and code.startswith('SPJ') or project_type == '销售重点' %}
     {% set bg_color = '#0B6EFD' %}
-  {% elif code.startswith('APJ') or project_type == '业务机会' %}
+  {% elif code and code.startswith('APJ') or project_type == '业务机会' %}
     {% set bg_color = '#198754' %}
   {% endif %}
   <span class="badge rounded-pill"
@@ -111,7 +111,10 @@
   {%- elif color == "secondary" %}
     {%- set btn_class = "btn bg-secondary text-white me-2" %}
   {%- elif color == "info" %}
-    {%- set btn_class = "btn bg-info text-white me-2" %}  
+    {%- set btn_class = "btn bg-info text-white me-2" %}
+  {%- elif color == "danger" %}
+    {%- set btn_class = "btn text-white me-2" %}
+    {%- set inline_style = "background-color: #dc3545;" %}
   {%- else %}
     {%- set btn_class = "btn bg-light text-dark me-2" %}
   {%- endif %}
@@ -225,4 +228,130 @@
   </div>
   <button class="btn btn-dark fab-btn shadow"><i class="{{ icon }}"></i></button>
 </div>
+{% endmacro %}
+
+{% macro render_table_header(fields, sort_field=None, sort_order=None, base_url=None) %}
+<thead>
+  <tr>
+    {% for field in fields %}
+      {# 排序链接处理 #}
+      {% if field.sortable %}
+        {% set next_order = 'asc' if sort_order != 'asc' or sort_field != field.name else 'desc' %}
+        {% set sort_url = base_url ~ '?sort=' ~ field.name ~ '&order=' ~ next_order %}
+      {% else %}
+        {% set sort_url = None %}
+      {% endif %}
+
+      <th
+        {% if field.width %} style="width: {{ field.width }};" {% endif %}
+        {% if field.tooltip %} title="{{ field.tooltip }}" {% endif %}
+        class="align-middle"
+      >
+        {% if field.sortable %}
+          <a href="{{ sort_url }}" class="text-decoration-none text-dark">
+            {{ field.label }}
+            {% if sort_field == field.name %}
+              {% if sort_order == 'asc' %}
+                <i class="fas fa-sort-up ms-1"></i>
+              {% else %}
+                <i class="fas fa-sort-down ms-1"></i>
+              {% endif %}
+            {% else %}
+              <i class="fas fa-sort ms-1 text-muted"></i>
+            {% endif %}
+          </a>
+        {% else %}
+          {{ field.label }}
+        {% endif %}
+      </th>
+    {% endfor %}
+  </tr>
+</thead>
+{% endmacro %}
+
+
+{% macro render_table_header_cell(field, sort_field=None, sort_order='asc', base_url='') %}
+<th class="px-3 py-3 position-relative" title="{{ field.tooltip or '' }}">
+  <div class="d-flex justify-content-between align-items-center">
+    {% if field.sortable %}
+      <a href="{{ base_url }}?sort={{ field.name }}&order={{ 'desc' if sort_field == field.name and sort_order == 'asc' else 'asc' }}"
+         class="text-dark {% if sort_field == field.name %}current-sort{% endif %}">
+        {{ field.label }}
+        {% if sort_field == field.name %}
+          <i class="fas {% if sort_order == 'asc' %}fa-sort-up{% else %}fa-sort-down{% endif %}"></i>
+        {% else %}
+          <i class="fas fa-sort"></i>
+        {% endif %}
+      </a>
+    {% else %}
+      <span>{{ field.label }}</span>
+    {% endif %}
+
+    {# 筛选下拉图标 #}
+    {% if field.filterable and field.options %}
+      <div class="dropdown ms-2">
+        <a href="#" role="button" class="text-muted" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="fas fa-filter"></i>
+        </a>
+        <div class="dropdown-menu p-3" style="min-width: 240px;">
+          <form method="get" action="">
+            <input type="hidden" name="filter_field" value="{{ field.name }}">
+            <input type="text" name="filter_search" class="form-control mb-2" placeholder="搜索选项..." oninput="filterOptions(this)">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="{{ field.name }}_all" onclick="toggleAll(this, '{{ field.name }}')">
+              <label class="form-check-label" for="{{ field.name }}_all">(全选)</label>
+            </div>
+            <div class="filter-options" id="{{ field.name }}_options" style="max-height: 200px; overflow-y: auto;">
+              {% for opt in field.options %}
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="filter_value" value="{{ opt }}" id="{{ field.name }}_{{ loop.index }}"
+                       {% if opt in field.selected %}checked{% endif %}>
+                <label class="form-check-label" for="{{ field.name }}_{{ loop.index }}">{{ opt or '(空白)' }}</label>
+              </div>
+              {% endfor %}
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm mt-2 w-100">应用筛选器</button>
+          </form>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</th>
+{% endmacro %}
+
+
+
+
+{# Excel 风格高级筛选表头宏 #}
+{% macro render_advanced_filter_header(field, label, options=[], selected=[]) %}
+<th class="position-relative px-3 py-3">
+  <div class="d-flex justify-content-between align-items-center">
+    <span>{{ label }}</span>
+    <div class="dropdown">
+      <a href="#" role="button" class="text-muted ms-2" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="fas fa-filter"></i>
+      </a>
+      <div class="dropdown-menu p-3" style="min-width: 240px;">
+        <form method="get" action="">
+          <input type="hidden" name="filter_field" value="{{ field }}">
+          <input type="text" name="filter_search" class="form-control mb-2" placeholder="搜索选项..." oninput="filterOptions(this)">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="{{ field }}_all" onclick="toggleAll(this, '{{ field }}')">
+            <label class="form-check-label" for="{{ field }}_all">(全选)</label>
+          </div>
+          <div class="filter-options" id="{{ field }}_options" style="max-height: 200px; overflow-y: auto;">
+            {% for opt in options %}
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="filter_value" value="{{ opt }}" id="{{ field }}_{{ loop.index }}"
+                     {% if opt in selected %}checked{% endif %}>
+              <label class="form-check-label" for="{{ field }}_{{ loop.index }}">{{ opt or '(空白)' }}</label>
+            </div>
+            {% endfor %}
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm mt-2 w-100">应用筛选器</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</th>
 {% endmacro %}

@@ -534,6 +534,12 @@ function initializeProductAutocomplete() {
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
+                    font-size: 0.75rem;
+                }
+                /* Allow text wrapping for .spec-list .menu-item */
+                .spec-list .menu-item {
+                    white-space: normal !important;
+                    word-break: break-word;
                 }
                 .menu-item:after {
                     content: "▶";
@@ -555,6 +561,7 @@ function initializeProductAutocomplete() {
                     padding: 8px 12px;
                     color: #888;
                     font-style: italic;
+                    font-size: 0.75rem;
                 }
             </style>
         `);

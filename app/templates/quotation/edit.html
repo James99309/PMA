@@ -1524,6 +1524,24 @@ function initializeProductAutocomplete() {
                     z-index: 9999;
                     display: flex;
                 }
+                .menu-item {
+                    font-size: 0.75rem;
+                }
+
+                .menu-item img {
+                    flex-shrink: 0;
+                    width: 40px;
+                    height: 40px;
+                    object-fit: contain;
+                    margin-right: 10px;
+                    border-radius: 4px;
+                }
+
+                .menu-item .text-wrap {
+                    white-space: normal !important;
+                    word-break: break-word;
+                    flex: 1;
+                }
                 .menu-list {
                     border-right: 1px solid #eee;
                     max-height: 350px;
@@ -1752,28 +1770,35 @@ function initializeProductAutocomplete() {
                                                                     } else {
                                                                         productsWithModel.forEach(function(product) {
                                                                             var specText = product.specification || '默认规格';
-                                                                            $('<div class="menu-item no-arrow"></div>')
-                                                                                .text(specText)
-                                                                                .data('product', product)
-                                                                                .on('click', function() {
-                                                                                    var selectedProduct = $(this).data('product');
-                                                                                    
-                                                                                    // 设置产品名称
-                                                                                    $input.val(selectedProduct.product_name);
-                                                                                    
-                                                                                    // 获取当前行
-                                                                                    var $row = $input.closest('tr');
-                                                                                    
-                                                                                    // 清除现有产品详情
-                                                                                    clearProductDetails($row, true);
-                                                                                    
-                                                                                    // 填充产品详情
-                                                                                    fillProductDetails($row, selectedProduct);
-                                                                                    
-                                                                                    // 关闭菜单
-                                                                                    $menu.remove();
-                                                                                })
-                                                                                .appendTo($specs);
+                                                                            var $specItem = $('<div class="menu-item no-arrow d-flex align-items-center"></div>').data('product', product);
+                                                                            if (product.image_url) {
+                                                                                var $img = $('<img>').attr('src', product.image_url).css({
+                                                                                    width: '40px',
+                                                                                    height: '40px',
+                                                                                    objectFit: 'contain',
+                                                                                    marginRight: '10px',
+                                                                                    borderRadius: '4px'
+                                                                                });
+                                                                                $specItem.append($img);
+                                                                            }
+
+                                                                            var $text = $('<div class="text-wrap"></div>').text(specText).css({
+                                                                                whiteSpace: 'normal',
+                                                                                wordBreak: 'break-word',
+                                                                                flex: '1'
+                                                                            });
+                                                                            $specItem.append($text);
+
+                                                                            $specItem.on('click', function() {
+                                                                                var selectedProduct = $(this).data('product');
+                                                                                $input.val(selectedProduct.product_name);
+                                                                                var $row = $input.closest('tr');
+                                                                                clearProductDetails($row, true);
+                                                                                fillProductDetails($row, selectedProduct);
+                                                                                $menu.remove();
+                                                                            });
+
+                                                                            $specs.append($specItem);
                                                                         });
                                                                     }
                                                                 })
@@ -2498,3 +2523,31 @@ $(function() {
 </script>
 {% endif %}
 {% endblock %}
+/* 产品菜单统一样式（与create.html一致） */
+#product-menu-styles,
+.product-menu-container,
+.menu-item,
+.spec-list .menu-item,
+.menu-loading {
+    /* 仅为样式作用域选择器，便于插入 */
+}
+.menu-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    position: relative;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.75rem;
+}
+.spec-list .menu-item {
+    white-space: normal !important;
+    word-break: break-word;
+}
+.menu-loading {
+    padding: 8px 12px;
+    color: #888;
+    font-style: italic;
+    font-size: 0.75rem;
+}

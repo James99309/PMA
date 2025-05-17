@@ -232,7 +232,7 @@ def view_project(project_id):
     if can_change_project_owner(current_user, project):
         if current_user.role == 'admin':
             all_users = User.query.all()
-        elif getattr(current_user, 'is_department_manager', False) or current_user.role in ['sales_director', 'department_manager']:
+        elif getattr(current_user, 'is_department_manager', False) or current_user.role == 'sales_director':
             all_users = User.query.filter(
                 or_(User.role == 'admin', User._is_active == True),
                 User.department == current_user.department

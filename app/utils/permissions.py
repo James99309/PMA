@@ -67,6 +67,12 @@ def assign_user_default_permissions(user):
                 # 服务经理可以查看报价单
                 if module == 'quotation':
                     can_view = True
+            elif user.role == 'business_admin':
+                # 商务助理可以查看和编辑客户、项目和报价
+                if module in ['customer', 'project', 'quotation']:
+                    can_create = True
+                    can_edit = True
+                    can_delete = True
             
             # 用户和权限模块默认只有管理员可以访问
             if module in ['user', 'permission'] and user.role != 'admin':

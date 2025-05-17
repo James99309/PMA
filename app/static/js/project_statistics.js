@@ -87,7 +87,7 @@ let currentTrendStage = 'discover';        // 当前显示的趋势阶段
 let currentAccountId = null;          // 当前选中的账户ID，null表示"全部账户"
 let trendData = null;                 // 保存的趋势数据
 let statisticsData = null;            // 保存的统计数据
-let autoSwitchTimer = null;           // 自动切换定时器
+window.autoSwitchTimer = null;           // 自动切换定时器（公开给外部访问）
 let accounts = [];                    // 可用的账户列表
 
 // 获取所有阶段演示趋势数据
@@ -141,9 +141,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     const keepPanel = urlParams.get('keep_panel') === 'true';
     
-    // 如果keep_panel参数存在，确保统计面板展开
-    if (keepPanel && statisticsPanel && !statisticsPanel.classList.contains('show')) {
+    // 仅当显式请求保持面板展开时才展开
+    if (keepPanel && statisticsPanel) {
+        const dashboardWrapper = document.getElementById('dashboardWrapper');
+        if (dashboardWrapper) {
+            dashboardWrapper.style.display = 'block';
+        }
         statisticsPanel.classList.add('show');
+        if (toggleBtn) {
+            toggleBtn.innerHTML = '<i class="fas fa-chart-bar me-1"></i> 📉 隐藏统计总览';
+        }
     }
     
     // 调整切换圆点位置
@@ -154,14 +161,11 @@ document.addEventListener('DOMContentLoaded', function() {
         dot.style.top = '-10px';
     });
     
-    // 由于面板默认展开，设置按钮文本
-    toggleBtn.innerHTML = '<i class="fas fa-chart-bar me-1"></i> 隐藏统计总览';
-    
-    // 页面加载时立即加载数据
+    // 页面加载时预加载数据，以便用户点击显示时可以快速展示
     // 显示加载中状态
-    loadingDiv.classList.remove('d-none');
-    cardsDiv.classList.add('d-none');
-    errorDiv.classList.add('d-none');
+    if (loadingDiv) loadingDiv.classList.remove('d-none');
+    if (cardsDiv) cardsDiv.classList.add('d-none');
+    if (errorDiv) errorDiv.classList.add('d-none');
     
     // 清除现有图表数据
     statisticsData = null;
@@ -173,49 +177,31 @@ document.addEventListener('DOMContentLoaded', function() {
     // 加载趋势数据 (不指定阶段，加载所有阶段数据)
     loadStageTrendData(currentTrendPeriod);
     
-    // 启动自动切换
-    startAutoSwitch();
+    // 仅当统计面板显示时才启动自动切换
+    if (keepPanel) {
+        startAutoSwitch();
+    }
     
-    // 折叠/展开统计面板
-    toggleBtn.addEventListener('click', function() {
-        const isVisible = statisticsPanel.classList.contains('show');
-        
-        if (isVisible) {
-            // 隐藏面板，停止自动切换
-            const bsCollapse = new bootstrap.Collapse(statisticsPanel);
-            bsCollapse.hide();
-            toggleBtn.innerHTML = '<i class="fas fa-chart-bar me-1"></i> 显示统计总览';
+    // 折叠/展开统计面板 - 我们不再需要这部分代码，因为现在由list.html中的脚本控制
+    // 但保留此代码以支持原生Bootstrap collapse切换
+    if (toggleBtn && statisticsPanel) {
+        toggleBtn.addEventListener('click', function() {
+            const isVisible = statisticsPanel.classList.contains('show');
             
-            // 停止自动切换
-            if (autoSwitchTimer) {
-                clearInterval(autoSwitchTimer);
-                autoSwitchTimer = null;
+            if (isVisible) {
+                // 当面板要隐藏时，停止自动切换
+                if (window.autoSwitchTimer) {
+                    clearInterval(window.autoSwitchTimer);
+                    window.autoSwitchTimer = null;
+                }
+            } else {
+                // 当面板要显示时，如果没有启动自动切换，则启动它
+                if (!window.autoSwitchTimer) {
+                    startAutoSwitch();
+                }
             }
-        } else {
-            // 显示面板
-            const bsCollapse = new bootstrap.Collapse(statisticsPanel);
-            bsCollapse.show();
-            toggleBtn.innerHTML = '<i class="fas fa-chart-bar me-1"></i> 隐藏统计总览';
-            
-            // 显示加载中状态
-            loadingDiv.classList.remove('d-none');
-            cardsDiv.classList.add('d-none');
-            errorDiv.classList.add('d-none');
-            
-            // 清除现有图表数据
-            statisticsData = null;
-            trendData = null;
-            
-            // 加载数据
-            loadStatisticsData(currentPeriod);
-            
-            // 加载趋势数据 (不指定阶段，加载所有阶段数据)
-            loadStageTrendData(currentTrendPeriod);
-            
-            // 启动自动切换
-            startAutoSwitch();
-        }
-    });
+        });
+    }
     
     // 总体周期切换
     // 移除周期切换按钮逻辑，只保留本月
@@ -971,15 +957,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // 开始自动切换
     function startAutoSwitch() {
         // 清除现有的定时器
-        if (autoSwitchTimer) {
-            clearInterval(autoSwitchTimer);
+        if (window.autoSwitchTimer) {
+            clearInterval(window.autoSwitchTimer);
+            window.autoSwitchTimer = null;
         }
         
         // 追踪切换次数，用于交替切换不同图表
         let switchCount = 0;
         
         // 设置每20秒切换一次
-        autoSwitchTimer = setInterval(() => {
+        window.autoSwitchTimer = setInterval(() => {
             // 根据计数器交替切换不同图表
             switchCount++;
             
@@ -1022,6 +1009,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         }, 20000);
+        
+        // 将定时器ID暴露为全局变量，方便外部控制
+        return window.autoSwitchTimer;
     }
 
     // 监听账户切换事件，自动刷新统计和趋势数据

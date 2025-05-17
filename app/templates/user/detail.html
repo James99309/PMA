@@ -71,6 +71,7 @@
             <dt class="col-sm-3">公司</dt><dd class="col-sm-9">{{ user.company_name }}</dd>
             <dt class="col-sm-3">部门</dt><dd class="col-sm-9">{{ user.department }}</dd>
             <dt class="col-sm-3">角色</dt><dd class="col-sm-9">{{ role_dict.get(user.role, user.role or '-') }}</dd>
+            <dt class="col-sm-3">是部门负责人</dt><dd class="col-sm-9">{{ '是' if user.is_department_manager else '否' }}</dd>
             <dt class="col-sm-3">状态</dt><dd class="col-sm-9">{{ '激活' if user.is_active else '禁用' }}</dd>
             
             {% if not user.is_active %}

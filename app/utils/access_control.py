@@ -311,10 +311,18 @@ def can_edit_company_info(user, company):
 def can_edit_company_sharing(user, company):
     """
     判断是否可以编辑客户共享设置
+    只允许：
+    - 管理员
+    - 拥有者
+    - 通过Affiliation归属关系（viewer_id为当前用户，owner_id为客户owner）
     """
     if user.role == 'admin':
         return True
     if user.id == company.owner_id:
+        return True
+    from app.models.user import Affiliation
+    affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+    if company.owner_id in [aff.owner_id for aff in affiliations]:
         return True
     return False
 
@@ -406,12 +414,12 @@ def can_change_company_owner(user, company):
     """
     判断用户是否有权修改客户的拥有人。
     - 管理员可修改所有客户
-    - 部门负责人（is_department_manager为True或角色为sales_director/department_manager）可修改本部门成员的客户
+    - 部门负责人（is_department_manager为True或角色为sales_director）可修改本部门成员的客户
     """
     if user.role == 'admin':
         return True
     # 支持多种部门负责人角色
-    if getattr(user, 'is_department_manager', False) or user.role in ['sales_director', 'department_manager']:
+    if getattr(user, 'is_department_manager', False) or user.role == 'sales_director':
         from app.models.user import User
         owner = User.query.get(company.owner_id)
         if not owner:
@@ -424,11 +432,11 @@ def can_change_project_owner(user, project):
     """
     判断用户是否有权修改项目的拥有人。
     - 管理员可修改所有项目
-    - 部门负责人（is_department_manager为True或角色为sales_director/department_manager）可修改本部门成员的项目
+    - 部门负责人（is_department_manager为True或角色为sales_director）可修改本部门成员的项目
     """
     if user.role == 'admin':
         return True
-    if getattr(user, 'is_department_manager', False) or user.role in ['sales_director', 'department_manager']:
+    if getattr(user, 'is_department_manager', False) or user.role == 'sales_director':
         from app.models.user import User
         owner = User.query.get(project.owner_id)
         if not owner:
@@ -440,11 +448,11 @@ def can_change_quotation_owner(user, quotation):
     """
     判断用户是否有权修改报价单的拥有人。
     - 管理员可修改所有报价单
-    - 部门负责人（is_department_manager为True或角色为sales_director/department_manager）可修改本部门成员的报价单
+    - 部门负责人（is_department_manager为True或角色为sales_director）可修改本部门成员的报价单
     """
     if user.role == 'admin':
         return True
-    if getattr(user, 'is_department_manager', False) or user.role in ['sales_director', 'department_manager']:
+    if getattr(user, 'is_department_manager', False) or user.role == 'sales_director':
         from app.models.user import User
         owner = User.query.get(quotation.owner_id)
         if not owner:
