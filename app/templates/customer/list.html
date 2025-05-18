@@ -1602,7 +1602,7 @@ function initCompanySearch() {
                         
                         // 添加点击事件处理，点击搜索结果项直接跳转到企业详情页
                         item.addEventListener('click', function() {
-                            window.location.href = `/customer/view/${company.id}`;
+                            window.location.href = `/customer/${company.id}/view`;
                         });
                         
                         item.appendChild(contentDiv);
@@ -1717,7 +1717,7 @@ function initContactSearch() {
                             item.addEventListener('click', function() {
                                 contactInput.value = contact.name;
                                 contactResults.classList.remove('show');
-                                window.location.href = `/customer/view/${contact.company_id}`;
+                                window.location.href = `/customer/${contact.company_id}/view`;
                             });
                         }
                         

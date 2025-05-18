@@ -179,28 +179,28 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 仅当统计面板显示时才启动自动切换
     if (keepPanel) {
-        startAutoSwitch();
+    startAutoSwitch();
     }
     
     // 折叠/展开统计面板 - 我们不再需要这部分代码，因为现在由list.html中的脚本控制
     // 但保留此代码以支持原生Bootstrap collapse切换
     if (toggleBtn && statisticsPanel) {
-        toggleBtn.addEventListener('click', function() {
-            const isVisible = statisticsPanel.classList.contains('show');
-            
-            if (isVisible) {
+    toggleBtn.addEventListener('click', function() {
+        const isVisible = statisticsPanel.classList.contains('show');
+        
+        if (isVisible) {
                 // 当面板要隐藏时，停止自动切换
                 if (window.autoSwitchTimer) {
                     clearInterval(window.autoSwitchTimer);
                     window.autoSwitchTimer = null;
-                }
-            } else {
+            }
+        } else {
                 // 当面板要显示时，如果没有启动自动切换，则启动它
                 if (!window.autoSwitchTimer) {
-                    startAutoSwitch();
+            startAutoSwitch();
                 }
-            }
-        });
+        }
+    });
     }
     
     // 总体周期切换

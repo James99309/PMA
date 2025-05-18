@@ -1,7 +1,7 @@
 from flask import Flask, session, redirect, url_for, request
 from config import Config
 import logging
-from app.extensions import db, migrate, login_manager, jwt
+from app.extensions import db, migrate, login_manager, jwt, csrf
 import os
 from flask_login import login_required, current_user
 from app.models import User
@@ -10,12 +10,11 @@ from app.routes.product_code import product_code_bp
 from app.routes.product_management import product_management_bp
 from datetime import timedelta, datetime
 from app.utils import version_check
-from flask_wtf.csrf import CSRFProtect
+import datetime
 from app.utils.filters import project_type_style, project_stage_style, format_date, format_datetime, format_currency
 from app.utils.dictionary_helpers import (
     project_type_label, project_stage_label, report_source_label, authorization_status_label, company_type_label, product_situation_label, industry_label, status_label, brand_status_label, reporting_source_label, share_permission_label, user_label, get_role_display_name
 )
-import datetime
 from app.utils.access_control import can_edit_company_info, can_edit_data, can_change_company_owner
 
 # 配置日志
@@ -33,9 +32,6 @@ for handler in logging.getLogger().handlers:
     handler.setLevel(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
-
-# 初始化CSRF保护
-csrf = CSRFProtect()
 
 # 定义受保护模板文件列表 - 这些文件不应被随意修改
 PROTECTED_TEMPLATES = [
@@ -455,5 +451,9 @@ def create_app(config_class=Config):
     # 注册全局权限函数上下文处理器
     from app.context_processors import inject_permission_functions
     app.context_processor(inject_permission_functions)
+
+    # 注册通知蓝图
+    from app.routes.notification import notification
+    app.register_blueprint(notification)
 
     return app 

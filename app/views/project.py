@@ -22,8 +22,10 @@ import os
 from flask_wtf.csrf import CSRFProtect
 from app.models.action import Action, ActionReply
 from app.models.projectpm_stage_history import ProjectStageHistory  # 导入阶段历史记录模型
-from app.utils.dictionary_helpers import project_type_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS
+from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS
 from sqlalchemy import or_
+from app.utils.notification_helpers import trigger_event_notification
+from app.services.event_dispatcher import notify_project_created, notify_project_status_updated
 
 csrf = CSRFProtect()
 
@@ -309,6 +311,12 @@ def add_project():
             db.session.add(project)
             db.session.commit()
             
+            # 触发项目创建通知
+            try:
+                notify_project_created(project, current_user)
+            except Exception as notify_err:
+                logger.warning(f"触发项目创建通知失败: {str(notify_err)}")
+            
             flash('项目添加成功！', 'success')
             return redirect(url_for('project.view_project', project_id=project.id))
         except Exception as e:
@@ -371,7 +379,13 @@ def edit_project(project_id):
             project.report_source = request.form.get('report_source')
             project.product_situation = request.form.get('product_situation')
             project.design_issues = request.form.get('design_issues')
-            project.current_stage = request.form.get('current_stage')
+            
+            # 保存旧阶段用于后续比较
+            old_stage = project.current_stage
+            new_stage = request.form.get('current_stage')
+            
+            # 更新当前阶段
+            project.current_stage = new_stage
             project.dealer = request.form.get('dealer')
             project.end_user = request.form.get('end_user')
             project.contractor = request.form.get('contractor')
@@ -391,6 +405,15 @@ def edit_project(project_id):
             if new_project_type != project.project_type:
                 project.project_type = new_project_type
             db.session.commit()
+            
+            # 如果项目阶段发生变更，触发通知
+            if old_stage != new_stage:
+                try:
+                    from app.services.event_dispatcher import notify_project_status_updated
+                    notify_project_status_updated(project, current_user, old_stage)
+                except Exception as notify_err:
+                    logger.warning(f"触发项目阶段变更通知失败: {str(notify_err)}")
+            
             flash('项目更新成功！', 'success')
             return redirect(url_for('project.view_project', project_id=project.id))
         except Exception as e:
@@ -907,6 +930,12 @@ def update_project_stage():
                 current_app.logger.error(f"项目阶段推进后数据库未更新: 项目ID={project.id}, 期望={new_stage}, 实际={project.current_stage}")
                 return jsonify({'success': False, 'message': '数据库更新失败，请联系管理员'}), 500
             
+            # 触发阶段变更通知
+            try:
+                notify_project_status_updated(project, current_user, old_stage)
+            except Exception as notify_err:
+                current_app.logger.warning(f"触发项目阶段变更通知失败: {str(notify_err)}")
+            
             return jsonify({
                 'success': True, 
                 'message': '项目阶段已更新',
@@ -1049,6 +1078,7 @@ def get_action_replies(action_id):
             'content': reply.content,
             'owner': reply.owner.real_name or reply.owner.username,
             'created_at': reply.created_at.strftime('%Y-%m-%d %H:%M'),
+            'can_delete': (current_user.id == reply.owner_id or current_user.role == 'admin'),
             'children': [build_tree(child) for child in reply.children]
         }
     return jsonify([build_tree(r) for r in replies])
@@ -1098,4 +1128,16 @@ def change_project_owner(project_id):
         quotation.owner_id = new_owner_id
     db.session.commit()
     flash('项目拥有人及关联报价单拥有人已更新', 'success')
-    return redirect(url_for('project.view_project', project_id=project_id)) 
+    return redirect(url_for('project.view_project', project_id=project_id))
+
+@project.route('/action/reply/<int:reply_id>/delete', methods=['POST'])
+@login_required
+@permission_required('customer', 'delete')
+def delete_action_reply(reply_id):
+    from app.models.action import ActionReply
+    reply = ActionReply.query.get_or_404(reply_id)
+    if reply.owner_id != current_user.id and current_user.role != 'admin':
+        return jsonify({'success': False, 'message': '无权删除此回复'}), 403
+    db.session.delete(reply)
+    db.session.commit()
+    return jsonify({'success': True}) 

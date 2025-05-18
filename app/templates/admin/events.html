@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% import 'macros/ui_helpers.html' as ui %}
+
+{% block title %}事件管理{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-12 d-flex justify-content-between align-items-center">
+            <h2>事件类型管理</h2>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addEventModal">
+                <i class="fas fa-plus me-1"></i> 添加事件类型
+            </button>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="bg-light">
+                        <tr>
+                            <th scope="col">ID</th>
+                            <th scope="col">事件KEY</th>
+                            <th scope="col">中文名称</th>
+                            <th scope="col">英文名称</th>
+                            <th scope="col">默认开启</th>
+                            <th scope="col">启用状态</th>
+                            <th scope="col">创建时间</th>
+                            <th scope="col">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for event in events %}
+                        <tr>
+                            <td>{{ event.id }}</td>
+                            <td>{{ event.event_key }}</td>
+                            <td>{{ event.label_zh }}</td>
+                            <td>{{ event.label_en }}</td>
+                            <td>
+                                {% if event.default_enabled %}
+                                <span class="badge bg-success">是</span>
+                                {% else %}
+                                <span class="badge bg-secondary">否</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if event.enabled %}
+                                <span class="badge bg-success">启用</span>
+                                {% else %}
+                                <span class="badge bg-danger">禁用</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ event.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-outline-primary edit-event-btn"
+                                        data-id="{{ event.id }}"
+                                        data-key="{{ event.event_key }}"
+                                        data-label-zh="{{ event.label_zh }}"
+                                        data-label-en="{{ event.label_en }}"
+                                        data-default="{{ event.default_enabled }}"
+                                        data-enabled="{{ event.enabled }}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger delete-event-btn"
+                                        data-id="{{ event.id }}"
+                                        data-key="{{ event.event_key }}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加事件模态框 -->
+<div class="modal fade" id="addEventModal" tabindex="-1" aria-labelledby="addEventModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="addEventForm" action="{{ url_for('admin.add_event') }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addEventModalLabel">添加事件类型</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="event_key" class="form-label">事件KEY</label>
+                        <input type="text" class="form-control" id="event_key" name="event_key" required 
+                               pattern="[a-z_]+" title="只允许小写字母和下划线">
+                        <div class="form-text">唯一标识符，只允许小写字母和下划线</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="label_zh" class="form-label">中文名称</label>
+                        <input type="text" class="form-control" id="label_zh" name="label_zh" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="label_en" class="form-label">英文名称</label>
+                        <input type="text" class="form-control" id="label_en" name="label_en" required>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="default_enabled" name="default_enabled" checked>
+                        <label class="form-check-label" for="default_enabled">默认开启</label>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="enabled" name="enabled" checked>
+                        <label class="form-check-label" for="enabled">启用</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑事件模态框 -->
+<div class="modal fade" id="editEventModal" tabindex="-1" aria-labelledby="editEventModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="editEventForm" action="{{ url_for('admin.edit_event') }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="event_id" id="edit_event_id">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editEventModalLabel">编辑事件类型</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_event_key" class="form-label">事件KEY</label>
+                        <input type="text" class="form-control" id="edit_event_key" name="event_key" required 
+                               pattern="[a-z_]+" title="只允许小写字母和下划线" readonly>
+                        <div class="form-text">事件KEY不可修改</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_label_zh" class="form-label">中文名称</label>
+                        <input type="text" class="form-control" id="edit_label_zh" name="label_zh" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_label_en" class="form-label">英文名称</label>
+                        <input type="text" class="form-control" id="edit_label_en" name="label_en" required>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="edit_default_enabled" name="default_enabled">
+                        <label class="form-check-label" for="edit_default_enabled">默认开启</label>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="edit_enabled" name="enabled">
+                        <label class="form-check-label" for="edit_enabled">启用</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">保存更改</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认模态框 -->
+<div class="modal fade" id="deleteEventModal" tabindex="-1" aria-labelledby="deleteEventModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="deleteEventForm" action="{{ url_for('admin.delete_event') }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="event_id" id="delete_event_id">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteEventModalLabel">确认删除</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>确定要删除事件类型 <strong id="delete_event_key"></strong> 吗？</p>
+                    <p class="text-danger">警告：此操作不可逆，且会导致所有相关的用户订阅记录一并删除。</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-danger">确认删除</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 编辑事件按钮点击处理
+    const editButtons = document.querySelectorAll('.edit-event-btn');
+    editButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const id = this.dataset.id;
+            const key = this.dataset.key;
+            const labelZh = this.dataset.labelZh;
+            const labelEn = this.dataset.labelEn;
+            const defaultEnabled = this.dataset.default === 'True';
+            const enabled = this.dataset.enabled === 'True';
+            
+            document.getElementById('edit_event_id').value = id;
+            document.getElementById('edit_event_key').value = key;
+            document.getElementById('edit_label_zh').value = labelZh;
+            document.getElementById('edit_label_en').value = labelEn;
+            document.getElementById('edit_default_enabled').checked = defaultEnabled;
+            document.getElementById('edit_enabled').checked = enabled;
+            
+            const editModal = new bootstrap.Modal(document.getElementById('editEventModal'));
+            editModal.show();
+        });
+    });
+    
+    // 删除事件按钮点击处理
+    const deleteButtons = document.querySelectorAll('.delete-event-btn');
+    deleteButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const id = this.dataset.id;
+            const key = this.dataset.key;
+            
+            document.getElementById('delete_event_id').value = id;
+            document.getElementById('delete_event_key').textContent = key;
+            
+            const deleteModal = new bootstrap.Modal(document.getElementById('deleteEventModal'));
+            deleteModal.show();
+        });
+    });
+});
+</script>
+{% endblock %} 

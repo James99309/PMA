@@ -37,9 +37,24 @@ def get_viewable_data(model_class, user, special_filters=None):
     if special_filters is None:
         special_filters = []
     logger.debug(f"用户 {user.username} (ID: {user.id}, 角色: {user.role}) 查询 {model_class.__name__} 数据")
+    
     # 管理员可以查看所有数据
     if user.role == 'admin':
         return model_class.query.filter(*special_filters)
+    
+    # User 模型特殊处理 - User 没有 owner_id 字段
+    if model_class.__name__ == 'User':
+        # 管理员已经在前面处理
+        # 部门经理可以查看本部门用户
+        if hasattr(user, 'is_department_manager') and user.is_department_manager and user.department:
+            return model_class.query.filter(model_class.department == user.department, *special_filters)
+        # 销售总监可以查看所有销售
+        elif user.role == 'sales_director':
+            return model_class.query.filter(model_class.role == 'sales', *special_filters)
+        # 其他用户只能查看自己
+        else:
+            return model_class.query.filter(model_class.id == user.id, *special_filters)
+            
     # 针对 Project 权限逻辑
     if model_class.__name__ == 'Project':
         # 1. 直接归属

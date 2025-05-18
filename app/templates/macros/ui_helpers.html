@@ -176,14 +176,22 @@
   {% endif %}
 {% endmacro %}
 
-{% macro render_confirm_cancel(confirm_text='确认', cancel_text='取消', confirm_href='#', cancel_href='#', confirm_color='primary', cancel_color='secondary', confirm_first=True, size='md') %}
+{% macro render_confirm_cancel(confirm_text='确认', cancel_text='取消', confirm_href='#', cancel_href='#', confirm_color='primary', cancel_color='secondary', confirm_first=True, size='md', confirm_type='a') %}
   <div class="d-flex gap-2">
     {% if confirm_first %}
+      {% if confirm_type == 'submit' %}
+        {{ render_button(confirm_text, color=confirm_color, size=size, type='submit') }}
+      {% else %}
       {{ render_button(confirm_text, href=confirm_href, color=confirm_color, size=size) }}
+      {% endif %}
       {{ render_button(cancel_text, href=cancel_href, color=cancel_color, size=size) }}
     {% else %}
       {{ render_button(cancel_text, href=cancel_href, color=cancel_color, size=size) }}
+      {% if confirm_type == 'submit' %}
+        {{ render_button(confirm_text, color=confirm_color, size=size, type='submit') }}
+      {% else %}
       {{ render_button(confirm_text, href=confirm_href, color=confirm_color, size=size) }}
+      {% endif %}
     {% endif %}
   </div>
 {% endmacro %}

@@ -24,7 +24,7 @@
                             <li>如需修改已有企业信息，请联系管理员</li>
                         </ul>
                     </div>
-                    <form method="POST">
+                    <form id="customer-add-form" method="POST">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-3 position-relative">
                             <label for="company_name" class="form-label">企业名称 <span class="text-danger">*</span></label>
@@ -116,7 +116,12 @@
                         </div>
 
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                            {{ render_confirm_cancel(confirm_text='保存', cancel_text='取消', confirm_href=None, cancel_href=url_for('customer.list_companies')) }}
+                            {{ render_confirm_cancel(
+                                confirm_text='保存',
+                                cancel_text='取消',
+                                confirm_type='submit',
+                                cancel_href=url_for('customer.list_companies')
+                            ) }}
                         </div>
                     </form>
                 </div>
@@ -380,7 +385,9 @@ $(document).ready(function() {
     }
     
     // 表单提交前再次验证
-    $('form').on('submit', function(e) {
+    console.log('✅ 表单提交监听器已绑定');
+    $('#customer-add-form').on('submit', function(e) {
+        console.log('✅ 表单提交监听器已触发');
         // 先验证企业名称
         if (!validateCompanyName(companyInput.val())) {
             e.preventDefault();
@@ -407,6 +414,29 @@ $(document).ready(function() {
         
         if (missingFields.length > 0) {
             e.preventDefault();
+
+            // 清除所有字段的 is-invalid 样式
+            requiredFields.forEach(field => {
+                $(field.selector).removeClass('is-invalid');
+                // 清除无效反馈
+                // 若字段下方有 .invalid-feedback，可以清空内容
+                const $input = $(field.selector);
+                // 只清空 .invalid-feedback，如果存在
+                $input.siblings('.invalid-feedback').text('');
+            });
+
+            // 标红未填写的字段
+            missingFields.forEach(name => {
+                const field = requiredFields.find(f => f.name === name);
+                if (field) {
+                    $(field.selector).addClass('is-invalid');
+                    // 在下方显示反馈信息（如果有 .invalid-feedback）
+                    const $input = $(field.selector);
+                    // 只在有 .invalid-feedback 的元素下显示
+                    $input.siblings('.invalid-feedback').text('此字段为必填项');
+                }
+            });
+
             alert('请填写以下必填字段：' + missingFields.join('、'));
             return false;
         }

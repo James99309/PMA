@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>项目阶段变更通知</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .header {
+            background-color: #0C7CD0;
+            color: white;
+            padding: 15px;
+            border-radius: 5px 5px 0 0;
+            text-align: center;
+        }
+        .content {
+            padding: 20px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+            color: #777;
+            font-size: 12px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #0C7CD0;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>项目阶段变更通知</h2>
+        </div>
+        <div class="content">
+            <p>尊敬的 {{ recipient_name }}：</p>
+            
+            <p>您关注的项目 <strong>{{ project.project_name }}</strong> 阶段已变更。</p>
+            
+            <p><strong>变更详情：</strong></p>
+            <ul>
+                <li>项目拥有人: {{ project.owner.real_name or project.owner.username }}</li>
+                <li>之前阶段: {{ previous_stage }}</li>
+                <li>当前阶段: {{ new_stage }}</li>
+                <li>变更时间: {{ change_time }}</li>
+            </ul>
+            
+            <p>请点击下方按钮查看更多详情：</p>
+            
+            <p style="text-align: center;">
+                <a href="{{ project_url }}" class="button">查看项目详情</a>
+            </p>
+        </div>
+        <div class="footer">
+            <p>此邮件为系统自动发送，请勿回复。如有问题，请联系系统管理员。</p>
+            <p>© {{ current_year }} 项目管理系统 版权所有</p>
+        </div>
+    </div>
+</body>
+</html> 

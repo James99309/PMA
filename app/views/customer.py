@@ -16,6 +16,8 @@ from app.utils.access_control import (
     can_view_company, can_edit_company_info, can_edit_company_sharing, can_delete_company,
     can_view_contact, can_edit_contact, can_delete_contact, can_change_company_owner
 )
+from app.utils.notification_helpers import trigger_event_notification
+
 
 customer = Blueprint('customer', __name__)
 
@@ -311,6 +313,9 @@ def add_company():
             company = Company(**data)
             db.session.add(company)
             db.session.commit()
+            # 通知新客户创建
+            from app.services.event_dispatcher import notify_customer_created
+            notify_customer_created(company, current_user)
             flash('客户创建成功！', 'success')
             return redirect(url_for('customer.list_companies'))
         except Exception as e:
@@ -438,7 +443,8 @@ def add_contact(company_id):
             contact.set_as_primary()
         
         flash('联系人添加成功！', 'success')
-        return redirect(url_for('customer.list_contacts', company_id=company_id))
+        # 修改为添加后跳转客户详情页
+        return redirect(url_for('customer.view_company', company_id=company_id))
     return render_template('customer/add_contact.html', company=company, COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
                           INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
                           STATUS_OPTIONS=STATUS_OPTIONS)
@@ -482,7 +488,7 @@ def edit_contact(company_id, contact_id):
 @customer.route('/<int:company_id>/contacts/<int:contact_id>/delete', methods=['POST'])
 @permission_required('customer', 'delete')
 def delete_contact(company_id, contact_id):
-    contact = Contact.query.get_or_404(contact_id)
+    contact = Contact.query.get_or_404(contact_id);
     # 检查删除权限
     if not can_delete_contact(current_user, contact):
         flash('您没有权限删除此联系人，只有联系人的创建者或管理员才能删除', 'danger')
@@ -490,7 +496,8 @@ def delete_contact(company_id, contact_id):
     db.session.delete(contact)
     db.session.commit()
     flash('联系人删除成功！', 'success')
-    return redirect(url_for('customer.list_contacts', company_id=company_id))
+    # 修改为删除后跳转客户详情页
+    return redirect(url_for('customer.view_company', company_id=company_id))
 
 @customer.route('/api/contacts/<int:contact_id>/add_action', methods=['POST'])
 @permission_required('customer', 'create')

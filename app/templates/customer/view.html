@@ -549,7 +549,9 @@
                                     <span class="d-flex align-items-center">
                                         <small class="text-muted me-2">记录人: {{ render_owner(action.owner) }}</small>
                                         {% if has_permission('customer', 'delete') and (action.owner_id == current_user.id or current_user.role == 'admin') %}
-                                        {{ render_button('删除', '#', color='danger', icon='fas fa-trash', size='sm', extra_class='ms-1 delete-action-btn', attrs='data-action-id="' ~ action.id ~ '" title="删除行动记录"') }}
+                                        <button class="btn btn-sm btn-outline-danger delete-action-btn ms-1" data-action-id="{{ action.id }}" title="删除行动记录">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
                                         {% endif %}
                                     </span>
                                 </div>
@@ -777,6 +779,9 @@
     .table-hover tbody tr:hover td {
         background-color: #e9ecef !important;
     }
+    
+    .reply-delete { color: #dc3545; cursor: pointer; margin-left: 8px; }
+    .reply-delete:hover { text-decoration: underline; }
 </style>
 
 {% block scripts %}

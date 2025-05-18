@@ -298,6 +298,23 @@ def create_quotation():
                         project.quotation_customer = total
                         db.session.commit()
                     
+                    # 触发报价单创建通知
+                    try:
+                        from app.utils.notification_helpers import trigger_event_notification
+                        from flask import url_for
+                        trigger_event_notification(
+                            event_key='quotation_created',
+                            target_user_id=quotation.owner_id,
+                            context={
+                                'quotation': quotation,
+                                'create_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                'quotation_url': url_for('quotation.view_quotation', id=quotation.id, _external=True),
+                                'current_year': datetime.now().year
+                            }
+                        )
+                    except Exception as notify_err:
+                        current_app.logger.warning(f"触发报价单创建通知失败: {str(notify_err)}")
+                    
                     # 如果有错误但保存成功，返回警告信息
                     if detail_errors:
                         current_app.logger.warning(f"报价单创建成功，但有以下警告: {', '.join(detail_errors)}")
@@ -378,17 +395,27 @@ def create_quotation():
                 quotation.updated_at = datetime.utcnow()
                 db.session.commit()
                 
-                # 强制刷新项目金额
-                project = Project.query.get(quotation.project_id)
-                if project:
-                    total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
-                    project.quotation_customer = total
-                db.session.commit()
+                # 触发报价单创建通知
+                try:
+                    from app.utils.notification_helpers import trigger_event_notification
+                    from flask import url_for
+                    trigger_event_notification(
+                        event_key='quotation_created',
+                        target_user_id=quotation.owner_id,
+                        context={
+                            'quotation': quotation,
+                            'create_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                            'quotation_url': url_for('quotation.view_quotation', id=quotation.id, _external=True),
+                            'current_year': datetime.now().year
+                        }
+                    )
+                except Exception as notify_err:
+                    logger.warning(f"触发报价单创建通知失败: {str(notify_err)}")
                 
                 flash('报价单创建成功！', 'success')
                 
-                # 如果有返回URL，则重定向到该URL
-                if return_to:
+                # 处理返回URL
+                if return_to and 'project/view' in return_to:
                     return redirect(return_to)
                 else:
                     return redirect(url_for('quotation.list_quotations'))
@@ -1422,6 +1449,23 @@ def save_quotation(id):
                 total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
                 project.quotation_customer = total
                 db.session.commit()
+            
+            # 触发报价单创建通知
+            try:
+                from app.utils.notification_helpers import trigger_event_notification
+                from flask import url_for
+                trigger_event_notification(
+                    event_key='quotation_created',
+                    target_user_id=quotation.owner_id,
+                    context={
+                        'quotation': quotation,
+                        'create_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        'quotation_url': url_for('quotation.view_quotation', id=quotation.id, _external=True),
+                        'current_year': datetime.now().year
+                    }
+                )
+            except Exception as notify_err:
+                current_app.logger.warning(f"触发报价单创建通知失败: {str(notify_err)}")
             
             if detail_errors:
                 current_app.logger.warning(f"报价单保存成功，但有以下警告: {', '.join(detail_errors)}")

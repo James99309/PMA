@@ -87,8 +87,11 @@ $(function() {
             html += `<div class="reply" style="margin-left:${level*24}px; border-left:1px solid #eee; padding-left:8px; margin-top:6px;">
                 <div>
                     <span class="fw-bold">${reply.owner}</span>
-                    <span class="text-muted small ms-2">${reply.created_at}</span>
-                </div>
+                    <span class="text-muted small ms-2">${reply.created_at}</span>`;
+            if (reply.can_delete) {
+                html += `<span class="reply-delete text-danger" data-reply-id="${reply.id}" style="cursor:pointer;margin-left:8px;">删除</span>`;
+            }
+            html += `</div>
                 <div class="mb-1">${escapeHtml(reply.content)}</div>
                 <button class="btn btn-link btn-xs reply-child-btn" data-reply-id="${reply.id}">回复</button>
                 <div class="child-reply-form mt-2" id="child-reply-form-${reply.id}" data-action-id="${actionId}" style="display:none">
@@ -108,4 +111,31 @@ $(function() {
     function escapeHtml(text) {
         return $('<div/>').text(text).html();
     }
+
+    // 绑定删除事件
+    $(document).on('click', '.reply-delete', function() {
+        var replyId = $(this).data('reply-id');
+        var $this = $(this);
+        if (confirm('确定要删除这条回复吗？')) {
+            $.ajax({
+                url: '/project/action/reply/' + replyId + '/delete',
+                type: 'POST',
+                headers: {
+                    'X-CSRFToken': $('meta[name="csrf-token"]').attr('content')
+                },
+                success: function(res) {
+                    if (res.success) {
+                        // 重新加载回复
+                        // 找到最近的replies-container
+                        var container = $this.closest('.replies-container');
+                        var actionId = container.attr('id').split('-')[1];
+                        loadReplies(actionId, container);
+                    } else {
+                        alert(res.message || '删除失败');
+                    }
+                },
+                error: function() { alert('删除失败'); }
+            });
+        }
+    });
 }); 
