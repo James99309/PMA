@@ -1,0 +1,343 @@
+{% from "macros/ui_helpers.html" import render_pagination with context %}
+
+{# 审批流程模板列表 #}
+{% macro template_list_table(templates, current_url) %}
+  <div class="table-responsive">
+    <table class="table table-striped table-hover">
+      <thead>
+        <tr>
+          <th>模板名称</th>
+          <th>业务类型</th>
+          <th>状态</th>
+          <th>创建人</th>
+          <th>创建时间</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if templates.items %}
+          {% for template in templates.items %}
+            <tr>
+              <td>{{ template.name }}</td>
+              <td>{{ get_object_type_display(template.object_type) }}</td>
+              <td>
+                {% if template.is_active %}
+                  <span class="badge badge-success">启用</span>
+                {% else %}
+                  <span class="badge badge-danger">禁用</span>
+                {% endif %}
+              </td>
+              <td>{{ template.creator.username }}</td>
+              <td>{{ format_datetime(template.created_at) }}</td>
+              <td>
+                <a href="{{ url_for('approval_config.template_detail', template_id=template.id) }}" class="btn btn-sm btn-info">
+                  <i class="fas fa-eye"></i> 查看
+                </a>
+                <a href="{{ url_for('approval_config.edit_template', template_id=template.id) }}" class="btn btn-sm btn-primary">
+                  <i class="fas fa-edit"></i> 编辑
+                </a>
+                <button type="button" class="btn btn-sm btn-danger" 
+                        onclick="confirmDeleteTemplate('{{ template.id }}', '{{ template.name }}')">
+                  <i class="fas fa-trash"></i> 删除
+                </button>
+              </td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="6" class="text-center">暂无审批流程模板</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+  
+  {# 分页器 #}
+  {% if templates.pages > 1 %}
+    <div class="d-flex justify-content-center mt-4">
+      {{ render_pagination(templates, fragment='', url=current_url) }}
+    </div>
+  {% endif %}
+  
+  {# 删除确认模态框 #}
+  <div class="modal fade" id="deleteTemplateModal" tabindex="-1" role="dialog" aria-labelledby="deleteTemplateModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="deleteTemplateModalLabel">确认删除</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          确定要删除模板 "<span id="templateNameToDelete"></span>" 吗？
+          <p class="text-danger mt-2">注意：如果模板已关联审批实例，将会禁用而不是删除。</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <form id="deleteTemplateForm" method="POST" action="">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger">确认删除</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    function confirmDeleteTemplate(templateId, templateName) {
+      document.getElementById('templateNameToDelete').textContent = templateName;
+      document.getElementById('deleteTemplateForm').action = "{{ url_for('approval_config.delete_template', template_id=0) }}".replace('0', templateId);
+      var deleteModal = new bootstrap.Modal(document.getElementById('deleteTemplateModal'));
+      deleteModal.show();
+    }
+  </script>
+{% endmacro %}
+
+{# 审批流程步骤列表 #}
+{% macro step_list(steps, users, in_use=False) %}
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">审批步骤</h5>
+        <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addStepModal">
+          <i class="fas fa-plus"></i> 添加步骤
+        </button>
+    </div>
+    <div class="card-body p-0">
+      {% if steps %}
+        <ul class="list-group step-list" id="stepList">
+          {% for step in steps %}
+            <li class="list-group-item d-flex justify-content-between align-items-center" data-step-id="{{ step.id }}">
+              <div class="d-flex align-items-center">
+                {% if not in_use %}
+                  <span class="handle mr-3" title="拖动调整顺序">
+                    <i class="fas fa-grip-vertical text-muted"></i>
+                  </span>
+                {% endif %}
+                <div>
+                  <div><strong>{{ step.step_order }}. {{ step.step_name }}</strong></div>
+                  <div class="text-muted">审批人: {{ step.approver.username }}</div>
+                  <div class="text-muted">邮件通知: {% if step.send_email %}是{% else %}否{% endif %}</div>
+                  {% if step.action_type %}
+                  <div class="text-muted">动作类型: 
+                    {% if step.action_type == 'authorization' %}
+                      <span class="badge badge-info">授权编号</span>
+                    {% else %}
+                      {{ step.action_type }}
+                    {% endif %}
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+              <div>
+                <button type="button" class="btn btn-sm btn-info" 
+                        data-bs-toggle="modal" data-bs-target="#editStepModal"
+                        data-step-id="{{ step.id }}"
+                        data-step-name="{{ step.step_name }}"
+                        data-approver-id="{{ step.approver_user_id }}"
+                        data-send-email="{{ step.send_email }}"
+                        data-action-type="{{ step.action_type or '' }}">
+                  <i class="fas fa-edit"></i> 编辑
+                </button>
+                <button type="button" class="btn btn-sm btn-danger" 
+                        onclick="confirmDeleteStep('{{ step.id }}')"
+                        {% if in_use %}disabled{% endif %}>
+                  <i class="fas fa-trash"></i> 删除
+                </button>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="text-center p-4">
+          <p class="text-muted">该审批流程模板暂无步骤</p>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStepModal">
+              <i class="fas fa-plus"></i> 添加第一个步骤
+            </button>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+  
+  {% if not in_use %}
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        // 初始化拖拽排序
+        var stepList = document.getElementById('stepList');
+        if (stepList) {
+          new Sortable(stepList, {
+            handle: '.handle',
+            animation: 150,
+            onEnd: function(evt) {
+              // 更新步骤顺序
+              const stepIds = Array.from(stepList.querySelectorAll('li')).map(li => li.getAttribute('data-step-id'));
+              
+              // 发送AJAX请求
+              fetch("{{ url_for('approval_config.reorder_steps', template_id=template.id) }}", {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify({ steps: stepIds })
+              })
+              .then(response => response.json())
+              .then(data => {
+                if (data.success) {
+                  // 刷新页面显示新的顺序
+                  window.location.reload();
+                } else {
+                  alert(data.message || '重新排序失败');
+                }
+              })
+              .catch(error => {
+                console.error('Error:', error);
+                alert('操作失败，请重试');
+              });
+            }
+          });
+        }
+      });
+      
+      function confirmDeleteStep(stepId) {
+        if (confirm('确定要删除该步骤吗？')) {
+          // 创建并提交表单
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = "{{ url_for('approval_config.delete_step', step_id=0) }}".replace('0', stepId);
+          
+          // 添加CSRF令牌
+          const csrfToken = document.createElement('input');
+          csrfToken.type = 'hidden';
+          csrfToken.name = 'csrf_token';
+          csrfToken.value = '{{ csrf_token() }}';
+          form.appendChild(csrfToken);
+          
+          document.body.appendChild(form);
+          form.submit();
+        }
+      }
+    </script>
+  {% endif %}
+  
+  {# 添加步骤模态框 #}
+  <div class="modal fade" id="addStepModal" tabindex="-1" aria-labelledby="addStepModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addStepModalLabel">添加审批步骤</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form method="POST" action="{{ url_for('approval_config.add_step', template_id=template.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="modal-body">
+            <div class="form-group mb-3">
+              <label for="step_name">步骤名称</label>
+              <input type="text" class="form-control" id="step_name" name="step_name" required>
+            </div>
+            <div class="form-group mb-3">
+              <label for="approver_id">审批人</label>
+              <select class="form-control" id="approver_id" name="approver_id" required>
+                <option value="">请选择审批人</option>
+                {% for user in users %}
+                  <option value="{{ user.id }}">
+                    {{ user.real_name if user.real_name else user.username }}（{{ user.username }}）- {{ get_role_display_name(user.role) }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group mb-3">
+              <label for="action_type">动作类型</label>
+              <select class="form-control" id="action_type" name="action_type">
+                <option value="">普通审批</option>
+                <option value="authorization">授权编号</option>
+              </select>
+              <small class="form-text text-muted">选择此步骤执行的特殊动作，授权编号用于项目编号生成</small>
+            </div>
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="send_email" name="send_email" checked>
+              <label class="form-check-label" for="send_email">审批时发送邮件通知</label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+            <button type="submit" class="btn btn-primary">保存</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  
+  {# 编辑步骤模态框 #}
+  <div class="modal fade" id="editStepModal" tabindex="-1" aria-labelledby="editStepModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="editStepModalLabel">编辑审批步骤</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="editStepForm" method="POST" action="">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="modal-body">
+            <div class="form-group mb-3">
+              <label for="edit_step_name">步骤名称</label>
+              <input type="text" class="form-control" id="edit_step_name" name="step_name" required>
+            </div>
+            <div class="form-group mb-3">
+              <label for="edit_approver_id">审批人</label>
+              <select class="form-control" id="edit_approver_id" name="approver_id" required>
+                <option value="">请选择审批人</option>
+                {% for user in users %}
+                  <option value="{{ user.id }}">
+                    {{ user.real_name if user.real_name else user.username }}（{{ user.username }}）- {{ get_role_display_name(user.role) }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group mb-3">
+              <label for="edit_action_type">动作类型</label>
+              <select class="form-control" id="edit_action_type" name="action_type">
+                <option value="">普通审批</option>
+                <option value="authorization">授权编号</option>
+              </select>
+              <small class="form-text text-muted">选择此步骤执行的特殊动作，授权编号用于项目编号生成</small>
+            </div>
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="edit_send_email" name="send_email">
+              <label class="form-check-label" for="edit_send_email">审批时发送邮件通知</label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+            <button type="submit" class="btn btn-primary">保存</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // 编辑模态框事件处理
+      var editStepModal = document.getElementById('editStepModal');
+      if (editStepModal) {
+        editStepModal.addEventListener('show.bs.modal', function(event) {
+          var button = event.relatedTarget;
+          var stepId = button.getAttribute('data-step-id');
+          var stepName = button.getAttribute('data-step-name');
+          var approverId = button.getAttribute('data-approver-id');
+          var sendEmail = button.getAttribute('data-send-email');
+          var actionType = button.getAttribute('data-action-type');
+          
+          var modal = this;
+          modal.querySelector('#edit_step_name').value = stepName;
+          modal.querySelector('#edit_approver_id').value = approverId;
+          modal.querySelector('#edit_action_type').value = actionType;
+          modal.querySelector('#edit_send_email').checked = (sendEmail === 'True');
+          
+          // 设置表单提交地址
+          modal.querySelector('#editStepForm').action = "{{ url_for('approval_config.edit_step', step_id=0) }}".replace('0', stepId);
+        });
+      }
+    });
+  </script>
+{% endmacro %} 

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_authorization_code, render_datetime, render_project_stage %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_authorization_code, render_datetime, render_project_stage, render_status_badge %}
 {% import 'macros/ui_helpers.html' as ui %}
 
 {% block title %}项目管理{% endblock %}
@@ -70,6 +70,7 @@
             </div>
             <!-- 账户选择器和统计切换按钮迁移自statistics_dashboard.html -->
             <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="d-flex align-items-center">
                 <div class="dropdown account-selector">
                     <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="accountSelectorBtn" data-bs-toggle="dropdown" aria-expanded="false">
                         全部账户
@@ -79,6 +80,7 @@
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item text-center"><div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">加载中...</span></div></a></li>
                     </ul>
+                    </div>
                 </div>
                 {# 统计总览按钮已移至标题区，此处删除避免重复 #}
 <script>
@@ -126,6 +128,8 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     });
   }
+
+  // 移除了筛选状态指示和返回按钮相关代码
 });
 </script>
             </div>
@@ -137,9 +141,13 @@ document.addEventListener('DOMContentLoaded', function () {
                             <i class="fas fa-search"></i>
                         </button>
                     </div>
-                    <div class="form-check form-switch ms-3 d-flex align-items-center">
-                        <input class="form-check-input" type="checkbox" id="showMyProjectsSwitch" {% if request.args.get('my_projects') == '1' %}checked{% endif %}>
-                        <label class="form-check-label" for="showMyProjectsSwitch" style="white-space: nowrap; margin-left: 5px; display: inline-block; vertical-align: middle;">只看自己</label>
+                    <div class="d-inline-flex align-items-center gap-2 flex-nowrap ms-4">
+                        {{ ui.render_toggle_switch('showMyProjectsSwitch',
+                                                   checked=request.args.get('my_projects') == '1',
+                                                   label_on='ON',
+                                                   label_off='OFF',
+                                                   attrs='id="showMyProjectsSwitch"') }}
+                        <span class="form-label mb-0 text-nowrap">只看自己</span>
                     </div>
                 </div>
                 <div class="d-none d-lg-block">
@@ -148,9 +156,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     {% endif %}
                     {{ ui.render_button("创建项目", href=url_for('project.add_project'), color="primary", attrs='', extra_class="me-2") }}
                     {% if has_permission('project', 'delete') %}
-                    <button id="batchDeleteBtn" class="btn btn-danger" style="display: none;">
-                        <i class="fas fa-trash"></i> 批量删除
-                    </button>
+                    {{ ui.render_button("批量删除", type="button", color="danger", icon="fas fa-trash", attrs='id="batchDeleteBtn" style="display: none;"') }}
                     {% endif %}
                 </div>
             </div>
@@ -210,7 +216,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     <div class="card-body p-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="badge bg-info">{{ project.authorization_code or '无编号' }}</span>
-                            {{ render_project_stage(project.current_stage|project_stage_label('zh')) if project.current_stage else render_project_stage('未设置') }}
+                            <div>
+                                {{ render_status_badge('active' if project.is_active else 'inactive') }}
+                                {{ render_project_stage(project.current_stage|project_stage_label('zh')) if project.current_stage else render_project_stage('未设置') }}
+                            </div>
                         </div>
                         <h5 class="card-title mb-2">
                             <a href="{{ url_for('project.view_project', project_id=project.id) }}" class="text-decoration-none">
@@ -223,6 +232,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         </div>
                         <div class="small mb-1">
                             <i class="fas fa-user text-secondary me-1"></i>{{ render_owner(project.owner) }}
+                            <span class="d-none" data-owner-id="{{ project.owner_id }}"></span>
                         </div>
                         {% if project.quotation_customer %}
                         <div class="small mb-1">
@@ -264,6 +274,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                     </div>
                                 </th>
                                 {% endif %}
+
                                 <th style="min-width: 100px;" data-sort="owner_id">
                                     <div class="th-content">
                                         <span class="th-text">拥有者</span>
@@ -288,6 +299,15 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="project_name"></i>
                                             <i class="fas fa-filter filter-icon" data-field="project_name"></i>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th style="min-width: 80px;" data-sort="is_active">
+                                    <div class="th-content">
+                                        <span class="th-text">活跃状态</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="is_active"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="is_active"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -401,25 +421,26 @@ document.addEventListener('DOMContentLoaded', function () {
                                 </th>
                             </tr>
                             <tr class="filter-row" style="display: none;">
-                                {% if not has_permission('project', 'delete') %}
-                                <!-- 当没有删除权限时，不需要添加额外的checkbox列 -->
+                                {% if has_permission('project', 'delete') %}
+                                <th></th> <!-- 复选框列 -->
                                 {% endif %}
+
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="owner_id" placeholder="筛选..."></th>
                                 <th><input type="text" class="form-control form-control-sm filter-input" data-field="authorization_code" placeholder="筛选..."></th>
                                 <th><input type="text" class="form-control form-control-sm filter-input" data-field="project_name" placeholder="筛选..."></th>
-                                <th><input type="date" class="form-control form-control-sm filter-input" data-field="report_time"></th>
-                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="report_source" placeholder="筛选..."></th>
-                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="project_type" placeholder="筛选..."></th>
-                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="product_situation" placeholder="筛选..."></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="is_active" placeholder="筛选..."></th>
                                 <th><input type="text" class="form-control form-control-sm filter-input" data-field="current_stage" placeholder="筛选..."></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="project_type" placeholder="筛选..."></th>
                                 <th><input type="text" class="form-control form-control-sm filter-input" data-field="quotation_customer" placeholder="筛选..."></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="report_source" placeholder="筛选..."></th>
                                 <th><input type="text" class="form-control form-control-sm filter-input" data-field="end_user" placeholder="筛选..."></th>
                                 <th><input type="text" class="form-control form-control-sm filter-input" data-field="design_issues" placeholder="筛选..."></th>
                                 <th><input type="text" class="form-control form-control-sm filter-input" data-field="contractor" placeholder="筛选..."></th>
                                 <th><input type="text" class="form-control form-control-sm filter-input" data-field="system_integrator" placeholder="筛选..."></th>
                                 <th><input type="date" class="form-control form-control-sm filter-input" data-field="delivery_forecast"></th>
-                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="owner_id" placeholder="筛选..."></th>
-                                <th><input type="date" class="form-control form-control-sm filter-input" data-field="created_at"></th>
+                                <th><input type="date" class="form-control form-control-sm filter-input" data-field="report_time"></th>
                                 <th><input type="date" class="form-control form-control-sm filter-input" data-field="updated_at"></th>
+                                <th><input type="date" class="form-control form-control-sm filter-input" data-field="created_at"></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -433,7 +454,10 @@ document.addEventListener('DOMContentLoaded', function () {
                                     </div>
                                 </td>
                                 {% endif %}
-                                <td>{{ render_owner(project.owner) if project.owner else '' }}</td>
+
+                                <td>{{ render_owner(project.owner) if project.owner else '' }}
+                                  <span class="d-none" data-owner-id="{{ project.owner_id }}"></span>
+                                </td>
                                 <td>
                                     {% if project.authorization_code %}
                                         {{ render_authorization_code(project.authorization_code, project.project_type) }}
@@ -450,6 +474,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                         {{ project.project_name }}
                                     </a>
                                 </td>
+                                <td>{{ render_status_badge('active' if project.is_active else 'inactive') }}</td>
                                 <td>{{ render_project_stage(project.current_stage|project_stage_label('zh')) if project.current_stage else render_project_stage('未设置') }}</td>
                                 <td>{{ render_project_type(project.project_type) if project.project_type else '' }}</td>
                                 <td>
@@ -526,6 +551,21 @@ document.addEventListener('DOMContentLoaded', function () {
     font-size: 14px; /* 将表格字体大小设置为14px */
     border-collapse: separate;
     border-spacing: 0;
+}
+
+/* 为表格行和卡片添加平滑过渡效果 */
+.table tbody tr, .d-block.d-lg-none .card {
+    transition: opacity 0.2s ease-in-out;
+}
+
+/* 隐藏行时使用透明度而不是display:none，提供更好的视觉体验 */
+.table tbody tr.filtered, .d-block.d-lg-none .card.filtered {
+    opacity: 0;
+    height: 0;
+    overflow: hidden;
+    padding: 0;
+    margin: 0;
+    border: none;
 }
 
 /* !!! 表头固定样式 - 不要修改 !!! */
@@ -823,66 +863,454 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // 只看自己开关事件
-    const showMyProjectsSwitch = document.getElementById('showMyProjectsSwitch');
-    showMyProjectsSwitch.addEventListener('change', function() {
-        performSearch();
-    });
-    
-    // 初始化搜索框值和参数
+    // 获取URL参数
     const urlParams = new URLSearchParams(window.location.search);
     const searchParam = urlParams.get('search');
+    const myProjectsParam = urlParams.get('my_projects');
+    
+    // 初始化搜索框值
     if (searchParam) {
         searchInput.value = searchParam;
     }
     
-    // 执行搜索，包含"只看自己"参数
-    function performSearch() {
-        const searchText = searchInput.value.trim();
-        const showMyProjects = showMyProjectsSwitch.checked ? '1' : '0';
-        
-        // 构建查询参数
-        const params = new URLSearchParams(window.location.search);
-        
-        if (searchText) {
-            params.set('search', searchText);
-        } else {
-            params.delete('search');
-        }
-        
-        if (showMyProjects === '1') {
-            params.set('my_projects', '1');
-        } else {
-            params.delete('my_projects');
-        }
-        
-        // 保留排序参数
-        if (!params.has('sort') && window.location.search.includes('sort=')) {
-            const sortMatch = window.location.search.match(/[?&]sort=([^&]*)/);
-            if (sortMatch) params.set('sort', sortMatch[1]);
-        }
-        
-        if (!params.has('order') && window.location.search.includes('order=')) {
-            const orderMatch = window.location.search.match(/[?&]order=([^&]*)/);
-            if (orderMatch) params.set('order', orderMatch[1]);
-        }
-        
-        // 重定向到带有参数的URL
-        window.location.href = `${window.location.pathname}?${params.toString()}`;
-    }
+    // 初始化"只看自己"过滤
+    const showMyProjectsSwitch = document.getElementById('showMyProjectsSwitch');
     
-    // 客户端搜索（不刷新页面）
-    searchInput.addEventListener('input', function(e) {
-        const searchText = e.target.value.toLowerCase();
-        const rows = document.querySelectorAll('tbody tr');
-
-        rows.forEach(row => {
-            const projectNameCell = row.querySelector('td:nth-child({% if has_permission("project", "delete") %}3{% else %}2{% endif %})')
-            if (projectNameCell) {
-                const projectName = projectNameCell.textContent.toLowerCase();
-                row.style.display = projectName.includes(searchText) ? '' : 'none';
+    // 如果URL包含my_projects=1参数，应用客户端过滤
+    if (myProjectsParam === '1' && showMyProjectsSwitch) {
+        // 确保开关状态与URL参数一致
+        showMyProjectsSwitch.checked = true;
+        
+        // 应用过滤
+        const currentUserId = parseInt("{{ current_user.id }}");
+        
+        // PC端表格视图过滤
+        const tableRows = document.querySelectorAll('.table tbody tr');
+        tableRows.forEach(row => {
+            const ownerSpan = row.querySelector('td [data-owner-id]');
+            if (ownerSpan) {
+                const ownerId = parseInt(ownerSpan.getAttribute('data-owner-id'));
+                if (ownerId !== currentUserId) {
+                    row.classList.add('filtered');
+                }
             }
         });
+        
+        // 移动端卡片视图过滤
+        const mobileCards = document.querySelectorAll('.d-block.d-lg-none .card');
+        mobileCards.forEach(card => {
+            const ownerSpan = card.querySelector('[data-owner-id]');
+            if (ownerSpan) {
+                const ownerId = parseInt(ownerSpan.getAttribute('data-owner-id'));
+                if (ownerId !== currentUserId) {
+                    card.classList.add('filtered');
+                }
+            }
+        });
+    }
+    
+    // 只看自己开关事件
+    showMyProjectsSwitch.addEventListener('change', function() {
+        // 直接调用performSearch函数应用过滤
+        performSearch();
+        
+        // 如果开关被关闭，确保所有行显示（清除"只看自己"的过滤）
+        if (!this.checked) {
+            // 获取所有表格行和移动端卡片
+            const tableRows = document.querySelectorAll('.table tbody tr');
+            const mobileCards = document.querySelectorAll('.d-block.d-lg-none .card');
+            const tableBody = document.querySelector('.table tbody');
+            const mobileContainer = document.querySelector('.d-block.d-lg-none');
+            
+            // 先检查是否有搜索条件
+            const searchText = searchInput.value.trim().toLowerCase();
+            if (!searchText) {
+                // 如果没有搜索条件，重新排列所有元素
+                const allRows = Array.from(tableRows);
+                const allCards = Array.from(mobileCards);
+                
+                // 按更新时间降序排序的函数
+                const sortByUpdatedAtDesc = (a, b) => {
+                  // 尝试从元素中获取更新时间
+                  const getUpdatedAt = (el) => {
+                    // 从表格行中提取更新时间（假设在倒数第二列）
+                    if (!el.classList.contains('card')) {
+                      // PC端表格视图
+                      const cells = el.querySelectorAll('td');
+                      if (cells.length > 2) {
+                        const updatedAtCell = cells[cells.length - 2]; // 倒数第二列是更新时间
+                        if (updatedAtCell) {
+                          const dateText = updatedAtCell.textContent.trim();
+                          if (dateText) {
+                            return new Date(dateText).getTime();
+                          }
+                        }
+                      }
+                    } else {
+                      // 移动端卡片视图
+                      const updatedAtText = el.textContent.match(/更新: (\d{4}-\d{2}-\d{2})/);
+                      if (updatedAtText && updatedAtText[1]) {
+                        return new Date(updatedAtText[1]).getTime();
+                      }
+                    }
+                    return 0; // 默认时间戳
+                  };
+                  
+                  const updatedAtA = getUpdatedAt(a);
+                  const updatedAtB = getUpdatedAt(b);
+                  return updatedAtB - updatedAtA; // 降序排列（新到旧）
+                };
+                
+                // 排序行和卡片
+                allRows.sort(sortByUpdatedAtDesc);
+                allCards.sort(sortByUpdatedAtDesc);
+                
+                // 重新排列表格行
+                if (tableBody) {
+                    // 清空表格
+                    while (tableBody.firstChild) {
+                        tableBody.removeChild(tableBody.firstChild);
+                    }
+                    
+                    // 重新添加所有行
+                    allRows.forEach(row => {
+                        row.classList.remove('filtered');
+                        row.style.display = '';
+                        tableBody.appendChild(row);
+                    });
+                }
+                
+                // 重新排列移动端卡片
+                if (mobileContainer) {
+                    // 保存非卡片元素
+                    const nonCardElements = Array.from(mobileContainer.children).filter(el => 
+                        !el.classList.contains('card')
+                    );
+                    
+                    // 清空容器
+                    while (mobileContainer.firstChild) {
+                        mobileContainer.removeChild(mobileContainer.firstChild);
+                    }
+                    
+                    // 添加非卡片元素
+                    nonCardElements.forEach(el => {
+                        mobileContainer.appendChild(el);
+                    });
+                    
+                    // 添加所有卡片
+                    allCards.forEach(card => {
+                        card.classList.remove('filtered');
+                        card.style.display = '';
+                        mobileContainer.appendChild(card);
+                    });
+                }
+            }
+        }
+    });
+
+// 执行搜索功能，在客户端过滤不刷新页面
+    function performSearch() {
+    const searchText = searchInput.value.trim().toLowerCase();
+    const isMyProjectsOnly = showMyProjectsSwitch.checked;
+    
+    // 获取所有表格行和移动端卡片
+    const tableRows = document.querySelectorAll('.table tbody tr');
+    const mobileCards = document.querySelectorAll('.d-block.d-lg-none .card');
+    const tableBody = document.querySelector('.table tbody');
+    const mobileContainer = document.querySelector('.d-block.d-lg-none');
+    
+    // 如果没有任何筛选条件，恢复所有元素显示
+    if (!searchText && !isMyProjectsOnly) {
+        // 按更新时间降序排序的函数
+        const sortByUpdatedAtDesc = (a, b) => {
+            // 尝试从元素中获取更新时间
+            const getUpdatedAt = (el) => {
+                // 从表格行中提取更新时间（假设在倒数第二列）
+                if (!el.classList.contains('card')) {
+                    // PC端表格视图
+                    const cells = el.querySelectorAll('td');
+                    if (cells.length > 2) {
+                        const updatedAtCell = cells[cells.length - 2]; // 倒数第二列是更新时间
+                        if (updatedAtCell) {
+                            const dateText = updatedAtCell.textContent.trim();
+                            if (dateText) {
+                                return new Date(dateText).getTime();
+                            }
+                        }
+                    }
+                } else {
+                    // 移动端卡片视图
+                    const updatedAtText = el.textContent.match(/更新: (\d{4}-\d{2}-\d{2})/);
+                    if (updatedAtText && updatedAtText[1]) {
+                        return new Date(updatedAtText[1]).getTime();
+                    }
+                }
+                return 0; // 默认时间戳
+            };
+            
+            const updatedAtA = getUpdatedAt(a);
+            const updatedAtB = getUpdatedAt(b);
+            return updatedAtB - updatedAtA; // 降序排列（新到旧）
+        };
+        
+        // 复制所有行和卡片到数组，以便排序
+        const allRows = Array.from(tableRows);
+        const allCards = Array.from(mobileCards);
+        
+        // 按更新时间排序
+        allRows.sort(sortByUpdatedAtDesc);
+        allCards.sort(sortByUpdatedAtDesc);
+        
+        // 重新填充表格
+        if (tableBody) {
+            // 清空表格
+            while (tableBody.firstChild) {
+                tableBody.removeChild(tableBody.firstChild);
+            }
+            
+            // 添加所有行
+            allRows.forEach(row => {
+                row.classList.remove('filtered');
+                row.style.display = '';
+                tableBody.appendChild(row);
+            });
+        }
+        
+        // 重新填充移动容器
+        if (mobileContainer) {
+            // 保存所有非卡片元素
+            const nonCardElements = Array.from(mobileContainer.children).filter(el => 
+                !el.classList.contains('card')
+            );
+            
+            // 清空容器
+            while (mobileContainer.firstChild) {
+                mobileContainer.removeChild(mobileContainer.firstChild);
+            }
+            
+            // 首先添加非卡片元素
+            nonCardElements.forEach(el => {
+                mobileContainer.appendChild(el);
+            });
+            
+            // 添加所有卡片
+            allCards.forEach(card => {
+                card.classList.remove('filtered');
+                card.style.display = '';
+                mobileContainer.appendChild(card);
+            });
+        }
+        
+        // 更新URL参数
+        const searchUrlParams = new URLSearchParams(window.location.search);
+        searchUrlParams.delete('search');
+        searchUrlParams.delete('my_projects');
+        const searchNewUrl = `${window.location.pathname}?${searchUrlParams.toString()}`;
+        window.history.replaceState(null, '', searchNewUrl);
+        
+        // 更新按钮状态
+        if (typeof updateClearButtonState === 'function') {
+            setTimeout(updateClearButtonState, 0);
+        }
+        
+        return;
+    }
+    
+    // 用于存储匹配和筛选的行和卡片
+    const matchedRows = [];
+    const filteredRows = [];
+    const matchedCards = [];
+    const filteredCards = [];
+    
+    // 检查每一行是否匹配搜索条件
+    tableRows.forEach(row => {
+        let shouldFilter = false;
+        
+        // 先检查搜索文本
+        if (searchText) {
+            const projectNameLink = row.querySelector('a.project-link');
+            if (projectNameLink) {
+                const projectName = projectNameLink.textContent.toLowerCase();
+                if (!projectName.includes(searchText)) {
+                    shouldFilter = true;
+                }
+            }
+        }
+        
+        // 再检查"只看自己"条件
+        if (!shouldFilter && isMyProjectsOnly) {
+            const currentUserId = parseInt("{{ current_user.id }}");
+            const ownerSpan = row.querySelector('td [data-owner-id]');
+            if (ownerSpan) {
+                const ownerId = parseInt(ownerSpan.getAttribute('data-owner-id'));
+                if (ownerId !== currentUserId) {
+                    shouldFilter = true;
+                }
+            }
+        }
+        
+        // 根据筛选结果，分类存储
+        if (shouldFilter) {
+            row.classList.add('filtered');
+            filteredRows.push(row);
+        } else {
+            row.classList.remove('filtered');
+            matchedRows.push(row);
+        }
+    });
+    
+    // 检查每个卡片是否匹配搜索条件
+    mobileCards.forEach(card => {
+        let shouldFilter = false;
+        
+        // 先检查搜索文本
+        if (searchText) {
+            const projectNameElem = card.querySelector('.card-title');
+            if (projectNameElem) {
+                const projectName = projectNameElem.textContent.toLowerCase();
+                if (!projectName.includes(searchText)) {
+                    shouldFilter = true;
+                }
+            }
+        }
+        
+        // 再检查"只看自己"条件
+        if (!shouldFilter && isMyProjectsOnly) {
+            const currentUserId = parseInt("{{ current_user.id }}");
+            const ownerSpan = card.querySelector('[data-owner-id]');
+            if (ownerSpan) {
+                const ownerId = parseInt(ownerSpan.getAttribute('data-owner-id'));
+                if (ownerId !== currentUserId) {
+                    shouldFilter = true;
+                }
+            }
+        }
+        
+        // 根据筛选结果，分类存储
+        if (shouldFilter) {
+            card.classList.add('filtered');
+            filteredCards.push(card);
+        } else {
+            card.classList.remove('filtered');
+            matchedCards.push(card);
+        }
+    });
+    
+    // 按更新时间降序排序匹配的行和卡片
+    const sortByUpdatedAtDesc = (a, b) => {
+        // 尝试从元素中获取更新时间
+        const getUpdatedAt = (el) => {
+            // 从表格行中提取更新时间（假设在倒数第二列）
+            if (!el.classList.contains('card')) {
+                // PC端表格视图
+                const cells = el.querySelectorAll('td');
+                if (cells.length > 2) {
+                    const updatedAtCell = cells[cells.length - 2]; // 倒数第二列是更新时间
+                    if (updatedAtCell) {
+                        const dateText = updatedAtCell.textContent.trim();
+                        if (dateText) {
+                            return new Date(dateText).getTime();
+                        }
+                    }
+                }
+            } else {
+                // 移动端卡片视图
+                const updatedAtText = el.textContent.match(/更新: (\d{4}-\d{2}-\d{2})/);
+                if (updatedAtText && updatedAtText[1]) {
+                    return new Date(updatedAtText[1]).getTime();
+                }
+            }
+            return 0; // 默认时间戳
+        };
+        
+        const updatedAtA = getUpdatedAt(a);
+        const updatedAtB = getUpdatedAt(b);
+        return updatedAtB - updatedAtA; // 降序排列（新到旧）
+    };
+    
+    // 对匹配的行和卡片按更新时间排序
+    matchedRows.sort(sortByUpdatedAtDesc);
+    matchedCards.sort(sortByUpdatedAtDesc);
+    
+    // 重新排列表格行：匹配的行在前，被过滤的行在后
+    if (tableBody) {
+        // 清空表格
+        while (tableBody.firstChild) {
+            tableBody.removeChild(tableBody.firstChild);
+        }
+        
+        // 添加匹配的行
+        matchedRows.forEach(row => {
+            tableBody.appendChild(row);
+            row.style.display = '';
+        });
+        
+        // 被过滤的行不再添加回DOM
+        filteredRows.forEach(row => {
+            // 这里选择隐藏而不是不添加，避免DOM节点丢失
+            row.style.display = 'none';
+            tableBody.appendChild(row);
+        });
+    }
+    
+    // 重新排列移动端卡片：匹配的卡片在前，被过滤的卡片在后
+    if (mobileContainer) {
+        // 保存所有非卡片元素
+        const nonCardElements = Array.from(mobileContainer.children).filter(el => 
+            !el.classList.contains('card')
+        );
+        
+        // 清空容器
+        while (mobileContainer.firstChild) {
+            mobileContainer.removeChild(mobileContainer.firstChild);
+        }
+        
+        // 首先添加非卡片元素（如警告、提示等）
+        nonCardElements.forEach(el => {
+            mobileContainer.appendChild(el);
+        });
+        
+        // 添加匹配的卡片
+        matchedCards.forEach(card => {
+            mobileContainer.appendChild(card);
+            card.style.display = '';
+        });
+        
+        // 被过滤的卡片隐藏但仍添加到DOM
+        filteredCards.forEach(card => {
+            card.style.display = 'none';
+            mobileContainer.appendChild(card);
+        });
+    }
+    
+    // 更新URL参数，但不刷新页面
+    const searchUrlParams = new URLSearchParams(window.location.search);
+    
+    if (searchText) {
+        searchUrlParams.set('search', searchText);
+    } else {
+        searchUrlParams.delete('search');
+    }
+    
+    if (isMyProjectsOnly) {
+        searchUrlParams.set('my_projects', '1');
+    } else {
+        searchUrlParams.delete('my_projects');
+    }
+    
+    // 更新URL，保留其他参数如排序
+    const searchNewUrl = `${window.location.pathname}?${searchUrlParams.toString()}`;
+    window.history.replaceState(null, '', searchNewUrl);
+    
+    // 如果list.html中已经定义了更新按钮状态的函数，则调用它
+    if (typeof updateClearButtonState === 'function') {
+        setTimeout(updateClearButtonState, 0);
+    }
+}
+
+// 输入框实时搜索
+searchInput.addEventListener('input', function() {
+    performSearch();
     });
 
     // 获取表格容器
@@ -1148,6 +1576,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 执行列筛选
     function performColumnFilter() {
         const rows = document.querySelectorAll('tbody tr');
+        const tableBody = document.querySelector('.table tbody');
 
         // 收集所有筛选条件
         const filters = {};
@@ -1158,6 +1587,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 filters[field] = value;
             }
         });
+        
+        // 用于存储匹配和被过滤的行
+        const matchedRows = [];
+        const filteredRows = [];
 
         // 应用筛选
         rows.forEach(row => {
@@ -1204,9 +1637,34 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
 
-            // 根据筛选结果显示或隐藏行
-            row.style.display = showRow ? '' : 'none';
+            // 根据筛选结果分组
+            if (showRow) {
+                matchedRows.push(row);
+                row.classList.remove('filtered');
+            } else {
+                filteredRows.push(row);
+                row.classList.add('filtered');
+            }
         });
+
+        // 重新排列表格行：匹配的行在前，被过滤的行不显示
+        if (tableBody) {
+            // 清空表格
+            while (tableBody.firstChild) {
+                tableBody.removeChild(tableBody.firstChild);
+            }
+            
+            // 添加匹配的行
+            matchedRows.forEach(row => {
+                tableBody.appendChild(row);
+                row.style.display = '';
+            });
+            
+            // 被过滤的行不再添加回DOM
+            filteredRows.forEach(row => {
+                row.style.display = 'none';
+            });
+        }
 
         // 高亮活动的筛选图标
         filterIcons.forEach(icon => {
@@ -1219,6 +1677,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 icon.classList.remove('active');
             }
         });
+        
+        // 更新按钮状态
+        if (typeof updateClearButtonState === 'function') {
+            setTimeout(updateClearButtonState, 0);
+        }
     }
 
     // 根据字段名获取列索引
@@ -1426,6 +1889,9 @@ document.addEventListener('DOMContentLoaded', function() {
             batchDeleteBtn.style.display = anyChecked ? 'inline-block' : 'none';
         }
     }
+
+    // 初始化批量删除按钮状态
+    updateBatchDeleteButton();
 
 // 添加行滚动焦点效果
 if (tableContainer) {

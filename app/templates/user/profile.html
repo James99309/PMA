@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}个人设置 - 项目管理系统{% endblock %}
+
+{% block styles %}
+<style>
+    .tab-content {
+        padding: 2rem 1rem 1rem 1rem;
+        background: #fff;
+        border: 1px solid #e7e7e7;
+        border-top: none;
+        border-radius: 0 0 4px 4px;
+        min-height: 300px;
+    }
+    .nav-tabs .nav-link.active {
+        background-color: #f8f9fa;
+        border-color: #e7e7e7 #e7e7e7 #fff;
+    }
+    .form-container {
+        max-width: 600px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set module_name_map = {} %}
+{% set module_desc_map = {} %}
+{% for m in modules %}
+  {% set _ = module_name_map.update({m.id: m.name}) %}
+  {% set _ = module_desc_map.update({m.id: m.description}) %}
+{% endfor %}
+<div class="row mb-4">
+    <div class="col-md-12 d-flex align-items-center">
+        <h2 class="me-3">个人设置</h2>
+    </div>
+</div>
+
+<div class="d-flex align-items-center mb-2">
+    <ul class="nav nav-tabs" id="userProfileTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="account-tab" data-bs-toggle="tab" data-bs-target="#account" type="button" role="tab" aria-controls="account" aria-selected="true">账户设置</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="perm-tab" data-bs-toggle="tab" data-bs-target="#perm" type="button" role="tab" aria-controls="perm" aria-selected="false">模块权限</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="aff-tab" data-bs-toggle="tab" data-bs-target="#aff" type="button" role="tab" aria-controls="aff" aria-selected="false">
+                数据归属权限
+                {% if affiliations and affiliations.affiliation_count is defined %}
+                  <span class="badge bg-info ms-1">{{ affiliations.affiliation_count }}</span>
+                {% endif %}
+            </button>
+        </li>
+    </ul>
+</div>
+<div class="tab-content" id="userProfileTabContent">
+    <!-- 账户设置 -->
+    <div class="tab-pane fade show active" id="account" role="tabpanel" aria-labelledby="account-tab">
+        <div class="form-container">
+            <h5 class="mb-4">编辑个人信息</h5>
+            <form method="POST" action="{{ url_for('user.profile') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="mb-3">
+                    <label for="username" class="form-label">用户名</label>
+                    <input type="text" class="form-control" id="username" value="{{ user.username }}" readonly disabled>
+                    <div class="form-text">用户名不可修改</div>
+                </div>
+                <div class="mb-3">
+                    <label for="real_name" class="form-label">真实姓名</label>
+                    <input type="text" class="form-control" id="real_name" name="real_name" value="{{ user.real_name or '' }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="email" class="form-label">邮箱地址</label>
+                    <input type="email" class="form-control" id="email" name="email" value="{{ user.email or '' }}" required>
+                </div>
+                <div class="mb-3">
+                    <label for="phone" class="form-label">电话号码</label>
+                    <input type="text" class="form-control" id="phone" name="phone" value="{{ user.phone or '' }}">
+                </div>
+                <div class="mb-3">
+                    <label for="company_name" class="form-label">公司</label>
+                    <input type="text" class="form-control" id="company_name" value="{{ user.company_name or '' }}" readonly disabled>
+                    <div class="form-text">公司信息由管理员设置</div>
+                </div>
+                <div class="mb-3">
+                    <label for="department" class="form-label">部门</label>
+                    <input type="text" class="form-control" id="department" value="{{ user.department or '' }}" readonly disabled>
+                    <div class="form-text">部门信息由管理员设置</div>
+                </div>
+                <div class="mb-3">
+                    <label for="role" class="form-label">角色</label>
+                    <input type="text" class="form-control" id="role" value="{{ role_dict.get(user.role, user.role or '-') }}" readonly disabled>
+                    <div class="form-text">角色由管理员分配</div>
+                </div>
+                <button type="submit" class="btn btn-primary">保存更改</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- 模块权限 -->
+    <div class="tab-pane fade" id="perm" role="tabpanel" aria-labelledby="perm-tab">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">当前权限</h5>
+        </div>
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> 权限由系统管理员配置，如需调整请联系管理员
+        </div>
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover permission-matrix">
+                <thead class="table-light">
+                    <tr>
+                        <th>模块</th>
+                        <th class="text-center">查看</th>
+                        <th class="text-center">创建</th>
+                        <th class="text-center">编辑</th>
+                        <th class="text-center">删除</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% if permissions and permissions|length > 0 %}
+                    {% for perm in permissions %}
+                    <tr>
+                        <td>
+                            {{ module_name_map.get(perm.module, perm.module) }}
+                            {% if module_desc_map.get(perm.module) %}
+                                <small class="text-muted d-block">{{ module_desc_map.get(perm.module) }}</small>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">{% if perm.can_view %}<i class="fas fa-check text-success"></i>{% else %}<i class="fas fa-times text-danger"></i>{% endif %}</td>
+                        <td class="text-center">{% if perm.can_create %}<i class="fas fa-check text-success"></i>{% else %}<i class="fas fa-times text-danger"></i>{% endif %}</td>
+                        <td class="text-center">{% if perm.can_edit %}<i class="fas fa-check text-success"></i>{% else %}<i class="fas fa-times text-danger"></i>{% endif %}</td>
+                        <td class="text-center">{% if perm.can_delete %}<i class="fas fa-check text-success"></i>{% else %}<i class="fas fa-times text-danger"></i>{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr><td colspan="5" class="text-muted text-center">暂无权限</td></tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- 数据归属权限 -->
+    <div class="tab-pane fade" id="aff" role="tabpanel" aria-labelledby="aff-tab">
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> 数据归属关系由系统根据您的部门和角色自动分配，如需调整请联系管理员
+        </div>
+        <dl class="row mt-3">
+            <dt class="col-sm-3">部门</dt><dd class="col-sm-9">{{ affiliations.department }}</dd>
+            <dt class="col-sm-3">角色</dt><dd class="col-sm-9">{{ role_dict.get(user.role, user.role or '-') }}</dd>
+        </dl>
+        {% if affiliations.affiliation_users and affiliations.affiliation_users|length > 0 %}
+        <div class="mt-4">
+            <h6>您可以访问以下用户的数据：</h6>
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>用户名</th>
+                            <th>真实姓名</th>
+                            <th>部门</th>
+                            <th>公司</th>
+                            <th>角色</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in affiliations.affiliation_users %}
+                        <tr>
+                            <td>{{ u.username }}</td>
+                            <td>{{ u.real_name }}</td>
+                            <td>{{ u.department }}</td>
+                            <td>{{ u.company_name }}</td>
+                            <td>{{ role_dict.get(u.role, u.role or '-') }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="text-muted mt-4">暂无数据归属关系。</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 保持tab切换状态
+    document.addEventListener('DOMContentLoaded', function() {
+        var triggerTabList = [].slice.call(document.querySelectorAll('#userProfileTab button'));
+        triggerTabList.forEach(function(triggerEl) {
+            triggerEl.addEventListener('shown.bs.tab', function (event) {
+                localStorage.setItem('userProfileActiveTab', event.target.id);
+            });
+        });
+        var activeTab = localStorage.getItem('userProfileActiveTab');
+        // 支持通过URL hash直接定位tab
+        if (window.location.hash === '#perm') {
+            activeTab = 'perm-tab';
+        } else if (window.location.hash === '#aff') {
+            activeTab = 'aff-tab';
+        }
+        var tab = document.getElementById(activeTab);
+        if (tab) {
+            new bootstrap.Tab(tab).show();
+        }
+    });
+</script>
+{% endblock %} 

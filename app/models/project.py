@@ -1,6 +1,6 @@
 from app import db
 from datetime import datetime
-from sqlalchemy import event, Date, Column, Integer, String, DateTime, Text, ForeignKey
+from sqlalchemy import event, Date, Column, Integer, String, DateTime, Text, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.utils.authorization import generate_authorization_code as gen_auth_code
@@ -29,11 +29,25 @@ class Project(db.Model):
     authorization_status = Column(String(20), nullable=True, default=None)  # None, 'pending', 'rejected'
     feedback = Column(Text, nullable=True)  # 存储申请反馈或驳回原因
     
+    # 项目锁定相关字段
+    is_locked = Column(Boolean, default=False, nullable=False)  # 是否锁定
+    locked_reason = Column(String(100), nullable=True)  # 锁定原因
+    locked_by = Column(Integer, ForeignKey('users.id'), nullable=True)  # 锁定人
+    locked_at = Column(DateTime, nullable=True)  # 锁定时间
+    
+    # 活跃度相关字段
+    is_active = Column(Boolean, default=True, nullable=False)  # 是否活跃
+    last_activity_date = Column(DateTime, default=func.now(), nullable=True)  # 最后活动时间
+    activity_reason = Column(String(50), nullable=True)  # 活跃状态原因
+    
     created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    updated_at = Column(DateTime, default=datetime.utcnow)
     
     owner_id = Column(Integer, ForeignKey('users.id'), nullable=True)
-    owner = relationship('User', backref='projects')
+    # 明确指定外键字段，避免与locked_by外键冲突
+    owner = relationship('User', foreign_keys=[owner_id], backref='projects')
+    # 为locked_by添加关系
+    locked_by_user = relationship('User', foreign_keys=[locked_by])
     
     # 修改关系定义，移除可能导致循环引用的配置
     quotations = db.relationship('Quotation', back_populates='project', lazy='dynamic', cascade='all, delete-orphan')

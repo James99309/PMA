@@ -1097,4 +1097,97 @@ def save_affiliations_api(user_id):
         return jsonify({
             'success': False,
             'message': f'发生错误: {str(e)}'
-        }), 500 
+        }), 500
+
+@user_bp.route('/profile', methods=['GET', 'POST'])
+@login_required
+def profile():
+    """用户个人设置页面，包括账户详情、权限和数据归属"""
+    user = User.query.get(current_user.id)
+    if not user:
+        flash('找不到用户信息', 'danger')
+        return redirect(url_for('main.index'))
+        
+    # 处理表单提交
+    if request.method == 'POST':
+        real_name = request.form.get('real_name')
+        email = request.form.get('email')
+        phone = request.form.get('phone')
+        
+        # 邮箱非空校验
+        if not email or not email.strip():
+            flash('邮箱不能为空', 'danger')
+            return render_template('user/profile.html', user=user)
+        
+        # 检查邮箱是否已被其他用户使用
+        email = email.strip()
+        existing_user = User.query.filter(User.email == email, User.id != user.id).first()
+        if existing_user:
+            flash('此邮箱已被其他账户使用', 'danger')
+            return render_template('user/profile.html', user=user)
+            
+        # 更新用户信息
+        user.real_name = real_name
+        user.email = email
+        user.phone = phone
+        
+        try:
+            db.session.commit()
+            flash('个人信息更新成功', 'success')
+            return redirect(url_for('user.profile'))
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"个人信息更新失败: {str(e)}", exc_info=True)
+            flash(f'更新失败: {str(e)}', 'danger')
+            
+    # 获取用户权限信息
+    personal_perms = list(user.permissions) if hasattr(user, 'permissions') else []
+    permissions = []
+    if personal_perms:
+        for perm in personal_perms:
+            permissions.append({
+                'module': perm.module,
+                'can_view': perm.can_view,
+                'can_create': perm.can_create,
+                'can_edit': perm.can_edit,
+                'can_delete': perm.can_delete
+            })
+    else:
+        from app.models.role_permissions import RolePermission
+        perms = RolePermission.query.filter_by(role=user.role).all()
+        for perm in perms:
+            permissions.append({
+                'module': perm.module,
+                'can_view': perm.can_view,
+                'can_create': perm.can_create,
+                'can_edit': perm.can_edit,
+                'can_delete': perm.can_delete
+            })
+            
+    # 获取用户归属关系信息
+    affiliation_users = []
+    aff_qs = Affiliation.query.filter_by(viewer_id=user.id).all()
+    for aff in aff_qs:
+        owner = UserModel.query.get(aff.owner_id)
+        if owner:
+            affiliation_users.append({
+                'user_id': owner.id,
+                'username': owner.username,
+                'real_name': owner.real_name,
+                'role': owner.role,
+                'company_name': owner.company_name,
+                'department': owner.department,
+                'is_department_manager': owner.is_department_manager
+            })
+    
+    ROLE_DICT = {d.key: d.value for d in Dictionary.query.filter_by(type='role').all()}
+    MODULES = get_default_modules()
+    
+    affiliations = {
+        'department': user.department or '未设置',
+        'affiliation_users': affiliation_users,
+        'affiliation_count': len(affiliation_users)
+    }
+    
+    return render_template('user/profile.html', user=user, permissions=permissions, 
+                          affiliations=affiliations, role_dict=ROLE_DICT, modules=MODULES) 

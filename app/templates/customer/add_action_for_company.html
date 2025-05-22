@@ -94,6 +94,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     form.classList.add('was-validated');
   });
+  
+  const today = new Date().toISOString().split('T')[0];
+  const dateInput = document.getElementById('date');
+  if (!dateInput.value) {
+    dateInput.value = today;
+  }
 });
 </script>
 {% endblock %}

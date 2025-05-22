@@ -17,6 +17,9 @@ from app.utils.access_control import (
     can_view_contact, can_edit_contact, can_delete_contact, can_change_company_owner
 )
 from app.utils.notification_helpers import trigger_event_notification
+from app.utils.user_helpers import generate_user_tree_data
+from app.utils.activity_tracker import check_company_activity, update_active_status
+from zoneinfo import ZoneInfo
 
 
 customer = Blueprint('customer', __name__)
@@ -282,6 +285,12 @@ def view_company(company_id):
         if not all_users:
             all_users = User.query.filter(User.id.in_([current_user.id, company.owner_id])).all()
     
+    # 生成用户树状数据
+    user_tree_data = None
+    if can_change_company_owner(current_user, company):
+        filter_by_dept = current_user.role != 'admin'
+        user_tree_data = generate_user_tree_data(filter_by_department=filter_by_dept)
+    
     return render_template('customer/view.html', 
                           company=company, 
                           contacts=viewable_contacts, 
@@ -295,7 +304,8 @@ def view_company(company_id):
                           all_users=all_users,
                           COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
                           INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
-                          STATUS_OPTIONS=STATUS_OPTIONS)
+                          STATUS_OPTIONS=STATUS_OPTIONS,
+                          user_tree_data=user_tree_data)
 
 @customer.route('/add', methods=['GET', 'POST'])
 @permission_required('customer', 'create')
@@ -312,6 +322,10 @@ def add_company():
             data['owner_id'] = current_user.id
             company = Company(**data)
             db.session.add(company)
+            db.session.commit()
+            # 新增：每次添加客户后自动刷新活跃度和更新时间
+            company.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
+            update_active_status(company)
             db.session.commit()
             # 通知新客户创建
             from app.services.event_dispatcher import notify_customer_created
@@ -346,6 +360,8 @@ def edit_company(company_id):
             for key, value in data.items():
                 setattr(company, key, value)
             db.session.commit()
+            # 更新客户活跃状态
+            check_company_activity(company_id=company_id, days_threshold=1)
             flash('客户信息已更新！', 'success')
             return redirect(url_for('customer.view_company', company_id=company.id))
         except Exception as e:
@@ -436,6 +452,10 @@ def add_contact(company_id):
         
         # 添加到数据库
         db.session.add(contact)
+        db.session.commit()
+        # 新增：每次添加联系人后自动刷新客户活跃度和更新时间
+        company.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
+        update_active_status(company)
         db.session.commit()
         
         # 设置为主要联系人（如果勾选）
@@ -1182,6 +1202,10 @@ def import_contacts():
                 )
                 db.session.add(new_action)
                 db.session.commit()
+                # 新增：每次添加行动记录后自动刷新客户活跃度和更新时间
+                company.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
+                update_active_status(company)
+                db.session.commit()
                 action_success += 1
             except Exception as e:
                 db.session.rollback()
@@ -1657,11 +1681,13 @@ def batch_delete_companies():
 @permission_required('customer', 'delete')
 def delete_action_api(action_id):
     """通过API删除行动记录"""
+    current_app.logger.info(f"开始删除行动记录，ID: {action_id}")
     try:
         action = Action.query.get_or_404(action_id)
         
         # 检查权限：只有行动记录的创建者和管理员可以删除
         if action.owner_id != current_user.id and current_user.role != 'admin':
+            current_app.logger.warning(f"用户 {current_user.id} 尝试删除不属于他的行动记录 {action_id}")
             return jsonify({
                 'success': False, 
                 'message': '您没有权限删除此行动记录'
@@ -1675,7 +1701,10 @@ def delete_action_api(action_id):
         db.session.delete(action)
         db.session.commit()
         
-        return jsonify({
+        current_app.logger.info(f"行动记录 {action_id} 已成功删除")
+        
+        # 返回简单的成功响应
+        response = jsonify({
             'success': True,
             'message': '行动记录已成功删除',
             'data': {
@@ -1684,12 +1713,19 @@ def delete_action_api(action_id):
             }
         })
         
+        # 添加必要的响应头
+        response.headers['Content-Type'] = 'application/json'
+        return response, 200
+        
     except Exception as e:
         db.session.rollback()
         import traceback
         traceback_str = traceback.format_exc()
-        print(f"删除行动记录出错: {str(e)}\n{traceback_str}")
-        return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500
+        current_app.logger.error(f"删除行动记录出错: {str(e)}\n{traceback_str}")
+        return jsonify({
+            'success': False, 
+            'message': f'服务器处理请求时出错: {str(e)}'
+        }), 500
 
 @customer.route('/contacts/<int:contact_id>/view')
 @permission_required('customer', 'view')
@@ -1725,9 +1761,18 @@ def view_contact(contact_id):
         has_change_owner_permission = True
     elif (getattr(current_user, 'is_department_manager', False) or current_user.role == 'sales_director') and contact.owner and hasattr(contact.owner, 'department') and contact.owner.department == current_user.department:
         has_change_owner_permission = True
+    
+    # 生成用户树状数据
+    from app.utils.user_helpers import generate_user_tree_data
+    user_tree_data = None
+    if has_change_owner_permission:
+        filter_by_dept = current_user.role != 'admin'
+        user_tree_data = generate_user_tree_data(filter_by_department=filter_by_dept)
+    
     return render_template('customer/contact_view.html', contact=contact, company=company, actions=actions,
                           all_users=all_users,
                           has_change_owner_permission=has_change_owner_permission,
+                          user_tree_data=user_tree_data,
                           COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
                           INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
                           STATUS_OPTIONS=STATUS_OPTIONS)
@@ -1773,6 +1818,10 @@ def add_action_for_company(company_id):
                 owner_id=current_user.id
             )
             db.session.add(action)
+            db.session.commit()
+            # 新增：每次添加行动记录后自动刷新客户活跃度和更新时间
+            company.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
+            update_active_status(company)
             db.session.commit()
             flash('行动记录添加成功！', 'success')
             return redirect(url_for('customer.view_company', company_id=company_id))
@@ -1849,3 +1898,63 @@ def change_contact_owner(contact_id):
     db.session.commit()
     flash('联系人拥有人已更新', 'success')
     return redirect(url_for('customer.view_contact', contact_id=contact_id))
+
+# 获取行动记录的所有回复（树形结构）
+@customer.route('/action/<int:action_id>/replies')
+@login_required
+@permission_required('customer', 'view')
+def get_action_replies(action_id):
+    """通过API获取行动记录的所有回复（树形结构）"""
+    action = Action.query.get_or_404(action_id)
+    from app.models.action import ActionReply
+    
+    replies = ActionReply.query.filter_by(action_id=action_id, parent_reply_id=None).order_by(ActionReply.created_at.asc()).all()
+    def build_tree(reply):
+        return {
+            'id': reply.id,
+            'content': reply.content,
+            'owner': reply.owner.real_name or reply.owner.username,
+            'created_at': reply.created_at.strftime('%Y-%m-%d %H:%M'),
+            'can_delete': (current_user.id == reply.owner_id or current_user.role == 'admin'),
+            'children': [build_tree(child) for child in reply.children]
+        }
+    return jsonify([build_tree(r) for r in replies])
+
+# 添加回复
+@customer.route('/action/<int:action_id>/reply', methods=['POST'])
+@login_required
+@permission_required('customer', 'create')
+def add_action_reply(action_id):
+    """通过API添加行动记录回复"""
+    action = Action.query.get_or_404(action_id)
+    from app.models.action import ActionReply
+    
+    data = request.get_json()
+    content = data.get('content', '').strip()
+    parent_reply_id = data.get('parent_reply_id')
+    if not content:
+        return jsonify({'success': False, 'message': '回复内容不能为空'}), 400
+    
+    reply = ActionReply(
+        action_id=action_id,
+        parent_reply_id=parent_reply_id,
+        content=content,
+        owner_id=current_user.id
+    )
+    db.session.add(reply)
+    db.session.commit()
+    return jsonify({'success': True})
+
+# 删除回复
+@customer.route('/action/reply/<int:reply_id>/delete', methods=['POST'])
+@login_required
+@permission_required('customer', 'delete')
+def delete_action_reply(reply_id):
+    """通过API删除行动记录回复"""
+    from app.models.action import ActionReply
+    reply = ActionReply.query.get_or_404(reply_id)
+    if reply.owner_id != current_user.id and current_user.role != 'admin':
+        return jsonify({'success': False, 'message': '无权删除此回复'}), 403
+    db.session.delete(reply)
+    db.session.commit()
+    return jsonify({'success': True})

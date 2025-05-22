@@ -184,7 +184,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 获取当前URL信息
         const currentUrl = new URL(window.location.href);
-        const currentPath = currentUrl.pathname;
         
         // 清除现有的account_id参数
         currentUrl.searchParams.delete('account_id');
@@ -194,21 +193,12 @@ document.addEventListener('DOMContentLoaded', function() {
             currentUrl.searchParams.set('account_id', e.detail.accountId);
         }
         
-        // 判断当前是否在项目列表页面
-        if (currentPath === '/' || currentPath === '/project/' || currentPath.startsWith('/project')) {
-            // 在项目列表页，直接应用当前URL
-            window.location.href = currentUrl.toString();
-        } else {
-            // 不在项目列表页，跳转到项目列表页面并带上account_id参数
-            let projectListUrl = new URL('/project/', window.location.origin);
-            
-            // 保留account_id参数
-            if (e.detail.accountId) {
-                projectListUrl.searchParams.set('account_id', e.detail.accountId);
-            }
-            
-            // 重定向到项目列表页
-            window.location.href = projectListUrl.toString();
+        // 更新URL但不刷新页面
+        window.history.pushState({}, '', currentUrl.toString());
+        
+        // 如果存在客户端过滤函数，则应用账户筛选
+        if (typeof filterProjectsByAccount === 'function') {
+            filterProjectsByAccount(e.detail.accountId);
         }
     });
 }); 

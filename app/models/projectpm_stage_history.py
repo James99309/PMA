@@ -1,8 +1,9 @@
 from app import db
-from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, text
 from sqlalchemy.sql import func
 from app.models.project import Project
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 class ProjectStageHistory(db.Model):
     """项目阶段历史记录表
@@ -32,17 +33,7 @@ class ProjectStageHistory(db.Model):
     
     @staticmethod
     def add_history_record(project_id, from_stage, to_stage, change_date=None, remarks=None, account_id=None, commit=True):
-        """添加阶段变更记录
-        
-        Args:
-            project_id: 项目ID
-            from_stage: 变更前阶段（可为空，表示新项目初始阶段）
-            to_stage: 变更后阶段
-            change_date: 变更时间（默认为当前时间）
-            remarks: 备注说明
-            account_id: 账户ID，用于支持按账户切换统计
-            commit: 是否在添加记录后提交事务（默认为True）
-        """
+        """添加阶段变更记录，并同步更新项目的更新时间（北京时间）"""
         if change_date is None:
             change_date = func.now()
             
@@ -72,4 +63,13 @@ class ProjectStageHistory(db.Model):
         db.session.add(record)
         if commit:
             db.session.commit()
+        # 新增：同步更新项目的updated_at字段（北京时间）
+        try:
+            now = datetime.now(ZoneInfo('Asia/Shanghai'))
+            sql = text("UPDATE projects SET updated_at = :now WHERE id = :project_id")
+            db.session.execute(sql, {"now": now, "project_id": project_id})
+            if commit:
+                db.session.commit()
+        except Exception as e:
+            print(f"同步更新项目更新时间失败: {str(e)}")
         return record 

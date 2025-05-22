@@ -10,6 +10,8 @@ class ProjectStageProgress {
         this.updateUrl = options.updateUrl;
         this.stageHistory = options.stageHistory || null;
         this.canEdit = options.canEdit || false;
+        this.isLocked = options.isLocked || false;
+        this.userRole = options.userRole || '';
 
         // 项目阶段定义（由后端传递标准结构，避免硬编码）
         if (options && options.stageDefs) {
@@ -155,8 +157,8 @@ class ProjectStageProgress {
                 stageMarker.classList.add('stage-completed');
             } else if (index === this.getStageIndex(this.currentStage)) {
                 stageMarker.classList.add('stage-current');
-            } else if (index === this.getStageIndex(this.currentStage) + 1 && this.canEdit) {
-                // 下一个阶段可点击
+            } else if (index === this.getStageIndex(this.currentStage) + 1 && this.canEdit && (!this.isLocked || this.userRole === 'admin')) {
+                // 下一个阶段可点击 (考虑锁定状态，管理员可跳过锁定检查)
                 stageMarker.classList.add('stage-actionable');
                 stageMarker.style.cursor = 'pointer';
                 // 悬停动画和点击图标

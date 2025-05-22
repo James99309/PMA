@@ -265,7 +265,6 @@
             background-color: var(--pa-blue);
         }
     </style>
-</style>
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
     {% import 'macros/ui_helpers.html' as ui %}
     {% block head %}{% endblock %}
@@ -364,12 +363,10 @@
                                         <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.manage_departments' else '' }}" href="{{ url_for('user.manage_departments') }}">部门字典</a></li>
                                     </ul>
                                 </details></li>
-                                <li><a class="dropdown-item" href="{{ url_for('notification.center') }}">
-                                  <i class="fas fa-bell me-1"></i> 通知中心
-                                </a></li>
                             </ul>
                         </details>
                     </li>
+                    {% endif %}
                     <li class="nav-item dropdown d-none d-lg-block">
                         <a class="nav-link dropdown-toggle text-sm py-2 {{ 'active' if request.endpoint and request.endpoint.startswith('user.') else '' }}"
                            href="#" id="userManagementDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -390,31 +387,43 @@
                             </li>
                             <li class="dropdown-divider"></li>
                             <li>
-                                <a class="dropdown-item dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                    字典管理
+                                <a class="dropdown-item {{ 'active' if request.endpoint == 'user.manage_roles' else '' }}"
+                                   href="{{ url_for('user.manage_roles') }}">
+                                   角色字典
                                 </a>
-                                <ul class="dropdown-menu dropdown-submenu">
-                                    <li>
-                                        <a class="dropdown-item {{ 'active' if request.endpoint == 'user.manage_roles' else '' }}"
-                                           href="{{ url_for('user.manage_roles') }}">
-                                           角色字典
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item {{ 'active' if request.endpoint == 'user.manage_companies' else '' }}"
-                                           href="{{ url_for('user.manage_companies') }}">
-                                           企业字典
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item {{ 'active' if request.endpoint == 'user.manage_departments' else '' }}"
-                                           href="{{ url_for('user.manage_departments') }}">
-                                           部门字典
-                                        </a>
-                                    </li>
-                                </ul>
                             </li>
-                            <li class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ 'active' if request.endpoint == 'user.manage_companies' else '' }}"
+                                   href="{{ url_for('user.manage_companies') }}">
+                                   企业字典
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ 'active' if request.endpoint == 'user.manage_departments' else '' }}"
+                                   href="{{ url_for('user.manage_departments') }}">
+                                   部门字典
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    {% if current_user.role == 'admin' %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle text-sm py-2 {{ 'active' if request.endpoint and request.endpoint.startswith('admin.') else '' }}"
+                           href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            系统管理
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="adminDropdown">
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('admin.system_settings') }}">
+                                    <i class="fas fa-sliders-h fa-fw me-1"></i>系统参数设置
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ 'active' if request.endpoint and request.endpoint.startswith('approval_config.') else '' }}"
+                                   href="{{ url_for('approval_config.template_list') }}">
+                                   <i class="fas fa-cogs me-1"></i> 审批流程配置
+                                </a>
+                            </li>
                             <li>
                                 <a class="dropdown-item {{ 'active' if request.endpoint and request.endpoint.startswith('notification.') else '' }}" href="{{ url_for('notification.center') }}">
                                     <i class="fas fa-bell me-1"></i> 通知中心
@@ -428,16 +437,48 @@
                 <!-- PC端账户logo和退出 -->
                 {% if current_user.is_authenticated or session.get('user_id') %}
                 <div class="d-none d-lg-flex align-items-center ms-auto">
-                  <div class="d-flex align-items-center user-info-pc" style="white-space:nowrap;">
-                    <span class="rounded-circle d-inline-flex align-items-center justify-content-center me-2" style="background:#b13a5b;width:24px;height:24px;font-size:0.95rem;color:#fff;">
-                      {{ (current_user.username or session.get('username', 'U'))[0]|upper }}
-                    </span>
-                    <span class="user-name" style="font-size:1rem; color:#fff; font-weight:500;">{{ current_user.username or session.get('username', '用户') }}</span>
+                  <div class="dropdown">
+                    <div class="d-flex align-items-center user-info-pc" style="white-space:nowrap; cursor:pointer;" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                      <span class="rounded-circle d-inline-flex align-items-center justify-content-center me-2 position-relative" style="background:#b13a5b;width:24px;height:24px;font-size:0.95rem;color:#fff;">
+                        {{ (current_user.username or session.get('username', 'U'))[0]|upper }}
+                        {% set pending_count = get_pending_approval_count() %}
+                        {% if pending_count > 0 %}
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem; transform: translate(-80%, -30%);">
+                          {{ pending_count }}
+                        </span>
+                        {% endif %}
+                      </span>
+                      <span class="user-name" style="font-size:1rem; color:#fff; font-weight:500;">{{ current_user.username or session.get('username', '用户') }}</span>
+                      <i class="fas fa-caret-down ms-1 text-white"></i>
+                    </div>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                      <li>
+                        <a class="dropdown-item" href="{{ url_for('user.profile') }}">
+                          <i class="fas fa-user-cog me-2"></i> 个人设置
+                        </a>
+                      </li>
+                      <li>
+                        <a class="dropdown-item" href="{{ url_for('notification.center') }}">
+                          <i class="fas fa-bell me-2"></i> 通知中心
+                        </a>
+                      </li>
+                      <li>
+                        <a class="dropdown-item" href="{{ url_for('approval.center') }}">
+                          <i class="fas fa-tasks me-2"></i> 审批中心
+                          {% set pending_count = get_pending_approval_count() %}
+                          {% if pending_count > 0 %}
+                          <span class="badge rounded-pill bg-danger ms-1">{{ pending_count }}</span>
+                          {% endif %}
+                        </a>
+                      </li>
+                      <li><hr class="dropdown-divider"></li>
+                      <li>
+                        <a class="dropdown-item" href="{{ url_for('auth.logout') }}">
+                          <i class="fas fa-sign-out-alt me-2"></i> 退出系统
+                        </a>
+                      </li>
+                    </ul>
                   </div>
-                  <a href="{{ url_for('notification.center') }}" class="text-white text-decoration-none ms-3" title="通知中心">
-                    <i class="fas fa-bell"></i>
-                  </a>
-                  <a href="{{ url_for('auth.logout') }}" class="text-white text-decoration-none text-sm ms-3" style="font-size:0.98rem;"><svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M6.146 11.354a.5.5 0 0 1 0-.708L8.793 8 6.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0z"/><path d="M13 8a.5.5 0 0 1-.5.5H2.707l2.147 2.146a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L2.707 7.5H12.5A.5.5 0 0 1 13 8z"/></svg> 退出</a>
                 </div>
                 <!-- 移动端账户logo和退出 -->
                 <div class="d-lg-none border-top border-light-subtle mt-2 pt-2 pb-1 px-2 user-info-mobile text-white text-sm" style="font-size: 0.95rem;">
@@ -449,10 +490,23 @@
                       <span class="ms-1">{{ current_user.username or session.get('username', '用户') }}</span>
                     </div>
                     <div class="d-flex align-items-center">
-                      <a href="{{ url_for('notification.center') }}" class="text-white me-3" title="通知中心">
+                      <a href="{{ url_for('user.profile') }}" class="text-white me-3" title="个人设置">
+                        <i class="fas fa-user-cog"></i>
+                      </a>
+                      <a href="{{ url_for('notification.center') }}" class="text-white me-3 position-relative" title="通知中心">
                         <i class="fas fa-bell"></i>
                       </a>
-                      <a href="{{ url_for('auth.logout') }}" class="text-white text-decoration-none text-sm" style="font-size:0.98rem;"><svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M6.146 11.354a.5.5 0 0 1 0-.708L8.793 8 6.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0z"/><path d="M13 8a.5.5 0 0 1-.5.5H2.707l2.147 2.146a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L2.707 7.5H12.5A.5.5 0 0 1 13 8z"/></svg> 退出</a>
+                      <a href="{{ url_for('approval.center') }}" class="text-white me-3 position-relative" title="审批中心">
+                        <i class="fas fa-tasks"></i>
+                        {% set pending_count = get_pending_approval_count() %}
+                        {% if pending_count > 0 %}
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem; transform: translate(-50%, -50%);">
+                          {{ pending_count }}
+                          <span class="visually-hidden">未处理审批</span>
+                        </span>
+                        {% endif %}
+                      </a>
+                      <a href="{{ url_for('auth.logout') }}" class="text-white text-decoration-none text-sm"><i class="fas fa-sign-out-alt"></i></a>
                     </div>
                   </div>
                 </div>

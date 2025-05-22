@@ -1,0 +1,404 @@
+{% extends "base.html" %}
+
+{% block title %}{{ '编辑' if is_edit else '新建' }}审批流程模板{% endblock %}
+
+{% block custom_head %}
+<!-- 确保jQuery被正确加载 -->
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<!-- 引入Select2样式和脚本 -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<style>
+  .select2-container--default .select2-selection--multiple {
+    border: 1px solid #ced4da;
+    min-height: 38px;
+  }
+  .select2-container--default.select2-container--focus .select2-selection--multiple {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+  }
+  .select2-container--default .select2-selection--multiple .select2-selection__choice {
+    background-color: #007bff;
+    border-color: #006fe6;
+    color: white;
+    padding: 3px 8px;
+    margin: 4px 4px 0 0;
+  }
+  .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+    color: #fff;
+    margin-right: 6px;
+  }
+  .select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover {
+    color: #fff;
+    opacity: 0.8;
+  }
+  .field-help-icon {
+    color: #17a2b8;
+    cursor: pointer;
+    margin-left: 5px;
+  }
+  /* 字段选择区域样式 */
+  .field-checkboxes {
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+    padding: 10px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .field-checkbox-item {
+    padding: 4px 0;
+  }
+  .field-loading {
+    padding: 20px;
+    text-align: center;
+    color: #6c757d;
+  }
+  /* 已选字段标签样式 */
+  .selected-field-badge {
+    background-color: #007bff;
+    color: white;
+    margin: 2px;
+    padding: 4px 8px;
+    border-radius: 3px;
+    display: inline-block;
+  }
+  .field-section-title {
+    margin-top: 10px;
+    font-weight: 600;
+    color: #495057;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #dee2e6;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">
+            <i class="fas fa-tasks mr-2"></i>{{ '编辑' if is_edit else '新建' }}审批流程模板
+          </h5>
+          <a href="{{ url_for('approval_config.template_list') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left mr-1"></i> 返回列表
+          </a>
+        </div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('approval_config.edit_template', template_id=template.id) if is_edit else url_for('approval_config.create_template') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="name" class="form-label">模板名称</label>
+                  <input type="text" class="form-control" id="name" name="name" required
+                         value="{{ template.name if is_edit else '' }}" 
+                         placeholder="例如：项目立项审批流程">
+                  <small class="form-text text-muted">为流程模板指定一个清晰的名称，便于识别</small>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="object_type" class="form-label">适用业务对象</label>
+                  <select class="form-control" id="object_type" name="object_type" required 
+                         {% if is_edit and check_template_in_use(template.id) %}disabled{% endif %}>
+                    <option value="">请选择业务对象</option>
+                    {% for type_code, type_name in object_types %}
+                      <option value="{{ type_code }}" 
+                              {% if is_edit and template.object_type == type_code %}selected{% endif %}>
+                        {{ type_name }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                  {% if is_edit and check_template_in_use(template.id) %}
+                    <input type="hidden" name="object_type" value="{{ template.object_type }}">
+                  {% endif %}
+                  <small class="form-text text-muted">选择此流程适用的业务对象类型</small>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 必填字段选择区域 -->
+            <div class="row mb-3" id="required-fields-section">
+              <div class="col-md-12">
+                <div class="form-group">
+                  <label for="required_fields" class="form-label">
+                    <input type="checkbox" id="enable_required_fields" class="me-1" 
+                           {% if is_edit and template.required_fields and template.required_fields|length > 0 %}checked{% endif %}>
+                    发起审批必填字段
+                    <i class="fas fa-info-circle field-help-icon" data-toggle="tooltip" 
+                       title="当用户发起审批流程时，系统会检查这些字段是否已填写。如果有任何必填字段未填写，将不允许发起审批。"></i>
+                  </label>
+                  
+                  <!-- 字段选择容器 -->
+                  <div id="field-checkboxes-container" class="field-checkboxes">
+                    <div id="field-loading" class="field-loading">
+                      <i class="fas fa-spinner fa-spin me-2"></i> 请先选择业务对象类型...
+                    </div>
+                  </div>
+                  
+                  <!-- 已选字段总结区域 -->
+                  <div class="mt-2" id="selected-fields-summary"></div>
+                  
+                  <small class="form-text text-muted">
+                    指定发起审批时需要检查的必填字段，为空表示不做必填校验。
+                  </small>
+                </div>
+              </div>
+            </div>
+            
+            {% if is_edit %}
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="is_active" name="is_active" 
+                         {% if template.is_active %}checked{% endif %}>
+                  <label class="form-check-label" for="is_active">
+                    启用此流程模板
+                  </label>
+                  <small class="form-text text-muted d-block">
+                    禁用后，该流程模板将不能用于新的审批实例
+                  </small>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+            
+            <div class="row mt-4">
+              <div class="col-12">
+                <button type="submit" class="btn btn-primary">
+                  <i class="fas fa-save mr-1"></i> 保存
+                </button>
+                <a href="{{ url_for('approval_config.template_list') }}" class="btn btn-secondary ml-2">
+                  <i class="fas fa-times mr-1"></i> 取消
+                </a>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// 检查jQuery是否已加载，否则加载它
+(function() {
+  if (typeof jQuery === 'undefined') {
+    console.log('加载jQuery...');
+    var script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js';
+    script.onload = function() {
+      console.log('jQuery加载完成，初始化表单...');
+      initForm();
+    };
+    document.head.appendChild(script);
+  } else {
+    $(document).ready(function() {
+      initForm();
+    });
+  }
+  
+  function initForm() {
+    // 初始化工具提示
+    if (typeof $('[data-toggle="tooltip"]').tooltip === 'function') {
+      $('[data-toggle="tooltip"]').tooltip();
+    }
+    
+    // 保存当前选中的字段值（用于编辑时初始化）
+    var selectedFields = [];
+    {% if is_edit and template.required_fields %}
+      selectedFields = {{ template.required_fields|tojson }};
+    {% endif %}
+    
+    // 处理字段选择区域的启用/禁用
+    function updateRequiredFieldsState() {
+      var isEnabled = $('#enable_required_fields').is(':checked');
+      if (isEnabled) {
+        $('#field-checkboxes-container').show();
+      } else {
+        $('#field-checkboxes-container').hide();
+        selectedFields = [];
+        updateSelectedFieldsSummary();
+      }
+    }
+    
+    // 初始状态更新
+    updateRequiredFieldsState();
+    
+    // 绑定复选框的变化事件
+    $('#enable_required_fields').change(function() {
+      updateRequiredFieldsState();
+    });
+    
+    // 更新已选字段摘要显示
+    function updateSelectedFieldsSummary() {
+      var $summary = $('#selected-fields-summary');
+      $summary.empty();
+      
+      if (selectedFields.length > 0) {
+        var $label = $('<div class="mb-2">已选择 ' + selectedFields.length + ' 个必填字段：</div>');
+        $summary.append($label);
+        
+        selectedFields.forEach(function(field) {
+          // 查找显示名称
+          var displayName = field;
+          $('#field-checkboxes-container input[type="checkbox"]').each(function() {
+            if ($(this).val() === field) {
+              displayName = $(this).data('display-name') || field;
+              return false;
+            }
+          });
+          
+          var $badge = $('<span class="selected-field-badge">' + displayName + '</span>');
+          $summary.append($badge);
+        });
+      } else {
+        $summary.html('<div class="text-muted">未选择任何必填字段</div>');
+      }
+    }
+    
+    // 字段复选框点击事件处理
+    $(document).on('change', '.field-checkbox', function() {
+      var fieldCode = $(this).val();
+      
+      if ($(this).is(':checked')) {
+        if (!selectedFields.includes(fieldCode)) {
+          selectedFields.push(fieldCode);
+        }
+      } else {
+        var index = selectedFields.indexOf(fieldCode);
+        if (index > -1) {
+          selectedFields.splice(index, 1);
+        }
+      }
+      
+      updateSelectedFieldsSummary();
+    });
+    
+    // 当业务对象类型改变时，动态加载字段选项
+    $('#object_type').change(function() {
+      console.log('业务对象选择改变...');
+      var objectType = $(this).val();
+      var $container = $('#field-checkboxes-container');
+      
+      if (!objectType) {
+        $container.html('<div class="field-loading"><i class="fas fa-info-circle me-2"></i> 请选择业务对象类型</div>');
+        return;
+      }
+      
+      // 显示加载状态
+      $container.html('<div class="field-loading"><i class="fas fa-spinner fa-spin me-2"></i> 正在加载字段...</div>');
+      
+      // 字段选项本地定义（避免API调用问题）
+      var fieldOptions = {};
+      
+      // 项目字段
+      fieldOptions.project = [
+        {name: 'project_code', display_name: '项目编号'},
+        {name: 'project_name', display_name: '项目名称'},
+        {name: 'authorization_code', display_name: '授权编号'},
+        {name: 'project_type', display_name: '项目类型'},
+        {name: 'report_time', display_name: '报备时间'},
+        {name: 'report_source', display_name: '报备来源'},
+        {name: 'end_user', display_name: '最终用户'},
+        {name: 'design_issues', display_name: '设计院/顾问'},
+        {name: 'contractor', display_name: '总承包单位'},
+        {name: 'system_integrator', display_name: '系统集成商'},
+        {name: 'product_situation', display_name: '品牌情况'},
+        {name: 'current_stage', display_name: '当前阶段'},
+        {name: 'delivery_forecast', display_name: '出货预测日期'}
+      ];
+      
+      // 报价单字段
+      fieldOptions.quotation = [
+        {name: 'quotation_code', display_name: '报价单编号'},
+        {name: 'customer_name', display_name: '客户名称'},
+        {name: 'valid_days', display_name: '有效期'},
+        {name: 'currency', display_name: '币种'},
+        {name: 'total_amount', display_name: '总金额'},
+        {name: 'project_type', display_name: '项目类型'}
+      ];
+      
+      // 客户字段
+      fieldOptions.customer = [
+        {name: 'company_name', display_name: '企业名称'},
+        {name: 'company_type', display_name: '企业类型'},
+        {name: 'industry', display_name: '行业'},
+        {name: 'country', display_name: '国家/地区'},
+        {name: 'region', display_name: '省份/州'},
+        {name: 'address', display_name: '地址'},
+        {name: 'contact_name', display_name: '联系人'}
+      ];
+      
+      // 获取当前对象类型的字段
+      var fields = fieldOptions[objectType] || [];
+      console.log('获取到字段数:', fields.length);
+      
+      if (fields.length > 0) {
+        // 按字段类型分组显示
+        var $content = $('<div></div>');
+        
+        // 创建分组字段UI
+        $content.append('<div class="field-section-title">业务字段</div>');
+        var $fieldList = $('<div class="row"></div>');
+        
+        $.each(fields, function(index, field) {
+          var isChecked = selectedFields.includes(field.name);
+          var $fieldItem = $(
+            '<div class="col-md-4 field-checkbox-item">' +
+              '<div class="form-check">' +
+                '<input type="checkbox" class="form-check-input field-checkbox" id="field_' + field.name + '" ' +
+                'name="required_fields" value="' + field.name + '" data-display-name="' + field.display_name + '" ' +
+                (isChecked ? 'checked' : '') + '>' +
+                '<label class="form-check-label" for="field_' + field.name + '">' +
+                  field.display_name + ' <small class="text-muted">(' + field.name + ')</small>' +
+                '</label>' +
+              '</div>' +
+            '</div>'
+          );
+          $fieldList.append($fieldItem);
+        });
+        
+        $content.append($fieldList);
+        $container.html($content);
+        
+        // 更新已选字段摘要
+        updateSelectedFieldsSummary();
+      } else {
+        $container.html('<div class="field-loading"><i class="fas fa-exclamation-circle me-2"></i> 未找到可用字段</div>');
+      }
+    });
+    
+    // 如果是编辑模式并且已选择业务对象，初始加载字段
+    {% if is_edit and template.object_type %}
+      console.log('编辑模式，自动触发字段加载');
+      $('#object_type').trigger('change');
+    {% endif %}
+    
+    // 表单提交前，确保选择的字段被正确添加到请求中
+    $('form').on('submit', function() {
+      // 清除之前的隐藏字段
+      $('input[name="required_fields"][type="hidden"]').remove();
+      
+      // 如果未启用必填检查，则不添加字段
+      if (!$('#enable_required_fields').is(':checked')) {
+        return true;
+      }
+      
+      // 添加选中的字段作为隐藏表单字段
+      selectedFields.forEach(function(field) {
+        $('<input>').attr({
+          type: 'hidden',
+          name: 'required_fields',
+          value: field
+        }).appendTo('form');
+      });
+      
+      return true;
+    });
+  }
+})();
+</script>
+{% endblock %} 

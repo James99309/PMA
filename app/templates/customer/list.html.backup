@@ -1,3 +1,147 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_owner, render_date, render_button, render_confirm_cancel %}
+{% import 'macros/ui_helpers.html' as ui %}
+
+{% block title %}客户管理{% endblock %}
+
+{% block head %}
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4 mt-5">
+        <div class="col-12">
+            <h1 class="fw-bold" style="color:#222;">客户列表</h1>
+        </div>
+    </div>
+    <!-- 添加刷新关系按钮 -->
+    <div class="row mb-2">
+        <div class="col-12 text-end">
+            <!-- 已删除刷新联系人关系按钮和说明 -->
+        </div>
+    </div>
+    <!-- 删除原有的企业列表标题 -->
+    <!-- <div class="row mb-3">
+        <div class="col">
+            <h2 class="text-primary">企业列表</h2>
+        </div>
+        <div class="col text-end"> ... </div>
+    </div> -->
+
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="position-relative">
+                                <input type="text" class="form-control" id="companySearch" placeholder="搜索企业名称..." autocomplete="off">
+                                <span class="position-absolute top-50 end-0 translate-middle-y pe-3" id="searchCompany">
+                                    <i class="fas fa-search search-icon"></i>
+                                </span>
+                                <div id="companySearchResults" class="dropdown-menu w-100" style="max-height: 300px; overflow-y: auto; left: 0; top: 100%; margin-top: 2px;"></div>
+                            </div>
+                            <div class="form-text small text-muted">输入企业名称进行搜索，可查看所有企业的基本信息（含非自己的客户）</div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="position-relative">
+                                <input type="text" class="form-control" id="contactSearch" placeholder="搜索联系人..." autocomplete="off">
+                                <span class="position-absolute top-50 end-0 translate-middle-y pe-3" id="searchContact">
+                                    <i class="fas fa-search search-icon"></i>
+                                </span>
+                                <div id="contactSearchResults" class="dropdown-menu w-100" style="max-height: 300px; overflow-y: auto; left: 0; top: 100%; margin-top: 2px;"></div>
+                            </div>
+                            <div class="form-text small text-muted">输入联系人姓名搜索，点击可跳转到相应企业</div>
+                        </div>
+                        <div class="col-md-4 text-end d-none d-lg-block">
+                            {{ render_button('添加企业', url_for('customer.add_company'), color='primary', extra_class='me-2') }}
+                            {% if current_user.role == 'admin' %}
+                            <div class="dropdown d-inline-block">
+                                {{ render_button('导入数据', '#', color='auxiliary', extra_class='dropdown-toggle', attrs='id="importDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false"') }}
+                                <ul class="dropdown-menu" aria-labelledby="importDropdownBtn">
+                                    <li><a class="dropdown-item" href="#" id="importCustomers">导入客户</a></li>
+                                    <li><a class="dropdown-item" href="#" id="importContacts">导入联系人</a></li>
+                                </ul>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 移动端+号浮动按钮，仅小屏幕显示 -->
+    <div class="d-lg-none">
+        {%- if has_permission('customer', 'create') %}
+        {{ render_button('添加企业', url_for('customer.add_company'), color='primary', icon='fas fa-plus', extra_class='rounded-circle shadow position-fixed', attrs='id="mobileFabBtn" style="right: 24px; bottom: 24px; width: 56px; height: 56px; z-index: 1050; font-size: 2rem; display: flex; align-items: center; justify-content: center;"') }}
+        <div id="mobileFabMenu" class="card shadow position-fixed" style="right: 24px; bottom: 90px; min-width: 140px; z-index: 1051; display: none;">
+            <ul class="list-group list-group-flush">
+                {%- if current_user.role == 'admin' %}
+                <li class="list-group-item p-2">
+                    {{ render_button('导入客户', '#', color='auxiliary', icon='fas fa-file-import', extra_class='text-info text-decoration-none', attrs='id="mobileImportBtn"') }}
+                </li>
+                <li class="list-group-item p-2">
+                    {{ render_button('导入联系人', '#', color='auxiliary', icon='fas fa-user-plus', extra_class='text-info text-decoration-none', attrs='id="mobileImportContactBtn"') }}
+                </li>
+                <li class="list-group-item p-2">
+                    {{ render_button('添加企业', url_for('customer.add_company'), color='primary', icon='fas fa-plus', extra_class='text-primary text-decoration-none') }}
+                </li>
+                {%- else %}
+                <li class="list-group-item p-2">
+                    {{ render_button('添加企业', url_for('customer.add_company'), color='primary', icon='fas fa-plus', extra_class='text-primary text-decoration-none') }}
+                </li>
+                {%- endif %}
+            </ul>
+        </div>
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var fabBtn = document.getElementById('mobileFabBtn');
+            var fabMenu = document.getElementById('mobileFabMenu');
+            if (fabBtn && fabMenu) {
+                fabBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    fabMenu.style.display = fabMenu.style.display === 'none' ? 'block' : 'none';
+                });
+                document.addEventListener('click', function(e) {
+                    if (!fabBtn.contains(e.target) && !fabMenu.contains(e.target)) {
+                        fabMenu.style.display = 'none';
+                    }
+                });
+            }
+            // 移动端导入按钮联动PC端导入
+            var importBtn = document.getElementById('importCustomers');
+            var importContactBtn = document.getElementById('importContacts');
+            var mobileImportBtn = document.getElementById('mobileImportBtn');
+            var mobileImportContactBtn = document.getElementById('mobileImportContactBtn');
+            if (importBtn && mobileImportBtn) {
+                mobileImportBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    importBtn.click();
+                });
+            }
+            if (importContactBtn && mobileImportContactBtn) {
+                mobileImportContactBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    importContactBtn.click();
+                });
+            }
+        });
+        </script>
+        {%- endif %}
+    </div>
+
+    <!-- 移动端卡片视图 - 仅在小屏幕显示 -->
+    <div class="d-block d-lg-none">
+        {% if companies|length == 0 %}
+        <div class="alert alert-info text-center">
+            暂无可见企业数据。{% if has_permission('customer', 'create') %}您可以点击右上角"添加企业"新建自己的客户。{% endif %}
+        </div>
+        {% endif %}
+        
         {% for company in companies %}
         <div class="card mb-3 shadow-sm">
             <div class="card-body p-3">
@@ -11,8 +155,8 @@
                     <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="text-decoration-none text-dark">
                         {{ company.company_name }}
                     </a>
-                    {% if company.id not in editable_ids %}
-                        <span class="badge bg-secondary ms-2">只读</span>
+                    {% if company.owner_id != current_user.id and current_user.id in company.contact_owner_ids %}
+                    <span class="badge bg-info ms-1" style="font-size: 0.6em;">已创建联系人</span>
                     {% endif %}
                 </h5>
                 <div class="small text-muted mb-2">
@@ -40,3 +184,2406 @@
             </div>
         </div>
         {% endfor %}
+    </div>
+
+    <!-- PC端表格视图 - 仅在大屏幕显示 -->
+    <div class="card d-none d-lg-block">
+        <div class="card-body p-0">
+            {# 插入筛选条宏调用 #}
+            <div class="d-flex justify-content-end align-items-center px-3 py-2">
+                {{ render_button('批量删除', '#', color='danger', icon='fas fa-trash', size='sm', extra_class='btn-outline-danger', attrs='id="batchDeleteBtn" style="display: none;"') }}
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle" style="table-layout: auto; min-width: 1400px; font-size: 14px;">
+                    {% set fields = [
+                      {'name': 'owner', 'label': '客户负责人', 'sortable': True},
+                      {'name': 'company_name', 'label': '企业名称', 'sortable': True},
+                      {'name': 'company_type', 'label': '企业类型', 'sortable': False},
+                      {'name': 'industry', 'label': '行业', 'sortable': False},
+                      {'name': 'country', 'label': '国家', 'sortable': False},
+                      {'name': 'region', 'label': '区域', 'sortable': False},
+                      {'name': 'address', 'label': '地址', 'sortable': False},
+                      {
+                        'name': 'status',
+                        'label': '状态',
+                        'sortable': True,
+                        'filterable': True,
+                        'options': status_options,
+                        'selected': request.args.getlist('status')
+                      },
+                      {'name': 'notes', 'label': '备注', 'sortable': False},
+                      {'name': 'updated_at', 'label': '更新时间', 'sortable': True},
+                      {'name': 'created_at', 'label': '创建时间', 'sortable': True},
+                    ] %}
+                    <thead>
+                      <tr class="bg-light text-dark">
+                        {% if has_permission('customer', 'delete') %}
+                        <th class="px-3 py-3" style="width: 40px;">
+                          <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="selectAll">
+                          </div>
+                        </th>
+                        {% endif %}
+                        {% for field in fields %}
+                          {{ ui.render_table_header_cell(field, sort_field=request.args.get('sort'), sort_order=request.args.get('order'), base_url=request.path) }}
+                        {% endfor %}
+                      </tr>
+                    </thead>
+                    <tbody>
+                        {% if companies|length == 0 %}
+                        <tr>
+                            <td colspan="100" class="text-center text-muted py-5">
+                                暂无可见企业数据。{% if has_permission('customer', 'create') %}您可以点击右上角"添加企业"新建自己的客户。{% endif %}
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% for company in companies %}
+                        <tr>
+                            {% if has_permission('customer', 'delete') %}
+                            <td class="px-3">
+                                <div class="form-check">
+                                    <input class="form-check-input company-checkbox" type="checkbox" value="{{ company.id }}" 
+                                           {% if company.owner_id != current_user.id and current_user.role != 'admin' %}disabled{% endif %}>
+                                </div>
+                            </td>
+                            {% endif %}
+                            <td class="px-3">{{ render_owner(company.owner) }}</td>
+                            <td class="px-3">
+                                <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="text-decoration-none">
+                                    {{ company.company_name }}
+                                </a>
+                                {% if company.owner_id != current_user.id and current_user.id in company.contact_owner_ids %}
+                                <span class="badge bg-info ms-1" style="font-size: 0.7em;">已创建联系人</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-3">{{ company.company_type|company_type_label }}</td>
+                            <td class="px-3">{{ company.industry|industry_label }}</td>
+                            <td class="px-3">{{ country_code_to_name[company.country] if company.country in country_code_to_name else company.country }}</td>
+                            <td class="px-3">{{ company.region }}</td>
+                            <td class="px-3">{{ company.address }}</td>
+                            <td class="px-3">{{ ui.render_status_badge(company.status) }}</td>
+                            <td class="px-3">{{ company.notes }}</td>
+                            <td class="px-3">{{ render_date(company.updated_at) }}</td>
+                            <td class="px-3">{{ render_date(company.created_at) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加Font Awesome图标库 -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+<!-- 添加自定义样式 -->
+<style>
+    /* 表格基础样式 - 应用于所有表格单元格 */
+    .table {
+        min-width: 1400px;
+    }
+    .table th,
+    .table td {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 200px;
+        position: relative;
+        vertical-align: middle !important;
+        height: 50px;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    /* 统一表头样式和垂直对齐 */
+    .table th {
+        font-weight: 600;
+        background-color: #f8f9fa;
+        position: relative;
+        vertical-align: middle !important;
+        height: 55px;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    /* 调整企业代码徽章样式，确保水平对齐 */
+    .table td .badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 70px;
+        height: 24px;
+        margin: 0;
+        vertical-align: middle;
+    }
+    
+    /* 排序表头样式 */
+    .table th a.text-dark {
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        height: 100%;
+        color: #333 !important;
+    }
+    
+    .table th a.text-dark:hover {
+        color: #0d6efd !important;
+    }
+    
+    .table th a.current-sort {
+        color: #0d6efd !important;
+        font-weight: 700;
+    }
+    
+    .table th a.current-sort i {
+        color: #0d6efd !important;
+    }
+    
+    /* 统一排序图标样式 */
+    .fa-sort, .fa-sort-up, .fa-sort-down {
+        margin-left: 5px;
+        width: 10px;
+        text-align: center;
+    }
+
+    /* 确保所有表头列对齐一致 */
+    .table thead tr th {
+        border-bottom: 2px solid #dee2e6;
+        vertical-align: middle !important;
+    }
+    
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        position: relative;
+    }
+    
+    .btn-group-sm > .btn {
+        padding: .25rem .5rem;
+    }
+    
+    /* 表格行样式 */
+    .table tr {
+        height: 50px;
+    }
+    
+    /* 禁用按钮样式 */
+    .btn.disabled, .btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        pointer-events: all !important;
+    }
+    
+    /* 禁用按钮悬停提示 */
+    [title] {
+        position: relative;
+    }
+
+    /* 无权限企业样式 */
+    .no-permission-company {
+        opacity: 0.85;
+        background-color: #f8f9fa;
+    }
+    
+    .no-permission-company:hover {
+        background-color: #f0f0f0;
+    }
+    
+    /* 下拉菜单样式优化 */
+    .dropdown-menu.show {
+        display: block;
+        margin-top: 2px;
+        border-radius: 0.375rem;
+        border: 1px solid rgba(0,0,0,0.1);
+        box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,0.12);
+        z-index: 1000;
+        width: 100%;
+        left: 0 !important;
+    }
+    
+    .dropdown-item {
+        padding: 0.625rem 1rem;
+        border-bottom: 1px solid #f0f0f0;
+        white-space: normal;
+        line-height: 1.4;
+    }
+    
+    .dropdown-item:last-child {
+        border-bottom: none;
+    }
+    
+    .dropdown-item.text-muted {
+        cursor: not-allowed;
+        background-color: #f8f9fa;
+    }
+    
+    .dropdown-item:not(.text-muted):hover {
+        background-color: #e9ecef;
+    }
+    
+    /* 搜索框样式优化 */
+    #companySearch, #contactSearch {
+        padding-right: 2.5rem;
+        height: calc(1.5em + 0.75rem + 2px);
+    }
+    
+    .search-icon {
+        cursor: pointer;
+        color: #6c757d;
+        transition: color 0.15s ease-in-out;
+    }
+    
+    .search-icon:hover {
+        color: #495057;
+    }
+
+    .company-search-item {
+        padding: 8px 12px;
+        border-bottom: 1px solid #eee;
+        color: #6c757d;
+        cursor: pointer; /* 更改为指针光标，表示可点击 */
+    }
+    .company-search-item:hover {
+        background-color: #f8f9fa;
+    }
+    .company-name {
+        font-weight: 500;
+        display: inline;
+        font-size: 0.9em;
+    }
+    .company-location, .company-owner {
+        color: #6c757d;
+        font-size: 0.8em;
+        display: inline;
+        margin-left: 3px;
+    }
+    .reference-notice {
+        font-size: 0.85em;
+        color: #6c757d;
+        padding: 8px 12px;
+        border-top: 1px dashed #dee2e6;
+        background-color: #f8f9fa;
+        font-weight: 500;
+        text-align: center;
+    }
+    .reference-badge {
+        font-size: 0.7em;
+        padding: 0.2em 0.4em;
+        background-color: #6c757d;
+        color: white;
+        border-radius: 0.25rem;
+        margin-right: 5px;
+    }
+    .suggestions-header {
+        padding: 8px 12px;
+        background-color: #e9ecef;
+        font-size: 0.9em;
+        color: #495057;
+        font-weight: 500;
+        text-align: center;
+        border-bottom: 1px solid #dee2e6;
+    }
+</style>
+
+<!-- 页面最底部，添加导入模态框 -->
+<!-- 客户导入模态框 -->
+<div class="modal fade" id="importCustomerModal" tabindex="-1" aria-labelledby="importCustomerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="importCustomerModalLabel">导入客户数据</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="importCustomerForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="ownerSelect" class="form-label">请选择归属账户 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="ownerSelect" name="owner_id" required>
+                            <option value="">请选择...</option>
+                            <!-- 选项会通过JavaScript动态加载 -->
+                        </select>
+                        <div class="form-text">所有导入的客户将归属于该账户</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="excelFile" class="form-label">上传Excel文件 (.xlsx或.xls) <span class="text-danger">*</span></label>
+                        <input class="form-control" type="file" id="excelFile" name="excelFile" accept=".xlsx, .xls" required>
+                        <div class="form-text">请上传包含客户数据的Excel文件，系统将查找名为"customer database"的工作表进行导入</div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h6 class="alert-heading">导入说明:</h6>
+                        <p class="mb-0">系统将按以下字段映射导入数据:</p>
+                        <ul class="mb-0">
+                            <li>公司名称 → 企业名称</li>
+                            <li>国家和地区 → 国家/地区</li>
+                            <li>城市 → 省份/城市</li>
+                            <li>单位地址 → 详细地址</li>
+                            <li>种类 → 企业类型</li>
+                            <li>状态 → 状态（默认为"活跃"）</li>
+                            <li>备注 → 备注（如为"none"则导入为空）</li>
+                            <li>创建时间 → 创建时间（保留原始创建日期，导入时间将记录在"更新时间"字段）</li>
+                        </ul>
+                    </div>
+                </form>
+                
+                <div id="importPreview" class="mt-3" style="display: none;">
+                    <h6>数据预览:</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered" id="previewTable">
+                            <thead>
+                                <tr>
+                                    <th>企业名称</th>
+                                    <th>国家/地区</th>
+                                    <th>省份/城市</th>
+                                    <th>详细地址</th>
+                                    <th>企业类型</th>
+                                    <th>创建时间</th>
+                                </tr>
+                            </thead>
+                            <tbody id="previewTableBody">
+                                <!-- 预览数据会动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="importConflicts" class="mt-3" style="display: none;">
+                    <h6 class="text-warning">发现可能的重复企业:</h6>
+                    <div class="alert alert-info mb-2">
+                        <strong>智能推荐:</strong> 系统会根据相似度自动推荐操作:
+                        <ul class="mb-0">
+                            <li>相似度 ≥ 80% 的企业: <span class="badge bg-secondary">建议跳过</span></li>
+                            <li>相似度 < 80% 的企业: <span class="badge bg-primary">建议导入</span> 为新用户</li>
+                        </ul>
+                        <div class="mt-2" id="conflictsSummary"></div>
+                    </div>
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-sm table-bordered table-hover" id="conflictsTable">
+                            <thead class="sticky-top bg-light">
+                                <tr>
+                                    <th style="width: 120px;">操作</th>
+                                    <th>导入企业名称</th>
+                                    <th>已存在企业名称</th>
+                                    <th style="width: 150px;">相似度</th>
+                                </tr>
+                            </thead>
+                            <tbody id="conflictsTableBody">
+                                <!-- 冲突数据会动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mt-3">
+                        <div class="mb-2">
+                            <span class="text-muted">批量操作:</span>
+                        </div>
+                        <div class="mb-2">
+                            <button type="button" class="btn btn-outline-primary btn-sm me-2" id="applyRecommendedActions">
+                                <i class="fas fa-magic"></i> 应用智能推荐
+                            </button>
+                            <button type="button" class="btn btn-outline-success btn-sm me-2" id="keepAllConflicts">
+                                <i class="fas fa-plus"></i> 全部导入为新用户
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="ignoreAllConflicts">
+                                <i class="fas fa-times"></i> 全部忽略不导入
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="importProgress" class="progress mt-3" style="display: none;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                </div>
+                
+                <div id="importResult" class="alert mt-3" style="display: none;"></div>
+                
+                <!-- 添加错误详情区域 -->
+                <div id="importErrorDetails" class="mt-3" style="display: none;">
+                    <h6 class="text-danger">导入错误详情:</h6>
+                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                        <table class="table table-sm table-bordered table-hover">
+                            <thead class="sticky-top bg-light">
+                                <tr>
+                                    <th>企业名称</th>
+                                    <th>错误原因</th>
+                                </tr>
+                            </thead>
+                            <tbody id="errorDetailsTableBody">
+                                <!-- 错误详情会动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="parseExcelBtn">解析文件</button>
+                <button type="button" class="btn btn-success" id="importBtn" style="display: none;">确认导入</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 联系人导入模态框 -->
+<div class="modal fade" id="importContactModal" tabindex="-1" aria-labelledby="importContactModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="importContactModalLabel">导入联系人数据</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="importContactForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="contactOwnerSelect" class="form-label">请选择归属账户 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="contactOwnerSelect" name="owner_id" required>
+                            <option value="">请选择...</option>
+                            <!-- 选项会通过JavaScript动态加载 -->
+                        </select>
+                        <div class="form-text">所有导入的联系人将归属于该账户</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="contactExcelFile" class="form-label">上传Excel文件 (.xlsx或.xls) <span class="text-danger">*</span></label>
+                        <input class="form-control" type="file" id="contactExcelFile" name="contactExcelFile" accept=".xlsx, .xls" required>
+                        <div class="form-text">请上传包含联系人数据的Excel文件，系统将查找名为"contact database"的工作表进行导入</div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h6 class="alert-heading">导入说明:</h6>
+                        <p class="mb-0">系统将按以下字段映射导入数据:</p>
+                        <ul class="mb-0">
+                            <li>公司名称 → 所属企业（必须在系统中存在，用于匹配企业）</li>
+                            <li>联系人 → 姓名</li>
+                            <li>部门 → 部门</li>
+                            <li>职位 → 职位</li>
+                            <li>联系电话 → 电话</li>
+                            <li>邮件信箱 → 邮箱</li>
+                            <li>创建时间 → 创建时间（保留原始创建日期，导入时间将记录在"更新时间"字段）</li>
+                        </ul>
+                    </div>
+                </form>
+                
+                <div id="contactImportPreview" class="mt-3" style="display: none;">
+                    <h6>数据预览:</h6>
+                    <div class="alert alert-info mb-2" id="contactImportStats">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <strong>导入统计:</strong>
+                                <ul class="mb-0 mt-1">
+                                    <li>共<span id="totalContactsCount" class="fw-bold text-primary">0</span>条联系人记录</li>
+                                    <li>其中<span id="companyNotFoundCount" class="fw-bold text-danger">0</span>条联系人无法找到匹配企业</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <span class="text-muted small">仅显示前5条记录，实际导入全部记录</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered" id="contactPreviewTable">
+                            <thead>
+                                <tr>
+                                    <th>公司名称</th>
+                                    <th>姓名</th>
+                                    <th>部门</th>
+                                    <th>职位</th>
+                                    <th>电话</th>
+                                    <th>邮箱</th>
+                                    <th>创建时间</th>
+                                </tr>
+                            </thead>
+                            <tbody id="contactPreviewTableBody">
+                                <!-- 预览数据会动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="contactImportConflicts" class="mt-3" style="display: none;">
+                    <h6 class="text-warning">发现可能的重复联系人:</h6>
+                    <div class="alert alert-info mb-2">
+                        <strong>提示:</strong> 系统已根据姓名检测可能的重复联系人，请选择处理方式:
+                        <ul class="mb-0">
+                            <li><span class="badge bg-primary">覆盖</span>: 使用新数据更新已存在的联系人</li>
+                            <li><span class="badge bg-success">保留</span>: 跳过已存在的联系人，不导入</li>
+                        </ul>
+                        <div class="mt-2" id="contactConflictsSummary"></div>
+                    </div>
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-sm table-bordered table-hover" id="contactConflictsTable">
+                            <thead class="sticky-top bg-light">
+                                <tr>
+                                    <th style="width: 120px;">操作</th>
+                                    <th>导入联系人姓名</th>
+                                    <th>所属企业</th>
+                                    <th>已存在联系人姓名</th>
+                                </tr>
+                            </thead>
+                            <tbody id="contactConflictsTableBody">
+                                <!-- 冲突数据会动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mt-3">
+                        <div class="mb-2">
+                            <span class="text-muted">批量操作:</span>
+                        </div>
+                        <div class="mb-2">
+                            <button type="button" class="btn btn-outline-primary btn-sm me-2" id="overrideAllConflicts">
+                                <i class="fas fa-sync-alt"></i> 全部覆盖
+                            </button>
+                            <button type="button" class="btn btn-outline-success btn-sm" id="keepAllContactConflicts">
+                                <i class="fas fa-check"></i> 全部保留现有数据
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="contactImportProgress" class="progress mt-3" style="display: none;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                </div>
+                
+                <div id="contactImportResult" class="alert mt-3" style="display: none;"></div>
+                
+                <!-- 添加公司不存在提示区域 -->
+                <div id="companyNotFoundDetails" class="mt-3" style="display: none;">
+                    <div class="alert alert-warning">
+                        <h6 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> 警告：未找到匹配企业</h6>
+                        <p class="mb-0">以下联系人无法导入，因为系统中找不到与之关联的企业名称。请先在系统中添加这些企业，或确保企业名称完全匹配。</p>
+                    </div>
+                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                        <table class="table table-sm table-bordered table-hover">
+                            <thead class="sticky-top bg-light">
+                                <tr>
+                                    <th>联系人姓名</th>
+                                    <th>公司名称</th>
+                                    <th>原因</th>
+                                </tr>
+                            </thead>
+                            <tbody id="companyNotFoundTableBody">
+                                <!-- 公司匹配失败详情会动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- 添加错误详情区域 -->
+                <div id="contactImportErrorDetails" class="mt-3" style="display: none;">
+                    <h6 class="text-danger">导入错误详情:</h6>
+                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                        <table class="table table-sm table-bordered table-hover">
+                            <thead class="sticky-top bg-light">
+                                <tr>
+                                    <th>联系人姓名</th>
+                                    <th>公司名称</th>
+                                    <th>错误原因</th>
+                                </tr>
+                            </thead>
+                            <tbody id="contactErrorDetailsTableBody">
+                                <!-- 错误详情会动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="parseContactExcelBtn">解析文件</button>
+                <button type="button" class="btn btn-success" id="importContactBtn" style="display: none;">确认导入</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // 初始化企业搜索自动完成
+    initCompanySearch();
+    
+    // 初始化联系人搜索自动完成
+    initContactSearch();
+
+    // 导入客户功能
+    const importCustomersBtn = document.getElementById('importCustomers');
+    const importModal = new bootstrap.Modal(document.getElementById('importCustomerModal'));
+    const ownerSelect = document.getElementById('ownerSelect');
+    const excelFileInput = document.getElementById('excelFile');
+    const parseExcelBtn = document.getElementById('parseExcelBtn');
+    const importBtn = document.getElementById('importBtn');
+    const previewDiv = document.getElementById('importPreview');
+    const conflictsDiv = document.getElementById('importConflicts');
+    const progressDiv = document.getElementById('importProgress');
+    const resultDiv = document.getElementById('importResult');
+    const skipAllConflictsBtn = document.getElementById('skipAllConflicts');
+    const ignoreAllConflictsBtn = document.getElementById('ignoreAllConflicts');
+    
+    let parsedData = [];
+    let unmatchedCustomers = [];
+    let userNameToId = {};
+    let conflicts = [];
+    let conflictActions = {};
+    
+    // 加载用户列表（分组+真实姓名）
+    function loadUsers(selectElement) {
+        fetch('/api/users/hierarchical', {
+            headers: {
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+            selectElement.innerHTML = '<option value="">请选择...</option>';
+            if (data.success) {
+                data.data.forEach(company => {
+                    const companyOptgroup = document.createElement('optgroup');
+                    companyOptgroup.label = company.name + ' (企业)';
+                    company.users.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = user.id;
+                        option.textContent = user.name;
+                        companyOptgroup.appendChild(option);
+                });
+                    selectElement.appendChild(companyOptgroup);
+                });
+            }
+            })
+            .catch(error => console.error('加载用户失败:', error));
+    }
+    
+    // 打开导入模态框
+    if (importCustomersBtn) {
+        importCustomersBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // 重置状态
+            document.getElementById('importCustomerForm').reset();
+            previewDiv.style.display = 'none';
+            conflictsDiv.style.display = 'none';
+            progressDiv.style.display = 'none';
+            resultDiv.style.display = 'none';
+            importBtn.style.display = 'none';
+            parsedData = [];
+            unmatchedCustomers = [];
+            userNameToId = {};
+            conflicts = [];
+            conflictActions = {};
+            
+            // 加载用户列表（分组+真实姓名）
+            loadUsers(ownerSelect);
+            
+            // 显示模态框
+            importModal.show();
+        });
+    }
+    
+    // 解析Excel文件
+    if (parseExcelBtn) {
+        parseExcelBtn.addEventListener('click', function() {
+            const fileInput = document.getElementById('excelFile');
+            const ownerIdSelect = document.getElementById('ownerSelect');
+            unmatchedCustomers = [];
+            // 移除此处的"请选择归属账户"强制校验
+            // if (!ownerIdSelect.value) {
+            //     alert('请选择归属账户');
+            //     return;
+            // }
+            if (!fileInput.files.length) {
+                alert('请选择Excel文件');
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    
+                    // 查找customer database工作表
+                    const sheetName = workbook.SheetNames.find(name => 
+                        name.toLowerCase().includes('customer database'));
+                    
+                    if (!sheetName) {
+                        alert('未找到名为"customer database"的工作表');
+                        return;
+                    }
+                    
+                    const worksheet = workbook.Sheets[sheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                    
+                    if (jsonData.length === 0) {
+                        alert('工作表中未找到数据');
+                        return;
+                    }
+                    
+                    // 处理数据
+                    parsedData = [];
+                    unmatchedCustomers = [];
+                    jsonData.forEach(row => {
+                        console.log("解析行数据:", row);
+                        let createdAt = null;
+                        
+                        // 尝试解析创建时间
+                        if (row['创建时间']) {
+                            try {
+                                // 增强日期格式处理
+                                let dateValue = row['创建时间'];
+                                console.log("原始Excel日期值:", dateValue, "类型:", typeof dateValue);
+                                
+                                // 检查是否为Excel数值日期（自1900年以来的天数）
+                                if (typeof dateValue === 'number' || (typeof dateValue === 'string' && !isNaN(dateValue) && dateValue.trim() !== '')) {
+                                    // 尝试将Excel数值日期转换为JS日期
+                                    // Excel日期是从1900年1月1日起的天数，但Excel有一个错误，认为1900是闰年
+                                    // 所以我们需要减去1（针对1900年2月28日之后的日期）
+                                    let excelDateValue = parseFloat(dateValue);
+                                    if (excelDateValue > 59) { // 1900年2月28日之后
+                                        excelDateValue -= 1;
+                                    }
+                                    // 将Excel日期转换为JavaScript日期
+                                    const millisecondsPerDay = 24 * 60 * 60 * 1000;
+                                    let jsDate = new Date(Date.UTC(1900, 0, 1) + excelDateValue * millisecondsPerDay);
+                                    if (jsDate.toString() !== 'Invalid Date') {
+                                        createdAt = jsDate;
+                                        console.log("从Excel数值转换:", dateValue, "->", createdAt);
+                                    }
+                                } else if (typeof dateValue === 'string') {
+                                    // 尝试常见日期格式
+                                    createdAt = new Date(dateValue);
+                                    if (createdAt.toString() === 'Invalid Date') {
+                                        // 尝试解析DD/MM/YYYY格式
+                                        const parts = dateValue.split(/[\/-]/);
+                                        if (parts.length === 3) {
+                                            // 尝试DD/MM/YYYY
+                                            if (parts[0].length <= 2 && parts[1].length <= 2) {
+                                                createdAt = new Date(parts[2], parts[1]-1, parts[0]);
+                                            }
+                                            // 尝试MM/DD/YYYY
+                                            else if (parts[1].length <= 2 && parts[0].length <= 2) {
+                                                createdAt = new Date(parts[2], parts[0]-1, parts[1]);
+                                            }
+                                            // 尝试YYYY/MM/DD
+                                            else if (parts[0].length === 4) {
+                                                createdAt = new Date(parts[0], parts[1]-1, parts[2]);
+                                            }
+                                            console.log("从分割格式转换:", dateValue, "->", createdAt);
+                                        }
+                                    }
+                                }
+                                
+                                if (createdAt && createdAt.toString() !== 'Invalid Date') {
+                                    console.log("最终解析后的日期:", createdAt, "ISO格式:", createdAt.toISOString());
+                                } else {
+                                    console.error("无法解析日期，使用当前时间");
+                                    createdAt = new Date();
+                                }
+                            } catch (e) {
+                                console.error("创建时间解析错误:", e);
+                                createdAt = new Date();
+                            }
+                        } else {
+                            createdAt = new Date();
+                        }
+                        
+                        let ownerId = ownerIdSelect.value;
+                        let salesName = row['销售负责人'] ? String(row['销售负责人']).trim() : '';
+                        if (!ownerId) {
+                            if (salesName && userNameToId[salesName]) {
+                                ownerId = userNameToId[salesName];
+                            } else {
+                                unmatchedCustomers.push({company_name: row['公司名称'] || '', sales_name: salesName});
+                                return;
+                            }
+                        }
+                        
+                        parsedData.push({
+                            company_name: row['公司名称'] || '',
+                            country: row['国家和地区'] ? (row['国家和地区'].toString().toLowerCase() === 'none' ? '' : row['国家和地区']) : '',
+                            city: row['城市'] ? (row['城市'].toString().toLowerCase() === 'none' ? '' : row['城市']) : '',
+                            address: row['单位地址'] ? (row['单位地址'].toString().toLowerCase() === 'none' ? '' : row['单位地址']) : '',
+                            company_type: row['种类'] ? (row['种类'].toString().toLowerCase() === 'none' ? '' : row['种类']) : '',
+                            created_at: createdAt.toISOString(),
+                            status: row['状态'] ? (row['状态'].toString().toLowerCase() === 'none' ? '活跃' : row['状态']) : '活跃',
+                            notes: row['备注'] ? (row['备注'].toString().toLowerCase() === 'none' ? '' : row['备注']) : '',
+                            owner_id: parseInt(ownerId)
+                        });
+                    });
+                    
+                    // 显示预览
+                    const previewBody = document.getElementById('previewTableBody');
+                    previewBody.innerHTML = '';
+                    
+                    parsedData.slice(0, 5).forEach(item => {
+                        const row = document.createElement('tr');
+                        // 确保显示空字符串而不是'none'或undefined
+                        const displayValue = (val) => {
+                            if (val === undefined || val === null || val === 'none' || (val.toString && val.toString().toLowerCase() === 'none')) {
+                                return '';
+                            }
+                            return val;
+                        };
+                        
+                        row.innerHTML = `
+                            <td>${displayValue(item.company_name)}</td>
+                            <td>${displayValue(item.country)}</td>
+                            <td>${displayValue(item.city)}</td>
+                            <td>${displayValue(item.address)}</td>
+                            <td>${displayValue(item.company_type)}</td>
+                            <td>${item.created_at ? new Date(item.created_at).toLocaleString('zh-CN') : ''}</td>
+                        `;
+                        previewBody.appendChild(row);
+                    });
+                    
+                    if (parsedData.length > 5) {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `<td colspan="6" class="text-center">... 共${parsedData.length}条记录 ...</td>`;
+                        previewBody.appendChild(row);
+                    }
+                    
+                    previewDiv.style.display = 'block';
+                    
+                    // 检查可能的重复企业
+                    checkDuplicates();
+                    
+                    // 预览区下方显示未匹配客户
+                    const unmatchedDiv = document.getElementById('unmatchedCustomersDiv') || (function(){
+                        const div = document.createElement('div');
+                        div.id = 'unmatchedCustomersDiv';
+                        previewDiv.parentNode.insertBefore(div, previewDiv.nextSibling);
+                        return div;
+                    })();
+                    if (unmatchedCustomers.length > 0) {
+                        let html = '<div class="alert alert-warning mt-2"><b>以下客户未匹配到销售负责人，无法导入：</b><table class="table table-sm mt-2"><thead><tr><th>公司名称</th><th>销售负责人</th></tr></thead><tbody>';
+                        unmatchedCustomers.forEach(item => {
+                            html += `<tr><td>${item.company_name}</td><td>${item.sales_name}</td></tr>`;
+                        });
+                        html += '</tbody></table></div>';
+                        unmatchedDiv.innerHTML = html;
+                        unmatchedDiv.style.display = 'block';
+                    } else {
+                        unmatchedDiv.innerHTML = '';
+                        unmatchedDiv.style.display = 'none';
+                    }
+                    
+                } catch (error) {
+                    console.error('解析Excel文件失败:', error);
+                    alert('解析文件失败，请确保文件格式正确');
+                }
+            };
+            
+            reader.onerror = function() {
+                alert('读取文件失败');
+            };
+            
+            reader.readAsArrayBuffer(file);
+        });
+    }
+    
+    // 检查重复企业
+    function checkDuplicates() {
+        if (parsedData.length === 0) return;
+        
+        // 清理和过滤公司名称数据
+        let companyNames = [];
+        
+        // 首先确保所有公司名称都是有效的字符串
+        for (let i = 0; i < parsedData.length; i++) {
+            let item = parsedData[i];
+            let name = "";
+            
+            try {
+                // 确保公司名称是字符串
+                if (item.company_name) {
+                    name = String(item.company_name).trim();
+                }
+            } catch (e) {
+                console.warn("处理公司名称时出错:", e);
+            }
+            
+            if (name) {
+                companyNames.push(name);
+            }
+        }
+        
+        if (companyNames.length === 0) {
+            alert('没有有效的企业名称可导入');
+            return;
+        }
+        
+        console.log("准备发送检查重复请求，公司数量:", companyNames.length);
+        
+        // 严格确保是有效的JSON数据
+        const requestData = JSON.stringify({ company_names: companyNames });
+        console.log("请求数据:", requestData);
+        
+        // 发送请求
+        fetch('/customer/api/check-duplicates', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: requestData
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.text().then(text => {
+                    // 尝试解析响应为JSON
+                    try {
+                        const errData = JSON.parse(text);
+                        throw new Error(`请求失败: ${errData.message || response.statusText}`);
+                    } catch (parseError) {
+                        // 如果无法解析为JSON，直接返回文本
+                        throw new Error(`请求失败: ${response.status} ${response.statusText}. 响应: ${text}`);
+                    }
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (!data || typeof data !== 'object') {
+                throw new Error('服务器返回了无效的数据格式');
+            }
+            
+            if (!data.success) {
+                throw new Error(data.message || '服务器返回了错误的数据格式');
+            }
+            
+            conflicts = Array.isArray(data.conflicts) ? data.conflicts : [];
+            console.log("检查重复完成，发现冲突:", conflicts.length);
+            
+            if (conflicts.length > 0) {
+                // 显示冲突表格
+                const conflictsBody = document.getElementById('conflictsTableBody');
+                conflictsBody.innerHTML = '';
+                
+                // 添加冲突数量摘要信息
+                const conflictsSummary = document.getElementById('conflictsSummary');
+                conflictsSummary.innerHTML = `<strong>共发现 ${conflicts.length} 个潜在冲突</strong>，请滚动查看所有内容并决定如何处理`;
+                
+                conflicts.forEach((conflict, index) => {
+                    if (!conflict || typeof conflict !== 'object') {
+                        console.warn("忽略无效的冲突数据:", conflict);
+                        return;
+                    }
+                    
+                    // 确保显示空字符串而不是'none'或undefined
+                    const displayValue = (val) => {
+                        if (val === undefined || val === null || val === 'none' || (val.toString && val.toString().toLowerCase() === 'none')) {
+                            return '';
+                        }
+                        return val;
+                    };
+                    
+                    const importName = displayValue(conflict.import_name) || '';
+                    const existingName = displayValue(conflict.existing_name) || '';
+                    const similarity = typeof conflict.similarity === 'number' 
+                        ? (conflict.similarity * 100).toFixed(2) 
+                        : '0.00';
+                    
+                    // 获取推荐操作
+                    const recommendedAction = conflict.recommended_action || 'ignore';
+                    
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-success btn-sm action-btn ${recommendedAction === 'override' ? 'active' : ''}" 
+                                        data-index="${index}" data-action="override" title="覆盖已有客户">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm action-btn ${recommendedAction === 'ignore' ? 'active' : ''}" 
+                                        data-index="${index}" data-action="ignore" title="忽略该条数据">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm action-btn ${recommendedAction === 'keep' ? 'active' : ''}" 
+                                        data-index="${index}" data-action="keep" title="仍然导入为新客户">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                        </td>
+                        <td>${importName}</td>
+                        <td>${existingName}</td>
+                        <td>${similarity}% ${recommendedAction === 'ignore' ? '<span class="badge bg-secondary">建议跳过</span>' : recommendedAction === 'keep' ? '<span class="badge bg-primary">建议导入</span>' : ''}</td>
+                    `;
+                    conflictsBody.appendChild(row);
+                    
+                    // 默认设置为推荐的操作
+                    conflictActions[importName] = recommendedAction;
+                });
+                
+                // 添加按钮事件监听
+                document.querySelectorAll('.action-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const index = parseInt(this.dataset.index);
+                        const action = this.dataset.action;
+                        if (isNaN(index) || index < 0 || index >= conflicts.length) {
+                            console.warn("无效的冲突索引:", index);
+                            return;
+                        }
+                        
+                        const conflict = conflicts[index];
+                        if (!conflict || !conflict.import_name) {
+                            console.warn("无效的冲突数据:", conflict);
+                            return;
+                        }
+                        
+                        // 更新操作
+                        conflictActions[conflict.import_name] = action;
+                        
+                        // 高亮选中的按钮
+                        const parentRow = this.closest('tr');
+                        parentRow.querySelectorAll('.action-btn').forEach(b => {
+                            b.classList.remove('active');
+                        });
+                        this.classList.add('active');
+                    });
+                });
+                
+                conflictsDiv.style.display = 'block';
+            } else {
+                conflictsDiv.style.display = 'none';
+            }
+            
+            // 显示导入按钮
+            importBtn.style.display = 'block';
+        })
+        .catch(error => {
+            console.error('检查重复失败:', error);
+            alert('检查重复客户失败: ' + error.message);
+            
+            // 即使有错误，也允许用户继续导入
+            importBtn.style.display = 'block';
+        });
+    }
+    
+    // 跳过所有冲突(改名为keepAllConflicts)
+    if (skipAllConflictsBtn) {
+        skipAllConflictsBtn.addEventListener('click', function() {
+            conflicts.forEach(conflict => {
+                conflictActions[conflict.import_name] = 'keep';
+            });
+            
+            document.querySelectorAll('.action-btn[data-action="keep"]').forEach(btn => {
+                const parentRow = btn.closest('tr');
+                parentRow.querySelectorAll('.action-btn').forEach(b => {
+                    b.classList.remove('active');
+                });
+                btn.classList.add('active');
+            });
+            
+            alert('已设置为所有冲突都创建为新客户');
+        });
+    }
+    
+    // 全部导入为新用户
+    const keepAllConflictsBtn = document.getElementById('keepAllConflicts');
+    if (keepAllConflictsBtn) {
+        keepAllConflictsBtn.addEventListener('click', function() {
+            conflicts.forEach(conflict => {
+                conflictActions[conflict.import_name] = 'keep';
+            });
+            
+            document.querySelectorAll('.action-btn[data-action="keep"]').forEach(btn => {
+                const parentRow = btn.closest('tr');
+                parentRow.querySelectorAll('.action-btn').forEach(b => {
+                    b.classList.remove('active');
+                });
+                btn.classList.add('active');
+            });
+            
+            alert('已设置为所有冲突都创建为新客户');
+        });
+    }
+    
+    // 应用智能推荐
+    const applyRecommendedBtn = document.getElementById('applyRecommendedActions');
+    if (applyRecommendedBtn) {
+        applyRecommendedBtn.addEventListener('click', function() {
+            conflicts.forEach(conflict => {
+                const recommendedAction = conflict.recommended_action || 'ignore';
+                conflictActions[conflict.import_name] = recommendedAction;
+                
+                // 高亮显示推荐的按钮
+                const index = conflicts.indexOf(conflict);
+                if (index !== -1) {
+                    const btn = document.querySelector(`.action-btn[data-index="${index}"][data-action="${recommendedAction}"]`);
+                    if (btn) {
+                        const parentRow = btn.closest('tr');
+                        parentRow.querySelectorAll('.action-btn').forEach(b => {
+                            b.classList.remove('active');
+                        });
+                        btn.classList.add('active');
+                    }
+                }
+            });
+            
+            alert('已应用所有智能推荐的处理方式');
+        });
+    }
+    
+    // 忽略所有冲突
+    if (ignoreAllConflictsBtn) {
+        ignoreAllConflictsBtn.addEventListener('click', function() {
+            conflicts.forEach(conflict => {
+                conflictActions[conflict.import_name] = 'ignore';
+            });
+            
+            document.querySelectorAll('.action-btn[data-action="ignore"]').forEach(btn => {
+                const parentRow = btn.closest('tr');
+                parentRow.querySelectorAll('.action-btn').forEach(b => {
+                    b.classList.remove('active');
+                });
+                btn.classList.add('active');
+            });
+            
+            alert('已设置为忽略所有冲突的客户');
+        });
+    }
+    
+    // 执行导入
+    if (importBtn) {
+        importBtn.addEventListener('click', function() {
+            if (parsedData.length === 0) {
+                alert('没有数据可导入');
+                return;
+            }
+            
+            const ownerId = document.getElementById('ownerSelect').value;
+            if (!ownerId) {
+                alert('请选择归属账户');
+                return;
+            }
+            
+            // 准备导入数据
+            const importData = {
+                customers: parsedData,
+                conflict_actions: conflictActions,
+                owner_id: parseInt(ownerId)
+            };
+            
+            console.log("准备导入数据:", JSON.stringify(importData));
+            
+            // 显示一些统计信息
+            if (parsedData.length > 0) {
+                console.log(`准备导入${parsedData.length}条记录，其中包含创建时间的记录：${parsedData.filter(item => item.created_at).length}条`);
+                
+                // 输出前几条记录的创建时间信息，帮助调试
+                parsedData.slice(0, 3).forEach((item, idx) => {
+                    if (item.created_at) {
+                        console.log(`记录${idx+1}的创建时间: ${item.created_at}`);
+                    }
+                });
+            }
+            
+            // 显示进度条
+            progressDiv.style.display = 'block';
+            const progressBar = progressDiv.querySelector('.progress-bar');
+            progressBar.style.width = '0%';
+            
+            // 发送导入请求
+            fetch('/customer/api/import', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify(importData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`服务器响应错误: ${response.status} ${response.statusText}`);
+                }
+                progressBar.style.width = '50%';
+                return response.json();
+            })
+            .then(data => {
+                // 更新进度条为100%
+                progressBar.style.width = '100%';
+                
+                if (!data || !data.success) {
+                    throw new Error(data?.message || '服务器返回了错误的数据格式');
+                }
+                
+                // 显示结果
+                resultDiv.className = 'alert alert-success mt-3';
+                resultDiv.textContent = data.message;
+                resultDiv.style.display = 'block';
+                
+                // 显示错误详情(如果有)
+                const errorDetailsDiv = document.getElementById('importErrorDetails');
+                const errorDetailsBody = document.getElementById('errorDetailsTableBody');
+                
+                if (data && data.data && data.data.error_details && data.data.error_details.length > 0) {
+                    // 清空原有内容
+                    errorDetailsBody.innerHTML = '';
+                    
+                    // 添加每条错误记录
+                    data.data.error_details.forEach(error => {
+                        const row = document.createElement('tr');
+                        
+                        // 确保显示空字符串而不是'none'或undefined
+                        const displayValue = (val) => {
+                            if (val === undefined || val === null || val === 'none' || (val.toString && val.toString().toLowerCase() === 'none')) {
+                                return '';
+                            }
+                            return val;
+                        };
+                        
+                        const companyName = error.record && error.record.company_name ? displayValue(error.record.company_name) : '未知';
+                        const reason = displayValue(error.reason) || '未知错误';
+                        
+                        row.innerHTML = `
+                            <td>${companyName}</td>
+                            <td>${reason}</td>
+                        `;
+                        
+                        errorDetailsBody.appendChild(row);
+                    });
+                    
+                    // 显示错误详情区域
+                    errorDetailsDiv.style.display = 'block';
+                } else {
+                    // 隐藏错误详情区域
+                    errorDetailsDiv.style.display = 'none';
+                }
+                
+                // 禁用导入按钮并设置延时刷新
+                importBtn.disabled = true;
+                parseExcelBtn.disabled = true;
+                
+                setTimeout(() => {
+                    window.location.reload();
+                }, 3000);
+            })
+            .catch(error => {
+                console.error('导入失败:', error);
+                progressBar.style.width = '100%';
+                progressBar.classList.add('bg-danger');
+                
+                resultDiv.className = 'alert alert-danger mt-3';
+                resultDiv.textContent = '导入过程中发生错误: ' + error.message;
+                resultDiv.style.display = 'block';
+                
+                // 显示错误详情(如果有)
+                const errorDetailsDiv = document.getElementById('importErrorDetails');
+                const errorDetailsBody = document.getElementById('errorDetailsTableBody');
+                
+                if (error.response) {
+                    error.response.json().then(data => {
+                        if (data && data.data && data.data.error_details && data.data.error_details.length > 0) {
+                            // 清空原有内容
+                            errorDetailsBody.innerHTML = '';
+                            
+                            // 添加每条错误记录
+                            data.data.error_details.forEach(error => {
+                                const row = document.createElement('tr');
+                                
+                                // 确保显示空字符串而不是'none'或undefined
+                                const displayValue = (val) => {
+                                    if (val === undefined || val === null || val === 'none' || (val.toString && val.toString().toLowerCase() === 'none')) {
+                                        return '';
+                                    }
+                                    return val;
+                                };
+                                
+                                const companyName = error.record && error.record.company_name ? displayValue(error.record.company_name) : '未知';
+                                const reason = displayValue(error.reason) || '未知错误';
+                                
+                                row.innerHTML = `
+                                    <td>${companyName}</td>
+                                    <td>${reason}</td>
+                                `;
+                                
+                                errorDetailsBody.appendChild(row);
+                            });
+                            
+                            // 显示错误详情区域
+                            errorDetailsDiv.style.display = 'block';
+                        }
+                    }).catch(e => {
+                        console.error('无法解析错误响应:', e);
+                    });
+                }
+            });
+        });
+    }
+});
+
+// 企业搜索功能
+function initCompanySearch() {
+    const companyInput = document.getElementById('companySearch');
+    const companyResults = document.getElementById('companySearchResults');
+    const companySearchBtn = document.getElementById('searchCompany');
+    let companyDebounceTimer;
+    
+    // 输入事件处理
+    companyInput.addEventListener('input', function() {
+        clearTimeout(companyDebounceTimer);
+        const keyword = this.value.trim();
+        
+        // 如果输入为空，隐藏结果
+        if (keyword.length < 1) {
+            companyResults.classList.remove('show');
+            return;
+        }
+        
+        // 设置延迟，避免频繁请求
+        companyDebounceTimer = setTimeout(function() {
+            // 发送AJAX请求
+            fetch(`/customer/api/company/search?keyword=${encodeURIComponent(keyword)}`, {
+                headers: {
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    // 清空结果容器
+                    companyResults.innerHTML = '';
+                    
+                    // 添加标题
+                    const headerDiv = document.createElement('div');
+                    headerDiv.className = 'suggestions-header';
+                    headerDiv.textContent = '企业搜索结果';
+                    companyResults.appendChild(headerDiv);
+                    
+                    // 添加结果项
+                    data.results.forEach(company => {
+                        const item = document.createElement('div');
+                        item.className = 'dropdown-item company-search-item';
+                        
+                        // 创建内容区
+                        const contentDiv = document.createElement('div');
+                        contentDiv.style.display = 'inline';
+                        
+                        // 添加企业名称
+                        const nameSpan = document.createElement('span');
+                        nameSpan.className = 'company-name';
+                        nameSpan.textContent = company.name;
+                        contentDiv.appendChild(nameSpan);
+                        
+                        // 添加地区信息
+                        if (company.location || (company.country && company.region)) {
+                            const locationSpan = document.createElement('span');
+                            locationSpan.className = 'company-location';
+                            const locationText = company.location || 
+                                                 ((company.country || '') + 
+                                                 (company.region ? ' ' + company.region : ''));
+                            locationSpan.textContent = ` | ${locationText}`;
+                            contentDiv.appendChild(locationSpan);
+                        }
+                        
+                        // 添加拥有者信息
+                        if (company.owner_name) {
+                            const ownerSpan = document.createElement('span');
+                            ownerSpan.className = 'company-owner';
+                            ownerSpan.textContent = ` | ${company.owner_name}`;
+                            contentDiv.appendChild(ownerSpan);
+                        }
+                        
+                        // 添加企业访问权限视觉提示
+                        if (!company.has_permission) {
+                            const permissionBadge = document.createElement('span');
+                            permissionBadge.className = 'badge bg-secondary ms-2';
+                            permissionBadge.textContent = '只读';
+                            contentDiv.appendChild(permissionBadge);
+                        }
+                        
+                        // 添加点击事件处理，点击搜索结果项直接跳转到企业详情页
+                        item.addEventListener('click', function() {
+                            window.location.href = `/customer/${company.id}/view`;
+                        });
+                        
+                        item.appendChild(contentDiv);
+                        companyResults.appendChild(item);
+                    });
+                    
+                    // 添加提示信息
+                    if (data.results.length > 0) {
+                        const noticeDiv = document.createElement('div');
+                        noticeDiv.className = 'reference-notice';
+                        noticeDiv.textContent = '点击企业名称可直接查看详情';
+                        companyResults.appendChild(noticeDiv);
+                    } else {
+                        const noticeDiv = document.createElement('div');
+                        noticeDiv.className = 'reference-notice';
+                        noticeDiv.textContent = '没有找到匹配的企业';
+                        companyResults.appendChild(noticeDiv);
+                    }
+                    
+                    // 显示下拉列表
+                    companyResults.classList.add('show');
+                })
+                .catch(error => {
+                    console.error('搜索企业出错:', error);
+                    companyResults.classList.remove('show');
+                });
+        }, 200);
+    });
+    
+    // 处理点击事件
+    companySearchBtn.addEventListener('click', function() {
+        const searchTerm = companyInput.value.trim();
+        if (searchTerm) {
+            window.location.href = `/customer/?search=${encodeURIComponent(searchTerm)}`;
+        }
+    });
+    
+    // 处理回车键
+    companyInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            companySearchBtn.click();
+        }
+    });
+    
+    // 处理焦点事件
+    companyInput.addEventListener('focus', function() {
+        if (this.value.trim().length >= 1) {
+            companyResults.classList.add('show');
+        }
+    });
+    
+    // 点击其他区域隐藏结果
+    document.addEventListener('click', function(event) {
+        if (!companyInput.contains(event.target) && 
+            !companyResults.contains(event.target)) {
+            companyResults.classList.remove('show');
+        }
+    });
+}
+
+// 联系人搜索功能
+function initContactSearch() {
+    const contactInput = document.getElementById('contactSearch');
+    const contactResults = document.getElementById('contactSearchResults');
+    const contactSearchBtn = document.getElementById('searchContact');
+    let contactDebounceTimer;
+    
+    // 输入事件处理
+    contactInput.addEventListener('input', function() {
+        clearTimeout(contactDebounceTimer);
+        const keyword = this.value.trim();
+        
+        // 如果输入为空，隐藏结果
+        if (keyword.length < 1) {
+            contactResults.classList.remove('show');
+            return;
+        }
+        
+        // 设置延迟，避免频繁请求
+        contactDebounceTimer = setTimeout(function() {
+            // 发送AJAX请求
+            fetch(`/customer/api/contacts/search_by_name?keyword=${encodeURIComponent(keyword)}`, {
+                headers: {
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                contactResults.innerHTML = '';
+                
+                if (data.results && data.results.length > 0) {
+                    // 显示结果下拉菜单
+                    contactResults.classList.add('show');
+                    
+                    // 添加结果项
+                    data.results.forEach(contact => {
+                        const item = document.createElement('a');
+                        item.className = 'dropdown-item d-flex justify-content-between align-items-center';
+                        item.href = 'javascript:void(0)';
+                        
+                        // 添加联系人姓名和所属企业
+                        item.innerHTML = `<span>${contact.name}</span><small class="text-muted ms-2">(${contact.company_name})</small>`;
+                        
+                        // 设置样式和权限标记
+                        if (!contact.can_view_enterprise) {
+                            item.classList.add('text-muted');
+                            item.title = "该联系人所属企业不在您的访问范围内";
+                            item.style.cursor = 'not-allowed';
+                            item.innerHTML += '<span class="badge bg-secondary ms-2">无权限</span>';
+                        } else {
+                            // 有权限的联系人点击事件处理
+                            item.addEventListener('click', function() {
+                                contactInput.value = contact.name;
+                                contactResults.classList.remove('show');
+                                window.location.href = `/customer/${contact.company_id}/view`;
+                            });
+                        }
+                        
+                        contactResults.appendChild(item);
+                    });
+                } else {
+                    contactResults.classList.remove('show');
+                }
+            })
+            .catch(error => {
+                console.error('搜索联系人出错:', error);
+                contactResults.classList.remove('show');
+            });
+        }, 150); // 减少延迟时间，提高响应速度
+    });
+    
+    // 处理点击事件
+    contactSearchBtn.addEventListener('click', function() {
+        const searchTerm = contactInput.value.trim();
+        if (searchTerm) {
+            window.location.href = `/customer/search_contacts?search=${encodeURIComponent(searchTerm)}`;
+        }
+    });
+    
+    // 处理回车键
+    contactInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            contactSearchBtn.click();
+        }
+    });
+    
+    // 处理焦点事件
+    contactInput.addEventListener('focus', function() {
+        if (this.value.trim().length >= 1) {
+            contactResults.classList.add('show');
+        }
+    });
+    
+    // 点击其他区域隐藏联系人结果
+    document.addEventListener('click', function(event) {
+        if (!contactInput.contains(event.target) && 
+            !contactResults.contains(event.target)) {
+            contactResults.classList.remove('show');
+        }
+    });
+}
+
+// 添加无权限企业到列表
+function addNoPermissionCompanyToList(company) {
+    // 检查表格是否存在
+    const table = document.querySelector('.table tbody');
+    if (!table) return;
+    
+    // 检查是否已经存在相同ID的企业
+    const existingRow = document.querySelector(`tr[data-company-id="${company.id}"]`);
+    if (existingRow) {
+        // 如果已存在，高亮显示
+        existingRow.classList.add('table-warning');
+        setTimeout(() => existingRow.classList.remove('table-warning'), 2000);
+        return;
+    }
+    
+    // 创建新行
+    const newRow = document.createElement('tr');
+    newRow.dataset.companyId = company.id;
+    newRow.className = 'no-permission-company';
+    
+    // 设置单元格内容
+    newRow.innerHTML = `
+        <td class="px-3"><span class="badge bg-info">--</span></td>
+        <td class="px-3 text-muted">
+            <span title="该企业不在您的权限范围，无法访问详情">${company.name}</span>
+        </td>
+        <td class="px-3">--</td>
+        <td class="px-3">--</td>
+        <td class="px-3">--</td>
+        <td class="px-3">--</td>
+        <td class="px-3">--</td>
+        <td class="px-3">--</td>
+        <td class="px-3"><span class="badge bg-secondary">未知</span></td>
+        <td class="px-3">--</td>
+        <td class="px-3">--</td>
+        <td class="px-3">--</td>
+        <td class="px-3">
+            <div class="btn-group btn-group-sm">
+                <span class="text-muted small">无权限操作</span>
+            </div>
+        </td>
+    `;
+    
+    // 添加新行到表格顶部
+    table.insertBefore(newRow, table.firstChild);
+    
+    // 短暂高亮显示然后恢复
+    newRow.classList.add('table-warning');
+    setTimeout(() => newRow.classList.remove('table-warning'), 2000);
+}
+
+// 多选删除功能
+document.addEventListener('DOMContentLoaded', function() {
+    // 全选/取消全选
+    const selectAllCheckbox = document.getElementById('selectAll');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            const checkboxes = document.querySelectorAll('.company-checkbox:not(:disabled)');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+            });
+            updateBatchDeleteButton();
+        });
+    }
+    
+    // 单个选择框变化
+    const companyCheckboxes = document.querySelectorAll('.company-checkbox');
+    companyCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            updateBatchDeleteButton();
+            
+            // 检查是否所有可选的都被选中了
+            const allEnabled = document.querySelectorAll('.company-checkbox:not(:disabled)');
+            const allChecked = document.querySelectorAll('.company-checkbox:not(:disabled):checked');
+            
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = allEnabled.length === allChecked.length && allEnabled.length > 0;
+                selectAllCheckbox.indeterminate = allChecked.length > 0 && allChecked.length < allEnabled.length;
+            }
+        });
+    });
+    
+    // 更新批量删除按钮状态
+    function updateBatchDeleteButton() {
+        const batchDeleteBtn = document.getElementById('batchDeleteBtn');
+        if (batchDeleteBtn) {
+            const checked = document.querySelectorAll('.company-checkbox:checked');
+            batchDeleteBtn.style.display = checked.length > 0 ? 'inline-block' : 'none';
+            
+            // 更新删除按钮文本
+            if (checked.length > 0) {
+                batchDeleteBtn.innerHTML = `<i class="fas fa-trash"></i> 批量删除 (${checked.length})`;
+            }
+        }
+    }
+    
+    // 批量删除按钮点击事件
+    const batchDeleteBtn = document.getElementById('batchDeleteBtn');
+    if (batchDeleteBtn) {
+        batchDeleteBtn.addEventListener('click', function() {
+            const checked = document.querySelectorAll('.company-checkbox:checked');
+            if (checked.length === 0) return;
+            
+            if (confirm(`确定要删除选中的 ${checked.length} 个企业吗？此操作不可恢复！`)) {
+                const companyIds = Array.from(checked).map(checkbox => checkbox.value);
+                
+                // 发送批量删除请求
+                fetch('{{ url_for("customer.batch_delete_companies") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ company_ids: companyIds })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`成功删除 ${data.deleted_count} 个企业！`);
+                        location.reload(); // 刷新页面
+                    } else {
+                        alert(`删除失败：${data.message}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('批量删除出错:', error);
+                    alert('批量删除请求失败，请重试');
+                });
+            }
+        });
+    }
+});
+
+// 导入联系人功能
+const importContactsBtn = document.getElementById('importContacts');
+const contactImportModal = new bootstrap.Modal(document.getElementById('importContactModal'));
+const contactOwnerSelect = document.getElementById('contactOwnerSelect');
+const contactExcelFileInput = document.getElementById('contactExcelFile');
+const parseContactExcelBtn = document.getElementById('parseContactExcelBtn');
+const importContactBtn = document.getElementById('importContactBtn');
+const contactPreviewDiv = document.getElementById('contactImportPreview');
+const contactConflictsDiv = document.getElementById('contactImportConflicts');
+const contactProgressDiv = document.getElementById('contactImportProgress');
+const contactResultDiv = document.getElementById('contactImportResult');
+const companyNotFoundDiv = document.getElementById('companyNotFoundDetails');
+const contactErrorDetailsDiv = document.getElementById('contactImportErrorDetails');
+const overrideAllConflictsBtn = document.getElementById('overrideAllConflicts');
+const keepAllContactConflictsBtn = document.getElementById('keepAllContactConflicts');
+
+let parsedContactData = [];
+let contactConflicts = [];
+let contactConflictActions = {};
+let companyNotFound = [];
+
+// 打开联系人导入模态框
+if (importContactsBtn) {
+    importContactsBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        
+        // 重置状态
+        document.getElementById('importContactForm').reset();
+        contactPreviewDiv.style.display = 'none';
+        contactConflictsDiv.style.display = 'none';
+        contactProgressDiv.style.display = 'none';
+        contactResultDiv.style.display = 'none';
+        companyNotFoundDiv.style.display = 'none';
+        contactErrorDetailsDiv.style.display = 'none';
+        importContactBtn.style.display = 'none';
+        parsedContactData = [];
+        contactConflicts = [];
+        contactConflictActions = {};
+        companyNotFound = [];
+        
+        // 加载用户列表（分组+真实姓名）
+        loadUsers(contactOwnerSelect);
+        
+        // 显示模态框
+        contactImportModal.show();
+    });
+}
+
+// 通用加载用户列表函数
+function loadUsers(selectElement) {
+    fetch('/api/users/hierarchical', {
+        headers: {
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+        }
+    })
+        .then(response => response.json())
+        .then(data => {
+            selectElement.innerHTML = '<option value="">请选择...</option>';
+        if (data.success) {
+            data.data.forEach(company => {
+                const companyOptgroup = document.createElement('optgroup');
+                companyOptgroup.label = company.name + ' (企业)';
+                company.users.forEach(user => {
+                const option = document.createElement('option');
+                option.value = user.id;
+                    option.textContent = user.name;
+                    companyOptgroup.appendChild(option);
+            });
+                selectElement.appendChild(companyOptgroup);
+            });
+        }
+        })
+        .catch(error => console.error('加载用户失败:', error));
+}
+
+// 解析联系人Excel文件
+if (parseContactExcelBtn) {
+    parseContactExcelBtn.addEventListener('click', function() {
+        const fileInput = document.getElementById('contactExcelFile');
+        const ownerIdSelect = document.getElementById('contactOwnerSelect');
+        
+        if (!ownerIdSelect.value) {
+            alert('请选择归属账户');
+            return;
+        }
+        
+        if (!fileInput.files.length) {
+            alert('请选择Excel文件');
+            return;
+        }
+        
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                // 联系人表
+                const contactSheetName = workbook.SheetNames.find(name => name.toLowerCase().includes('contact database'));
+                if (!contactSheetName) {
+                    alert('未找到名为"contact database"的工作表');
+                    return;
+                }
+                const contactWorksheet = workbook.Sheets[contactSheetName];
+                const contactJsonData = XLSX.utils.sheet_to_json(contactWorksheet);
+                // 行动记录表
+                const actionSheetName = workbook.SheetNames.find(name => name.toLowerCase().includes('contact detail'));
+                let actionJsonData = [];
+                if (actionSheetName) {
+                    const actionWorksheet = workbook.Sheets[actionSheetName];
+                    actionJsonData = XLSX.utils.sheet_to_json(actionWorksheet);
+                }
+                // 解析联系人
+                parsedContactData = contactJsonData.map(row => {
+                    console.log("解析联系人行数据:", row);
+                    let createdAt = null;
+                    
+                    // 尝试解析创建时间
+                    if (row['创建时间']) {
+                        try {
+                            // 增强日期格式处理
+                            let dateValue = row['创建时间'];
+                            console.log("原始Excel日期值:", dateValue, "类型:", typeof dateValue);
+                            
+                            // 检查是否为Excel数值日期（自1900年以来的天数）
+                            if (typeof dateValue === 'number' || (typeof dateValue === 'string' && !isNaN(dateValue) && dateValue.trim() !== '')) {
+                                // 尝试将Excel数值日期转换为JS日期
+                                let excelDateValue = parseFloat(dateValue);
+                                if (excelDateValue > 59) { // 1900年2月28日之后
+                                    excelDateValue -= 1;
+                                }
+                                const millisecondsPerDay = 24 * 60 * 60 * 1000;
+                                let jsDate = new Date(Date.UTC(1900, 0, 1) + excelDateValue * millisecondsPerDay);
+                                if (jsDate.toString() !== 'Invalid Date') {
+                                    createdAt = jsDate;
+                                    console.log("从Excel数值转换:", dateValue, "->", createdAt);
+                                }
+                            } else if (typeof dateValue === 'string') {
+                                // 尝试常见日期格式
+                                createdAt = new Date(dateValue);
+                                if (createdAt.toString() === 'Invalid Date') {
+                                    // 尝试解析DD/MM/YYYY格式
+                                    const parts = dateValue.split(/[\/-]/);
+                                    if (parts.length === 3) {
+                                        // 尝试DD/MM/YYYY
+                                        if (parts[0].length <= 2 && parts[1].length <= 2) {
+                                            createdAt = new Date(parts[2], parts[1]-1, parts[0]);
+                                        }
+                                        // 尝试MM/DD/YYYY
+                                        else if (parts[1].length <= 2 && parts[0].length <= 2) {
+                                            createdAt = new Date(parts[2], parts[0]-1, parts[1]);
+                                        }
+                                        // 尝试YYYY/MM/DD
+                                        else if (parts[0].length === 4) {
+                                            createdAt = new Date(parts[0], parts[1]-1, parts[2]);
+                                        }
+                                        console.log("从分割格式转换:", dateValue, "->", createdAt);
+                                    }
+                                }
+                            }
+                            
+                            if (createdAt && createdAt.toString() !== 'Invalid Date') {
+                                console.log("最终解析后的日期:", createdAt, "ISO格式:", createdAt.toISOString());
+                            } else {
+                                console.error("无法解析日期，使用当前时间");
+                                createdAt = new Date();
+                            }
+                        } catch (e) {
+                            console.error("创建时间解析错误:", e);
+                            createdAt = new Date();
+                        }
+                    } else {
+                        createdAt = new Date();
+                    }
+                    
+                    return {
+                        company_name: row['公司名称'] || '',
+                        name: row['联系人'] || '',
+                        department: row['部门'] ? (row['部门'].toString().toLowerCase() === 'none' ? '' : row['部门']) : '',
+                        position: row['职位'] ? (row['职位'].toString().toLowerCase() === 'none' ? '' : row['职位']) : '',
+                        phone: row['联系电话'] ? (row['联系电话'].toString().toLowerCase() === 'none' ? '' : row['联系电话']) : '',
+                        email: row['邮件信箱'] ? (row['邮件信箱'].toString().toLowerCase() === 'none' ? '' : row['邮件信箱']) : '',
+                        created_at: createdAt.toISOString(), // 明确转换为ISO字符串
+                        owner_id: parseInt(ownerIdSelect.value)
+                    };
+                });
+                // 解析行动记录
+                let parsedActionData = [];
+                let unmatchedActions = [];
+                if (actionJsonData.length > 0) {
+                    parsedActionData = actionJsonData.map(row => {
+                        return {
+                            contact_name: row['联系人'] || '',
+                            company_name: row['关联公司'] || '',
+                            project_name: row['关联机会'] || '',
+                            date: row['沟通日期'] || '',
+                            communication: row['沟通详情'] || '',
+                            owner_name: row['填写人'] || '',
+                            created_at: row['沟通日期'] || ''
+                        };
+                    });
+                    // 匹配联系人
+                    parsedContactData.forEach(contact => {
+                        contact.action_records = [];
+                    });
+                    parsedActionData.forEach(action => {
+                        const match = parsedContactData.find(c => c.name === action.contact_name && c.company_name === action.company_name);
+                        if (match) {
+                            match.action_records = match.action_records || [];
+                            match.action_records.push(action);
+                        } else {
+                            unmatchedActions.push(action);
+                        }
+                    });
+                }
+                
+                // 显示预览
+                const previewBody = document.getElementById('contactPreviewTableBody');
+                previewBody.innerHTML = '';
+                parsedContactData.slice(0, 5).forEach(item => {
+                    const row = document.createElement('tr');
+                    // 确保显示空字符串而不是'none'或undefined
+                    const displayValue = (val) => {
+                        if (val === undefined || val === null || val === 'none' || (val.toString && val.toString().toLowerCase() === 'none')) {
+                            return '';
+                        }
+                        return val;
+                    };
+                    
+                    row.innerHTML = `
+                        <td>${displayValue(item.company_name)}</td>
+                        <td>${displayValue(item.name)}</td>
+                        <td>${displayValue(item.department)}</td>
+                        <td>${displayValue(item.position)}</td>
+                        <td>${displayValue(item.phone)}</td>
+                        <td>${displayValue(item.email)}</td>
+                        <td>${new Date(item.created_at).toLocaleString()}</td>
+                        <td>${item.action_records ? item.action_records.length : 0}</td>
+                    `;
+                    previewBody.appendChild(row);
+                });
+                
+                // 显示预览部分
+                contactPreviewDiv.style.display = 'block';
+                
+                // 更新导入统计信息
+                document.getElementById('totalContactsCount').textContent = parsedContactData.length;
+                document.getElementById('companyNotFoundCount').textContent = '0'; // 初始化为0，后续在检测冲突时更新
+                
+                // 检查公司是否存在，并检查联系人冲突
+                detectContactConflicts();
+                
+                // 新增：显示无法匹配的行动记录数量
+                if (unmatchedActions.length > 0) {
+                    const actionUnmatchedDiv = document.getElementById('actionUnmatchedDetails');
+                    if (actionUnmatchedDiv) {
+                        actionUnmatchedDiv.style.display = 'block';
+                        actionUnmatchedDiv.innerHTML = `<div class='alert alert-warning'>有 ${unmatchedActions.length} 条行动记录无法匹配到联系人，将不会导入。</div>`;
+                    }
+                }
+                
+                // 保存到全局变量，供后续导入
+                window.parsedActionData = parsedActionData;
+                window.unmatchedActions = unmatchedActions;
+            } catch (error) {
+                console.error('解析Excel出错:', error);
+                alert('解析Excel文件失败：' + error.message);
+            }
+        };
+        
+        reader.onerror = function() {
+            alert('读取文件失败');
+        };
+        
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+// 检测联系人冲突和公司存在性
+function detectContactConflicts() {
+    if (!parsedContactData.length) return;
+    
+    // 清空上次结果
+    companyNotFound = [];
+    contactConflicts = [];
+    contactConflictActions = {};
+    
+    // 获取所有企业名称
+    const companyNames = [...new Set(parsedContactData.map(item => item.company_name))];
+    
+    // 验证公司和联系人
+    fetch('/customer/api/check-contact-duplicates', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+        },
+        body: JSON.stringify({
+            contacts: parsedContactData,
+            company_names: companyNames
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 处理公司不存在的情况
+            companyNotFound = data.company_not_found || [];
+            
+            // 更新未找到绑定公司的记录数量
+            document.getElementById('companyNotFoundCount').textContent = companyNotFound.length;
+            
+            // 处理联系人冲突
+            contactConflicts = data.conflicts || [];
+            
+            // 显示公司不存在详情
+            if (companyNotFound.length > 0) {
+                const notFoundBody = document.getElementById('companyNotFoundTableBody');
+                notFoundBody.innerHTML = '';
+                
+                companyNotFound.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${item.name || '未知'}</td>
+                        <td>${item.company_name || '未知'}</td>
+                        <td>系统中未找到完全匹配的企业名称</td>
+                    `;
+                    notFoundBody.appendChild(row);
+                });
+                
+                companyNotFoundDiv.style.display = 'block';
+            } else {
+                companyNotFoundDiv.style.display = 'none';
+            }
+            
+            // 显示联系人冲突
+            if (contactConflicts.length > 0) {
+                const conflictsBody = document.getElementById('contactConflictsTableBody');
+                conflictsBody.innerHTML = '';
+                
+                contactConflicts.forEach((conflict, index) => {
+                    // 默认选择保留现有数据
+                    contactConflictActions[conflict.contact_key] = 'keep';
+                    
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-primary btn-action" data-key="${conflict.contact_key}" data-action="override">覆盖</button>
+                                <button type="button" class="btn btn-outline-success btn-action active" data-key="${conflict.contact_key}" data-action="keep">保留</button>
+                            </div>
+                        </td>
+                        <td>${conflict.import_contact.name}</td>
+                        <td>${conflict.import_contact.company_name}</td>
+                        <td>${conflict.existing_contact.name}</td>
+                    `;
+                    conflictsBody.appendChild(row);
+                });
+                
+                // 更新冲突摘要
+                document.getElementById('contactConflictsSummary').innerHTML = `
+                    <strong>冲突摘要:</strong> 发现 ${contactConflicts.length} 个重复联系人，
+                    已默认选择保留现有数据，如需覆盖请点击相应按钮。
+                `;
+                
+                // 添加冲突操作按钮事件
+                document.querySelectorAll('#contactConflictsTableBody .btn-action').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const key = this.dataset.key;
+                        const action = this.dataset.action;
+                        
+                        // 更新操作状态
+                        contactConflictActions[key] = action;
+                        
+                        // 更新按钮状态
+                        const parentGroup = this.closest('.btn-group');
+                        parentGroup.querySelectorAll('.btn-action').forEach(b => {
+                            b.classList.remove('active');
+                        });
+                        this.classList.add('active');
+                    });
+                });
+                
+                contactConflictsDiv.style.display = 'block';
+            } else {
+                contactConflictsDiv.style.display = 'none';
+            }
+            
+            // 处理批量操作
+            if (overrideAllConflictsBtn) {
+                overrideAllConflictsBtn.addEventListener('click', function() {
+                    contactConflicts.forEach(conflict => {
+                        contactConflictActions[conflict.contact_key] = 'override';
+                    });
+                    
+                    // 更新UI
+                    document.querySelectorAll('#contactConflictsTableBody .btn-action').forEach(btn => {
+                        btn.classList.remove('active');
+                        if (btn.dataset.action === 'override') {
+                            btn.classList.add('active');
+                        }
+                    });
+                    
+                    alert('已设置全部冲突联系人为覆盖模式');
+                });
+            }
+            
+            if (keepAllContactConflictsBtn) {
+                keepAllContactConflictsBtn.addEventListener('click', function() {
+                    contactConflicts.forEach(conflict => {
+                        contactConflictActions[conflict.contact_key] = 'keep';
+                    });
+                    
+                    // 更新UI
+                    document.querySelectorAll('#contactConflictsTableBody .btn-action').forEach(btn => {
+                        btn.classList.remove('active');
+                        if (btn.dataset.action === 'keep') {
+                            btn.classList.add('active');
+                        }
+                    });
+                    
+                    alert('已设置全部冲突联系人为保留模式');
+                });
+            }
+            
+            // 显示导入按钮
+            if (companyNotFound.length === 0) {
+                importContactBtn.style.display = 'block';
+            } else {
+                importContactBtn.style.display = 'none';
+                alert('有联系人所属的公司在系统中不存在，请先解决这些问题再导入');
+            }
+        } else {
+            alert('检查冲突失败: ' + (data.message || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('检查联系人冲突出错:', error);
+        alert('检查冲突请求失败，请重试');
+    });
+}
+
+// 导入联系人确认
+if (importContactBtn) {
+    importContactBtn.addEventListener('click', function() {
+        if (!confirm('确定要导入这些联系人吗？')) return;
+        
+        // 显示进度条
+        contactProgressDiv.style.display = 'block';
+        contactProgressDiv.querySelector('.progress-bar').style.width = '30%';
+        
+        // 发送导入请求
+        fetch('/customer/api/import-contacts', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify({
+                contacts: parsedContactData,
+                conflict_actions: contactConflictActions,
+                owner_id: document.getElementById('contactOwnerSelect').value,
+                action_records: window.parsedActionData || []
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // 更新进度条
+            contactProgressDiv.querySelector('.progress-bar').style.width = '100%';
+            
+            // 显示结果
+            contactResultDiv.style.display = 'block';
+            
+            if (data.success) {
+                contactResultDiv.className = 'alert alert-success mt-3';
+                contactResultDiv.innerHTML = `
+-                    <h6><i class="fas fa-check-circle"></i> 导入成功!</h6>
+-                    <p>成功导入 ${data.data.imported} 个联系人，更新 ${data.data.updated} 个联系人，跳过 ${data.data.skipped} 个联系人，错误 ${data.data.error} 个。</p>
+                     <h6 class="alert-heading"><i class="fas fa-check-circle"></i> 导入成功!</h6>
+                     <div class="row mt-2">
+                        <div class="col-md-3">
+                            <div class="card border-success">
+                                <div class="card-body text-center p-2">
+                                    <h5 class="card-title mb-0">${data.data.imported}</h5>
+                                    <p class="card-text small">成功导入</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-primary">
+                                <div class="card-body text-center p-2">
+                                    <h5 class="card-title mb-0">${data.data.updated}</h5>
+                                    <p class="card-text small">已更新</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-info">
+                                <div class="card-body text-center p-2">
+                                    <h5 class="card-title mb-0">${data.data.skipped}</h5>
+                                    <p class="card-text small">已跳过</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card ${data.data.error > 0 ? 'border-danger' : 'border-secondary'}">
+                                <div class="card-body text-center p-2">
+                                    <h5 class="card-title mb-0">${data.data.error}</h5>
+                                    <p class="card-text small">错误</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="mt-2 mb-0">
+                        <small>总计处理 ${data.data.total} 条记录，其中 ${data.data.notFoundCount || 0} 条因找不到匹配企业而未处理。</small>
+                    </p>
+                `;
+                
+                // 显示错误详情（如果有）
+                if (data.data.error > 0 && data.data.error_details && data.data.error_details.length > 0) {
+                    const errorTableBody = document.getElementById('contactErrorDetailsTableBody');
+                    errorTableBody.innerHTML = '';
+                    
+                    data.data.error_details.forEach(err => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${err.record?.name || '未知'}</td>
+                            <td>${err.record?.company_name || '未知'}</td>
+                            <td>${err.reason || '未知错误'}</td>
+                        `;
+                        errorTableBody.appendChild(row);
+                    });
+                    
+                    contactErrorDetailsDiv.style.display = 'block';
+                } else {
+                    contactErrorDetailsDiv.style.display = 'none';
+                }
+                
+                // 禁用导入按钮
+                importContactBtn.disabled = true;
+            } else {
+                contactResultDiv.className = 'alert alert-danger mt-3';
+                contactResultDiv.innerHTML = `
+                    <h6><i class="fas fa-exclamation-circle"></i> 导入失败!</h6>
+                    <p>${data.message || '未知错误'}</p>
+                `;
+                
+                // 显示错误详情（如果有）
+                if (data.data && data.data.error_details && data.data.error_details.length > 0) {
+                    const errorTableBody = document.getElementById('contactErrorDetailsTableBody');
+                    errorTableBody.innerHTML = '';
+                    
+                    data.data.error_details.forEach(err => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${err.record?.name || '未知'}</td>
+                            <td>${err.record?.company_name || '未知'}</td>
+                            <td>${err.reason || '未知错误'}</td>
+                        `;
+                        errorTableBody.appendChild(row);
+                    });
+                    
+                    contactErrorDetailsDiv.style.display = 'block';
+                }
+            }
+            // 新增：显示行动记录导入结果
+            if (data.data && data.data.action_import_result) {
+                contactResultDiv.innerHTML += `<div class='alert alert-info mt-2'>行动记录导入：成功 ${data.data.action_import_result.success} 条，失败 ${data.data.action_import_result.failed} 条。</div>`;
+            }
+        })
+        .catch(error => {
+            console.error('导入联系人出错:', error);
+            contactProgressDiv.querySelector('.progress-bar').style.width = '100%';
+            
+            contactResultDiv.className = 'alert alert-danger mt-3';
+            contactResultDiv.style.display = 'block';
+            contactResultDiv.innerHTML = `
+                <h6><i class="fas fa-exclamation-circle"></i> 导入请求失败!</h6>
+                <p>请检查网络连接并重试</p>
+            `;
+        });
+    });
+}
+
+// 批量删除按钮逻辑
+const checkboxes = document.querySelectorAll('.company-checkbox');
+const selectAllCheckbox = document.getElementById('selectAll');
+const batchDeleteBtn = document.getElementById('batchDeleteBtn');
+
+// 更新批量删除按钮显示状态的函数
+function updateBatchDeleteButtonVisibility() {
+    const checkedCount = document.querySelectorAll('.company-checkbox:checked').length;
+    
+    if (checkedCount > 0) {
+        batchDeleteBtn.style.display = 'inline-block';
+        // 添加动画效果
+        batchDeleteBtn.style.animation = 'fadeInRight 0.3s ease forwards';
+    } else {
+        // 添加淡出动画
+        batchDeleteBtn.style.animation = 'fadeOutRight 0.3s ease forwards';
+        setTimeout(() => {
+            if (document.querySelectorAll('.company-checkbox:checked').length === 0) {
+                batchDeleteBtn.style.display = 'none';
+            }
+        }, 300);
+    }
+    
+    // 更新删除按钮文本
+    if (batchDeleteBtn) {
+        batchDeleteBtn.innerHTML = `<i class="fas fa-trash"></i> 批量删除 (${checkedCount})`;
+    }
+}
+
+// 全选checkbox的点击事件
+if (selectAllCheckbox) {
+    selectAllCheckbox.addEventListener('change', function() {
+        const isChecked = this.checked;
+        
+        checkboxes.forEach(function(checkbox) {
+            if (!checkbox.disabled) {
+                checkbox.checked = isChecked;
+            }
+        });
+        
+        // 添加脉冲效果给全选
+        if (isChecked) {
+            this.parentElement.classList.add('checkbox-pulse');
+            setTimeout(() => {
+                this.parentElement.classList.remove('checkbox-pulse');
+            }, 1000);
+        }
+        
+        updateBatchDeleteButtonVisibility();
+    });
+}
+
+// 单个checkbox的点击事件
+checkboxes.forEach(function(checkbox) {
+    checkbox.addEventListener('change', updateBatchDeleteButtonVisibility);
+});
+
+// 初始检查
+updateBatchDeleteButtonVisibility();
+</script>
+
+<!-- 添加动画样式 -->
+<style>
+    @keyframes fadeInRight {
+        from {
+            opacity: 0;
+            transform: translateX(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    
+    @keyframes fadeOutRight {
+        from {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        to {
+            opacity: 0;
+            transform: translateX(20px);
+        }
+    }
+    
+    @keyframes checkbox-pulse {
+        0% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.7);
+        }
+        70% {
+            transform: scale(1.05);
+            box-shadow: 0 0 0 10px rgba(13, 110, 253, 0);
+        }
+        100% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 rgba(13, 110, 253, 0);
+        }
+    }
+    
+    .checkbox-pulse {
+        animation: checkbox-pulse 1s cubic-bezier(0.66, 0, 0, 1);
+    }
+</style>
+{% endblock %}

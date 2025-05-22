@@ -1,7 +1,7 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from app import db
-from sqlalchemy import event, Date
+from sqlalchemy import event, Date, text
 from sqlalchemy.exc import SQLAlchemyError
 from app.models.project import Project
 import random
@@ -18,7 +18,7 @@ class Quotation(db.Model):
     project_stage = db.Column(db.String(20))  # 项目阶段：发现、品牌植入、招标前、招标中、中标、失败
     project_type = db.Column(db.String(20))   # 项目类型：销售重点、渠道跟进
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo('Asia/Shanghai')))
-    updated_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo('Asia/Shanghai')), onupdate=lambda: datetime.now(ZoneInfo('Asia/Shanghai')))
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # 所有者字段（关联到用户表）
     owner_id = db.Column(db.Integer, db.ForeignKey('users.id'))
@@ -81,39 +81,47 @@ class Quotation(db.Model):
         """返回格式化的更新时间"""
         return self.updated_at.strftime('%Y-%m-%d') if self.updated_at else ''
 
-    def update_project_quotation_amount(self):
-        """更新关联项目的报价总额"""
-        try:
-            if not self.project_id:
-                return
-                
-            # 计算项目下所有报价单的总额
-            total_amount = db.session.query(
-                db.func.sum(Quotation.amount)
-            ).filter(
-                Quotation.project_id == self.project_id
-            ).scalar() or 0.0
-            
-            # 更新项目的报价总额
-            project = Project.query.get(self.project_id)
-            if project:
-                project.quotation_customer = total_amount
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            print(f"更新项目报价总额时发生错误: {str(e)}")
-            raise
-
 # 添加SQLAlchemy事件监听器
 @event.listens_for(Quotation, 'after_insert')
 @event.listens_for(Quotation, 'after_update')
 def update_project_quotation(mapper, connection, target):
-    """在报价单保存或更新后自动更新项目报价总额"""
-    target.update_project_quotation_amount()
+    """在报价单保存或更新后自动更新项目报价总额和更新时间（北京时间）"""
+    try:
+        if target.project_id:
+            now = datetime.now(ZoneInfo('Asia/Shanghai'))
+            sql = text("""
+                UPDATE projects 
+                SET quotation_customer = (
+                    SELECT COALESCE(SUM(amount), 0.0) 
+                    FROM quotations 
+                    WHERE project_id = :project_id
+                ),
+                updated_at = :now
+                WHERE id = :project_id
+            """)
+            connection.execute(sql, {"project_id": target.project_id, "now": now})
+    except Exception as e:
+        print(f"更新项目报价总额时发生错误: {str(e)}")
 
 @event.listens_for(Quotation, 'after_delete')
 def update_project_quotation_on_delete(mapper, connection, target):
-    """在报价单删除后自动更新项目报价总额"""
-    target.update_project_quotation_amount()
+    """在报价单删除后自动更新项目报价总额和更新时间（北京时间）"""
+    try:
+        if target.project_id:
+            now = datetime.now(ZoneInfo('Asia/Shanghai'))
+            sql = text("""
+                UPDATE projects 
+                SET quotation_customer = (
+                    SELECT COALESCE(SUM(amount), 0.0) 
+                    FROM quotations 
+                    WHERE project_id = :project_id
+                ),
+                updated_at = :now
+                WHERE id = :project_id
+            """)
+            connection.execute(sql, {"project_id": target.project_id, "now": now})
+    except Exception as e:
+        print(f"更新项目报价总额时发生错误: {str(e)}")
 
 class QuotationDetail(db.Model):
     __tablename__ = 'quotation_details'

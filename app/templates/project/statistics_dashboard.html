@@ -23,7 +23,7 @@
                     <div class="row g-3 mb-4">
                         <!-- 有效项目总览卡片 -->
                         <div class="col-md-3">
-                            <div class="card border-0 shadow-sm h-100 bg-light">
+                            <div class="card border-0 shadow-sm h-100 bg-light" id="validProjectsCard" style="cursor:pointer;" onclick="filterValidProjects()">
                                 <div class="card-body">
                                     <h6 class="card-title text-primary">
                                         <i class="fas fa-project-diagram me-1"></i> 有效项目
@@ -47,7 +47,7 @@
                         
                         <!-- 招标项目卡片 -->
                         <div class="col-md-3">
-                            <div class="card border-0 shadow-sm h-100 bg-warning bg-opacity-10">
+                            <div class="card border-0 shadow-sm h-100 bg-warning bg-opacity-10" id="tenderingProjectsCard" style="cursor:pointer;" onclick="filterTenderingProjects()">
                                 <div class="card-body">
                                     <h6 class="card-title text-warning">
                                         <i class="fas fa-file-contract me-1"></i> 招标中
@@ -71,7 +71,7 @@
                         
                         <!-- 中标项目卡片 -->
                         <div class="col-md-3">
-                            <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10">
+                            <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10" id="wonProjectsCard" style="cursor:pointer;" onclick="filterWonProjects()">
                                 <div class="card-body">
                                     <h6 class="card-title text-success">
                                         <i class="fas fa-award me-1"></i> 中标
@@ -95,7 +95,7 @@
                         
                         <!-- 业务推进卡片 -->
                         <div class="col-md-3">
-                            <div class="card border-0 shadow-sm h-100 bg-info bg-opacity-10">
+                            <div class="card border-0 shadow-sm h-100 bg-info bg-opacity-10" id="updatedProjectsCard" style="cursor:pointer;" onclick="filterUpdatedProjects()">
                                 <div class="card-body">
                                     <h6 class="card-title text-info">
                                         <i class="fas fa-chart-line me-1"></i> 业务推进
@@ -200,6 +200,12 @@
 .project-statistics-panel .card {
     border: none;
     box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transition: all 0.2s ease-in-out;
+}
+
+.project-statistics-panel .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
 }
 
 .project-statistics-panel .card-header {
@@ -346,4 +352,895 @@
     max-height: 300px;
     overflow-y: auto;
 }
-</style> 
+
+/* 点击反馈效果 */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(0.98); }
+    100% { transform: scale(1); }
+}
+
+.pulse-effect {
+    animation: pulse 0.3s ease-in-out;
+}
+
+/* 卡片过滤激活状态 */
+.card.active-filter {
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.15) !important;
+}
+
+/* 有效项目卡片激活样式 */
+#validProjectsCard.active-filter {
+    background-color: #e6f0f5 !important;
+    border-left: 4px solid #0d6efd !important;
+}
+
+/* 招标中项目卡片激活样式 */
+#tenderingProjectsCard.active-filter {
+    background-color: #fff8e6 !important;
+    border-left: 4px solid #ffc107 !important;
+}
+
+/* 中标项目卡片激活样式 */
+#wonProjectsCard.active-filter {
+    background-color: #e6f5ec !important;
+    border-left: 4px solid #198754 !important;
+}
+
+/* 业务推进卡片激活样式 */
+#updatedProjectsCard.active-filter {
+    background-color: #e6f5f9 !important;
+    border-left: 4px solid #0dcaf0 !important;
+}
+</style>
+
+<!-- 统计脚本在此处 -->
+<script>
+/**
+ * 过滤有效项目函数，点击有效项目卡片时触发
+ * 有效项目定义为：有授权的项目，且状态不在失败、搁置和成功的项目
+ */
+function filterValidProjects() {
+    // 点击反馈效果
+    const card = document.getElementById('validProjectsCard');
+    
+    // 添加动画效果
+    if (card) {
+        card.classList.add('pulse-effect');
+        setTimeout(() => {
+            card.classList.remove('pulse-effect');
+        }, 300);
+        
+        // 检查当前URL是否已经应用了有效项目过滤
+        const currentUrl = new URL(window.location.href);
+        const params = new URLSearchParams(currentUrl.search);
+        const hasAuthFilter = params.get('filter_has_authorization') === '1';
+        const stageNotFilter = params.get('filter_stage_not') === 'lost,paused,signed';
+        
+        // 如果已经应用了过滤，则取消过滤（切换状态）
+        if (hasAuthFilter && stageNotFilter) {
+            // 移除有效项目的过滤条件
+            params.delete('filter_has_authorization');
+            params.delete('filter_stage_not');
+            
+            // 移除卡片的活跃状态
+            card.classList.remove('active-filter');
+            
+            // 保持统计面板打开状态
+            params.set('keep_panel', 'true');
+            
+            // 重新加载页面以应用筛选条件
+            window.location.href = '/project/?' + params.toString();
+            return;
+        }
+        
+        // 添加卡片的活跃状态
+        card.classList.add('active-filter');
+    }
+    
+    // 构建查询参数，确保包含当前的其他查询条件
+    const currentUrl = new URL(window.location.href);
+    const params = new URLSearchParams(currentUrl.search);
+    
+    // 添加有效项目的过滤条件
+    params.set('filter_has_authorization', '1');  // 有授权编号
+    
+    // 排除失败、搁置和成功的阶段
+    params.set('filter_stage_not', 'lost,paused,signed');
+    
+    // 保持统计面板打开状态
+    params.set('keep_panel', 'true');
+    
+    // 重新加载页面以应用筛选条件
+    window.location.href = '/project/?' + params.toString();
+}
+
+/**
+ * 过滤招标中项目函数，点击招标中卡片时触发
+ */
+function filterTenderingProjects() {
+    // 点击反馈效果
+    const card = document.getElementById('tenderingProjectsCard');
+    
+    // 添加动画效果
+    if (card) {
+        card.classList.add('pulse-effect');
+        setTimeout(() => {
+            card.classList.remove('pulse-effect');
+        }, 300);
+        
+        // 检查当前URL是否已经应用了招标中过滤
+        const currentUrl = new URL(window.location.href);
+        const params = new URLSearchParams(currentUrl.search);
+        const hasCurrentStageFilter = params.get('filter_current_stage') === 'tendering';
+        
+        // 如果已经应用了过滤，则取消过滤（切换状态）
+        if (hasCurrentStageFilter) {
+            // 移除招标中的过滤条件
+            params.delete('filter_current_stage');
+            
+            // 移除卡片的活跃状态
+            card.classList.remove('active-filter');
+            
+            // 保持统计面板打开状态
+            params.set('keep_panel', 'true');
+            
+            // 重新加载页面以应用筛选条件
+            window.location.href = '/project/?' + params.toString();
+            return;
+        }
+        
+        // 添加卡片的活跃状态
+        card.classList.add('active-filter');
+    }
+    
+    // 构建查询参数，确保包含当前的其他查询条件
+    const currentUrl = new URL(window.location.href);
+    const params = new URLSearchParams(currentUrl.search);
+    
+    // 移除可能存在的其他状态过滤器
+    params.delete('filter_current_stage');
+    
+    // 添加招标中的过滤条件
+    params.set('filter_current_stage', 'tendering');
+    
+    // 保持统计面板打开状态
+    params.set('keep_panel', 'true');
+    
+    // 重新加载页面以应用筛选条件
+    window.location.href = '/project/?' + params.toString();
+}
+
+/**
+ * 过滤中标项目函数，点击中标卡片时触发
+ */
+function filterWonProjects() {
+    // 点击反馈效果
+    const card = document.getElementById('wonProjectsCard');
+    
+    // 添加动画效果
+    if (card) {
+        card.classList.add('pulse-effect');
+        setTimeout(() => {
+            card.classList.remove('pulse-effect');
+        }, 300);
+        
+        // 检查当前URL是否已经应用了中标过滤
+        const currentUrl = new URL(window.location.href);
+        const params = new URLSearchParams(currentUrl.search);
+        const hasCurrentStageFilter = params.get('filter_current_stage') === 'awarded';
+        
+        // 如果已经应用了过滤，则取消过滤（切换状态）
+        if (hasCurrentStageFilter) {
+            // 移除中标的过滤条件
+            params.delete('filter_current_stage');
+            
+            // 移除卡片的活跃状态
+            card.classList.remove('active-filter');
+            
+            // 保持统计面板打开状态
+            params.set('keep_panel', 'true');
+            
+            // 重新加载页面以应用筛选条件
+            window.location.href = '/project/?' + params.toString();
+            return;
+        }
+        
+        // 添加卡片的活跃状态
+        card.classList.add('active-filter');
+    }
+    
+    // 构建查询参数，确保包含当前的其他查询条件
+    const currentUrl = new URL(window.location.href);
+    const params = new URLSearchParams(currentUrl.search);
+    
+    // 移除可能存在的其他状态过滤器
+    params.delete('filter_current_stage');
+    
+    // 添加中标的过滤条件
+    params.set('filter_current_stage', 'awarded');
+    
+    // 保持统计面板打开状态
+    params.set('keep_panel', 'true');
+    
+    // 重新加载页面以应用筛选条件
+    window.location.href = '/project/?' + params.toString();
+}
+
+/**
+ * 过滤业务推进项目函数，点击业务推进卡片时触发
+ * 业务推进项目定义为：本月内阶段有变更的项目
+ */
+function filterUpdatedProjects() {
+    console.log("业务推进筛选函数被调用");
+    
+    // 点击反馈效果
+    const card = document.getElementById('updatedProjectsCard');
+    
+    // 添加动画效果
+    if (card) {
+        card.classList.add('pulse-effect');
+        setTimeout(() => {
+            card.classList.remove('pulse-effect');
+        }, 300);
+        
+        // 检查当前URL是否已经应用了业务推进过滤
+        const currentUrl = new URL(window.location.href);
+        const params = new URLSearchParams(currentUrl.search);
+        const hasUpdatedFilter = params.get('filter_updated_this_month') === '1';
+        
+        console.log("当前URL中是否有业务推进筛选:", hasUpdatedFilter);
+        
+        // 如果已经应用了过滤，则取消过滤（切换状态）
+        if (hasUpdatedFilter) {
+            console.log("取消业务推进筛选");
+            // 移除业务推进的过滤条件
+            params.delete('filter_updated_this_month');
+            
+            // 移除卡片的活跃状态
+            card.classList.remove('active-filter');
+            
+            // 保持统计面板打开状态
+            params.set('keep_panel', 'true');
+            
+            // 重新加载页面以应用筛选条件
+            window.location.href = '/project/?' + params.toString();
+            return;
+        }
+        
+        console.log("应用业务推进筛选");
+        // 添加卡片的活跃状态
+        card.classList.add('active-filter');
+    }
+    
+    // 构建查询参数，确保包含当前的其他查询条件
+    const currentUrl = new URL(window.location.href);
+    const params = new URLSearchParams(currentUrl.search);
+    
+    // 添加业务推进的过滤条件
+    params.set('filter_updated_this_month', '1');
+    
+    // 保持统计面板打开状态
+    params.set('keep_panel', 'true');
+    
+    // 重新加载页面以应用筛选条件
+    window.location.href = '/project/?' + params.toString();
+}
+
+/**
+ * 恢复所有记录显示的函数，在释放筛选时调用
+ */
+function restoreAllRecords() {
+    console.log("restoreAllRecords函数被调用"); // 调试日志
+    // 获取所有表格行和移动端卡片
+    const tableRows = document.querySelectorAll('.table tbody tr');
+    const mobileCards = document.querySelectorAll('.d-block.d-lg-none .card');
+    const tableBody = document.querySelector('.table tbody');
+    const mobileContainer = document.querySelector('.d-block.d-lg-none');
+    
+    // 按更新时间降序排序的函数
+    const sortByUpdatedAtDesc = (a, b) => {
+        // 尝试从元素中获取更新时间
+        const getUpdatedAt = (el) => {
+            // 从表格行中提取更新时间（假设在倒数第二列）
+            if (!el.classList.contains('card')) {
+                // PC端表格视图
+                const cells = el.querySelectorAll('td');
+                if (cells.length > 2) {
+                    const updatedAtCell = cells[cells.length - 2]; // 倒数第二列是更新时间
+                    if (updatedAtCell) {
+                        const dateText = updatedAtCell.textContent.trim();
+                        if (dateText) {
+                            return new Date(dateText).getTime();
+                        }
+                    }
+                }
+            } else {
+                // 移动端卡片视图
+                const updatedAtText = el.textContent.match(/更新: (\d{4}-\d{2}-\d{2})/);
+                if (updatedAtText && updatedAtText[1]) {
+                    return new Date(updatedAtText[1]).getTime();
+                }
+            }
+            return 0; // 默认时间戳
+        };
+        
+        const updatedAtA = getUpdatedAt(a);
+        const updatedAtB = getUpdatedAt(b);
+        return updatedAtB - updatedAtA; // 降序排列（新到旧）
+    };
+    
+    // 复制所有行和卡片到数组
+    const allRows = Array.from(tableRows);
+    const allCards = Array.from(mobileCards);
+    
+    // 按更新时间排序
+    allRows.sort(sortByUpdatedAtDesc);
+    allCards.sort(sortByUpdatedAtDesc);
+    
+    // 重新排列表格行
+    if (tableBody) {
+        // 清空表格
+        while (tableBody.firstChild) {
+            tableBody.removeChild(tableBody.firstChild);
+        }
+        
+        // 添加所有行
+        allRows.forEach(row => {
+            row.classList.remove('filtered');
+            row.style.display = '';
+            tableBody.appendChild(row);
+        });
+    }
+    
+    // 重新排列移动端卡片
+    if (mobileContainer) {
+        // 保存所有非卡片元素
+        const nonCardElements = Array.from(mobileContainer.children).filter(el => 
+            !el.classList.contains('card')
+        );
+        
+        // 清空容器
+        while (mobileContainer.firstChild) {
+            mobileContainer.removeChild(mobileContainer.firstChild);
+        }
+        
+        // 首先添加非卡片元素
+        nonCardElements.forEach(el => {
+            mobileContainer.appendChild(el);
+        });
+        
+        // 添加所有卡片
+        allCards.forEach(card => {
+            card.classList.remove('filtered');
+            card.style.display = '';
+            mobileContainer.appendChild(card);
+        });
+    }
+    
+    // 确保没有其他筛选状态
+    const activeFilters = document.querySelectorAll('.active-filter');
+    activeFilters.forEach(filter => {
+        filter.classList.remove('active-filter');
+    });
+    
+    // 应用空筛选条件，确保所有记录显示
+    clientSideFilter({});
+    
+    // 触发按钮状态更新
+    triggerFilterStatusUpdate();
+}
+
+// 页面加载时检查URL并设置卡片状态
+document.addEventListener('DOMContentLoaded', function() {
+    const validProjectsCard = document.getElementById('validProjectsCard');
+    const tenderingProjectsCard = document.getElementById('tenderingProjectsCard');
+    const wonProjectsCard = document.getElementById('wonProjectsCard');
+    const updatedProjectsCard = document.getElementById('updatedProjectsCard');
+    
+    // 获取URL参数
+    const params = new URLSearchParams(window.location.search);
+    const hasAuthFilter = params.get('filter_has_authorization') === '1';
+    const stageNotFilter = params.get('filter_stage_not') === 'lost,paused,signed';
+    const currentStageFilter = params.get('filter_current_stage');
+    const updatedThisMonthFilter = params.get('filter_updated_this_month') === '1';
+    
+    // 设置有效项目卡片状态
+    if (validProjectsCard) {
+        if (hasAuthFilter && stageNotFilter) {
+            validProjectsCard.classList.add('active-filter');
+        } else {
+            validProjectsCard.classList.remove('active-filter');
+        }
+    }
+    
+    // 设置招标中项目卡片状态
+    if (tenderingProjectsCard) {
+        if (currentStageFilter === 'tendering') {
+            tenderingProjectsCard.classList.add('active-filter');
+        } else {
+            tenderingProjectsCard.classList.remove('active-filter');
+        }
+    }
+    
+    // 设置中标项目卡片状态
+    if (wonProjectsCard) {
+        if (currentStageFilter === 'awarded') {
+            wonProjectsCard.classList.add('active-filter');
+        } else {
+            wonProjectsCard.classList.remove('active-filter');
+        }
+    }
+    
+    // 设置业务推进卡片状态
+    if (updatedProjectsCard) {
+        if (updatedThisMonthFilter) {
+            updatedProjectsCard.classList.add('active-filter');
+        } else {
+            updatedProjectsCard.classList.remove('active-filter');
+        }
+    }
+});
+
+// 添加页面加载时检查卡片状态的函数
+document.addEventListener('DOMContentLoaded', function() {
+    // 检查有效项目卡片
+    checkCardActiveState('validProjectsCard', ['filter_has_authorization', 'filter_stage_not'], ['1', 'lost,paused,signed']);
+    
+    // 检查招标中卡片
+    checkCardActiveState('tenderingProjectsCard', ['filter_current_stage'], ['tendering']);
+    
+    // 检查中标卡片
+    checkCardActiveState('wonProjectsCard', ['filter_current_stage'], ['awarded']);
+    
+    // 检查业务推进卡片
+    checkCardActiveState('updatedProjectsCard', ['filter_updated_this_month'], ['1']);
+});
+
+/**
+ * 客户端过滤函数，处理各种过滤条件
+ * @param {Object} filters - 过滤条件对象
+ */
+function clientSideFilter(filters) {
+    // 获取所有表格行和移动端卡片
+    const tableRows = document.querySelectorAll('.table tbody tr');
+    const mobileCards = document.querySelectorAll('.d-block.d-lg-none .card');
+    const tableBody = document.querySelector('.table tbody');
+    const mobileContainer = document.querySelector('.d-block.d-lg-none');
+    
+    // 如果没有过滤条件，则直接恢复所有行和卡片的显示
+    if (!filters || Object.keys(filters).length === 0) {
+        // 按更新时间对所有行和卡片进行排序
+        const sortByUpdatedAtDesc = (a, b) => {
+            // 尝试从元素中获取更新时间
+            const getUpdatedAt = (el) => {
+                // 从表格行中提取更新时间（假设在倒数第二列）
+                if (!el.classList.contains('card')) {
+                    // PC端表格视图
+                    const cells = el.querySelectorAll('td');
+                    if (cells.length > 2) {
+                        const updatedAtCell = cells[cells.length - 2]; // 倒数第二列是更新时间
+                        if (updatedAtCell) {
+                            const dateText = updatedAtCell.textContent.trim();
+                            if (dateText) {
+                                return new Date(dateText).getTime();
+                            }
+                        }
+                    }
+                } else {
+                    // 移动端卡片视图
+                    const updatedAtText = el.textContent.match(/更新: (\d{4}-\d{2}-\d{2})/);
+                    if (updatedAtText && updatedAtText[1]) {
+                        return new Date(updatedAtText[1]).getTime();
+                    }
+                }
+                return 0; // 默认时间戳
+            };
+            
+            const updatedAtA = getUpdatedAt(a);
+            const updatedAtB = getUpdatedAt(b);
+            return updatedAtB - updatedAtA; // 降序排列（新到旧）
+        };
+        
+        // 复制所有行和卡片到数组
+        const allRows = Array.from(tableRows);
+        const allCards = Array.from(mobileCards);
+        
+        // 按更新时间排序
+        allRows.sort(sortByUpdatedAtDesc);
+        allCards.sort(sortByUpdatedAtDesc);
+        
+        // 重新排列表格行
+        if (tableBody) {
+            // 清空表格
+            while (tableBody.firstChild) {
+                tableBody.removeChild(tableBody.firstChild);
+            }
+            
+            // 添加所有行
+            allRows.forEach(row => {
+                row.classList.remove('filtered');
+                row.style.display = '';
+                tableBody.appendChild(row);
+            });
+        }
+        
+        // 重新排列移动端卡片
+        if (mobileContainer) {
+            // 保存所有非卡片元素
+            const nonCardElements = Array.from(mobileContainer.children).filter(el => 
+                !el.classList.contains('card')
+            );
+            
+            // 清空容器
+            while (mobileContainer.firstChild) {
+                mobileContainer.removeChild(mobileContainer.firstChild);
+            }
+            
+            // 首先添加非卡片元素
+            nonCardElements.forEach(el => {
+                mobileContainer.appendChild(el);
+            });
+            
+            // 添加所有卡片
+            allCards.forEach(card => {
+                card.classList.remove('filtered');
+                card.style.display = '';
+                mobileContainer.appendChild(card);
+            });
+        }
+        
+        // 触发list.html中的按钮状态更新
+        triggerFilterStatusUpdate();
+        return;
+    }
+    
+    // 用于存储筛选后的行和卡片
+    const matchedRows = [];
+    const filteredRows = [];
+    const matchedCards = [];
+    const filteredCards = [];
+    
+    // 过滤表格行
+    tableRows.forEach(row => {
+        let shouldFilter = false;
+        
+        // 检查"有授权"过滤条件
+        if (filters.hasAuthorization) {
+            const authCell = row.querySelector('td:nth-child(3)'); // 授权编号单元格
+            if (authCell) {
+                // 检查是否有授权编号（不含"未申请"或"审批中"等标记）
+                const hasNoAuth = authCell.textContent.includes('未申请') || 
+                                 authCell.textContent.includes('审批中') ||
+                                 authCell.textContent.includes('已驳回');
+                if (hasNoAuth) {
+                    shouldFilter = true;
+                }
+            }
+        }
+        
+        // 检查"阶段不在"过滤条件
+        if (filters.stageNot && filters.stageNot.length) {
+            const stageCell = row.querySelector('td:nth-child(5)'); // 当前阶段单元格
+            if (stageCell) {
+                const stageName = stageCell.textContent.trim();
+                if (filters.stageNot.some(stage => {
+                    if (stage === 'lost') return stageName.includes('失败');
+                    if (stage === 'paused') return stageName.includes('搁置');
+                    if (stage === 'signed') return stageName.includes('签约');
+                    return false;
+                })) {
+                    shouldFilter = true;
+                }
+            }
+        }
+        
+        // 检查"当前阶段"过滤条件
+        if (filters.currentStage) {
+            const stageCell = row.querySelector('td:nth-child(5)'); // 当前阶段单元格
+            if (stageCell) {
+                const stageName = stageCell.textContent.trim();
+                let match = false;
+                
+                if (filters.currentStage === 'tendering' && stageName.includes('招标中')) {
+                    match = true;
+                } else if (filters.currentStage === 'awarded' && stageName.includes('中标')) {
+                    match = true;
+                }
+                
+                if (!match) {
+                    shouldFilter = true;
+                }
+            }
+        }
+        
+        // 检查"本月更新"过滤条件
+        if (filters.updatedThisMonth) {
+            // 对PC端表格行，使用更精确的单元格选择策略
+            const updatedAtCell = row.querySelector('td:nth-last-child(2)'); // 倒数第二列是更新时间
+            
+            if (updatedAtCell) {
+                const dateText = updatedAtCell.textContent.trim();
+                console.log("PC表格行更新时间单元格内容:", dateText);
+                
+                if (dateText) {
+                    // 解析日期
+                    try {
+                        const updatedDate = new Date(dateText);
+                        const now = new Date();
+                        
+                        // 检查是否为本月更新
+                        const isCurrentMonth = updatedDate.getMonth() === now.getMonth() && 
+                                             updatedDate.getFullYear() === now.getFullYear();
+                        
+                        console.log("PC表格行更新时间检查:", dateText, 
+                            "原始日期对象:", updatedDate,
+                            "是否本月:", isCurrentMonth, 
+                            "更新月份:", updatedDate.getMonth() + 1, 
+                            "当前月份:", now.getMonth() + 1);
+                        
+                        if (!isCurrentMonth) {
+                            shouldFilter = true;
+                        }
+                    } catch (e) {
+                        console.error("PC表格行日期解析错误:", dateText, e);
+                        shouldFilter = true;
+                    }
+                } else {
+                    // 如果没有更新日期，则过滤掉
+                    console.warn("PC表格行更新时间单元格存在但内容为空");
+                    shouldFilter = true;
+                }
+            } else {
+                // 如果找不到更新时间单元格，则过滤掉
+                console.warn("未找到PC表格行更新时间单元格");
+                shouldFilter = true;
+            }
+        }
+        
+        // 根据筛选结果，将行分到匹配或过滤集合中
+        if (shouldFilter) {
+            row.classList.add('filtered');
+            filteredRows.push(row);
+        } else {
+            row.classList.remove('filtered');
+            matchedRows.push(row);
+        }
+    });
+    
+    // 过滤移动端卡片
+    mobileCards.forEach(card => {
+        let shouldFilter = false;
+        
+        // 检查"有授权"过滤条件
+        if (filters.hasAuthorization) {
+            const authBadge = card.querySelector('.badge:first-child');
+            if (authBadge) {
+                // 检查是否有授权编号（不含"未申请"或"审批中"等标记）
+                const hasNoAuth = authBadge.textContent.includes('未申请') || 
+                                 authBadge.textContent.includes('审批中') ||
+                                 authBadge.textContent.includes('已驳回');
+                if (hasNoAuth) {
+                    shouldFilter = true;
+                }
+            }
+        }
+        
+        // 检查"阶段不在"过滤条件
+        if (filters.stageNot && filters.stageNot.length) {
+            const stageBadge = card.querySelector('.badge:nth-child(2)');
+            if (stageBadge) {
+                const stageName = stageBadge.textContent.trim();
+                if (filters.stageNot.some(stage => {
+                    if (stage === 'lost') return stageName.includes('失败');
+                    if (stage === 'paused') return stageName.includes('搁置');
+                    if (stage === 'signed') return stageName.includes('签约');
+                    return false;
+                })) {
+                    shouldFilter = true;
+                }
+            }
+        }
+        
+        // 检查"当前阶段"过滤条件
+        if (filters.currentStage) {
+            const stageBadge = card.querySelector('.badge:nth-child(2)');
+            if (stageBadge) {
+                const stageName = stageBadge.textContent.trim();
+                let match = false;
+                
+                if (filters.currentStage === 'tendering' && stageName.includes('招标中')) {
+                    match = true;
+                } else if (filters.currentStage === 'awarded' && stageName.includes('中标')) {
+                    match = true;
+                }
+                
+                if (!match) {
+                    shouldFilter = true;
+                }
+            }
+        }
+        
+        // 检查"本月更新"过滤条件
+        if (filters.updatedThisMonth) {
+            // 首先尝试找到更新日期的DOM元素
+            let dateElement = card.querySelector('.small.text-muted:last-child');
+            let dateText = '';
+            
+            if (dateElement) {
+                dateText = dateElement.textContent.trim();
+                console.log("移动卡片找到更新日期元素:", dateText);
+                
+                // 使用正则提取日期部分
+                const dateMatch = dateText.match(/更新:\s*(\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?)/);
+                if (dateMatch && dateMatch[1]) {
+                    dateText = dateMatch[1].trim();
+                }
+            }
+            
+            // 如果找不到更新日期元素，尝试从整个卡片文本中匹配
+            if (!dateText) {
+                const updatedTextMatch = card.textContent.match(/更新:\s*(\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?)/);
+                if (updatedTextMatch && updatedTextMatch[1]) {
+                    dateText = updatedTextMatch[1].trim();
+                }
+                console.log("从卡片文本中提取的更新日期:", dateText);
+            }
+            
+            if (dateText) {
+                // 解析日期
+                try {
+                    const updatedDate = new Date(dateText);
+                    const now = new Date();
+                    
+                    // 检查是否为本月更新
+                    const isCurrentMonth = updatedDate.getMonth() === now.getMonth() && 
+                                         updatedDate.getFullYear() === now.getFullYear();
+                    
+                    console.log("移动卡片更新时间检查:", dateText, 
+                        "原始日期对象:", updatedDate,
+                        "是否本月:", isCurrentMonth, 
+                        "更新月份:", updatedDate.getMonth() + 1, 
+                        "当前月份:", now.getMonth() + 1);
+                    
+                    if (!isCurrentMonth) {
+                        shouldFilter = true;
+                    }
+                } catch (e) {
+                    console.error("移动卡片日期解析错误:", dateText, e);
+                    shouldFilter = true;
+                }
+            } else {
+                // 如果没有找到更新日期，则过滤掉
+                console.warn("移动卡片未找到更新日期");
+                shouldFilter = true;
+            }
+        }
+        
+        // 根据筛选结果，将卡片分到匹配或过滤集合中
+        if (shouldFilter) {
+            card.classList.add('filtered');
+            filteredCards.push(card);
+        } else {
+            card.classList.remove('filtered');
+            matchedCards.push(card);
+        }
+    });
+    
+    // 重新排列表格行：匹配的行在前，被过滤的行不显示
+    if (tableBody) {
+        // 清空表格
+        while (tableBody.firstChild) {
+            tableBody.removeChild(tableBody.firstChild);
+        }
+        
+        // 添加匹配的行
+        matchedRows.forEach(row => {
+            tableBody.appendChild(row);
+            row.style.display = '';
+        });
+        
+        // 被过滤的行不显示，但仍保留在DOM中
+        filteredRows.forEach(row => {
+            row.style.display = 'none';
+            tableBody.appendChild(row);
+        });
+    }
+    
+    // 重新排列移动端卡片：匹配的卡片在前，被过滤的卡片不显示
+    if (mobileContainer) {
+        // 保存所有非卡片元素
+        const nonCardElements = Array.from(mobileContainer.children).filter(el => 
+            !el.classList.contains('card')
+        );
+        
+        // 清空容器
+        while (mobileContainer.firstChild) {
+            mobileContainer.removeChild(mobileContainer.firstChild);
+        }
+        
+        // 首先添加非卡片元素（如警告、提示等）
+        nonCardElements.forEach(el => {
+            mobileContainer.appendChild(el);
+        });
+        
+        // 添加匹配的卡片
+        matchedCards.forEach(card => {
+            mobileContainer.appendChild(card);
+            card.style.display = '';
+        });
+        
+        // 被过滤的卡片不显示，但仍保留在DOM中
+        filteredCards.forEach(card => {
+            card.style.display = 'none';
+            mobileContainer.appendChild(card);
+        });
+    }
+    
+    // 更新按钮状态
+    triggerFilterStatusUpdate();
+}
+
+/**
+ * 触发list.html中的过滤状态更新函数
+ */
+function triggerFilterStatusUpdate() {
+    // 如果主页面中定义了更新函数，调用它
+    if (typeof window.updateClearButtonState === 'function') {
+        setTimeout(window.updateClearButtonState, 0);
+    } else {
+        // 如果没有定义，则使用自定义事件通知
+        document.dispatchEvent(new CustomEvent('filterStatusChanged'));
+    }
+}
+
+/**
+ * 清除所有统计卡片筛选
+ * 这个函数可以从外部调用，用于重置所有卡片状态
+ */
+function clearAllCardFilters() {
+    // 移除所有卡片的active-filter类
+    const cards = [
+        document.getElementById('validProjectsCard'),
+        document.getElementById('tenderingProjectsCard'),
+        document.getElementById('wonProjectsCard'),
+        document.getElementById('updatedProjectsCard')
+    ];
+    
+    cards.forEach(card => {
+        if (card) {
+            card.classList.remove('active-filter');
+        }
+    });
+    
+    // 更新URL参数，移除筛选条件
+    const currentUrl = new URL(window.location.href);
+    const params = new URLSearchParams(currentUrl.search);
+    
+    // 移除所有卡片相关的过滤条件
+    params.delete('filter_has_authorization');
+    params.delete('filter_stage_not');
+    params.delete('filter_current_stage');
+    params.delete('filter_updated_this_month');
+    
+    // 保持统计面板打开状态
+    params.set('keep_panel', 'true');
+    
+    // 更新URL但不刷新页面
+    window.history.replaceState(null, '', '/project/?' + params.toString());
+    
+    // 调用恢复所有记录的函数
+    if (typeof restoreAllRecords === 'function') {
+        restoreAllRecords();
+    } else {
+        // 如果没有恢复函数，仍然应用空筛选条件
+        clientSideFilter({});
+    }
+}
+
+// 将清除函数暴露给全局，以便主页面可以调用
+window.clearAllCardFilters = clearAllCardFilters;
+
+// 将恢复函数暴露给全局，以便主页面可以调用
+window.restoreAllRecords = restoreAllRecords;
+</script> 

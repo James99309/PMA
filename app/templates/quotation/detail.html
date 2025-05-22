@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_quotation_number, render_currency, render_project_stage, render_button, render_confirm_cancel %}
+{% from 'macros/ui_modals.html' import render_change_owner_modal %}
+{% from 'macros/approval_macros.html' import render_start_approval_button with context %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="container-fluid mt-4 pt-4">
     <div class="row mb-3">
         <div class="col-12">
             <nav aria-label="breadcrumb">
@@ -132,6 +134,7 @@
                                     {% if not current_user.role in ['product_manager', 'product'] %}
                                     <th class="text-end">小计</th>
                                     {% endif %}
+                                    <th class="text-start">MN号</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -151,15 +154,16 @@
                                     {% if not current_user.role in ['product_manager', 'product'] %}
                                     <td class="text-end fw-bold">{{ render_currency(detail.total_price) }}</td>
                                     {% endif %}
+                                    <td>{{ detail.product_mn }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                             <tfoot>
                                 <tr class="bg-light">
                                     {% if current_user.role in ['product_manager', 'product'] %}
-                                    <td colspan="7" class="text-end fw-bold">总计金额：</td>
+                                    <td colspan="8" class="text-end fw-bold">总计金额：</td>
                                     {% else %}
-                                    <td colspan="9" class="text-end fw-bold">总计金额：</td>
+                                    <td colspan="10" class="text-end fw-bold">总计金额：</td>
                                     {% endif %}
                                     <td class="text-end fw-bold">{{ render_currency(quotation.amount) }}</td>
                                 </tr>
@@ -170,41 +174,20 @@
             </div>
         </div>
     </div>
+    
+    <!-- 审批流程模块 -->
+    <div class="row mb-3">
+        <div class="col-12">
+            {{ render_start_approval_button('quotation', quotation.id) }}
+        </div>
+    </div>
 </div>
 
 <!-- 添加Font Awesome图标库 -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 
 {% if has_change_owner_permission %}
-<div class="modal fade" id="changeOwnerModal" tabindex="-1" aria-labelledby="changeOwnerModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <form method="post" action="{{ url_for('quotation.change_quotation_owner', id=quotation.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="changeOwnerModalLabel">修改报价单拥有人</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label for="new_owner_id" class="form-label">选择新拥有人</label>
-            <select class="form-select" id="new_owner_id" name="new_owner_id" required>
-              {% for user in all_users %}
-                <option value="{{ user.id }}" {% if user.id == quotation.owner_id %}selected{% endif %}>
-                  {{ user.real_name or user.username }}（{{ user.role }}）
-                </option>
-              {% endfor %}
-            </select>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-          <button type="submit" class="btn btn-primary">确认修改</button>
-        </div>
-      </div>
-    </form>
-  </div>
-</div>
+{{ render_change_owner_modal('changeOwnerModal', url_for('quotation.change_quotation_owner', id=quotation.id), all_users, quotation.owner_id, user_tree_data) }}
 {% endif %}
 
 {% block scripts %}

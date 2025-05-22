@@ -71,7 +71,7 @@
             <div class="card">
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-8">
+                        <div class="col-md-4">
                             <div class="input-group">
                                 <input type="text" class="form-control" id="projectSearch" placeholder="搜索项目名称...">
                                 <button class="btn btn-outline-secondary" type="button" id="searchProject">
@@ -83,10 +83,10 @@
                             {% if has_permission('quotation', 'create') and current_user.role == 'admin' %}
                             {{ render_button('批量导入', '#', color='auxiliary', attrs='id="importQuotationsBtn"') }}
                             {% endif %}
+                            {{ render_button('创建报价单', url_for('quotation.create_quotation'), color='primary') }}
                             {% if has_permission('quotation', 'delete') %}
                             {{ render_button('批量删除', '#', color='danger', attrs='id="batchDeleteBtn" style="display: none;"') }}
                             {% endif %}
-                            {{ render_button('创建报价单', url_for('quotation.create_quotation'), color='primary') }}
                         </div>
                     </div>
                 </div>
@@ -257,16 +257,16 @@
                             </td>
                             <td class="px-3">
                                 {% if quotation.project and quotation.project.current_stage %}
-                                    {{ quotation.project.current_stage|project_stage_label('zh') }}
+                                    {{ render_project_stage(quotation.project.current_stage|project_stage_label('zh')) }}
                                 {% else %}
-                                    无
+                                    {{ render_project_stage('未设置') }}
                                 {% endif %}
                             </td>
                             <td class="px-3">
                                 {% if quotation.project and quotation.project.project_type %}
-                                    {{ quotation.project.project_type|project_type_label('zh') }}
+                                    {{ render_project_type(quotation.project.project_type) }}
                                 {% else %}
-                                    无
+                                    {{ render_project_type('unknown') }}
                                 {% endif %}
                             </td>
                             <td class="px-3">{{ render_datetime(quotation.updated_at) }}</td>

@@ -286,17 +286,11 @@ def create_quotation():
                 
                 try:
                     current_app.logger.info('准备提交所有更改到数据库...')
-                    
-                    # 提交事务
                     db.session.commit()
                     current_app.logger.info('数据库更改提交成功')
                     
-                    # 强制刷新项目金额
-                    project = Project.query.get(quotation.project_id)
-                    if project:
-                        total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
-                        project.quotation_customer = total
-                        db.session.commit()
+                    # 注意：项目金额更新交由SQLAlchemy事件监听器处理，此处无需手动更新
+                    current_app.logger.info('项目报价金额将由事件监听器自动更新')
                     
                     # 触发报价单创建通知
                     try:
@@ -394,6 +388,9 @@ def create_quotation():
                 # 手动更新时间戳，确保updated_at字段正确
                 quotation.updated_at = datetime.utcnow()
                 db.session.commit()
+                
+                # 注意：项目金额更新交由SQLAlchemy事件监听器处理，此处无需手动更新
+                current_app.logger.info('项目报价金额将由事件监听器自动更新')
                 
                 # 触发报价单创建通知
                 try:
@@ -732,12 +729,8 @@ def delete_quotation(id):
         db.session.delete(quotation)
         db.session.commit()
         
-        # 强制刷新项目金额
-        project = Project.query.get(project_id)
-        if project:
-            total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
-            project.quotation_customer = total
-        db.session.commit()
+        # 注意：项目金额更新交由SQLAlchemy事件监听器处理，此处无需手动更新
+        logger.info('项目报价金额将由事件监听器自动更新')
         
         flash('报价单删除成功！', 'success')
         return redirect(url_for('project.view_project', project_id=project_id))
@@ -757,22 +750,34 @@ def batch_delete_quotations():
             return jsonify({'success': False, 'message': '未选择任何报价单'})
         deleted_count = 0
         error_ids = []
+        project_ids = set()
         for quotation_id in quotation_ids:
-            quotation = Quotation.query.get(quotation_id)
-            if quotation and can_edit_data(quotation, current_user):
-                db.session.delete(quotation)
-                deleted_count += 1
-            else:
-                logger.debug(f"{current_user.username} 无权批量删除报价单 {quotation_id}")
+            try:
+                quotation = Quotation.query.get(quotation_id)
+                if quotation:
+                    if can_edit_data(quotation, current_user):
+                        # 记录涉及的项目ID
+                        if quotation.project_id:
+                            project_ids.add(quotation.project_id)
+                        # 删除报价单
+                        db.session.delete(quotation)
+                        deleted_count += 1
+                    else:
+                        logger.warning(f"用户 {current_user.username} 无权删除报价单 {quotation_id}")
+                        error_ids.append(quotation_id)
+                else:
+                    logger.warning(f"报价单 {quotation_id} 不存在")
+                    error_ids.append(quotation_id)
+            except Exception as item_error:
+                logger.error(f"删除报价单 {quotation_id} 时出错: {str(item_error)}")
                 error_ids.append(quotation_id)
+        
+        # 提交删除操作
         db.session.commit()
-        # 强制刷新项目金额
-        for project_id in set(quotation.project_id for quotation in Quotation.query.filter(Quotation.id.in_(quotation_ids)).all()):
-            project = Project.query.get(project_id)
-            if project:
-                total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
-                project.quotation_customer = total
-        db.session.commit()
+        
+        # 注意：项目金额更新交由SQLAlchemy事件监听器处理，此处无需手动更新
+        logger.info(f"批量删除涉及的项目IDs: {project_ids}，将由事件监听器自动更新金额")
+        
         return jsonify({'success': True, 'deleted': deleted_count, 'error_ids': error_ids})
     except Exception as e:
         logger.error(f"批量删除报价单时出错: {str(e)}")
@@ -1111,7 +1116,15 @@ def view_quotation(id):
             if not all_users:
                 all_users = User.query.filter(User.id.in_([current_user.id, quotation.owner_id])).all()
         has_change_owner_permission = can_change_quotation_owner(current_user, quotation)
-        return render_template('quotation/detail.html', quotation=quotation, all_users=all_users, has_change_owner_permission=has_change_owner_permission)
+        
+        # 生成用户树状数据
+        from app.utils.user_helpers import generate_user_tree_data
+        user_tree_data = None
+        if has_change_owner_permission:
+            filter_by_dept = current_user.role != 'admin'
+            user_tree_data = generate_user_tree_data(filter_by_department=filter_by_dept)
+            
+        return render_template('quotation/detail.html', quotation=quotation, all_users=all_users, has_change_owner_permission=has_change_owner_permission, user_tree_data=user_tree_data)
     except Exception as e:
         flash(f'加载报价单详情失败：{str(e)}', 'danger')
         return redirect(url_for('quotation.list_quotations'))
@@ -1443,12 +1456,8 @@ def save_quotation(id):
             db.session.commit()
             current_app.logger.info('数据库更改提交成功')
             
-            # 强制刷新项目金额
-            project = Project.query.get(quotation.project_id)
-            if project:
-                total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
-                project.quotation_customer = total
-                db.session.commit()
+            # 注意：项目金额更新交由SQLAlchemy事件监听器处理，此处无需手动更新
+            current_app.logger.info('项目报价金额将由事件监听器自动更新')
             
             # 触发报价单创建通知
             try:

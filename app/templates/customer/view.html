@@ -1,11 +1,13 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_owner, render_date, render_project_type, render_button, render_primary_contact_badge, render_project_stage, render_confirm_cancel, render_status_badge %}
+{% from 'macros/ui_modals.html' import render_change_owner_modal with context %}
+{% from 'macros/approval_macros.html' import render_start_approval_button with context %}
 
 {% block title %}{{ company.company_name }} - 企业详情{% endblock %}
 
 {% block custom_head %}
-<!-- 添加jQuery库和CSRF meta标签（如base.html未全局添加） -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- 确保jQuery加载在任何使用$的脚本之前 -->
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
 <meta name="csrf-token" content="{{ csrf_token() }}">
 {% endblock %}
 
@@ -568,7 +570,7 @@
                                         <button class="btn btn-primary btn-sm submit-reply">提交</button>
                                         <button class="btn btn-secondary btn-sm cancel-reply">取消</button>
                                     </div>
-                                    <button class="btn btn-link btn-sm mt-1 p-0 show-reply-form-btn" data-action-id="{{ action.id }}">回复</button>
+                                    <button class="btn btn-link btn-sm mt-1 p-0 show-reply-form-btn" data-action-id="{{ action.id }}" style="color:#0d6efd; text-decoration:underline; cursor:pointer;">回复</button>
                                 </div>
                             </div>
                         </div>
@@ -608,6 +610,18 @@
             {% endif %}
         </div>
     </div>
+
+    <!-- 审批流程模块 -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            {{ render_start_approval_button('customer', company.id) }}
+        </div>
+    </div>
+
+    <!-- 修改拥有者模态框 -->
+    {% if can_change_company_owner(current_user, company) %}
+    {{ render_change_owner_modal('changeOwnerModal', url_for('customer.change_company_owner', company_id=company.id), all_users, company.owner_id, user_tree_data) }}
+    {% endif %}
 </div>
 
 <!-- 添加Font Awesome图标库 -->
@@ -786,8 +800,20 @@
 
 {% block scripts %}
 {{ super() }}
-<script src="/static/js/project_action_reply.js"></script>
+<!-- 确保jQuery加载完成 -->
 <script>
+// 等待jQuery加载
+function waitForJQuery(callback) {
+  if (window.jQuery) {
+    callback();
+  } else {
+    setTimeout(function() { waitForJQuery(callback); }, 50);
+  }
+}
+
+// 在jQuery加载完成后执行脚本
+waitForJQuery(function() {
+  // 删除联系人功能
 function deleteContact(companyId, contactId) {
     if (confirm('确定要删除这个联系人吗？')) {
         // 获取CSRF令牌
@@ -821,6 +847,7 @@ function showPermissionError() {
 // 新增：行动记录删除功能
 function deleteAction(actionId) {
     if (confirm('确定要删除这条行动记录吗？')) {
+        console.log("🗑️ 开始删除行动记录, ID:", actionId);
         const csrfToken = $('meta[name="csrf-token"]').attr('content');
         $.ajax({
             url: `/customer/api/actions/${actionId}/delete`,
@@ -830,76 +857,140 @@ function deleteAction(actionId) {
                 'X-Requested-With': 'XMLHttpRequest'
             },
             success: function(response) {
-                if (response.success) {
-                    window.location.reload();
-                } else {
-                    alert('删除失败: ' + (response.message || '未知错误'));
-                }
+                console.log("✅ 删除行动记录API响应:", response);
+                window.location.reload();
             },
             error: function(xhr, status, error) {
-                alert('删除失败，请重试！');
+                console.error("❌ 删除请求错误:", status, error);
+                
+                // 检查响应状态码
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    console.log("⚠️ 状态码成功但发生解析错误，尝试刷新页面");
+                    window.location.reload();
+                } else {
+                    alert('删除失败，请重试！');
+                }
             }
         });
     }
 }
 
 // 只需全局绑定一次，防止多次绑定导致多次触发
-$(document).on('click', '.delete-action-btn', function() {
+$(document).off('click', '.delete-action-btn').on('click', '.delete-action-btn', function() {
     const actionId = $(this).data('action-id');
     deleteAction(actionId);
 });
 
-document.addEventListener('DOMContentLoaded', function() {
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'));
-    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
-    });
-
-    // 为删除联系人按钮添加事件监听器
-    document.querySelectorAll('.delete-contact-btn').forEach(function(button) {
-        button.addEventListener('click', function() {
-            const canDelete = this.getAttribute('data-can-delete') === 'true';
-            if (canDelete) {
-                const companyId = this.getAttribute('data-company-id');
-                const contactId = this.getAttribute('data-contact-id');
-                deleteContact(companyId, contactId);
-            } else {
-                showPermissionError();
-            }
-        });
+// 为删除联系人按钮添加事件监听器
+document.querySelectorAll('.delete-contact-btn').forEach(function(button) {
+    button.addEventListener('click', function() {
+        const canDelete = this.getAttribute('data-can-delete') === 'true';
+        if (canDelete) {
+            const companyId = this.getAttribute('data-company-id');
+            const contactId = this.getAttribute('data-contact-id');
+            deleteContact(companyId, contactId);
+        } else {
+            showPermissionError();
+        }
     });
 });
+  
+  // 初始化页面上的模态框，确保树状选择控件能正常工作
+  var changeOwnerModal = document.getElementById('changeOwnerModal');
+  if (changeOwnerModal) {
+    // 监听模态框打开事件
+    $(changeOwnerModal).on('shown.bs.modal', function() {
+      // 手动触发树状控件的初始化
+      var treeContainer = $(this).find('.tree-container');
+      if (treeContainer.length && treeContainer.children().length === 0) {
+        // 如果树容器为空，获取树数据并重建
+        var treeInput = $(this).find('input[type="hidden"]');
+        var treeWrapper = treeInput.siblings('.tree-select-wrapper');
+        
+        // 强制刷新树视图
+        var treeDropdown = treeWrapper.find('.tree-select-dropdown');
+        treeDropdown.show();
+        
+        // 200ms后检查树是否构建成功
+        setTimeout(function() {
+          if (treeContainer.children().length === 0) {
+            treeContainer.html('<div class="text-center py-2">加载用户列表中...</div>');
+          }
+        }, 200);
+      }
+    });
+  }
+  
+  // 使用函数封装，允许在加载后重新调用
+  function initReplyButtons() {
+    $('.show-reply-form-btn').each(function() {
+      var btn = $(this);
+      var actionId = btn.data('action-id');
+      console.log("💡 找到回复按钮, actionId:", actionId);
+      
+      // 解绑任何现有处理程序，避免多次绑定
+      btn.off('click');
+      
+      // 重新绑定点击事件
+      btn.on('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var formId = '#reply-form-' + actionId;
+        console.log("🔔 点击回复按钮，准备显示表单:", formId);
+        
+        var form = $(formId);
+        
+        // 直接切换表单显示状态
+        if (form.length) {
+          if (form.is(':visible')) {
+            form.hide();
+          } else {
+            form.show();
+            // 强制设置样式，确保显示
+            form.attr('style', 'display: block !important');
+          }
+        }
+        
+        return false;
+      });
+    });
+  }
+  
+  // 初始绑定
+  initReplyButtons();
+  
+  // 注册一个全局函数，允许其他脚本调用重新绑定
+  window.reInitCustomerReplyButtons = initReplyButtons;
+});
+
+// 初始化工具提示
+document.addEventListener('DOMContentLoaded', function() {
+  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'));
+  var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl);
+  });
+  
+  // 确保回复功能初始化
+  console.log("初始化行动记录回复功能");
+  
+  // DOM加载完成后再次检查回复按钮
+  setTimeout(function() {
+    console.log("🔄 延迟检查回复按钮...");
+    var replyBtns = $('.show-reply-form-btn');
+    console.log("📏 找到", replyBtns.length, "个回复按钮");
+    
+    replyBtns.each(function() {
+      var actionId = $(this).data('action-id');
+      var formId = '#reply-form-' + actionId;
+      console.log("💠 检查按钮和表单:", "按钮ID:", $(this).attr('id') || '无ID', "按钮文本:", $(this).text(), "表单ID:", formId, "表单存在:", $(formId).length > 0);
+    });
+  }, 1000);
+});
 </script>
+<!-- 引入行动记录回复相关脚本 -->
+<script src="{{ url_for('static', filename='js/project_action_reply.js') }}"></script>
 {% if can_change_company_owner(current_user, company) %}
-<div class="modal fade" id="changeOwnerModal" tabindex="-1" aria-labelledby="changeOwnerModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <form method="post" action="{{ url_for('customer.change_company_owner', company_id=company.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="changeOwnerModalLabel">修改客户拥有人</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label for="new_owner_id" class="form-label">选择新拥有人</label>
-            <select class="form-select" id="new_owner_id" name="new_owner_id" required>
-              {% for user in all_users %}
-                <option value="{{ user.id }}" {% if user.id == company.owner_id %}selected{% endif %}>
-                  {{ user.real_name or user.username }}（{{ get_role_display_name(user.role) }}）
-                </option>
-              {% endfor %}
-            </select>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-          <button type="submit" class="btn btn-primary">确认修改</button>
-        </div>
-      </div>
-    </form>
-  </div>
-</div>
+{{ render_change_owner_modal('changeOwnerModal', url_for('customer.change_company_owner', company_id=company.id), all_users, company.owner_id, user_tree_data) }}
 {% endif %}
 {% endblock %}
 {% endblock %} 

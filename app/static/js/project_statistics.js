@@ -1024,5 +1024,20 @@ document.addEventListener('DOMContentLoaded', function() {
         // 重新加载统计数据和趋势数据
         loadStatisticsData(currentPeriod);
         loadStageTrendData(currentTrendPeriod);
+        
+        // 清除业务推进卡片的激活状态
+        const updatedProjectsCard = document.getElementById('updatedProjectsCard');
+        if (updatedProjectsCard) {
+            updatedProjectsCard.classList.remove('active-filter');
+        }
+        
+        // 清除其他统计卡片的激活状态
+        const validProjectsCard = document.getElementById('validProjectsCard');
+        const tenderingProjectsCard = document.getElementById('tenderingProjectsCard');
+        const wonProjectsCard = document.getElementById('wonProjectsCard');
+        
+        if (validProjectsCard) validProjectsCard.classList.remove('active-filter');
+        if (tenderingProjectsCard) tenderingProjectsCard.classList.remove('active-filter');
+        if (wonProjectsCard) wonProjectsCard.classList.remove('active-filter');
     });
 }); 

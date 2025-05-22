@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+
+{% block title %}系统参数设置{% endblock %}
+
+{% block styles %}
+<style>
+    .settings-card {
+        transition: all 0.3s ease;
+    }
+    
+    .settings-card:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        transform: translateY(-5px);
+    }
+    
+    .settings-icon {
+        font-size: 2rem;
+        color: #6c757d;
+    }
+    
+    .settings-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-top: 0.75rem;
+    }
+    
+    .settings-description {
+        color: #6c757d;
+        margin-bottom: 1rem;
+    }
+    
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+    
+    .alert-settings-info {
+        background-color: #f8f9fa;
+        border-color: #dee2e6;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">系统参数设置</h2>
+    </div>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">系统参数配置</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        
+                        <!-- 活跃度相关设置 -->
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">活跃度阈值设置</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row mb-4">
+                                    <div class="col-12">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="project_activity_threshold" class="form-label">项目活跃度阈值（天）</label>
+                                                    <input type="number" class="form-control" id="project_activity_threshold" name="project_activity_threshold" min="1" max="90" value="{{ settings.project_activity_threshold.value }}">
+                                                    <div class="form-text">项目在超过该天数无任何活动时，将被标记为"不活跃"状态</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row mt-3">
+                                            <div class="col-12">
+                                                <div class="card bg-light">
+                                                    <div class="card-body">
+                                                        <h6><i class="fas fa-sync-alt me-2"></i>项目活跃度手动刷新</h6>
+                                                        <p class="small mb-3">您可以手动触发项目活跃度检查，这将根据当前设置的阈值重新计算所有项目的活跃状态。</p>
+                                                        <div class="d-flex justify-content-between">
+                                                            <button type="button" id="refreshProjectActivityBtn" class="btn btn-outline-primary btn-sm">
+                                                                <i class="fas fa-refresh me-1"></i> 刷新项目活跃度
+                                                            </button>
+                                                            <div id="refreshStatus" class="d-none">
+                                                                <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                                                                    <span class="visually-hidden">正在刷新...</span>
+                                                                </div>
+                                                                <span class="text-muted">正在刷新...</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-12">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="customer_activity_threshold" class="form-label">客户活跃度阈值（天）</label>
+                                                    <input type="number" class="form-control" id="customer_activity_threshold" name="customer_activity_threshold" min="1" max="180" value="{{ settings.customer_activity_threshold.value }}">
+                                                    <div class="form-text">客户在超过该天数无任何活动时，将被标记为"不活跃"状态</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row mt-3">
+                                            <div class="col-12">
+                                                <div class="card bg-light">
+                                                    <div class="card-body">
+                                                        <h6><i class="fas fa-sync-alt me-2"></i>客户活跃度手动刷新</h6>
+                                                        <p class="small mb-3">您可以手动触发客户活跃度检查，这将根据当前设置的阈值重新计算所有客户的活跃状态。</p>
+                                                        <div class="d-flex justify-content-between">
+                                                            <button type="button" id="refreshCustomerActivityBtn" class="btn btn-outline-primary btn-sm">
+                                                                <i class="fas fa-refresh me-1"></i> 刷新客户活跃度
+                                                            </button>
+                                                            <div id="refreshCustomerStatus" class="d-none">
+                                                                <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                                                                    <span class="visually-hidden">正在刷新...</span>
+                                                                </div>
+                                                                <span class="text-muted">正在刷新...</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 可以在此处添加其他设置分类 -->
+                        
+                        <div class="text-end mt-4">
+                            <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary me-2">
+                                <i class="fas fa-times me-1"></i> 取消
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i> 保存设置
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card settings-card mb-4">
+                <div class="card-body text-center">
+                    <div class="settings-icon">
+                        <i class="fas fa-info-circle"></i>
+                    </div>
+                    <div class="settings-title">系统参数说明</div>
+                    <div class="settings-description">
+                        此页面用于配置系统的全局参数，修改后将影响整个系统的运行逻辑。
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card settings-card">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-history me-2"></i>参数生效说明</h5>
+                    <hr>
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-2"></i> 
+                            <strong>客户活跃度阈值：</strong> 系统每日自动更新或手动触发更新时生效
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-2"></i> 
+                            <strong>项目活跃度阈值：</strong> 项目状态查询时即时计算
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 启用工具提示
+    document.addEventListener('DOMContentLoaded', function() {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        });
+        
+        // 项目活跃度刷新功能
+        const refreshProjectActivityBtn = document.getElementById('refreshProjectActivityBtn');
+        const refreshStatus = document.getElementById('refreshStatus');
+        
+        if (refreshProjectActivityBtn) {
+            refreshProjectActivityBtn.addEventListener('click', function() {
+                // 显示加载状态
+                refreshProjectActivityBtn.disabled = true;
+                refreshStatus.classList.remove('d-none');
+                
+                // 发送刷新请求
+                fetch('/admin/refresh_project_activity', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // 隐藏加载状态
+                    refreshProjectActivityBtn.disabled = false;
+                    refreshStatus.classList.add('d-none');
+                    
+                    // 显示结果
+                    showResultAlert(data);
+                })
+                .catch(error => {
+                    console.error('刷新活跃度时发生错误:', error);
+                    refreshProjectActivityBtn.disabled = false;
+                    refreshStatus.classList.add('d-none');
+                    
+                    // 显示错误信息
+                    showErrorAlert('刷新项目活跃度时发生错误，请稍后重试。');
+                });
+            });
+        }
+        
+        // 客户活跃度刷新功能
+        const refreshCustomerActivityBtn = document.getElementById('refreshCustomerActivityBtn');
+        const refreshCustomerStatus = document.getElementById('refreshCustomerStatus');
+        
+        if (refreshCustomerActivityBtn) {
+            refreshCustomerActivityBtn.addEventListener('click', function() {
+                // 显示加载状态
+                refreshCustomerActivityBtn.disabled = true;
+                refreshCustomerStatus.classList.remove('d-none');
+                
+                // 发送刷新请求
+                fetch('/admin/refresh_customer_activity', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // 隐藏加载状态
+                    refreshCustomerActivityBtn.disabled = false;
+                    refreshCustomerStatus.classList.add('d-none');
+                    
+                    // 显示结果
+                    showResultAlert(data);
+                })
+                .catch(error => {
+                    console.error('刷新客户活跃度时发生错误:', error);
+                    refreshCustomerActivityBtn.disabled = false;
+                    refreshCustomerStatus.classList.add('d-none');
+                    
+                    // 显示错误信息
+                    showErrorAlert('刷新客户活跃度时发生错误，请稍后重试。');
+                });
+            });
+        }
+        
+        // 通用函数：显示结果提示
+        function showResultAlert(data) {
+            let alertClass = data.success ? 'success' : 'danger';
+            let alertMessage = data.message;
+            
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${alertClass} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${alertMessage}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            
+            if(data.success && data.stats) {
+                const statsList = document.createElement('ul');
+                statsList.className = 'mt-2 mb-0';
+                
+                let statsHtml = '';
+                if(data.stats.active_count !== undefined) {
+                    statsHtml += `<li>活跃数量: ${data.stats.active_count}</li>`;
+                }
+                if(data.stats.inactive_count !== undefined) {
+                    statsHtml += `<li>非活跃数量: ${data.stats.inactive_count}</li>`;
+                }
+                if(data.stats.updated_count !== undefined) {
+                    statsHtml += `<li>状态已更新数量: ${data.stats.updated_count}</li>`;
+                }
+                if(data.stats.duration !== undefined) {
+                    statsHtml += `<li>处理耗时: ${data.stats.duration}秒</li>`;
+                }
+                
+                statsList.innerHTML = statsHtml;
+                alertDiv.appendChild(statsList);
+            }
+            
+            // 将提示信息添加到页面
+            document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.row'));
+            
+            // 8秒后自动关闭提示
+            setTimeout(() => {
+                alertDiv.classList.remove('show');
+                setTimeout(() => alertDiv.remove(), 150);
+            }, 8000);
+        }
+        
+        // 通用函数：显示错误提示
+        function showErrorAlert(message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.row'));
+        }
+    });
+</script>
+{% endblock %} 

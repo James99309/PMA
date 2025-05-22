@@ -1,3 +1,6 @@
+<%doc>
+    Revision script for Alembic.
+</%doc>
 """${message}
 
 Revision ID: ${up_revision}

@@ -1,4 +1,4 @@
-from flask import Flask, session, redirect, url_for, request
+from flask import Flask, session, redirect, url_for, request, current_app
 from config import Config
 import logging
 from app.extensions import db, migrate, login_manager, jwt, csrf
@@ -16,6 +16,13 @@ from app.utils.dictionary_helpers import (
     project_type_label, project_stage_label, report_source_label, authorization_status_label, company_type_label, product_situation_label, industry_label, status_label, brand_status_label, reporting_source_label, share_permission_label, user_label, get_role_display_name
 )
 from app.utils.access_control import can_edit_company_info, can_edit_data, can_change_company_owner
+from sqlalchemy.exc import OperationalError
+from sqlalchemy import event, inspect
+from sqlalchemy.engine import Engine
+import traceback
+import json
+from functools import wraps
+from werkzeug.exceptions import HTTPException
 
 # 配置日志
 logging.basicConfig(
@@ -38,12 +45,26 @@ PROTECTED_TEMPLATES = [
     'project/list.html',  # 项目列表页面 - 修改前必须获得倪捷的明确许可
 ]
 
+# 创建用于跟踪数据库查询时间的函数
+@event.listens_for(Engine, "before_cursor_execute")
+def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    conn.info.setdefault('query_start_time', []).append(datetime.datetime.now())
+
+@event.listens_for(Engine, "after_cursor_execute")
+def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    total = datetime.datetime.now() - conn.info['query_start_time'].pop(-1)
+    if total.total_seconds() > 0.5:  # 记录执行时间超过0.5秒的查询
+        logger.warning(f"慢查询 ({total.total_seconds():.2f}s): {statement}")
+
 def create_app(config_class=Config):
     app = Flask(__name__, template_folder='templates')
     app.config.from_object(config_class)
     
     # 设置应用版本
     app.config['APP_VERSION'] = '1.0.1'  # 根据实际版本修改
+    
+    # 添加Jinja扩展 - 支持try/except块
+    app.jinja_env.add_extension('jinja2.ext.do')
     
     # 确保SECRET_KEY被设置
     if not app.config.get('SECRET_KEY'):
@@ -87,6 +108,16 @@ def create_app(config_class=Config):
         # API路径豁免 - 修改为支持所有HTTP方法
         if request.path.startswith('/api/'):
             logger.debug(f'CSRF exempt API path: {request.path}, Method: {request.method}')
+            return True
+            
+        # 审批API路径豁免
+        if request.path.startswith('/approval/api/'):
+            logger.debug(f'CSRF exempt Approval API path: {request.path}, Method: {request.method}')
+            return True
+            
+        # 审批配置模块API路径豁免
+        if request.path.startswith('/admin/approval/field-options/'):
+            logger.debug(f'CSRF exempt Approval Config API path: {request.path}, Method: {request.method}')
             return True
             
         # 特定的product_code API路径豁免
@@ -185,6 +216,8 @@ def create_app(config_class=Config):
     from app.views.quotation import quotation
     from app.routes.api import api_bp
     from app.routes.projectpm_routes import bp as projectpm_bp
+    from app.views.approval import approval_bp
+    from app.views.approval_config import approval_config_bp
     
     # 导入新的API视图
     from app.api.v1 import api_v1_bp
@@ -202,9 +235,15 @@ def create_app(config_class=Config):
     app.register_blueprint(product_code_bp, url_prefix='/product-code')
     app.register_blueprint(product_management_bp, url_prefix='/product-management')
     app.register_blueprint(projectpm_bp, url_prefix='/projectpm')
+    app.register_blueprint(approval_bp)
+    app.register_blueprint(approval_config_bp)
     
     # 注册API v1蓝图
     app.register_blueprint(api_v1_bp, url_prefix='/api/v1')
+    
+    # 注册管理员蓝图
+    from app.views.admin import admin_bp
+    app.register_blueprint(admin_bp)
     
     # 添加版本信息API路由
     @app.route('/api/version', methods=['GET'])
@@ -275,6 +314,10 @@ def create_app(config_class=Config):
         
         # 检查是否是API请求（API请求由JWT处理）
         if request.path.startswith('/api/'):
+            return
+            
+        # 检查是否是审批API请求
+        if request.path.startswith('/approval/api/'):
             return
         
         # 检查是否是公开路径 - 使用startswith来匹配以公开路径开头的URL
@@ -455,5 +498,87 @@ def create_app(config_class=Config):
     # 注册通知蓝图
     from app.routes.notification import notification
     app.register_blueprint(notification)
+
+    # 添加审批相关函数到模板上下文
+    from app.context_processors import inject_approval_functions
+    app.context_processor(inject_approval_functions)
+    
+    # 添加项目相关函数到模板上下文
+    from app.context_processors import inject_project_functions
+    app.context_processor(inject_project_functions)
+
+    # 添加项目阶段配置函数到模板上下文
+    from app.context_processors import inject_project_stages_config
+    app.context_processor(inject_project_stages_config)
+
+    # 添加用户辅助函数到模板上下文
+    from app.context_processors import inject_user_helpers
+    app.context_processor(inject_user_helpers)
+
+    # 注册全局帮助函数
+    from app.helpers.ui_helpers import format_datetime, render_action_button, render_user_badge, get_user_display_name, render_filter_button
+    app.jinja_env.globals['format_datetime'] = format_datetime
+    app.jinja_env.globals['render_action_button'] = render_action_button
+    app.jinja_env.globals['render_user_badge'] = render_user_badge
+    app.jinja_env.globals['get_user_display_name'] = get_user_display_name
+    app.jinja_env.globals['render_filter_button'] = render_filter_button
+    
+    # 从approval_helpers导入ApprovalStatus并注册到Jinja环境中
+    from app.models.approval import ApprovalStatus
+    app.jinja_env.globals['ApprovalStatus'] = ApprovalStatus
+    
+    # 将审批相关函数直接添加到Jinja的globals中
+    from app.helpers.approval_helpers import (
+        get_available_templates,
+        get_object_approval_instance,
+        can_user_approve,
+        get_current_step_info,
+        get_object_type_display,
+        check_template_in_use,
+        get_rejected_approval_history,
+        get_template_steps,
+        get_pending_approval_count
+    )
+    app.jinja_env.globals['get_available_templates'] = get_available_templates
+    app.jinja_env.globals['get_object_approval_instance'] = get_object_approval_instance
+    app.jinja_env.globals['can_user_approve'] = can_user_approve
+    app.jinja_env.globals['get_current_step_info'] = get_current_step_info
+    app.jinja_env.globals['get_object_type_display'] = get_object_type_display
+    app.jinja_env.globals['check_template_in_use'] = check_template_in_use
+    app.jinja_env.globals['get_rejected_approval_history'] = get_rejected_approval_history
+    app.jinja_env.globals['get_template_steps'] = get_template_steps
+    app.jinja_env.globals['get_pending_approval_count'] = get_pending_approval_count
+    
+    # 添加日志调试信息
+    @app.context_processor
+    def inject_debug_functions():
+        """注入调试函数"""
+        def debug_log(message):
+            current_app.logger.info(message)
+            return ''
+        return {'debug_log': debug_log}
+
+    # 添加审批调试函数
+    @app.before_request
+    def debug_approval_templates():
+        # 使用current_app而不是直接app
+        from flask import current_app, request
+        if request and request.endpoint == 'project.view_project':
+            from app.helpers.approval_helpers import get_available_templates
+            templates = get_available_templates('project')
+            current_app.logger.info(f"测试项目模板数量: {len(templates)}")
+            for t in templates:
+                current_app.logger.info(f"模板: {t.id} - {t.name} (活跃: {t.is_active})")
+
+    # 初始化系统设置
+    with app.app_context():
+        try:
+            from app.models.settings import initialize_default_settings
+            initialize_default_settings()
+            app.logger.info("系统默认设置初始化完成")
+        except Exception as e:
+            app.logger.error(f"初始化系统设置时出错: {str(e)}")
+    
+    # 注册上下文处理器
 
     return app 

@@ -1,0 +1,735 @@
+{% from "macros/ui_helpers.html" import render_pagination with context %}
+{% from "macros/ui_helpers.html" import render_button with context %}
+
+{# 审批时间线样式 #}
+<style>
+  .timeline {
+    position: relative;
+    padding-left: 25px;
+    border-left: 1px solid #dee2e6;
+  }
+
+  .timeline-item {
+    position: relative;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+  }
+  
+  .timeline-item:last-child {
+    margin-bottom: 0;
+  }
+
+  .timeline-marker {
+    position: absolute;
+    left: -31px;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+  }
+
+  .timeline-content {
+    padding-left: 10px;
+  }
+
+  .timeline-title {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  /* 审批状态颜色 */
+  .timeline-marker.bg-success {
+    background-color: #28a745 !important;
+  }
+  
+  .timeline-marker.bg-danger {
+    background-color: #dc3545 !important;
+  }
+  
+  .timeline-marker.bg-info {
+    background-color: #17a2b8 !important;
+  }
+  
+  .timeline-marker.bg-secondary {
+    background-color: #6c757d !important;
+  }
+</style>
+
+{# 渲染审批状态徽章 #}
+{% macro render_approval_status_badge(status) %}
+  {% if status == ApprovalStatus.PENDING %}
+    <span class="badge bg-warning">审批中</span>
+  {% elif status == ApprovalStatus.APPROVED %}
+    <span class="badge bg-success">已通过</span>
+  {% elif status == ApprovalStatus.REJECTED %}
+    <span class="badge bg-danger">已拒绝</span>
+  {% elif status == ApprovalStatus.CANCELLED %}
+    <span class="badge bg-secondary">已取消</span>
+  {% else %}
+    <span class="badge bg-secondary">未知状态</span>
+  {% endif %}
+{% endmacro %}
+
+{# 审批列表显示 - 用于"我发起的"和"待我审批"两个标签页 #}
+{% macro approval_table(approvals, mode='created') %}
+  <div class="table-responsive">
+    <table class="table table-striped table-hover align-middle">
+      <thead>
+        <tr>
+          <th>审批编号</th>
+          <th>流程名称</th>
+          <th class="d-none d-md-table-cell">业务类型</th>
+          <th>业务提交人</th>
+          <th>当前审批人</th>
+          <th>状态</th>
+          <th class="d-none d-md-table-cell">发起时间</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if approvals.items %}
+          {% for item in approvals.items %}
+            <tr>
+              <td>
+                <a href="{{ url_for('approval.detail', instance_id=item.id) }}" class="fw-bold text-primary">
+                  {{ render_approval_code(item.id)|safe }}
+                </a>
+                <div class="d-md-none small text-muted">
+                  {{ get_object_type_display(item.object_type) }} · {{ format_datetime(item.started_at) }}
+                </div>
+              </td>
+              <td>
+                {% if item.process %}
+                <span class="badge bg-light text-dark">{{ item.process.name }}</span>
+                {% endif %}
+              </td>
+              <td class="d-none d-md-table-cell">{{ get_object_type_display(item.object_type) }}</td>
+              <td>{{ render_user_badge(item.creator, "bg-info") |safe }}</td>
+              {% set current_step = get_current_step_info(item) %}
+              <td>{{ render_user_badge(current_step.approver if current_step else None, "bg-primary") |safe }}</td>
+              <td>{{ render_approval_status_badge(item.status)|safe }}</td>
+              <td class="d-none d-md-table-cell">{{ format_datetime(item.started_at) }}</td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="7" class="text-center py-4">
+              <div class="text-muted">
+                <i class="fas fa-info-circle me-2"></i>
+                暂无{{ '待审批' if mode == 'pending' else '已创建' }}的流程
+              </div>
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+  
+  {# 分页器 #}
+  {% if approvals.pages > 1 %}
+    <div class="d-flex justify-content-center py-3">
+      {{ render_pagination(approvals) }}
+    </div>
+  {% endif %}
+{% endmacro %}
+
+{# 渲染审批编号徽章 #}
+{% macro render_approval_code(id) %}
+  <span class="badge rounded-pill" style="background-color: #0c7cd0; color: white; font-family: 'Helvetica Neue', sans-serif; font-size: 0.85rem; font-weight: normal; padding: 0.3em 0.75em;">
+    APV-{{ '%04d' % id }}
+  </span>
+{% endmacro %}
+
+{# 筛选器表单 #}
+{% macro approval_filter_form(current_tab='created', object_type=None, status=None) %}
+  <form class="filter-form mb-4" method="get">
+    <input type="hidden" name="tab" value="{{ current_tab }}">
+    
+    <div class="row g-2">
+      <div class="col-md-4 col-sm-6">
+        <div class="form-group">
+          <label for="object_type" class="form-label">业务类型</label>
+          <select class="form-select" id="object_type" name="object_type">
+            <option value="">全部</option>
+            <option value="project" {{ 'selected' if object_type == 'project' else '' }}>项目</option>
+            <option value="quotation" {{ 'selected' if object_type == 'quotation' else '' }}>报价单</option>
+            <option value="customer" {{ 'selected' if object_type == 'customer' else '' }}>客户</option>
+          </select>
+        </div>
+      </div>
+      
+      {% if current_tab == 'created' %}
+        <div class="col-md-4 col-sm-6">
+          <div class="form-group">
+            <label for="status" class="form-label">审批状态</label>
+            <select class="form-select" id="status" name="status">
+              <option value="">全部</option>
+              <option value="pending" {{ 'selected' if status == 'pending' else '' }}>审批中</option>
+              <option value="approved" {{ 'selected' if status == 'approved' else '' }}>已通过</option>
+              <option value="rejected" {{ 'selected' if status == 'rejected' else '' }}>已拒绝</option>
+            </select>
+          </div>
+        </div>
+      {% endif %}
+      
+      <div class="col-md-{{ '4' if current_tab == 'created' else '8' }} col-sm-12 d-flex align-items-end">
+        <div class="d-flex flex-wrap gap-2 w-100 justify-content-start">
+          {{ render_filter_button("筛选", "submit", "btn-primary", "fa-filter") |safe }}
+          
+          <a href="{{ url_for('approval.center', tab=current_tab) }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-sync-alt me-1"></i> 重置
+          </a>
+        </div>
+      </div>
+    </div>
+  </form>
+{% endmacro %}
+
+{# 审批时间线显示 - 用于详情页面展示审批流程历史 #}
+{% macro render_approval_timeline(instance) %}
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0">
+        <i class="fas fa-history me-2"></i> 审批流程
+        {{ render_approval_status_badge(instance.status)|safe }}
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="timeline">
+        {# 显示流程发起记录 #}
+        <div class="timeline-item">
+          <div class="timeline-marker bg-info"></div>
+          <div class="timeline-content">
+            <h4 class="timeline-title">流程发起</h4>
+            <p>
+              <strong>{{ get_user_display_name(instance.creator) }}</strong> 于 
+              {{ format_datetime(instance.started_at) }} 发起审批
+            </p>
+          </div>
+        </div>
+        
+        {# 显示各步骤审批记录 #}
+        {% for record in instance.records %}
+          <div class="timeline-item">
+            <div class="timeline-marker {% if record.action == 'approve' %}bg-success{% else %}bg-danger{% endif %}"></div>
+            <div class="timeline-content">
+              <h4 class="timeline-title">{{ record.step.step_name }}</h4>
+              <p>
+                <strong>{{ get_user_display_name(record.approver) }}</strong> 
+                {% if record.action == 'approve' %}
+                  <span class="text-success">同意</span>
+                {% else %}
+                  <span class="text-danger">拒绝</span>
+                {% endif %}
+                于 {{ format_datetime(record.timestamp) }}
+              </p>
+              {% if record.comment %}
+                <div class="mt-2 p-2 bg-light rounded">
+                  <i class="fas fa-comment text-muted me-2"></i>{{ record.comment }}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+        
+        {# 显示当前步骤（如果流程尚未完成） #}
+        {% if instance.status == ApprovalStatus.PENDING %}
+          {% set current_step = get_current_step_info(instance) %}
+          <div class="timeline-item">
+            <div class="timeline-marker bg-warning"></div>
+            <div class="timeline-content">
+              <h4 class="timeline-title">{{ current_step.step_name }} <span class="badge bg-warning">当前步骤</span></h4>
+              <p>待 <strong>{{ get_user_display_name(current_step.approver) }}</strong> 审批</p>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+{% endmacro %}
+
+{# 审批表单 - 用于当前审批人进行审批操作 #}
+{% macro render_approval_form(instance) %}
+  {% if instance.status == ApprovalStatus.PENDING and can_user_approve(instance.id) %}
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-tasks me-2"></i> 审批操作</h5>
+      </div>
+      <div class="card-body">
+        <form action="{{ url_for('approval.approve', instance_id=instance.id) }}" method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="form-group mb-3">
+            <label for="comment" class="form-label">审批意见</label>
+            <textarea class="form-control" id="comment" name="comment" rows="3" placeholder="请输入您的审批意见..."></textarea>
+          </div>
+          <div class="d-flex justify-content-between gap-2 flex-wrap">
+            <button type="submit" name="action" value="approve" class="btn btn-success">
+              <i class="fas fa-check-circle me-1"></i> 同意
+            </button>
+            <button type="submit" name="action" value="reject" class="btn btn-danger">
+              <i class="fas fa-times-circle me-1"></i> 拒绝
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  {% endif %}
+{% endmacro %}
+
+{# 发起审批按钮 - 用于业务详情页面 #}
+{% macro render_start_approval_button(object_type, object_id) %}
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0"><i class="fas fa-paper-plane me-2"></i> 审批操作</h5>
+    </div>
+    <div class="card-body">
+      {% set history_instance = get_rejected_approval_history(object_type, object_id) %}
+      {% if history_instance %}
+        <div class="alert alert-warning p-0 mb-4">
+          <div class="alert-heading bg-warning text-dark p-3 m-0 d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+              <i class="fas fa-exclamation-triangle me-2 fs-4"></i>
+              <h5 class="mb-0">审批被拒绝提醒</h5>
+            </div>
+            <button class="btn btn-sm btn-outline-dark collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#rejectedApprovalDetails" aria-expanded="false" aria-controls="rejectedApprovalDetails" id="rejectedDetailsToggle">
+              <i class="fas fa-chevron-down toggle-icon"></i> <span class="toggle-text">查看详情</span>
+            </button>
+          </div>
+          
+          <div class="p-3">
+            <div class="d-flex flex-column gap-2">
+              <!-- 流程信息 -->
+              <div class="d-flex">
+                <div class="text-secondary" style="width: 100px;">拒绝流程：</div>
+                <div class="fw-bold">{{ history_instance.process.name }}</div>
+              </div>
+              
+              <!-- 拒绝时间 -->
+              <div class="d-flex">
+                <div class="text-secondary" style="width: 100px;">拒绝时间：</div>
+                <div>{{ format_datetime(history_instance.ended_at) }}</div>
+              </div>
+              
+              <!-- 拒绝人 -->
+              {% set last_record = history_instance.records|selectattr('action', 'eq', 'reject')|first %}
+              {% if last_record %}
+              <div class="d-flex">
+                <div class="text-secondary" style="width: 100px;">拒绝审批人：</div>
+                <div>{{ get_user_display_name(last_record.approver) }}</div>
+              </div>
+              {% endif %}
+              
+              <!-- 拒绝原因（如果有） -->
+              {% if last_record and last_record.comment %}
+              <div class="d-flex mt-2">
+                <div class="text-secondary" style="width: 100px;">拒绝原因：</div>
+                <div class="p-2 bg-light rounded flex-grow-1 border-start border-4 border-danger">{{ last_record.comment }}</div>
+              </div>
+              {% endif %}
+            </div>
+            
+            <!-- 可折叠的审批流程详情 -->
+            <div class="collapse mt-3" id="rejectedApprovalDetails">
+              <div class="card card-body bg-light">
+                <h6 class="card-title"><i class="fas fa-history me-2"></i>审批流程详情</h6>
+                
+                <!-- 审批流程时间线 -->
+                <div class="timeline mt-3">
+                  <!-- 流程发起记录 -->
+                  <div class="timeline-item">
+                    <div class="timeline-marker bg-info"></div>
+                    <div class="timeline-content">
+                      <h6 class="timeline-title">流程发起</h6>
+                      <p class="small">
+                        <strong>{{ get_user_display_name(history_instance.creator) }}</strong> 于 
+                        {{ format_datetime(history_instance.started_at) }} 发起审批
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <!-- 获取模板的所有步骤 -->
+                  {% set all_steps = get_template_steps(history_instance.process_id) %}
+                  {% if all_steps %}
+                    <!-- 获取所有实际审批记录 -->
+                    {% set approved_records = history_instance.records|selectattr('action', 'eq', 'approve')|list %}
+                    {% set rejected_records = history_instance.records|selectattr('action', 'eq', 'reject')|list %}
+                    {% set all_records = approved_records + rejected_records %}
+                    
+                    <!-- 步骤遍历 -->
+                    {% for step in all_steps %}
+                      {% set step_record = none %}
+                      {% for record in all_records %}
+                        {% if record.step_id == step.id %}
+                          {% set step_record = record %}
+                        {% endif %}
+                      {% endfor %}
+                      
+                      <div class="timeline-item">
+                        <!-- 标记颜色：已通过为绿色，被拒绝为红色，未到达为灰色 -->
+                        {% if step_record %}
+                          {% if step_record.action == 'approve' %}
+                            <div class="timeline-marker bg-success"></div>
+                          {% else %}
+                            <div class="timeline-marker bg-danger position-relative">
+                              <i class="fas fa-times position-absolute" style="font-size: 0.6rem; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white;"></i>
+                            </div>
+                          {% endif %}
+                        {% else %}
+                          <div class="timeline-marker bg-secondary"></div>
+                        {% endif %}
+                        
+                        <div class="timeline-content">
+                          <h6 class="timeline-title">
+                            步骤 {{ step.step_order }}: {{ step.step_name }}
+                            
+                            <!-- 状态徽章 -->
+                            {% if step_record %}
+                              {% if step_record.action == 'approve' %}
+                                <span class="badge bg-success">已通过</span>
+                              {% else %}
+                                <span class="badge bg-danger">已拒绝</span>
+                              {% endif %}
+                            {% else %}
+                              <span class="badge bg-secondary">未到达</span>
+                            {% endif %}
+                          </h6>
+                          
+                          {% if step_record %}
+                            <p class="small mb-1">
+                              审批人: <strong>{{ get_user_display_name(step_record.approver) }}</strong>
+                              审批时间: {{ format_datetime(step_record.timestamp) }}
+                            </p>
+                            
+                            <!-- 拒绝原因展示 -->
+                            {% if step_record.action == 'reject' and step_record.comment %}
+                              <div class="mt-2 p-2 bg-white rounded border-start border-4 border-danger">
+                                <i class="fas fa-comment text-danger me-2"></i>{{ step_record.comment }}
+                              </div>
+                            {% endif %}
+                          {% else %}
+                            <p class="small text-muted">
+                              审批人: {{ get_user_display_name(step.approver) }}
+                            </p>
+                          {% endif %}
+                        </div>
+                      </div>
+                    {% endfor %}
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            
+            <div class="mt-3 text-end">
+              <span class="badge bg-success">您可以重新发起审批流程</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 添加展开/收起按钮的JavaScript -->
+        <script>
+          document.addEventListener('DOMContentLoaded', function() {
+            const detailsToggle = document.getElementById('rejectedDetailsToggle');
+            const toggleIcon = detailsToggle.querySelector('.toggle-icon');
+            const toggleText = detailsToggle.querySelector('.toggle-text');
+            
+            // 监听折叠面板的展开/收起事件
+            document.getElementById('rejectedApprovalDetails').addEventListener('show.bs.collapse', function () {
+              toggleIcon.classList.remove('fa-chevron-down');
+              toggleIcon.classList.add('fa-chevron-up');
+              toggleText.textContent = '收起详情';
+            });
+            
+            document.getElementById('rejectedApprovalDetails').addEventListener('hide.bs.collapse', function () {
+              toggleIcon.classList.remove('fa-chevron-up');
+              toggleIcon.classList.add('fa-chevron-down');
+              toggleText.textContent = '查看详情';
+            });
+          });
+        </script>
+      {% endif %}
+      
+      <p>请选择合适的流程模板进行审批。</p>
+      <form action="{{ url_for('approval.start_approval') }}" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="object_type" value="{{ object_type }}">
+        <input type="hidden" name="object_id" value="{{ object_id }}">
+        
+        <div class="form-group mb-3">
+          <label for="template_id" class="form-label">选择审批流程模板</label>
+          <select class="form-select" id="template_id" name="template_id" required>
+            <option value="">-- 请选择模板 --</option>
+            {# 直接获取可用模板列表，不再使用条件判断 #}
+            {% set templates = get_available_templates(object_type, object_id) %}
+            {% for template in templates %}
+              <option value="{{ template.id }}">{{ template.name }}</option>
+            {% endfor %}
+            {% if templates|length == 0 %}
+              <option value="" disabled>无可用的审批模板，请联系管理员</option>
+            {% endif %}
+          </select>
+        </div>
+        
+        <!-- 添加审批流程预览区域 -->
+        <div id="approval-process-preview" class="mb-3 mt-4 d-none">
+          <h6><i class="fas fa-sitemap me-2"></i>审批流程预览</h6>
+          <div class="approval-steps-preview">
+            <div class="timeline" id="approval-steps-timeline">
+              <!-- 预览内容将通过JavaScript动态加载 -->
+            </div>
+          </div>
+          
+          <!-- 必填字段提示区域 -->
+          <div id="required-fields-area" class="mt-3 d-none">
+            <div class="alert alert-info">
+              <h6 class="alert-heading"><i class="fas fa-exclamation-circle me-2"></i>必填字段提示</h6>
+              <p class="mb-0">发起此审批流程前，请确保以下字段已填写：</p>
+              <ul id="required-fields-list" class="mb-0 mt-2">
+                <!-- 必填字段列表将通过JavaScript动态加载 -->
+              </ul>
+            </div>
+          </div>
+        </div>
+        
+        {{ render_button('发起审批', type='submit', color='primary', icon='fas fa-play-circle') }}
+      </form>
+    </div>
+  </div>
+  
+  <!-- 添加模板选择的JavaScript代码 -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const templateSelect = document.getElementById('template_id');
+      const previewArea = document.getElementById('approval-process-preview');
+      const timelineContainer = document.getElementById('approval-steps-timeline');
+      const requiredFieldsArea = document.getElementById('required-fields-area');
+      const requiredFieldsList = document.getElementById('required-fields-list');
+      
+      // 字段名称映射表
+      const fieldDisplayNames = {
+        'authorization_code': '授权编号',
+        'project_code': '项目编号',
+        'project_name': '项目名称',
+        'project_type': '项目类型',
+        'report_time': '报备时间',
+        'report_source': '报备来源',
+        'end_user': '最终用户',
+        'design_issues': '设计院/顾问',
+        'contractor': '总承包单位',
+        'system_integrator': '系统集成商',
+        'product_situation': '品牌情况',
+        'current_stage': '当前阶段',
+        'delivery_forecast': '出货预测日期',
+        'quotation_customer': '报价金额',
+        'customer_name': '客户名称',
+        'valid_days': '有效期',
+        'currency': '币种',
+        'total_amount': '总金额',
+        'company_name': '企业名称',
+        'company_type': '企业类型',
+        'industry': '行业',
+        'country': '国家/地区',
+        'region': '省份/州',
+        'address': '地址',
+        'contact_name': '联系人'
+      };
+      
+      templateSelect.addEventListener('change', function() {
+        const templateId = this.value;
+        if (!templateId) {
+          previewArea.classList.add('d-none');
+          return;
+        }
+        
+        // 显示预览区域
+        previewArea.classList.remove('d-none');
+        timelineContainer.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin"></i> 加载审批流程步骤...</div>';
+        
+        // 使用AJAX获取模板步骤信息
+        fetch(`/approval/api/template-steps/${templateId}`)
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`HTTP错误! 状态: ${response.status}`);
+            }
+            return response.json();
+          })
+          .then(data => {
+            console.log('获取到的模板步骤数据:', data);
+            
+            if (data.success) {
+              // 构建步骤时间线
+              let stepsHtml = '';
+              
+              if (data.steps && data.steps.length > 0) {
+              data.steps.forEach((step, index) => {
+                stepsHtml += `
+                  <div class="timeline-item">
+                    <div class="timeline-marker bg-primary"></div>
+                    <div class="timeline-content">
+                      <h4 class="timeline-title">步骤 ${index + 1}: ${step.step_name}</h4>
+                      <p>审批人: ${step.approver_name}</p>
+                    </div>
+                  </div>
+                `;
+              });
+              
+              // 显示总步骤数
+              stepsHtml += `
+                <div class="timeline-item">
+                  <div class="timeline-marker bg-success"></div>
+                  <div class="timeline-content">
+                    <h4 class="timeline-title">流程完成</h4>
+                    <p>共 ${data.steps.length} 个审批步骤</p>
+                  </div>
+                </div>
+              `;
+              } else {
+                stepsHtml = `
+                <div class="alert alert-danger">
+                  <i class="fas fa-exclamation-triangle me-2"></i>
+                  <strong>错误:</strong> 该模板没有配置审批步骤，无法发起审批
+                </div>`;
+              }
+              
+              timelineContainer.innerHTML = stepsHtml;
+              
+              // 显示必填字段
+              if (data.template && data.template.required_fields && data.template.required_fields.length > 0) {
+                requiredFieldsArea.classList.remove('d-none');
+                
+                // 获取业务对象数据，检查必填字段是否已填写
+                const objectType = document.querySelector('input[name="object_type"]').value;
+                const objectId = document.querySelector('input[name="object_id"]').value;
+                
+                // 构建必填字段列表
+                let fieldsHtml = '';
+                
+                // 添加检查字段值的AJAX请求
+                fetch(`/approval/api/check-required-fields`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+                  },
+                  body: JSON.stringify({
+                    object_type: objectType,
+                    object_id: objectId,
+                    required_fields: data.template.required_fields
+                  })
+                })
+                .then(response => response.json())
+                .then(fieldData => {
+                  console.log('字段检查结果:', fieldData);
+                  
+                  if (fieldData.success) {
+                    const missingFields = fieldData.missing_fields || [];
+                    
+                    if (missingFields.length > 0) {
+                      // 有缺失字段
+                      requiredFieldsArea.querySelector('.alert').classList.remove('alert-info');
+                      requiredFieldsArea.querySelector('.alert').classList.add('alert-danger');
+                      requiredFieldsArea.querySelector('.alert-heading').innerHTML = 
+                        '<i class="fas fa-exclamation-circle me-2"></i>必填字段缺失警告';
+                      
+                      fieldsHtml = '<p class="mb-2">以下必填字段尚未填写，请先完善信息再发起审批:</p>';
+                      
+                      missingFields.forEach(field => {
+                        const displayName = data.field_display_names && data.field_display_names[field] 
+                          ? data.field_display_names[field] 
+                          : (fieldDisplayNames[field] || field);
+                        fieldsHtml += `<li><strong class="text-danger">${displayName}</strong> (${field}) - 未填写</li>`;
+                      });
+                      
+                      // 禁用提交按钮
+                      document.querySelector('button[type="submit"]').disabled = true;
+                      document.querySelector('button[type="submit"]').title = '请先完善必填字段再发起审批';
+                    } else {
+                      // 所有字段已填写
+                      requiredFieldsArea.querySelector('.alert').classList.remove('alert-danger');
+                      requiredFieldsArea.querySelector('.alert').classList.add('alert-info');
+                      requiredFieldsArea.querySelector('.alert-heading').innerHTML = 
+                        '<i class="fas fa-check-circle me-2"></i>必填字段提示';
+                      
+                      fieldsHtml = '<p class="mb-2">该审批流程需要以下字段，所有字段已正确填写:</p>';
+                      
+                      data.template.required_fields.forEach(field => {
+                        const displayName = data.field_display_names && data.field_display_names[field] 
+                          ? data.field_display_names[field] 
+                          : (fieldDisplayNames[field] || field);
+                        fieldsHtml += `<li><strong class="text-success">${displayName}</strong> (${field}) - 已填写</li>`;
+                      });
+                      
+                      // 启用提交按钮
+                      document.querySelector('button[type="submit"]').disabled = false;
+                      document.querySelector('button[type="submit"]').title = '';
+                    }
+                  } else {
+                    // API调用失败
+                    fieldsHtml = `<div class="alert alert-warning mt-2">
+                      <i class="fas fa-exclamation-triangle me-2"></i>
+                      <strong>警告:</strong> ${fieldData.message || '无法检查必填字段状态'}
+                    </div>`;
+                  }
+                  
+                  requiredFieldsList.innerHTML = fieldsHtml;
+                })
+                .catch(error => {
+                  console.error('检查必填字段失败:', error);
+                  fieldsHtml = `<div class="alert alert-warning mt-2">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>警告:</strong> 检查必填字段时出错: ${error.message}
+                  </div>`;
+                  requiredFieldsList.innerHTML = fieldsHtml;
+                });
+              } else {
+                requiredFieldsArea.classList.add('d-none');
+              }
+            } else {
+              console.error('API返回错误:', data.message);
+              timelineContainer.innerHTML = `
+              <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                ${data.message || '无法加载审批流程步骤'}
+              </div>`;
+              requiredFieldsArea.classList.add('d-none');
+            }
+          })
+          .catch(error => {
+            console.error('获取模板步骤失败:', error);
+            timelineContainer.innerHTML = `
+            <div class="alert alert-danger">
+              <i class="fas fa-exclamation-triangle me-2"></i>
+              加载审批步骤时出错: ${error.message}
+            </div>`;
+            requiredFieldsArea.classList.add('d-none');
+          });
+      });
+      
+      // 检查URL中是否有缺失字段参数
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('missing_fields')) {
+        try {
+          const missingFields = JSON.parse(decodeURIComponent(urlParams.get('missing_fields')));
+          if (missingFields && missingFields.length > 0) {
+            // 自动选择上次选择的模板
+            if (urlParams.has('template_id')) {
+              const templateId = urlParams.get('template_id');
+              templateSelect.value = templateId;
+              templateSelect.dispatchEvent(new Event('change'));
+            }
+          }
+        } catch (e) {
+          console.error('解析缺失字段参数失败:', e);
+        }
+      }
+    });
+  </script>
+{% endmacro %}
+
+{# 业务对象审批状态展示 - 用于列表页显示审批状态 #}
+{% macro render_object_approval_status(object_type, object_id) %}
+  {% set instance = get_object_approval_instance(object_type, object_id) %}
+  {% if instance %}
+    {{ render_approval_status_badge(instance.status)|safe }}
+  {% else %}
+    <span class="badge bg-secondary">未审批</span>
+  {% endif %}
+{% endmacro %} 

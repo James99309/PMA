@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_owner, render_date, render_button, render_confirm_cancel %}
+{% from 'macros/ui_helpers.html' import render_owner, render_date, render_datetime, render_button, render_confirm_cancel %}
 {% import 'macros/ui_helpers.html' as ui %}
 
 {% block title %}客户管理{% endblock %}
@@ -263,8 +263,8 @@
                             <td class="px-3">{{ company.address }}</td>
                             <td class="px-3">{{ ui.render_status_badge(company.status) }}</td>
                             <td class="px-3">{{ company.notes }}</td>
-                            <td class="px-3">{{ render_date(company.updated_at) }}</td>
-                            <td class="px-3">{{ render_date(company.created_at) }}</td>
+                            <td class="px-3">{{ render_datetime(company.updated_at) }}</td>
+                            <td class="px-3">{{ render_datetime(company.created_at) }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>

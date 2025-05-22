@@ -8,6 +8,10 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# 为activity_tracker模块设置DEBUG日志级别
+activity_logger = logging.getLogger('app.utils.activity_tracker')
+activity_logger.setLevel(logging.DEBUG)
+
 basedir = os.path.abspath(os.path.dirname(__file__))
 load_dotenv(os.path.join(basedir, '.env'))
 

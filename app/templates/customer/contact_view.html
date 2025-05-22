@@ -1,7 +1,14 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_primary_contact_badge, render_owner, render_date, render_button, render_confirm_cancel %}
+{% from 'macros/ui_modals.html' import render_change_owner_modal with context %}
 
 {% block title %}{{ contact.name }} - 联系人详情{% endblock %}
+
+{% block custom_head %}
+<!-- 添加jQuery库确保删除功能可用 -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid mt-4">
@@ -277,14 +284,15 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 删除行动记录处理
     const deleteModal = new bootstrap.Modal(document.getElementById('deleteActionModal'));
-    const deleteButtons = document.querySelectorAll('.delete-action-btn');
+    const deleteButtons = document.querySelectorAll('[data-action-id]');
     const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
     
     let currentActionId = null;
     
     // 为每个删除按钮添加点击事件
     deleteButtons.forEach(button => {
-        button.addEventListener('click', function() {
+        button.addEventListener('click', function(event) {
+            event.preventDefault();
             currentActionId = this.getAttribute('data-action-id');
             deleteModal.show();
         });
@@ -349,34 +357,6 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 {% if has_change_owner_permission %}
-<div class="modal fade" id="changeOwnerModal" tabindex="-1" aria-labelledby="changeOwnerModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <form method="post" action="{{ url_for('customer.change_contact_owner', contact_id=contact.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="changeOwnerModalLabel">修改联系人拥有人</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label for="new_owner_id" class="form-label">选择新拥有人</label>
-            <select class="form-select" id="new_owner_id" name="new_owner_id" required>
-              {% for user in all_users %}
-                <option value="{{ user.id }}" {% if user.id == contact.owner_id %}selected{% endif %}>
-                  {{ user.real_name or user.username }}（{{ user.role }}）
-                </option>
-              {% endfor %}
-            </select>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-          <button type="submit" class="btn btn-primary">确认修改</button>
-        </div>
-      </div>
-    </form>
-  </div>
-</div>
+{{ render_change_owner_modal('changeOwnerModal', url_for('customer.change_contact_owner', contact_id=contact.id), all_users, contact.owner_id, user_tree_data) }}
 {% endif %}
 {% endblock %}

@@ -50,7 +50,7 @@ class Company(db.Model):
     company_type = db.Column(db.String(20))  # 企业类型（用户/经销商/系统集成商/设计院及顾问/总承包单位）
     status = db.Column(db.String(20))  # 状态
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
     notes = db.Column(db.Text)  # 备注
     is_deleted = db.Column(db.Boolean, default=False)  # 是否删除
     

@@ -1,0 +1,415 @@
+{% extends 'base.html' %}
+{% from "macros/approval_macros.html" import render_approval_code with context %}
+{% from "macros/ui_helpers.html" import render_button, render_project_type, render_project_stage with context %}
+    
+{% block title %}审批详情 - APV-{{ '%04d' % instance.id }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <!-- 顶部导航和返回按钮 -->
+  <div class="d-flex justify-content-between align-items-center mt-4 mb-4">
+    <h2><i class="fas fa-clipboard-check me-2"></i>审批流程详情</h2>
+    <div>
+      {{ render_button('返回业务对象', href=object_url, color='secondary', icon='fas fa-arrow-left') }}
+      {{ render_button('审批中心', href=url_for('approval.center'), color='primary', icon='fas fa-list', extra_class='ms-2') }}
+      {% if current_user.role == 'admin' %}
+      {{ render_button('删除', type='button', color='danger', icon='fas fa-trash-alt', extra_class='ms-2', attrs='data-bs-toggle="modal" data-bs-target="#deleteApprovalModal"') }}
+      {% endif %}
+    </div>
+  </div>
+  
+  <!-- 添加业务对象信息卡片 -->
+  {% if instance.object_type == 'project' %}
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-dark text-white">
+          <h5 class="mb-0"><i class="fas fa-project-diagram me-2"></i>项目信息</h5>
+        </div>
+        <div class="card-body">
+          {% set project = get_project_by_id(instance.object_id) if get_project_by_id is defined else None %}
+          {% if project %}
+          <div class="row">
+            <div class="col-md-4">
+              <table class="table table-sm">
+                <tr>
+                  <th class="standard-font">项目名称</th>
+                  <td class="standard-font">{{ project.project_name or '' }}</td>
+                </tr>
+                <tr>
+                  <th class="standard-font">项目编号</th>
+                  <td class="standard-font">{{ project.authorization_code or '' }}</td>
+                </tr>
+                <tr>
+                  <th class="standard-font">项目类型</th>
+                  <td class="standard-font">{% if project.project_type %}{{ render_project_type(project.project_type)|safe }}{% endif %}</td>
+                </tr>
+              </table>
+            </div>
+            <div class="col-md-4">
+              <table class="table table-sm">
+                <tr>
+                  <th class="standard-font">报备时间</th>
+                  <td class="standard-font">{{ project.formatted_report_time or '' }}</td>
+                </tr>
+                <tr>
+                  <th class="standard-font">报备来源</th>
+                  <td class="standard-font">{{ project.report_source or '' }}</td>
+                </tr>
+                <tr>
+                  <th class="standard-font">当前阶段</th>
+                  <td class="standard-font">{% if project.current_stage %}{{ render_project_stage(project_stage_label(project.current_stage))|safe }}{% endif %}</td>
+                </tr>
+              </table>
+            </div>
+            <div class="col-md-4">
+              <table class="table table-sm">
+                <tr>
+                  <th class="standard-font">项目负责人</th>
+                  <td class="standard-font">{{ project.owner.real_name or project.owner.username if project.owner else '' }}</td>
+                </tr>
+                <tr>
+                  <th class="standard-font">报价总额</th>
+                  <td class="standard-font">{{ project.quotation_customer|round(2) if project.quotation_customer else '0.00' }} 元</td>
+                </tr>
+                <tr>
+                  <th class="standard-font">出货预测</th>
+                  <td class="standard-font">{{ project.formatted_delivery_forecast or '' }}</td>
+                </tr>
+              </table>
+            </div>
+          </div>
+          {% else %}
+          <div class="alert alert-warning standard-font">无法获取项目信息或项目已被删除</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  
+  <!-- 审批状态卡片 -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>基本信息</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm">
+            <tr>
+              <th class="standard-font" style="width: 30%">审批编号</th>
+              <td class="standard-font">{{ render_approval_code(instance.id)|safe }}</td>
+            </tr>
+            <tr>
+              <th class="standard-font">流程名称</th>
+              <td class="standard-font">{{ instance.process.name if instance.process else '未知流程' }}</td>
+            </tr>
+            <tr>
+              <th class="standard-font">业务类型</th>
+              <td class="standard-font">{{ get_object_type_display(instance.object_type) }}</td>
+            </tr>
+            <tr>
+              <th class="standard-font">发起人</th>
+              <td class="standard-font">{{ instance.creator.real_name or instance.creator.username }}</td>
+            </tr>
+            <tr>
+              <th class="standard-font">发起时间</th>
+              <td class="standard-font">{{ format_datetime(instance.started_at) }}</td>
+            </tr>
+            <tr>
+              <th class="standard-font">当前状态</th>
+              <td class="standard-font">
+                {% if instance.status == ApprovalStatus.PENDING %}
+                  <span class="badge bg-warning">审批中</span>
+                {% elif instance.status == ApprovalStatus.APPROVED %}
+                  <span class="badge bg-success">已通过</span>
+                {% elif instance.status == ApprovalStatus.REJECTED %}
+                  <span class="badge bg-danger">已拒绝</span>
+                {% else %}
+                  <span class="badge bg-secondary">未知</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% if instance.ended_at %}
+            <tr>
+              <th class="standard-font">完成时间</th>
+              <td class="standard-font">{{ format_datetime(instance.ended_at) }}</td>
+            </tr>
+            {% endif %}
+          </table>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-info text-white">
+          <h5 class="mb-0"><i class="fas fa-tasks me-2"></i>进度摘要</h5>
+        </div>
+        <div class="card-body">
+          <div class="progress-summary">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="mb-0">完成进度</h5>
+              <span class="badge bg-info standard-font">{{ records|length }}/{{ total_steps }} 步骤</span>
+            </div>
+            
+            <div class="progress mb-4" style="height: 25px;">
+              {% set progress_percentage = (records|length / total_steps * 100)|int if total_steps > 0 else 0 %}
+              <div class="progress-bar {% if instance.status == ApprovalStatus.APPROVED %}bg-success{% elif instance.status == ApprovalStatus.PENDING %}bg-warning{% else %}bg-danger{% endif %}" 
+                   role="progressbar" 
+                   style="width: {{ progress_percentage }}%;" 
+                   aria-valuenow="{{ progress_percentage }}" 
+                   aria-valuemin="0" 
+                   aria-valuemax="100">
+                {{ progress_percentage }}%
+              </div>
+            </div>
+            
+            {% if current_step %}
+            <div class="current-step-info p-3 bg-light rounded">
+              <h6><i class="fas fa-hourglass-half me-2 text-warning"></i>当前步骤</h6>
+              <div class="d-flex justify-content-between">
+                <div>
+                  <strong class="standard-font">{{ current_step.step_name }}</strong>
+                  <div class="text-muted standard-font">审批人: {{ current_step.approver.real_name or current_step.approver.username }}</div>
+                </div>
+                <div>
+                  <span class="badge bg-warning">待审批</span>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 审批流程时间线 -->
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0"><i class="fas fa-sitemap me-2"></i>审批流程图</h5>
+        </div>
+        <div class="card-body">
+          <div class="approval-workflow">
+            <div class="timeline">
+              {% for step in workflow_steps %}
+                <div class="timeline-item">
+                  <div class="timeline-marker 
+                    {% if step.is_completed and step.action and step.action == 'approve' %}
+                      bg-success
+                    {% elif step.is_completed and step.action and step.action == 'reject' %}
+                      bg-danger
+                    {% elif step.is_current %}
+                      bg-warning
+                    {% else %}
+                      bg-secondary
+                    {% endif %}
+                  "></div>
+                  <div class="timeline-content">
+                    <div class="d-flex justify-content-between">
+                      <h4 class="timeline-title">步骤 {{ step.order }}: {{ step.name }}</h4>
+                      {% if step.is_current %}
+                        <span class="badge bg-warning">当前步骤</span>
+                      {% elif step.is_completed and step.action %}
+                        {% if step.action == 'approve' %}
+                          <span class="badge bg-success">已通过</span>
+                        {% else %}
+                          <span class="badge bg-danger">已拒绝</span>
+                        {% endif %}
+                      {% endif %}
+                    </div>
+                    
+                    <p class="standard-font">审批人: {{ step.approver }}</p>
+                    
+                    {% if step.is_completed and step.timestamp %}
+                      <p class="text-muted standard-font">审批时间: {{ format_datetime(step.timestamp) }}</p>
+                      
+                      {% if step.comment %}
+                        <div class="mt-2 p-2 bg-light rounded">
+                          <i class="fas fa-comment text-muted me-2"></i><span class="standard-font">{{ step.comment }}</span>
+                        </div>
+                      {% endif %}
+                    {% endif %}
+                  </div>
+                </div>
+              {% endfor %}
+              
+              <!-- 最终结果 -->
+              <div class="timeline-item">
+                <div class="timeline-marker 
+                  {% if instance.status == ApprovalStatus.APPROVED %}
+                    bg-success
+                  {% elif instance.status == ApprovalStatus.REJECTED %}
+                    bg-danger
+                  {% else %}
+                    bg-secondary
+                  {% endif %}
+                "></div>
+                <div class="timeline-content">
+                  <h4 class="timeline-title">流程结束</h4>
+                  <p class="standard-font">
+                    {% if instance.status == ApprovalStatus.APPROVED %}
+                      <span class="text-success"><i class="fas fa-check-circle me-1"></i>审批已通过</span>
+                    {% elif instance.status == ApprovalStatus.REJECTED %}
+                      <span class="text-danger"><i class="fas fa-times-circle me-1"></i>审批已拒绝</span>
+                    {% else %}
+                      <span class="text-muted"><i class="fas fa-hourglass-half me-1"></i>审批进行中</span>
+                    {% endif %}
+                  </p>
+                  {% if instance.ended_at %}
+                    <p class="text-muted standard-font">完成时间: {{ format_datetime(instance.ended_at) }}</p>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 审批表单 - 如果当前用户可以审批当前步骤 -->
+  {% if instance.status == ApprovalStatus.PENDING and can_user_approve(instance.id) %}
+    {% set current_step = get_current_step_info(instance) %}
+    {% set is_authorization_step = current_step and current_step.action_type == 'authorization' %}
+    
+    {% if is_authorization_step and instance.object_type == 'project' %}
+      <!-- 授权编号审批需要特殊页面 -->
+      <div class="row mt-4">
+        <div class="col-12">
+          <div class="card">
+            <div class="card-header bg-primary text-white">
+              <h5 class="mb-0"><i class="fas fa-edit me-2"></i>授权编号审批</h5>
+            </div>
+            <div class="card-body">
+              <p class="standard-font">此步骤需要授权编号配置，请点击下方按钮进入审批页面。</p>
+              {{ render_button('进行授权', href=url_for('approval.authorize', instance_id=instance.id), color='primary', icon='fas fa-key') }}
+            </div>
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <!-- 普通审批表单 -->
+    <div class="row mt-4">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-edit me-2"></i>审批操作</h5>
+          </div>
+          <div class="card-body">
+            <form action="{{ url_for('approval.approve', instance_id=instance.id) }}" method="POST">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="form-group mb-3">
+                <label for="comment" class="form-label standard-font">审批意见</label>
+                <textarea class="form-control standard-font" id="comment" name="comment" rows="3" placeholder="请输入您的审批意见..."></textarea>
+              </div>
+              <div class="d-flex justify-content-between">
+                <button type="submit" name="action" value="approve" class="btn btn-success">
+                  <i class="fas fa-check-circle me-1"></i> <span class="standard-font">同意</span>
+                </button>
+                <button type="submit" name="action" value="reject" class="btn btn-danger">
+                  <i class="fas fa-times-circle me-1"></i> <span class="standard-font">拒绝</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  {% endif %}
+</div>
+
+<style>
+  .timeline {
+    position: relative;
+    margin: 0 0 30px 0;
+    padding: 0;
+    list-style: none;
+  }
+  
+  .timeline:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: #dee2e6;
+    left: 25px;
+    margin-left: -1.5px;
+  }
+  
+  .timeline-item {
+    position: relative;
+    margin-bottom: 30px;
+  }
+  
+  .timeline-marker {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    left: 25px;
+    margin-left: -8px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    z-index: 100;
+  }
+  
+  .timeline-content {
+    padding-left: 50px;
+    position: relative;
+    min-height: 60px;
+  }
+  
+  .progress {
+    border-radius: 0.5rem;
+  }
+  
+  /* 统一字体大小样式 */
+  .standard-font {
+    font-size: 0.95rem !important;
+  }
+  
+  /* 标题保持原有大小，其他文本元素统一使用standard-font类 */
+  h4.timeline-title {
+    font-size: 1.1rem !important;
+  }
+  
+  /* 表格样式优化 */
+  .table-sm th, .table-sm td {
+    padding: 0.5rem;
+  }
+</style>
+
+<!-- 删除确认模态框 -->
+{% if current_user.role == 'admin' %}
+<div class="modal fade" id="deleteApprovalModal" tabindex="-1" role="dialog" aria-labelledby="deleteApprovalModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteApprovalModalLabel">确认删除</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="standard-font">确定要删除此审批流程吗？此操作不可逆。</p>
+        <div class="alert alert-danger" role="alert">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          <span class="standard-font">警告：删除审批流程可能会影响业务数据完整性！</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <form action="{{ url_for('approval.delete_approval', instance_id=instance.id) }}" method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-danger">确认删除</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %} 

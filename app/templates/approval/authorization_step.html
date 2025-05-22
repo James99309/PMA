@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+
+{% from "macros/ui_helpers.html" import render_button with context %}
+
+{% block title %}授权编号审批{% endblock %}
+
+{% block content %}
+<div class="container mt-4 pt-4">
+  <div class="row mb-4">
+    <div class="col-12">
+      <h2><i class="fas fa-key me-2"></i>项目授权编号审批</h2>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}">首页</a></li>
+          <li class="breadcrumb-item"><a href="{{ url_for('approval.center') }}">审批中心</a></li>
+          <li class="breadcrumb-item"><a href="{{ url_for('approval.detail', instance_id=instance.id) }}">审批详情</a></li>
+          <li class="breadcrumb-item active">授权编号审批</li>
+        </ol>
+      </nav>
+    </div>
+  </div>
+
+  <!-- 项目信息卡片 -->
+  <div class="row mb-4">
+    <div class="col-md-12">
+      <div class="card">
+        <div class="card-header bg-dark text-white">
+          <h5 class="mb-0"><i class="fas fa-project-diagram me-2"></i>项目信息</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <th style="width: 30%">项目名称</th>
+                  <td>{{ project.project_name }}</td>
+                </tr>
+                <tr>
+                  <th>报备来源</th>
+                  <td>{{ project.report_source | report_source_label('zh') }}</td>
+                </tr>
+                <tr>
+                  <th>客户</th>
+                  <td>{{ project.end_user or '未设置' }}</td>
+                </tr>
+              </table>
+            </div>
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <th style="width: 30%">报备时间</th>
+                  <td>{{ project.formatted_report_time }}</td>
+                </tr>
+                <tr>
+                  <th>当前阶段</th>
+                  <td>{{ project.current_stage | project_stage_label('zh') }}</td>
+                </tr>
+                <tr>
+                  <th>项目所有者</th>
+                  <td>{{ project.owner.real_name or project.owner.username if project.owner else '未指定' }}</td>
+                </tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 授权编号配置卡片 -->
+  <div class="row mb-4">
+    <div class="col-md-12">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0"><i class="fas fa-cog me-2"></i>授权编号配置</h5>
+        </div>
+        <div class="card-body">
+          <form id="approval-form" action="{{ url_for('approval.approve', instance_id=instance.id) }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="project_type" class="form-label fw-bold">项目类型</label>
+                  <select class="form-select" id="project_type" name="project_type" required>
+                    <option value="">-- 请选择项目类型 --</option>
+                    {% for type_key, type_data in project_types.items() %}
+                      <option value="{{ type_key }}" {% if project.project_type == type_key %}selected{% endif %}>{{ type_data.zh }}</option>
+                    {% endfor %}
+                  </select>
+                  <div class="form-text text-info">
+                    <i class="fas fa-info-circle me-1"></i>项目类型将决定授权编号的前缀
+                  </div>
+                </div>
+                
+                <div class="mt-4">
+                  <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>审批通过后将：
+                    <ul class="mb-0 mt-2">
+                      <li>自动生成并分配授权编号</li>
+                      <li>将报备日期更新为今天 ({{ today_date }})</li>
+                      <li>解锁项目编辑功能</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-md-6">
+                <div class="preview-card bg-light p-4 rounded">
+                  <h5><i class="fas fa-eye me-2"></i>授权编号预览</h5>
+                  <div class="d-flex align-items-center mt-3">
+                    <div class="bg-white p-3 rounded border shadow-sm w-100 text-center">
+                      <span id="code-prefix" class="badge bg-primary me-1">{{ prefix }}</span>
+                      <span id="code-year" class="badge bg-secondary me-1">{{ year }}</span>
+                      <span id="code-month" class="badge bg-secondary me-1">{{ month }}</span>
+                      <span class="badge bg-dark">-</span>
+                      <span class="badge bg-secondary">001</span>
+                    </div>
+                  </div>
+                  <div id="preview-code" class="mt-3 fs-4 text-center fw-bold">
+                    {{ preview_code }}
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <hr>
+            
+            <div class="form-group mb-4">
+              <label for="comment" class="form-label fw-bold">审批意见</label>
+              <textarea class="form-control" id="comment" name="comment" rows="3" placeholder="请输入您的审批意见..."></textarea>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+              {{ render_button('拒绝授权', type='submit', color='danger', icon='fas fa-times-circle', attrs='name="action" value="reject"') }}
+              {{ render_button('通过并生成授权编号', type='submit', color='primary', icon='fas fa-check-circle', attrs='name="action" value="approve"') }}
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const projectTypeSelect = document.getElementById('project_type');
+    const previewCode = document.getElementById('preview-code');
+    const codePrefix = document.getElementById('code-prefix');
+    
+    // 项目类型前缀映射
+    const typePrefixMap = {};
+    {% for type_key, type_data in project_types.items() %}
+      typePrefixMap['{{ type_key }}'] = '{{ type_prefixes.get(type_data.zh, "") }}';
+    {% endfor %}
+    
+    // 当项目类型变化时，更新预览
+    projectTypeSelect.addEventListener('change', function() {
+      const selectedType = this.value;
+      if (!selectedType) return;
+      
+      const prefix = typePrefixMap[selectedType] || '';
+      
+      // 更新前缀显示
+      codePrefix.textContent = prefix;
+      
+      // 更新完整预览代码
+      const yearMonth = '{{ year }}{{ month }}';
+      previewCode.textContent = `${prefix}${yearMonth}-001`;
+      
+      // 也可以通过API获取更准确的预览 (可选)
+      fetch('{{ url_for("approval.preview_authorization_code") }}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ project_type: selectedType })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          previewCode.textContent = data.preview_code;
+        }
+      })
+      .catch(error => console.error('预览授权编号时出错:', error));
+    });
+  });
+</script>
+{% endblock %}

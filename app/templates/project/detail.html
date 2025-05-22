@@ -1,12 +1,15 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_quotation_number, render_project_stage %}
 {% import 'macros/ui_helpers.html' as ui %}
+{% from 'macros/approval_macros.html' import render_approval_timeline, render_approval_form, render_start_approval_button %}
+{% from 'macros/ui_modals.html' import render_change_owner_modal %}
 
 {% block title %}项目详情{% endblock %}
 
 {% block head %}
 <!-- 引入项目阶段进度条样式 -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/project_stages.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
 <style>
     /* 仅项目详情页主容器顶部留白，避免被fixed导航遮挡 */
     .container.project-detail-main {
@@ -16,6 +19,16 @@
         .container.project-detail-main {
             margin-top: 120px !important;
         }
+    }
+    
+    /* 统一字体大小样式 */
+    .standard-font {
+        font-size: 0.95rem !important;
+    }
+    
+    /* 标题保持原有大小，其他文本元素统一使用standard-font类 */
+    h4.timeline-title {
+        font-size: 1.1rem !important;
     }
 </style>
 {% endblock %}
@@ -27,57 +40,16 @@
             <h2>{{ project.project_name }}</h2>
             <div class="d-flex flex-wrap align-items-center justify-content-end mb-2 gap-2">
                 {{ ui.render_button('返回列表', href=url_for('project.list_projects'), color='secondary') }}
-                {% if current_stage_key != 'signed' and current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) %}
+                {% if current_stage_key != 'signed' and current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) and (not project.is_locked or current_user.role == 'admin') %}
                     {{ ui.render_button('编辑项目', href=url_for('project.edit_project', project_id=project.id), color='primary') }}
                 {% endif %}
-                {% if current_stage_key != 'signed' and current_user.has_permission('project', 'delete') and (current_user.role == 'admin' or current_user.id == project.owner_id) %}
+                {% if current_stage_key != 'signed' and current_user.has_permission('project', 'delete') and (current_user.role == 'admin' or current_user.id == project.owner_id) and (not project.is_locked or current_user.role == 'admin') %}
                     <form action="{{ url_for('project.delete_project', project_id=project.id) }}" method="post" style="display:inline;">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         {{ ui.render_button('删除项目', type='submit', color='danger') }}
                     </form>
                 {% endif %}
             </div>
-            <!-- 授权编号/状态区域整体上移 -->
-            {% if project.authorization_code %}
-            <div class="mt-2">
-                <span class="authorization-code fw-bold">{{ render_authorization_code(project.authorization_code, project.project_type, size="medium") }}</span>
-            </div>
-            {% elif project.authorization_status == 'pending' %}
-            <div class="mt-2 d-flex align-items-center">
-                <span class="badge bg-warning">审批中</span>
-                {% if current_user.role in ['channel_manager', 'sales_director', 'admin', 'service', 'service_manager'] %}
-                <div class="ms-3 btn-group">
-                    {% if current_user.role == 'admin' or
-                         (current_user.role == 'channel_manager' and project.project_type == '渠道跟进') or
-                         (current_user.role == 'sales_director' and project.project_type in ['渠道跟进', '销售重点']) or
-                         (current_user.role in ['service', 'service_manager'] and project.project_type == '业务机会') %}
-                    {{ ui.render_button("批准", type="button", color="success", attrs='data-bs-toggle="modal" data-bs-target="#approveAuthorizationModal"') }}
-                    {{ ui.render_button("驳回", type="button", color="danger", attrs='data-bs-toggle="modal" data-bs-target="#rejectAuthorizationModal"') }}
-                    {% endif %}
-                </div>
-                {% elif current_user.id == project.owner_id or current_user.role == 'admin' %}
-                {{ ui.render_button("撤回申请", type="button", color="warning", attrs='data-bs-toggle="modal" data-bs-target="#revokeAuthorizationModal"', extra_class="ms-3") }}
-                {% endif %}
-            </div>
-            {% elif project.authorization_status == 'rejected' %}
-            <div class="mt-2 d-flex align-items-center">
-                <span class="badge bg-danger">已驳回</span>
-                {% if current_user.id == project.owner_id or current_user.role == 'admin' %}
-                {{ ui.render_button("再次申请", type="button", color="auxiliary", attrs='data-bs-toggle="modal" data-bs-target="#applyAuthorizationModal"', extra_class="ms-3") }}
-                {% endif %}
-            </div>
-            {% if project.feedback %}
-            <div class="alert alert-danger mt-2">
-                <strong>驳回原因：</strong> {{ project.feedback }}
-            </div>
-            {% endif %}
-            {% else %}
-            <div class="mt-2 d-flex align-items-center">
-                {% if current_user.id == project.owner_id or current_user.role == 'admin' %}
-                {{ ui.render_button("申请授权编号", type="button", color="auxiliary", attrs='data-bs-toggle="modal" data-bs-target="#applyAuthorizationModal"', extra_class="ms-3") }}
-                {% endif %}
-            </div>
-            {% endif %}
         </div>
     </div>
 
@@ -148,7 +120,7 @@
     <form action="{{ url_for('quotation.create_quotation') }}" method="GET" style="display:inline;">
         <input type="hidden" name="project_id" value="{{ project.id }}">
         <input type="hidden" name="return_to" value="{{ url_for('project.view_project', project_id=project.id) }}">
-        {{ ui.render_button('添加报价', type='submit', color='primary', extra_class='btn-sm') }}
+        <button type="submit" class="btn btn-link p-0">添加报价</button>
     </form>
     {% endif %}
 {% endif %}
@@ -164,7 +136,7 @@
                                 <div class="col-md-4"><strong>拥有人：</strong></div>
                                 <div class="col-md-8">
                                     {{ render_owner(project.owner) }}
-                                    {% if has_change_owner_permission %}
+                                    {% if has_change_owner_permission and (not project.is_locked or current_user.role == 'admin') %}
                                         <button class="btn btn-link btn-sm p-0 ms-2" data-bs-toggle="modal" data-bs-target="#changeOwnerModal">修改</button>
                                     {% endif %}
                                 </div>
@@ -180,6 +152,26 @@
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>最后更新：</strong></div>
                                 <div class="col-md-8">{{ render_datetime(project.updated_at) }}</div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-md-4"><strong>活跃状态：</strong></div>
+                                <div class="col-md-8">
+                                    {% if project.is_active %}
+                                        <span class="badge bg-success">活跃</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">不活跃</span>
+                                    {% endif %}
+                                    <small class="ms-2 text-muted">阈值: {{ settings.project_activity_threshold|default(7) }}天</small>
+                                </div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-md-4"><strong>最后活动：</strong></div>
+                                <div class="col-md-8">
+                                    {{ render_datetime(project.last_activity_date) }}
+                                    {% if project.activity_reason %}
+                                        <span class="badge bg-info ms-2">{{ project.activity_reason }}</span>
+                                    {% endif %}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -372,159 +364,161 @@
             </div>
         </div>
     </div>
-</div>
 
-<!-- 申请授权编号模态框 -->
-<div class="modal fade" id="applyAuthorizationModal" tabindex="-1" aria-labelledby="applyAuthorizationModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="{{ url_for('project.apply_authorization', project_id=project.id) }}" method="post" id="applyAuthorizationForm">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="applyAuthorizationModalLabel">申请授权编号</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    {% if not project.project_type or project.project_type.strip() == '' %}
-                    <div class="alert alert-danger mb-3">
-                        <strong>提示：</strong>项目类型未填写，无法提交授权编号申请。请先完善项目信息。
+    <!-- 审批流程区域 -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <!-- 查找是否有现有的审批实例 -->
+            {% set approval_instance = get_object_approval_instance('project', project.id) if get_object_approval_instance is defined %}
+            {% if approval_instance %}
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-sitemap me-2"></i>审批流程</h5>
                     </div>
-                    {% endif %}
-                    <p class="text-danger">请确认项目信息已经完整填写，包括项目名称、相关单位和项目说明等。</p>
-                    <p>系统将对项目名称进行查重，如有重复或相似项目，申请可能会被驳回。</p>
-
-                    <!-- 相似项目警告 -->
-                    <div id="applySimilarProjectsWarning" class="d-none alert alert-warning mb-3">
-                        <p><strong>警告：</strong>系统检测到存在相似项目，请确认是否继续申请。</p>
-                        <div id="applySimilarProjectsList"></div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="apply_note" class="form-label">申请说明（可选）：</label>
-                        <textarea id="apply_note" name="apply_note" class="form-control" rows="3"></textarea>
+                    <div class="card-body">
+                        <!-- 审批进度摘要 -->
+                        {% set records = approval_instance.records %}
+                        {% set total_steps = approval_instance.process.steps|length %}
+                        <div class="row mb-4">
+                            <div class="col-md-12">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="mb-0">审批进度</h5>
+                                    <span class="badge bg-info standard-font">{{ records|length }}/{{ total_steps }} 步骤</span>
+                                </div>
+                                
+                                <div class="progress mb-4" style="height: 25px;">
+                                    {% set progress_percentage = (records|length / total_steps * 100)|int if total_steps > 0 else 0 %}
+                                    <div class="progress-bar {{ 'bg-success' if approval_instance.status == ApprovalStatus.APPROVED else 'bg-warning' if approval_instance.status == ApprovalStatus.PENDING else 'bg-danger' }}"
+                                        role="progressbar"
+                                        style="width: {{ progress_percentage }}%;"
+                                        aria-valuenow="{{ progress_percentage }}"
+                                        aria-valuemin="0"
+                                        aria-valuemax="100">
+                                        {{ progress_percentage }}%
+                                    </div>
+                                </div>
+                                
+                                {% if approval_instance.status == ApprovalStatus.PENDING %}
+                                    {% set current_step = get_current_step_info(approval_instance) if get_current_step_info is defined %}
+                                    {% if current_step %}
+                                    <div class="current-step-info p-3 bg-light rounded">
+                                        <h6><i class="fas fa-hourglass-half me-2 text-warning"></i>当前步骤</h6>
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <strong class="standard-font">{{ current_step.step_name }}</strong>
+                                                <div class="text-muted standard-font">审批人: {{ current_step.approver.username }}</div>
+                                            </div>
+                                            <div>
+                                                <span class="badge bg-warning">待审批</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- 审批流程时间线 -->
+                        <div class="approval-workflow">
+                            <div class="timeline">
+                                <!-- 流程发起 -->
+                                <div class="timeline-item">
+                                    <div class="timeline-marker bg-info"></div>
+                                    <div class="timeline-content">
+                                        <h4 class="timeline-title">流程发起</h4>
+                                        <p class="standard-font">
+                                            <strong>{{ approval_instance.creator.username }}</strong> 于 
+                                            {{ format_datetime(approval_instance.started_at) }} 发起审批
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <!-- 审批步骤记录 -->
+                                {% for record in records %}
+                                    <div class="timeline-item">
+                                        <div class="timeline-marker {% if record.action == 'approve' %}bg-success{% else %}bg-danger{% endif %}"></div>
+                                        <div class="timeline-content">
+                                            <h4 class="timeline-title">{{ record.step.step_name }}</h4>
+                                            <p class="standard-font">
+                                                <strong>{{ record.approver.username }}</strong> 
+                                                {% if record.action == 'approve' %}
+                                                    <span class="text-success">同意</span>
+                                                {% else %}
+                                                    <span class="text-danger">拒绝</span>
+                                                {% endif %}
+                                                于 {{ format_datetime(record.timestamp) }}
+                                            </p>
+                                            {% if record.comment %}
+                                                <div class="mt-2 p-2 bg-light rounded">
+                                                    <i class="fas fa-comment text-muted me-2"></i><span class="standard-font">{{ record.comment }}</span>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                                
+                                <!-- 当前步骤 -->
+                                {% if approval_instance.status == ApprovalStatus.PENDING %}
+                                    {% set current_step = get_current_step_info(approval_instance) if get_current_step_info is defined and current_step is undefined %}
+                                    {% if current_step %}
+                                        <div class="timeline-item">
+                                            <div class="timeline-marker bg-warning"></div>
+                                            <div class="timeline-content">
+                                                <h4 class="timeline-title">{{ current_step.step_name }} <span class="badge bg-warning">当前步骤</span></h4>
+                                                <p class="standard-font">待 <strong>{{ current_step.approver.username }}</strong> 审批</p>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                {% endif %}
+                                
+                                <!-- 流程结束状态 -->
+                                <div class="timeline-item">
+                                    <div class="timeline-marker 
+                                        {% if approval_instance.status == ApprovalStatus.APPROVED %}
+                                            bg-success
+                                        {% elif approval_instance.status == ApprovalStatus.REJECTED %}
+                                            bg-danger
+                                        {% else %}
+                                            bg-secondary
+                                        {% endif %}
+                                    "></div>
+                                    <div class="timeline-content">
+                                        <h4 class="timeline-title">流程状态</h4>
+                                        <p class="standard-font">
+                                            {% if approval_instance.status == ApprovalStatus.APPROVED %}
+                                                <span class="text-success"><i class="fas fa-check-circle me-1"></i>审批已通过</span>
+                                            {% elif approval_instance.status == ApprovalStatus.REJECTED %}
+                                                <span class="text-danger"><i class="fas fa-times-circle me-1"></i>审批已拒绝</span>
+                                            {% else %}
+                                                <span class="text-muted"><i class="fas fa-hourglass-half me-1"></i>审批进行中</span>
+                                            {% endif %}
+                                        </p>
+                                        {% if approval_instance.ended_at %}
+                                            <p class="text-muted standard-font">完成时间: {{ format_datetime(approval_instance.ended_at) }}</p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 操作按钮区域 -->
+                        <div class="mt-3">
+                            <a href="{{ url_for('approval.detail', instance_id=approval_instance.id) }}" class="btn btn-primary">
+                                <i class="fas fa-external-link-alt me-1"></i> 查看详情
+                            </a>
+                        </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="submit" class="btn btn-primary" {% if not project.project_type or project.project_type.strip() == '' %}disabled{% endif %}>提交申请</button>
-                </div>
-            </form>
+            {% else %}
+                {{ render_start_approval_button('project', project.id) }}
+            {% endif %}
         </div>
     </div>
 </div>
 
-<!-- 批准授权编号模态框 -->
-<div class="modal fade" id="approveAuthorizationModal" tabindex="-1" aria-labelledby="approveAuthorizationModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="{{ url_for('project.approve_authorization', project_id=project.id) }}" method="post">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="approveAuthorizationModalLabel">批准授权编号申请</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p>您确认批准此项目的授权编号申请吗？批准后系统将自动生成授权编号。</p>
-                    <div id="similarProjectsWarning" class="d-none alert alert-warning">
-                        <p><strong>警告：</strong>系统检测到可能存在相似项目，请确认是否继续批准。</p>
-                        <div id="similarProjectsList"></div>
-                    </div>
-                    <div class="form-group">
-                        <label for="approval_note" class="form-label">批准备注（可选）：</label>
-                        <textarea id="approval_note" name="approval_note" class="form-control" rows="3"></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="submit" class="btn btn-success">确认批准</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- 驳回授权编号模态框 -->
-<div class="modal fade" id="rejectAuthorizationModal" tabindex="-1" aria-labelledby="rejectAuthorizationModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="{{ url_for('project.reject_authorization', project_id=project.id) }}" method="post">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="rejectAuthorizationModalLabel">驳回授权编号申请</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p>您确认要驳回此项目的授权编号申请吗？</p>
-                    <div class="form-group">
-                        <label for="reject_reason" class="form-label">驳回原因（必填）：</label>
-                        <textarea id="reject_reason" name="reject_reason" class="form-control" rows="3" required></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="submit" class="btn btn-danger">确认驳回</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- 撤回授权申请模态框 -->
-<div class="modal fade" id="revokeAuthorizationModal" tabindex="-1" aria-labelledby="revokeAuthorizationModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-warning text-dark">
-                <h5 class="modal-title" id="revokeAuthorizationModalLabel">撤回授权申请</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form action="{{ url_for('project.revoke_authorization', project_id=project.id) }}" method="POST">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div class="modal-body">
-                    <p>您确定要撤回此项目的授权申请吗？</p>
-                    <div class="mb-3">
-                        <label for="revoke_reason" class="form-label">撤回原因（可选）</label>
-                        <textarea class="form-control" id="revoke_reason" name="revoke_reason" rows="3" placeholder="请输入撤回原因..."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="submit" class="btn btn-warning">确认撤回</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
 
 {% if has_change_owner_permission %}
-<div class="modal fade" id="changeOwnerModal" tabindex="-1" aria-labelledby="changeOwnerModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <form method="post" action="{{ url_for('project.change_project_owner', project_id=project.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="changeOwnerModalLabel">修改项目拥有人</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label for="new_owner_id" class="form-label">选择新拥有人</label>
-            <select class="form-select" id="new_owner_id" name="new_owner_id" required>
-              {% for user in all_users %}
-                <option value="{{ user.id }}" {% if user.id == project.owner_id %}selected{% endif %}>
-                  {{ user.real_name or user.username }}（{{ user.role }}）
-                </option>
-              {% endfor %}
-            </select>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-          <button type="submit" class="btn btn-primary">确认修改</button>
-        </div>
-      </div>
-    </form>
-  </div>
-</div>
+{{ render_change_owner_modal('changeOwnerModal', url_for('project.change_project_owner', project_id=project.id), all_users, project.owner_id, user_tree_data) }}
 {% endif %}
 {% endblock %}
 
@@ -653,14 +647,20 @@
         });
 
         // 初始化项目阶段进度条
-        new ProjectStageProgress({
+        const projectStageProgress = new ProjectStageProgress({
             containerId: 'projectStageProgress',
             projectId: {{ project.id }},
             currentStage: '{{ current_stage_key }}',
             csrfToken: '{{ csrf_token() }}',
-            updateUrl: "{{ url_for('project.update_project_stage') }}",
+            updateUrl: '{{ url_for("project.update_project_stage") }}',
+            canEdit: {{ current_user.has_permission('project', 'edit')|lower }},
+            isLocked: {{ project.is_locked|lower }},
+            userRole: '{{ current_user.role }}',
+            {% if stageHistory %}
             stageHistory: {{ stageHistory|tojson }},
-            canEdit: {% if current_stage_key != 'signed' and current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) %}true{% else %}false{% endif %}
+            {% endif %}
+            // 从后端传递标准阶段定义
+            stageDefs: {{ project_stages_config()|tojson }}
         });
 
         // 绑定删除按钮事件
@@ -823,6 +823,51 @@
 /* 确保卡片占满高度 */
 .card-with-full-height {
     height: 100%;
+}
+
+/* 审批流程时间线样式 */
+.timeline {
+    position: relative;
+    margin: 0 0 30px 0;
+    padding: 0;
+    list-style: none;
+}
+
+.timeline:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: #dee2e6;
+    left: 25px;
+    margin-left: -1.5px;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 30px;
+}
+
+.timeline-marker {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    left: 25px;
+    margin-left: -8px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    z-index: 100;
+}
+
+.timeline-content {
+    padding-left: 50px;
+    position: relative;
+    min-height: 60px;
+}
+
+.progress {
+    border-radius: 0.5rem;
 }
 </style>
 {% endblock %}

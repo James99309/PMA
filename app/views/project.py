@@ -23,9 +23,13 @@ from flask_wtf.csrf import CSRFProtect
 from app.models.action import Action, ActionReply
 from app.models.projectpm_stage_history import ProjectStageHistory  # 导入阶段历史记录模型
 from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from app.utils.notification_helpers import trigger_event_notification
 from app.services.event_dispatcher import notify_project_created, notify_project_status_updated
+from app.helpers.project_helpers import is_project_editable
+from app.utils.activity_tracker import check_company_activity, update_active_status
+from app.models.settings import SystemSettings
+from zoneinfo import ZoneInfo
 
 csrf = CSRFProtect()
 
@@ -74,7 +78,45 @@ def list_projects():
     
     # 应用筛选条件
     for field, value in filters.items():
-        if hasattr(Project, field):
+        # 处理特殊筛选条件
+        if field == 'is_active':
+            # 筛选活跃状态
+            is_active_value = value.lower() in ['true', '1', 'yes', 'active']
+            query = query.filter(Project.is_active == is_active_value)
+        elif field == 'has_authorization':
+            # 筛选有授权编号的项目
+            if value == '1':
+                query = query.filter(Project.authorization_code.isnot(None), 
+                                     func.length(Project.authorization_code) > 0)
+            elif value == '0':
+                query = query.filter(or_(Project.authorization_code.is_(None),
+                                         func.length(Project.authorization_code) == 0))
+        elif field == 'stage_not':
+            # 排除特定阶段的项目
+            excluded_stages = value.split(',')
+            for stage in excluded_stages:
+                stage = stage.strip()
+                if stage:
+                    query = query.filter(Project.current_stage != stage)
+        elif field == 'updated_this_month':
+            # 筛选本月有阶段变更的项目
+            if value == '1':
+                today = datetime.now().date()
+                start_date = today.replace(day=1)  # 本月1号
+                
+                # 查询本月内有阶段变化的项目
+                from app.models.projectpm_stage_history import ProjectStageHistory
+                project_ids_with_changes = db.session.query(ProjectStageHistory.project_id).filter(
+                    ProjectStageHistory.change_date >= start_date
+                ).distinct().all()
+                
+                project_ids = [p.project_id for p in project_ids_with_changes]
+                if project_ids:
+                    query = query.filter(Project.id.in_(project_ids))
+                else:
+                    # 如果没有找到任何项目，返回空结果
+                    query = query.filter(Project.id == -1)  # 不会匹配任何项目
+        elif hasattr(Project, field):
             # 处理不同类型的字段
             if field in ['report_time', 'delivery_forecast', 'created_at', 'updated_at']:
                 # 日期字段
@@ -245,7 +287,19 @@ def view_project(project_id):
             all_users = User.query.filter(User.id.in_([current_user.id, project.owner_id])).all()
     has_change_owner_permission = can_change_project_owner(current_user, project)
 
-    return render_template('project/detail.html', project=project, Quotation=Quotation, related_companies=related_companies, stageHistory=stage_history, project_actions=project_actions, current_stage_key=current_stage_key, all_users=all_users, has_change_owner_permission=has_change_owner_permission)
+    # 生成用户树状数据
+    from app.utils.user_helpers import generate_user_tree_data
+    user_tree_data = None
+    if has_change_owner_permission:
+        filter_by_dept = current_user.role != 'admin'
+        user_tree_data = generate_user_tree_data(filter_by_department=filter_by_dept)
+
+    # 获取系统设置
+    settings = {
+        "project_activity_threshold": SystemSettings.get('project_activity_threshold', 7)
+    }
+
+    return render_template('project/detail.html', project=project, Quotation=Quotation, related_companies=related_companies, stageHistory=stage_history, project_actions=project_actions, current_stage_key=current_stage_key, all_users=all_users, has_change_owner_permission=has_change_owner_permission, user_tree_data=user_tree_data, settings=settings)
 
 @project.route('/add', methods=['GET', 'POST'])
 @permission_required('project', 'create')
@@ -353,6 +407,13 @@ def edit_project(project_id):
         flash('您没有权限编辑此项目', 'danger')
         return redirect(url_for('project.view_project', project_id=project_id))
     
+    # 检查项目是否被锁定
+    from app.helpers.project_helpers import is_project_editable
+    is_editable, lock_reason = is_project_editable(project_id, current_user.id)
+    if not is_editable and current_user.role != 'admin':
+        flash(f'项目已被锁定，无法编辑: {lock_reason}', 'warning')
+        return redirect(url_for('project.view_project', project_id=project_id))
+    
     if request.method == 'POST':
         try:
             # 必填项校验
@@ -406,6 +467,9 @@ def edit_project(project_id):
                 project.project_type = new_project_type
             db.session.commit()
             
+            # 新增：每次保存后自动刷新活跃度
+            update_active_status(project)
+            
             # 如果项目阶段发生变更，触发通知
             if old_stage != new_stage:
                 try:
@@ -414,7 +478,27 @@ def edit_project(project_id):
                 except Exception as notify_err:
                     logger.warning(f"触发项目阶段变更通知失败: {str(notify_err)}")
             
-            flash('项目更新成功！', 'success')
+            # 更新相关客户的活跃状态
+            # 查找与项目相关的所有企业名称
+            related_companies = []
+            if project.end_user:
+                related_companies.append(project.end_user)
+            if project.design_issues:
+                related_companies.append(project.design_issues)
+            if project.contractor:
+                related_companies.append(project.contractor)
+            if project.system_integrator:
+                related_companies.append(project.system_integrator)
+            if project.dealer:
+                related_companies.append(project.dealer)
+                
+            # 查找匹配的企业ID并更新活跃状态
+            for company_name in set(related_companies):
+                company = Company.query.filter_by(company_name=company_name).first()
+                if company:
+                    check_company_activity(company_id=company.id, days_threshold=1)
+            
+            flash('项目信息已更新！', 'success')
             return redirect(url_for('project.view_project', project_id=project.id))
         except Exception as e:
             import sqlalchemy
@@ -882,6 +966,12 @@ def update_project_stage():
             current_app.logger.error(f"查询项目时发生错误: {str(e)}")
             return jsonify({'success': False, 'message': f'查询错误: {str(e)}'}), 500
         
+        # 检查项目是否被锁定
+        from app.helpers.project_helpers import is_project_editable
+        is_editable, lock_reason = is_project_editable(project_id, current_user.id)
+        if not is_editable and current_user.role != 'admin':
+            return jsonify({'success': False, 'message': f'项目已被锁定，无法推进阶段: {lock_reason}'}), 403
+            
         # 检查权限
         allowed = False
         if current_user.role == 'admin':
@@ -922,6 +1012,8 @@ def update_project_stage():
 
             # 提交所有更改
             db.session.commit()
+            # 新增：每次阶段推进后自动刷新活跃度
+            update_active_status(project)
             current_app.logger.info(f"项目ID={project.id}的阶段从{old_stage}更新为{new_stage}，历史记录已添加")
             
             # 验证更新是否生效
@@ -1029,6 +1121,14 @@ def add_action_for_project(project_id):
             )
             db.session.add(action)
             db.session.commit()
+            # 新增：每次添加行动记录后自动刷新项目活跃度和更新时间
+            project.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
+            update_active_status(project)
+            db.session.commit()
+            # 如果关联了客户，更新客户活跃状态
+            if company_id and company_id.isdigit():
+                check_company_activity(company_id=int(company_id), days_threshold=1)
+            
             flash('行动记录添加成功！', 'success')
             return redirect(url_for('project.view_project', project_id=project_id))
     
@@ -1111,6 +1211,14 @@ def change_project_owner(project_id):
     if not can_change_project_owner(current_user, project):
         flash('您没有权限修改该项目的拥有人', 'danger')
         return redirect(url_for('project.view_project', project_id=project_id))
+    
+    # 检查项目是否被锁定
+    from app.helpers.project_helpers import is_project_editable
+    is_editable, lock_reason = is_project_editable(project_id, current_user.id)
+    if not is_editable and current_user.role != 'admin':
+        flash(f'项目已被锁定，无法修改拥有人: {lock_reason}', 'warning')
+        return redirect(url_for('project.view_project', project_id=project_id))
+    
     new_owner_id = request.form.get('new_owner_id', type=int)
     if not new_owner_id:
         flash('请选择新的拥有人', 'danger')
