@@ -417,12 +417,13 @@ def create_quotation():
                 # 创建报价单明细
                 product_names = request.form.getlist('product_name[]')
                 product_models = request.form.getlist('product_model[]')
-                product_descs = request.form.getlist('product_spec[]')  # 修正字段名称（从product_desc[]改为product_spec[]）
-                brands = request.form.getlist('product_brand[]')  # 修正字段名称（从brand[]改为product_brand[]）
-                units = request.form.getlist('product_unit[]')  # 修正字段名称（从unit[]改为product_unit[]）
+                product_descs = request.form.getlist('product_spec[]')
+                brands = request.form.getlist('product_brand[]')
+                units = request.form.getlist('product_unit[]')
                 discounts = request.form.getlist('discount_rate[]')
                 market_prices = request.form.getlist('product_price[]')
                 quantities = request.form.getlist('quantity[]')
+                product_mns = request.form.getlist('product_mn[]')  # 添加MN号字段
                 
                 total_amount = 0.0
                 for i in range(len(product_names)):
@@ -448,7 +449,8 @@ def create_quotation():
                         market_price=market_price,
                         quantity=quantity,
                         unit_price=discounted_price,
-                        total_price=subtotal
+                        total_price=subtotal,
+                        product_mn=product_mns[i] if i < len(product_mns) else ''  # 添加MN号
                     )
                     quotation.details.append(detail)
                 
@@ -624,6 +626,7 @@ def edit_quotation(id):
                 discounts = request.form.getlist('discount_rate[]')
                 market_prices = request.form.getlist('product_price[]')
                 quantities = request.form.getlist('quantity[]')
+                product_mns = request.form.getlist('product_mn[]')  # 添加MN号字段
                 
                 # 验证是否有产品明细
                 if not product_names:
@@ -679,7 +682,8 @@ def edit_quotation(id):
                             market_price=market_price,
                             quantity=quantity,
                             unit_price=discounted_price,
-                            total_price=subtotal
+                            total_price=subtotal,
+                            product_mn=product_mns[i] if i < len(product_mns) else ''  # 添加MN号
                         )
                         quotation.details.append(detail)
                     except Exception as e:
@@ -760,7 +764,8 @@ def copy_quotation(id):
                 discount=detail.discount,
                 market_price=detail.market_price,
                 unit_price=detail.unit_price,
-                total_price=detail.total_price
+                total_price=detail.total_price,
+                product_mn=detail.product_mn if hasattr(detail, 'product_mn') else ''  # 添加MN号
             )
             new_quotation.details.append(new_detail)
         
