@@ -42,34 +42,6 @@ def get_viewable_data(model_class, user, special_filters=None):
     if user.role == 'admin':
         return model_class.query.filter(*special_filters)
     
-    # 营销总监特殊处理：可以查看销售重点和渠道跟进项目
-    if user.role and user.role.strip() == 'sales_director' and model_class.__name__ == 'Project':
-        # 获取自己的项目
-        own_projects = model_class.query.filter(model_class.owner_id == user.id)
-        
-        # 获取销售重点和渠道跟进项目
-        special_projects = model_class.query.filter(
-            model_class.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进'])
-        )
-        
-        # 合并查询结果
-        combined_query = own_projects.union(special_projects)
-        return combined_query.filter(*special_filters)
-    
-    # 渠道经理特殊处理：可以查看渠道跟进项目
-    if user.role and user.role.strip() == 'channel_manager' and model_class.__name__ == 'Project':
-        # 获取自己的项目
-        own_projects = model_class.query.filter(model_class.owner_id == user.id)
-        
-        # 获取渠道跟进项目
-        channel_projects = model_class.query.filter(
-            model_class.project_type.in_(['channel_follow', '渠道跟进'])
-        )
-        
-        # 合并查询结果
-        combined_query = own_projects.union(channel_projects)
-        return combined_query.filter(*special_filters)
-    
     # User 模型特殊处理 - User 没有 owner_id 字段
     if model_class.__name__ == 'User':
         # 管理员已经在前面处理
@@ -127,7 +99,7 @@ def get_viewable_data(model_class, user, special_filters=None):
             )
             
         # 销售角色：查看自己的项目 + 通过归属关系可见的项目，且不能看到业务机会类型的项目
-        if user_role == 'sales':
+        if user.role.strip() == 'sales':
             # 获取通过归属关系可以查看的用户ID列表
             viewable_user_ids = [user.id]
             affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
@@ -183,17 +155,6 @@ def get_viewable_data(model_class, user, special_filters=None):
             # 渠道跟进项目相关的报价单
             special_query = model_class.query.filter(model_class.project_id.in_(channel_follow_project_ids))
         
-        # 营销总监特殊处理：可以查看销售重点和渠道跟进项目的报价单
-        elif user_role == 'sales_director':
-            from app.models.project import Project
-            # 获取销售重点和渠道跟进项目的ID
-            marketing_projects = Project.query.filter(
-                Project.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进'])
-            ).all()
-            marketing_project_ids = [p.id for p in marketing_projects]
-            # 销售重点和渠道跟进项目相关的报价单
-            special_query = model_class.query.filter(model_class.project_id.in_(marketing_project_ids))
-        
         # 服务经理特殊处理
         elif user_role in ['service', 'service_manager']:
             # 获取所有业务机会项目的ID
@@ -216,26 +177,6 @@ def get_viewable_data(model_class, user, special_filters=None):
         # 产品经理可以查看所有客户信息
         if user_role in ['product_manager', 'product']:
             return model_class.query.filter(*special_filters if special_filters else [])
-        
-        # 营销总监只能查看自己的客户信息（除非是部门负责人）
-        if user_role == 'sales_director':
-            if getattr(user, 'is_department_manager', False):
-                # 部门负责人可以查看本部门的客户信息
-                viewable_user_ids = [user.id]
-                affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-                for affiliation in affiliations:
-                    viewable_user_ids.append(affiliation.owner_id)
-                return model_class.query.filter(
-                    model_class.owner_id.in_(viewable_user_ids),
-                    *special_filters
-                )
-            else:
-                # 非部门负责人只能看自己的客户
-                return model_class.query.filter(
-                    model_class.owner_id == user.id,
-                    *special_filters
-                )
-        
         # 渠道经理不能看到其他账户的客户信息
         if user_role == 'channel_manager':
             return model_class.query.filter(
@@ -332,20 +273,12 @@ def can_edit_data(model_obj, user):
     if user.role == 'admin':
         return True
     
-    # 营销总监只能编辑自己的数据
-    if user.role and user.role.strip() == 'sales_director':
-        return model_obj.owner_id == user.id
-    
-    # 渠道经理只能编辑自己的数据
-    if user.role and user.role.strip() == 'channel_manager':
-        return model_obj.owner_id == user.id
-    
     # 销售角色只能编辑自己的数据
-    if user.role == 'sales':
+    if user.role.strip() == 'sales':
         return model_obj.owner_id == user.id
     
     # 其他角色的编辑权限逻辑保持不变
-    return model_obj.owner_id == user.id
+    return model_obj.owner_id == user.id 
 
 def get_accessible_data(model_class, user, special_filters=None):
     """

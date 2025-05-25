@@ -367,6 +367,7 @@
                         </details>
                     </li>
                     {% endif %}
+                    {% if has_permission('user', 'view') %}
                     <li class="nav-item dropdown d-none d-lg-block">
                         <a class="nav-link dropdown-toggle text-sm py-2 {{ 'active' if request.endpoint and request.endpoint.startswith('user.') else '' }}"
                            href="#" id="userManagementDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -398,6 +399,7 @@
                                    企业字典
                                 </a>
                             </li>
+                    {% endif %}
                             <li>
                                 <a class="dropdown-item {{ 'active' if request.endpoint == 'user.manage_departments' else '' }}"
                                    href="{{ url_for('user.manage_departments') }}">

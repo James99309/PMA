@@ -101,6 +101,11 @@ def create_user():
         department = request.form.get('department')
         role = request.form.get('role')
         is_department_manager = 'is_department_manager' in request.form
+        
+        # 对角色字段进行去空格处理，防止空格问题
+        if role:
+            role = role.strip()
+        
         logger.info(f"[用户创建] 操作人: {current_user.username}, 参数: username={username}, email={email}, role={role}")
         if not email or not email.strip():
             logger.warning(f"[用户创建] 邮箱为空，操作人: {current_user.username}")
@@ -172,6 +177,11 @@ def edit_user(user_id):
         password = request.form.get('password')
         is_active = 'is_active' in request.form
         is_department_manager = 'is_department_manager' in request.form
+        
+        # 对角色字段进行去空格处理，防止空格问题
+        if role:
+            role = role.strip()
+        
         logger.info(f"[用户编辑] 操作人: {current_user.username}, 目标用户: {user.username}, 参数: email={email}, role={role}, is_active={is_active}")
         # 邮箱非空校验
         if not email or not email.strip():
@@ -853,6 +863,11 @@ def api_create_user():
         confirm_password = data.get('confirm_password')
         is_active = data.get('is_active', True)
         is_department_manager = data.get('is_department_manager', False)
+        
+        # 对角色字段进行去空格处理，防止空格问题
+        if role:
+            role = role.strip()
+        
         logger.info(f"[API用户创建] 操作人: {current_user.username}, 参数: username={username}, email={email}, role={role}")
         if not email or not email.strip():
             logger.warning(f"[API用户创建] 邮箱为空，操作人: {current_user.username}")
@@ -911,6 +926,11 @@ def api_edit_user(user_id):
         password = data.get('password')
         is_active = data.get('is_active', True)
         is_department_manager = data.get('is_department_manager', False)
+        
+        # 对角色字段进行去空格处理，防止空格问题
+        if role:
+            role = role.strip()
+        
         logger.info(f"[API用户编辑] 操作人: {current_user.username}, 目标用户: {user.username}, 参数: email={email}, role={role}")
         if not email or not email.strip():
             logger.warning(f"[API用户编辑] 邮箱为空，操作人: {current_user.username}")

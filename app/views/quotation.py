@@ -26,6 +26,7 @@ def list_quotations():
     try:
         # 获取搜索参数
         project_search = request.args.get('project', '')
+        project_type = request.args.get('project_type', '')
         
         # 获取排序参数
         sort_field = request.args.get('sort', 'created_at')  # 默认按创建时间排序
@@ -34,27 +35,64 @@ def list_quotations():
         # 使用访问控制函数构建查询
         query = get_viewable_data(Quotation, current_user)
         
+        # 渠道经理默认只查看渠道跟进项目的报价单
+        if current_user.role and current_user.role.strip() == 'channel_manager' and not project_type:
+            project_type = 'channel_follow'
+        
+        # 营销总监默认查看销售重点和渠道跟进项目的报价单
+        if current_user.role and current_user.role.strip() == 'sales_director' and not project_type:
+            # 使用特殊标识来表示多个项目类型
+            project_type = 'marketing_focus'
+        
+        # 标记是否已经JOIN了Project表
+        project_joined = False
+        
+        # 项目名称搜索
         if project_search:
-            query = query.join(Project).filter(Project.project_name.like(f'%{project_search}%'))
+            query = query.join(Project)
+            query = query.filter(Project.project_name.like(f'%{project_search}%'))
+            project_joined = True
+        
+        # 项目类型筛选
+        if project_type:
+            if not project_joined:
+                query = query.join(Project, Quotation.project_id == Project.id)
+                project_joined = True
+            
+            if project_type == 'channel_follow':
+                query = query.filter(Project.project_type.in_(['channel_follow', '渠道跟进']))
+            elif project_type == 'sales_focus':
+                query = query.filter(Project.project_type.in_(['sales_focus', '销售重点']))
+            elif project_type == 'marketing_focus':
+                # 营销总监的特殊筛选：销售重点和渠道跟进
+                query = query.filter(Project.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进']))
+            else:
+                query = query.filter(Project.project_type == project_type)
         
         # 处理排序
         if sort_field == 'project_name':
             # 按项目名称排序需要关联Project表
-            query = query.join(Project, Quotation.project_id == Project.id)
+            if not project_joined:
+                query = query.join(Project, Quotation.project_id == Project.id)
+                project_joined = True
             if sort_order == 'desc':
                 query = query.order_by(Project.project_name.desc())
             else:
                 query = query.order_by(Project.project_name.asc())
         elif sort_field == 'project_stage':
             # 按项目阶段排序需要关联Project表
-            query = query.join(Project, Quotation.project_id == Project.id)
+            if not project_joined:
+                query = query.join(Project, Quotation.project_id == Project.id)
+                project_joined = True
             if sort_order == 'desc':
                 query = query.order_by(Project.current_stage.desc())
             else:
                 query = query.order_by(Project.current_stage.asc())
         elif sort_field == 'project_type':
             # 按项目类型排序需要关联Project表
-            query = query.join(Project, Quotation.project_id == Project.id)
+            if not project_joined:
+                query = query.join(Project, Quotation.project_id == Project.id)
+                project_joined = True
             if sort_order == 'desc':
                 query = query.order_by(Project.project_type.desc())
             else:
@@ -75,12 +113,43 @@ def list_quotations():
         
         quotations = query.all()
         
-        return render_template('quotation/list.html', quotations=quotations, 
-                              sort_field=sort_field, sort_order=sort_order)
+        # 获取项目类型选项
+        project_type_options = [
+            {'value': '', 'label': '全部类型'},
+            {'value': 'channel_follow', 'label': '渠道跟进'},
+            {'value': 'sales_focus', 'label': '销售重点'}
+        ]
+        
+        # 为营销总监添加特殊选项
+        if current_user.role and current_user.role.strip() == 'sales_director':
+            project_type_options.insert(1, {'value': 'marketing_focus', 'label': '营销重点项目'})
+        
+        return render_template('quotation/list.html', 
+                              quotations=quotations, 
+                              sort_field=sort_field, 
+                              sort_order=sort_order,
+                              project_type=project_type,
+                              project_type_options=project_type_options,
+                              project_search=project_search)
+                              
     except Exception as e:
         logger.error(f"加载报价单列表时出错: {str(e)}", exc_info=True)
+        
+        # 尝试回滚数据库事务
+        try:
+            db.session.rollback()
+            logger.info("数据库事务已回滚")
+        except Exception as rollback_error:
+            logger.error(f"数据库事务回滚失败: {str(rollback_error)}")
+        
         flash(f'加载报价单失败：{str(e)}', 'danger')
-        return render_template('quotation/list.html', quotations=[])
+        return render_template('quotation/list.html', 
+                              quotations=[], 
+                              sort_field='created_at', 
+                              sort_order='desc',
+                              project_type='',
+                              project_type_options=[],
+                              project_search='')
 
 @quotation.route('/create', methods=['GET', 'POST'])
 @login_required
@@ -918,9 +987,8 @@ def get_all_projects():
         logger.debug("获取所有项目列表...")
         # 获取当前用户权限范围内可见的所有项目（不再限定owner_id）
         projects_query = get_viewable_data(Project, current_user)
-        # 过滤掉已有关联报价单的项目
-        projects = projects_query.outerjoin(Quotation, Project.id == Quotation.project_id) \
-            .filter(Quotation.id == None).all()
+        # 移除对已有报价单项目的过滤，因为一个项目可以有多个报价单
+        projects = projects_query.all()
         # 构建项目列表，只返回必要的信息
         project_list = [{'id': p.id, 'name': p.project_name} for p in projects]
         logger.debug(f"找到 {len(project_list)} 个项目")
@@ -932,7 +1000,7 @@ def get_all_projects():
         return response
     except Exception as e:
         logger.error(f"获取项目列表失败: {str(e)}")
-    return jsonify({
+        return jsonify({
             'success': False,
             'error': '获取项目列表失败',
             'message': str(e)
@@ -1093,11 +1161,15 @@ def view_quotation(id):
             logger.debug(f"{current_user.username} 无权访问报价单 {quotation.id}")
             flash('您没有权限查看此报价单', 'danger')
             return redirect(url_for('quotation.list_quotations'))
-        # 项目权限校验
-        if quotation.project and not can_view_project(current_user, quotation.project):
-            logger.debug(f"{current_user.username} 无权访问报价单 {quotation.id} 关联项目 {quotation.project_id}")
-            flash('您没有权限查看该报价单关联的项目', 'danger')
-            return redirect(url_for('quotation.list_quotations'))
+        # 项目权限校验 - 渠道经理可以查看渠道跟进项目
+        if quotation.project:
+            is_channel_manager = current_user.role and current_user.role.strip() == 'channel_manager'
+            is_channel_project = quotation.project.project_type in ['channel_follow', '渠道跟进']
+            
+            if not (is_channel_manager and is_channel_project) and not can_view_project(current_user, quotation.project):
+                logger.debug(f"{current_user.username} 无权访问报价单 {quotation.id} 关联项目 {quotation.project_id}")
+                flash('您没有权限查看该报价单关联的项目', 'danger')
+                return redirect(url_for('quotation.list_quotations'))
         # 查询可选新拥有人
         from app.models.user import User
         all_users = []
@@ -1532,6 +1604,8 @@ def can_view_quotation(user, quotation):
     判断用户是否有权查看该报价单：
     1. 归属人
     2. 归属链
+    3. 渠道经理可以查看渠道跟进项目的报价单
+    4. 营销总监可以查看销售重点和渠道跟进项目的报价单
     暂不考虑共享
     """
     if user.role == 'admin':
@@ -1542,6 +1616,23 @@ def can_view_quotation(user, quotation):
     affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
     if quotation.owner_id in affiliation_owner_ids:
         return True
+        
+    # 营销总监特殊处理：可以查看销售重点和渠道跟进项目的报价单
+    if user.role and user.role.strip() == 'sales_director':
+        # 获取关联项目
+        from app.models.project import Project
+        project = Project.query.get(quotation.project_id)
+        if project and project.project_type in ['sales_focus', 'channel_follow', '销售重点', '渠道跟进']:
+            return True
+        
+    # 渠道经理特殊处理：可以查看所有渠道跟进项目的报价单
+    if user.role and user.role.strip() == 'channel_manager':
+        # 获取关联项目
+        from app.models.project import Project
+        project = Project.query.get(quotation.project_id)
+        if project and project.project_type in ['channel_follow', '渠道跟进']:
+            return True
+    
     return False
 
 # 已在全局context_processor中注册，此处不再重复注册

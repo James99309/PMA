@@ -71,6 +71,52 @@
             <dt class="col-sm-3">公司</dt><dd class="col-sm-9">{{ user.company_name }}</dd>
             <dt class="col-sm-3">部门</dt><dd class="col-sm-9">{{ user.department }}</dd>
             <dt class="col-sm-3">角色</dt><dd class="col-sm-9">{{ role_dict.get(user.role, user.role or '-') }}</dd>
+            {% if user.role and user.role.strip() == 'admin' %}
+            <dt class="col-sm-3">特权功能</dt>
+            <dd class="col-sm-9">
+                <div class="alert alert-warning mb-0 py-2">
+                    <i class="fas fa-crown text-warning me-2"></i>
+                    <strong>系统管理员特权：</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>拥有系统所有功能的完全访问权限</li>
+                        <li>可以管理所有用户账户和权限配置</li>
+                        <li>可以查看、编辑、删除所有数据</li>
+                        <li>可以配置系统参数和审批流程</li>
+                        <li>可以访问系统管理和维护功能</li>
+                    </ul>
+                </div>
+            </dd>
+            {% elif user.role and user.role.strip() == 'sales_director' %}
+            <dt class="col-sm-3">特权功能</dt>
+            <dd class="col-sm-9">
+                <div class="alert alert-success mb-0 py-2">
+                    <i class="fas fa-crown text-warning me-2"></i>
+                    <strong>营销总监特权：</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>可以查看所有销售重点和渠道跟进项目的详情</li>
+                        <li>可以查看销售重点和渠道跟进项目的报价单详情</li>
+                        <li>只能查看自己创建的客户信息（除非设置为部门负责人）</li>
+                        <li>对于非自己创建的项目，仅具有查看权限</li>
+                        <li>无法编辑或删除其他用户的项目和报价单</li>
+                        <li>无法操作其他用户项目的阶段推进</li>
+                    </ul>
+                </div>
+            </dd>
+            {% elif user.role and user.role.strip() == 'channel_manager' %}
+            <dt class="col-sm-3">特权功能</dt>
+            <dd class="col-sm-9">
+                <div class="alert alert-info mb-0 py-2">
+                    <i class="fas fa-crown text-warning me-2"></i>
+                    <strong>渠道经理特权：</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>可以查看所有渠道跟进项目的详情和报价单</li>
+                        <li>可以访问其他用户创建的渠道项目数据</li>
+                        <li>对于非自己创建的渠道项目，仅具有查看权限</li>
+                        <li>无法编辑或删除其他用户的渠道项目和报价单</li>
+                    </ul>
+                </div>
+            </dd>
+            {% endif %}
             <dt class="col-sm-3">是部门负责人</dt><dd class="col-sm-9">{{ '是' if user.is_department_manager else '否' }}</dd>
             <dt class="col-sm-3">状态</dt><dd class="col-sm-9">{{ '激活' if user.is_active else '禁用' }}</dd>
             

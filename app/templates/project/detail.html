@@ -653,7 +653,7 @@
             currentStage: '{{ current_stage_key }}',
             csrfToken: '{{ csrf_token() }}',
             updateUrl: '{{ url_for("project.update_project_stage") }}',
-            canEdit: {{ current_user.has_permission('project', 'edit')|lower }},
+            canEdit: {{ can_edit_stage|lower }},
             isLocked: {{ project.is_locked|lower }},
             userRole: '{{ current_user.role }}',
             {% if stageHistory %}

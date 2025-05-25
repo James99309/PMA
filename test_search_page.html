@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>搜索功能测试</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .result { margin: 10px 0; padding: 10px; background: #f5f5f5; }
+        button { margin: 5px; padding: 8px 15px; }
+    </style>
+</head>
+<body>
+    <h1>项目搜索功能测试</h1>
+    
+    <div class="test-section">
+        <h3>搜索测试</h3>
+        <input type="text" id="searchInput" placeholder="输入搜索关键词" value="上海">
+        <button onclick="testSearch()">搜索项目</button>
+        <button onclick="testProjectDetail()">测试项目详情</button>
+    </div>
+    
+    <div class="test-section">
+        <h3>搜索结果</h3>
+        <div id="searchResults"></div>
+    </div>
+
+    <script>
+        function testSearch() {
+            const query = $('#searchInput').val();
+            if (!query) {
+                alert('请输入搜索关键词');
+                return;
+            }
+            
+            $('#searchResults').html('搜索中...');
+            
+            $.ajax({
+                url: '/api/v1/search/projects',
+                method: 'GET',
+                data: { q: query, limit: 10 },
+                success: function(response) {
+                    console.log('搜索成功:', response);
+                    displayResults(response);
+                },
+                error: function(xhr, status, error) {
+                    console.error('搜索失败:', xhr.responseText);
+                    $('#searchResults').html(`
+                        <div class="result" style="color: red;">
+                            搜索失败: ${error}<br>
+                            状态码: ${xhr.status}<br>
+                            响应: ${xhr.responseText.substring(0, 200)}...
+                        </div>
+                    `);
+                }
+            });
+        }
+        
+        function displayResults(response) {
+            if (response.success && response.data) {
+                let html = `<div class="result">找到 ${response.data.length} 个项目:</div>`;
+                response.data.forEach(project => {
+                    html += `
+                        <div class="result">
+                            <strong>ID:</strong> ${project.id}<br>
+                            <strong>名称:</strong> ${project.project_name}<br>
+                            <strong>类型:</strong> ${project.project_type}<br>
+                            <strong>阶段:</strong> ${project.current_stage}<br>
+                            <strong>拥有者:</strong> ${project.owner_name || '未知'}<br>
+                            <button onclick="getProjectDetail(${project.id})">获取详情</button>
+                        </div>
+                    `;
+                });
+                $('#searchResults').html(html);
+            } else {
+                $('#searchResults').html(`
+                    <div class="result" style="color: orange;">
+                        搜索失败: ${response.message || '未知错误'}
+                    </div>
+                `);
+            }
+        }
+        
+        function getProjectDetail(projectId) {
+            $.ajax({
+                url: `/project/api/project/${projectId}`,
+                method: 'GET',
+                success: function(response) {
+                    console.log('项目详情:', response);
+                    if (response.success && response.project) {
+                        const project = response.project;
+                        alert(`项目详情:
+名称: ${project.project_name}
+类型: ${project.project_type} (${project.project_type_display})
+阶段: ${project.current_stage} (${project.current_stage_display})
+拥有者: ${project.owner_name}`);
+                    } else {
+                        alert('获取项目详情失败: ' + (response.message || '未知错误'));
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('获取项目详情失败:', xhr.responseText);
+                    alert('获取项目详情失败: ' + error);
+                }
+            });
+        }
+        
+        function testProjectDetail() {
+            getProjectDetail(64); // 测试一个具体的项目ID
+        }
+    </script>
+</body>
+</html> 

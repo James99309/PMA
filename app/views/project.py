@@ -165,18 +165,21 @@ def view_project(project_id):
     
     # 检查查看权限
     has_permission = False
+    
+    # 统一处理角色字符串，去除空格
+    user_role = current_user.role.strip() if current_user.role else ''
 
     # 管理员可以查看所有项目
-    if current_user.role == 'admin':
+    if user_role == 'admin':
         has_permission = True
     # 渠道经理可以查看渠道跟进项目
-    elif current_user.role == 'channel_manager' and project.project_type in ['channel_follow', '渠道跟进']:
+    elif user_role == 'channel_manager' and project.project_type in ['channel_follow', '渠道跟进']:
         has_permission = True
     # 销售总监可以查看渠道跟进和销售重点项目
-    elif current_user.role == 'sales_director' and project.project_type in ['channel_follow', 'sales_focus', '渠道跟进', '销售重点']:
+    elif user_role == 'sales_director' and project.project_type in ['channel_follow', 'sales_focus', '渠道跟进', '销售重点']:
         has_permission = True
     # 服务经理可以查看业务机会项目
-    elif current_user.role in ['service', 'service_manager'] and project.project_type == '业务机会':
+    elif user_role in ['service', 'service_manager'] and project.project_type == '业务机会':
         has_permission = True
     # 项目拥有者可以查看自己的项目
     elif project.owner_id == current_user.id:
@@ -299,7 +302,27 @@ def view_project(project_id):
         "project_activity_threshold": SystemSettings.get('project_activity_threshold', 7)
     }
 
-    return render_template('project/detail.html', project=project, Quotation=Quotation, related_companies=related_companies, stageHistory=stage_history, project_actions=project_actions, current_stage_key=current_stage_key, all_users=all_users, has_change_owner_permission=has_change_owner_permission, user_tree_data=user_tree_data, settings=settings)
+
+    # 判断当前用户是否可以编辑项目阶段
+    can_edit_stage = False
+    if current_user.has_permission('project', 'edit'):
+        # 检查项目是否被锁定
+        from app.helpers.project_helpers import is_project_editable
+        is_editable, lock_reason = is_project_editable(project_id, current_user.id)
+        
+        # 检查用户权限
+        if user_role == 'admin':
+            can_edit_stage = True
+        elif project.owner_id == current_user.id:
+            can_edit_stage = True and (is_editable or user_role == 'admin')
+        else:
+            # 对于非拥有者，需要检查是否在可查看用户列表中，但渠道经理等角色不能编辑其他人的项目
+            allowed_user_ids = current_user.get_viewable_user_ids() if hasattr(current_user, 'get_viewable_user_ids') else [current_user.id]
+            if project.owner_id in allowed_user_ids:
+                # 即使可以查看，也不能编辑其他人的项目（除非是管理员）
+                can_edit_stage = False
+
+    return render_template("project/detail.html", project=project, Quotation=Quotation, related_companies=related_companies, stageHistory=stage_history, project_actions=project_actions, current_stage_key=current_stage_key, all_users=all_users, has_change_owner_permission=has_change_owner_permission, user_tree_data=user_tree_data, settings=settings, can_edit_stage=can_edit_stage)
 
 @project.route('/add', methods=['GET', 'POST'])
 @permission_required('project', 'create')
@@ -689,21 +712,24 @@ def approve_authorization(project_id):
         
         # 检查用户权限
         can_approve = False
+        
+        # 统一处理角色字符串，去除空格
+        user_role = current_db_user.role.strip() if current_db_user.role else ''
 
         # 管理员可以批准所有项目授权申请
-        if current_db_user.role == 'admin':
+        if user_role == 'admin':
             can_approve = True
         # 渠道经理可以批准渠道跟进项目
-        elif current_db_user.role == 'channel_manager' and project.project_type == 'channel_follow':
+        elif user_role == 'channel_manager' and project.project_type == 'channel_follow':
             can_approve = True
         # 销售总监可以批准销售重点项目
-        elif current_db_user.role == 'sales_director' and project.project_type == 'sales_focus':
+        elif user_role == 'sales_director' and project.project_type == 'sales_focus':
             can_approve = True
         # 销售经理不能批准业务机会项目
-        elif current_db_user.role == 'sales' and project.project_type != 'business_opportunity':
+        elif user_role == 'sales' and project.project_type != 'business_opportunity':
             can_approve = True
         # 服务经理可以批准业务机会项目
-        elif current_db_user.role in ['service', 'service_manager'] and project.project_type == 'business_opportunity':
+        elif user_role in ['service', 'service_manager'] and project.project_type == 'business_opportunity':
             can_approve = True
 
         if not can_approve:
@@ -772,21 +798,24 @@ def reject_authorization(project_id):
         
         # 检查用户权限
         can_reject = False
+        
+        # 统一处理角色字符串，去除空格
+        user_role = current_db_user.role.strip() if current_db_user.role else ''
 
         # 管理员可以拒绝所有项目授权申请
-        if current_db_user.role == 'admin':
+        if user_role == 'admin':
             can_reject = True
         # 渠道经理可以拒绝渠道跟进项目
-        elif current_db_user.role == 'channel_manager' and project.project_type == 'channel_follow':
+        elif user_role == 'channel_manager' and project.project_type == 'channel_follow':
             can_reject = True
         # 销售总监可以拒绝销售重点项目
-        elif current_db_user.role == 'sales_director' and project.project_type == 'sales_focus':
+        elif user_role == 'sales_director' and project.project_type == 'sales_focus':
             can_reject = True
         # 销售经理不能拒绝业务机会项目
-        elif current_db_user.role == 'sales' and project.project_type != 'business_opportunity':
+        elif user_role == 'sales' and project.project_type != 'business_opportunity':
             can_reject = True
         # 服务经理可以拒绝业务机会项目
-        elif current_db_user.role in ['service', 'service_manager'] and project.project_type == 'business_opportunity':
+        elif user_role in ['service', 'service_manager'] and project.project_type == 'business_opportunity':
             can_reject = True
 
         if not can_reject:
@@ -1248,4 +1277,80 @@ def delete_action_reply(reply_id):
         return jsonify({'success': False, 'message': '无权删除此回复'}), 403
     db.session.delete(reply)
     db.session.commit()
-    return jsonify({'success': True}) 
+    return jsonify({'success': True})
+
+@project.route('/api/project/<int:project_id>', methods=['GET'])
+@login_required
+@permission_required('project', 'view')
+def get_project_api(project_id):
+    """获取项目详情API"""
+    try:
+        project = Project.query.get_or_404(project_id)
+        
+        # 检查查看权限
+        has_permission = False
+        
+        # 统一处理角色字符串，去除空格
+        user_role = current_user.role.strip() if current_user.role else ''
+
+        # 管理员可以查看所有项目
+        if user_role == 'admin':
+            has_permission = True
+        # 渠道经理可以查看渠道跟进项目
+        elif user_role == 'channel_manager' and project.project_type in ['channel_follow', '渠道跟进']:
+            has_permission = True
+        # 销售总监可以查看渠道跟进和销售重点项目
+        elif user_role == 'sales_director' and project.project_type in ['channel_follow', 'sales_focus', '渠道跟进', '销售重点']:
+            has_permission = True
+        # 服务经理可以查看业务机会项目
+        elif user_role in ['service', 'service_manager'] and project.project_type == '业务机会':
+            has_permission = True
+        # 项目拥有者可以查看自己的项目
+        elif project.owner_id == current_user.id:
+            has_permission = True
+        # 通过归属关系获得权限
+        else:
+            allowed_user_ids = current_user.get_viewable_user_ids() if hasattr(current_user, 'get_viewable_user_ids') else [current_user.id]
+            if project.owner_id in allowed_user_ids:
+                has_permission = True
+
+        if not has_permission:
+            logger.warning(f"用户 {current_user.username} (ID: {current_user.id}, 角色: {current_user.role}) 尝试访问无权限的项目API: {project_id}")
+            return jsonify({
+                'success': False,
+                'message': '您没有权限访问该项目'
+            }), 403
+        
+        # 获取项目拥有者信息
+        owner_name = ''
+        if project.owner_id:
+            owner = User.query.get(project.owner_id)
+            if owner:
+                owner_name = owner.username
+        
+        # 构建返回数据
+        project_data = {
+            'id': project.id,
+            'project_name': project.project_name,
+            'authorization_code': project.authorization_code,
+            'project_type': project.project_type,
+            'project_type_display': project_type_label(project.project_type),
+            'current_stage': project.current_stage,
+            'current_stage_display': project_stage_label(project.current_stage),
+            'owner_id': project.owner_id,
+            'owner_name': owner_name,
+            'created_at': project.created_at.isoformat() if project.created_at else None,
+            'updated_at': project.updated_at.isoformat() if project.updated_at else None
+        }
+        
+        return jsonify({
+            'success': True,
+            'project': project_data
+        })
+        
+    except Exception as e:
+        logger.error(f"获取项目详情API失败: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': '获取项目信息失败'
+        }), 500 

@@ -1,3 +1,4 @@
+import app.utils.update_active_status_fix
 from flask import Flask, session, redirect, url_for, request, current_app
 from config import Config
 import logging
@@ -221,6 +222,9 @@ def create_app(config_class=Config):
     
     # 导入新的API视图
     from app.api.v1 import api_v1_bp
+    
+    # 导入搜索API
+    from app.api.v1.search import search_bp
 
     # 注册所有Blueprint
     app.register_blueprint(main)
@@ -240,6 +244,10 @@ def create_app(config_class=Config):
     
     # 注册API v1蓝图
     app.register_blueprint(api_v1_bp, url_prefix='/api/v1')
+    
+    # 注册搜索API蓝图
+    app.register_blueprint(search_bp, url_prefix='/api/v1/search')
+    csrf.exempt(search_bp)
     
     # 注册管理员蓝图
     from app.views.admin import admin_bp
@@ -312,8 +320,8 @@ def create_app(config_class=Config):
             '/auth/activate'
         ]
         
-        # 检查是否是API请求（API请求由JWT处理）
-        if request.path.startswith('/api/'):
+        # 检查是否是API请求（API请求由JWT处理）- 但搜索API需要登录检查
+        if request.path.startswith('/api/') and not request.path.startswith('/api/v1/search/'):
             return
             
         # 检查是否是审批API请求
@@ -384,60 +392,82 @@ def create_app(config_class=Config):
             import sys
             print(f"[DEBUG][context_processor.has_permission] user={getattr(current_user, 'username', None)}, role={getattr(current_user, 'role', None)}, module={module}, action={action}", file=sys.stderr)
             
-            # 如果用户未登录，则没有权限
-            if not current_user.is_authenticated:
-                print("[DEBUG][context_processor.has_permission] not authenticated, return False", file=sys.stderr)
+            try:
+                # 如果用户未登录，则没有权限
+                if not current_user.is_authenticated:
+                    print("[DEBUG][context_processor.has_permission] not authenticated, return False", file=sys.stderr)
+                    return False
+                    
+                # 管理员默认拥有所有权限
+                if current_user.role == 'admin':
+                    print("[DEBUG][context_processor.has_permission] admin, return True", file=sys.stderr)
+                    return True
+                    
+                # 优先查找个人权限
+                from app.models.user import Permission
+                permission = Permission.query.filter_by(user_id=current_user.id, module=module).first()
+                
+                # 找到个人权限记录，直接判断
+                if permission:
+                    if action == 'view':
+                        return permission.can_view
+                    elif action == 'create':
+                        return permission.can_create
+                    elif action == 'edit':
+                        return permission.can_edit
+                    elif action == 'delete':
+                        return permission.can_delete
+                # 没有个人权限记录，查询角色权限
+                else:
+                    # 导入RolePermission
+                    from app.models.role_permissions import RolePermission
+                    role_permission = RolePermission.query.filter_by(role=current_user.role, module=module).first()
+                    
+                    # 找到角色权限记录
+                    if role_permission:
+                        print(f"[DEBUG][context_processor.has_permission] using role_permission: role={current_user.role}, module={module}", file=sys.stderr)
+                        if action == 'view':
+                            return role_permission.can_view
+                        elif action == 'create':
+                            return role_permission.can_create
+                        elif action == 'edit':
+                            return role_permission.can_edit
+                        elif action == 'delete':
+                            return role_permission.can_delete
+                
+                # 默认无权限
                 return False
                 
-            # 管理员默认拥有所有权限
-            if current_user.role == 'admin':
-                print("[DEBUG][context_processor.has_permission] admin, return True", file=sys.stderr)
-                return True
+            except Exception as e:
+                # 发生数据库错误时，回滚事务并记录错误
+                print(f"[ERROR][context_processor.has_permission] Database error: {str(e)}", file=sys.stderr)
+                try:
+                    from app import db
+                    db.session.rollback()
+                    print("[DEBUG][context_processor.has_permission] Transaction rolled back", file=sys.stderr)
+                except Exception as rollback_error:
+                    print(f"[ERROR][context_processor.has_permission] Rollback failed: {str(rollback_error)}", file=sys.stderr)
                 
-            # 优先查找个人权限
-            from app.models.user import Permission
-            permission = Permission.query.filter_by(user_id=current_user.id, module=module).first()
-            
-            # 找到个人权限记录，直接判断
-            if permission:
-                if action == 'view':
-                    return permission.can_view
-                elif action == 'create':
-                    return permission.can_create
-                elif action == 'edit':
-                    return permission.can_edit
-                elif action == 'delete':
-                    return permission.can_delete
-            # 没有个人权限记录，查询角色权限
-            else:
-                # 导入RolePermission
-                from app.models.role_permissions import RolePermission
-                role_permission = RolePermission.query.filter_by(role=current_user.role, module=module).first()
+                # 对于权限检查失败，默认返回False（安全策略）
+                # 但对于管理员，即使数据库出错也应该有权限
+                if hasattr(current_user, 'role') and current_user.role == 'admin':
+                    print("[DEBUG][context_processor.has_permission] Admin fallback, return True", file=sys.stderr)
+                    return True
                 
-                # 找到角色权限记录
-                if role_permission:
-                    print(f"[DEBUG][context_processor.has_permission] using role_permission: role={current_user.role}, module={module}", file=sys.stderr)
-                    if action == 'view':
-                        return role_permission.can_view
-                    elif action == 'create':
-                        return role_permission.can_create
-                    elif action == 'edit':
-                        return role_permission.can_edit
-                    elif action == 'delete':
-                        return role_permission.can_delete
-            
-            # 默认无权限
-            return False
+                return False
+                
         return {'has_permission': has_permission}
 
     # 添加公司编辑权限函数到模板上下文
     @app.context_processor
     def inject_company_edit_permission():
         """向模板注入公司编辑权限函数"""
+        from app.views.quotation import can_view_quotation
         return {
             'can_edit_company_info': can_edit_company_info,
             'can_edit_data': can_edit_data,
-            'can_change_company_owner': can_change_company_owner
+            'can_change_company_owner': can_change_company_owner,
+            'can_view_quotation': can_view_quotation
         }
 
     # 注册自定义过滤器
