@@ -14,6 +14,7 @@ import re
 from app.models.quotation import Quotation, QuotationDetail
 from app.utils.dictionary_helpers import company_type_label, COMPANY_TYPE_LABELS
 from app.utils.access_control import get_viewable_data
+from app.utils.role_mappings import get_role_display_name
 
 logger = logging.getLogger(__name__)
 
@@ -146,11 +147,18 @@ def get_hierarchical_users():
                 'users': []
             }
         
+        # 获取真实姓名，如果没有则使用用户名
+        display_name = user.real_name if hasattr(user, 'real_name') and user.real_name else (user.name if hasattr(user, 'name') else user.username)
+        # 获取角色的中文显示名
+        role_display = get_role_display_name(user.role) if user.role else '未知角色'
+        
         companies[company_name]['users'].append({
             'id': user.id,
-            'name': user.name or user.username,
+            'name': display_name,
             'username': user.username,
-            'role': user.role
+            'real_name': display_name,
+            'role': user.role,
+            'role_display': role_display
         })
     
     # 转换为列表

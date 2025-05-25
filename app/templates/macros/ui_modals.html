@@ -8,7 +8,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">修改项目拥有人</h5>
+          <h5 class="modal-title">修改拥有人</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
         </div>
         <div class="modal-body">
@@ -35,4 +35,187 @@
     </form>
   </div>
 </div>
+{% endmacro %}
+
+{% macro render_change_project_owner_modal(modal_id, action_url, all_users, current_owner_id, user_tree_data=None) %}
+<!-- 创建只包含厂商企业用户的树形数据 -->
+{% set vendor_tree_data = [] %}
+{% if user_tree_data %}
+  {% for company in user_tree_data %}
+    {% if company.label == '和源通信（上海）股份有限公司' %}
+      {% set _ = vendor_tree_data.append(company) %}
+    {% endif %}
+  {% endfor %}
+{% endif %}
+
+<div class="modal fade" id="{{ modal_id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="post" action="{{ action_url }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">修改项目拥有人</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="new_owner_id" class="form-label">选择新拥有人</label>
+            {% if user_tree_data %}
+              {{ render_tree_select_plugin(name="new_owner_id", tree_data=user_tree_data, selected_value=current_owner_id, required=true) }}
+            {% else %}
+              <select class="form-select" id="new_owner_id" name="new_owner_id" required>
+                {% for user in all_users %}
+                  <option value="{{ user.id }}" data-company="{{ user.company_name or '' }}" {% if user.id == current_owner_id %}selected{% endif %}>
+                    {{ user.real_name or user.username }}（{{ user.role }}）
+                  </option>
+                {% endfor %}
+              </select>
+            {% endif %}
+          </div>
+          
+          <!-- 销售负责人选择框，当新拥有人不是厂商公司时显示 -->
+          <div class="mb-3" id="vendor_sales_manager_container" style="display: none;">
+            <label for="vendor_sales_manager_id" class="form-label">选择厂商销售负责人 <span class="text-danger">*</span></label>
+            {% if vendor_tree_data %}
+              {{ render_tree_select_plugin(name="vendor_sales_manager_id", tree_data=vendor_tree_data, placeholder="请选择厂商销售负责人") }}
+            {% else %}
+              <select class="form-select" id="vendor_sales_manager_id" name="vendor_sales_manager_id">
+                <option value="">请选择厂商销售负责人</option>
+                {% for user in all_users %}
+                  {% if user.company_name == '和源通信（上海）股份有限公司' %}
+                    <option value="{{ user.id }}">
+                      {{ user.real_name or user.username }}（{{ user.role }}）
+                    </option>
+                  {% endif %}
+                {% endfor %}
+              </select>
+            {% endif %}
+            <div class="form-text text-muted">当项目拥有人不是厂商企业账户时，需要指定厂商销售负责人</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          {{ render_button('取消', type='button', color='secondary', attrs='data-bs-dismiss="modal"') }}
+          {{ render_button('确认修改', type='submit', color='primary', attrs='id="confirm_change_owner"') }}
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// 监听拥有人选择变化
+document.addEventListener('DOMContentLoaded', function() {
+  const modal = document.getElementById('{{ modal_id }}');
+  if (!modal) return;
+  
+  const newOwnerSelect = modal.querySelector('#new_owner_id, input[name="new_owner_id"]');
+  const vendorContainer = modal.querySelector('#vendor_sales_manager_container');
+  const vendorSelect = modal.querySelector('#vendor_sales_manager_id, input[name="vendor_sales_manager_id"]');
+  const confirmBtn = modal.querySelector('#confirm_change_owner');
+  
+  if (!newOwnerSelect || !vendorContainer) return;
+  
+  function checkOwnerCompany() {
+    let selectedCompany = '';
+    
+    // 处理树形选择器
+    if (newOwnerSelect.type === 'hidden') {
+      const selectedValue = newOwnerSelect.value;
+      if (selectedValue) {
+        // 从树形数据中查找选中用户的企业信息
+        const treeContainer = modal.querySelector('.tree-container');
+        if (treeContainer) {
+          const selectedLabel = treeContainer.querySelector('.tree-label.selected');
+          if (selectedLabel) {
+            // 查找父级企业节点
+            let parentLi = selectedLabel.closest('li');
+            while (parentLi) {
+              const parentUl = parentLi.parentElement;
+              if (parentUl && parentUl.tagName === 'UL') {
+                const grandParentLi = parentUl.closest('li');
+                if (grandParentLi && grandParentLi.querySelector('.tree-label.group')) {
+                  selectedCompany = grandParentLi.querySelector('.tree-label.group').textContent.trim();
+                  break;
+                }
+                parentLi = grandParentLi;
+              } else {
+                break;
+              }
+            }
+          }
+        }
+      }
+    } else {
+      // 处理普通选择器
+      const selectedOption = newOwnerSelect.options[newOwnerSelect.selectedIndex];
+      if (selectedOption) {
+        selectedCompany = selectedOption.getAttribute('data-company') || '';
+      }
+    }
+    
+    console.log('选中的企业:', selectedCompany);
+    
+    // 如果不是厂商企业，显示销售负责人选择框
+    const isVendorCompany = selectedCompany === '和源通信（上海）股份有限公司';
+    
+    if (isVendorCompany) {
+      vendorContainer.style.display = 'none';
+      if (vendorSelect) {
+        vendorSelect.removeAttribute('required');
+        if (vendorSelect.type === 'hidden') {
+          vendorSelect.value = '';
+        } else {
+          vendorSelect.value = '';
+        }
+      }
+    } else {
+      vendorContainer.style.display = 'block';
+      if (vendorSelect) {
+        vendorSelect.setAttribute('required', 'required');
+      }
+    }
+  }
+  
+  // 监听选择变化
+  if (newOwnerSelect.type === 'hidden') {
+    // 树形选择器的变化监听
+    const observer = new MutationObserver(function(mutations) {
+      mutations.forEach(function(mutation) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'value') {
+          checkOwnerCompany();
+        }
+      });
+    });
+    observer.observe(newOwnerSelect, { attributes: true });
+    
+    // 监听树形选择器的点击事件
+    modal.addEventListener('click', function(e) {
+      if (e.target.classList.contains('tree-label') && !e.target.classList.contains('group')) {
+        setTimeout(checkOwnerCompany, 100);
+      }
+    });
+  } else {
+    // 普通选择器的变化监听
+    newOwnerSelect.addEventListener('change', checkOwnerCompany);
+  }
+  
+  // 表单提交验证
+  modal.querySelector('form').addEventListener('submit', function(e) {
+    const vendorContainerVisible = vendorContainer.style.display !== 'none';
+    if (vendorContainerVisible && vendorSelect) {
+      const vendorValue = vendorSelect.type === 'hidden' ? vendorSelect.value : vendorSelect.value;
+      if (!vendorValue) {
+        e.preventDefault();
+        alert('请选择厂商销售负责人');
+        return false;
+      }
+    }
+  });
+  
+  // 模态框显示时初始检查
+  modal.addEventListener('shown.bs.modal', function() {
+    setTimeout(checkOwnerCompany, 200);
+  });
+});
+</script>
 {% endmacro %} 

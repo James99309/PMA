@@ -30,7 +30,6 @@ from app.helpers.project_helpers import is_project_editable
 from app.utils.activity_tracker import check_company_activity, update_active_status
 from app.models.settings import SystemSettings
 from zoneinfo import ZoneInfo
-from app.utils.role_mappings import get_role_display_name
 
 csrf = CSRFProtect()
 
@@ -367,13 +366,6 @@ def add_project():
             # 报价字段设置为无效，不处理
             quotation_customer = None
             
-            # 自动设置销售负责人
-            vendor_sales_manager_id = request.form.get('vendor_sales_manager_id')
-            
-            # 如果厂商销售负责人字段为空，默认将拥有人账户作为内容
-            if not vendor_sales_manager_id and current_user.company_name == '和源通信（上海）股份有限公司':
-                vendor_sales_manager_id = current_user.id
-            
             project = Project(
                 project_name=request.form['project_name'],
                 report_time=report_time,
@@ -390,8 +382,7 @@ def add_project():
                 authorization_code=authorization_code,
                 project_type=project_type,
                 quotation_customer=quotation_customer,
-                owner_id=current_user.id,  # 设置当前用户为所有者
-                vendor_sales_manager_id=vendor_sales_manager_id  # 设置厂商销售负责人
+                owner_id=current_user.id  # 设置当前用户为所有者
             )
             
             db.session.add(project)
@@ -484,17 +475,6 @@ def edit_project(project_id):
             project.contractor = request.form.get('contractor')
             project.system_integrator = request.form.get('system_integrator')
             project.stage_description = request.form.get('stage_description')
-            
-            # 更新销售负责人字段
-            vendor_sales_manager_id = request.form.get('vendor_sales_manager_id')
-            
-            # 如果厂商销售负责人字段为空，默认将拥有人账户作为内容
-            if not vendor_sales_manager_id and project.owner and project.owner.company_name == '和源通信（上海）股份有限公司':
-                vendor_sales_manager_id = project.owner_id
-            
-            if vendor_sales_manager_id:
-                project.vendor_sales_manager_id = int(vendor_sales_manager_id) if vendor_sales_manager_id != '' else None
-            
             # 更新项目类型
             new_project_type = request.form.get('project_type', 'normal')
             new_project_type = {
@@ -1272,56 +1252,19 @@ def change_project_owner(project_id):
     if not new_owner_id:
         flash('请选择新的拥有人', 'danger')
         return redirect(url_for('project.view_project', project_id=project_id))
-    
     from app.models.user import User
     new_owner = User.query.get(new_owner_id)
     if not new_owner:
         flash('新拥有人不存在', 'danger')
         return redirect(url_for('project.view_project', project_id=project_id))
-    
-    # 检查新拥有人是否是厂商企业账户
-    is_vendor_company = new_owner.company_name == '和源通信（上海）股份有限公司'
-    
-    # 如果新拥有人不是厂商企业账户，需要设置厂商销售负责人
-    vendor_sales_manager_id = None
-    if not is_vendor_company:
-        vendor_sales_manager_id = request.form.get('vendor_sales_manager_id', type=int)
-        if not vendor_sales_manager_id:
-            flash('当项目拥有人不是厂商企业账户时，必须指定厂商销售负责人', 'danger')
-            return redirect(url_for('project.view_project', project_id=project_id))
-        
-        # 验证厂商销售负责人是否存在且是厂商企业账户
-        vendor_sales_manager = User.query.get(vendor_sales_manager_id)
-        if not vendor_sales_manager:
-            flash('厂商销售负责人不存在', 'danger')
-            return redirect(url_for('project.view_project', project_id=project_id))
-        
-        if vendor_sales_manager.company_name != '和源通信（上海）股份有限公司':
-            flash('厂商销售负责人必须是厂商企业账户', 'danger')
-            return redirect(url_for('project.view_project', project_id=project_id))
-    else:
-        # 如果新拥有人是厂商企业账户，自动设置为厂商销售负责人
-        vendor_sales_manager_id = new_owner_id
-    
-    # 更新项目拥有人和厂商销售负责人
     project.owner_id = new_owner_id
-    project.vendor_sales_manager_id = vendor_sales_manager_id
-    
     # 同步更新该项目下所有报价单的owner_id为新拥有人
     from app.models.quotation import Quotation
     quotations = Quotation.query.filter_by(project_id=project.id).all()
     for quotation in quotations:
         quotation.owner_id = new_owner_id
-    
     db.session.commit()
-    
-    # 构建成功消息
-    success_msg = '项目拥有人及关联报价单拥有人已更新'
-    if vendor_sales_manager_id and vendor_sales_manager_id != new_owner_id:
-        vendor_manager = User.query.get(vendor_sales_manager_id)
-        success_msg += f'，厂商销售负责人已设置为 {vendor_manager.real_name or vendor_manager.username}'
-    
-    flash(success_msg, 'success')
+    flash('项目拥有人及关联报价单拥有人已更新', 'success')
     return redirect(url_for('project.view_project', project_id=project_id))
 
 @project.route('/action/reply/<int:reply_id>/delete', methods=['POST'])
@@ -1341,64 +1284,73 @@ def delete_action_reply(reply_id):
 @permission_required('project', 'view')
 def get_project_api(project_id):
     """获取项目详情API"""
-    project = Project.query.get_or_404(project_id)
-    
-    # 检查查看权限
-    if not can_view_data(project, current_user):
-        return jsonify({'error': '没有权限查看此项目'}), 403
-    
-    return jsonify({
-        'id': project.id,
-        'project_name': project.project_name,
-        'current_stage': project.current_stage,
-        'owner_id': project.owner_id,
-        'owner_name': project.owner.username if project.owner else None
-    })
-
-@project.route('/api/users', methods=['GET'])
-@login_required
-@permission_required('project', 'edit')
-def get_users_api():
-    """获取用户列表API，用于销售负责人选择"""
-    user_type = request.args.get('type', 'all')  # vendor, dealer, all
-    
     try:
-        from app.models.user import User
+        project = Project.query.get_or_404(project_id)
         
-        if user_type == 'vendor':
-            # 获取厂商用户（和源通信公司）
-            users = User.query.filter_by(company_name='和源通信（上海）股份有限公司').all()
-        elif user_type == 'dealer':
-            # 获取代理商用户（非和源通信公司）
-            users = User.query.filter(User.company_name != '和源通信（上海）股份有限公司').all()
+        # 检查查看权限
+        has_permission = False
+        
+        # 统一处理角色字符串，去除空格
+        user_role = current_user.role.strip() if current_user.role else ''
+
+        # 管理员可以查看所有项目
+        if user_role == 'admin':
+            has_permission = True
+        # 渠道经理可以查看渠道跟进项目
+        elif user_role == 'channel_manager' and project.project_type in ['channel_follow', '渠道跟进']:
+            has_permission = True
+        # 销售总监可以查看渠道跟进和销售重点项目
+        elif user_role == 'sales_director' and project.project_type in ['channel_follow', 'sales_focus', '渠道跟进', '销售重点']:
+            has_permission = True
+        # 服务经理可以查看业务机会项目
+        elif user_role in ['service', 'service_manager'] and project.project_type == '业务机会':
+            has_permission = True
+        # 项目拥有者可以查看自己的项目
+        elif project.owner_id == current_user.id:
+            has_permission = True
+        # 通过归属关系获得权限
         else:
-            # 获取所有用户
-            users = User.query.all()
+            allowed_user_ids = current_user.get_viewable_user_ids() if hasattr(current_user, 'get_viewable_user_ids') else [current_user.id]
+            if project.owner_id in allowed_user_ids:
+                has_permission = True
+
+        if not has_permission:
+            logger.warning(f"用户 {current_user.username} (ID: {current_user.id}, 角色: {current_user.role}) 尝试访问无权限的项目API: {project_id}")
+            return jsonify({
+                'success': False,
+                'message': '您没有权限访问该项目'
+            }), 403
         
-        users_data = []
-        for user in users:
-            # 获取真实姓名，如果没有则使用用户名
-            display_name = user.real_name if hasattr(user, 'real_name') and user.real_name else user.username
-            # 获取角色的中文显示名
-            role_display = get_role_display_name(user.role) if user.role else '未知角色'
-            
-            users_data.append({
-                'id': user.id,
-                'username': user.username,
-                'real_name': display_name,
-                'company_name': user.company_name,
-                'role': user.role,
-                'role_display': role_display,
-                'display_text': f"{display_name} ({role_display})"  # 用于前端显示的组合文本
-            })
+        # 获取项目拥有者信息
+        owner_name = ''
+        if project.owner_id:
+            owner = User.query.get(project.owner_id)
+            if owner:
+                owner_name = owner.username
+        
+        # 构建返回数据
+        project_data = {
+            'id': project.id,
+            'project_name': project.project_name,
+            'authorization_code': project.authorization_code,
+            'project_type': project.project_type,
+            'project_type_display': project_type_label(project.project_type),
+            'current_stage': project.current_stage,
+            'current_stage_display': project_stage_label(project.current_stage),
+            'owner_id': project.owner_id,
+            'owner_name': owner_name,
+            'created_at': project.created_at.isoformat() if project.created_at else None,
+            'updated_at': project.updated_at.isoformat() if project.updated_at else None
+        }
         
         return jsonify({
             'success': True,
-            'users': users_data
+            'project': project_data
         })
+        
     except Exception as e:
-        logger.error(f"获取用户列表失败: {str(e)}")
+        logger.error(f"获取项目详情API失败: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
-            'message': f'获取用户列表失败: {str(e)}'
+            'message': '获取项目信息失败'
         }), 500 

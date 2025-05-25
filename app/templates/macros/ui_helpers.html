@@ -7,9 +7,18 @@
 {% endmacro %}
 
 {% macro render_owner(owner) %}
-  <span class="badge bg-secondary">
-    {{ owner.real_name if owner and owner.real_name else owner.username if owner else '未知' }}
-  </span>
+  {% if owner %}
+    {% set display_name = owner.real_name if owner.real_name else owner.username %}
+    {% if owner.company_name == '和源通信（上海）股份有限公司' %}
+      {# 厂商账户使用胶囊造型徽章 #}
+      <span class="badge bg-primary rounded-pill">{{ display_name }}</span>
+    {% else %}
+      {# 非厂商账户使用默认造型徽章 #}
+      <span class="badge bg-secondary">{{ display_name }}</span>
+    {% endif %}
+  {% else %}
+    <span class="badge bg-secondary">未知</span>
+  {% endif %}
 {% endmacro %}
 
 {% macro render_project_stage(stage) %}

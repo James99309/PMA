@@ -2,7 +2,7 @@
 {% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_quotation_number, render_project_stage %}
 {% import 'macros/ui_helpers.html' as ui %}
 {% from 'macros/approval_macros.html' import render_approval_timeline, render_approval_form, render_start_approval_button %}
-{% from 'macros/ui_modals.html' import render_change_owner_modal %}
+{% from 'macros/ui_modals.html' import render_change_project_owner_modal %}
 
 {% block title %}项目详情{% endblock %}
 
@@ -138,6 +138,16 @@
                                     {{ render_owner(project.owner) }}
                                     {% if has_change_owner_permission and (not project.is_locked or current_user.role == 'admin') %}
                                         <button class="btn btn-link btn-sm p-0 ms-2" data-bs-toggle="modal" data-bs-target="#changeOwnerModal">修改</button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-md-4"><strong>厂商销售负责人：</strong></div>
+                                <div class="col-md-8">
+                                    {% if project.vendor_sales_manager %}
+                                        {{ render_owner(project.vendor_sales_manager) }}
+                                    {% else %}
+                                        <span class="text-muted">未设置</span>
                                     {% endif %}
                                 </div>
                             </div>
@@ -518,7 +528,7 @@
 
 
 {% if has_change_owner_permission %}
-{{ render_change_owner_modal('changeOwnerModal', url_for('project.change_project_owner', project_id=project.id), all_users, project.owner_id, user_tree_data) }}
+{{ render_change_project_owner_modal('changeOwnerModal', url_for('project.change_project_owner', project_id=project.id), all_users, project.owner_id, user_tree_data) }}
 {% endif %}
 {% endblock %}
 

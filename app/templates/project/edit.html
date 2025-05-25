@@ -148,6 +148,18 @@
                         <input type="date" class="form-control" id="delivery_forecast" name="delivery_forecast" value="{{ project.formatted_delivery_forecast if project else '' }}">
                     </div>
                 </div>
+                
+                <!-- 销售负责人字段 -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label for="vendor_sales_manager_id" class="form-label mb-2">厂商销售负责人</label>
+                        <select class="form-select" id="vendor_sales_manager_id" name="vendor_sales_manager_id"
+                                data-current-value="{{ project.vendor_sales_manager_id if project else '' }}">
+                            <option value="">请选择厂商销售负责人</option>
+                            <!-- 这里将通过JavaScript动态加载厂商用户 -->
+                        </select>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -341,7 +353,10 @@ document.addEventListener('DOMContentLoaded', function() {
     loadCompanies('contractor', 'contractor');
     loadCompanies('integrator', 'system_integrator');
     loadCompanies('dealer', 'dealer');
-
+    
+    // 加载销售负责人数据
+    loadSalesManagers();
+    
     // 为每个选择框添加change事件监听器
     const companySelects = document.querySelectorAll('.company-select');
     companySelects.forEach(select => {
@@ -359,6 +374,53 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+// 加载销售负责人数据的函数
+async function loadSalesManagers() {
+    try {
+        // 使用标准的用户层级API获取所有用户
+        const response = await fetch('/api/users/hierarchical');
+        const data = await response.json();
+        
+        const vendorSelect = document.getElementById('vendor_sales_manager_id');
+        
+        vendorSelect.innerHTML = '<option value="">请选择厂商销售负责人</option>';
+        
+        if (data.success && data.data) {
+            // 按企业分组用户，并根据企业名称过滤
+            data.data.forEach(company => {
+                const isVendorCompany = company.name === '和源通信（上海）股份有限公司';
+                
+                if (company.users && company.users.length > 0) {
+                    if (isVendorCompany) {
+                        // 厂商下拉菜单：不显示企业级，只显示部门级和账户（账户包括真实姓名和角色）
+                        company.users.forEach(user => {
+                            const option = document.createElement('option');
+                            option.value = user.id;
+                            // 使用真实姓名和中文角色显示
+                            const displayName = user.real_name || user.name;
+                            const roleDisplay = user.role_display || user.role;
+                            option.textContent = `${displayName} (${roleDisplay})`;
+                            vendorSelect.appendChild(option);
+                        });
+                    }
+                }
+            });
+        }
+        
+        // 设置当前选中值（避免模板语法错误）
+        setTimeout(() => {
+            const currentVendorManagerId = vendorSelect.getAttribute('data-current-value');
+            
+            if (currentVendorManagerId && currentVendorManagerId !== '') {
+                vendorSelect.value = currentVendorManagerId;
+            }
+        }, 100);
+        
+    } catch (error) {
+        console.error('加载销售负责人数据失败:', error);
+    }
+}
 </script>
 
 <style>

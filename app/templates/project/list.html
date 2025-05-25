@@ -234,6 +234,11 @@ document.addEventListener('DOMContentLoaded', function () {
                             <i class="fas fa-user text-secondary me-1"></i>{{ render_owner(project.owner) }}
                             <span class="d-none" data-owner-id="{{ project.owner_id }}"></span>
                         </div>
+                        {% if project.vendor_sales_manager_id %}
+                        <div class="small mb-1">
+                            <i class="fas fa-user-tie text-secondary me-1"></i>厂商负责人: {{ render_owner(project.vendor_sales_manager) }}
+                        </div>
+                        {% endif %}
                         {% if project.quotation_customer %}
                         <div class="small mb-1">
                             <i class="fas fa-yen-sign text-secondary me-1"></i>报价: {{ '{:,.2f}'.format(project.quotation_customer) }}元
@@ -281,6 +286,15 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="owner_id"></i>
                                             <i class="fas fa-filter filter-icon" data-field="owner_id"></i>
+                                        </div>
+                                    </div>
+                                </th>
+                                <th style="min-width: 120px;" data-sort="vendor_sales_manager_id">
+                                    <div class="th-content">
+                                        <span class="th-text">厂商负责人</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="vendor_sales_manager_id"></i>
+                                            <i class="fas fa-filter filter-icon" data-field="vendor_sales_manager_id"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -426,6 +440,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 {% endif %}
 
                                 <th><input type="text" class="form-control form-control-sm filter-input" data-field="owner_id" placeholder="筛选..."></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="vendor_sales_manager_id" placeholder="筛选..."></th>
                                 <th><input type="text" class="form-control form-control-sm filter-input" data-field="authorization_code" placeholder="筛选..."></th>
                                 <th><input type="text" class="form-control form-control-sm filter-input" data-field="project_name" placeholder="筛选..."></th>
                                 <th><input type="text" class="form-control form-control-sm filter-input" data-field="is_active" placeholder="筛选..."></th>
@@ -457,6 +472,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
                                 <td>{{ render_owner(project.owner) if project.owner else '' }}
                                   <span class="d-none" data-owner-id="{{ project.owner_id }}"></span>
+                                </td>
+                                <td>
+                                    {% if project.vendor_sales_manager_id %}
+                                        {{ render_owner(project.vendor_sales_manager) if project.vendor_sales_manager else '' }}
+                                    {% else %}
+                                        <span class="badge bg-secondary">未设置</span>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     {% if project.authorization_code %}

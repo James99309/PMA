@@ -177,11 +177,14 @@ def search_projects_by_name(query_term: str, user=None, limit: int = 10) -> List
             try:
                 # 获取拥有者信息
                 owner_name = ''
+                company_name = ''
                 if result.get('owner_id'):
                     owner = User.query.get(result['owner_id'])
                     if owner:
                         # 优先使用真实姓名，如果没有则使用用户名
                         owner_name = owner.real_name or owner.username
+                        # 获取用户的企业信息
+                        company_name = owner.company_name or ''
                 
                 # 添加中文标签
                 from app.utils.dictionary_helpers import project_type_label, project_stage_label
@@ -195,7 +198,8 @@ def search_projects_by_name(query_term: str, user=None, limit: int = 10) -> List
                     'current_stage': result.get('current_stage', ''),
                     'current_stage_display': project_stage_label(result.get('current_stage', '')),
                     'owner_id': result.get('owner_id'),
-                    'owner_name': owner_name
+                    'owner_name': owner_name,
+                    'company_name': company_name
                 }
                 
                 enhanced_results.append(enhanced_result)
@@ -212,7 +216,8 @@ def search_projects_by_name(query_term: str, user=None, limit: int = 10) -> List
                     'current_stage': result.get('current_stage', ''),
                     'current_stage_display': result.get('current_stage', ''),
                     'owner_id': result.get('owner_id'),
-                    'owner_name': ''
+                    'owner_name': '',
+                    'company_name': ''
                 })
         
         return enhanced_results
@@ -265,11 +270,14 @@ def search_projects_without_quotations(query_term: str, user=None, limit: int = 
             try:
                 # 获取拥有者信息
                 owner_name = ''
+                company_name = ''
                 if project.owner_id:
                     owner = User.query.get(project.owner_id)
                     if owner:
                         # 优先使用真实姓名，如果没有则使用用户名
                         owner_name = owner.real_name or owner.username
+                        # 获取用户的企业信息
+                        company_name = owner.company_name or ''
                 
                 # 添加中文标签
                 from app.utils.dictionary_helpers import project_type_label, project_stage_label
@@ -283,7 +291,8 @@ def search_projects_without_quotations(query_term: str, user=None, limit: int = 
                     'current_stage': project.current_stage or '',
                     'current_stage_display': project_stage_label(project.current_stage or ''),
                     'owner_id': project.owner_id,
-                    'owner_name': owner_name
+                    'owner_name': owner_name,
+                    'company_name': company_name
                 }
                 
                 results.append(result)
@@ -300,7 +309,8 @@ def search_projects_without_quotations(query_term: str, user=None, limit: int = 
                     'current_stage': project.current_stage or '',
                     'current_stage_display': project.current_stage or '',
                     'owner_id': project.owner_id,
-                    'owner_name': ''
+                    'owner_name': '',
+                    'company_name': ''
                 })
         
         return results

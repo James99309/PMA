@@ -31,8 +31,8 @@ def get_viewable_data(model_class, user, special_filters=None):
     针对 Project 模型，遵循：
     1. 当前用户是项目的 owner_id
     2. 当前用户是项目所有者的上级（归属链）
-    3. 当前用户的 ID 被包含在 shared_with_users（如有该字段）
-    目前项目暂未支持共享字段，仅用 owner_id 与归属链判断
+    3. 当前用户是项目的厂商销售负责人（vendor_sales_manager_id）
+    目前项目暂未支持共享字段，仅用 owner_id、归属链和销售负责人字段判断
     """
     if special_filters is None:
         special_filters = []
@@ -52,8 +52,13 @@ def get_viewable_data(model_class, user, special_filters=None):
             model_class.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进'])
         )
         
+        # 获取自己作为销售负责人的项目
+        sales_manager_projects = model_class.query.filter(
+            model_class.vendor_sales_manager_id == user.id
+        )
+        
         # 合并查询结果
-        combined_query = own_projects.union(special_projects)
+        combined_query = own_projects.union(special_projects).union(sales_manager_projects)
         return combined_query.filter(*special_filters)
     
     # 渠道经理特殊处理：可以查看渠道跟进项目
@@ -66,8 +71,13 @@ def get_viewable_data(model_class, user, special_filters=None):
             model_class.project_type.in_(['channel_follow', '渠道跟进'])
         )
         
+        # 获取自己作为销售负责人的项目
+        sales_manager_projects = model_class.query.filter(
+            model_class.vendor_sales_manager_id == user.id
+        )
+        
         # 合并查询结果
-        combined_query = own_projects.union(channel_projects)
+        combined_query = own_projects.union(channel_projects).union(sales_manager_projects)
         return combined_query.filter(*special_filters)
     
     # User 模型特殊处理 - User 没有 owner_id 字段
@@ -96,37 +106,40 @@ def get_viewable_data(model_class, user, special_filters=None):
         if user_role in ['product_manager', 'product']:
             return model_class.query.filter(*special_filters if special_filters else [])
         
-        # 渠道经理：可以查看所有渠道跟进项目 + 自己的项目
+        # 渠道经理：可以查看所有渠道跟进项目 + 自己的项目 + 自己作为销售负责人的项目
         if user_role == 'channel_manager':
             return model_class.query.filter(
                 db.or_(
                     model_class.owner_id == user.id,
-                    model_class.project_type == 'channel_follow'
+                    model_class.project_type == 'channel_follow',
+                    model_class.vendor_sales_manager_id == user.id
                 ),
                 *special_filters
             )
         
-        # 营销总监：可以查看所有渠道跟进和销售重点项目 + 自己的项目
+        # 营销总监：可以查看所有渠道跟进和销售重点项目 + 自己的项目 + 自己作为销售负责人的项目
         if user_role == 'sales_director':
             return model_class.query.filter(
                 db.or_(
                     model_class.owner_id == user.id,
-                    model_class.project_type.in_(['channel_follow', 'sales_focus'])
+                    model_class.project_type.in_(['channel_follow', 'sales_focus']),
+                    model_class.vendor_sales_manager_id == user.id
                 ),
                 *special_filters
             )
             
-        # 服务经理：可以查看所有业务机会项目 + 自己的项目
+        # 服务经理：可以查看所有业务机会项目 + 自己的项目 + 自己作为销售负责人的项目
         if user_role in ['service', 'service_manager']:
             return model_class.query.filter(
                 db.or_(
                     model_class.owner_id == user.id,
-                    model_class.project_type == '业务机会'
+                    model_class.project_type == '业务机会',
+                    model_class.vendor_sales_manager_id == user.id
                 ),
                 *special_filters
             )
             
-        # 销售角色：查看自己的项目 + 通过归属关系可见的项目，且不能看到业务机会类型的项目
+        # 销售角色：查看自己的项目 + 通过归属关系可见的项目 + 自己作为销售负责人的项目，且不能看到业务机会类型的项目
         if user_role == 'sales':
             # 获取通过归属关系可以查看的用户ID列表
             viewable_user_ids = [user.id]
@@ -134,26 +147,31 @@ def get_viewable_data(model_class, user, special_filters=None):
             for affiliation in affiliations:
                 viewable_user_ids.append(affiliation.owner_id)
                 
-            # 允许查看自己创建的所有项目(包括业务机会) + 归属关系中的非业务机会项目
+            # 允许查看自己创建的所有项目(包括业务机会) + 归属关系中的非业务机会项目 + 自己作为销售负责人的项目
             return model_class.query.filter(
                 db.or_(
                     model_class.owner_id == user.id,  # 自己的所有项目都可见
                     db.and_(
                         model_class.owner_id.in_(viewable_user_ids),
                         model_class.project_type != '业务机会'  # 归属关系中只能看非业务机会项目
-                    )
+                    ),
+                    model_class.vendor_sales_manager_id == user.id  # 自己作为厂商销售负责人的项目
                 ),
                 *special_filters
             )
         
-        # 默认项目权限逻辑：直接归属 + 归属链
+        # 默认项目权限逻辑：直接归属 + 归属链 + 销售负责人
         # 1. 直接归属
         owned_query = model_class.query.filter(model_class.owner_id == user.id)
         # 2. 归属链（Affiliation）
         affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
         subordinate_query = model_class.query.filter(model_class.owner_id.in_(affiliation_owner_ids))
+        # 3. 销售负责人
+        sales_manager_query = model_class.query.filter(
+            model_class.vendor_sales_manager_id == user.id
+        )
         # 合并去重
-        return owned_query.union(subordinate_query).filter(*special_filters)
+        return owned_query.union(subordinate_query).union(sales_manager_query).filter(*special_filters)
 
     # 报价单特殊权限
     if model_class.__name__ == 'Quotation':
@@ -168,7 +186,15 @@ def get_viewable_data(model_class, user, special_filters=None):
         affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
         subordinate_query = model_class.query.filter(model_class.owner_id.in_(affiliation_owner_ids))
         
-        # 3. 角色特殊处理
+        # 3. 销售负责人相关的项目的报价单
+        from app.models.project import Project
+        sales_manager_projects = Project.query.filter(
+            Project.vendor_sales_manager_id == user.id
+        ).all()
+        sales_manager_project_ids = [p.id for p in sales_manager_projects]
+        sales_manager_quotations_query = model_class.query.filter(model_class.project_id.in_(sales_manager_project_ids))
+        
+        # 4. 角色特殊处理
         special_query = None
         
         # 统一处理角色字符串，去除空格
@@ -176,7 +202,6 @@ def get_viewable_data(model_class, user, special_filters=None):
         
         # 渠道经理特殊处理：可以查看所有渠道跟进项目的报价单
         if user_role == 'channel_manager':
-            from app.models.project import Project
             # 获取所有渠道跟进项目的ID
             channel_follow_projects = Project.query.filter_by(project_type='channel_follow').all()
             channel_follow_project_ids = [p.id for p in channel_follow_projects]
@@ -185,7 +210,6 @@ def get_viewable_data(model_class, user, special_filters=None):
         
         # 营销总监特殊处理：可以查看销售重点和渠道跟进项目的报价单
         elif user_role == 'sales_director':
-            from app.models.project import Project
             # 获取销售重点和渠道跟进项目的ID
             marketing_projects = Project.query.filter(
                 Project.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进'])
@@ -204,9 +228,9 @@ def get_viewable_data(model_class, user, special_filters=None):
         
         # 合并查询条件
         if special_query:
-            return owned_query.union(subordinate_query).union(special_query).filter(*special_filters)
+            return owned_query.union(subordinate_query).union(sales_manager_quotations_query).union(special_query).filter(*special_filters)
         else:
-            return owned_query.union(subordinate_query).filter(*special_filters)
+            return owned_query.union(subordinate_query).union(sales_manager_quotations_query).filter(*special_filters)
     
     # 客户特殊权限处理
     if model_class.__name__ in ['Company', 'Contact']:

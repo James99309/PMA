@@ -509,7 +509,7 @@ $(document).ready(function() {
 function testSearchAPI() {
     console.log('测试搜索API...');
     
-    $.ajax({
+            $.ajax({
         url: '/api/v1/search/projects',
         method: 'GET',
         data: { q: '上海', limit: 5 },
@@ -643,8 +643,8 @@ function searchProjects(query) {
             } else {
                 showProjectDropdown([]);
             }
-        },
-        error: function(xhr, status, error) {
+                },
+                error: function(xhr, status, error) {
             console.error('搜索项目失败:', error);
             showProjectDropdown([]);
         }
@@ -672,12 +672,18 @@ function renderAuthorizationCodeBadge(code, projectType) {
 }
 
 // 渲染负责人徽章（模拟宏函数）
-function renderOwnerBadge(ownerName) {
+function renderOwnerBadge(ownerName, companyName = null) {
     if (!ownerName) {
         return '<span class="badge bg-secondary">未知</span>';
     }
     
-    return `<span class="badge bg-secondary">${ownerName}</span>`;
+    // 如果是厂商账户（和源通信企业），使用胶囊造型徽章
+    if (companyName === '和源通信（上海）股份有限公司') {
+        return `<span class="badge bg-primary rounded-pill">${ownerName}</span>`;
+    } else {
+        // 非厂商账户使用默认造型徽章
+        return `<span class="badge bg-secondary">${ownerName}</span>`;
+    }
 }
 
 // 显示项目下拉菜单
@@ -687,7 +693,7 @@ function showProjectDropdown(projects) {
     
     if (projects.length === 0) {
         $dropdown.append('<div class="dropdown-item-text text-muted">未找到匹配的项目</div>');
-    } else {
+        } else {
         projects.forEach(project => {
             const $item = $('<div class="dropdown-item" style="cursor: pointer;"></div>');
             
@@ -715,7 +721,7 @@ function showProjectDropdown(projects) {
             }
             if (project.owner_name) {
                 // 使用统一的负责人徽章样式
-                const ownerBadgeHtml = renderOwnerBadge(project.owner_name);
+                const ownerBadgeHtml = renderOwnerBadge(project.owner_name, project.company_name);
                 infoTexts.push(`负责人: ${ownerBadgeHtml}`);
             }
             
@@ -816,10 +822,10 @@ function loadProjectDetails(projectId) {
         },
         complete: function() {
             removeLoading();
-        }
+            }
     });
 }
-
+    
 // 初始化产品表格
 function initializeProductTable() {
     // 添加新行按钮
@@ -1397,10 +1403,10 @@ function initializeProductAutocomplete() {
                                                                             $specItem.on('click', function() {
                                                                                 var selectedProduct = $(this).data('product');
                                                                                 $input.val(selectedProduct.product_name);
-                                                                                var $row = $input.closest('tr');
-                                                                                clearProductDetails($row, true);
-                                                                                fillProductDetails($row, selectedProduct);
-                                                                                $menu.remove();
+                                                                                    var $row = $input.closest('tr');
+                                                                                    clearProductDetails($row, true);
+                                                                                    fillProductDetails($row, selectedProduct);
+                                                                                    $menu.remove();
                                                                             });
 
                                                                             $specs.append($specItem);
@@ -1518,19 +1524,19 @@ function fillProductDetails($row, product) {
         .attr('title', formattedSubtotal);
     
     // 更新总计
-    updateTotalAmount();
+        updateTotalAmount();
 }
 
 // 更新总计金额
 function updateTotalAmount() {
     try {
-        var total = 0;
+    var total = 0;
         
-        $('.subtotal').each(function() {
+    $('.subtotal').each(function() {
             var subtotalStr = $(this).val() || '0';
             var subtotal = parseFloat(subtotalStr.replace(/,/g, '')) || 0;
             total += subtotal;
-        });
+    });
         
         $('#grandTotal').val(formatNumber(total.toFixed(2)));
         console.log('总金额更新为:', total);
@@ -1550,8 +1556,8 @@ function formatNumber(number) {
         
         // 格式化为两位小数，带千位分隔符
         return num.toLocaleString('zh-CN', { 
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
         });
     } catch (e) {
         console.error('格式化数字时出错:', e);
@@ -1618,7 +1624,7 @@ function calculateRowPrices($row, eventSource) {
         // 计算小计
         var subtotal = unitPrice * quantity;
         $row.find('.subtotal').val(formatNumber(subtotal.toFixed(2)));
-    
+        
         // 调用总计更新函数
         updateTotalAmount();
         

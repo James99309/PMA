@@ -40,6 +40,9 @@ class Project(db.Model):
     last_activity_date = Column(DateTime, default=func.now(), nullable=True)  # 最后活动时间
     activity_reason = Column(String(50), nullable=True)  # 活跃状态原因
     
+    # 销售负责人字段
+    vendor_sales_manager_id = Column(Integer, ForeignKey('users.id'), nullable=True)  # 厂商销售负责人
+    
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, default=datetime.utcnow)
     
@@ -48,6 +51,8 @@ class Project(db.Model):
     owner = relationship('User', foreign_keys=[owner_id], backref='projects')
     # 为locked_by添加关系
     locked_by_user = relationship('User', foreign_keys=[locked_by])
+    # 为销售负责人添加关系
+    vendor_sales_manager = relationship('User', foreign_keys=[vendor_sales_manager_id])
     
     # 修改关系定义，移除可能导致循环引用的配置
     quotations = db.relationship('Quotation', back_populates='project', lazy='dynamic', cascade='all, delete-orphan')
