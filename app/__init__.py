@@ -610,5 +610,7 @@ def create_app(config_class=Config):
             app.logger.error(f"初始化系统设置时出错: {str(e)}")
     
     # 注册上下文处理器
+    from app.utils.access_control import register_context_processors
+    register_context_processors(app)
 
     return app 

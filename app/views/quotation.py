@@ -1161,12 +1161,20 @@ def view_quotation(id):
             logger.debug(f"{current_user.username} 无权访问报价单 {quotation.id}")
             flash('您没有权限查看此报价单', 'danger')
             return redirect(url_for('quotation.list_quotations'))
-        # 项目权限校验 - 渠道经理可以查看渠道跟进项目
+        # 项目权限校验 - 特殊角色可以查看所有项目的报价单
         if quotation.project:
-            is_channel_manager = current_user.role and current_user.role.strip() == 'channel_manager'
+            # 统一处理角色字符串，去除空格
+            user_role = current_user.role.strip() if current_user.role else ''
+            
+            # 特殊角色：财务总监、解决方案经理、产品经理可以查看所有项目的报价单
+            is_special_role = user_role in ['finance_director', 'finace_director', 'solution_manager', 'solution', 'product_manager', 'product']
+            
+            # 渠道经理可以查看渠道跟进项目
+            is_channel_manager = user_role == 'channel_manager'
             is_channel_project = quotation.project.project_type in ['channel_follow', '渠道跟进']
             
-            if not (is_channel_manager and is_channel_project) and not can_view_project(current_user, quotation.project):
+            # 检查权限：特殊角色 OR (渠道经理 AND 渠道项目) OR 常规项目权限
+            if not (is_special_role or (is_channel_manager and is_channel_project) or can_view_project(current_user, quotation.project)):
                 logger.debug(f"{current_user.username} 无权访问报价单 {quotation.id} 关联项目 {quotation.project_id}")
                 flash('您没有权限查看该报价单关联的项目', 'danger')
                 return redirect(url_for('quotation.list_quotations'))
@@ -1606,19 +1614,28 @@ def can_view_quotation(user, quotation):
     2. 归属链
     3. 渠道经理可以查看渠道跟进项目的报价单
     4. 营销总监可以查看销售重点和渠道跟进项目的报价单
+    5. 财务总监、解决方案经理、产品经理可以查看所有报价单
     暂不考虑共享
     """
     if user.role == 'admin':
         return True
     if user.id == quotation.owner_id:
         return True
+    
+    # 统一处理角色字符串，去除空格
+    user_role = user.role.strip() if user.role else ''
+    
+    # 财务总监、解决方案经理、产品经理可以查看所有报价单
+    if user_role in ['finance_director', 'finace_director', 'solution_manager', 'solution', 'product_manager', 'product']:
+        return True
+    
     from app.models.user import Affiliation
     affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
     if quotation.owner_id in affiliation_owner_ids:
         return True
         
     # 营销总监特殊处理：可以查看销售重点和渠道跟进项目的报价单
-    if user.role and user.role.strip() == 'sales_director':
+    if user_role == 'sales_director':
         # 获取关联项目
         from app.models.project import Project
         project = Project.query.get(quotation.project_id)
@@ -1626,7 +1643,7 @@ def can_view_quotation(user, quotation):
             return True
         
     # 渠道经理特殊处理：可以查看所有渠道跟进项目的报价单
-    if user.role and user.role.strip() == 'channel_manager':
+    if user_role == 'channel_manager':
         # 获取关联项目
         from app.models.project import Project
         project = Project.query.get(quotation.project_id)

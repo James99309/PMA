@@ -2,6 +2,56 @@ body {
     background-color: #f8f9fa;
 }
 
+/* 统一页面标题样式 */
+.page-title-container {
+    margin-top: 1.5rem !important;
+    margin-bottom: 1.5rem !important;
+}
+
+.page-title {
+    font-size: 1.75rem !important;
+    font-weight: 700 !important;
+    color: #222 !important;
+    margin-bottom: 0 !important;
+    line-height: 1.2;
+}
+
+/* 确保所有h1标题使用统一样式 */
+h1.fw-bold {
+    font-size: 1.75rem !important;
+    font-weight: 700 !important;
+    color: #222 !important;
+    margin-bottom: 0 !important;
+    line-height: 1.2;
+}
+
+/* 仪表盘标题特殊处理 */
+.dashboard-title-container h1 {
+    font-size: 1.75rem !important;
+    font-weight: 700 !important;
+    color: #222 !important;
+    margin-bottom: 0 !important;
+    line-height: 1.2;
+}
+
+/* 审批中心标题样式统一 */
+.approval-title {
+    font-size: 1.75rem !important;
+    font-weight: 700 !important;
+    color: #222 !important;
+    margin-bottom: 0 !important;
+    line-height: 1.2;
+}
+
+/* 系统设置页面标题样式统一 */
+.settings-title {
+    font-size: 1.75rem !important;
+    font-weight: 700 !important;
+    color: #222 !important;
+    margin-bottom: 0 !important;
+    line-height: 1.2;
+}
+
 .navbar {
     margin-bottom: 0;
     background-color: #212529 !important;

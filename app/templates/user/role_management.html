@@ -3,115 +3,117 @@
 {% block title %}角色管理 - 项目管理系统{% endblock %}
 
 {% block content %}
-<div class="row mb-4 mt-5">
-    <div class="col-12">
-        <h1 class="fw-bold" style="color:#222;">角色字典管理</h1>
+<div class="container-fluid">
+    <div class="row page-title-container">
+        <div class="col-12">
+            <h1 class="page-title">角色字典管理</h1>
+        </div>
     </div>
-</div>
 
-<div class="row mb-4">
-    <div class="col-12">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{{ url_for('user.list_users') }}">用户管理</a></li>
-                <li class="breadcrumb-item active" aria-current="page">角色管理</li>
-            </ol>
-        </nav>
+    <div class="row mb-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('user.list_users') }}">用户管理</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">角色管理</li>
+                </ol>
+            </nav>
+        </div>
     </div>
-</div>
 
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card shadow-sm">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <button class="btn btn-primary" id="addRoleBtn">
-                    <i class="fas fa-plus me-1"></i> 新增角色
-                </button>
-            </div>
-            <div class="card-body">
-                <!-- 新增/编辑表单 -->
-                <form id="roleDictionaryForm" class="mb-4 d-none">
-                    <input type="hidden" id="roleId" name="id" value="">
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <label for="roleKeyInput" class="form-label">Key（英文标识）<span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="roleKeyInput" name="key" required placeholder="如：customer_sales">
-                            <small class="form-text text-muted">使用英文和下划线，如：customer_sales</small>
-                        </div>
-                        <div class="col-md-4">
-                            <label for="roleValueInput" class="form-label">显示文本<span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="roleValueInput" name="value" required placeholder="如：客户销售">
-                            <small class="form-text text-muted">显示给用户的角色名称</small>
-                        </div>
-                        <div class="col-md-4 d-flex align-items-end">
-                            <button type="submit" class="btn btn-success me-2" id="saveRoleBtn">保存</button>
-                            <button type="button" class="btn btn-secondary" id="cancelRoleBtn">取消</button>
-                        </div>
-                    </div>
-                </form>
-
-                <!-- 角色列表表格 -->
-                <div class="table-responsive">
-                    <table class="table table-bordered table-hover" id="roleTable">
-                        <thead class="table-light">
-                            <tr>
-                                <th width="8%">ID</th>
-                                <th width="25%">Key（英文标识）</th>
-                                <th width="25%">显示文本</th>
-                                <th width="12%">状态</th>
-                                <th width="30%">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="roleTableBody">
-                            {% for role in roles %}
-                            <tr>
-                                <td>{{ role.id }}</td>
-                                <td><code>{{ role.key }}</code></td>
-                                <td>{{ role.value }}</td>
-                                <td>
-                                    {% if role.is_active %}
-                                    <span class="badge bg-success">启用</span>
-                                    {% else %}
-                                    <span class="badge bg-secondary">禁用</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <button class="btn btn-sm btn-info me-1 edit-role-btn" data-role-id="{{ role.id }}" data-role-key="{{ role.key }}" data-role-value="{{ role.value }}">
-                                        <i class="fas fa-edit"></i> 编辑
-                                    </button>
-                                    {% if role.key != 'admin' %}
-                                    <button class="btn btn-sm btn-warning me-1 toggle-role-btn" data-role-id="{{ role.id }}" data-role-status="{{ role.is_active }}">
-                                        {% if role.is_active %}
-                                        <i class="fas fa-ban"></i> 禁用
-                                        {% else %}
-                                        <i class="fas fa-check"></i> 启用
-                                        {% endif %}
-                                    </button>
-                                    <button class="btn btn-sm btn-danger delete-role-btn" data-role-id="{{ role.id }}" data-role-key="{{ role.key }}">
-                                        <i class="fas fa-trash"></i> 删除
-                                    </button>
-                                    {% else %}
-                                    <span class="text-muted small">系统角色，不可操作</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <button class="btn btn-primary" id="addRoleBtn">
+                        <i class="fas fa-plus me-1"></i> 新增角色
+                    </button>
                 </div>
+                <div class="card-body">
+                    <!-- 新增/编辑表单 -->
+                    <form id="roleDictionaryForm" class="mb-4 d-none">
+                        <input type="hidden" id="roleId" name="id" value="">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label for="roleKeyInput" class="form-label">Key（英文标识）<span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="roleKeyInput" name="key" required placeholder="如：customer_sales">
+                                <small class="form-text text-muted">使用英文和下划线，如：customer_sales</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="roleValueInput" class="form-label">显示文本<span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="roleValueInput" name="value" required placeholder="如：客户销售">
+                                <small class="form-text text-muted">显示给用户的角色名称</small>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button type="submit" class="btn btn-success me-2" id="saveRoleBtn">保存</button>
+                                <button type="button" class="btn btn-secondary" id="cancelRoleBtn">取消</button>
+                            </div>
+                        </div>
+                    </form>
 
-                <!-- 帮助信息卡片 -->
-                <div class="card mt-4 bg-light">
-                    <div class="card-body">
-                        <h5 class="card-title">
-                            <i class="fas fa-info-circle me-2 text-primary"></i>角色与权限说明
-                        </h5>
-                        <ul class="mb-0">
-                            <li>角色Key是系统内部使用的英文标识符，必须全局唯一且符合英文命名规范（推荐使用小写+下划线）</li>
-                            <li>显示文本是用户界面展示的角色名称，通常使用中文，方便用户理解</li>
-                            <li>新增角色后，请前往"用户管理 > 权限管理"菜单设置该角色的权限</li>
-                            <li>删除角色前请确保没有用户使用该角色，否则将导致用户权限异常</li>
-                        </ul>
+                    <!-- 角色列表表格 -->
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover" id="roleTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th width="8%">ID</th>
+                                    <th width="25%">Key（英文标识）</th>
+                                    <th width="25%">显示文本</th>
+                                    <th width="12%">状态</th>
+                                    <th width="30%">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="roleTableBody">
+                                {% for role in roles %}
+                                <tr>
+                                    <td>{{ role.id }}</td>
+                                    <td><code>{{ role.key }}</code></td>
+                                    <td>{{ role.value }}</td>
+                                    <td>
+                                        {% if role.is_active %}
+                                        <span class="badge bg-success">启用</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">禁用</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-info me-1 edit-role-btn" data-role-id="{{ role.id }}" data-role-key="{{ role.key }}" data-role-value="{{ role.value }}">
+                                            <i class="fas fa-edit"></i> 编辑
+                                        </button>
+                                        {% if role.key != 'admin' %}
+                                        <button class="btn btn-sm btn-warning me-1 toggle-role-btn" data-role-id="{{ role.id }}" data-role-status="{{ role.is_active }}">
+                                            {% if role.is_active %}
+                                            <i class="fas fa-ban"></i> 禁用
+                                            {% else %}
+                                            <i class="fas fa-check"></i> 启用
+                                            {% endif %}
+                                        </button>
+                                        <button class="btn btn-sm btn-danger delete-role-btn" data-role-id="{{ role.id }}" data-role-key="{{ role.key }}">
+                                            <i class="fas fa-trash"></i> 删除
+                                        </button>
+                                        {% else %}
+                                        <span class="text-muted small">系统角色，不可操作</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 帮助信息卡片 -->
+                    <div class="card mt-4 bg-light">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-info-circle me-2 text-primary"></i>角色与权限说明
+                            </h5>
+                            <ul class="mb-0">
+                                <li>角色Key是系统内部使用的英文标识符，必须全局唯一且符合英文命名规范（推荐使用小写+下划线）</li>
+                                <li>显示文本是用户界面展示的角色名称，通常使用中文，方便用户理解</li>
+                                <li>新增角色后，请前往"用户管理 > 权限管理"菜单设置该角色的权限</li>
+                                <li>删除角色前请确保没有用户使用该角色，否则将导致用户权限异常</li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -3,110 +3,112 @@
 {% block title %}部门字典管理 - 项目管理系统{% endblock %}
 
 {% block content %}
-<div class="row mb-4 mt-5">
-    <div class="col-12">
-        <h1 class="fw-bold" style="color:#222;">部门字典管理</h1>
+<div class="container-fluid">
+    <div class="row page-title-container">
+        <div class="col-12">
+            <h1 class="page-title">部门字典管理</h1>
+        </div>
     </div>
-</div>
 
-<div class="row mb-4">
-    <div class="col-12">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{{ url_for('user.list_users') }}">用户管理</a></li>
-                <li class="breadcrumb-item active" aria-current="page">部门字典管理</li>
-            </ol>
-        </nav>
+    <div class="row mb-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('user.list_users') }}">用户管理</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">部门字典管理</li>
+                </ol>
+            </nav>
+        </div>
     </div>
-</div>
 
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card shadow-sm">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <button class="btn btn-primary" id="addDepartmentBtn">
-                    <i class="fas fa-plus me-1"></i> 新增部门
-                </button>
-            </div>
-            <div class="card-body">
-                <!-- 新增/编辑表单 -->
-                <form id="departmentDictionaryForm" class="mb-4 d-none">
-                    <input type="hidden" id="departmentId" name="id" value="">
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <label for="departmentKeyInput" class="form-label">Key（英文标识）<span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="departmentKeyInput" name="key" required placeholder="如：sales_department">
-                            <small class="form-text text-muted">使用英文和下划线，如：sales_department</small>
-                        </div>
-                        <div class="col-md-4">
-                            <label for="departmentValueInput" class="form-label">显示文本<span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="departmentValueInput" name="value" required placeholder="如：销售部">
-                            <small class="form-text text-muted">显示给用户的部门名称</small>
-                        </div>
-                        <div class="col-md-4 d-flex align-items-end">
-                            <button type="submit" class="btn btn-success me-2" id="saveDepartmentBtn">保存</button>
-                            <button type="button" class="btn btn-secondary" id="cancelDepartmentBtn">取消</button>
-                        </div>
-                    </div>
-                </form>
-
-                <!-- 部门列表表格 -->
-                <div class="table-responsive">
-                    <table class="table table-bordered table-hover" id="departmentTable">
-                        <thead class="table-light">
-                            <tr>
-                                <th width="8%">ID</th>
-                                <th width="25%">Key（英文标识）</th>
-                                <th width="25%">显示文本</th>
-                                <th width="12%">状态</th>
-                                <th width="30%">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="departmentTableBody">
-                            {% for department in departments %}
-                            <tr>
-                                <td>{{ department.id }}</td>
-                                <td><code>{{ department.key }}</code></td>
-                                <td>{{ department.value }}</td>
-                                <td>
-                                    {% if department.is_active %}
-                                    <span class="badge bg-success">启用</span>
-                                    {% else %}
-                                    <span class="badge bg-secondary">禁用</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <button class="btn btn-sm btn-info me-1 edit-department-btn" data-id="{{ department.id }}" data-key="{{ department.key }}" data-value="{{ department.value }}">
-                                        <i class="fas fa-edit"></i> 编辑
-                                    </button>
-                                    <button class="btn btn-sm btn-warning me-1 toggle-department-btn" data-id="{{ department.id }}" data-status="{{ department.is_active }}">
-                                        {% if department.is_active %}
-                                        <i class="fas fa-ban"></i> 禁用
-                                        {% else %}
-                                        <i class="fas fa-check"></i> 启用
-                                        {% endif %}
-                                    </button>
-                                    <button class="btn btn-sm btn-danger delete-department-btn" data-id="{{ department.id }}" data-key="{{ department.key }}">
-                                        <i class="fas fa-trash"></i> 删除
-                                    </button>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <button class="btn btn-primary" id="addDepartmentBtn">
+                        <i class="fas fa-plus me-1"></i> 新增部门
+                    </button>
                 </div>
+                <div class="card-body">
+                    <!-- 新增/编辑表单 -->
+                    <form id="departmentDictionaryForm" class="mb-4 d-none">
+                        <input type="hidden" id="departmentId" name="id" value="">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label for="departmentKeyInput" class="form-label">Key（英文标识）<span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="departmentKeyInput" name="key" required placeholder="如：sales_department">
+                                <small class="form-text text-muted">使用英文和下划线，如：sales_department</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="departmentValueInput" class="form-label">显示文本<span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="departmentValueInput" name="value" required placeholder="如：销售部">
+                                <small class="form-text text-muted">显示给用户的部门名称</small>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button type="submit" class="btn btn-success me-2" id="saveDepartmentBtn">保存</button>
+                                <button type="button" class="btn btn-secondary" id="cancelDepartmentBtn">取消</button>
+                            </div>
+                        </div>
+                    </form>
 
-                <!-- 帮助信息卡片 -->
-                <div class="card mt-4 bg-light">
-                    <div class="card-body">
-                        <h5 class="card-title">
-                            <i class="fas fa-info-circle me-2 text-primary"></i>部门字典说明
-                        </h5>
-                        <ul class="mb-0">
-                            <li>部门Key是系统内部使用的英文标识符，必须全局唯一且符合英文命名规范（推荐使用小写+下划线）</li>
-                            <li>显示文本是用户界面展示的部门名称，通常使用中文，方便用户理解</li>
-                            <li>删除部门前请确保没有用户关联到该部门，否则将导致数据异常</li>
-                        </ul>
+                    <!-- 部门列表表格 -->
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover" id="departmentTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th width="8%">ID</th>
+                                    <th width="25%">Key（英文标识）</th>
+                                    <th width="25%">显示文本</th>
+                                    <th width="12%">状态</th>
+                                    <th width="30%">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="departmentTableBody">
+                                {% for department in departments %}
+                                <tr>
+                                    <td>{{ department.id }}</td>
+                                    <td><code>{{ department.key }}</code></td>
+                                    <td>{{ department.value }}</td>
+                                    <td>
+                                        {% if department.is_active %}
+                                        <span class="badge bg-success">启用</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">禁用</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-info me-1 edit-department-btn" data-id="{{ department.id }}" data-key="{{ department.key }}" data-value="{{ department.value }}">
+                                            <i class="fas fa-edit"></i> 编辑
+                                        </button>
+                                        <button class="btn btn-sm btn-warning me-1 toggle-department-btn" data-id="{{ department.id }}" data-status="{{ department.is_active }}">
+                                            {% if department.is_active %}
+                                            <i class="fas fa-ban"></i> 禁用
+                                            {% else %}
+                                            <i class="fas fa-check"></i> 启用
+                                            {% endif %}
+                                        </button>
+                                        <button class="btn btn-sm btn-danger delete-department-btn" data-id="{{ department.id }}" data-key="{{ department.key }}">
+                                            <i class="fas fa-trash"></i> 删除
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 帮助信息卡片 -->
+                    <div class="card mt-4 bg-light">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-info-circle me-2 text-primary"></i>部门字典说明
+                            </h5>
+                            <ul class="mb-0">
+                                <li>部门Key是系统内部使用的英文标识符，必须全局唯一且符合英文命名规范（推荐使用小写+下划线）</li>
+                                <li>显示文本是用户界面展示的部门名称，通常使用中文，方便用户理解</li>
+                                <li>删除部门前请确保没有用户关联到该部门，否则将导致数据异常</li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
             </div>

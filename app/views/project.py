@@ -173,6 +173,9 @@ def view_project(project_id):
     # 管理员可以查看所有项目
     if user_role == 'admin':
         has_permission = True
+    # 财务总监、解决方案经理、产品经理可以查看所有项目
+    elif user_role in ['finance_director', 'finace_director', 'solution_manager', 'solution', 'product_manager', 'product']:
+        has_permission = True
     # 渠道经理可以查看渠道跟进项目
     elif user_role == 'channel_manager' and project.project_type in ['channel_follow', '渠道跟进']:
         has_permission = True
@@ -739,6 +742,9 @@ def approve_authorization(project_id):
         # 管理员可以批准所有项目授权申请
         if user_role == 'admin':
             can_approve = True
+        # 财务总监、解决方案经理、产品经理可以批准所有项目授权申请
+        elif user_role in ['finance_director', 'finace_director', 'solution_manager', 'solution', 'product_manager', 'product']:
+            can_approve = True
         # 渠道经理可以批准渠道跟进项目
         elif user_role == 'channel_manager' and project.project_type == 'channel_follow':
             can_approve = True
@@ -824,6 +830,9 @@ def reject_authorization(project_id):
 
         # 管理员可以拒绝所有项目授权申请
         if user_role == 'admin':
+            can_reject = True
+        # 财务总监、解决方案经理、产品经理可以拒绝所有项目授权申请
+        elif user_role in ['finance_director', 'finace_director', 'solution_manager', 'solution', 'product_manager', 'product']:
             can_reject = True
         # 渠道经理可以拒绝渠道跟进项目
         elif user_role == 'channel_manager' and project.project_type == 'channel_follow':
@@ -1344,7 +1353,7 @@ def get_project_api(project_id):
     project = Project.query.get_or_404(project_id)
     
     # 检查查看权限
-    if not can_view_data(project, current_user):
+    if not can_view_project(current_user, project):
         return jsonify({'error': '没有权限查看此项目'}), 403
     
     return jsonify({
@@ -1401,4 +1410,44 @@ def get_users_api():
         return jsonify({
             'success': False,
             'message': f'获取用户列表失败: {str(e)}'
+        }), 500 
+
+@project.route('/api/project/<int:project_id>/latest-quotation', methods=['GET'])
+@login_required
+@permission_required('project', 'view')
+def get_project_latest_quotation_api(project_id):
+    """获取项目最新报价单API"""
+    try:
+        project = Project.query.get_or_404(project_id)
+        
+        # 检查查看权限
+        if not can_view_project(current_user, project):
+            return jsonify({
+                'success': False,
+                'message': '您没有权限访问该项目'
+            }), 403
+        
+        # 获取项目的最新报价单
+        from app.models.quotation import Quotation
+        latest_quotation = project.quotations.order_by(Quotation.created_at.desc()).first()
+        
+        if latest_quotation:
+            return jsonify({
+                'success': True,
+                'quotation_id': latest_quotation.id,
+                'quotation_number': latest_quotation.quotation_number,
+                'amount': latest_quotation.amount,
+                'created_at': latest_quotation.created_at.isoformat() if latest_quotation.created_at else None
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': '该项目暂无报价单'
+            })
+        
+    except Exception as e:
+        logger.error(f"获取项目最新报价单API失败: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': '获取项目报价单信息失败'
         }), 500 

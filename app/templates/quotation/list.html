@@ -117,9 +117,9 @@
 
 {% block content %}
 <div class="container-fluid">
-    <div class="row mb-4 mt-5">
+    <div class="row page-title-container">
         <div class="col-12">
-            <h1 class="fw-bold" style="color:#222;">报价单列表</h1>
+            <h1 class="page-title">报价单列表</h1>
         </div>
     </div>
 
@@ -312,9 +312,15 @@
                             </td>
                             <td class="px-3">{{ render_owner(quotation.owner) }}</td>
                             <td class="px-3">
-                                <a href="{{ url_for('project.view_project', project_id=quotation.project.id) }}">
+                                <span class="project-name-display">
                                     {{ quotation.project.project_name }}
-                                </a>
+                                    <a href="{{ url_for('project.view_project', project_id=quotation.project.id) }}" 
+                                       class="ms-2 text-muted" 
+                                       title="查看项目详情"
+                                       style="font-size: 0.8em;">
+                                        <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                </span>
                             </td>
                             <td class="px-3">
                                 <a href="{{ url_for('quotation.edit_quotation', id=quotation.id) }}">
@@ -1108,9 +1114,9 @@ function searchProjects(query) {
         return;
     }
     
-    // 使用普通的项目搜索端点（包含所有项目）
+    // 使用报价单搜索端点，直接搜索报价单
     $.ajax({
-        url: '/api/v1/search/projects',
+        url: '/api/v1/search/quotations',
         method: 'GET',
         data: {
             q: query,
@@ -1119,63 +1125,49 @@ function searchProjects(query) {
         success: function(response) {
             console.log('搜索响应:', response);
             if (response.success && response.data) {
-                showProjectDropdown(response.data);
+                showQuotationDropdown(response.data);
             } else {
-                showProjectDropdown([]);
+                showQuotationDropdown([]);
             }
         },
         error: function(xhr, status, error) {
-            console.error('搜索项目失败:', error);
-            showProjectDropdown([]);
+            console.error('搜索报价单失败:', error);
+            showQuotationDropdown([]);
         }
     });
 }
 
-// 显示项目下拉菜单
-function showProjectDropdown(projects) {
+// 显示报价单下拉菜单
+function showQuotationDropdown(quotations) {
     const $dropdown = $('#project_dropdown');
     $dropdown.empty();
     
-    if (projects.length === 0) {
-        $dropdown.append('<div class="dropdown-item-text text-muted" style="font-size: 0.875rem;">未找到匹配的项目</div>');
+    if (quotations.length === 0) {
+        $dropdown.append('<div class="dropdown-item-text text-muted">未找到相关报价单</div>');
     } else {
-        projects.forEach(project => {
-            const $item = $('<div class="dropdown-item" style="cursor: pointer; padding: 8px 12px;"></div>');
+        quotations.forEach(function(quotation) {
+            const $item = $('<a href="#" class="dropdown-item"></a>');
             
-            // 项目名称行
-            const $nameRow = $('<div class="d-flex align-items-center mb-1"></div>');
-            const $nameText = $('<span class="project-name me-2" style="font-size: 0.875rem; font-weight: 500;"></span>').text(project.project_name);
-            $nameRow.append($nameText);
+            // 构建显示内容 - 只显示项目名称和金额，项目名称字体缩小2号且不加粗
+            let displayHtml = `
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div style="font-size: 0.875rem;">${quotation.project_name}</div>
+                    </div>
+                    <div class="text-end">
+                        <small class="text-success fw-bold">
+                            ¥${quotation.amount ? quotation.amount.toLocaleString() : '0'}
+                        </small>
+                    </div>
+                </div>
+            `;
             
-            // 授权编号徽章 - 使用统一的徽章函数
-            if (project.authorization_code) {
-                const authBadgeHtml = renderAuthorizationCodeBadge(project.authorization_code, project.project_type_display);
-                const $authBadge = $(authBadgeHtml).addClass('ms-auto');
-                $nameRow.append($authBadge);
-            }
-            
-            // 辅助信息行
-            const $infoRow = $('<div class="project-info" style="font-size: 0.75rem; color: #6c757d;"></div>');
-            let infoTexts = [];
-            
-            if (project.project_type_display) {
-                infoTexts.push(`类型: ${project.project_type_display}`);
-            }
-            if (project.current_stage_display) {
-                infoTexts.push(`阶段: ${project.current_stage_display}`);
-            }
-            if (project.owner_name) {
-                infoTexts.push(`负责人: ${project.owner_name}`);
-            }
-            
-            $infoRow.text(infoTexts.join(' | '));
-            
-            $item.append($nameRow).append($infoRow);
-            $item.data('project', project);
+            $item.html(displayHtml);
+            $item.data('quotation', quotation);
             
             $item.on('click', function() {
-                const selectedProject = $(this).data('project');
-                selectProject(selectedProject);
+                const selectedQuotation = $(this).data('quotation');
+                selectQuotation(selectedQuotation);
                 $dropdown.removeClass('show');
             });
             
@@ -1191,18 +1183,18 @@ function hideProjectDropdown() {
     $('#project_dropdown').removeClass('show');
 }
 
-// 选择项目
-function selectProject(project) {
-    console.log('选择项目:', project);
+// 选择报价单
+function selectQuotation(quotation) {
+    console.log('选择报价单:', quotation);
     
-    // 设置搜索框内容
-    $('#projectSearch').val(project.project_name + (project.authorization_code ? ` (${project.authorization_code})` : ''));
+    // 清空搜索框
+    $('#projectSearch').val('');
     
     // 隐藏下拉菜单
     hideProjectDropdown();
     
-    // 执行搜索
-    performSearch();
+    // 直接跳转到报价单详情页面
+    window.location.href = `/quotation/${quotation.quotation_id}/detail`;
 }
 
 // 执行搜索

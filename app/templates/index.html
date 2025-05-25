@@ -19,10 +19,10 @@
     'solution_manager': '解决方案经理'
 } %}
 
-<div class="row mb-4 mt-5">
+<div class="row mb-4 mt-5 page-title-container">
     <div class="col-12">
-        <div class="d-flex align-items-center">
-            <h1 class="mb-0">仪表盘</h1>
+        <div class="d-flex align-items-center dashboard-title-container">
+            <h1 class="page-title">仪表盘</h1>
             <span style="margin-left: 2em; font-size: 1.25rem; color: #6c757d;">欢迎, {{ current_user.real_name or current_user.username or session.get('username', '访客') }}</span>
         </div>
     </div>

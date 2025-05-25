@@ -22,6 +22,31 @@ from app.models.quotation import Quotation
 from app.models.action import Action
 from sqlalchemy import or_, func, desc, text, cast
 from sqlalchemy.dialects.postgresql import JSONB
+from app.utils.access_control import get_viewable_data, can_edit_data, get_accessible_data, can_change_project_owner
+import re
+from fuzzywuzzy import fuzz
+from app.utils.text_similarity import calculate_chinese_similarity, is_similar_project_name
+import uuid  # 使用内置的uuid模块替代bson.objectid
+import pandas as pd
+import json
+from app.models.user import User
+from app.models.quotation import Quotation
+from app.models.relation import ProjectMember
+from app.permissions import check_permission, Permissions
+from werkzeug.utils import secure_filename
+import os
+from flask_wtf.csrf import CSRFProtect
+from app.models.action import Action, ActionReply
+from app.models.projectpm_stage_history import ProjectStageHistory  # 导入阶段历史记录模型
+from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS
+from sqlalchemy import or_, func
+from app.utils.notification_helpers import trigger_event_notification
+from app.services.event_dispatcher import notify_project_created, notify_project_status_updated
+from app.helpers.project_helpers import is_project_editable
+from app.utils.activity_tracker import check_company_activity, update_active_status
+from app.models.settings import SystemSettings
+from zoneinfo import ZoneInfo
+from app.utils.role_mappings import get_role_display_name, get_role_special_permissions
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +128,7 @@ def get_viewable_data(model_class, user, special_filters=None):
         user_role = user.role.strip() if user.role else ''
         
         # 财务总监、解决方案经理、产品经理可以查看所有项目（只读权限）
-        if user_role in ['finance_director', 'finace_director', 'solution_manager', 'product_manager', 'product']:
+        if user_role in ['finance_director', 'solution_manager', 'product_manager', 'product']:
             return model_class.query.filter(*special_filters if special_filters else [])
         
         # 渠道经理：可以查看所有渠道跟进项目 + 自己的项目 + 自己作为销售负责人的项目
@@ -180,7 +205,7 @@ def get_viewable_data(model_class, user, special_filters=None):
         
         # 财务总监、产品经理可以查看所有报价单（只读权限）
         # 解决方案经理可以查看所有报价单（可编辑但不可删除）
-        if user_role in ['finance_director', 'finace_director', 'product_manager', 'product', 'solution_manager', 'product_manager', 'solution']:
+        if user_role in ['finance_director', 'product_manager', 'product', 'solution_manager', 'product_manager', 'solution']:
             return model_class.query.filter(*special_filters if special_filters else [])
         
         # 1. 直接归属（自己创建的报价单）
@@ -238,16 +263,9 @@ def get_viewable_data(model_class, user, special_filters=None):
         # 统一处理角色字符串，去除空格
         user_role = user.role.strip() if user.role else ''
         
-        # 解决方案经理可以查看所有客户信息
-        if user_role in ['solution_manager', 'solution']:
+        # 产品经理可以查看所有客户信息
+        if user_role in ['product_manager', 'product']:
             return model_class.query.filter(*special_filters if special_filters else [])
-        
-        # 财务总监、产品经理只能查看自己的客户信息
-        if user_role in ['finance_director', 'finace_director', 'product_manager', 'product']:
-            return model_class.query.filter(
-                model_class.owner_id == user.id,
-                *special_filters
-            )
         
         # 营销总监只能查看自己的客户信息（除非是部门负责人）
         if user_role == 'sales_director':
@@ -371,7 +389,7 @@ def can_edit_data(model_obj, user):
     model_name = model_obj.__class__.__name__
     
     # 财务总监：只能查看，不能编辑任何项目和报价单
-    if user_role in ['finance_director', 'finace_director']:
+    if user_role == 'finance_director':
         if model_name in ['Project', 'Quotation']:
             return False
         # 其他数据按默认规则
@@ -543,26 +561,17 @@ def can_view_project(user, project):
     判断用户是否有权查看该项目：
     1. 归属人
     2. 归属链
-    3. 财务总监、解决方案经理、产品经理可以查看所有项目
-    4. 共享（如有 shared_with_users 字段，暂未支持）
+    3. 共享（如有 shared_with_users 字段，暂未支持）
     """
     if user.role == 'admin':
         return True
     if user.id == project.owner_id:
         return True
-    
-    # 统一处理角色字符串，去除空格
-    user_role = user.role.strip() if user.role else ''
-    
-    # 财务总监、解决方案经理、产品经理可以查看所有项目
-    if user_role in ['finance_director', 'finace_director', 'solution_manager', 'solution', 'product_manager', 'product']:
-        return True
-    
     from app.models.user import Affiliation
     affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
     if project.owner_id in affiliation_owner_ids:
         return True
-    return False
+    return False 
 
 def register_context_processors(app):
     """
@@ -657,7 +666,7 @@ def can_delete_project(user, project):
     user_role = user.role.strip() if user.role else ''
     
     # 财务总监、产品经理、解决方案经理：不能删除任何项目
-    if user_role in ['finance_director', 'finace_director', 'product_manager', 'product', 'solution_manager', 'solution']:
+    if user_role in ['finance_director', 'product_manager', 'product', 'solution_manager', 'solution']:
         return False
     
     # 其他角色只能删除自己创建的项目
@@ -682,7 +691,7 @@ def can_delete_quotation(user, quotation):
     user_role = user.role.strip() if user.role else ''
     
     # 财务总监、产品经理、解决方案经理：不能删除任何报价单
-    if user_role in ['finance_director', 'finace_director', 'product_manager', 'product', 'solution_manager', 'solution']:
+    if user_role in ['finance_director', 'product_manager', 'product', 'solution_manager', 'solution']:
         return False
     
     # 其他角色只能删除自己创建的报价单

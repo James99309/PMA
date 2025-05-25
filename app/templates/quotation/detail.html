@@ -35,7 +35,7 @@
                                 {% if can_edit_data(quotation, current_user) %}
                                     {{ render_button('编辑', url_for('quotation.edit_quotation', id=quotation.id), color='primary', size='sm', extra_class='me-2') }}
                                 {% endif %}
-                                {% if current_user.has_permission('quotation', 'delete') and can_edit_data(quotation, current_user) %}
+                                {% if can_delete_quotation(current_user, quotation) %}
                                     <form action="{{ url_for('quotation.delete_quotation', id=quotation.id) }}" method="post" style="display:inline;" onsubmit="return confirm('确定要删除此报价单吗？此操作不可恢复。');">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         {{ render_button('删除', None, color='danger', type='submit', size='sm', extra_class='me-2') }}
