@@ -112,6 +112,18 @@
         background-color: #f8f9fa;
         border-color: #ced4da;
     }
+
+    /* 项目名称链接样式 */
+    .project-link {
+        color: #0d6efd !important;
+        text-decoration: none !important;
+        transition: color 0.15s ease-in-out;
+    }
+
+    .project-link:hover {
+        color: #0a58ca !important;
+        text-decoration: underline !important;
+    }
 </style>
 {% endblock %}
 
@@ -176,7 +188,7 @@
                     <i class="fas fa-user text-secondary me-1"></i>{{ render_owner(quotation.owner) }}
                 </div>
                 <h5 class="card-title mb-2">
-                    <a href="{{ url_for('quotation.view_quotation', id=quotation.id) }}" class="text-decoration-none">
+                    <a href="{{ url_for('project.view_project', project_id=quotation.project.id) }}" class="text-decoration-none project-link">
                         {{ quotation.project.project_name }}
                     </a>
                 </h5>
@@ -312,15 +324,9 @@
                             </td>
                             <td class="px-3">{{ render_owner(quotation.owner) }}</td>
                             <td class="px-3">
-                                <span class="project-name-display">
+                                <a href="{{ url_for('project.view_project', project_id=quotation.project.id) }}" class="text-decoration-none project-link">
                                     {{ quotation.project.project_name }}
-                                    <a href="{{ url_for('project.view_project', project_id=quotation.project.id) }}" 
-                                       class="ms-2 text-muted" 
-                                       title="查看项目详情"
-                                       style="font-size: 0.8em;">
-                                        <i class="fas fa-external-link-alt"></i>
-                                    </a>
-                                </span>
+                                </a>
                             </td>
                             <td class="px-3">
                                 <a href="{{ url_for('quotation.edit_quotation', id=quotation.id) }}">

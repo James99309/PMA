@@ -104,6 +104,8 @@ input[type="number"].quantity {
     min-width: 80px !important;
     width: 80px !important;
     text-align: center !important;
+    font-family: 'Roboto Mono', monospace !important;
+    letter-spacing: -0.2px !important;
 }
 
 /* 价格相关输入框样式 */
@@ -157,27 +159,24 @@ input[type="number"]#grandTotal {
 
 /* 折扣率输入框特殊样式 */
 input[type="number"].discount-rate {
-    min-width: 90px !important;
-    width: 90px !important;
+    min-width: 80px !important;
+    width: 80px !important;
     text-align: right !important;
-    padding-right: 35px !important; /* 为百分号和箭头留出空间 */
+    padding-right: 25px !important; /* 为上下箭头留出空间 */
+    font-family: 'Roboto Mono', monospace !important;
+    letter-spacing: -0.2px !important;
 }
 
-/* 折扣率输入框的百分号 */
+/* 移除折扣率输入框的百分号相关样式 */
 .discount-rate-container {
     position: relative;
     display: inline-block;
     width: 100%;
 }
 
+/* 移除百分号显示 */
 .discount-rate-container:after {
-    content: '%';
-    position: absolute;
-    right: 25px; /* 调整位置，为箭头留出空间 */
-    top: 50%;
-    transform: translateY(-50%);
-    color: #666;
-    pointer-events: none;
+    display: none;
 }
 
 /* 调整数字输入框的箭头样式 */
@@ -185,20 +184,14 @@ input[type="number"].discount-rate::-webkit-outer-spin-button,
 input[type="number"].discount-rate::-webkit-inner-spin-button {
     opacity: 1;
     margin: 0;
-    position: absolute;
-    right: 2px;
-    top: 50%;
-    transform: translateY(-50%);
-    height: 80%;
+    width: 20px;
+    height: 100%;
 }
 
 /* Firefox的特殊处理 */
 @-moz-document url-prefix() {
     input[type="number"].discount-rate {
         padding-right: 25px !important;
-    }
-    .discount-rate-container:after {
-        right: 15px;
     }
 }
 
@@ -308,32 +301,26 @@ input[type="number"].quantity {
 }
 
 .discount-rate-group .form-control.discount-rate {
-  padding-right: 0.5em;
-  min-width: 70px;
+  padding-right: 25px !important; /* 为上下箭头留出空间 */
+  min-width: 80px !important;
+  width: 80px !important;
   text-align: right;
 }
 
 .discount-rate-group .input-group-text {
-  min-width: 2em;
-  justify-content: center;
+  display: none; /* 隐藏%符号 */
 }
 
 .discount-rate-container {
     position: relative;
     display: inline-block;
-    width: calc(100% - 24px); /* 预留%号宽度 */
+    width: 100%;
     vertical-align: middle;
 }
+
+/* 移除百分号显示 */
 .discount-rate-percent {
-    display: inline-block;
-    width: 18px;
-    text-align: left;
-    margin-left: 2px;
-    color: #666;
-    font-size: 0.95em;
-    vertical-align: middle;
-    position: relative;
-    top: 2px;
+    display: none;
 }
 </style>
 {% endblock %}
@@ -442,7 +429,7 @@ input[type="number"].quantity {
                                                     <th style="min-width: 90px;">品牌</th>
                                                     <th style="min-width: 70px;">单位</th>
                                                     <th class="price-column">市场单价</th>
-                                                    <th style="min-width: 90px;">折扣率</th>
+                                                    <th style="min-width: 90px;">折扣率%</th>
                                                     <th class="price-column">单价</th>
                                                     <th style="min-width: 70px;">数量</th>
                                                     <th class="price-column">小计</th>
@@ -478,7 +465,7 @@ input[type="number"].quantity {
                                                     </td>
                                                     <td>
                                                         <div class="discount-rate-group">
-                                                            <input type="number" class="form-control discount-rate" name="discount_rate[]" value="{{ item.discount_rate if item.discount_rate is defined else 100.0 }}" min="0" step="0.1" max="1000" required style="text-align:right;">
+                                                            <input type="number" class="form-control discount-rate" name="discount_rate[]" value="100.0" min="0" step="0.1" max="1000" required>
                                                         </div>
                                                     </td>
                                                     <td>
@@ -528,7 +515,7 @@ input[type="number"].quantity {
                                                     </td>
                                                 <td>
                                                     <div class="discount-rate-group">
-                                                        <input type="number" class="form-control discount-rate" name="discount_rate[]" value="100.0" min="0" step="0.1" max="1000" required style="text-align:right;">
+                                                        <input type="number" class="form-control discount-rate" name="discount_rate[]" value="100.0" min="0" step="0.1" max="1000" required>
                                                     </div>
                                                 </td>
                                                     <td>
@@ -1331,7 +1318,7 @@ $(document).ready(function() {
                 </td>
                 <td>
                     <div class="discount-rate-group">
-                        <input type="number" class="form-control discount-rate" name="discount_rate[]" value="100.0" min="0" step="0.1" max="1000" required style="text-align:right;">
+                        <input type="number" class="form-control discount-rate" name="discount_rate[]" value="100.0" min="0" step="0.1" max="1000" required >
                     </div>
                 </td>
                 <td>
@@ -2032,7 +2019,7 @@ function calculateDiscountRate($row) {
         discountRate = Math.min(Math.max(discountRate, 0), 1000); // 增加最大值范围
         $row.find('.discount-rate')
             .val(discountRate.toFixed(1))
-            .attr('title', discountRate.toFixed(1) + '%');
+            .attr('title', discountRate.toFixed(1));
     }
     
     // 计算小计并格式化
@@ -2184,7 +2171,7 @@ function initializeQuotationDetails(details) {
                     </td>
                     <td>
                         <div class="discount-rate-container">
-                            <input type="number" class="form-control discount-rate" name="discount_rate[]" value="100.0" min="0" step="0.1" max="1000" required style="text-align:right;">
+                            <input type="number" class="form-control discount-rate" name="discount_rate[]" value="100.0" min="0" step="0.1" max="1000" required >
                         </div>
                     </td>
                     <td>
@@ -2257,7 +2244,7 @@ function initializeQuotationDetails(details) {
                         </td>
                         <td>
                             <div class="discount-rate-container">
-                                <input type="number" class="form-control discount-rate" name="discount_rate[]" value="${safeDetail.discount_rate}" min="0" step="0.1" max="1000" required style="text-align:right;">
+                                <input type="number" class="form-control discount-rate" name="discount_rate[]" value="${safeDetail.discount_rate}" min="0" step="0.1" max="1000" required >
                             </div>
                         </td>
                         <td>

@@ -27,7 +27,8 @@ class Quotation(db.Model):
     # 关联关系
     project = db.relationship('Project', back_populates='quotations')
     contact = db.relationship('Contact', backref='quotations')
-    details = db.relationship('QuotationDetail', backref='quotation', cascade='all, delete-orphan')
+    details = db.relationship('QuotationDetail', backref='quotation', cascade='all, delete-orphan', 
+                             order_by='QuotationDetail.id')  # 按明细ID排序，保持添加顺序
 
     def __init__(self, **kwargs):
         if 'quotation_number' not in kwargs:

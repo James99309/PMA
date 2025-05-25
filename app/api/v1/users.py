@@ -246,21 +246,28 @@ def update_user(user_id):
     if department is not None:
         user.department = department
     
-    user.is_department_manager = is_department_manager
+    old_role = user.role
     if role:
         user.role = role
     
+    user.is_department_manager = is_department_manager
     user.is_active = is_active
     
     try:
         db.session.commit()
         
+        # 如果角色发生变化，记录日志并清除用户会话（强制重新登录）
+        if role and old_role != role:
+            logger.info(f"用户 {user.username} (ID: {user.id}) 的角色从 {old_role} 更改为 {role}")
+            # 注意：这里无法直接清除特定用户的会话，需要用户重新登录才能获取新角色
+        
         return api_response(
             success=True,
-            message="用户信息更新成功",
+            message="用户信息更新成功" + ("，角色已更改，用户需要重新登录才能生效" if role and old_role != role else ""),
             data={
                 "id": user.id,
-                "username": user.username
+                "username": user.username,
+                "role_changed": role and old_role != role
             }
         )
     except Exception as e:

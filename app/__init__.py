@@ -304,52 +304,48 @@ def create_app(config_class=Config):
     # 登录检查
     @app.before_request
     def check_login():
-        logger.debug('Request URL: %s', request.url)
-        logger.debug('Request Endpoint: %s', request.endpoint)
-        logger.debug('Session: %s', session)
-        
-        # 不需要登录就能访问的路由
-        public_endpoints = ['auth.login', 'auth.register', 'static']
-        public_paths = [
-            '/auth/login', 
-            '/auth/register', 
-            '/auth/forgot-password',
-            # 添加密码重置路径到公开路径，使用startswith确保所有带token的路径都可以访问
-            '/auth/reset-password',
-            # 添加账户激活路径到公开路径
-            '/auth/activate'
+        """检查登录状态和角色一致性"""
+        # 排除不需要登录的路径
+        excluded_paths = [
+            '/auth/login', '/auth/logout', '/auth/register', 
+            '/auth/forgot-password', '/auth/reset-password',
+            '/auth/activate', '/static', '/api/version'
         ]
         
-        # 检查是否是API请求（API请求由JWT处理）- 但搜索API需要登录检查
-        if request.path.startswith('/api/') and not request.path.startswith('/api/v1/search/'):
+        # 检查当前路径是否需要登录
+        if any(request.path.startswith(path) for path in excluded_paths):
             return
             
-        # 检查是否是审批API请求
-        if request.path.startswith('/approval/api/'):
-            return
-        
-        # 检查是否是公开路径 - 使用startswith来匹配以公开路径开头的URL
-        for path in public_paths:
-            if request.path.startswith(path):
-                logger.debug('Public path, skipping auth check')
-                return
-        
-        # 特别处理激活链接路径 - 以/auth/activate/开头的所有URL
-        if request.path.startswith('/auth/activate/'):
-            logger.debug('Activation path, skipping auth check')
-            return
-        
-        # 检查是否是静态文件
-        if request.endpoint and request.endpoint.startswith('static'):
-            logger.debug('Static file request, skipping auth check')
-            return
-        
-        # 使用Flask-Login的current_user检查用户是否已登录
-        if not current_user.is_authenticated:
-            logger.debug('User not logged in, redirecting to login')
-            return redirect(url_for('auth.login'))
-        
-        logger.debug('User is logged in, proceeding with request')
+        # 如果用户已登录，检查角色一致性
+        if current_user.is_authenticated:
+            # 从数据库重新获取用户信息
+            from app.models.user import User
+            db_user = User.query.get(current_user.id)
+            
+            if not db_user:
+                # 用户在数据库中不存在，强制登出
+                logger.warning(f"用户 {current_user.username} 在数据库中不存在，强制登出")
+                logout_user()
+                session.clear()
+                flash('用户信息已失效，请重新登录', 'warning')
+                return redirect(url_for('auth.login'))
+            
+            # 检查角色是否一致
+            session_role = session.get('role')
+            if session_role != db_user.role:
+                logger.info(f"用户 {current_user.username} 角色不一致：会话中为 {session_role}，数据库中为 {db_user.role}，强制重新登录")
+                logout_user()
+                session.clear()
+                flash(f'您的角色已更新为 {db_user.role}，请重新登录', 'info')
+                return redirect(url_for('auth.login'))
+            
+            # 检查用户是否仍然活跃
+            if not db_user.is_active:
+                logger.warning(f"用户 {current_user.username} 已被禁用，强制登出")
+                logout_user()
+                session.clear()
+                flash('您的账户已被禁用，请联系管理员', 'danger')
+                return redirect(url_for('auth.login'))
 
     # 添加全局模板保护检查
     @app.before_request

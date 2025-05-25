@@ -561,6 +561,20 @@ def edit_quotation(id):
             flash('您没有权限编辑此报价单', 'danger')
             return redirect(url_for('quotation.list_quotations'))
         
+        # 按产品库产品ID排序获取报价单明细
+        from app.models.product import Product
+        from sqlalchemy import case
+        
+        # 获取排序后的明细
+        sorted_details = db.session.query(QuotationDetail)\
+            .outerjoin(Product, Product.product_name == QuotationDetail.product_name)\
+            .filter(QuotationDetail.quotation_id == quotation.id)\
+            .order_by(case((Product.id.is_(None), 1), else_=0), Product.id.asc(), QuotationDetail.id.asc())\
+            .all()
+        
+        # 替换原有的details
+        quotation.details = sorted_details
+        
         # 处理报价单明细数据
         for detail in quotation.details:
             # 确保total_price映射到subtotal
@@ -1166,7 +1180,7 @@ def view_quotation(id):
             logger.debug(f"{current_user.username} 无权访问报价单 {quotation.id}")
             flash('您没有权限查看此报价单', 'danger')
             return redirect(url_for('quotation.list_quotations'))
-        # 项目权限校验 - 特殊角色可以查看所有项目的报价单
+        # 项目权限校验 - 使用动态权限检查而不是硬编码角色
         if quotation.project:
             # 统一处理角色字符串，去除空格
             user_role = current_user.role.strip() if current_user.role else ''
@@ -1178,11 +1192,29 @@ def view_quotation(id):
             is_channel_manager = user_role == 'channel_manager'
             is_channel_project = quotation.project.project_type in ['channel_follow', '渠道跟进']
             
-            # 检查权限：特殊角色 OR (渠道经理 AND 渠道项目) OR 常规项目权限
-            if not (is_special_role or (is_channel_manager and is_channel_project) or can_view_project(current_user, quotation.project)):
+            # 营销总监可以查看销售重点和渠道跟进项目
+            is_sales_director = user_role == 'sales_director'
+            is_marketing_project = quotation.project.project_type in ['sales_focus', 'channel_follow', '销售重点', '渠道跟进']
+            
+            # 检查权限：特殊角色 OR (渠道经理 AND 渠道项目) OR (营销总监 AND 营销项目) OR 常规项目权限
+            if not (is_special_role or (is_channel_manager and is_channel_project) or (is_sales_director and is_marketing_project) or can_view_project(current_user, quotation.project)):
                 logger.debug(f"{current_user.username} 无权访问报价单 {quotation.id} 关联项目 {quotation.project_id}")
                 flash('您没有权限查看该报价单关联的项目', 'danger')
                 return redirect(url_for('quotation.list_quotations'))
+        
+        # 按产品库产品ID排序获取报价单明细
+        from sqlalchemy import case
+        
+        # 获取排序后的明细
+        sorted_details = db.session.query(QuotationDetail)\
+            .outerjoin(Product, Product.product_name == QuotationDetail.product_name)\
+            .filter(QuotationDetail.quotation_id == quotation.id)\
+            .order_by(case((Product.id.is_(None), 1), else_=0), Product.id.asc(), QuotationDetail.id.asc())\
+            .all()
+        
+        # 替换原有的details
+        quotation.details = sorted_details
+        
         # 查询可选新拥有人
         from app.models.user import User
         all_users = []

@@ -141,4 +141,80 @@ h1.fw-bold {
   background-color: black !important;
   color: white !important;
   border-color: black !important;
+}
+
+/* 改进的折扣率输入框样式 - 上下按键右对齐，数字左对齐 */
+input[type="number"].discount-rate {
+    min-width: 80px !important;
+    width: 80px !important;
+    text-align: left !important; /* 数字左对齐 */
+    padding-left: 8px !important;
+    padding-right: 25px !important; /* 为上下箭头留出空间 */
+    font-family: 'Roboto Mono', monospace !important;
+    letter-spacing: -0.2px !important;
+    border: 1px solid #ced4da !important;
+    border-radius: 4px !important;
+}
+
+/* 移除折扣率输入框的百分号显示 */
+.discount-rate-container:after {
+    display: none !important;
+}
+
+.discount-rate-group .input-group-text {
+    display: none !important; /* 隐藏%符号 */
+}
+
+.discount-rate-percent {
+    display: none !important;
+}
+
+/* 确保折扣率输入框的上下箭头正常显示且位置合理 */
+input[type="number"].discount-rate::-webkit-outer-spin-button,
+input[type="number"].discount-rate::-webkit-inner-spin-button {
+    opacity: 1 !important;
+    margin: 0 !important;
+    width: 20px !important;
+    height: 100% !important;
+    cursor: pointer !important;
+    position: absolute !important;
+    right: 2px !important; /* 右侧边对齐 */
+    top: 0 !important;
+}
+
+/* Firefox的特殊处理 */
+@-moz-document url-prefix() {
+    input[type="number"].discount-rate {
+        padding-right: 25px !important;
+    }
+}
+
+.discount-rate-container {
+    position: relative !important;
+    display: inline-block !important;
+    width: 100% !important;
+}
+
+.discount-rate-group {
+    position: relative !important;
+    width: 100% !important;
+}
+
+/* 调整表格中折扣率列的对齐 */
+.table th:nth-child(7), 
+.table td:nth-child(7) {
+    text-align: center !important;
+    padding: 0.4rem 0.2rem !important;
+}
+
+/* 折扣率输入框焦点状态 */
+input[type="number"].discount-rate:focus {
+    border-color: #80bdff !important;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25) !important;
+    outline: 0 !important;
+}
+
+/* 折扣率输入框悬停状态 */
+input[type="number"].discount-rate:hover {
+    border-color: #adb5bd !important;
 } 

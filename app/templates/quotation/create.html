@@ -41,7 +41,7 @@
                                            name="project_search"
                                            placeholder="输入项目名称或授权码进行搜索..."
                                            autocomplete="off"
-                                           {% if preset_project_id %}disabled{% endif %}
+                                           {% if preset_project_id %}readonly{% endif %}
                                            required>
                                     <input type="hidden" id="project_id" name="project_id" value="{% if preset_project_id %}{{ preset_project_id }}{% endif %}">
                                     
@@ -51,12 +51,14 @@
                                     </div>
                                     
                                     <!-- 清除按钮 -->
+                                    {% if not preset_project_id %}
                                     <button type="button" class="btn btn-outline-secondary btn-sm position-absolute" 
                                             id="clear_project" 
                                             style="right: 5px; top: 50%; transform: translateY(-50%); z-index: 10;"
                                             title="清除选择">
                                         <i class="fas fa-times"></i>
                                     </button>
+                                    {% endif %}
                                 </div>
                                 
                                 <!-- 预设项目信息显示 -->
@@ -116,7 +118,7 @@
                                 <th width="120px">品牌</th>
                                 <th width="80px">单位</th>
                                 <th width="120px">市场单价</th>
-                                <th width="100px">折扣率</th>
+                                <th width="100px">折扣率%</th>
                                 <th width="120px">单价</th>
                                 <th width="80px">数量</th>
                                 <th width="120px">小计</th>
@@ -150,7 +152,7 @@
                                                 </td>
                                                 <td>
                                                     <div class="discount-rate-group">
-                                                        <input type="number" class="form-control discount-rate" name="discount_rate[]" value="100.0" min="0" step="0.1" max="1000" required style="text-align:right;">
+                                                        <input type="number" class="form-control discount-rate" name="discount_rate[]" value="100.0" min="0" step="0.1" max="1000" required>
                                                     </div>
                                                 </td>
                                                 <td>
@@ -309,20 +311,57 @@ input[type="number"].form-control {
     font-family: 'Roboto Mono', monospace;
 }
 
-/* 折扣率输入框容器样式 */
-.discount-rate-container {
-    position: relative;
-    display: inline-block;
-    width: 100%;
+/* 改进的折扣率输入框样式 - 移除%符号，改善布局 */
+input[type="number"].discount-rate {
+    min-width: 80px !important;
+    width: 80px !important;
+    text-align: right !important;
+    padding-right: 25px !important; /* 为上下箭头留出空间 */
+    font-family: 'Roboto Mono', monospace !important;
+    letter-spacing: -0.2px !important;
+    border: 1px solid #ced4da !important;
+    border-radius: 4px !important;
 }
 
+/* 移除折扣率输入框的百分号显示 */
 .discount-rate-container:after {
-    content: '%';
-    position: absolute;
-    right: 25px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #666;
+    display: none !important;
+}
+
+.discount-rate-group .input-group-text {
+    display: none !important; /* 隐藏%符号 */
+}
+
+/* 确保折扣率输入框的上下箭头正常显示且位置合理 */
+input[type="number"].discount-rate::-webkit-outer-spin-button,
+input[type="number"].discount-rate::-webkit-inner-spin-button {
+    opacity: 1 !important;
+    margin: 0 !important;
+    width: 20px !important;
+    height: 100% !important;
+    cursor: pointer !important;
+}
+
+/* Firefox的特殊处理 */
+@-moz-document url-prefix() {
+    input[type="number"].discount-rate {
+        -moz-appearance: textfield !important;
+        padding-right: 25px !important;
+    }
+}
+
+/* 折扣率容器样式优化 */
+.discount-rate-container {
+    position: relative !important;
+    display: inline-block !important;
+    width: 100% !important;
+    vertical-align: middle !important;
+}
+
+.discount-rate-group {
+    position: relative !important;
+    display: inline-block !important;
+    width: 100% !important;
 }
 
 /* 产品名称输入框容器样式 */
@@ -790,17 +829,19 @@ function loadProjectDetails(projectId) {
         success: function(response) {
             console.log('项目详细信息:', response);
             
-            if (response.success && response.project) {
-                const project = response.project;
+            // 检查响应格式
+            if (response && response.id) {
+                // 设置项目名称到搜索框
+                $('#project_search').val(response.project_name || '');
                 
                 // 设置项目阶段和类型，使用中文标签
-                $('#project_stage').val(project.current_stage_display || translateProjectStage(project.current_stage) || '');
-                $('#project_type').val(project.project_type_display || translateProjectType(project.project_type) || '');
+                $('#project_stage').val(translateProjectStage(response.current_stage) || '');
+                $('#project_type').val(translateProjectType(response.project_type) || '');
                 
                 console.log('项目信息加载完成');
             } else {
-                console.error('加载项目信息失败:', response.message);
-                alert('加载项目信息失败: ' + (response.message || '未知错误'));
+                console.error('加载项目信息失败:', response);
+                alert('加载项目信息失败: ' + (response.error || '未知错误'));
                 clearProjectSelection();
             }
         },
@@ -822,7 +863,7 @@ function loadProjectDetails(projectId) {
         },
         complete: function() {
             removeLoading();
-            }
+        }
     });
 }
     

@@ -47,6 +47,9 @@ def login():
             # 用户验证成功，无需再检查is_active
             login_user(user, remember=remember)
             
+            # 设置会话为永久会话，这样PERMANENT_SESSION_LIFETIME才会生效
+            session.permanent = True
+            
             # 生成JWT令牌
             jwt_token = create_access_token(identity=str(user.id))
             # 将角色和用户ID信息存放在session中，方便前端使用
@@ -54,6 +57,7 @@ def login():
             session['role'] = user.role  # 确保使用数据库中的最新角色值
             session['user_id'] = user.id
             session['username'] = user.username
+            session['login_time'] = time.time()  # 记录登录时间
             
             # 记录登录日志
             logger.info(f"用户 {user.username} (ID: {user.id}, 角色: {user.role}) 成功登录")

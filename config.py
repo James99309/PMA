@@ -62,6 +62,13 @@ class Config:
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
     
+    # 会话配置 - 强制重新登录
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=2)  # 会话2小时后过期
+    SESSION_COOKIE_SECURE = False  # 开发环境设为False，生产环境应设为True
+    SESSION_COOKIE_HTTPONLY = True  # 防止XSS攻击
+    SESSION_COOKIE_SAMESITE = 'Lax'  # CSRF保护
+    REMEMBER_COOKIE_DURATION = timedelta(hours=2)  # 记住我功能也只持续2小时
+    
     # 邮件配置（硬编码）
     MAIL_SERVER = 'smtp.gmail.com'
     MAIL_PORT = 587

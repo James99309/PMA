@@ -5,7 +5,7 @@ from app import db
 from datetime import datetime
 from flask_login import current_user, login_required
 from app.decorators import permission_required
-from app.utils.access_control import get_viewable_data, can_edit_data, get_accessible_data, can_change_project_owner
+from app.utils.access_control import get_viewable_data, can_edit_data, get_accessible_data, can_change_project_owner, can_view_project
 import logging
 import re
 from fuzzywuzzy import fuzz
@@ -1360,6 +1360,7 @@ def get_project_api(project_id):
         'id': project.id,
         'project_name': project.project_name,
         'current_stage': project.current_stage,
+        'project_type': project.project_type,
         'owner_id': project.owner_id,
         'owner_name': project.owner.username if project.owner else None
     })
