@@ -31,6 +31,7 @@ from app.utils.activity_tracker import check_company_activity, update_active_sta
 from app.models.settings import SystemSettings
 from zoneinfo import ZoneInfo
 from app.utils.role_mappings import get_role_display_name
+from app.utils.solution_manager_notifications import notify_solution_managers_project_created, notify_solution_managers_project_stage_changed
 
 csrf = CSRFProtect()
 
@@ -403,6 +404,7 @@ def add_project():
             # 触发项目创建通知
             try:
                 notify_project_created(project, current_user)
+                notify_solution_managers_project_created(project)
             except Exception as notify_err:
                 logger.warning(f"触发项目创建通知失败: {str(notify_err)}")
             
@@ -521,8 +523,9 @@ def edit_project(project_id):
                 try:
                     from app.services.event_dispatcher import notify_project_status_updated
                     notify_project_status_updated(project, current_user, old_stage)
+                    notify_solution_managers_project_stage_changed(project, old_stage, new_stage)
                 except Exception as notify_err:
-                    logger.warning(f"触发项目阶段变更通知失败: {str(notify_err)}")
+                    current_app.logger.warning(f"触发项目阶段变更通知失败: {str(notify_err)}")
             
             # 更新相关客户的活跃状态
             # 查找与项目相关的所有企业名称
@@ -1081,10 +1084,13 @@ def update_project_stage():
                 return jsonify({'success': False, 'message': '数据库更新失败，请联系管理员'}), 500
             
             # 触发阶段变更通知
-            try:
-                notify_project_status_updated(project, current_user, old_stage)
-            except Exception as notify_err:
-                current_app.logger.warning(f"触发项目阶段变更通知失败: {str(notify_err)}")
+            if old_stage != new_stage:
+                try:
+                    from app.services.event_dispatcher import notify_project_status_updated
+                    notify_project_status_updated(project, current_user, old_stage)
+                    notify_solution_managers_project_stage_changed(project, old_stage, new_stage)
+                except Exception as notify_err:
+                    current_app.logger.warning(f"触发项目阶段变更通知失败: {str(notify_err)}")
             
             return jsonify({
                 'success': True, 

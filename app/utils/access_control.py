@@ -562,7 +562,7 @@ def can_view_project(user, project):
     affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
     if project.owner_id in affiliation_owner_ids:
         return True
-    return False
+    return False 
 
 def register_context_processors(app):
     """

@@ -1,0 +1,2097 @@
+{% extends "base.html" %}
+
+{% block title %}产品分析{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+    /* 参考产品库的表格样式 */
+    .table-container {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+    }
+
+    /* 表头容器 - 固定不滚动 */
+    .header-container {
+        position: relative;
+        overflow: hidden;
+        background-color: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .header-scroll {
+        overflow-x: hidden;
+        overflow-y: hidden;
+    }
+
+    /* 表体容器 - 可滚动 */
+    .body-container {
+        position: relative;
+        overflow-x: auto;
+        overflow-y: auto;
+        max-height: 600px;
+        background-color: #fff;
+    }
+
+    .body-scroll {
+        overflow-x: auto;
+        overflow-y: auto;
+        margin-right: 0px;
+    }
+
+    /* 统一表格行高度 */
+    .analysis-table tr {
+        height: 42px;
+        box-sizing: border-box;
+    }
+
+    /* 表格样式 */
+    .analysis-table {
+        width: 100%;
+        min-width: 1500px;
+        font-size: 0.875rem; /* 使用标准字体大小 */
+        margin-bottom: 0;
+        table-layout: fixed;
+        border-collapse: collapse;
+        background-color: #fff; /* 确保背景为白色 */
+    }
+
+    /* 表格单元格样式 */
+    .analysis-table th,
+    .analysis-table td {
+        padding: 0.75rem; /* 增加内边距使其更像项目列表 */
+        text-align: left !important;
+        vertical-align: middle;
+        box-sizing: border-box;
+        height: 48px; /* 增加行高 */
+        white-space: nowrap;
+        /* 移除垂直分割线 */
+        border-right: none;
+    }
+
+    .analysis-table td {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        border-bottom: 1px solid #dee2e6;
+        cursor: default; /* 改为默认光标 */
+    }
+
+    /* 表格行样式 - 使用与项目列表一致的条纹效果 */
+    .analysis-table tbody tr:nth-child(odd) {
+        background-color: #f8f9fa; /* 浅灰色背景 */
+    }
+
+    .analysis-table tbody tr:nth-child(even) {
+        background-color: #ffffff; /* 白色背景 */
+    }
+
+    .analysis-table tbody tr:hover {
+        background-color: #e3f2fd !important; /* 悬停时的蓝色背景 */
+    }
+
+    /* 表头样式 */
+    .analysis-table th {
+        height: 48px;
+        white-space: nowrap;
+        cursor: pointer;
+        font-weight: 600;
+        background-color: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+        color: #495057;
+        /* 移除垂直分割线 */
+        border-right: none;
+    }
+
+    /* 调整特定列的宽度 - 确保表头和表体完全一致 */
+    .analysis-table .col-name { 
+        width: 150px; 
+        min-width: 150px; 
+        max-width: 150px; 
+    }
+    .analysis-table .col-model { 
+        width: 120px; 
+        min-width: 120px; 
+        max-width: 120px; 
+    }
+    .analysis-table .col-desc { 
+        width: 200px; 
+        min-width: 200px; 
+        max-width: 200px; 
+    }
+    .analysis-table .col-quantity { 
+        width: 80px; 
+        min-width: 80px; 
+        max-width: 80px; 
+        text-align: center !important; /* 数量居中对齐 */
+    }
+    .analysis-table .col-discount { 
+        width: 80px; 
+        min-width: 80px; 
+        max-width: 80px; 
+        text-align: center !important; /* 折扣居中对齐 */
+    }
+    .analysis-table .col-price { 
+        width: 100px; 
+        min-width: 100px; 
+        max-width: 100px; 
+        text-align: right !important; /* 价格右对齐 */
+    }
+    .analysis-table .col-total { 
+        width: 120px; 
+        min-width: 120px; 
+        max-width: 120px; 
+        text-align: right !important; /* 合计右对齐 */
+    }
+    .analysis-table .col-mn { 
+        width: 120px; 
+        min-width: 120px; 
+        max-width: 120px; 
+    }
+    .analysis-table .col-owner { 
+        width: 100px; 
+        min-width: 100px; 
+        max-width: 100px; 
+    }
+    .analysis-table .col-project { 
+        width: 180px; 
+        min-width: 180px; 
+        max-width: 180px; 
+    }
+    .analysis-table .col-stage { 
+        width: 100px; 
+        min-width: 100px; 
+        max-width: 100px; 
+        text-align: center !important; /* 阶段居中对齐 */
+    }
+    .analysis-table .col-quotation { 
+        width: 120px; 
+        min-width: 120px; 
+        max-width: 120px; 
+    }
+    .analysis-table .col-date { 
+        width: 150px; 
+        min-width: 150px; 
+        max-width: 150px; 
+    }
+
+    /* 美化滚动条 */
+    .body-container::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    .body-container::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+
+    .body-container::-webkit-scrollbar-thumb {
+        background: #ccc;
+        border-radius: 4px;
+    }
+
+    .body-container::-webkit-scrollbar-thumb:hover {
+        background: #999;
+    }
+
+    /* 分页控件样式优化 */
+    .table-header-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        border-radius: 0.375rem 0.375rem 0 0;
+    }
+
+    .table-header-left {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .table-header-right {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .pagination-controls {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .pagination-info {
+        font-size: 0.875rem;
+        color: #6c757d;
+        white-space: nowrap;
+    }
+
+    .pagination-sm .page-link {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    /* 移动端优化 */
+    @media (max-width: 991.98px) {
+        .table-header-controls {
+            flex-direction: column;
+            gap: 0.75rem;
+            align-items: stretch;
+        }
+
+        .table-header-left,
+        .table-header-right {
+            justify-content: center;
+        }
+
+        .pagination-controls {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+        }
+        
+        .card-body {
+            padding: 0.75rem;
+        }
+        
+        .shadow-sm {
+            box-shadow: 0 .125rem .25rem rgba(0,0,0,.075)!important;
+            border-radius: 0.5rem;
+            border: none;
+        }
+
+        /* 移动端卡片样式优化 */
+        .mobile-card {
+            margin-bottom: 1rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            background: #fff;
+            box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+            transition: box-shadow 0.15s ease-in-out;
+        }
+
+        .mobile-card:hover {
+            box-shadow: 0 0.25rem 0.5rem rgba(0,0,0,0.1);
+        }
+
+        .mobile-card-header {
+            padding: 0.75rem;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            border-radius: 0.5rem 0.5rem 0 0;
+        }
+
+        .mobile-card-body {
+            padding: 0.75rem;
+        }
+
+        .mobile-card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            color: #495057;
+        }
+
+        .mobile-card-subtitle {
+            font-size: 0.875rem;
+            color: #6c757d;
+            margin-bottom: 0;
+        }
+
+        .mobile-card-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.25rem 0;
+            border-bottom: 1px solid #f8f9fa;
+        }
+
+        .mobile-card-row:last-child {
+            border-bottom: none;
+        }
+
+        .mobile-card-label {
+            font-size: 0.875rem;
+            color: #6c757d;
+            font-weight: 500;
+        }
+
+        .mobile-card-value {
+            font-size: 0.875rem;
+            color: #495057;
+            text-align: right;
+            max-width: 60%;
+            word-break: break-word;
+        }
+
+        /* 移动端分页优化 */
+        .mobile-pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+        }
+
+        .mobile-pagination .pagination {
+            margin-bottom: 0;
+        }
+
+        .mobile-pagination .pagination-info {
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+    }
+
+    /* 统计卡片样式 - 模仿项目统计风格 */
+    .stats-card {
+        border: none;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        transition: all 0.2s ease-in-out;
+        background-color: #f8f9fa;
+    }
+
+    .stats-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+    }
+
+    .stats-card .card-body {
+        padding: 0.75rem;
+    }
+
+    .stats-card .card-title {
+        margin-bottom: 0;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #6c757d;
+    }
+
+    .stats-value {
+        font-size: 1rem;
+        font-weight: bold;
+        color: #007bff;
+        margin-bottom: 0;
+    }
+
+    .stats-label {
+        color: #6c757d;
+        font-size: 0.7rem;
+        margin-top: 0.25rem;
+    }
+
+    /* 可点击的统计卡片样式 */
+    .stats-card.clickable {
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .stats-card.clickable:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 0.375rem 0.75rem rgba(0, 0, 0, 0.15);
+    }
+
+    .stats-card.clickable:active {
+        transform: translateY(-1px);
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.1);
+    }
+
+    /* 激活状态的卡片样式 */
+    .stats-card.active {
+        border: 2px solid #ffc107;
+        box-shadow: 0 0.25rem 0.5rem rgba(255, 193, 7, 0.3);
+        transform: translateY(-2px);
+    }
+
+    .stats-card.active .stats-value {
+        color: #ffc107;
+        animation: pulse 1.5s infinite;
+    }
+
+    /* 脉冲动画 */
+    @keyframes pulse {
+        0% {
+            transform: scale(1);
+        }
+        50% {
+            transform: scale(1.05);
+        }
+        100% {
+            transform: scale(1);
+        }
+    }
+
+    /* 点击波纹效果 */
+    .stats-card.clickable::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        border-radius: 50%;
+        background: rgba(255, 193, 7, 0.3);
+        transform: translate(-50%, -50%);
+        transition: width 0.6s, height 0.6s;
+        z-index: 0;
+    }
+
+    .stats-card.clickable.ripple::before {
+        width: 300px;
+        height: 300px;
+    }
+
+    .stats-card.clickable .card-body {
+        position: relative;
+        z-index: 1;
+    }
+
+    /* 不同统计卡片的颜色主题 */
+    .stats-card.total-amount {
+        background-color: #e6f0f5;
+        border-left: 4px solid #0d6efd;
+    }
+
+    .stats-card.total-amount .stats-value {
+        color: #0d6efd;
+    }
+
+    .stats-card.total-quantity {
+        background-color: #e6f5ec;
+        border-left: 4px solid #198754;
+    }
+
+    .stats-card.total-quantity .stats-value {
+        color: #198754;
+    }
+
+    .stats-card.monthly-increase {
+        background-color: #fff3cd;
+        border-left: 4px solid #ffc107;
+    }
+
+    .stats-card.monthly-increase .stats-value {
+        color: #856404;
+    }
+
+    .stats-card.monthly-increase.active {
+        background-color: #fff8e1;
+        border: 2px solid #ffc107;
+    }
+
+    .stats-card.avg-price {
+        background-color: #e6f5f9;
+        border-left: 4px solid #0dcaf0;
+    }
+
+    .stats-card.avg-price .stats-value {
+        color: #0dcaf0;
+    }
+
+    /* 图表容器样式 */
+    .chart-container {
+        position: relative;
+        height: 300px;
+        width: 100%;
+    }
+
+    /* 图表切换器样式 */
+    .chart-toggle-dot {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        margin: 0 8px;
+        border-radius: 50%;
+        border: 2px solid #1890ff;
+        background: #fff;
+        cursor: pointer;
+        transition: background 0.3s, box-shadow 0.3s;
+        box-shadow: 0 0 0 0 rgba(24,144,255,0.2);
+        position: relative;
+        top: -10px;
+    }
+
+    .chart-toggle-dot.active {
+        background: #1890ff;
+        box-shadow: 0 0 0 6px rgba(24,144,255,0.12);
+        border-color: #1890ff;
+        animation: dotPulse 0.4s;
+    }
+
+    .chart-toggle-dot:hover {
+        box-shadow: 0 0 0 4px rgba(24,144,255,0.08);
+    }
+
+    @keyframes dotPulse {
+        0% {
+            box-shadow: 0 0 0 0 rgba(24,144,255,0.7);
+        }
+        70% {
+            box-shadow: 0 0 0 10px rgba(24,144,255,0);
+        }
+        100% {
+            box-shadow: 0 0 0 0 rgba(24,144,255,0);
+        }
+    }
+
+    /* 排序相关样式 */
+    .sortable {
+        cursor: pointer;
+        user-select: none;
+        position: relative;
+        transition: background-color 0.2s;
+    }
+
+    .sortable:hover {
+        background-color: #f8f9fa;
+    }
+
+    .sort-icon {
+        margin-left: 5px;
+        color: #ccc;
+        font-size: 0.8em;
+        transition: color 0.2s;
+    }
+
+    .sortable:hover .sort-icon {
+        color: #666;
+    }
+
+    .sortable.sort-asc .sort-icon {
+        color: #007bff;
+        transform: rotate(0deg);
+    }
+
+    .sortable.sort-desc .sort-icon {
+        color: #007bff;
+        transform: rotate(180deg);
+    }
+
+    .sortable.sort-asc .sort-icon::before {
+        content: "\f0de"; /* fa-sort-up */
+    }
+
+    .sortable.sort-desc .sort-icon::before {
+        content: "\f0dd"; /* fa-sort-down */
+    }
+
+    /* 徽章样式 - 使用与项目列表一致的Bootstrap样式 */
+    .badge-owner {
+        /* 使用Bootstrap标准徽章样式 */
+    }
+
+    .badge-stage {
+        /* 使用Bootstrap标准徽章样式 */
+    }
+
+    .badge-quotation {
+        /* 使用Bootstrap标准徽章样式 */
+    }
+
+    /* 链接样式 */
+    .project-link {
+        color: #1976d2;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s ease;
+    }
+
+    .project-link:hover {
+        color: #0d47a1;
+        text-decoration: underline;
+    }
+
+    .quotation-link {
+        color: #1976d2;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s ease;
+    }
+
+    .quotation-link:hover {
+        color: #0d47a1;
+        text-decoration: underline;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row page-title-container">
+        <div class="col-12">
+            <h1 class="page-title">产品分析</h1>
+        </div>
+    </div>
+
+    <!-- 筛选器 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="fas fa-filter"></i> 筛选条件
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label for="categoryFilter" class="form-label">产品类别</label>
+                    <select class="form-select" id="categoryFilter">
+                        <option value="">全部类别</option>
+                        {% for category in categories %}
+                        <option value="{{ category }}">{{ category }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="productNameFilter" class="form-label">产品名称</label>
+                    <select class="form-select" id="productNameFilter">
+                        <option value="">全部产品</option>
+                        {% for name in product_names %}
+                        <option value="{{ name }}">{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="productModelFilter" class="form-label">产品型号</label>
+                    <select class="form-select" id="productModelFilter">
+                        <option value="">全部型号</option>
+                        {% for model in product_models %}
+                        <option value="{{ model }}">{{ model }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-12">
+                    <button type="button" class="btn btn-primary" onclick="handleButtonAction('search')">
+                        <i class="fas fa-search"></i> 查询
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="handleButtonAction('reset')">
+                        <i class="fas fa-undo"></i> 重置
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 统计卡片 -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card stats-card total-amount">
+                <div class="card-body text-center">
+                    <div class="card-title">
+                        <i class="fas fa-dollar-sign me-1"></i> 总金额
+                    </div>
+                    <div class="stats-value" id="totalAmount">¥0</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card stats-card total-quantity">
+                <div class="card-body text-center">
+                    <div class="card-title">
+                        <i class="fas fa-boxes me-1"></i> 产品数量
+                    </div>
+                    <div class="stats-value" id="totalQuantity">0</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card stats-card monthly-increase clickable" id="monthlyIncreaseCard">
+                <div class="card-body text-center">
+                    <div class="card-title">
+                        <i class="fas fa-chart-line me-1"></i> 本月新增
+                    </div>
+                    <div class="stats-value" id="monthlyIncrease">0</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card stats-card avg-price">
+                <div class="card-body text-center">
+                    <div class="card-title">
+                        <i class="fas fa-calculator me-1"></i> 平均单价
+                    </div>
+                    <div class="stats-value" id="avgUnitPrice">¥0</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图表区域 -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="card-title text-primary mb-3">阶段分布统计</h6>
+                    <div id="stageChart" style="height: 350px; min-height: 250px;">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                            <p class="mt-2">正在加载图表数据...</p>
+                        </div>
+                    </div>
+                    <!-- 切换器 -->
+                    <div class="text-center mt-2">
+                        <span class="chart-toggle-dot active" data-chart-type="quantity" title="数量分布"></span>
+                        <span class="chart-toggle-dot" data-chart-type="amount" title="金额分布"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 数据表格 -->
+    <div class="card">
+        <div class="card-header">
+            <i class="fas fa-table"></i> 产品明细列表
+        </div>
+        <div class="card-body p-0">
+            <!-- 移动端卡片视图 - 仅在小屏幕显示 -->
+            <div class="d-block d-lg-none" id="mobileCards">
+                <!-- 移动端分页信息 -->
+                <div class="mobile-pagination d-flex flex-column">
+                    <div class="pagination-info text-center mb-2">
+                        <span id="mobilePaginationInfo">显示第 1-50 条，共 0 条记录</span>
+                    </div>
+                    <nav aria-label="产品明细分页">
+                        <ul class="pagination pagination-sm justify-content-center mb-0" id="mobilePagination">
+                            <!-- 分页按钮将通过JavaScript动态生成 -->
+                        </ul>
+                    </nav>
+                </div>
+                <!-- 卡片内容通过JS动态渲染 -->
+                <div id="mobileCardsList">
+                    <!-- 移动端卡片列表 -->
+                </div>
+            </div>
+            
+            <!-- PC端表格视图 - 仅在大屏幕显示 -->
+            <div class="d-none d-lg-block">
+                <!-- 表格头部控制区域 -->
+                <div class="table-header-controls">
+                    <div class="table-header-left">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-list me-2"></i>
+                            <span class="fw-semibold">产品明细</span>
+                        </div>
+                        <div id="loading-indicator" class="spinner-border spinner-border-sm text-primary d-none" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                    </div>
+                    <div class="table-header-right">
+                        <div class="pagination-controls">
+                            <div class="pagination-info">
+                                <span id="paginationInfo">显示第 1-50 条，共 0 条记录</span>
+                            </div>
+                            <nav aria-label="产品明细分页">
+                                <ul class="pagination pagination-sm mb-0" id="pagination">
+                                    <!-- 分页按钮将通过JavaScript动态生成 -->
+                                </ul>
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 表格容器 -->
+                <div class="table-container">
+                    <!-- 表头部分 - 固定不滚动 -->
+                    <div class="header-container">
+                        <div class="header-scroll" id="header-scroll">
+                            <table class="analysis-table" style="table-layout: fixed;">
+                                <colgroup>
+                                    <col style="width: 150px;">  <!-- 产品名称 -->
+                                    <col style="width: 120px;">  <!-- 产品型号 -->
+                                    <col style="width: 200px;">  <!-- 产品描述 -->
+                                    <col style="width: 80px;">   <!-- 数量 -->
+                                    <col style="width: 80px;">   <!-- 折扣 -->
+                                    <col style="width: 100px;">  <!-- 单价 -->
+                                    <col style="width: 100px;">  <!-- 合计 -->
+                                    <col style="width: 120px;">  <!-- MN号 -->
+                                    <col style="width: 100px;">  <!-- 拥有人 -->
+                                    <col style="width: 150px;">  <!-- 项目名称 -->
+                                    <col style="width: 100px;">  <!-- 当前阶段 -->
+                                    <col style="width: 120px;">  <!-- 报价单编号 -->
+                                    <col style="width: 140px;">  <!-- 更新时间 -->
+                                    <col style="width: 140px;">  <!-- 创建时间 -->
+                                </colgroup>
+                                <thead>
+                                    <tr>
+                                        <th class="col-name sortable" data-column="product_name">
+                                            产品名称 <i class="fas fa-sort sort-icon"></i>
+                                        </th>
+                                        <th class="col-model sortable" data-column="product_model">
+                                            产品型号 <i class="fas fa-sort sort-icon"></i>
+                                        </th>
+                                        <th class="col-desc">产品描述</th>
+                                        <th class="col-quantity sortable" data-column="quantity">
+                                            数量 <i class="fas fa-sort sort-icon"></i>
+                                        </th>
+                                        <th class="col-discount">折扣</th>
+                                        <th class="col-price sortable" data-column="unit_price">
+                                            单价 <i class="fas fa-sort sort-icon"></i>
+                                        </th>
+                                        <th class="col-total sortable" data-column="total_price">
+                                            合计 <i class="fas fa-sort sort-icon"></i>
+                                        </th>
+                                        <th class="col-mn">MN号</th>
+                                        <th class="col-owner sortable" data-column="owner_name">
+                                            拥有人 <i class="fas fa-sort sort-icon"></i>
+                                        </th>
+                                        <th class="col-project sortable" data-column="project_name">
+                                            项目名称 <i class="fas fa-sort sort-icon"></i>
+                                        </th>
+                                        <th class="col-stage sortable" data-column="current_stage">
+                                            当前阶段 <i class="fas fa-sort sort-icon"></i>
+                                        </th>
+                                        <th class="col-quotation sortable" data-column="quotation_number">
+                                            报价单编号 <i class="fas fa-sort sort-icon"></i>
+                                        </th>
+                                        <th class="col-date sortable" data-column="updated_at">
+                                            更新时间 <i class="fas fa-sort sort-icon"></i>
+                                        </th>
+                                        <th class="col-date sortable" data-column="created_at">
+                                            创建时间 <i class="fas fa-sort sort-icon"></i>
+                                        </th>
+                                    </tr>
+                                </thead>
+                            </table>
+                        </div>
+                    </div>
+                    <!-- 内容部分 - 可滚动 -->
+                    <div class="body-container" id="body-container">
+                        <div class="body-scroll" id="body-scroll">
+                            <table class="analysis-table" style="table-layout: fixed;">
+                                <colgroup>
+                                    <col style="width: 150px;">  <!-- 产品名称 -->
+                                    <col style="width: 120px;">  <!-- 产品型号 -->
+                                    <col style="width: 200px;">  <!-- 产品描述 -->
+                                    <col style="width: 80px;">   <!-- 数量 -->
+                                    <col style="width: 80px;">   <!-- 折扣 -->
+                                    <col style="width: 100px;">  <!-- 单价 -->
+                                    <col style="width: 100px;">  <!-- 合计 -->
+                                    <col style="width: 120px;">  <!-- MN号 -->
+                                    <col style="width: 100px;">  <!-- 拥有人 -->
+                                    <col style="width: 150px;">  <!-- 项目名称 -->
+                                    <col style="width: 100px;">  <!-- 当前阶段 -->
+                                    <col style="width: 120px;">  <!-- 报价单编号 -->
+                                    <col style="width: 140px;">  <!-- 更新时间 -->
+                                    <col style="width: 140px;">  <!-- 创建时间 -->
+                                </colgroup>
+                                <tbody id="dataTable">
+                                    <!-- 产品列表将通过JavaScript动态加载 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 加载中提示 -->
+<div id="loadingOverlay" class="loading-overlay" style="display: none;">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">加载中...</span>
+    </div>
+</div>
+
+<!-- 引入必要的JavaScript库 -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<script>
+let stageChart = null;
+let currentChartType = 'quantity';
+let stageData = null;
+
+// 排序相关变量
+let currentSortColumn = '';
+let currentSortDirection = 'asc';
+let tableData = [];
+
+// 分页相关变量
+let currentPage = 1;
+let totalPages = 1;
+let totalCount = 0;
+let perPage = 50;
+
+// 本月新增功能相关变量
+let isMonthlyIncreaseMode = false;
+let originalData = null;
+
+// 阶段标签映射
+const stageLabels = {
+    'discover': '发现',
+    'embed': '嵌入',
+    'pre_tender': '预投标',
+    'tendering': '投标中',
+    'awarded': '中标',
+    'quoted': '报价',
+    'signed': '签约',
+    'lost': '失败',
+    'paused': '搁置',
+    'unset': '未设置'
+};
+
+// 阶段颜色映射 - 与项目列表保持一致
+const stageColors = {
+    'discover': { bg: '#d3e3fc', text: '#fff' },
+    'embed': { bg: '#b7ddc8', text: '#fff' },
+    'pre_tender': { bg: '#91c79f', text: '#fff' },
+    'tendering': { bg: '#6daf6c', text: '#fff' },
+    'awarded': { bg: '#559c4c', text: '#fff' },
+    'quoted': { bg: '#3c8c2c', text: '#fff' },
+    'signed': { bg: '#216822', text: '#fff' },
+    'lost': { bg: '#6e2b23', text: '#fff' },
+    'paused': { bg: '#9e9e9e', text: '#fff' },
+    'unset': { bg: '#6c757d', text: '#fff' }
+};
+
+// 格式化阶段显示 - 使用Bootstrap标准徽章样式
+function formatStage(stage) {
+    const label = stageLabels[stage] || stage || '未设置';
+    const colors = stageColors[stage] || stageColors['unset'];
+    
+    // 使用Bootstrap标准的badge rounded-pill样式
+    return `<span class="badge rounded-pill" style="background-color: ${colors.bg}; color: ${colors.text};">${label}</span>`;
+}
+
+// 格式化拥有者显示（优先显示真实姓名）- 使用统一的账户徽章样式
+function formatOwner(ownerName, ownerRealName, companyName) {
+    const displayName = ownerRealName || ownerName || '未知';
+    
+    // 使用与项目列表一致的徽章样式
+    if (companyName === '和源通信（上海）股份有限公司') {
+        // 厂商账户使用胶囊造型徽章
+        return `<span class="badge bg-primary rounded-pill">${displayName}</span>`;
+    } else {
+        // 非厂商账户使用默认造型徽章
+        return `<span class="badge bg-secondary">${displayName}</span>`;
+    }
+}
+
+// 格式化日期函数
+function formatDate(dateString) {
+    if (!dateString) return '-';
+    try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch (error) {
+        return dateString;
+    }
+}
+
+// 显示错误信息
+function showError(message) {
+    console.error(message);
+    // 可以在这里添加用户友好的错误提示
+}
+
+// 加载筛选选项
+function loadFilterOptions() {
+    fetch('/product_analysis/api/filter_options')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // 更新产品类别选项
+                const categorySelect = document.getElementById('categoryFilter');
+                categorySelect.innerHTML = '<option value="">全部类别</option>';
+                data.categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    categorySelect.appendChild(option);
+                });
+                
+                // 更新产品名称选项
+                const productNameSelect = document.getElementById('productNameFilter');
+                productNameSelect.innerHTML = '<option value="">全部产品</option>';
+                data.product_names.forEach(name => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    option.textContent = name;
+                    productNameSelect.appendChild(option);
+                });
+                
+                // 更新产品型号选项
+                const productModelSelect = document.getElementById('productModelFilter');
+                productModelSelect.innerHTML = '<option value="">全部型号</option>';
+                data.product_models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model;
+                    option.textContent = model;
+                    productModelSelect.appendChild(option);
+                });
+            } else {
+                console.error('获取筛选选项失败：', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('获取筛选选项失败：', error);
+        });
+}
+
+// 加载统计数据
+function loadStatistics(page = 1) {
+    const params = new URLSearchParams();
+    
+    // 添加筛选参数
+    const category = document.getElementById('categoryFilter').value;
+    const productName = document.getElementById('productNameFilter').value;
+    const productModel = document.getElementById('productModelFilter').value;
+    
+    if (category) params.append('category', category);
+    if (productName) params.append('product_name', productName);
+    if (productModel) params.append('product_model', productModel);
+    
+    // 添加分页参数
+    params.append('page', page);
+    params.append('per_page', perPage);
+    
+    showLoading();
+    
+    fetch('/product_analysis/api/analysis_data?' + params.toString())
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // 更新统计信息
+                document.getElementById('totalAmount').textContent = '¥' + data.statistics.total_amount.toLocaleString();
+                document.getElementById('totalQuantity').textContent = data.statistics.total_count.toLocaleString();
+                document.getElementById('monthlyIncrease').textContent = data.statistics.monthly_increase.toLocaleString();
+                document.getElementById('avgUnitPrice').textContent = '¥' + data.statistics.avg_unit_price.toLocaleString();
+                
+                // 更新表格数据
+                tableData = data.data;
+                renderTableRows(tableData);
+                
+                // 更新分页信息
+                if (data.pagination) {
+                    currentPage = data.pagination.page;
+                    totalPages = data.pagination.total_pages;
+                    totalCount = data.pagination.total_count;
+                    
+                    updatePaginationInfo();
+                    renderPagination();
+                }
+                
+                // 移动端适配
+                if (window.innerWidth <= 768) {
+                    generateMobileCards(tableData);
+                }
+            } else {
+                showError('加载数据失败: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('加载数据失败:', error);
+            showError('加载数据失败');
+        })
+        .finally(() => {
+            hideLoading();
+        });
+}
+
+// 更新分页信息显示
+function updatePaginationInfo() {
+    const start = (currentPage - 1) * perPage + 1;
+    const end = Math.min(currentPage * perPage, totalCount);
+    const infoText = `显示第 ${start}-${end} 条，共 ${totalCount.toLocaleString()} 条记录`;
+    
+    // 更新PC端分页信息
+    const paginationInfo = document.getElementById('paginationInfo');
+    if (paginationInfo) {
+        paginationInfo.textContent = infoText;
+    }
+    
+    // 更新移动端分页信息
+    const mobilePaginationInfo = document.getElementById('mobilePaginationInfo');
+    if (mobilePaginationInfo) {
+        mobilePaginationInfo.textContent = infoText;
+    }
+}
+
+// 渲染分页控件
+function renderPagination() {
+    renderDesktopPagination();
+    renderMobilePagination();
+}
+
+// 渲染PC端分页控件
+function renderDesktopPagination() {
+    const pagination = document.getElementById('pagination');
+    if (!pagination) return;
+    
+    pagination.innerHTML = '';
+    
+    if (totalPages <= 1) {
+        return;
+    }
+    
+    // 上一页按钮
+    const prevLi = document.createElement('li');
+    prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+    prevLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${currentPage - 1})">上一页</a>`;
+    pagination.appendChild(prevLi);
+    
+    // 页码按钮
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+    
+    if (startPage > 1) {
+        const firstLi = document.createElement('li');
+        firstLi.className = 'page-item';
+        firstLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(1)">1</a>`;
+        pagination.appendChild(firstLi);
+        
+        if (startPage > 2) {
+            const ellipsisLi = document.createElement('li');
+            ellipsisLi.className = 'page-item disabled';
+            ellipsisLi.innerHTML = '<span class="page-link">...</span>';
+            pagination.appendChild(ellipsisLi);
+        }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        const li = document.createElement('li');
+        li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+        li.innerHTML = `<a class="page-link" href="#" onclick="changePage(${i})">${i}</a>`;
+        pagination.appendChild(li);
+    }
+    
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            const ellipsisLi = document.createElement('li');
+            ellipsisLi.className = 'page-item disabled';
+            ellipsisLi.innerHTML = '<span class="page-link">...</span>';
+            pagination.appendChild(ellipsisLi);
+        }
+        
+        const lastLi = document.createElement('li');
+        lastLi.className = 'page-item';
+        lastLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${totalPages})">${totalPages}</a>`;
+        pagination.appendChild(lastLi);
+    }
+    
+    // 下一页按钮
+    const nextLi = document.createElement('li');
+    nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+    nextLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${currentPage + 1})">下一页</a>`;
+    pagination.appendChild(nextLi);
+}
+
+// 渲染移动端分页控件
+function renderMobilePagination() {
+    const mobilePagination = document.getElementById('mobilePagination');
+    if (!mobilePagination) return;
+    
+    mobilePagination.innerHTML = '';
+    
+    if (totalPages <= 1) {
+        return;
+    }
+    
+    // 移动端简化分页：只显示上一页、当前页、下一页
+    const prevLi = document.createElement('li');
+    prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+    prevLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${currentPage - 1})">‹</a>`;
+    mobilePagination.appendChild(prevLi);
+    
+    // 当前页信息
+    const currentLi = document.createElement('li');
+    currentLi.className = 'page-item active';
+    currentLi.innerHTML = `<span class="page-link">${currentPage} / ${totalPages}</span>`;
+    mobilePagination.appendChild(currentLi);
+    
+    // 下一页按钮
+    const nextLi = document.createElement('li');
+    nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+    nextLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${currentPage + 1})">›</a>`;
+    mobilePagination.appendChild(nextLi);
+}
+
+// 切换页面
+function changePage(page) {
+    if (page < 1 || page > totalPages || page === currentPage) {
+        return;
+    }
+    
+    currentPage = page;
+    
+    // 根据当前模式调用不同的API
+    if (isMonthlyIncreaseMode) {
+        loadMonthlyIncreaseData(page);
+    } else {
+        loadStatistics(page);
+    }
+}
+
+// 加载表格数据
+function loadTableData() {
+    loadStatistics(currentPage);
+}
+
+// 排序函数 - 现在只对当前页数据排序
+function sortTableData(column, direction) {
+    const sorted = [...tableData].sort((a, b) => {
+        let aVal = a[column];
+        let bVal = b[column];
+        
+        // 处理不同数据类型的排序
+        if (column === 'quantity' || column === 'unit_price' || column === 'total_price') {
+            aVal = parseFloat(aVal) || 0;
+            bVal = parseFloat(bVal) || 0;
+        } else if (column === 'created_at' || column === 'updated_at') {
+            aVal = new Date(aVal || 0);
+            bVal = new Date(bVal || 0);
+        } else {
+            aVal = String(aVal || '').toLowerCase();
+            bVal = String(bVal || '').toLowerCase();
+        }
+        
+        if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+    
+    return sorted;
+}
+
+// 处理表头排序点击
+function handleHeaderClick(column) {
+    // 更新排序状态
+    if (currentSortColumn === column) {
+        currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSortColumn = column;
+        currentSortDirection = 'asc';
+    }
+    
+    // 更新表头显示
+    updateSortIndicators();
+    
+    // 重新渲染表格
+    renderSortedTable();
+}
+
+// 渲染排序后的表格
+function renderSortedTable() {
+    const sortedData = sortTableData(currentSortColumn, currentSortDirection);
+    renderTableRows(sortedData);
+    
+    // 移动端适配
+    if (window.innerWidth <= 768) {
+        generateMobileCards(sortedData);
+    }
+}
+
+// 统一的按键处理函数
+function handleButtonAction(action) {
+    // 如果当前处于本月新增模式，先退出该模式
+    if (isMonthlyIncreaseMode) {
+        exitMonthlyIncreaseMode();
+        
+        // 如果是重置操作，还需要清空筛选器
+        if (action === 'reset') {
+            document.getElementById('categoryFilter').value = '';
+            document.getElementById('productNameFilter').value = '';
+            document.getElementById('productModelFilter').value = '';
+        }
+        return; // exitMonthlyIncreaseMode会调用loadStatistics，所以这里直接返回
+    }
+    
+    // 根据操作类型执行相应的逻辑
+    switch (action) {
+        case 'search':
+            // 查询操作
+            currentPage = 1;
+            loadStatistics(1);
+            loadStageStatistics();
+            break;
+            
+        case 'reset':
+            // 重置操作
+            document.getElementById('categoryFilter').value = '';
+            document.getElementById('productNameFilter').value = '';
+            document.getElementById('productModelFilter').value = '';
+            currentPage = 1;
+            loadStatistics(1);
+            loadStageStatistics();
+            break;
+            
+        default:
+            console.warn('未知的按键操作:', action);
+    }
+}
+
+// 刷新数据 - 重置到第一页（保持向后兼容）
+function refreshData() {
+    handleButtonAction('search');
+}
+
+// 重置筛选器（保持向后兼容）
+function resetFilters() {
+    handleButtonAction('reset');
+}
+
+// 本月新增功能相关函数
+function toggleMonthlyIncrease() {
+    const card = document.getElementById('monthlyIncreaseCard');
+    
+    if (isMonthlyIncreaseMode) {
+        // 当前是本月新增模式，切换回原始数据
+        exitMonthlyIncreaseMode();
+    } else {
+        // 当前是正常模式，切换到本月新增模式
+        enterMonthlyIncreaseMode();
+    }
+}
+
+function enterMonthlyIncreaseMode() {
+    const card = document.getElementById('monthlyIncreaseCard');
+    
+    // 添加波纹效果
+    card.classList.add('ripple');
+    setTimeout(() => {
+        card.classList.remove('ripple');
+    }, 600);
+    
+    // 激活卡片状态
+    card.classList.add('active');
+    
+    // 保存当前数据状态
+    originalData = {
+        page: currentPage,
+        data: [...tableData]
+    };
+    
+    // 设置模式标志
+    isMonthlyIncreaseMode = true;
+    
+    // 加载本月新增数据
+    loadMonthlyIncreaseData();
+}
+
+function exitMonthlyIncreaseMode() {
+    const card = document.getElementById('monthlyIncreaseCard');
+    
+    // 移除激活状态
+    card.classList.remove('active');
+    
+    // 重置模式标志
+    isMonthlyIncreaseMode = false;
+    
+    // 恢复原始数据
+    if (originalData) {
+        currentPage = originalData.page;
+        loadStatistics(currentPage);
+    } else {
+        // 如果没有原始数据，重新加载
+        loadStatistics(1);
+    }
+    
+    // 清空原始数据
+    originalData = null;
+}
+
+function loadMonthlyIncreaseData(page = 1) {
+    // 显示加载状态
+    document.getElementById('loadingOverlay').style.display = 'flex';
+    
+    const params = new URLSearchParams();
+    
+    // 添加筛选参数
+    const category = document.getElementById('categoryFilter').value;
+    const productName = document.getElementById('productNameFilter').value;
+    const productModel = document.getElementById('productModelFilter').value;
+    
+    if (category) params.append('category', category);
+    if (productName) params.append('product_name', productName);
+    if (productModel) params.append('product_model', productModel);
+    
+    // 添加分页参数
+    params.append('page', page);
+    params.append('per_page', perPage);
+    
+    fetch(`/product_analysis/api/monthly_increase_data?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // 更新表格数据
+                tableData = data.data;
+                
+                // 更新分页信息
+                currentPage = data.pagination.page;
+                totalPages = data.pagination.total_pages;
+                totalCount = data.pagination.total_count;
+                
+                // 渲染表格
+                renderTableRows(tableData);
+                
+                // 更新分页控件
+                renderPagination();
+                updatePaginationInfo();
+                
+                // 移动端适配
+                if (window.innerWidth <= 768) {
+                    generateMobileCards(tableData);
+                }
+                
+                // 更新统计信息（如果需要）
+                if (data.statistics) {
+                    updateStatisticsDisplay(data.statistics);
+                }
+                
+            } else {
+                showError('加载本月新增数据失败: ' + (data.error || '未知错误'));
+            }
+        })
+        .catch(error => {
+            console.error('加载本月新增数据失败:', error);
+            showError('加载本月新增数据失败');
+        })
+        .finally(() => {
+            // 隐藏加载状态
+            document.getElementById('loadingOverlay').style.display = 'none';
+        });
+}
+
+// 更新统计信息显示
+function updateStatisticsDisplay(statistics) {
+    // 这里可以根据需要更新统计卡片的显示
+    // 例如更新总金额、总数量等
+    if (statistics.total_amount !== undefined) {
+        const totalAmountElement = document.getElementById('totalAmount');
+        if (totalAmountElement) {
+            totalAmountElement.textContent = (statistics.total_amount / 10000).toFixed(1) + '万';
+        }
+    }
+    
+    if (statistics.total_count !== undefined) {
+        const totalCountElement = document.getElementById('totalCount');
+        if (totalCountElement) {
+            totalCountElement.textContent = statistics.total_count.toLocaleString();
+        }
+    }
+}
+
+// 页面初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 初始化筛选选项
+    loadFilterOptions();
+    
+    // 初始化数据
+    loadStatistics();
+    
+    // 初始化阶段统计数据
+    loadStageStatistics();
+    
+    // 绑定筛选器事件
+    bindFilterEvents();
+    
+    // 绑定排序事件
+    bindSortEvents();
+    
+    // 绑定图表切换事件
+    bindChartToggleEvents();
+    
+    // 绑定本月新增卡片点击事件
+    bindMonthlyIncreaseEvents();
+    
+    // 初始化横向滚动同步
+    initializeScrollSync();
+    
+    // 绑定窗口大小变化事件
+    window.addEventListener('resize', handleWindowResize);
+});
+
+// 初始化横向滚动同步
+function initializeScrollSync() {
+    const headerScroll = document.getElementById('header-scroll');
+    const bodyContainer = document.getElementById('body-container');
+    
+    if (headerScroll && bodyContainer) {
+        // 监听表体的横向滚动，同步表头
+        bodyContainer.addEventListener('scroll', function() {
+            headerScroll.scrollLeft = bodyContainer.scrollLeft;
+        });
+    }
+}
+
+// 处理窗口大小变化
+function handleWindowResize() {
+    // 重新初始化滚动同步
+    initializeScrollSync();
+    
+    // 根据屏幕大小决定显示方式
+    if (window.innerWidth <= 991.98) {
+        // 移动端：生成卡片视图
+        if (tableData && tableData.length > 0) {
+            generateMobileCards(tableData);
+        }
+    }
+}
+
+// 绑定筛选器联动事件
+function bindFilterEvents() {
+    // 产品类别变化时更新产品名称和型号选项
+    document.getElementById('categoryFilter').addEventListener('change', function() {
+        const category = this.value;
+        updateFilterOptions(category, '');
+        // 清空产品名称和型号的选择
+        document.getElementById('productNameFilter').value = '';
+        document.getElementById('productModelFilter').value = '';
+    });
+    
+    // 产品名称变化时更新产品型号选项
+    document.getElementById('productNameFilter').addEventListener('change', function() {
+        const category = document.getElementById('categoryFilter').value;
+        const productName = this.value;
+        updateFilterOptions(category, productName);
+        // 清空产品型号的选择
+        document.getElementById('productModelFilter').value = '';
+    });
+}
+
+// 更新筛选选项
+function updateFilterOptions(category, productName) {
+    const params = new URLSearchParams();
+    if (category) params.append('category', category);
+    if (productName) params.append('product_name', productName);
+    
+    fetch(`/product_analysis/api/filter_options?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // 更新产品名称选项
+                const productNameSelect = document.getElementById('productNameFilter');
+                const currentProductName = productNameSelect.value;
+                productNameSelect.innerHTML = '<option value="">全部产品</option>';
+                data.product_names.forEach(name => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    option.textContent = name;
+                    if (name === currentProductName) {
+                        option.selected = true;
+                    }
+                    productNameSelect.appendChild(option);
+                });
+                
+                // 更新产品型号选项
+                const productModelSelect = document.getElementById('productModelFilter');
+                const currentProductModel = productModelSelect.value;
+                productModelSelect.innerHTML = '<option value="">全部型号</option>';
+                data.product_models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model;
+                    option.textContent = model;
+                    if (model === currentProductModel) {
+                        option.selected = true;
+                    }
+                    productModelSelect.appendChild(option);
+                });
+            } else {
+                console.error('获取筛选选项失败：', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('获取筛选选项失败：', error);
+        });
+}
+
+// 加载阶段统计数据
+function loadStageStatistics() {
+    const params = new URLSearchParams();
+    const category = document.getElementById('categoryFilter').value;
+    const productName = document.getElementById('productNameFilter').value;
+    const productModel = document.getElementById('productModelFilter').value;
+    
+    if (category) params.append('category', category);
+    if (productName) params.append('product_name', productName);
+    if (productModel) params.append('product_model', productModel);
+    
+    fetch(`/product_analysis/api/stage_statistics?${params.toString()}`)
+        .then(response => response.json())
+        .then(response => {
+            if (response.success) {
+                stageData = response.data;
+                
+                // 更新颜色配置
+                if (response.colors) {
+                    STAGE_COLORS_COUNT = response.colors.count || {};
+                    STAGE_COLORS_AMOUNT = response.colors.amount || {};
+                }
+                
+                renderStageChart(stageData, currentChartType);
+            } else {
+                console.error('加载阶段统计数据失败:', response.message);
+                showError('加载阶段统计数据失败');
+            }
+        })
+        .catch(error => {
+            console.error('加载阶段统计数据失败:', error);
+            showError('加载阶段统计数据失败');
+        });
+}
+
+// 更新排序指示器
+function updateSortIndicators() {
+    // 清除所有排序类
+    document.querySelectorAll('.sortable').forEach(th => {
+        th.classList.remove('sort-asc', 'sort-desc');
+    });
+    
+    // 添加当前排序指示器
+    if (currentSortColumn) {
+        const currentTh = document.querySelector(`[data-column="${currentSortColumn}"]`);
+        if (currentTh) {
+            currentTh.classList.add(currentSortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+        }
+    }
+}
+
+// 渲染表格行
+function renderTableRows(data) {
+    const tbody = document.getElementById('dataTable');
+    tbody.innerHTML = '';
+    
+    data.forEach(item => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="col-name" title="${item.product_name || '-'}">${item.product_name || '-'}</td>
+            <td class="col-model" title="${item.product_model || '-'}">${item.product_model || '-'}</td>
+            <td class="col-desc" title="${item.product_desc || '-'}">${item.product_desc || '-'}</td>
+            <td class="col-quantity" title="${item.quantity || 0}">${item.quantity || 0}</td>
+            <td class="col-discount" title="${item.discount || 0}%">${item.discount || 0}%</td>
+            <td class="col-price" title="¥${(item.unit_price || 0).toFixed(2)}">¥${(item.unit_price || 0).toFixed(2)}</td>
+            <td class="col-total" title="¥${(item.total_price || 0).toFixed(2)}">¥${(item.total_price || 0).toFixed(2)}</td>
+            <td class="col-mn" title="${item.product_mn || '-'}">${item.product_mn || '-'}</td>
+            <td class="col-owner">${formatOwner(item.owner_name, item.owner_real_name, item.company_name)}</td>
+            <td class="col-project">
+                <a href="/project/view/${item.project_id}" class="project-link" title="${item.project_name || '-'}">
+                    ${item.project_name || '-'}
+                </a>
+            </td>
+            <td class="col-stage">${formatStage(item.current_stage)}</td>
+            <td class="col-quotation">
+                <a href="/quotation/${item.quotation_id}/detail" class="badge rounded-pill" style="background-color: #e6e6e6; color: #0056b3; font-family: 'Helvetica Neue', sans-serif; font-size: 0.85rem; font-weight: normal; padding: 0.3em 0.75em; text-decoration: none;" title="${item.quotation_number || '-'}">
+                    ${item.quotation_number || '-'}
+                </a>
+            </td>
+            <td class="col-date" title="${formatDate(item.updated_at)}">${formatDate(item.updated_at)}</td>
+            <td class="col-date" title="${formatDate(item.created_at)}">${formatDate(item.created_at)}</td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// 绑定排序事件
+function bindSortEvents() {
+    document.querySelectorAll('.sortable').forEach(th => {
+        // 移除现有事件监听器
+        th.removeEventListener('click', th._sortHandler);
+        
+        // 创建新的事件处理器
+        th._sortHandler = () => {
+            const column = th.getAttribute('data-column');
+            handleHeaderClick(column);
+        };
+        
+        // 绑定新的事件监听器
+        th.addEventListener('click', th._sortHandler);
+    });
+}
+
+// 同步表头和内容的滚动
+function syncTableScroll() {
+    const headerScroll = document.getElementById('header-scroll');
+    const bodyScroll = document.getElementById('body-scroll');
+    
+    if (headerScroll && bodyScroll) {
+        // 移除之前的事件监听器，避免重复绑定
+        headerScroll.removeEventListener('scroll', headerScrollHandler);
+        bodyScroll.removeEventListener('scroll', bodyScrollHandler);
+        
+        // 防抖标志
+        let isHeaderScrolling = false;
+        let isBodyScrolling = false;
+        
+        // 表头滚动处理函数
+        function headerScrollHandler() {
+            if (!isBodyScrolling) {
+                isHeaderScrolling = true;
+                bodyScroll.scrollLeft = headerScroll.scrollLeft;
+                setTimeout(() => {
+                    isHeaderScrolling = false;
+                }, 10);
+            }
+        }
+        
+        // 表体滚动处理函数
+        function bodyScrollHandler() {
+            if (!isHeaderScrolling) {
+                isBodyScrolling = true;
+                headerScroll.scrollLeft = bodyScroll.scrollLeft;
+                setTimeout(() => {
+                    isBodyScrolling = false;
+                }, 10);
+            }
+        }
+        
+        // 绑定事件监听器
+        headerScroll.addEventListener('scroll', headerScrollHandler);
+        bodyScroll.addEventListener('scroll', bodyScrollHandler);
+        
+        // 初始化同步
+        headerScroll.scrollLeft = bodyScroll.scrollLeft;
+    }
+}
+
+// 更新移动端视图
+function updateMobileView(data) {
+    generateMobileCards(data);
+}
+
+// 生成移动端卡片
+function generateMobileCards(data) {
+    const container = document.getElementById('mobileCardsList');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    if (!data || data.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <p class="text-muted">暂无数据</p>
+            </div>
+        `;
+        return;
+    }
+    
+    data.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'mobile-card';
+        
+        card.innerHTML = `
+            <div class="mobile-card-header">
+                <div class="mobile-card-title">${item.product_name || '-'}</div>
+                <div class="mobile-card-subtitle">${item.product_model || '-'}</div>
+            </div>
+            <div class="mobile-card-body">
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">产品描述</span>
+                    <span class="mobile-card-value">${item.product_description || '-'}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">数量</span>
+                    <span class="mobile-card-value">${item.quantity || 0}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">单价</span>
+                    <span class="mobile-card-value">¥${(item.unit_price || 0).toLocaleString()}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">合计</span>
+                    <span class="mobile-card-value">¥${(item.total_price || 0).toLocaleString()}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">MN号</span>
+                    <span class="mobile-card-value">${item.mn_number || '-'}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">拥有人</span>
+                    <span class="mobile-card-value">${formatOwner(item.owner_name, item.owner_real_name, item.company_name)}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">项目</span>
+                    <span class="mobile-card-value">
+                        ${item.project_id ? 
+                            `<a href="/project/view/${item.project_id}" class="project-link">${item.project_name || '-'}</a>` : 
+                            (item.project_name || '-')
+                        }
+                    </span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">阶段</span>
+                    <span class="mobile-card-value">${formatStage(item.current_stage)}</span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">报价单</span>
+                    <span class="mobile-card-value">
+                        ${item.quotation_id ? 
+                            `<a href="/quotation/view/${item.quotation_id}" class="quotation-link">${item.quotation_number || '-'}</a>` : 
+                            (item.quotation_number || '-')
+                        }
+                    </span>
+                </div>
+                <div class="mobile-card-row">
+                    <span class="mobile-card-label">更新时间</span>
+                    <span class="mobile-card-value">${formatDate(item.updated_at)}</span>
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(card);
+    });
+}
+
+// 绑定图表切换器事件
+function bindChartToggleEvents() {
+    $('.chart-toggle-dot').on('click', function() {
+        const chartType = $(this).data('chart-type');
+        
+        // 更新切换器状态
+        $('.chart-toggle-dot').removeClass('active');
+        $(this).addClass('active');
+        
+        // 更新当前图表类型
+        currentChartType = chartType;
+        
+        // 更新图表标题
+        const title = chartType === 'quantity' ? '各阶段数量分布' : '各阶段金额分布';
+        $('.card-title').first().text(title);
+        
+        // 重新渲染图表
+        if (stageData) {
+            renderStageChart(stageData, chartType);
+        }
+    });
+}
+
+// 绑定本月新增卡片点击事件
+function bindMonthlyIncreaseEvents() {
+    const card = document.getElementById('monthlyIncreaseCard');
+    
+    // 创建新的事件处理器
+    card._clickHandler = () => {
+        toggleMonthlyIncrease();
+    };
+    
+    // 绑定新的事件监听器
+    card.addEventListener('click', card._clickHandler);
+}
+
+// 阶段颜色配置 - 从后端API获取
+let STAGE_COLORS_COUNT = {};
+let STAGE_COLORS_AMOUNT = {};
+
+// 渲染阶段分布图表（柱状图）
+function renderStageChart(data, chartType) {
+    const chartContainer = document.getElementById('stageChart');
+    if (!chartContainer || !data || !data.length) {
+        console.log('没有阶段数据或图表容器不存在');
+        return;
+    }
+    
+    // 定义阶段顺序 - 与后端保持一致
+    const stageOrder = ['discover', 'embed', 'pre_tender', 'tendering', 'awarded', 'quoted', 'signed', 'lost', 'paused', 'unset'];
+    
+    // 按照预定义顺序排序数据
+    const sortedData = [...data].sort((a, b) => {
+        const orderA = a.order !== undefined ? a.order : stageOrder.indexOf(a.stage_key || a.stage || '');
+        const orderB = b.order !== undefined ? b.order : stageOrder.indexOf(b.stage_key || b.stage || '');
+        return orderA - orderB;
+    });
+    
+    // 过滤掉数量和金额都为0的阶段
+    const filteredData = sortedData.filter(item => {
+        return (chartType === 'quantity' && item.quantity > 0) || 
+               (chartType === 'amount' && item.amount > 0);
+    });
+    
+    if (filteredData.length === 0) {
+        chartContainer.innerHTML = '<div class="text-center py-4"><p class="text-muted">暂无数据</p></div>';
+        return;
+    }
+    
+    // 销毁现有图表
+    if (stageChart) {
+        stageChart.dispose();
+    }
+    
+    // 初始化图表
+    stageChart = echarts.init(chartContainer);
+    
+    // 准备数据 - 将金额转换为万元
+    const categories = filteredData.map(item => item.name || item.stage_name);
+    let values, displayValues;
+    
+    if (chartType === 'quantity') {
+        values = filteredData.map(item => item.quantity || 0);
+        displayValues = values.map(val => val + '个');
+    } else {
+        // 金额以万为单位，保留1位小数
+        values = filteredData.map(item => Math.round((item.amount || 0) / 10000 * 10) / 10);
+        displayValues = values.map(val => val.toFixed(1) + '万');
+    }
+    
+    const colors = filteredData.map(item => {
+        if (chartType === 'quantity') {
+            return item.color_count || item.color || '#5470c6';
+        } else {
+            return item.color_amount || item.color || '#91cc75';
+        }
+    });
+    
+    // 图表配置
+    const option = {
+        title: {
+            text: chartType === 'quantity' ? '产品分布统计（数量）' : '产品分布统计（金额）',
+            left: 'center',
+            top: '5%',
+            textStyle: {
+                fontSize: 16,
+                fontWeight: 'bold',
+                color: '#333'
+            }
+        },
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'shadow'
+            },
+            formatter: function(params) {
+                const item = params[0];
+                const originalData = filteredData[item.dataIndex];
+                const value = originalData[chartType === 'quantity' ? 'quantity' : 'amount'];
+                
+                if (chartType === 'quantity') {
+                    return `${item.name}: ${value}个`;
+                } else {
+                    const wanValue = (value / 10000).toFixed(1);
+                    return `${item.name}: ${wanValue}万元`;
+                }
+            }
+        },
+        grid: {
+            left: '5%',
+            right: '5%',
+            bottom: '25%',
+            top: '20%',
+            containLabel: true
+        },
+        xAxis: {
+            type: 'category',
+            data: categories,
+            axisLabel: {
+                rotate: 0,
+                fontSize: 12,
+                color: '#666',
+                interval: 0,
+                margin: 10,
+                formatter: function(value) {
+                    return value && value.length > 8 ? value.substring(0, 6) + '...' : value;
+                }
+            },
+            axisTick: {
+                alignWithLabel: true
+            },
+            axisLine: {
+                lineStyle: {
+                    color: '#ddd'
+                }
+            }
+        },
+        yAxis: {
+            type: 'value',
+            name: chartType === 'quantity' ? '数量(个)' : '金额(万元)',
+            nameTextStyle: {
+                color: '#666',
+                fontSize: 12
+            },
+            axisLabel: {
+                formatter: function(value) {
+                    if (chartType === 'amount') {
+                        return value.toFixed(0) + '万';
+                    }
+                    return value;
+                },
+                color: '#666',
+                fontSize: 11
+            },
+            splitLine: {
+                lineStyle: {
+                    color: '#f0f0f0',
+                    type: 'dashed'
+                }
+            },
+            axisLine: {
+                lineStyle: {
+                    color: '#ddd'
+                }
+            }
+        },
+        series: [{
+            name: chartType === 'quantity' ? '数量' : '金额',
+            type: 'bar',
+            data: values.map((value, index) => ({
+                value: value,
+                itemStyle: {
+                    color: colors[index],
+                    borderRadius: [3, 3, 0, 0]
+                }
+            })),
+            barWidth: '60%',
+            label: {
+                show: true,
+                position: 'top',
+                formatter: function(params) {
+                    return displayValues[params.dataIndex];
+                },
+                color: '#333',
+                fontSize: 11,
+                fontWeight: 'bold',
+                distance: 5
+            },
+            emphasis: {
+                itemStyle: {
+                    shadowBlur: 10,
+                    shadowOffsetX: 0,
+                    shadowColor: 'rgba(0, 0, 0, 0.3)'
+                }
+            }
+        }],
+        animationDuration: 1000,
+        animationEasing: 'cubicOut'
+    };
+    
+    // 设置图表选项
+    stageChart.setOption(option);
+    
+    // 响应式调整
+    window.addEventListener('resize', function() {
+        if (stageChart) {
+            stageChart.resize();
+        }
+    });
+}
+
+// 显示加载中
+function showLoading() {
+    document.getElementById('loadingOverlay').style.display = 'flex';
+}
+
+// 隐藏加载中
+function hideLoading() {
+    document.getElementById('loadingOverlay').style.display = 'none';
+}
+</script>
+{% endblock %} 

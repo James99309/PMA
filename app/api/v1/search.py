@@ -191,7 +191,7 @@ def search_products():
         return jsonify({
             'success': False,
             'message': '搜索失败，请重试'
-        }), 500
+        }), 500 
 
 @search_bp.route('/quotations', methods=['GET'])
 @login_required

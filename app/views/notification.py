@@ -1,7 +1,7 @@
 from flask import render_template, request, jsonify, flash, redirect, url_for
 from flask_login import current_user, login_required
 from app.routes.notification import notification
-from app.models.notification import EventRegistry, UserEventSubscription
+from app.models.notification import EventRegistry, UserEventSubscription, SolutionManagerEmailSettings
 from app.models.user import User
 from app.extensions import db, csrf
 from app.utils.access_control import get_viewable_data
@@ -38,16 +38,30 @@ def center():
                 subscription_map[sub.target_user_id] = {}
             subscription_map[sub.target_user_id][sub.event.event_key] = sub.enabled
         
+        # 检查是否为解决方案经理角色
+        is_solution_manager = current_user.role == 'solution_manager'
+        solution_manager_settings = None
+        
+        if is_solution_manager:
+            # 获取或创建解决方案经理的邮件设置
+            solution_manager_settings = SolutionManagerEmailSettings.query.filter_by(user_id=current_user.id).first()
+            if not solution_manager_settings:
+                solution_manager_settings = SolutionManagerEmailSettings(user_id=current_user.id)
+                db.session.add(solution_manager_settings)
+                db.session.commit()
+        
         return render_template(
             'notification/center.html',
             viewable_users=viewable_users,
             events=events,
-            subscription_map=subscription_map
+            subscription_map=subscription_map,
+            is_solution_manager=is_solution_manager,
+            solution_manager_settings=solution_manager_settings
         )
     except Exception as e:
         logger.error(f"加载通知中心出错: {str(e)}", exc_info=True)
         flash(f"加载通知中心出错: {str(e)}", "danger")
-        return render_template('notification/center.html', viewable_users=[], events=[], subscription_map={})
+        return render_template('notification/center.html', viewable_users=[], events=[], subscription_map={}, is_solution_manager=False, solution_manager_settings=None)
 
 @notification.route('/api/subscriptions', methods=['GET'])
 @login_required
@@ -172,4 +186,65 @@ def restore_default_subscriptions():
         db.session.rollback()
         logger.error(f"恢复默认订阅失败: {str(e)}", exc_info=True)
         flash(f'恢复默认订阅失败: {str(e)}', 'danger')
-        return redirect(url_for('notification.center')) 
+        return redirect(url_for('notification.center'))
+
+@notification.route('/api/solution-manager-settings', methods=['GET'])
+@login_required
+def get_solution_manager_settings():
+    """API接口：获取解决方案经理的邮件设置"""
+    try:
+        if current_user.role != 'solution_manager':
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        settings = SolutionManagerEmailSettings.query.filter_by(user_id=current_user.id).first()
+        if not settings:
+            settings = SolutionManagerEmailSettings(user_id=current_user.id)
+            db.session.add(settings)
+            db.session.commit()
+        
+        return jsonify({
+            "success": True,
+            "settings": {
+                "quotation_created": settings.quotation_created,
+                "quotation_updated": settings.quotation_updated,
+                "project_created": settings.project_created,
+                "project_stage_changed": settings.project_stage_changed
+            }
+        })
+    
+    except Exception as e:
+        logger.error(f"获取解决方案经理设置失败: {str(e)}", exc_info=True)
+        return jsonify({"success": False, "message": f"获取设置失败: {str(e)}"}), 500
+
+@notification.route('/api/solution-manager-settings', methods=['POST'])
+@login_required
+@csrf.exempt
+def save_solution_manager_settings():
+    """API接口：保存解决方案经理的邮件设置"""
+    try:
+        if current_user.role != 'solution_manager':
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "数据格式错误"}), 400
+        
+        settings = SolutionManagerEmailSettings.query.filter_by(user_id=current_user.id).first()
+        if not settings:
+            settings = SolutionManagerEmailSettings(user_id=current_user.id)
+            db.session.add(settings)
+        
+        # 更新设置
+        settings.quotation_created = data.get('quotation_created', True)
+        settings.quotation_updated = data.get('quotation_updated', True)
+        settings.project_created = data.get('project_created', True)
+        settings.project_stage_changed = data.get('project_stage_changed', True)
+        
+        db.session.commit()
+        
+        return jsonify({"success": True, "message": "设置已保存"})
+    
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"保存解决方案经理设置失败: {str(e)}", exc_info=True)
+        return jsonify({"success": False, "message": f"保存设置失败: {str(e)}"}), 500 

@@ -4,7 +4,7 @@ from app.models.project import Project
 from app.models.customer import Company, Contact
 from app.models.product import Product  # 添加产品模型导入
 from datetime import datetime
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from app import db
 from flask_login import login_required, current_user
 from app.decorators import permission_required  # 添加权限装饰器导入
@@ -13,6 +13,15 @@ import logging
 from decimal import Decimal
 import json
 from flask import current_app
+from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS
+from app.utils.notification_helpers import trigger_event_notification
+from app.services.event_dispatcher import notify_project_created, notify_project_status_updated
+from app.helpers.project_helpers import is_project_editable
+from app.utils.activity_tracker import check_company_activity, update_active_status
+from app.models.settings import SystemSettings
+from zoneinfo import ZoneInfo
+from app.utils.role_mappings import get_role_display_name
+from app.utils.solution_manager_notifications import notify_solution_managers_quotation_created, notify_solution_managers_quotation_updated
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -375,6 +384,8 @@ def create_quotation():
                                 'current_year': datetime.now().year
                             }
                         )
+                        # 通知解决方案经理
+                        notify_solution_managers_quotation_created(quotation)
                     except Exception as notify_err:
                         current_app.logger.warning(f"触发报价单创建通知失败: {str(notify_err)}")
                     
@@ -477,6 +488,8 @@ def create_quotation():
                             'current_year': datetime.now().year
                         }
                     )
+                    # 通知解决方案经理
+                    notify_solution_managers_quotation_created(quotation)
                 except Exception as notify_err:
                     logger.warning(f"触发报价单创建通知失败: {str(notify_err)}")
                 
@@ -1590,6 +1603,8 @@ def save_quotation(id):
                         'current_year': datetime.now().year
                     }
                 )
+                # 通知解决方案经理
+                notify_solution_managers_quotation_created(quotation)
             except Exception as notify_err:
                 current_app.logger.warning(f"触发报价单创建通知失败: {str(notify_err)}")
             

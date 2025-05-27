@@ -297,8 +297,28 @@
                     </li>
                     {% endif %}
                     {% if has_permission('quotation', 'view') %}
-                    <li class="nav-item">
-                        <a class="nav-link text-sm py-2 {{ 'active' if request.endpoint.startswith('quotation.') else '' }}" href="{{ url_for('quotation.list_quotations') }}">报价管理</a>
+                    <li class="nav-item d-lg-none">
+                        <details>
+                            <summary class="nav-link text-sm py-2 mb-0 {{ 'active' if request.endpoint.startswith('quotation.') or request.endpoint.startswith('product_analysis.') else '' }}" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+                                <span>报价管理</span>
+                                <svg class="ms-1" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            </summary>
+                            <ul class="list-unstyled ps-3 mb-0">
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('quotation.list_quotations') }}">报价单列表</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('product_analysis.analysis') }}">产品分析</a></li>
+                            </ul>
+                        </details>
+                    </li>
+                    <li class="nav-item dropdown d-none d-lg-block">
+                        <a class="nav-link dropdown-toggle text-sm py-2 {{ 'active' if request.endpoint.startswith('quotation.') or request.endpoint.startswith('product_analysis.') else '' }}"
+                           href="#" id="quotationDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            报价管理
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="quotationDropdown">
+                            <li><a class="dropdown-item" href="{{ url_for('quotation.list_quotations') }}">报价单列表</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('product_analysis.analysis') }}">产品分析</a></li>
+                        </ul>
                     </li>
                     {% endif %}
                     {% if has_permission('product', 'view') %}
@@ -399,7 +419,6 @@
                                    企业字典
                                 </a>
                             </li>
-                    {% endif %}
                             <li>
                                 <a class="dropdown-item {{ 'active' if request.endpoint == 'user.manage_departments' else '' }}"
                                    href="{{ url_for('user.manage_departments') }}">
@@ -408,6 +427,7 @@
                             </li>
                         </ul>
                     </li>
+                    {% endif %}
                     {% if current_user.role == 'admin' %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle text-sm py-2 {{ 'active' if request.endpoint and request.endpoint.startswith('admin.') else '' }}"

@@ -40,4 +40,33 @@ class UserEventSubscription(db.Model):
     )
     
     def __repr__(self):
-        return f'<UserEventSubscription {self.user_id} -> {self.target_user_id}:{self.event_id}>' 
+        return f'<UserEventSubscription {self.user_id} -> {self.target_user_id}:{self.event_id}>'
+
+class SolutionManagerEmailSettings(db.Model):
+    """解决方案经理邮件通知特权设置"""
+    __tablename__ = 'solution_manager_email_settings'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, comment='解决方案经理用户ID')
+    
+    # 报价单相关通知
+    quotation_created = db.Column(db.Boolean, default=True, comment='报价单新建通知')
+    quotation_updated = db.Column(db.Boolean, default=True, comment='报价单更新通知')
+    
+    # 项目相关通知
+    project_created = db.Column(db.Boolean, default=True, comment='项目新建通知')
+    project_stage_changed = db.Column(db.Boolean, default=True, comment='项目阶段推进通知')
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # 外键关系
+    user = db.relationship('User', backref='solution_manager_email_settings')
+    
+    # 唯一约束，每个用户只能有一条设置记录
+    __table_args__ = (
+        db.UniqueConstraint('user_id', name='uq_solution_manager_email_user'),
+    )
+    
+    def __repr__(self):
+        return f'<SolutionManagerEmailSettings {self.user_id}>' 

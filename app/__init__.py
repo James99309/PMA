@@ -215,6 +215,7 @@ def create_app(config_class=Config):
     # 导入所有视图
     from app.views import main, customer, project, auth, user_bp
     from app.views.quotation import quotation
+    from app.views.product_analysis import product_analysis
     from app.routes.api import api_bp
     from app.routes.projectpm_routes import bp as projectpm_bp
     from app.views.approval import approval_bp
@@ -232,6 +233,7 @@ def create_app(config_class=Config):
     app.register_blueprint(customer, url_prefix='/customer')
     app.register_blueprint(project, url_prefix='/project')
     app.register_blueprint(quotation, url_prefix='/quotation')
+    app.register_blueprint(product_analysis, url_prefix='/product_analysis')
     app.register_blueprint(product_bp, url_prefix='')
     app.register_blueprint(api_bp, url_prefix='/api')
     csrf.exempt(api_bp)
@@ -315,6 +317,10 @@ def create_app(config_class=Config):
         # 检查当前路径是否需要登录
         if any(request.path.startswith(path) for path in excluded_paths):
             return
+            
+        # 如果用户未登录，重定向到登录页面
+        if not current_user.is_authenticated:
+            return redirect(url_for('auth.login'))
             
         # 如果用户已登录，检查角色一致性
         if current_user.is_authenticated:
