@@ -1140,7 +1140,7 @@ function submitReply(actionId) {
             // 隐藏回复表单
             cancelReply(actionId);
             // 重新加载工作记录列表
-            loadRecentWorkRecords();
+            loadRecentRecords();
             // 显示成功消息
             showNotification('回复提交成功', 'success');
         } else {
@@ -1165,7 +1165,7 @@ function submitReply(actionId) {
             .then(data => {
                 if (data.success) {
                     cancelReply(actionId);
-                    loadRecentWorkRecords();
+                    loadRecentRecords();
                     showNotification('回复提交成功', 'success');
                 } else {
                     throw new Error(data.message || '提交失败');
