@@ -1,5 +1,5 @@
 import app.utils.update_active_status_fix
-from flask import Flask, session, redirect, url_for, request, current_app
+from flask import Flask, session, redirect, url_for, request, current_app, flash
 from config import Config
 import logging
 from app.extensions import db, migrate, login_manager, jwt, csrf
