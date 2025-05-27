@@ -117,6 +117,27 @@
                         <p>{{ dev_product.description or '暂无描述' }}</p>
                     </div>
 
+                    <!-- PDF文件下载部分 -->
+                    {% if dev_product.pdf_path %}
+                    <div class="mb-4">
+                        <h6 class="fw-bold">产品文档</h6>
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-file-pdf text-danger fa-3x me-3"></i>
+                                    <div class="flex-grow-1">
+                                        <h6 class="mb-1">{{ dev_product.pdf_path.split('/')[-1].split('_', 1)[-1] if '_' in dev_product.pdf_path.split('/')[-1] else dev_product.pdf_path.split('/')[-1] }}</h6>
+                                        <small class="text-muted">PDF文档</small>
+                                    </div>
+                                    <a href="{{ url_for('product_management.download_pdf', id=dev_product.id) }}" class="btn btn-primary">
+                                        <i class="fas fa-download me-1"></i> 下载PDF
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
                     <!-- 产品规格部分 -->
                     <h6 class="fw-bold mb-3">产品规格</h6>
                     {% if specs %}

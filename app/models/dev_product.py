@@ -17,6 +17,7 @@ class DevProduct(db.Model):
     retail_price = Column(Float)
     description = Column(Text)
     image_path = Column(String(255))
+    pdf_path = Column(String(255))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     owner_id = Column(Integer, ForeignKey('users.id'))

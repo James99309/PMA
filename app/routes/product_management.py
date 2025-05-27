@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app, send_file
 from flask_login import login_required, current_user
 from app import db
 from app.models.product_code import ProductCategory, ProductSubcategory, ProductCodeField, ProductCodeFieldOption, ProductRegion
@@ -24,9 +24,24 @@ product_management_bp = Blueprint('product_management', __name__, url_prefix='/p
 # 允许的图片扩展名
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
+# 允许的PDF扩展名
+ALLOWED_PDF_EXTENSIONS = {'pdf'}
+
 # 检查文件扩展名是否允许
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# 检查PDF文件扩展名是否允许
+def allowed_pdf_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_PDF_EXTENSIONS
+
+# 检查文件大小是否在限制内（2MB）
+def check_file_size(file):
+    """检查文件大小是否在2MB以内"""
+    file.seek(0, 2)  # 移动到文件末尾
+    file_size = file.tell()  # 获取文件大小
+    file.seek(0)  # 重置文件指针
+    return file_size <= 2 * 1024 * 1024  # 2MB
 
 # 保存上传的产品图片
 def save_product_image(file):
@@ -57,6 +72,40 @@ def save_product_image(file):
         return os.path.join('uploads', 'products', unique_filename)
     
     return None
+
+# 保存上传的产品PDF文件
+def save_product_pdf(file):
+    """
+    保存上传的产品PDF文件
+    
+    参数:
+    - file: 上传的文件对象
+    
+    返回:
+    - 成功时返回保存的文件路径，失败时返回None
+    """
+    if file and allowed_pdf_file(file.filename):
+        # 检查文件大小
+        if not check_file_size(file):
+            return None, "PDF文件大小不能超过2MB"
+        
+        # 创建安全的文件名
+        filename = secure_filename(file.filename)
+        # 使用UUID生成唯一文件名前缀
+        unique_filename = f"{uuid.uuid4().hex}_{filename}"
+        
+        # 确保上传目录存在
+        upload_folder = os.path.join(current_app.static_folder, 'uploads', 'products', 'pdfs')
+        os.makedirs(upload_folder, exist_ok=True)
+        
+        # 保存文件
+        filepath = os.path.join(upload_folder, unique_filename)
+        file.save(filepath)
+        
+        # 返回相对路径
+        return os.path.join('uploads', 'products', 'pdfs', unique_filename), None
+    
+    return None, "无效的PDF文件格式"
 
 # 产品管理首页 - 展示研发产品库列表
 @product_management_bp.route('/', methods=['GET'])
@@ -357,6 +406,19 @@ def save():
                 if not image_path:
                     current_app.logger.warning("图片上传失败或格式不支持")
         
+        # 处理PDF文件上传
+        pdf_path = None
+        pdf_error = None
+        if 'product_pdf' in request.files:
+            file = request.files['product_pdf']
+            if file.filename:
+                pdf_path, pdf_error = save_product_pdf(file)
+                if pdf_error:
+                    flash(pdf_error, 'danger')
+                    return redirect(url_for('product_management.new_product'))
+                elif not pdf_path:
+                    current_app.logger.warning("PDF文件上传失败或格式不支持")
+        
         # 创建新的研发产品
         new_product = DevProduct(
             category_id=category_id,
@@ -370,6 +432,7 @@ def save():
             status=status,
             mn_code=mn_code,  # 可能为None，表示不设置MN编码
             image_path=image_path,
+            pdf_path=pdf_path,  # 添加PDF文件路径
             created_by=current_user.id
         )
         
@@ -672,6 +735,30 @@ def update_product(id):
                     dev_product.image_path = image_path
                 else:
                     current_app.logger.warning("更新图片上传失败或格式不支持")
+        
+        # 处理PDF文件上传
+        if 'product_pdf' in request.files:
+            file = request.files['product_pdf']
+            if file.filename:
+                # 保存新PDF文件
+                pdf_path, pdf_error = save_product_pdf(file)
+                if pdf_error:
+                    flash(pdf_error, 'danger')
+                    return redirect(url_for('product_management.edit_product', id=id))
+                elif pdf_path:
+                    # 如果已有旧PDF文件，删除它
+                    if dev_product.pdf_path:
+                        old_pdf_path = os.path.join(current_app.static_folder, dev_product.pdf_path)
+                        if os.path.exists(old_pdf_path):
+                            try:
+                                os.remove(old_pdf_path)
+                            except Exception as e:
+                                current_app.logger.warning(f"删除旧PDF文件失败: {str(e)}")
+                    
+                    # 更新PDF文件路径
+                    dev_product.pdf_path = pdf_path
+                else:
+                    current_app.logger.warning("更新PDF文件上传失败或格式不支持")
         
         # 处理规格字段
         # 先删除现有规格
@@ -997,9 +1084,7 @@ def get_models_by_subcategory(subcategory_id):
         
         return jsonify(result)
     except Exception as e:
-        return jsonify({
-            'error': f'获取产品型号失败: {str(e)}'
-        }), 500
+        return jsonify({'error': f'获取产品型号失败: {str(e)}'}), 500
 
 # 根据子分类ID获取规格字段列表
 @product_management_bp.route('/api/subcategory/<int:subcategory_id>/spec-fields', methods=['GET'])
@@ -1038,9 +1123,7 @@ def get_spec_fields_by_subcategory(subcategory_id):
         
         return jsonify({'spec_fields': result})
     except Exception as e:
-        return jsonify({
-            'error': f'获取规格字段失败: {str(e)}'
-        }), 500
+        return jsonify({'error': f'获取规格字段失败: {str(e)}'}), 500
 
 # 查看已入库产品列表
 @product_management_bp.route('/inventory', methods=['GET'])
@@ -1169,4 +1252,49 @@ def add_spec_option():
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': f'添加指标失败: {str(e)}'}), 500 
+        return jsonify({'success': False, 'error': f'添加指标失败: {str(e)}'}), 500
+
+# PDF文件下载
+@product_management_bp.route('/<int:id>/download-pdf', methods=['GET'])
+@login_required
+@permission_required('product_code', 'view')
+def download_pdf(id):
+    """下载产品PDF文件"""
+    from flask import send_file, abort
+    
+    dev_product = DevProduct.query.get_or_404(id)
+    
+    # 检查是否有PDF文件
+    if not dev_product.pdf_path:
+        flash('该产品没有PDF文件', 'warning')
+        return redirect(url_for('product_management.product_detail', id=id))
+    
+    # 构建文件完整路径
+    pdf_file_path = os.path.join(current_app.static_folder, dev_product.pdf_path)
+    
+    # 检查文件是否存在
+    if not os.path.exists(pdf_file_path):
+        flash('PDF文件不存在', 'danger')
+        return redirect(url_for('product_management.product_detail', id=id))
+    
+    try:
+        # 获取原始文件名（去掉UUID前缀）
+        original_filename = os.path.basename(dev_product.pdf_path)
+        if '_' in original_filename:
+            # 去掉UUID前缀，保留原始文件名
+            original_filename = '_'.join(original_filename.split('_')[1:])
+        
+        # 如果没有原始文件名，使用产品型号作为文件名
+        if not original_filename or original_filename == '':
+            original_filename = f"{dev_product.model}.pdf"
+        
+        return send_file(
+            pdf_file_path,
+            as_attachment=True,
+            download_name=original_filename,
+            mimetype='application/pdf'
+        )
+    except Exception as e:
+        current_app.logger.error(f"下载PDF文件失败: {str(e)}")
+        flash('下载PDF文件失败', 'danger')
+        return redirect(url_for('product_management.product_detail', id=id)) 

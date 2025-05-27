@@ -141,6 +141,37 @@
                                 </div>
 
                                 <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label for="product_pdf" class="form-label">产品PDF文件</label>
+                                        <input type="file" class="form-control" id="product_pdf" name="product_pdf" accept=".pdf">
+                                        <div class="form-text">支持 PDF 格式，文件大小不超过 2MB</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        {% if dev_product.pdf_path %}
+                                        <label class="form-label">当前PDF文件</label>
+                                        <div class="border rounded p-2">
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-file-pdf text-danger fa-2x me-3"></i>
+                                                <div class="flex-grow-1">
+                                                    <div class="fw-bold">{{ dev_product.pdf_path.split('/')[-1].split('_', 1)[-1] if '_' in dev_product.pdf_path.split('/')[-1] else dev_product.pdf_path.split('/')[-1] }}</div>
+                                                    <small class="text-muted">PDF文档</small>
+                                                </div>
+                                                <a href="{{ url_for('product_management.download_pdf', id=dev_product.id) }}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-download"></i> 下载
+                                                </a>
+                                            </div>
+                                        </div>
+                                        {% else %}
+                                        <label class="form-label">当前PDF文件</label>
+                                        <div class="border rounded p-3 text-center text-muted">
+                                            <i class="fas fa-file-pdf fa-3x mb-2"></i><br>
+                                            无PDF文件
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
                                     <div class="col-md-12">
                                     <label for="description" class="form-label">产品描述</label>
                                     <textarea class="form-control" id="description" name="description" rows="3">{{ dev_product.description or '' }}</textarea>
