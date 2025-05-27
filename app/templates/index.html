@@ -513,10 +513,72 @@ function renderTableRecords(records) {
                 </div>
             </td>
             <td class="text-center" style="white-space: nowrap; font-size: 0.9rem;">
-                ${record.has_reply ? 
-                    `<span class="badge bg-success" style="cursor: pointer;" onclick="goToActionDetail(${record.id}, '${record.project_id}', '${record.customer_name}', '${record.customer_id}')">已回复 (${record.reply_count})</span>` : 
-                    '<span class="badge bg-secondary">无回复</span>'
-                }
+                <div>
+                    ${record.has_reply ? 
+                        `<span class="badge bg-success" style="cursor: pointer;" onclick="toggleRepliesView(${record.id})">已回复 (${record.reply_count})</span>` : 
+                        `<span class="badge bg-secondary" style="cursor: pointer;" onclick="toggleReplyForm(${record.id})">无回复</span>`
+                    }
+                    <!-- 回复输入框 -->
+                    <div class="reply-form-container mt-2" id="reply-form-${record.id}" style="display: none;">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body p-2">
+                                <textarea class="form-control form-control-sm mb-2" 
+                                         rows="2" 
+                                         placeholder="输入回复内容..."
+                                         id="reply-content-${record.id}"></textarea>
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-primary btn-sm" onclick="submitReply(${record.id})">
+                                        <i class="fas fa-paper-plane me-1"></i>提交
+                                    </button>
+                                    <button class="btn btn-secondary btn-sm" onclick="cancelReply(${record.id})">
+                                        取消
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 回复列表 -->
+                    <div class="replies-container mt-2" id="replies-${record.id}" style="display: none;">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body p-2">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="card-title mb-0 text-primary">回复记录</h6>
+                                    <div>
+                                        <button class="btn btn-sm btn-outline-primary me-1" onclick="addNewReply(${record.id})">
+                                            <i class="fas fa-plus me-1"></i>添加回复
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="goToActionDetail(${record.id}, '${record.project_id}', '${record.customer_name}', '${record.customer_id}')">
+                                            <i class="fas fa-external-link-alt me-1"></i>查看详情
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="closeRepliesView(${record.id})">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="replies-list" id="replies-list-${record.id}">
+                                    <div class="text-center text-muted">
+                                        <i class="fas fa-spinner fa-spin me-1"></i>加载中...
+                                    </div>
+                                </div>
+                                <!-- 新回复输入框 -->
+                                <div class="new-reply-form mt-2" id="new-reply-form-${record.id}" style="display: none;">
+                                    <textarea class="form-control form-control-sm mb-2" 
+                                             rows="3" 
+                                             placeholder="输入新的回复内容..."
+                                             id="new-reply-content-${record.id}"></textarea>
+                                    <div class="d-flex gap-1">
+                                        <button class="btn btn-primary btn-sm" onclick="submitNewReply(${record.id})">
+                                            <i class="fas fa-paper-plane me-1"></i>提交回复
+                                        </button>
+                                        <button class="btn btn-secondary btn-sm" onclick="cancelNewReply(${record.id})">
+                                            取消
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </td>
         `;
         tbody.appendChild(row);
@@ -572,10 +634,12 @@ function createMobileCard(record) {
                 <i class="fas fa-calendar-alt text-primary me-2"></i>
                 <span style="font-size: 0.9rem;">${record.date} ${record.time}</span>
             </div>
-            ${record.has_reply ? 
-                `<span class="badge bg-success" style="cursor: pointer; font-size: 0.9rem;" onclick="goToActionDetail(${record.id}, '${record.project_id}', '${record.customer_name}', '${record.customer_id}')">已回复 (${record.reply_count})</span>` : 
-                '<span class="badge bg-secondary" style="font-size: 0.9rem;">无回复</span>'
-            }
+            <div>
+                ${record.has_reply ? 
+                    `<span class="badge bg-success" style="cursor: pointer; font-size: 0.9rem;" onclick="toggleRepliesView(${record.id})">已回复 (${record.reply_count})</span>` : 
+                    `<span class="badge bg-secondary" style="cursor: pointer; font-size: 0.9rem;" onclick="toggleReplyForm(${record.id})">无回复</span>`
+                }
+            </div>
         </div>
         
         <div class="row g-2 mb-2">
@@ -607,6 +671,68 @@ function createMobileCard(record) {
         <div class="mb-2">
             <div class="small text-muted" style="font-size: 0.8rem;">行动记录</div>
             <div class="communication-content" style="word-wrap: break-word; white-space: normal; font-size: 0.9rem;">${escapeHtml(record.communication)}</div>
+        </div>
+        
+        <!-- 移动端回复输入框 -->
+        <div class="reply-form-container mt-2" id="reply-form-${record.id}" style="display: none;">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-2">
+                    <textarea class="form-control form-control-sm mb-2" 
+                             rows="2" 
+                             placeholder="输入回复内容..."
+                             id="reply-content-${record.id}"></textarea>
+                    <div class="d-flex gap-1">
+                        <button class="btn btn-primary btn-sm" onclick="submitReply(${record.id})">
+                            <i class="fas fa-paper-plane me-1"></i>提交
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="cancelReply(${record.id})">
+                            取消
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 移动端回复列表 -->
+        <div class="replies-container mt-2" id="replies-${record.id}" style="display: none;">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-2">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="card-title mb-0 text-primary" style="font-size: 0.9rem;">回复记录</h6>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary me-1" onclick="addNewReply(${record.id})" style="font-size: 0.8rem;">
+                                <i class="fas fa-plus me-1"></i>回复
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary me-1" onclick="goToActionDetail(${record.id}, '${record.project_id}', '${record.customer_name}', '${record.customer_id}')">
+                                <i class="fas fa-external-link-alt"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="closeRepliesView(${record.id})">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="replies-list" id="replies-list-${record.id}">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-spinner fa-spin me-1"></i>加载中...
+                        </div>
+                    </div>
+                    <!-- 新回复输入框 -->
+                    <div class="new-reply-form mt-2" id="new-reply-form-${record.id}" style="display: none;">
+                        <textarea class="form-control form-control-sm mb-2" 
+                                 rows="3" 
+                                 placeholder="输入新的回复内容..."
+                                 id="new-reply-content-${record.id}"></textarea>
+                        <div class="d-flex gap-1">
+                            <button class="btn btn-primary btn-sm" onclick="submitNewReply(${record.id})">
+                                <i class="fas fa-paper-plane me-1"></i>提交回复
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="cancelNewReply(${record.id})">
+                                取消
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     `;
     return card;
@@ -667,6 +793,464 @@ function truncateText(text, maxLength) {
     if (!text) return '';
     if (text.length <= maxLength) return escapeHtml(text);
     return escapeHtml(text.substring(0, maxLength)) + '...';
+}
+
+// 回复相关功能函数
+// 切换回复输入框显示/隐藏
+function toggleReplyForm(actionId) {
+    const replyForm = document.getElementById(`reply-form-${actionId}`);
+    const textarea = document.getElementById(`reply-content-${actionId}`);
+    
+    if (replyForm.style.display === 'none') {
+        replyForm.style.display = 'block';
+        textarea.focus();
+    } else {
+        replyForm.style.display = 'none';
+        textarea.value = '';
+    }
+}
+
+// 切换回复列表显示/隐藏
+function toggleRepliesView(actionId) {
+    const repliesContainer = document.getElementById(`replies-${actionId}`);
+    
+    if (repliesContainer.style.display === 'none') {
+        repliesContainer.style.display = 'block';
+        loadActionReplies(actionId);
+    } else {
+        repliesContainer.style.display = 'none';
+    }
+}
+
+// 关闭回复列表
+function closeRepliesView(actionId) {
+    const repliesContainer = document.getElementById(`replies-${actionId}`);
+    repliesContainer.style.display = 'none';
+}
+
+// 加载行动记录的回复
+function loadActionReplies(actionId) {
+    const repliesList = document.getElementById(`replies-list-${actionId}`);
+    
+    // 显示加载状态
+    repliesList.innerHTML = `
+        <div class="text-center text-muted">
+            <i class="fas fa-spinner fa-spin me-1"></i>加载回复中...
+        </div>
+    `;
+    
+    // 根据当前页面URL判断使用哪个API路径
+    let apiPath = '';
+    if (window.location.pathname.includes('/customer/')) {
+        apiPath = `/customer/action/${actionId}/replies`;
+    } else if (window.location.pathname.includes('/project/')) {
+        apiPath = `/project/action/${actionId}/replies`;
+    } else {
+        // 仪表盘页面，需要根据记录关联情况判断使用哪个API
+        // 先尝试项目API，如果失败再尝试客户API
+        apiPath = `/project/action/${actionId}/replies`;
+    }
+    
+    fetch(apiPath)
+        .then(response => {
+            if (!response.ok) {
+                // 如果项目API失败，尝试客户API
+                if (apiPath.includes('/project/')) {
+                    return fetch(`/customer/action/${actionId}/replies`);
+                }
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response;
+        })
+        .then(response => response.json())
+        .then(data => {
+            // 后端直接返回回复数组，不是包装在success字段中
+            displayReplies(actionId, data);
+        })
+        .catch(error => {
+            console.error('加载回复失败:', error);
+            repliesList.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-exclamation-triangle me-1 text-warning"></i>
+                    加载回复失败
+                </div>
+            `;
+        });
+}
+
+// 显示回复列表
+function displayReplies(actionId, replies) {
+    const repliesList = document.getElementById(`replies-list-${actionId}`);
+    
+    if (!replies || replies.length === 0) {
+        repliesList.innerHTML = `
+            <div class="text-center text-muted">
+                <i class="fas fa-comment-slash me-1"></i>暂无回复
+            </div>
+        `;
+        return;
+    }
+    
+    // 递归渲染回复树
+    function renderReplyTree(reply, level = 0) {
+        const marginLeft = level * 16; // 每级缩进16px
+        let html = `
+            <div class="reply-item border-bottom py-2 mb-2" style="margin-left: ${marginLeft}px;">
+                <div class="d-flex justify-content-between align-items-start mb-1">
+                    <small class="text-muted">
+                        <i class="fas fa-user me-1"></i>${escapeHtml(reply.owner)}
+                    </small>
+                    <small class="text-muted">
+                        <i class="fas fa-clock me-1"></i>${reply.created_at}
+                    </small>
+                </div>
+                <div class="reply-content" style="font-size: 0.9rem; word-wrap: break-word;">
+                    ${escapeHtml(reply.content)}
+                </div>
+                <div class="mt-1">
+                    <button class="btn btn-sm btn-link p-0 text-primary" onclick="replyToReply(${actionId}, ${reply.id}, '${escapeHtml(reply.owner)}')">
+                        <i class="fas fa-reply me-1"></i>回复
+                    </button>
+                    ${reply.can_delete ? `
+                        <button class="btn btn-sm btn-link p-0 text-danger ms-2" onclick="deleteReply(${reply.id}, ${actionId})">
+                            <i class="fas fa-trash me-1"></i>删除
+                        </button>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+        
+        // 递归渲染子回复
+        if (reply.children && reply.children.length > 0) {
+            reply.children.forEach(child => {
+                html += renderReplyTree(child, level + 1);
+            });
+        }
+        
+        return html;
+    }
+    
+    const repliesHtml = replies.map(reply => renderReplyTree(reply)).join('');
+    repliesList.innerHTML = repliesHtml;
+}
+
+// 删除回复
+function deleteReply(replyId, actionId) {
+    if (!confirm('确定要删除这条回复吗？')) {
+        return;
+    }
+    
+    // 获取CSRF token
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    
+    // 根据当前页面URL判断使用哪个API路径
+    let apiPath = '';
+    if (window.location.pathname.includes('/customer/')) {
+        apiPath = `/customer/action/reply/${replyId}/delete`;
+    } else if (window.location.pathname.includes('/project/')) {
+        apiPath = `/project/action/reply/${replyId}/delete`;
+    } else {
+        // 仪表盘页面，默认使用项目API
+        apiPath = `/project/action/reply/${replyId}/delete`;
+    }
+    
+    fetch(apiPath, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 重新加载回复列表
+            loadActionReplies(actionId);
+            showNotification('回复删除成功', 'success');
+        } else {
+            throw new Error(data.message || '删除失败');
+        }
+    })
+    .catch(error => {
+        console.error('删除回复失败:', error);
+        // 如果项目API失败，尝试客户API
+        if (apiPath.includes('/project/')) {
+            fetch(`/customer/action/reply/${replyId}/delete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadActionReplies(actionId);
+                    showNotification('回复删除成功', 'success');
+                } else {
+                    throw new Error(data.message || '删除失败');
+                }
+            })
+            .catch(err => {
+                showNotification(`删除失败: ${err.message}`, 'error');
+            });
+        } else {
+            showNotification(`删除失败: ${error.message}`, 'error');
+        }
+    });
+}
+
+// 提交新回复
+function submitNewReply(actionId) {
+    const textarea = document.getElementById(`new-reply-content-${actionId}`);
+    const content = textarea.value.trim();
+    
+    if (!content) {
+        alert('请输入回复内容');
+        return;
+    }
+    
+    // 获取CSRF token
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    
+    // 显示提交状态
+    const submitBtn = event.target;
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>提交中...';
+    submitBtn.disabled = true;
+    
+    // 根据当前页面URL判断使用哪个API路径
+    let apiPath = '';
+    if (window.location.pathname.includes('/customer/')) {
+        apiPath = `/customer/action/${actionId}/reply`;
+    } else if (window.location.pathname.includes('/project/')) {
+        apiPath = `/project/action/${actionId}/reply`;
+    } else {
+        // 仪表盘页面，默认使用项目API
+        apiPath = `/project/action/${actionId}/reply`;
+    }
+    
+    fetch(apiPath, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            content: content
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 清空输入框
+            textarea.value = '';
+            // 隐藏输入框
+            cancelNewReply(actionId);
+            // 重新加载回复列表
+            loadActionReplies(actionId);
+            // 显示成功消息
+            showNotification('回复提交成功', 'success');
+        } else {
+            throw new Error(data.message || '提交失败');
+        }
+    })
+    .catch(error => {
+        console.error('提交回复失败:', error);
+        // 如果项目API失败，尝试客户API
+        if (apiPath.includes('/project/')) {
+            fetch(`/customer/action/${actionId}/reply`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    content: content
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    textarea.value = '';
+                    cancelNewReply(actionId);
+                    loadActionReplies(actionId);
+                    showNotification('回复提交成功', 'success');
+                } else {
+                    throw new Error(data.message || '提交失败');
+                }
+            })
+            .catch(err => {
+                showNotification(`提交失败: ${err.message}`, 'error');
+            });
+        } else {
+            showNotification(`提交失败: ${error.message}`, 'error');
+        }
+    })
+    .finally(() => {
+        // 恢复按钮状态
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    });
+}
+
+// 提交回复（原有的无回复状态的回复提交）
+function submitReply(actionId) {
+    const textarea = document.getElementById(`reply-content-${actionId}`);
+    const content = textarea.value.trim();
+    
+    if (!content) {
+        alert('请输入回复内容');
+        return;
+    }
+    
+    // 获取CSRF token
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    
+    // 显示提交状态
+    const submitBtn = event.target;
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>提交中...';
+    submitBtn.disabled = true;
+    
+    // 根据当前页面URL判断使用哪个API路径
+    let apiPath = '';
+    if (window.location.pathname.includes('/customer/')) {
+        apiPath = `/customer/action/${actionId}/reply`;
+    } else if (window.location.pathname.includes('/project/')) {
+        apiPath = `/project/action/${actionId}/reply`;
+    } else {
+        // 仪表盘页面，默认使用项目API
+        apiPath = `/project/action/${actionId}/reply`;
+    }
+    
+    fetch(apiPath, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            content: content
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 隐藏回复表单
+            cancelReply(actionId);
+            // 重新加载工作记录列表
+            loadRecentWorkRecords();
+            // 显示成功消息
+            showNotification('回复提交成功', 'success');
+        } else {
+            throw new Error(data.message || '提交失败');
+        }
+    })
+    .catch(error => {
+        console.error('提交回复失败:', error);
+        // 如果项目API失败，尝试客户API
+        if (apiPath.includes('/project/')) {
+            fetch(`/customer/action/${actionId}/reply`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    content: content
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    cancelReply(actionId);
+                    loadRecentWorkRecords();
+                    showNotification('回复提交成功', 'success');
+                } else {
+                    throw new Error(data.message || '提交失败');
+                }
+            })
+            .catch(err => {
+                showNotification(`提交失败: ${err.message}`, 'error');
+            });
+        } else {
+            showNotification(`提交失败: ${error.message}`, 'error');
+        }
+    })
+    .finally(() => {
+        // 恢复按钮状态
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    });
+}
+
+// 显示通知消息
+function showNotification(message, type = 'info') {
+    const alertClass = type === 'success' ? 'alert-success' : 
+                      type === 'error' ? 'alert-danger' : 
+                      type === 'warning' ? 'alert-warning' : 'alert-info';
+    
+    const notification = document.createElement('div');
+    notification.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // 3秒后自动消失
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.remove();
+        }
+    }, 3000);
+}
+
+// 添加新回复（显示输入框）
+function addNewReply(actionId) {
+    const newReplyForm = document.getElementById(`new-reply-form-${actionId}`);
+    const textarea = document.getElementById(`new-reply-content-${actionId}`);
+    
+    newReplyForm.style.display = 'block';
+    textarea.focus();
+}
+
+// 取消新回复
+function cancelNewReply(actionId) {
+    const newReplyForm = document.getElementById(`new-reply-form-${actionId}`);
+    const textarea = document.getElementById(`new-reply-content-${actionId}`);
+    
+    newReplyForm.style.display = 'none';
+    textarea.value = '';
+}
+
+// 回复某个回复
+function replyToReply(actionId, replyId, replyToUser) {
+    const textarea = document.getElementById(`new-reply-content-${actionId}`);
+    const newReplyForm = document.getElementById(`new-reply-form-${actionId}`);
+    
+    // 设置回复内容前缀
+    const replyPrefix = `@${replyToUser} `;
+    textarea.value = replyPrefix;
+    
+    // 显示输入框并聚焦
+    newReplyForm.style.display = 'block';
+    textarea.focus();
+    
+    // 将光标移到末尾
+    textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+}
+
+// 取消回复
+function cancelReply(actionId) {
+    const replyForm = document.getElementById(`reply-form-${actionId}`);
+    const textarea = document.getElementById(`reply-content-${actionId}`);
+    
+    replyForm.style.display = 'none';
+    textarea.value = '';
 }
 </script>
 {% endblock %}
