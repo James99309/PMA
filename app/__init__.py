@@ -4,7 +4,7 @@ from config import Config
 import logging
 from app.extensions import db, migrate, login_manager, jwt, csrf
 import os
-from flask_login import login_required, current_user
+from flask_login import login_required, current_user, logout_user
 from app.models import User
 from app.routes.product import bp as product_bp
 from app.routes.product_code import product_code_bp
