@@ -2,6 +2,7 @@
 
 {% block head %}
 {{ super() }}
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <style>
     /* 移除仪表盘相关的样式 */
     .table-container {
@@ -331,11 +332,18 @@
             <div>
                 <i class="fas fa-table"></i> 产品列表
             </div>
-            <div id="loading-indicator" class="spinner-border spinner-border-sm text-primary d-none" role="status">
-                <span class="visually-hidden">加载中...</span>
-            </div>
-            <div id="total-count" class="text-muted">
-                共 <span id="total-items">0</span> 条记录
+            <div class="d-flex align-items-center gap-3">
+                {% if current_user.role in ['admin', 'product_manager'] %}
+                <a href="{{ url_for('product_route.create_product_page') }}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus"></i> 新增产品
+                </a>
+                {% endif %}
+                <div id="loading-indicator" class="spinner-border spinner-border-sm text-primary d-none" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                </div>
+                <div id="total-count" class="text-muted">
+                    共 <span id="total-items">0</span> 条记录
+                </div>
             </div>
         </div>
         <div class="card-body p-0">
@@ -365,6 +373,9 @@
                                     <th class="col-owner" data-sort="owner_name">数据所有者 <i class="fas fa-sort"></i></th>
                                     <th class="col-date" data-sort="created_at">创建时间 <i class="fas fa-sort"></i></th>
                                     <th class="col-date" data-sort="updated_at">更新时间 <i class="fas fa-sort"></i></th>
+                                    {% if current_user.role in ['admin', 'product_manager'] %}
+                                    <th class="col-actions">操作</th>
+                                    {% endif %}
                                 </tr>
                             </thead>
                         </table>
@@ -409,14 +420,82 @@
 {% block scripts %}
 {{ super() }}
 <script>
-    // 全局变量
+    // 设置全局变量
+    window.userRole = '{{ current_user.role }}';
+    
     let currentPage = 1;
-    let perPage = 50;
-    let loading = false;
     let allLoaded = false;
+    let isLoading = false;
+    const limit = 50;
+    let sortBy = 'updated_at';
+    let sortOrder = 'desc';
+    
+    // 删除产品确认函数
+    function confirmDeleteProduct(productId, productName) {
+        if (confirm(`确定要删除产品 "${productName}" 吗？\n\n注意：如果产品已被报价单引用，将无法删除。`)) {
+            deleteProduct(productId);
+        }
+    }
+    
+    // 删除产品函数
+    function deleteProduct(productId) {
+        fetch(`/api/products/${productId}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                // 重新加载产品列表
+                currentPage = 1;
+                allLoaded = false;
+                document.querySelector('#product-table tbody').innerHTML = '';
+                if (document.getElementById('product-card-list')) {
+                    document.getElementById('product-card-list').innerHTML = '';
+                }
+                loadProducts();
+            } else {
+                if (data.code === 'PRODUCT_REFERENCED') {
+                    alert(`删除失败：${data.message}\n\n建议操作：在产品详情页使用"停产"功能。`);
+                } else {
+                    alert(`删除失败：${data.message}`);
+                }
+            }
+        })
+        .catch(error => {
+            console.error('删除产品时出错:', error);
+            alert('删除产品时发生错误，请稍后重试。');
+        });
+    }
+    
+    // CSRF Token 获取函数
+    function getCsrfToken() {
+        const token = document.querySelector('meta[name=csrf-token]');
+        return token ? token.getAttribute('content') : '';
+    }
+    
+    // HTML 转义函数
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // 滚动加载监听
+    window.addEventListener('scroll', handleScroll);
+    
+    // 页面加载完成后初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        // 加载初始数据
+        loadProducts();
+    });
+
+    // 全局变量
     let totalItems = 0;
-    let sortBy = 'id';
-    let sortOrder = 'asc';
     let searchTerm = '';
 
     // 页面加载完成后执行
@@ -500,7 +579,7 @@
 
         bodyContainer.addEventListener('scroll', function() {
             // 如果正在加载或所有数据已加载完成，不执行加载
-            if (loading || allLoaded) return;
+            if (isLoading || allLoaded) return;
 
             // 检测是否滚动到底部
             const scrollHeight = this.scrollHeight;
@@ -545,15 +624,15 @@
     // 加载产品列表
     function loadProducts(reset = true) {
         // 如果正在加载，不重复执行
-        if (loading) return;
+        if (isLoading) return;
 
         // 设置加载状态
-        loading = true;
+        isLoading = true;
         showLoadingIndicator(true);
 
         const url = new URL('/api/products', window.location.origin);
         url.searchParams.append('page', currentPage);
-        url.searchParams.append('per_page', perPage);
+        url.searchParams.append('per_page', limit);
         url.searchParams.append('sort_by', sortBy);
         url.searchParams.append('sort_order', sortOrder);
 
@@ -581,13 +660,13 @@
                 }
 
                 // 重置加载状态
-                loading = false;
+                isLoading = false;
                 showLoadingIndicator(false);
             })
             .catch(error => {
                 console.error('加载产品列表失败:', error);
                 // 重置加载状态
-                loading = false;
+                isLoading = false;
                 showLoadingIndicator(false);
             });
     }
@@ -631,7 +710,7 @@
                 emptyRow.style.height = '42px'; // 保持固定行高
 
                 const emptyCell = document.createElement('td');
-                emptyCell.setAttribute('colspan', '14'); // 修正colspan值与表头列数一致
+                emptyCell.setAttribute('colspan', '15'); // 修正colspan值与表头列数一致（包括操作列）
                 emptyCell.textContent = '没有找到匹配的产品数据';
                 emptyCell.className = 'text-center py-3';
 
@@ -658,8 +737,24 @@
 
             // 为长文本添加title属性，实现悬停显示完整内容
             const title = (text) => text ? `title="${text}"` : '';
+            
+            // 检查用户权限
+            const hasManagePermission = window.userRole === 'admin' || window.userRole === 'product_manager';
 
             // 填充产品数据
+            let actionsColumn = '';
+            if (hasManagePermission) {
+                actionsColumn = `
+                    <td class="col-actions">
+                        <a href="/products/${product.id}/edit" class="btn btn-sm btn-primary me-1" title="编辑">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                        <button class="btn btn-sm btn-danger" title="删除" onclick="confirmDeleteProduct(${product.id}, '${escapeHtml(product.product_name)}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>`;
+            }
+            
             productRow.innerHTML = `
                 <td class="td-id">${product.id}</td>
                 <td class="col-type" ${title(product.type)}>${getProductTypeBadge(product.type)}</td>
@@ -681,6 +776,7 @@
                 <td class="col-owner">${escapeHtml(product.owner_name || '')}</td>
                 <td class="col-date">${escapeHtml(product.created_at || '')}</td>
                 <td class="col-date">${escapeHtml(product.updated_at || '')}</td>
+                ${actionsColumn}
             `;
             productTable.appendChild(productRow);
 
@@ -744,17 +840,6 @@
                 icon.className = 'fas fa-sort';
             }
         });
-    }
-
-    // 安全转义HTML，防止XSS攻击
-    function escapeHtml(unsafe) {
-        if (unsafe === null || unsafe === undefined) return '';
-        return String(unsafe)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
     }
 
     // 根据产品类型获取带有样式的徽章

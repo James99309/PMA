@@ -1049,17 +1049,59 @@ def get_product(id):
 @login_required
 @permission_required('product', 'delete')  # 添加产品删除权限装饰器
 def delete_product(id):
-    """删除产品API"""
+    """删除产品API - 只有admin和product_manager可以删除未被引用的产品"""
     try:
+        # 检查用户角色权限
+        if current_user.role not in ['admin', 'product_manager']:
+            return jsonify({
+                'success': False,
+                'message': '只有管理员和产品经理可以删除产品'
+            }), 403
+        
         product = Product.query.get_or_404(id)
         
-        # 去除对数据所有权的检查
-        # 如果用户通过了permission_required('product', 'delete')装饰器，就应该能删除所有产品
+        # 检查产品是否被报价单引用
+        from app.models.quotation import QuotationDetail
+        referenced_count = QuotationDetail.query.filter(
+            QuotationDetail.product_name == product.product_name,
+            QuotationDetail.product_model == product.model
+        ).count()
+        
+        if referenced_count > 0:
+            return jsonify({
+                'success': False,
+                'message': f'该产品已被 {referenced_count} 个报价单引用，不能删除。如需停产，请使用"停产"功能。',
+                'code': 'PRODUCT_REFERENCED'
+            }), 400
+        
+        # 如果产品未被引用，可以删除
+        product_name = product.product_name
+        
+        # 删除产品图片文件（如果存在）
+        if product.image_path:
+            try:
+                image_file_path = os.path.join(current_app.static_folder, product.image_path)
+                if os.path.exists(image_file_path):
+                    os.remove(image_file_path)
+                    logger.debug(f"已删除产品图片文件: {image_file_path}")
+            except Exception as e:
+                logger.warning(f"删除产品图片文件失败: {str(e)}")
+        
+        # 删除PDF文件（如果存在）
+        if hasattr(product, 'pdf_path') and product.pdf_path:
+            try:
+                pdf_file_path = os.path.join(current_app.static_folder, product.pdf_path)
+                if os.path.exists(pdf_file_path):
+                    os.remove(pdf_file_path)
+                    logger.debug(f"已删除产品PDF文件: {pdf_file_path}")
+            except Exception as e:
+                logger.warning(f"删除产品PDF文件失败: {str(e)}")
         
         # 删除产品记录
-        product_name = product.product_name
         db.session.delete(product)
         db.session.commit()
+        
+        logger.info(f'{current_user.role} {current_user.username} 删除了产品: {product_name} (ID: {id})')
         
         return jsonify({
             'success': True,

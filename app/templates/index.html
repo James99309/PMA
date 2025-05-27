@@ -175,6 +175,112 @@
     </div>
 </div>
 
+<!-- 最近工作记录 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
+                <h5 class="mb-0" style="font-size: 1.1rem;">最近工作记录</h5>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <!-- 账户筛选 - 仅admin和总监级别显示 -->
+                    <div id="accountFilterContainer" class="d-none">
+                        <select id="accountFilter" class="form-select form-select-sm" style="min-width: 150px;">
+                            <option value="">全部账户</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <!-- 加载指示器 -->
+                <div id="recordsLoading" class="text-center p-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <div class="mt-2 text-muted">正在加载工作记录...</div>
+                </div>
+                
+                <!-- PC端表格 -->
+                <div id="recordsTableContainer" class="d-none d-md-block" style="display: none !important;">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light" style="font-size: 0.9rem;">
+                                <tr>
+                                    <th width="12%">行动日期</th>
+                                    <th width="10%">拥有人</th>
+                                    <th width="15%">客户</th>
+                                    <th width="12%">联系人</th>
+                                    <th width="18%">关联项目</th>
+                                    <th width="28%">行动记录</th>
+                                    <th width="5%">回复状态</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recordsTableBody">
+                                <!-- 数据将通过JavaScript填充 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- 移动端选项卡 -->
+                <div id="recordsCardContainer" class="d-block d-md-none">
+                    <!-- 选项卡导航 -->
+                    <ul class="nav nav-tabs" id="recordsTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="recent-tab" data-bs-toggle="tab" data-bs-target="#recent" type="button" role="tab" aria-controls="recent" aria-selected="true" style="font-size: 0.9rem;">
+                                最近记录
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="today-tab" data-bs-toggle="tab" data-bs-target="#today" type="button" role="tab" aria-controls="today" aria-selected="false" style="font-size: 0.9rem;">
+                                今日记录
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <!-- 选项卡内容 -->
+                    <div class="tab-content" id="recordsTabContent">
+                        <div class="tab-pane fade show active" id="recent" role="tabpanel" aria-labelledby="recent-tab">
+                            <div id="recordsCardList">
+                                <!-- 数据将通过JavaScript填充 -->
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="today" role="tabpanel" aria-labelledby="today-tab">
+                            <div id="todayRecordsList">
+                                <!-- 今日数据将通过JavaScript填充 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 空状态 -->
+                <div id="recordsEmptyState" class="text-center p-4 d-none">
+                    <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                    <h6 class="text-muted">暂无最近工作记录</h6>
+                    <p class="text-muted small">最近5天内没有工作记录</p>
+                </div>
+                
+                <!-- 错误状态 -->
+                <div id="recordsErrorState" class="text-center p-4 d-none">
+                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                    <h6 class="text-warning">加载失败</h6>
+                    <p class="text-muted small">无法加载工作记录，请稍后重试</p>
+                    <button class="btn btn-sm btn-outline-primary" onclick="loadRecentRecords()">
+                        <i class="fas fa-redo"></i> 重新加载
+                    </button>
+                </div>
+            </div>
+            <div class="card-footer bg-light">
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">显示最近5天的工作记录</small>
+                    <small class="text-muted">
+                        <span id="recordsCount">0</span> 条记录
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row">
     <div class="col-md-6">
         <div class="card">
@@ -219,4 +325,348 @@
         </div>
     </div>
 </div>
+
+<script>
+// 最近工作记录功能
+let currentAccountId = null;
+const userRole = '{{ current_user.role }}';
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', function() {
+    initWorkRecords();
+});
+
+// 初始化工作记录功能
+function initWorkRecords() {
+    // 检查是否需要显示账户筛选
+    if (userRole === 'admin' || userRole === 'sales_director' || userRole === 'service_manager') {
+        loadAvailableAccounts();
+        document.getElementById('accountFilterContainer').classList.remove('d-none');
+    }
+    
+    // 绑定账户筛选事件
+    document.getElementById('accountFilter').addEventListener('change', function() {
+        currentAccountId = this.value || null;
+        loadRecentRecords();
+    });
+    
+    // 添加窗口大小变化监听器
+    window.addEventListener('resize', handleResponsiveDisplay);
+    
+    // 加载初始数据
+    loadRecentRecords();
+}
+
+// 处理响应式显示
+function handleResponsiveDisplay() {
+    const isMobile = window.innerWidth < 768; // Bootstrap的md断点
+    const tableContainer = document.getElementById('recordsTableContainer');
+    const cardContainer = document.getElementById('recordsCardContainer');
+    
+    // 只有在两个容器都有内容时才进行切换
+    if (tableContainer.querySelector('#recordsTableBody').children.length > 0 || 
+        cardContainer.querySelector('#recordsCardList').children.length > 0) {
+        
+        if (isMobile) {
+            tableContainer.classList.add('d-none');
+            tableContainer.style.display = 'none !important';
+            cardContainer.classList.remove('d-none');
+        } else {
+            tableContainer.classList.remove('d-none');
+            tableContainer.style.display = ''; // 移除内联样式
+            cardContainer.classList.add('d-none');
+        }
+    }
+}
+
+// 加载可用账户列表
+function loadAvailableAccounts() {
+    fetch('/api/available_accounts')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const select = document.getElementById('accountFilter');
+                // 清空现有选项（保留"全部账户"）
+                select.innerHTML = '<option value="">全部账户</option>';
+                
+                // 添加账户选项
+                data.data.forEach(account => {
+                    const option = document.createElement('option');
+                    option.value = account.id;
+                    option.textContent = `${account.name} (${account.role})`;
+                    select.appendChild(option);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('加载账户列表失败:', error);
+        });
+}
+
+// 加载最近工作记录
+function loadRecentRecords() {
+    showLoading();
+    
+    let url = '/api/recent_work_records';
+    if (currentAccountId) {
+        url += `?account_id=${currentAccountId}`;
+    }
+    
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayRecords(data.data);
+                updateRecordsCount(data.total);
+            } else {
+                showErrorState();
+                console.error('加载工作记录失败:', data.message);
+            }
+        })
+        .catch(error => {
+            showErrorState();
+            console.error('加载工作记录失败:', error);
+        });
+}
+
+// 显示加载状态
+function showLoading() {
+    // 显示加载指示器
+    document.getElementById('recordsLoading').classList.remove('d-none');
+    // 隐藏所有其他状态
+    document.getElementById('recordsTableContainer').classList.add('d-none');
+    document.getElementById('recordsCardContainer').classList.add('d-none');
+    document.getElementById('recordsEmptyState').classList.add('d-none');
+    document.getElementById('recordsErrorState').classList.add('d-none');
+}
+
+// 显示记录数据
+function displayRecords(records) {
+    // 隐藏加载指示器
+    document.getElementById('recordsLoading').classList.add('d-none');
+    
+    // 如果没有记录，显示空状态
+    if (!records || records.length === 0) {
+        showEmptyState();
+        return;
+    }
+    
+    // 隐藏空状态和错误状态
+    document.getElementById('recordsEmptyState').classList.add('d-none');
+    document.getElementById('recordsErrorState').classList.add('d-none');
+    
+    // 检测屏幕尺寸，只渲染对应的UI
+    const isMobile = window.innerWidth < 768; // Bootstrap的md断点
+    const tableContainer = document.getElementById('recordsTableContainer');
+    const cardContainer = document.getElementById('recordsCardContainer');
+    
+    if (isMobile) {
+        // 移动端：只显示卡片，隐藏表格
+        tableContainer.classList.add('d-none');
+        tableContainer.style.display = 'none !important';
+        cardContainer.classList.remove('d-none');
+        renderCardRecords(records);
+    } else {
+        // 桌面端：只显示表格，隐藏卡片
+        tableContainer.classList.remove('d-none');
+        tableContainer.style.display = ''; // 移除内联样式
+        cardContainer.classList.add('d-none');
+        renderTableRecords(records);
+    }
+}
+
+// 渲染PC端表格
+function renderTableRecords(records) {
+    const tbody = document.getElementById('recordsTableBody');
+    tbody.innerHTML = '';
+    
+    records.forEach(record => {
+        const row = document.createElement('tr');
+        row.style.fontSize = '0.9rem'; // 内容字体统一为0.9rem
+        row.innerHTML = `
+            <td style="white-space: nowrap; font-size: 0.9rem; padding-left: 1rem;">
+                <div class="small">
+                    <span>${record.date}</span><br>
+                    <span class="text-muted">${record.time}</span>
+                </div>
+            </td>
+            <td style="white-space: nowrap; font-size: 0.9rem;">
+                ${record.owner_badge_html || '<span class="badge bg-secondary">无</span>'}
+            </td>
+            <td style="white-space: nowrap; font-size: 0.9rem;">
+                <span>${record.customer_name || '-'}</span>
+            </td>
+            <td style="white-space: nowrap; font-size: 0.9rem;">
+                <span>${record.contact_name || '-'}</span>
+            </td>
+            <td style="white-space: nowrap; font-size: 0.9rem;">
+                ${record.project_name ? 
+                    `<a href="/project/view/${record.project_id}" class="text-decoration-none">
+                        ${truncateText(record.project_name, 20)}
+                    </a>` : 
+                    '<span class="text-muted">-</span>'
+                }
+            </td>
+            <td style="word-wrap: break-word; white-space: normal; max-width: 200px; font-size: 0.9rem;">
+                <div class="communication-content" title="${escapeHtml(record.communication)}">
+                    ${escapeHtml(record.communication)}
+                </div>
+            </td>
+            <td class="text-center" style="white-space: nowrap; font-size: 0.9rem;">
+                ${record.has_reply ? 
+                    `<span class="badge bg-success" style="cursor: pointer;" onclick="goToActionDetail(${record.id}, '${record.project_id}', '${record.customer_name}', '${record.customer_id}')">已回复 (${record.reply_count})</span>` : 
+                    '<span class="badge bg-secondary">无回复</span>'
+                }
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// 渲染移动端选项卡
+function renderCardRecords(records) {
+    // 渲染最近记录
+    const recentContainer = document.getElementById('recordsCardList');
+    recentContainer.innerHTML = '';
+    
+    // 渲染今日记录
+    const todayContainer = document.getElementById('todayRecordsList');
+    todayContainer.innerHTML = '';
+    
+    // 获取今日日期
+    const today = new Date().toISOString().split('T')[0];
+    const todayRecords = records.filter(record => record.date === today);
+    
+    // 渲染最近记录（所有记录）
+    records.forEach(record => {
+        const card = createMobileCard(record);
+        recentContainer.appendChild(card);
+    });
+    
+    // 渲染今日记录
+    if (todayRecords.length > 0) {
+        todayRecords.forEach(record => {
+            const card = createMobileCard(record);
+            todayContainer.appendChild(card);
+        });
+    } else {
+        const emptyCard = document.createElement('div');
+        emptyCard.className = 'text-center p-4';
+        emptyCard.style.fontSize = '0.9rem';
+        emptyCard.innerHTML = `
+            <i class="fas fa-calendar-day fa-2x text-muted mb-2"></i>
+            <div class="text-muted">今日暂无工作记录</div>
+        `;
+        todayContainer.appendChild(emptyCard);
+    }
+}
+
+// 创建移动端卡片
+function createMobileCard(record) {
+    const card = document.createElement('div');
+    card.className = 'border-bottom p-3';
+    card.style.fontSize = '0.9rem'; // 统一字体大小
+    card.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-calendar-alt text-primary me-2"></i>
+                <span style="font-size: 0.9rem;">${record.date} ${record.time}</span>
+            </div>
+            ${record.has_reply ? 
+                `<span class="badge bg-success" style="cursor: pointer; font-size: 0.9rem;" onclick="goToActionDetail(${record.id}, '${record.project_id}', '${record.customer_name}', '${record.customer_id}')">已回复 (${record.reply_count})</span>` : 
+                '<span class="badge bg-secondary" style="font-size: 0.9rem;">无回复</span>'
+            }
+        </div>
+        
+        <div class="row g-2 mb-2">
+            <div class="col-6">
+                <div class="small text-muted" style="font-size: 0.8rem;">拥有人</div>
+                <div>${record.owner_badge_html || '<span class="badge bg-secondary">无</span>'}</div>
+            </div>
+            <div class="col-6">
+                <div class="small text-muted" style="font-size: 0.8rem;">客户</div>
+                <div style="font-size: 0.9rem;">${record.customer_name || '-'}</div>
+            </div>
+        </div>
+        
+        <div class="row g-2 mb-2">
+            <div class="col-6">
+                <div class="small text-muted" style="font-size: 0.8rem;">联系人</div>
+                <div style="font-size: 0.9rem;">${record.contact_name || '-'}</div>
+            </div>
+            ${record.project_name ? `
+            <div class="col-6">
+                <div class="small text-muted" style="font-size: 0.8rem;">关联项目</div>
+                <a href="/project/view/${record.project_id}" class="text-decoration-none fw-bold" style="font-size: 0.9rem;">
+                    ${record.project_name}
+                </a>
+            </div>
+            ` : '<div class="col-6"></div>'}
+        </div>
+        
+        <div class="mb-2">
+            <div class="small text-muted" style="font-size: 0.8rem;">行动记录</div>
+            <div class="communication-content" style="word-wrap: break-word; white-space: normal; font-size: 0.9rem;">${escapeHtml(record.communication)}</div>
+        </div>
+    `;
+    return card;
+}
+
+// 显示空状态
+function showEmptyState() {
+    // 隐藏加载指示器
+    document.getElementById('recordsLoading').classList.add('d-none');
+    // 隐藏数据容器
+    document.getElementById('recordsTableContainer').classList.add('d-none');
+    document.getElementById('recordsCardContainer').classList.add('d-none');
+    document.getElementById('recordsErrorState').classList.add('d-none');
+    // 显示空状态
+    document.getElementById('recordsEmptyState').classList.remove('d-none');
+}
+
+// 显示错误状态
+function showErrorState() {
+    // 隐藏加载指示器
+    document.getElementById('recordsLoading').classList.add('d-none');
+    // 隐藏数据容器
+    document.getElementById('recordsTableContainer').classList.add('d-none');
+    document.getElementById('recordsCardContainer').classList.add('d-none');
+    document.getElementById('recordsEmptyState').classList.add('d-none');
+    // 显示错误状态
+    document.getElementById('recordsErrorState').classList.remove('d-none');
+}
+
+// 更新记录数量
+function updateRecordsCount(count) {
+    document.getElementById('recordsCount').textContent = count || 0;
+}
+
+// 跳转到行动详情页面
+function goToActionDetail(actionId, projectId, customerName, customerId) {
+    // 如果有关联项目，跳转到项目详情页面
+    if (projectId && projectId !== 'null' && projectId !== '' && projectId !== null) {
+        window.open(`/project/view/${projectId}#action-${actionId}`, '_blank');
+    } else if (customerId && customerId !== 'null' && customerId !== '' && customerId !== null) {
+        // 如果有客户ID，跳转到客户详情页面
+        window.open(`/customer/${customerId}/view#action-${actionId}`, '_blank');
+    } else {
+        // 没有关联信息时的提示
+        alert('该记录没有关联的项目或客户信息');
+    }
+}
+
+// HTML转义函数
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// 文本截断函数
+function truncateText(text, maxLength) {
+    if (!text) return '';
+    if (text.length <= maxLength) return escapeHtml(text);
+    return escapeHtml(text.substring(0, maxLength)) + '...';
+}
+</script>
 {% endblock %}
