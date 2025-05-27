@@ -244,6 +244,32 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- PDF文件下载部分 -->
+                    {% if product.pdf_path %}
+                    <div class="row mt-4">
+                        <div class="col-md-12">
+                            <div class="product-property">
+                                <div class="property-label">产品文档</div>
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-file-pdf text-danger fa-3x me-3"></i>
+                                            <div class="flex-grow-1">
+                                                <h6 class="mb-1">{{ product.pdf_path.split('/')[-1].split('_', 1)[-1] if '_' in product.pdf_path.split('/')[-1] else product.pdf_path.split('/')[-1] }}</h6>
+                                                <small class="text-muted">PDF文档</small>
+                                            </div>
+                                            <a href="{{ url_for('product_route.download_pdf', id=product.id) }}" 
+                                               class="btn btn-outline-primary" target="_blank">
+                                                <i class="fas fa-download"></i> 下载
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>

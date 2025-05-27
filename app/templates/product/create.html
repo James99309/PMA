@@ -208,6 +208,32 @@
         display: flex;
         justify-content: space-between;
     }
+
+    /* PDF文件上传容器样式 */
+    .pdf-upload-container {
+        position: relative;
+    }
+
+    /* 当前PDF文件显示样式 */
+    .current-pdf {
+        margin-top: 10px;
+        padding: 10px;
+        background-color: #f8f9fa;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+    }
+
+    .current-pdf .d-flex {
+        align-items: center;
+    }
+
+    .current-pdf .text-danger {
+        margin-right: 10px;
+    }
+
+    .current-pdf .btn {
+        margin-left: auto;
+    }
 </style>
 {% endblock %}
 
@@ -258,6 +284,31 @@
                                 <button type="button" id="remove-image-btn" class="btn btn-sm btn-outline-danger" {% if not product or not product.image_path %}style="display: none;"{% endif %}>移除图片</button>
                             </div>
                             <small class="text-muted">支持JPG、PNG格式，图片将自动调整为正方形</small>
+                        </div>
+                    </div>
+
+                    <!-- PDF文件上传 -->
+                    <div class="col-md-6 mb-3">
+                        <label for="product-pdf" class="form-label">产品文档</label>
+                        <div class="pdf-upload-container">
+                            <input type="file" class="form-control" id="product-pdf" name="product_pdf" accept=".pdf">
+                            <div class="form-text">支持PDF格式，文件大小不超过2MB</div>
+                            {% if product and product.pdf_path %}
+                            <div class="current-pdf mt-2">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-file-pdf text-danger me-2"></i>
+                                    <span class="me-2">当前PDF文件</span>
+                                    <a href="{{ url_for('product_route.download_pdf', id=product.id) }}" 
+                                       class="btn btn-sm btn-outline-primary me-2" target="_blank">
+                                        <i class="fas fa-download"></i> 下载
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" id="remove-pdf-btn">
+                                        <i class="fas fa-trash"></i> 删除
+                                    </button>
+                                </div>
+                            </div>
+                            <input type="hidden" name="remove_pdf" id="remove-pdf-flag" value="false">
+                            {% endif %}
                         </div>
                     </div>
 
@@ -632,6 +683,9 @@
 
         // 初始化图片上传
         initImageUpload();
+
+        // 初始化PDF删除功能
+        initPdfRemove();
     });
 
     // 加载产品类别
@@ -1210,6 +1264,36 @@
                 document.getElementById('product-form').appendChild(removeImageFlag);
             }
         });
+    }
+
+    // 初始化PDF删除功能
+    function initPdfRemove() {
+        const removePdfBtn = document.getElementById('remove-pdf-btn');
+        if (removePdfBtn) {
+            removePdfBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                if (confirm('确定要删除当前的PDF文件吗？')) {
+                    // 设置删除标记
+                    document.getElementById('remove-pdf-flag').value = 'true';
+                    
+                    // 隐藏当前PDF显示区域
+                    const currentPdfDiv = document.querySelector('.current-pdf');
+                    if (currentPdfDiv) {
+                        currentPdfDiv.style.display = 'none';
+                    }
+                    
+                    // 显示提示信息
+                    const pdfContainer = document.querySelector('.pdf-upload-container');
+                    if (pdfContainer) {
+                        const notice = document.createElement('div');
+                        notice.className = 'alert alert-warning mt-2';
+                        notice.innerHTML = '<i class="fas fa-exclamation-triangle"></i> PDF文件将在保存时删除';
+                        pdfContainer.appendChild(notice);
+                    }
+                }
+            });
+        }
     }
 
     // 添加UI辅助函数

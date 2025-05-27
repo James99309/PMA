@@ -16,6 +16,7 @@ class Product(db.Model):
     retail_price = db.Column(db.Numeric(10, 2))  # 市场单价
     status = db.Column(db.String(20), default='active')  # 产品状态：'active'(生产中), 'discontinued'(已停产), 'upcoming'(待上市)
     image_path = db.Column(db.String(255))  # 产品图片路径
+    pdf_path = db.Column(db.String(255))  # 产品PDF文件路径
     created_at = db.Column(db.DateTime, default=datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
     
