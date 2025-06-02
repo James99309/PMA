@@ -35,7 +35,15 @@ def main():
         if args.port:
             port = args.port
         else:
-            port = int(os.environ.get('PORT', 10000))
+            try:
+                port_env = os.environ.get('PORT', '10000')
+                # 如果环境变量是'$PORT'这种无效格式，使用默认值
+                if port_env.startswith('$') or not port_env.isdigit():
+                    port = 10000
+                else:
+                    port = int(port_env)
+            except (ValueError, TypeError):
+                port = 10000  # 默认端口
         
         logger.info(f"PMA系统启动中...")
         logger.info(f"环境: {os.environ.get('FLASK_ENV', 'production')}")

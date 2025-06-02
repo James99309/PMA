@@ -48,7 +48,17 @@ class Config:
     
     # 邮件配置
     MAIL_SERVER = os.environ.get('MAIL_SERVER') or 'smtp.gmail.com'
-    MAIL_PORT = int(os.environ.get('MAIL_PORT') or 587)
+    
+    # 邮件端口配置 - 安全解析
+    try:
+        mail_port_env = os.environ.get('MAIL_PORT', '587')
+        if mail_port_env.startswith('$') or not mail_port_env.isdigit():
+            MAIL_PORT = 587
+        else:
+            MAIL_PORT = int(mail_port_env)
+    except (ValueError, TypeError):
+        MAIL_PORT = 587  # 默认SMTP端口
+    
     MAIL_USE_TLS = True
     MAIL_USERNAME = os.environ.get('MAIL_USERNAME') or 'james98980566@gmail.com'
     MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD') or 'cihkheuuyvnkrtrj'
@@ -57,7 +67,19 @@ class Config:
     
     # 应用域名配置
     APP_DOMAIN = os.environ.get('APP_DOMAIN') or 'https://pma-system.onrender.com'
-    PORT = int(os.environ.get('PORT', 10000))  # Render默认端口
+    
+    # 端口配置 - 修复环境变量解析错误
+    try:
+        port_env = os.environ.get('PORT', '10000')
+        # 如果环境变量是'$PORT'这种无效格式，使用默认值
+        if port_env.startswith('$') or not port_env.isdigit():
+            PORT = 10000
+        else:
+            PORT = int(port_env)
+    except (ValueError, TypeError):
+        PORT = 10000  # 默认端口
+    
+    logger.info(f"应用端口配置: {PORT}")
     
     # PostgreSQL连接池配置 - 云端优化
     SQLALCHEMY_ENGINE_OPTIONS = {
