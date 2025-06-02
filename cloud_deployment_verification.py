@@ -19,6 +19,9 @@ def verify_permissions_system():
     app = create_app()
     with app.app_context():
         try:
+            # 0. 验证端口解析修复
+            verify_environment_parsing()
+            
             # 1. 验证数据库连接
             print("\n1. 验证数据库连接...")
             db.session.execute('SELECT 1')
@@ -111,6 +114,34 @@ def verify_environment():
         print(f"数据库URL: {safe_url}")
     else:
         print("⚠️  DATABASE_URL环境变量未设置")
+
+def verify_environment_parsing():
+    """验证环境变量解析修复"""
+    print("\n0. 验证环境变量解析修复...")
+    
+    # 模拟无效的环境变量
+    old_port = os.environ.get('PORT')
+    os.environ['PORT'] = '$PORT'  # 模拟问题环境变量
+    
+    try:
+        # 重新导入config来测试修复
+        import importlib
+        if 'config' in sys.modules:
+            importlib.reload(sys.modules['config'])
+        
+        from config import Config
+        if hasattr(Config, 'PORT') and Config.PORT == 10000:
+            print("✅ PORT环境变量解析修复验证通过")
+        else:
+            print(f"❌ PORT解析可能有问题: {getattr(Config, 'PORT', 'None')}")
+    except Exception as e:
+        print(f"❌ 环境变量解析验证失败: {e}")
+    finally:
+        # 恢复原始环境变量
+        if old_port:
+            os.environ['PORT'] = old_port
+        elif 'PORT' in os.environ:
+            del os.environ['PORT']
 
 if __name__ == "__main__":
     print("云端部署验证脚本")

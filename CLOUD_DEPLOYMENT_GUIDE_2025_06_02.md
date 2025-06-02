@@ -4,7 +4,37 @@
 
 本次部署包含了PMA系统的重大权限系统修复和多项功能增强，主要解决了权限管理中的关键问题，并增加了审批流程、项目评分等新功能。
 
+**🔧 紧急修复 (2025-06-02 18:30)**：
+- ✅ 修复了部署错误：环境变量PORT解析问题
+- ✅ 解决了 `ValueError: invalid literal for int() with base 10: '$PORT'` 错误
+- ✅ 增强了环境变量解析的容错性和稳定性
+
 ## 部署内容
+
+### 环境变量解析修复 (提交版本: 2ce3b94)
+
+**核心修复**：
+- ✅ 修复 `config.py` 中的 `PORT` 环境变量解析错误
+- ✅ 修复 `run.py` 中的端口解析逻辑  
+- ✅ 修复 `MAIL_PORT` 环境变量解析
+- ✅ 添加对无效环境变量值（如 `$PORT`）的处理
+- ✅ 确保在环境变量无效时使用默认端口值
+
+**技术细节**：
+```python
+# 修复前（会报错）
+PORT = int(os.environ.get('PORT', 10000))
+
+# 修复后（安全解析）
+try:
+    port_env = os.environ.get('PORT', '10000')
+    if port_env.startswith('$') or not port_env.isdigit():
+        PORT = 10000
+    else:
+        PORT = int(port_env)
+except (ValueError, TypeError):
+    PORT = 10000  # 默认端口
+```
 
 ### 权限系统修复 (迁移版本: 5055ec5e2171)
 
