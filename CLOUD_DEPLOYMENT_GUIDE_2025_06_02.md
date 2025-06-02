@@ -4,6 +4,12 @@
 
 本次部署包含了PMA系统的重大权限系统修复和多项功能增强，主要解决了权限管理中的关键问题，并增加了审批流程、项目评分等新功能。
 
+**🔧 数据库事务修复 (2025-06-02 19:30)**：
+- ✅ 修复了云端部署后的数据库事务被中止问题
+- ✅ 解决了 `current transaction is aborted, commands ignored until end of transaction block` 错误
+- ✅ 在所有查询失败时添加 `db.session.rollback()` 事务回滚处理
+- ✅ 确保后续查询不受前一个失败查询影响，提升系统稳定性
+
 **🔧 SQLAlchemy兼容性修复 (2025-06-02 19:00)**：
 - ✅ 修复了云端部署后的SQLAlchemy版本兼容性问题
 - ✅ 解决了 `sqlalchemy.exc.StatementError` 查询参数错误
@@ -16,6 +22,51 @@
 - ✅ 增强了环境变量解析的容错性和稳定性
 
 ## 部署内容
+
+### 数据库事务修复 (提交版本: 8c96afe)
+
+**问题背景**：
+云端部署后出现数据库事务被中止错误，导致后续查询失败：
+```
+psycopg2.errors.InFailedSqlTransaction: current transaction is aborted, commands ignored until end of transaction block
+```
+
+**核心修复**：
+- ✅ 修复 `app/views/main.py` 首页查询的数据库事务回滚问题
+- ✅ 修复 `app/views/product_analysis.py` 产品分析查询的事务问题  
+- ✅ 修复 `app/views/user.py` 用户列表查询的事务问题
+- ✅ 修复 `app/routes/product_management.py` 产品库存查询的事务问题
+
+**技术细节**：
+```python
+# 修复前（事务会被中止）
+try:
+    results = query.order_by(Model.updated_at.desc()).limit(5).all()
+except Exception as e:
+    logger.warning(f"查询失败: {str(e)}")
+    results = []
+
+# 修复后（事务正确回滚）
+try:
+    results = query.order_by(Model.updated_at.desc()).limit(5).all()
+except Exception as e:
+    logger.warning(f"查询失败: {str(e)}")
+    try:
+        # 回滚失败的事务
+        db.session.rollback()
+        results = query.order_by(Model.id.desc()).limit(5).all()
+    except Exception as e2:
+        logger.error(f"查询完全失败: {str(e2)}")
+        # 回滚失败的事务
+        db.session.rollback()
+        results = []
+```
+
+**影响模块**：
+- 首页项目/报价/客户数据显示
+- 产品分析页面数据查询
+- 用户列表页面显示
+- 产品库存管理页面
 
 ### SQLAlchemy兼容性修复 (提交版本: 8e33b85)
 
@@ -30,30 +81,22 @@ sqlalchemy.exc.StatementError: (Background on this error at: https://sqlalche.me
 - ✅ 修复 `app/views/product_analysis.py` 产品分析查询的兼容性问题  
 - ✅ 修复 `app/views/user.py` 用户列表查询的兼容性问题
 - ✅ 修复 `app/routes/product_management.py` 产品库存查询的兼容性问题
-- ✅ 所有查询增加异常处理，失败时使用id排序作为后备方案
 
 **技术细节**：
+所有查询都增加了异常处理，失败时使用 `id` 排序作为后备方案：
 ```python
-# 修复前（会在某些SQLAlchemy版本报错）
-recent_projects = get_viewable_data(Project, current_user).order_by(Project.updated_at.desc()).limit(5).all()
-
-# 修复后（兼容性处理）
 try:
-    recent_projects = get_viewable_data(Project, current_user).order_by(Project.updated_at.desc()).limit(5).all()
+    results = query.order_by(Model.updated_at.desc()).limit(5).all()
 except Exception as e:
-    logger.warning(f"使用updated_at查询项目失败: {str(e)}，尝试使用id排序")
-    try:
-        recent_projects = get_viewable_data(Project, current_user).order_by(Project.id.desc()).limit(5).all()
-    except Exception as e2:
-        logger.error(f"项目查询完全失败: {str(e2)}")
-        recent_projects = []
+    logger.warning(f"使用updated_at排序失败: {str(e)}, 尝试使用id排序")
+    results = query.order_by(Model.id.desc()).limit(5).all()
 ```
 
 **影响模块**：
-- 首页最近项目显示
-- 产品分析数据查询
-- 用户列表管理
-- 产品库存管理
+- 首页项目/报价/客户数据显示
+- 产品分析页面数据查询
+- 用户列表页面显示
+- 产品库存管理页面
 
 ### 环境变量解析修复 (提交版本: 2ce3b94)
 
@@ -84,16 +127,156 @@ except (ValueError, TypeError):
 
 **核心修复**：
 - ✅ 权限合并逻辑修复：个人权限只能增强角色权限，不能减少
-- ✅ 权限保存逻辑优化：避免创建冗余的个人权限记录
-- ✅ 用户角色变更处理：自动清理旧权限设置  
-- ✅ 权限显示修复：解决前端None值问题
+- ✅ 权限保存逻辑优化：避免为所有模块创建个人权限记录
+- ✅ 用户角色变更处理：检测角色变更，自动清理个人权限
+- ✅ 权限检查方法统一：使用OR逻辑合并角色权限和个人权限
 
-**影响模块**：
-- 用户权限管理页面
-- 所有权限检查功能
-- 用户角色变更功能
+**技术细节**：
+```python
+# 权限合并公式
+最终权限 = 角色权限 OR 个人权限
 
-### 新增功能
+# 权限检查逻辑
+if personal_perm is not None:
+    return role_perm or personal_perm
+else:
+    return role_perm
+```
+
+**权限设计原则**：
+- 个人权限只能增强角色权限，不能减少
+- 只存储真正需要的个人权限增强设置
+- 角色变更时自动清理个人权限
+
+## 部署流程
+
+### 1. 预部署检查
+
+运行预部署检查脚本：
+```bash
+python3 cloud_deployment_verification.py
+```
+
+**检查项目**：
+- ✅ 环境变量解析修复验证
+- ✅ SQLAlchemy兼容性验证  
+- ✅ 数据库连接验证
+- ✅ 权限系统修复验证
+- ✅ 代码完整性验证
+
+### 2. 代码部署
+
+1. **拉取最新代码**：
+   ```bash
+   git pull origin main
+   ```
+
+2. **安装依赖**：
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **环境变量检查**：
+   - 确保 `PORT` 环境变量设置正确
+   - 确保 `DATABASE_URL` 配置正确
+   - 确保其他必要环境变量已设置
+
+### 3. 数据库迁移
+
+1. **运行数据库迁移**：
+   ```bash
+   flask db upgrade
+   ```
+
+2. **验证数据完整性**：
+   ```bash
+   python3 -c "from app import create_app, db; app = create_app(); app.app_context().push(); print('Database connection OK')"
+   ```
+
+### 4. 应用启动测试
+
+1. **本地测试启动**：
+   ```bash
+   python3 run.py --port 8080
+   ```
+
+2. **功能验证**：
+   - 首页数据加载
+   - 用户登录功能
+   - 权限系统功能
+   - 产品分析功能
+
+### 5. 生产环境部署
+
+1. **重启应用服务**
+2. **监控应用日志**
+3. **验证核心功能**
+
+## 验证清单
+
+### 功能验证
+- [ ] 首页项目/报价/客户数据正常显示
+- [ ] 用户登录和权限检查正常
+- [ ] 产品分析页面数据查询正常
+- [ ] 用户列表页面显示正常
+- [ ] 产品库存管理功能正常
+
+### 性能验证
+- [ ] 页面加载时间正常（< 3秒）
+- [ ] 数据库查询性能正常
+- [ ] 内存使用在合理范围
+
+### 错误监控
+- [ ] 应用日志无严重错误
+- [ ] 数据库连接稳定
+- [ ] 没有事务中止错误
+
+## 回滚计划
+
+如果部署出现问题，按以下步骤回滚：
+
+1. **代码回滚**：
+   ```bash
+   git reset --hard <previous_commit_hash>
+   ```
+
+2. **数据库回滚**：
+   ```bash
+   flask db downgrade
+   ```
+
+3. **重启服务**
+
+## 监控和维护
+
+### 日志监控
+- 监控应用错误日志
+- 关注数据库连接日志
+- 观察权限相关错误
+
+### 性能监控
+- 数据库查询性能
+- 内存使用情况
+- 响应时间指标
+
+### 定期维护
+- 定期备份数据库
+- 监控磁盘空间使用
+- 更新安全补丁
+
+## 联系信息
+
+如有部署问题，请联系：
+- 技术负责人：NIJIE
+- 邮箱：james111@evertac.net
+
+---
+
+**部署日期**：2025年6月2日  
+**文档版本**：v3.0  
+**最后更新**：2025-06-02 19:30
+
+## 新增功能
 
 1. **审批流程增强**
    - 审批模板版本化管理
@@ -109,190 +292,6 @@ except (ValueError, TypeError):
    - 代码版本跟踪
    - 变更历史记录
    - 升级管理功能
-
-## 部署步骤
-
-### 1. 预部署检查
-
-```bash
-# 检查当前分支和版本
-git branch
-git log --oneline -5
-
-# 检查数据库连接
-python3 -c "from app import create_app, db; app=create_app(); app.app_context().push(); db.session.execute('SELECT 1'); print('数据库连接正常')"
-```
-
-### 2. 代码部署
-
-```bash
-# 拉取最新代码
-git pull origin main
-
-# 验证关键文件
-ls -la app/views/user.py
-ls -la app/models/user.py
-ls -la migrations/versions/5055ec5e2171_*
-ls -la PERMISSIONS_SYSTEM_FIX_SUMMARY.md
-```
-
-### 3. 数据库迁移
-
-```bash
-# 应用数据库迁移（主要是记录性质，无实际结构变更）
-flask db upgrade
-
-# 验证迁移状态
-flask db current
-```
-
-### 4. 部署验证
-
-```bash
-# 运行部署验证脚本
-python3 cloud_deployment_verification.py
-```
-
-预期输出：
-```
-============================================================
-权限系统修复部署验证
-============================================================
-
-1. 验证数据库连接...
-✅ 数据库连接正常
-
-2. 验证核心表结构...
-✅ 用户表记录数: X
-✅ 个人权限表记录数: Y
-✅ 角色权限表记录数: Z
-
-3. 验证权限合并逻辑...
-✅ 找到测试用户: NIJIE (角色: product_manager)
-   测试 product 模块权限:
-      view: True
-      create: True
-      edit: True
-      delete: True
-✅ 权限检查方法运行正常
-
-4. 验证迁移文件...
-✅ 权限系统修复迁移文件存在
-
-5. 验证核心修复文件...
-✅ app/views/user.py
-✅ app/models/user.py
-✅ app/__init__.py
-✅ PERMISSIONS_SYSTEM_FIX_SUMMARY.md
-
-6. 验证模块导入...
-✅ 权限管理视图导入成功
-
-============================================================
-部署验证完成
-============================================================
-
-🎉 部署验证成功！权限系统修复已正确部署
-```
-
-### 5. 功能测试
-
-#### 权限系统测试
-1. **用户权限页面测试**
-   - 访问 `/user/permissions/{user_id}`
-   - 验证所有8个模块都正确显示
-   - 验证权限保存功能正常
-
-2. **权限检查测试**
-   - 测试不同角色用户的权限
-   - 验证个人权限增强功能
-   - 测试角色变更时权限清理
-
-3. **前端显示测试**
-   - 验证权限页面无None值显示
-   - 验证权限合并逻辑正确
-
-#### 新功能测试
-1. **审批流程测试**
-   - 创建和编辑审批模板
-   - 发起审批流程
-   - 处理审批任务
-
-2. **项目评分测试**
-   - 项目评分功能
-   - 评分记录查看
-   - 评分统计分析
-
-## 回滚计划
-
-如果部署出现问题，可以按以下步骤回滚：
-
-### 代码回滚
-```bash
-# 回滚到上一个稳定版本
-git reset --hard 7e94929  # 上一个提交的hash
-
-# 强制推送（仅在紧急情况下使用）
-git push --force origin main
-```
-
-### 数据库回滚
-```bash
-# 由于本次迁移主要是记录性质，无需特殊回滚操作
-# 如需回滚到特定版本：
-flask db downgrade <revision_id>
-```
-
-## 监控和维护
-
-### 关键监控点
-1. **权限系统性能**
-   - 权限检查响应时间
-   - 数据库查询性能
-   - 用户权限页面加载时间
-
-2. **错误监控**
-   - 权限相关错误日志
-   - 数据库连接错误
-   - 用户权限异常
-
-3. **数据一致性**
-   - 权限数据完整性检查
-   - 角色权限与个人权限一致性
-   - 用户角色变更记录
-
-### 日常维护
-1. **定期检查**
-   ```bash
-   # 每周运行验证脚本
-   python3 cloud_deployment_verification.py
-   
-   # 检查权限数据一致性
-   python3 -c "
-   from app import create_app, db
-   from app.models.user import User, Permission
-   from app.models.role_permissions import RolePermission
-   app = create_app()
-   with app.app_context():
-       # 检查是否有冲突的权限设置
-       conflicts = db.session.execute('''
-           SELECT u.username, p.module, p.can_view as personal_view, rp.can_view as role_view
-           FROM permissions p
-           JOIN users u ON p.user_id = u.id
-           JOIN role_permissions rp ON u.role = rp.role AND p.module = rp.module
-           WHERE p.can_view = false AND rp.can_view = true
-       ''').fetchall()
-       if conflicts:
-           print('发现权限冲突:', conflicts)
-       else:
-           print('权限数据一致性检查通过')
-   "
-   ```
-
-2. **性能优化**
-   - 监控慢查询日志
-   - 优化权限检查查询
-   - 清理冗余权限数据
 
 ## 技术文档
 
