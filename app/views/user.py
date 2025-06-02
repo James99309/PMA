@@ -55,7 +55,18 @@ def list_users():
         query = query.filter(User.is_active == is_active)
 
     # 按更新时间倒序排序
-    pagination = query.order_by(User.updated_at.desc().nullslast(), User.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    try:
+        pagination = query.order_by(User.updated_at.desc().nullslast(), User.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    except Exception as e:
+        logger.warning(f"使用updated_at排序失败: {str(e)}, 尝试使用id排序")
+        try:
+            pagination = query.order_by(User.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
+        except Exception as e2:
+            logger.error(f"用户列表查询失败: {str(e2)}")
+            # 创建一个空的分页对象
+            from flask_sqlalchemy import Pagination
+            pagination = Pagination(query=query, page=page, per_page=per_page, total=0, items=[])
+
     users_data = []
     for user in pagination.items:
         d = user.to_dict()

@@ -236,7 +236,15 @@ def get_analysis_data():
         total_count = query.count()
         
         # 执行分页查询 - 默认按更新时间降序排序
-        results = query.order_by(QuotationDetail.updated_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
+        try:
+            results = query.order_by(QuotationDetail.updated_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
+        except Exception as e:
+            logger.warning(f"使用updated_at排序失败: {str(e)}, 尝试使用id排序")
+            try:
+                results = query.order_by(QuotationDetail.id.desc()).offset((page - 1) * per_page).limit(per_page).all()
+            except Exception as e2:
+                logger.error(f"产品分析查询失败: {str(e2)}")
+                results = []
         
         # 格式化数据
         data = []

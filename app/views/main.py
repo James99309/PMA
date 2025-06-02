@@ -32,11 +32,30 @@ def index():
         version_number = '1.2.0'  # 默认版本号
     
     # 查询当前用户可见的最近5个项目，按更新时间倒序
-    recent_projects = get_viewable_data(Project, current_user).order_by(Project.updated_at.desc()).limit(5).all()
+    try:
+        recent_projects = get_viewable_data(Project, current_user).order_by(Project.updated_at.desc()).limit(5).all()
+    except Exception as e:
+        logger.warning(f"使用updated_at查询项目失败: {str(e)}，尝试使用id排序")
+        try:
+            recent_projects = get_viewable_data(Project, current_user).order_by(Project.id.desc()).limit(5).all()
+        except Exception as e2:
+            logger.error(f"项目查询完全失败: {str(e2)}")
+            recent_projects = []
+    
     # 查询当前用户可见的最近5条报价，按更新时间倒序
-    recent_quotations = get_viewable_data(Quotation, current_user).order_by(Quotation.updated_at.desc()).limit(5).all()
+    try:
+        recent_quotations = get_viewable_data(Quotation, current_user).order_by(Quotation.updated_at.desc()).limit(5).all()
+    except Exception as e:
+        logger.warning(f"报价查询失败: {str(e)}")
+        recent_quotations = []
+    
     # 查询当前用户可见的最近5个客户，按更新时间倒序
-    recent_companies = get_viewable_data(Company, current_user).order_by(Company.updated_at.desc()).limit(5).all()
+    try:
+        recent_companies = get_viewable_data(Company, current_user).order_by(Company.updated_at.desc()).limit(5).all()
+    except Exception as e:
+        logger.warning(f"客户查询失败: {str(e)}")
+        recent_companies = []
+    
     # 在index视图中，recent_projects处理类型key转中文
     for p in recent_projects:
         if hasattr(p, 'project_type'):

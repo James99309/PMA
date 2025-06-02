@@ -1168,8 +1168,19 @@ def inventory():
     page = request.args.get('page', 1, type=int)
     per_page = 10
     
-    products = Product.query.filter_by(type='研发产品').order_by(Product.updated_at.desc()).paginate(
-        page=page, per_page=per_page, error_out=False)
+    try:
+        products = Product.query.filter_by(type='研发产品').order_by(Product.updated_at.desc()).paginate(
+            page=page, per_page=per_page, error_out=False)
+    except Exception as e:
+        current_app.logger.warning(f"使用updated_at排序失败: {str(e)}, 尝试使用id排序")
+        try:
+            products = Product.query.filter_by(type='研发产品').order_by(Product.id.desc()).paginate(
+                page=page, per_page=per_page, error_out=False)
+        except Exception as e2:
+            current_app.logger.error(f"产品库存查询失败: {str(e2)}")
+            # 创建一个空的分页对象
+            from flask_sqlalchemy import Pagination
+            products = Pagination(query=Product.query.filter_by(type='研发产品'), page=page, per_page=per_page, total=0, items=[])
     
     return render_template('product_management/inventory.html', products=products)
 
