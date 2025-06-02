@@ -63,13 +63,25 @@ document.addEventListener('DOMContentLoaded', function() {
       let countryCode = null;
       let countryFound = false;
       
-      // 在国家列表中查找匹配的国家名称
+      // 首先尝试通过国家名称查找国家代码
       for (let i = 0; i < countryData.length; i++) {
         if (countryData[i].name === savedCountry) {
           countryCode = countryData[i].code;
           countryFound = true;
           console.log("找到匹配的国家代码:", countryCode);
           break;
+        }
+      }
+      
+      // 如果通过名称没找到，尝试通过代码查找
+      if (!countryFound) {
+        for (let i = 0; i < countryData.length; i++) {
+          if (countryData[i].code === savedCountry) {
+            countryCode = countryData[i].code;
+            countryFound = true;
+            console.log("通过代码找到匹配的国家:", countryCode);
+            break;
+          }
         }
       }
       
@@ -88,7 +100,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // 遍历所有选项，找到匹配的地区名称
             for (let i = 0; i < regionSelect.options.length; i++) {
-              if (regionSelect.options[i].text === savedRegion) {
+              if (regionSelect.options[i].value === savedRegion || regionSelect.options[i].text === savedRegion) {
                 regionSelect.selectedIndex = i;
                 regionFound = true;
                 console.log("找到匹配的地区选项，索引:", i);
@@ -105,7 +117,7 @@ document.addEventListener('DOMContentLoaded', function() {
               regionSelect.appendChild(customRegion);
               regionSelect.value = savedRegion;
             }
-          }, 100);
+          }, 200);
         }
       } else if (savedCountry) {
         // 如果找不到预定义的国家，创建新选项
@@ -130,5 +142,5 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
     }
-  }, 100);
+  }, 200);
 }); 

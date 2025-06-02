@@ -1,74 +1,60 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+PMA项目管理系统 - 云端运行脚本
+"""
+
 import os
 import sys
-import socket
 import logging
-import signal
-import subprocess
+import argparse
 from app import create_app
-from render_db_connection import test_connection
 
-logging.basicConfig(level=logging.INFO)
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
-def is_port_in_use(port):
-    """检查端口是否被占用"""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        return s.connect_ex(('localhost', port)) == 0
-
-def kill_process_on_port(port):
-    """终止占用指定端口的进程"""
-    try:
-        # 这在MacOS和Linux上有效
-        cmd = f"lsof -ti:{port} | xargs kill -9"
-        subprocess.run(cmd, shell=True)
-        logger.info(f"已终止占用端口 {port} 的进程")
-        return True
-    except Exception as e:
-        logger.error(f"终止进程时出错: {e}")
-        return False
-
 def main():
-    PORT = 8082
-    
-    # 检查是否是重载器进程
-    is_reloader = os.environ.get('WERKZEUG_RUN_MAIN') == 'true'
-    
-    # 只在非重载器进程中进行端口检查和清理
-    if not is_reloader:
-        # 检查端口是否被占用
-        if is_port_in_use(PORT):
-            logger.info(f"端口 {PORT} 已被占用，尝试清理...")
-            if not kill_process_on_port(PORT):
-                logger.error(f"无法释放端口 {PORT}，请手动终止占用该端口的进程")
-                sys.exit(1)
-    
-    app = create_app()
-    
-    # 只在主进程中显示启动信息
-    if not is_reloader:
-        logger.info(f"启动应用于端口 {PORT}")
-    
+    """主函数"""
     try:
+        # 解析命令行参数
+        parser = argparse.ArgumentParser(description='PMA项目管理系统')
+        parser.add_argument('--port', type=int, help='指定运行端口')
+        args = parser.parse_args()
+        
+        # 设置环境变量
+        os.environ.setdefault('FLASK_ENV', 'production')
+        
+        # 创建应用实例
+        app = create_app()
+        
+        # 获取端口（优先使用命令行参数，然后是环境变量，最后是默认值）
+        if args.port:
+            port = args.port
+        else:
+            port = int(os.environ.get('PORT', 10000))
+        
+        logger.info(f"PMA系统启动中...")
+        logger.info(f"环境: {os.environ.get('FLASK_ENV', 'production')}")
+        logger.info(f"端口: {port}")
+        logger.info(f"版本: {app.config.get('APP_VERSION', '1.2.1')}")
+        logger.info(f"访问地址: http://localhost:{port}")
+        logger.info(f"本地网络地址: http://0.0.0.0:{port}")
+        
+        # 启动应用
         app.run(
             host='0.0.0.0',
-            port=PORT,
-            debug=True
+            port=port,
+            debug=False,
+            threaded=True
         )
-    except OSError as e:
-        if not is_reloader and "Address already in use" in str(e):
-            logger.error(f"端口 {PORT} 仍然被占用，无法启动应用")
-            sys.exit(1)
-        raise
+        
+    except Exception as e:
+        logger.error(f"应用启动失败: {str(e)}")
+        sys.exit(1)
 
 if __name__ == '__main__':
-    # 测试数据库连接
-    test_connection()
-    
-    # 注册信号处理
-    def signal_handler(signum, frame):
-        sys.exit(0)
-    
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    
-    main() 
+    main()

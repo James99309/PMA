@@ -72,6 +72,38 @@
   {% endif %}
 {% endmacro %}
 
+{% macro render_approval_badge(approval_status) %}
+  {% if approval_status %}
+    {% set badge_config = {
+      'discover_approved': {'text': '发', 'label': '发现审核'},
+      'embed_approved': {'text': '植', 'label': '植入审核'},
+      'pre_tender_approved': {'text': '招', 'label': '招标前审核'},
+      'tendering_approved': {'text': '标', 'label': '招标中审核'},
+      'awarded_approved': {'text': '中', 'label': '中标审核'},
+      'quoted_approved': {'text': '批', 'label': '批价审核'},
+      'signed_approved': {'text': '签', 'label': '签约审核'},
+      'rejected': {'text': '拒', 'label': '已拒绝'}
+    } %}
+    {% set config = badge_config.get(approval_status, {'text': '?', 'label': approval_status}) %}
+    <span class="badge d-inline-flex align-items-center justify-content-center" 
+          style="background: linear-gradient(135deg, #FFD700, #FFA500); 
+                 color: #8B4513; 
+                 font-size: 0.75rem; 
+                 font-weight: bold;
+                 padding: 0.25em;
+                 border: 2px solid #DAA520;
+                 width: 24px;
+                 height: 24px;
+                 position: relative;
+                 box-shadow: 0 2px 4px rgba(255, 215, 0, 0.3);
+                 clip-path: polygon(50% 0%, 65% 15%, 85% 15%, 100% 50%, 85% 85%, 65% 85%, 50% 100%, 35% 85%, 15% 85%, 0% 50%, 15% 15%, 35% 15%);"
+          title="{{ config.label }}">
+      <!-- 中心文字 -->
+      <span style="position: relative; z-index: 1;">{{ config.text }}</span>
+    </span>
+  {% endif %}
+{% endmacro %}
+
 {% macro render_date(date, format='%Y-%m-%d') %}
   {% if date %}
     {{ date.strftime(format) }}
@@ -842,4 +874,275 @@
     <span class="toggle-slider"></span>
   </label>
 </div>
+{% endmacro %}
+
+{% macro render_project_rating(rating, size="normal", show_text=False, style="badge") %}
+  {# 渲染项目五星评分 #}
+  {% if style == "list" %}
+    {# 项目列表样式：无底色，直接显示星星状态 #}
+    {% if rating and rating > 0 %}
+      <span class="project-rating-stars d-inline-flex align-items-center" title="{{ rating }}星评分">
+        {% for i in range(1, 6) %}
+          {% set star_value = i %}
+          {% set rating_float = rating|float %}
+          {% if star_value <= rating_float|int %}
+            <i class="fas fa-star" style="color: #ffc107; font-size: 0.9rem; margin-right: 1px;"></i>
+          {% elif star_value == (rating_float|int + 1) and (rating_float % 1) >= 0.5 %}
+            <i class="fas fa-star-half-alt" style="color: #ffc107; font-size: 0.9rem; margin-right: 1px;"></i>
+          {% else %}
+            <i class="far fa-star" style="color: #dee2e6; font-size: 0.9rem; margin-right: 1px;"></i>
+          {% endif %}
+        {% endfor %}
+      </span>
+    {% endif %}
+  {% else %}
+    {# 徽章样式：原有的徽章显示 #}
+    {% if rating %}
+      {% set star_size = "fa-sm" if size == "small" else "fa-lg" if size == "large" else "" %}
+      {% set badge_class = "badge bg-warning text-dark rounded-pill d-inline-flex align-items-center" %}
+      {% if size == "small" %}
+        {% set badge_class = badge_class + " px-2 py-1" %}
+      {% elif size == "large" %}
+        {% set badge_class = badge_class + " px-3 py-2" %}
+      {% else %}
+        {% set badge_class = badge_class + " px-2 py-1" %}
+      {% endif %}
+      
+      <span class="{{ badge_class }}" title="{{ rating }}星评分">
+        {% for i in range(1, 6) %}
+          {% set star_value = i %}
+          {% set rating_float = rating|float %}
+          {% if star_value <= rating_float|int %}
+            <i class="fas fa-star {{ star_size }}" style="color: #ffc107;"></i>
+          {% elif star_value == (rating_float|int + 1) and (rating_float % 1) >= 0.5 %}
+            <i class="fas fa-star-half-alt {{ star_size }}" style="color: #ffc107;"></i>
+          {% else %}
+            <i class="far fa-star {{ star_size }}" style="color: #dee2e6;"></i>
+          {% endif %}
+        {% endfor %}
+        {% if show_text %}
+          <span class="ms-1" style="font-size: 0.8em;">{{ rating }}星</span>
+        {% endif %}
+      </span>
+    {% else %}
+      <span class="badge bg-light text-muted rounded-pill px-2 py-1" title="未评分">
+        {% for i in range(1, 6) %}
+          <i class="far fa-star fa-sm" style="color: #dee2e6;"></i>
+        {% endfor %}
+        {% if show_text %}
+          <span class="ms-1" style="font-size: 0.8em;">未评分</span>
+        {% endif %}
+      </span>
+    {% endif %}
+  {% endif %}
+{% endmacro %}
+
+{% macro render_rating_input(name, current_rating=None, required=False, disabled=False) %}
+  {# 渲染可交互的五星评分输入组件 #}
+  <div class="rating-input" data-rating="{{ current_rating or 0 }}">
+    <input type="hidden" name="{{ name }}" id="{{ name }}" value="{{ current_rating or '' }}" {% if required %}required{% endif %}>
+    <div class="star-rating d-flex align-items-center">
+      {% for i in range(1, 6) %}
+        <i class="rating-star fas fa-star fa-lg me-1" 
+           data-rating="{{ i }}" 
+           style="color: {% if current_rating and i <= current_rating %}#ffc107{% else %}#dee2e6{% endif %}; cursor: {% if not disabled %}pointer{% else %}default{% endif %};"
+           {% if not disabled %}onclick="setRating('{{ name }}', {{ i }})"{% endif %}
+           title="{{ i }}星"></i>
+      {% endfor %}
+      <span class="rating-text ms-2 text-muted">
+        {% if current_rating %}
+          {{ current_rating }}星
+        {% else %}
+          点击星星进行评分
+        {% endif %}
+      </span>
+    </div>
+  </div>
+
+  <style>
+    .rating-star:hover {
+      {% if not disabled %}
+      transform: scale(1.1);
+      transition: transform 0.1s ease;
+      {% endif %}
+    }
+  </style>
+
+  <script>
+    function setRating(inputName, rating) {
+      // 设置隐藏输入框的值
+      document.getElementById(inputName).value = rating;
+      
+      // 更新星星显示
+      const container = document.querySelector(`input[name="${inputName}"]`).closest('.rating-input');
+      const stars = container.querySelectorAll('.rating-star');
+      const ratingText = container.querySelector('.rating-text');
+      
+      stars.forEach((star, index) => {
+        if (index < rating) {
+          star.style.color = '#ffc107';
+        } else {
+          star.style.color = '#dee2e6';
+        }
+      });
+      
+      // 更新文本
+      ratingText.textContent = rating + '星';
+      
+      // 更新容器的data-rating属性
+      container.setAttribute('data-rating', rating);
+    }
+    
+    // 鼠标悬停效果
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.rating-input').forEach(container => {
+        const stars = container.querySelectorAll('.rating-star');
+        const originalRating = container.getAttribute('data-rating');
+        
+        stars.forEach((star, index) => {
+          star.addEventListener('mouseenter', function() {
+            if (!this.onclick) return; // 如果禁用则跳过
+            
+            // 临时高亮到当前星星
+            stars.forEach((s, i) => {
+              if (i <= index) {
+                s.style.color = '#ffc107';
+              } else {
+                s.style.color = '#dee2e6';
+              }
+            });
+          });
+        });
+        
+        container.addEventListener('mouseleave', function() {
+          // 恢复原始评分显示
+          stars.forEach((s, i) => {
+            if (i < originalRating) {
+              s.style.color = '#ffc107';
+            } else {
+              s.style.color = '#dee2e6';
+            }
+          });
+        });
+      });
+    });
+  </script>
+{% endmacro %}
+
+{# 分页组件宏 #}
+{% macro render_pagination(pagination, endpoint=None, fragment='', url=None, extra_params='') %}
+  {% if pagination.pages > 1 %}
+    <nav aria-label="分页导航">
+      <ul class="pagination pagination-sm justify-content-center mb-0">
+        {# 上一页 #}
+        {% if pagination.has_prev %}
+          <li class="page-item">
+            {% if url %}
+              <a class="page-link" href="{{ url }}?page={{ pagination.prev_num }}{{ fragment }}">
+                <i class="fas fa-chevron-left"></i>
+              </a>
+            {% elif endpoint %}
+              <a class="page-link" href="{{ url_for(endpoint, page=pagination.prev_num) }}{{ extra_params }}{{ fragment }}">
+                <i class="fas fa-chevron-left"></i>
+              </a>
+            {% else %}
+              <a class="page-link" href="?page={{ pagination.prev_num }}{{ fragment }}">
+                <i class="fas fa-chevron-left"></i>
+              </a>
+            {% endif %}
+          </li>
+        {% else %}
+          <li class="page-item disabled">
+            <span class="page-link">
+              <i class="fas fa-chevron-left"></i>
+            </span>
+          </li>
+        {% endif %}
+
+        {# 页码 #}
+        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+          {% if page_num %}
+            {% if page_num != pagination.page %}
+              <li class="page-item">
+                {% if url %}
+                  <a class="page-link" href="{{ url }}?page={{ page_num }}{{ fragment }}">{{ page_num }}</a>
+                {% elif endpoint %}
+                  <a class="page-link" href="{{ url_for(endpoint, page=page_num) }}{{ extra_params }}{{ fragment }}">{{ page_num }}</a>
+                {% else %}
+                  <a class="page-link" href="?page={{ page_num }}{{ fragment }}">{{ page_num }}</a>
+                {% endif %}
+              </li>
+            {% else %}
+              <li class="page-item active">
+                <span class="page-link">{{ page_num }}</span>
+              </li>
+            {% endif %}
+          {% else %}
+            <li class="page-item disabled">
+              <span class="page-link">…</span>
+            </li>
+          {% endif %}
+        {% endfor %}
+
+        {# 下一页 #}
+        {% if pagination.has_next %}
+          <li class="page-item">
+            {% if url %}
+              <a class="page-link" href="{{ url }}?page={{ pagination.next_num }}{{ fragment }}">
+                <i class="fas fa-chevron-right"></i>
+              </a>
+            {% elif endpoint %}
+              <a class="page-link" href="{{ url_for(endpoint, page=pagination.next_num) }}{{ extra_params }}{{ fragment }}">
+                <i class="fas fa-chevron-right"></i>
+              </a>
+            {% else %}
+              <a class="page-link" href="?page={{ pagination.next_num }}{{ fragment }}">
+                <i class="fas fa-chevron-right"></i>
+              </a>
+            {% endif %}
+          </li>
+        {% else %}
+          <li class="page-item disabled">
+            <span class="page-link">
+              <i class="fas fa-chevron-right"></i>
+            </span>
+          </li>
+        {% endif %}
+      </ul>
+    </nav>
+  {% endif %}
+{% endmacro %}
+
+{# 筛选按钮宏 #}
+{% macro render_filter_button(text, type="button", color="primary", icon="") %}
+  <button type="{{ type }}" class="btn btn-{{ color }} btn-sm">
+    {% if icon %}
+      <i class="{{ icon }} me-1"></i>
+    {% endif %}
+    {{ text }}
+  </button>
+{% endmacro %}
+
+{# 用户徽章宏 - 显示用户真实姓名 #}
+{% macro render_user_badge(user, color_class="bg-primary") %}
+  {% if user %}
+    <span class="badge {{ color_class }} text-white">{{ user.real_name or user.username }}</span>
+  {% else %}
+    <span class="badge bg-secondary text-white">未指定</span>
+  {% endif %}
+{% endmacro %}
+
+{# 审批状态徽章宏 - 胶囊状 #}
+{% macro render_approval_status_badge(status) %}
+  {% if status.name == 'PENDING' %}
+    <span class="badge rounded-pill bg-warning text-dark">审批中</span>
+  {% elif status.name == 'APPROVED' %}
+    <span class="badge rounded-pill bg-success text-white">已通过</span>
+  {% elif status.name == 'REJECTED' %}
+    <span class="badge rounded-pill bg-danger text-white">已拒绝</span>
+  {% elif status.name == 'CANCELLED' %}
+    <span class="badge rounded-pill bg-secondary text-white">已取消</span>
+  {% else %}
+    <span class="badge rounded-pill bg-secondary text-white">未知状态</span>
+  {% endif %}
 {% endmacro %}

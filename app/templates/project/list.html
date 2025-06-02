@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_authorization_code, render_datetime, render_project_stage, render_status_badge %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_authorization_code, render_datetime, render_project_stage, render_status_badge, render_project_rating %}
 {% import 'macros/ui_helpers.html' as ui %}
 
 {% block title %}项目管理{% endblock %}
@@ -225,6 +225,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             <a href="{{ url_for('project.view_project', project_id=project.id) }}" class="text-decoration-none">
                                 {{ project.project_name }}
                             </a>
+                            {{ render_project_rating(project.rating, style="list") }}
                         </h5>
                         <div class="small text-muted mb-2">
                             {{ render_project_type(project.project_type) }}
@@ -237,7 +238,10 @@ document.addEventListener('DOMContentLoaded', function () {
                         {% if project.vendor_sales_manager_id %}
                         <div class="small mb-1">
                             <i class="fas fa-user-tie text-secondary me-1"></i>厂商负责人: {{ render_owner(project.vendor_sales_manager) }}
+                            <span class="d-none" data-vendor-sales-manager-id="{{ project.vendor_sales_manager_id }}"></span>
                         </div>
+                        {% else %}
+                        <span class="d-none" data-vendor-sales-manager-id=""></span>
                         {% endif %}
                         {% if project.quotation_customer %}
                         <div class="small mb-1">
@@ -476,8 +480,10 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <td>
                                     {% if project.vendor_sales_manager_id %}
                                         {{ render_owner(project.vendor_sales_manager) if project.vendor_sales_manager else '' }}
+                                        <span class="d-none" data-vendor-sales-manager-id="{{ project.vendor_sales_manager_id }}"></span>
                                     {% else %}
                                         <span class="badge bg-secondary">未设置</span>
+                                        <span class="d-none" data-vendor-sales-manager-id=""></span>
                                     {% endif %}
                                 </td>
                                 <td>
@@ -495,6 +501,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                     <a href="{{ url_for('project.view_project', project_id=project.id) }}" class="project-link">
                                         {{ project.project_name }}
                                     </a>
+                                    {{ render_project_rating(project.rating, style="list") }}
                                 </td>
                                 <td>{{ render_status_badge('active' if project.is_active else 'inactive') }}</td>
                                 <td>{{ render_project_stage(project.current_stage|project_stage_label('zh')) if project.current_stage else render_project_stage('未设置') }}</td>
@@ -509,7 +516,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                     {{ '{:,.2f}'.format(project.quotation_customer) if project.quotation_customer else '' }}
                                     {% endif %}
                                 </td>
-                                <td>{% if project.report_source %}{{ project.report_source|report_source_label('zh') }}{% else %}无{% endif %}</td>
+                                <td>{{ project.report_source|report_source_label('zh') }}</td>
                                 <td>{{ project.end_user if project.end_user else '' }}</td>
                                 <td>{{ project.design_issues if project.design_issues else '' }}</td>
                                 <td>{{ project.contractor if project.contractor else '' }}</td>
@@ -910,11 +917,28 @@ document.addEventListener('DOMContentLoaded', function() {
         const tableRows = document.querySelectorAll('.table tbody tr');
         tableRows.forEach(row => {
             const ownerSpan = row.querySelector('td [data-owner-id]');
+            const vendorSalesManagerSpan = row.querySelector('td [data-vendor-sales-manager-id]');
+            
+            let isMyProject = false;
+            
+            // 检查是否是拥有人
             if (ownerSpan) {
                 const ownerId = parseInt(ownerSpan.getAttribute('data-owner-id'));
-                if (ownerId !== currentUserId) {
-                    row.classList.add('filtered');
+                if (ownerId === currentUserId) {
+                    isMyProject = true;
                 }
+            }
+            
+            // 检查是否是厂商负责人
+            if (!isMyProject && vendorSalesManagerSpan) {
+                const vendorSalesManagerId = parseInt(vendorSalesManagerSpan.getAttribute('data-vendor-sales-manager-id'));
+                if (vendorSalesManagerId === currentUserId) {
+                    isMyProject = true;
+                }
+            }
+            
+            if (!isMyProject) {
+                row.classList.add('filtered');
             }
         });
         
@@ -922,11 +946,28 @@ document.addEventListener('DOMContentLoaded', function() {
         const mobileCards = document.querySelectorAll('.d-block.d-lg-none .card');
         mobileCards.forEach(card => {
             const ownerSpan = card.querySelector('[data-owner-id]');
+            const vendorSalesManagerSpan = card.querySelector('[data-vendor-sales-manager-id]');
+            
+            let isMyProject = false;
+            
+            // 检查是否是拥有人
             if (ownerSpan) {
                 const ownerId = parseInt(ownerSpan.getAttribute('data-owner-id'));
-                if (ownerId !== currentUserId) {
-                    card.classList.add('filtered');
+                if (ownerId === currentUserId) {
+                    isMyProject = true;
                 }
+            }
+            
+            // 检查是否是厂商负责人
+            if (!isMyProject && vendorSalesManagerSpan) {
+                const vendorSalesManagerId = parseInt(vendorSalesManagerSpan.getAttribute('data-vendor-sales-manager-id'));
+                if (vendorSalesManagerId === currentUserId) {
+                    isMyProject = true;
+                }
+            }
+            
+            if (!isMyProject) {
+                card.classList.add('filtered');
             }
         });
     }
@@ -1163,11 +1204,28 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!shouldFilter && isMyProjectsOnly) {
             const currentUserId = parseInt("{{ current_user.id }}");
             const ownerSpan = row.querySelector('td [data-owner-id]');
+            const vendorSalesManagerSpan = row.querySelector('td [data-vendor-sales-manager-id]');
+            
+            let isMyProject = false;
+            
+            // 检查是否是拥有人
             if (ownerSpan) {
                 const ownerId = parseInt(ownerSpan.getAttribute('data-owner-id'));
-                if (ownerId !== currentUserId) {
-                    shouldFilter = true;
+                if (ownerId === currentUserId) {
+                    isMyProject = true;
                 }
+            }
+            
+            // 检查是否是厂商负责人
+            if (!isMyProject && vendorSalesManagerSpan) {
+                const vendorSalesManagerId = parseInt(vendorSalesManagerSpan.getAttribute('data-vendor-sales-manager-id'));
+                if (vendorSalesManagerId === currentUserId) {
+                    isMyProject = true;
+                }
+            }
+            
+            if (!isMyProject) {
+                shouldFilter = true;
             }
         }
         
@@ -1200,11 +1258,28 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!shouldFilter && isMyProjectsOnly) {
             const currentUserId = parseInt("{{ current_user.id }}");
             const ownerSpan = card.querySelector('[data-owner-id]');
+            const vendorSalesManagerSpan = card.querySelector('[data-vendor-sales-manager-id]');
+            
+            let isMyProject = false;
+            
+            // 检查是否是拥有人
             if (ownerSpan) {
                 const ownerId = parseInt(ownerSpan.getAttribute('data-owner-id'));
-                if (ownerId !== currentUserId) {
-                    shouldFilter = true;
+                if (ownerId === currentUserId) {
+                    isMyProject = true;
                 }
+            }
+            
+            // 检查是否是厂商负责人
+            if (!isMyProject && vendorSalesManagerSpan) {
+                const vendorSalesManagerId = parseInt(vendorSalesManagerSpan.getAttribute('data-vendor-sales-manager-id'));
+                if (vendorSalesManagerId === currentUserId) {
+                    isMyProject = true;
+                }
+            }
+            
+            if (!isMyProject) {
+                shouldFilter = true;
             }
         }
         
@@ -2778,5 +2853,6 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="{{ url_for('static', filename='js/project_statistics_account.js') }}"></script>
 <!-- 引用项目列表账户同步模块 -->
 <script src="{{ url_for('static', filename='js/project_list_account.js') }}"></script>
+<script src="{{ url_for('static', filename='js/project_statistics.js') }}"></script>
 <script src="{{ url_for('static', filename='js/project_statistics.js') }}"></script>
 {% endblock %}

@@ -43,6 +43,9 @@ class Project(db.Model):
     # 销售负责人字段
     vendor_sales_manager_id = Column(Integer, ForeignKey('users.id'), nullable=True)  # 厂商销售负责人
     
+    # 项目评分字段 (1-5星)
+    rating = Column(Integer, nullable=True)  # 项目评分，1-5星，NULL表示未评分
+    
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, default=datetime.utcnow)
     
@@ -84,6 +87,20 @@ class Project(db.Model):
         except (AttributeError, ValueError):
             return ''
 
+    @property
+    def rating_stars(self):
+        """获取星级评分的HTML表示"""
+        if not self.rating:
+            return ''
+        
+        stars_html = ''
+        for i in range(1, 6):
+            if i <= self.rating:
+                stars_html += '<i class="fas fa-star text-warning"></i>'
+            else:
+                stars_html += '<i class="far fa-star text-muted"></i>'
+        return stars_html
+
     @staticmethod
     def generate_authorization_code(project_type):
         """生成授权编号
@@ -117,8 +134,25 @@ def project_after_update(mapper, connection, target):
                 from_stage=target._current_stage_previous,
                 to_stage=target.current_stage,
                 change_date=datetime.now(),
-                remarks=f"自动记录: {target._current_stage_previous or '未设置'} → {target.current_stage or '未设置'}"
+                remarks=f"自动记录: {target._current_stage_previous or '未设置'} → {target.current_stage or '未设置'}",
+                commit=False  # 在事务中不要提交，让外层事务统一提交
             )
         except Exception as e:
             import logging
-            logging.getLogger(__name__).error(f"记录阶段历史失败: {str(e)}", exc_info=True) 
+        target._skip_history_recording = False
+        return
+        
+    if hasattr(target, '_current_stage_previous') and target.current_stage != target._current_stage_previous:
+        # 如果阶段发生变化，记录到历史表
+        try:
+            from app.models.projectpm_stage_history import ProjectStageHistory
+            ProjectStageHistory.add_history_record(
+                project_id=target.id, 
+                from_stage=target._current_stage_previous,
+                to_stage=target.current_stage,
+                change_date=datetime.now(),
+                remarks=f"自动记录: {target._current_stage_previous or '未设置'} → {target.current_stage or '未设置'}",
+                commit=False  # 在事务中不要提交，让外层事务统一提交
+            )
+        except Exception as e:
+            import logging

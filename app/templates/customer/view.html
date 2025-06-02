@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_owner, render_date, render_project_type, render_button, render_primary_contact_badge, render_project_stage, render_confirm_cancel, render_status_badge %}
 {% from 'macros/ui_modals.html' import render_change_owner_modal with context %}
-{% from 'macros/approval_macros.html' import render_start_approval_button with context %}
+{% from 'macros/approval_macros.html' import render_approval_section with context %}
 
 {% block title %}{{ company.company_name }} - 企业详情{% endblock %}
 
@@ -9,6 +9,8 @@
 <!-- 确保jQuery加载在任何使用$的脚本之前 -->
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
 <meta name="csrf-token" content="{{ csrf_token() }}">
+<!-- 引入审批时间线样式 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -611,12 +613,9 @@
         </div>
     </div>
 
-    <!-- 审批流程模块 -->
-    <div class="row mb-4">
-        <div class="col-md-12">
-            {{ render_start_approval_button('customer', company.id) }}
-        </div>
-    </div>
+    <!-- 审批流程区域 -->
+    {% set approval_instance = get_object_approval_instance('customer', company.id) if get_object_approval_instance is defined %}
+    {{ render_approval_section('customer', company.id, approval_instance, current_user) }}
 
     <!-- 修改拥有者模态框 -->
     {% if can_change_company_owner(current_user, company) %}

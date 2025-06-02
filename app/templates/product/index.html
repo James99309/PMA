@@ -420,16 +420,23 @@
 {% block scripts %}
 {{ super() }}
 <script>
-    // 设置全局变量
+    // 权限变量
+    window.hasProductEditPermission = {% if can_edit_product %}true{% else %}false{% endif %};
+    window.hasProductDeletePermission = {% if can_delete_product %}true{% else %}false{% endif %};
     window.userRole = '{{ current_user.role }}';
-    
+</script>
+<script>
+    // 全局变量
     let currentPage = 1;
+    let pageSize = 50;
+    let totalPages = 1;
+    let sortBy = 'id';  // 默认按ID排序
+    let sortOrder = 'asc';  // 默认升序排序
     let allLoaded = false;
     let isLoading = false;
-    const limit = 50;
-    let sortBy = 'updated_at';
-    let sortOrder = 'desc';
-    
+    let totalItems = 0;
+    let searchTerm = '';
+
     // 删除产品确认函数
     function confirmDeleteProduct(productId, productName) {
         if (confirm(`确定要删除产品 "${productName}" 吗？\n\n注意：如果产品已被报价单引用，将无法删除。`)) {
@@ -485,16 +492,6 @@
         return div.innerHTML;
     }
     
-    // 页面加载完成后初始化
-    document.addEventListener('DOMContentLoaded', function() {
-        // 加载初始数据
-        loadProducts();
-    });
-
-    // 全局变量
-    let totalItems = 0;
-    let searchTerm = '';
-
     // 页面加载完成后执行
     document.addEventListener('DOMContentLoaded', function() {
         // 初始化加载数据
@@ -570,6 +567,18 @@
         loadProducts();
     }
 
+    // 更新排序图标
+    function updateSortIcons() {
+        document.querySelectorAll('.product-table th[data-sort]').forEach(th => {
+            const icon = th.querySelector('i');
+            if (th.getAttribute('data-sort') === sortBy) {
+                icon.className = sortOrder === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
+            } else {
+                icon.className = 'fas fa-sort';
+            }
+        });
+    }
+
     // 设置无限滚动加载
     function setupInfiniteScroll() {
         const bodyContainer = document.querySelector('.body-container');
@@ -629,7 +638,7 @@
 
         const url = new URL('/api/products', window.location.origin);
         url.searchParams.append('page', currentPage);
-        url.searchParams.append('per_page', limit);
+        url.searchParams.append('per_page', pageSize);
         url.searchParams.append('sort_by', sortBy);
         url.searchParams.append('sort_order', sortOrder);
 
@@ -735,8 +744,8 @@
             // 为长文本添加title属性，实现悬停显示完整内容
             const title = (text) => text ? `title="${text}"` : '';
             
-            // 检查用户权限
-            const hasManagePermission = window.userRole === 'admin' || window.userRole === 'product_manager';
+            // 检查用户权限 - 产品库只检查product权限
+            const hasManagePermission = window.hasProductEditPermission || window.userRole === 'admin';
 
             // 填充产品数据
             let actionsColumn = '';
@@ -823,18 +832,6 @@
                     </div>
                 `;
                 productCardList.appendChild(card);
-            }
-        });
-    }
-
-    // 更新排序图标
-    function updateSortIcons() {
-        document.querySelectorAll('.product-table th[data-sort]').forEach(th => {
-            const icon = th.querySelector('i');
-            if (th.getAttribute('data-sort') === sortBy) {
-                icon.className = sortOrder === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
-            } else {
-                icon.className = 'fas fa-sort';
             }
         });
     }

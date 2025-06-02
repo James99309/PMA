@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+
+{% block title %}项目评分配置管理{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">
+                        <i class="fas fa-star me-2"></i>项目评分配置管理
+                    </h4>
+                    <div>
+                        <button type="button" class="btn btn-success me-2" onclick="batchSaveConfigs()">
+                            <i class="fas fa-save me-1"></i>批量保存
+                        </button>
+                        <button type="button" class="btn btn-warning me-2" onclick="recalculateAllProjects()">
+                            <i class="fas fa-calculator me-1"></i>重新计算所有项目
+                        </button>
+                        <a href="{{ url_for('admin.system_settings') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>返回系统设置
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- 评分机制说明 -->
+                    <div class="alert alert-info mb-4">
+                        <h5><i class="fas fa-info-circle me-2"></i>评分机制说明</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <ul class="mb-0">
+                                    <li><strong>信息完整性：</strong>需达到0.5分才给予半星奖励</li>
+                                    <li><strong>报价完整性：</strong>需要审核通过的报价单</li>
+                                    <li><strong>阶段得分：</strong>只取最高值，不叠加</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <ul class="mb-0">
+                                    <li><strong>手动奖励：</strong>每用户每项目只能给一次</li>
+                                    <li><strong>总分限制：</strong>最高5星</li>
+                                    <li><strong>自动计算：</strong>项目信息变更时自动重新计算</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 配置表格 -->
+                    {% for category, group in grouped_configs.items() %}
+                    <div class="mb-4">
+                        <h5 class="border-bottom pb-2 mb-3">
+                            {% if category == 'information' %}
+                                <i class="fas fa-info-circle text-primary me-2"></i>
+                            {% elif category == 'quotation' %}
+                                <i class="fas fa-file-invoice text-success me-2"></i>
+                            {% elif category == 'stage' %}
+                                <i class="fas fa-tasks text-warning me-2"></i>
+                            {% elif category == 'manual' %}
+                                <i class="fas fa-hand-paper text-danger me-2"></i>
+                            {% endif %}
+                            {{ group.label }}
+                        </h5>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 25%;">字段名称</th>
+                                        <th style="width: 15%;">得分值</th>
+                                        <th style="width: 30%;">前置条件</th>
+                                        <th style="width: 15%;">状态</th>
+                                        <th style="width: 15%;">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for config in group.configs %}
+                                    <tr data-config-id="{{ config.id }}">
+                                        <td>
+                                            <strong>{{ config.field_label }}</strong>
+                                            <br><small class="text-muted">{{ config.field_name }}</small>
+                                        </td>
+                                        <td>
+                                            <input type="number" 
+                                                   class="form-control form-control-sm score-input" 
+                                                   value="{{ config.score_value }}" 
+                                                   step="0.1" 
+                                                   min="0" 
+                                                   max="5"
+                                                   data-config-id="{{ config.id }}">
+                                        </td>
+                                        <td>
+                                            <small class="text-muted">{{ config.prerequisite or '无' }}</small>
+                                        </td>
+                                        <td>
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input status-switch" 
+                                                       type="checkbox" 
+                                                       {% if config.is_active %}checked{% endif %}
+                                                       data-config-id="{{ config.id }}">
+                                                <label class="form-check-label">
+                                                    {% if config.is_active %}启用{% else %}禁用{% endif %}
+                                                </label>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <button type="button" 
+                                                    class="btn btn-sm btn-outline-primary" 
+                                                    onclick="editConfig({{ config.id }})">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑配置模态框 -->
+<div class="modal fade" id="editConfigModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">编辑评分配置</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editConfigForm">
+                    <input type="hidden" id="editConfigId">
+                    <div class="mb-3">
+                        <label for="editFieldLabel" class="form-label">字段名称</label>
+                        <input type="text" class="form-control" id="editFieldLabel" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editScoreValue" class="form-label">得分值</label>
+                        <input type="number" class="form-control" id="editScoreValue" step="0.1" min="0" max="5" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editPrerequisite" class="form-label">前置条件</label>
+                        <textarea class="form-control" id="editPrerequisite" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="editIsActive">
+                            <label class="form-check-label" for="editIsActive">启用此配置</label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveConfig()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.score-input {
+    width: 80px;
+}
+.form-check-label {
+    font-size: 0.875rem;
+}
+</style>
+
+<script>
+// 批量保存配置
+function batchSaveConfigs() {
+    const configs = [];
+    
+    document.querySelectorAll('[data-config-id]').forEach(row => {
+        const configId = row.getAttribute('data-config-id');
+        const scoreInput = row.querySelector('.score-input');
+        const statusSwitch = row.querySelector('.status-switch');
+        
+        if (scoreInput && statusSwitch) {
+            configs.push({
+                id: parseInt(configId),
+                score_value: parseFloat(scoreInput.value),
+                is_active: statusSwitch.checked
+            });
+        }
+    });
+    
+    if (configs.length === 0) {
+        showMessage('没有找到配置数据', 'warning');
+        return;
+    }
+    
+    fetch('{{ url_for("scoring_config.batch_update_scoring_config") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        },
+        body: JSON.stringify({ configs: configs })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showMessage(data.message, 'success');
+        } else {
+            showMessage(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('批量保存失败:', error);
+        showMessage('批量保存失败', 'error');
+    });
+}
+
+// 重新计算所有项目评分
+function recalculateAllProjects() {
+    if (!confirm('确定要重新计算所有项目的评分吗？这可能需要一些时间。')) {
+        return;
+    }
+    
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>计算中...';
+    button.disabled = true;
+    
+    fetch('{{ url_for("scoring_config.recalculate_all_projects") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showMessage(data.message, 'success');
+        } else {
+            showMessage(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('重新计算失败:', error);
+        showMessage('重新计算失败', 'error');
+    })
+    .finally(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    });
+}
+
+// 编辑配置
+function editConfig(configId) {
+    fetch(`{{ url_for("scoring_config.edit_scoring_config", config_id=0) }}`.replace('0', configId))
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const config = data.data;
+            document.getElementById('editConfigId').value = config.id;
+            document.getElementById('editFieldLabel').value = config.field_label;
+            document.getElementById('editScoreValue').value = config.score_value;
+            document.getElementById('editPrerequisite').value = config.prerequisite || '';
+            document.getElementById('editIsActive').checked = config.is_active;
+            
+            new bootstrap.Modal(document.getElementById('editConfigModal')).show();
+        } else {
+            showMessage(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('获取配置失败:', error);
+        showMessage('获取配置失败', 'error');
+    });
+}
+
+// 保存配置
+function saveConfig() {
+    const configId = document.getElementById('editConfigId').value;
+    const formData = {
+        field_label: document.getElementById('editFieldLabel').value,
+        score_value: parseFloat(document.getElementById('editScoreValue').value),
+        prerequisite: document.getElementById('editPrerequisite').value,
+        is_active: document.getElementById('editIsActive').checked
+    };
+    
+    fetch(`{{ url_for("scoring_config.edit_scoring_config", config_id=0) }}`.replace('0', configId), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showMessage(data.message, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('editConfigModal')).hide();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showMessage(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('保存配置失败:', error);
+        showMessage('保存配置失败', 'error');
+    });
+}
+
+// 显示消息
+function showMessage(message, type) {
+    const alertClass = type === 'success' ? 'alert-success' : 
+                      type === 'warning' ? 'alert-warning' : 'alert-danger';
+    
+    const alertHtml = `
+        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    const container = document.querySelector('.container-fluid');
+    container.insertAdjacentHTML('afterbegin', alertHtml);
+    
+    // 3秒后自动消失
+    setTimeout(() => {
+        const alert = container.querySelector('.alert');
+        if (alert) {
+            alert.remove();
+        }
+    }, 3000);
+}
+
+// 状态切换时更新标签
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.status-switch').forEach(switchEl => {
+        switchEl.addEventListener('change', function() {
+            const label = this.nextElementSibling;
+            label.textContent = this.checked ? '启用' : '禁用';
+        });
+    });
+});
+</script>
+{% endblock %}

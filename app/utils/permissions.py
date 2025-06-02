@@ -56,6 +56,18 @@ def assign_user_default_permissions(user):
                 # 产品经理可以查看产品编码
                 if module == 'product_code':
                     can_view = True
+            elif user.role == 'product_manager':
+                # 产品经理可以创建和编辑产品
+                if module == 'product':
+                    can_create = True
+                    can_edit = True
+                    can_delete = True
+                # 产品经理可以管理产品编码（研发产品管理）
+                if module == 'product_code':
+                    can_view = True
+                    can_create = True
+                    can_edit = True
+                    can_delete = True
             elif user.role == 'solution':
                 # 解决方案经理可以查看和编辑项目
                 if module in ['project', 'quotation']:

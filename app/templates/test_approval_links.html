@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}测试审批链接{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>测试审批链接</h1>
+    
+    <div class="card">
+        <div class="card-header">
+            <h5>审批实例链接测试</h5>
+        </div>
+        <div class="card-body">
+            {% set test_instance = get_object_approval_instance('quotation', 642) %}
+            {% if test_instance %}
+                <p><strong>审批实例ID:</strong> {{ test_instance.id }}</p>
+                <p><strong>对象类型:</strong> {{ test_instance.object_type }}</p>
+                <p><strong>对象ID:</strong> {{ test_instance.object_id }}</p>
+                <p><strong>审批状态:</strong> {{ test_instance.status }}</p>
+                
+                <hr>
+                
+                <p><strong>生成的业务详情URL:</strong></p>
+                <a href="{{ get_approval_object_url(test_instance) }}" class="btn btn-primary">
+                    跳转到报价单详情页面 (QU202505-006)
+                </a>
+                
+                <p class="mt-3"><strong>原审批详情URL:</strong></p>
+                <a href="{{ url_for('approval.detail', instance_id=test_instance.id) }}" class="btn btn-secondary">
+                    跳转到审批详情页面 (旧方式)
+                </a>
+                
+                <hr>
+                
+                <p><strong>URL对比:</strong></p>
+                <ul>
+                    <li>业务详情URL: <code>{{ get_approval_object_url(test_instance) }}</code></li>
+                    <li>审批详情URL: <code>{{ url_for('approval.detail', instance_id=test_instance.id) }}</code></li>
+                </ul>
+            {% else %}
+                <p class="text-danger">未找到QU202505-006的审批实例</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %} 

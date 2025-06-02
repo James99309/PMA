@@ -1,0 +1,459 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_quotation_number, render_currency, render_project_stage, render_button, render_confirm_cancel, render_approval_badge %}
+{% from 'macros/ui_modals.html' import render_change_owner_modal %}
+{% from 'macros/approval_macros.html' import render_start_approval_button with context %}
+
+{% block content %}
+<div class="container-fluid mt-4 pt-4">
+    <div class="row mb-3">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}">首页</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('quotation.list_quotations') }}">报价单列表</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">报价单详情</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <!-- 报价单基本信息卡片 -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="d-flex align-items-center">
+                                <h5 class="mb-0">{{ render_quotation_number(quotation.quotation_number, size="large") }}</h5>
+                            </div>
+                            <div class="text-muted fs-6 mt-1 d-flex align-items-center">
+                                <span>{{ quotation.project.project_name }} 报价单</span>
+                                {% if quotation.approval_status and quotation.approval_status != 'pending' %}
+                                    <span class="ms-2">{{ render_approval_badge(quotation.approval_status) }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div>
+                            {% if quotation.project and quotation.project.current_stage == 'signed' %}
+                                {# 签约阶段不显示编辑、删除、复制按钮 #}
+                            {% else %}
+                                <!-- 编辑、删除、复制按钮原位保留，仅在非签约阶段显示 -->
+                                {% if can_edit_data(quotation, current_user) %}
+                                    {{ render_button('编辑', url_for('quotation.edit_quotation', id=quotation.id), color='primary', size='sm', extra_class='me-2') }}
+                                {% endif %}
+                                {% if can_delete_quotation(current_user, quotation) %}
+                                    <form action="{{ url_for('quotation.delete_quotation', id=quotation.id) }}" method="post" style="display:inline;" onsubmit="return confirm('确定要删除此报价单吗？此操作不可恢复。');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        {{ render_button('删除', None, color='danger', type='submit', size='sm', extra_class='me-2') }}
+                                    </form>
+                                {% endif %}
+                                {% if can_view_quotation(current_user, quotation) %}
+                                    {{ render_button('复制', url_for('quotation.copy_quotation', id=quotation.id), color='secondary', size='sm') }}
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <h6 class="card-title border-bottom pb-2 mb-3">基本信息</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-bordered">
+                                <tr>
+                                    <th class="bg-light" style="width: 30%">报价单编号</th>
+                                    <td>
+                                        {{ render_quotation_number(quotation.quotation_number) }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th class="bg-light">关联项目</th>
+                                    <td>{{ quotation.project.project_name }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="bg-light">项目阶段</th>
+                                    <td>{{ render_project_stage(quotation.project.current_stage|project_stage_label('zh')) if quotation.project.current_stage else render_project_stage('无') }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="bg-light">项目类型</th>
+                                    <td>{% if quotation.project.project_type %}{{ quotation.project.project_type|project_type_label('zh') }}{% else %}无{% endif %}</td>
+                                </tr>
+                                <tr>
+                                    <th class="bg-light">报价总额</th>
+                                    <td class="fw-bold">{{ render_currency(quotation.amount) }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-bordered">
+                                <tr>
+                                    <th class="bg-light" style="width: 30%">创建时间</th>
+                                    <td>{{ render_datetime(quotation.created_at) }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="bg-light">最后更新</th>
+                                    <td>{{ render_datetime(quotation.updated_at) }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="bg-light">所有者</th>
+                                    <td>
+                                        {{ render_owner(quotation.owner) }}
+                                        {% if has_change_owner_permission %}
+                                            <button class="btn btn-link btn-sm p-0 ms-2" data-bs-toggle="modal" data-bs-target="#changeOwnerModal">修改</button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th class="bg-light">直接用户</th>
+                                    <td>{{ quotation.project.end_user or '未设置' }}</td>
+                                </tr>
+                                <tr>
+                                    <th class="bg-light">经销商</th>
+                                    <td>{{ quotation.project.dealer or '未设置' }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 产品明细卡片 -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">产品明细</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover" style="font-size: 0.875rem;">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="text-start">#</th>
+                                    <th class="text-start">产品名称</th>
+                                    <th class="text-start">产品型号</th>
+                                    <th class="text-start">品牌</th>
+                                    <th class="text-start">单位</th>
+                                    <th class="text-end">市场单价</th>
+                                    <th class="text-end">折扣率(%)</th>
+                                    {% if not current_user.role in ['product_manager', 'product'] %}
+                                    <th class="text-end">单价</th>
+                                    {% endif %}
+                                    <th class="text-end">数量</th>
+                                    {% if not current_user.role in ['product_manager', 'product'] %}
+                                    <th class="text-end">小计</th>
+                                    {% endif %}
+                                    <th class="text-start">MN号</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for detail in quotation.details %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    <td>{{ detail.product_name }}</td>
+                                    <td>{{ detail.product_model }}</td>
+                                    <td>{{ detail.brand }}</td>
+                                    <td>{{ detail.unit }}</td>
+                                    <td class="text-end">{{ render_currency(detail.market_price) }}</td>
+                                    <td class="text-end">{{ "%.1f"|format(detail.discount * 100) }}</td>
+                                    {% if not current_user.role in ['product_manager', 'product'] %}
+                                    <td class="text-end">{{ render_currency(detail.unit_price) }}</td>
+                                    {% endif %}
+                                    <td class="text-end">{{ detail.quantity }}</td>
+                                    {% if not current_user.role in ['product_manager', 'product'] %}
+                                    <td class="text-end fw-bold">{{ render_currency(detail.total_price) }}</td>
+                                    {% endif %}
+                                    <td>{{ detail.product_mn }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr class="bg-light">
+                                    {% if current_user.role in ['product_manager', 'product'] %}
+                                    <td colspan="8" class="text-end fw-bold">总计金额：</td>
+                                    {% else %}
+                                    <td colspan="10" class="text-end fw-bold">总计金额：</td>
+                                    {% endif %}
+                                    <td class="text-end fw-bold">{{ render_currency(quotation.amount) }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 审批和审核操作区域 -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">审批和审核操作</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <!-- 审批流程操作 -->
+                            {{ render_start_approval_button('quotation', quotation.id) }}
+                        </div>
+                        <div class="col-md-6">
+                            <!-- 报价审核操作 -->
+                            {% if quotation.project and quotation.project.current_stage %}
+                                <div id="quotationApprovalSection">
+                                    <h6 class="text-muted mb-3">报价审核操作</h6>
+                                    <div class="mb-3">
+                                        <span class="text-muted">当前项目阶段：</span>
+                                        <span class="badge bg-info">{{ quotation.project.current_stage|project_stage_label('zh') }}</span>
+                                    </div>
+                                    
+                                    <!-- 审核状态显示 -->
+                                    <div class="mb-3">
+                                        <span class="text-muted">审核状态：</span>
+                                        {% if quotation.approval_status and quotation.approval_status != 'pending' %}
+                                            {{ quotation.approval_badge_html|safe }}
+                                        {% else %}
+                                            <span class="badge bg-secondary">待审核</span>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <!-- 审核按钮 -->
+                                    <div id="approvalButtons" class="mb-3">
+                                        <button type="button" class="btn btn-success btn-sm me-2" onclick="openApprovalModal('approve')">
+                                            <i class="fas fa-check"></i> 通过审核
+                                        </button>
+                                        <button type="button" class="btn btn-danger btn-sm" onclick="openApprovalModal('reject')">
+                                            <i class="fas fa-times"></i> 拒绝审核
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- 审核历史 -->
+                                    {% if quotation.approval_history %}
+                                    <div class="mt-3">
+                                        <h6 class="text-muted">审核历史</h6>
+                                        <div class="timeline">
+                                            {% for history in quotation.approval_history %}
+                                            <div class="timeline-item">
+                                                <small class="text-muted">{{ history.timestamp }}</small><br>
+                                                <strong>{{ history.approver_name }}</strong>
+                                                {% if history.action == 'approve' %}
+                                                    <span class="text-success">通过了</span>
+                                                {% else %}
+                                                    <span class="text-danger">拒绝了</span>
+                                                {% endif %}
+                                                <span class="text-info">{{ history.approval_status }}</span> 审核
+                                                {% if history.comment %}
+                                                    <br><em class="text-muted">{{ history.comment }}</em>
+                                                {% endif %}
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    项目阶段未设置，无法进行审核操作
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加Font Awesome图标库 -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+{% if has_change_owner_permission %}
+{{ render_change_owner_modal('changeOwnerModal', url_for('quotation.change_quotation_owner', id=quotation.id), all_users, quotation.owner_id, user_tree_data) }}
+{% endif %}
+
+<!-- 报价审核模态框 -->
+<div class="modal fade" id="approvalModal" tabindex="-1" aria-labelledby="approvalModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="approvalModalLabel">报价审核</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="approvalForm">
+                    <input type="hidden" id="approvalAction" name="action" value="">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">审核动作</label>
+                        <div id="approvalActionDisplay" class="alert"></div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="approvalComment" class="form-label">审核意见</label>
+                        <textarea class="form-control" id="approvalComment" name="comment" rows="3" placeholder="请输入审核意见（可选）"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn" id="confirmApprovalBtn" onclick="submitApproval()">确认</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+// 报价审核相关功能
+function openApprovalModal(action) {
+    // 设置审核动作
+    document.getElementById('approvalAction').value = action;
+    
+    // 设置显示内容和按钮样式
+    const actionDisplay = document.getElementById('approvalActionDisplay');
+    const confirmBtn = document.getElementById('confirmApprovalBtn');
+    
+    if (action === 'approve') {
+        actionDisplay.className = 'alert alert-success';
+        actionDisplay.innerHTML = '<i class="fas fa-check"></i> 通过审核';
+        confirmBtn.className = 'btn btn-success';
+        confirmBtn.textContent = '确认通过';
+    } else {
+        actionDisplay.className = 'alert alert-danger';
+        actionDisplay.innerHTML = '<i class="fas fa-times"></i> 拒绝审核';
+        confirmBtn.className = 'btn btn-danger';
+        confirmBtn.textContent = '确认拒绝';
+    }
+    
+    // 清空审核意见
+    document.getElementById('approvalComment').value = '';
+    
+    // 显示模态框
+    const modal = new bootstrap.Modal(document.getElementById('approvalModal'));
+    modal.show();
+}
+
+function submitApproval() {
+    const action = document.getElementById('approvalAction').value;
+    const comment = document.getElementById('approvalComment').value;
+    const quotationId = parseInt('{{ quotation.id }}');
+    
+    // 发送审核请求
+    fetch('/approval/quotation/' + quotationId + '/approve', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
+        },
+        body: JSON.stringify({
+            action: action,
+            comment: comment
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 审核成功，刷新页面显示最新状态
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('审核失败: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('审核请求失败:', error);
+        alert('审核请求失败，请稍后重试');
+    });
+    
+    // 隐藏模态框
+    const modal = bootstrap.Modal.getInstance(document.getElementById('approvalModal'));
+    modal.hide();
+}
+
+// 页面加载时检查审核权限和状态
+document.addEventListener('DOMContentLoaded', function() {
+    const quotationId = parseInt('{{ quotation.id }}');
+    
+    // 获取审核状态
+    fetch('/approval/quotation/' + quotationId + '/approval-status')
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 根据审核状态和权限控制按钮显示
+            const buttonsDiv = document.getElementById('approvalButtons');
+            if (buttonsDiv) {
+                if (!data.can_user_approve || !data.can_approve_current_stage) {
+                    // 用户无权限或无法审核当前阶段，隐藏按钮
+                    buttonsDiv.style.display = 'none';
+                    
+                    // 显示提示信息
+                    let message = '';
+                    if (!data.can_user_approve) {
+                        message = '您没有报价审核权限';
+                    } else if (!data.can_approve_current_stage) {
+                        if (!data.project_stage) {
+                            message = '项目阶段未设置';
+                        } else if (!data.target_approval_status) {
+                            message = '当前项目阶段 "' + data.project_stage + '" 不支持审核';
+                        } else {
+                            message = '该报价单已在当前阶段获得审核';
+                        }
+                    }
+                    
+                    if (message) {
+                        const alertDiv = document.createElement('div');
+                        alertDiv.className = 'alert alert-info';
+                        alertDiv.innerHTML = '<i class="fas fa-info-circle"></i> ' + message;
+                        buttonsDiv.parentNode.insertBefore(alertDiv, buttonsDiv);
+                    }
+                }
+            }
+        }
+    })
+    .catch(error => {
+        console.error('获取审核状态失败:', error);
+    });
+});
+
+function copyQuotation(id) {
+    if (confirm('确定要复制这个报价单吗？')) {
+        fetch(`/quotation/quotation/${id}/copy`, {
+            method: 'POST',
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = "{{ url_for('quotation.list_quotations') }}";
+            } else {
+                alert('复制失败: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('复制报价单时出错:', error);
+            alert('复制报价单时出错');
+        });
+    }
+}
+
+function deleteQuotation(id) {
+    if (confirm('确定要删除这个报价单吗？')) {
+        fetch(`/quotation/quotation/${id}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        }).then(response => {
+            if (response.ok) {
+                window.location.href = "{{ url_for('quotation.list_quotations') }}";
+            } else {
+                alert('删除失败，请重试');
+            }
+        });
+    }
+}
+</script>
+{% endblock %}
+{% endblock %} 

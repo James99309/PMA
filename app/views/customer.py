@@ -20,6 +20,10 @@ from app.utils.notification_helpers import trigger_event_notification
 from app.utils.user_helpers import generate_user_tree_data
 from app.utils.activity_tracker import check_company_activity, update_active_status
 from zoneinfo import ZoneInfo
+from app.utils.change_tracker import ChangeTracker
+# 添加审批相关函数导入
+from app.helpers.approval_helpers import get_object_approval_instance, get_available_templates
+from app.utils.access_control import can_start_approval
 
 
 customer = Blueprint('customer', __name__)
@@ -305,7 +309,11 @@ def view_company(company_id):
                           COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
                           INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
                           STATUS_OPTIONS=STATUS_OPTIONS,
-                          user_tree_data=user_tree_data)
+                          user_tree_data=user_tree_data,
+                          # 添加审批相关函数
+                          get_object_approval_instance=get_object_approval_instance,
+                          get_available_templates=get_available_templates,
+                          can_start_approval=can_start_approval)
 
 @customer.route('/add', methods=['GET', 'POST'])
 @permission_required('customer', 'create')
@@ -323,6 +331,13 @@ def add_company():
             company = Company(**data)
             db.session.add(company)
             db.session.commit()
+            
+            # 记录创建历史
+            try:
+                ChangeTracker.log_create(company)
+            except Exception as track_err:
+                logger.warning(f"记录客户创建历史失败: {str(track_err)}")
+            
             # 新增：每次添加客户后自动刷新活跃度和更新时间
             company.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
             update_active_status(company)
@@ -351,15 +366,29 @@ def edit_company(company_id):
     if not can_edit_company_info(current_user, company):
         flash('您没有权限编辑此企业信息', 'danger')
         return redirect(url_for('customer.view_company', company_id=company_id))
-    
+
     if request.method == 'POST':
         try:
+            # 导入历史记录跟踪器
+            from app.utils.change_tracker import ChangeTracker
+            
+            # 捕获修改前的值
+            old_values = ChangeTracker.capture_old_values(company)
+            
             data = request.form.to_dict()
             # 移除status字段，禁止编辑
             data.pop('status', None)
             for key, value in data.items():
                 setattr(company, key, value)
             db.session.commit()
+            
+            # 记录变更历史
+            try:
+                new_values = ChangeTracker.get_new_values(company, old_values.keys())
+                ChangeTracker.log_update(company, old_values, new_values)
+            except Exception as track_err:
+                logger.warning(f"记录客户变更历史失败: {str(track_err)}")
+            
             # 更新客户活跃状态
             check_company_activity(company_id=company_id, days_threshold=1)
             flash('客户信息已更新！', 'success')
@@ -367,7 +396,7 @@ def edit_company(company_id):
         except Exception as e:
             db.session.rollback()
             flash('保存失败：' + str(e), 'danger')
-    
+
     return render_template('customer/edit.html', company=company, COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
                           INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
                           STATUS_OPTIONS=STATUS_OPTIONS)
@@ -381,8 +410,14 @@ def delete_company(company_id):
     if not can_edit_data(company, current_user):
         flash('您没有权限删除此企业', 'danger')
         return redirect(url_for('customer.list_companies'))
-    
+
     try:
+        # 记录删除历史
+        try:
+            ChangeTracker.log_delete(company)
+        except Exception as track_err:
+            logger.warning(f"记录客户删除历史失败: {str(track_err)}")
+        
         # 找到与此公司相关的所有行动记录
         related_actions = Action.query.filter_by(company_id=company.id).all()
         
@@ -397,7 +432,7 @@ def delete_company(company_id):
     except Exception as e:
         db.session.rollback()
         flash('删除失败：' + str(e), 'danger')
-    
+
     return redirect(url_for('customer.list_companies'))
 
 @customer.route('/<int:company_id>/contacts')
@@ -453,6 +488,13 @@ def add_contact(company_id):
         # 添加到数据库
         db.session.add(contact)
         db.session.commit()
+        
+        # 记录创建历史
+        try:
+            ChangeTracker.log_create(contact)
+        except Exception as track_err:
+            logger.warning(f"记录联系人创建历史失败: {str(track_err)}")
+        
         # 新增：每次添加联系人后自动刷新客户活跃度和更新时间
         company.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
         update_active_status(company)
@@ -479,8 +521,11 @@ def edit_contact(company_id, contact_id):
     if not can_edit_contact(current_user, contact):
         flash('您没有权限编辑此联系人', 'danger')
         return redirect(url_for('customer.list_contacts', company_id=company_id))
-    
+
     if request.method == 'POST':
+        # 捕获修改前的值
+        old_values = ChangeTracker.capture_old_values(contact)
+        
         contact.name = request.form['name']
         contact.department = request.form['department']
         contact.position = request.form['position']
@@ -499,6 +544,14 @@ def edit_contact(company_id, contact_id):
         contact.shared_disabled = 'shared_disabled' in request.form
             
         db.session.commit()
+        
+        # 记录变更历史
+        try:
+            new_values = ChangeTracker.get_new_values(contact, old_values.keys())
+            ChangeTracker.log_update(contact, old_values, new_values)
+        except Exception as track_err:
+            logger.warning(f"记录联系人变更历史失败: {str(track_err)}")
+        
         flash('联系人信息更新成功！', 'success')
         return redirect(url_for('customer.list_contacts', company_id=contact.company_id))
     return render_template('customer/edit_contact.html', contact=contact, COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
@@ -513,6 +566,13 @@ def delete_contact(company_id, contact_id):
     if not can_delete_contact(current_user, contact):
         flash('您没有权限删除此联系人，只有联系人的创建者或管理员才能删除', 'danger')
         return redirect(url_for('customer.list_contacts', company_id=company_id))
+    
+    # 记录删除历史
+    try:
+        ChangeTracker.log_delete(contact)
+    except Exception as track_err:
+        logger.warning(f"记录联系人删除历史失败: {str(track_err)}")
+    
     db.session.delete(contact)
     db.session.commit()
     flash('联系人删除成功！', 'success')

@@ -1,7 +1,12 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_quotation_number, render_currency, render_project_stage, render_button, render_confirm_cancel %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_quotation_number, render_currency, render_project_stage, render_button, render_confirm_cancel, render_approval_badge %}
 {% from 'macros/ui_modals.html' import render_change_owner_modal %}
-{% from 'macros/approval_macros.html' import render_start_approval_button with context %}
+{% from 'macros/approval_macros.html' import render_start_approval_button, render_approval_section with context %}
+
+{% block head %}
+<!-- 引入审批时间线样式 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid mt-4 pt-4">
@@ -23,10 +28,17 @@
             <div class="card">
                 <div class="card-header">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">
-                            {{ render_quotation_number(quotation.quotation_number, size="large") }}
-                            {{ quotation.project.project_name }} 报价单
-                        </h5>
+                        <div>
+                            <div class="d-flex align-items-center">
+                                <h5 class="mb-0">{{ render_quotation_number(quotation.quotation_number, size="large") }}</h5>
+                            </div>
+                            <div class="text-muted fs-6 mt-1 d-flex align-items-center">
+                                <span>{{ quotation.project.project_name }} 报价单</span>
+                                {% if quotation.approval_status and quotation.approval_status != 'pending' %}
+                                    <span class="ms-2">{{ render_approval_badge(quotation.approval_status) }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
                         <div>
                             {% if quotation.project and quotation.project.current_stage == 'signed' %}
                                 {# 签约阶段不显示编辑、删除、复制按钮 #}
@@ -55,7 +67,9 @@
                             <table class="table table-bordered">
                                 <tr>
                                     <th class="bg-light" style="width: 30%">报价单编号</th>
-                                    <td>{{ render_quotation_number(quotation.quotation_number) }}</td>
+                                    <td>
+                                        {{ render_quotation_number(quotation.quotation_number) }}
+                                    </td>
                                 </tr>
                                 <tr>
                                     <th class="bg-light">关联项目</th>
@@ -73,6 +87,22 @@
                                     <th class="bg-light">报价总额</th>
                                     <td class="fw-bold">{{ render_currency(quotation.amount) }}</td>
                                 </tr>
+                                {% if quotation.is_locked %}
+                                <tr>
+                                    <th class="bg-light">锁定状态</th>
+                                    <td>
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="fas fa-lock"></i> 已锁定
+                                        </span>
+                                        <br>
+                                        <small class="text-muted">
+                                            锁定原因：{{ quotation.lock_reason }}<br>
+                                            锁定人：{{ quotation.locker.real_name or quotation.locker.username if quotation.locker else '未知' }}<br>
+                                            锁定时间：{{ quotation.locked_at.strftime('%Y-%m-%d %H:%M:%S') if quotation.locked_at else '未知' }}
+                                        </small>
+                                    </td>
+                                </tr>
+                                {% endif %}
                             </table>
                         </div>
                         <div class="col-md-6">
@@ -177,12 +207,9 @@
         </div>
     </div>
     
-    <!-- 审批流程模块 -->
-    <div class="row mb-3">
-        <div class="col-12">
-            {{ render_start_approval_button('quotation', quotation.id) }}
-        </div>
-    </div>
+    <!-- 审批流程区域 -->
+    {% set approval_instance = get_object_approval_instance('quotation', quotation.id) if get_object_approval_instance is defined %}
+    {{ render_approval_section('quotation', quotation.id, approval_instance, current_user) }}
 </div>
 
 <!-- 添加Font Awesome图标库 -->
@@ -191,6 +218,8 @@
 {% if has_change_owner_permission %}
 {{ render_change_owner_modal('changeOwnerModal', url_for('quotation.change_quotation_owner', id=quotation.id), all_users, quotation.owner_id, user_tree_data) }}
 {% endif %}
+
+{% endblock %}
 
 {% block scripts %}
 <script>
@@ -231,5 +260,4 @@ function deleteQuotation(id) {
     }
 }
 </script>
-{% endblock %}
 {% endblock %} 

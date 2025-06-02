@@ -4,10 +4,12 @@ from app.permissions import admin_required
 from app.helpers.approval_helpers import (
     get_user_created_approvals,
     get_user_pending_approvals,
+    get_all_approvals,
     get_approval_details,
     get_approval_object_url,
     start_approval_process,
     process_approval,
+    process_approval_with_project_type,
     get_template_steps,
     get_approval_records_by_instance,
     get_current_step_info,
@@ -27,6 +29,9 @@ from app.models.approval import (
 from app.helpers.project_helpers import lock_project, unlock_project, is_project_editable
 from flask import session
 import json
+from app.utils.access_control import can_start_approval
+from app import db
+from datetime import datetime
 
 # 创建Blueprint
 approval_bp = Blueprint('approval', __name__, url_prefix='/approval')
@@ -52,6 +57,21 @@ def center():
         approvals = get_user_pending_approvals(
             user_id=current_user.id,
             object_type=object_type,
+            page=page,
+            per_page=per_page
+        )
+    elif tab == 'all' and current_user.role == 'admin':
+        # 全部审批（仅admin可见）
+        status_enum = None
+        if status:
+            try:
+                status_enum = ApprovalStatus[status.upper()]
+            except (KeyError, AttributeError):
+                pass
+        
+        approvals = get_all_approvals(
+            object_type=object_type,
+            status=status_enum,
             page=page,
             per_page=per_page
         )
@@ -137,6 +157,11 @@ def detail(instance_id):
     def get_project_by_id(project_id):
         return Project.query.get(project_id)
     
+    # 获取报价单数据的辅助函数
+    def get_quotation_by_id(quotation_id):
+        from app.models.quotation import Quotation
+        return Quotation.query.get(quotation_id)
+    
     # 渲染审批详情模板
     return render_template(
         'approval/detail.html',
@@ -150,7 +175,8 @@ def detail(instance_id):
         # 添加工具函数到模板上下文
         project_type_label=project_type_label,
         project_stage_label=project_stage_label,
-        get_project_by_id=get_project_by_id
+        get_project_by_id=get_project_by_id,
+        get_quotation_by_id=get_quotation_by_id
     )
 
 
@@ -171,6 +197,27 @@ def start_approval():
         flash('参数不完整，无法发起审批', 'danger')
         return redirect(request.referrer or url_for('index'))
     
+    # 获取业务对象并检查权限
+    business_obj = None
+    if object_type == 'project':
+        from app.models.project import Project
+        business_obj = Project.query.get(object_id)
+    elif object_type == 'quotation':
+        from app.models.quotation import Quotation
+        business_obj = Quotation.query.get(object_id)
+    elif object_type == 'customer':
+        from app.models.customer import Company
+        business_obj = Company.query.get(object_id)
+    
+    if not business_obj:
+        flash(f'找不到业务对象: {object_type}:{object_id}', 'danger')
+        return redirect(request.referrer or url_for('index'))
+    
+    # 检查发起审批的权限
+    if not can_start_approval(business_obj, current_user):
+        flash('您没有权限发起此审批流程', 'danger')
+        return redirect(request.referrer or url_for('index'))
+    
     # 获取审批流程模板
     template = ApprovalProcessTemplate.query.get(template_id)
     if not template:
@@ -185,10 +232,7 @@ def start_approval():
     # 获取业务对象的特定类型信息
     business_type = None
     if object_type == 'project':
-        from app.models.project import Project
-        project = Project.query.get(object_id)
-        if project:
-            business_type = project.project_type
+        business_type = business_obj.project_type
     
     # 检查是否包含授权编号步骤
     has_authorization_step = any(
@@ -262,7 +306,7 @@ def start_approval():
             # 继续处理，因为锁定失败可能是由于项目已经被锁定
     
     # 创建审批实例
-    instance = start_approval_process(object_type, object_id, template_id)
+    instance = start_approval_process(object_type, object_id, template_id, user_id=current_user.id)
     
     if instance:
         flash('审批流程已成功发起', 'success')
@@ -297,8 +341,30 @@ def approve(instance_id):
     comment = request.form.get('comment', '')
     project_type = request.form.get('project_type')  # 获取项目类型，如果有的话
     
+    # 调试：记录请求头信息
+    current_app.logger.info(f"审批请求 - 请求头: {dict(request.headers)}")
+    current_app.logger.info(f"审批请求 - Content-Type: {request.headers.get('Content-Type')}")
+    current_app.logger.info(f"审批请求 - X-Requested-With: {request.headers.get('X-Requested-With')}")
+    current_app.logger.info(f"审批请求 - X-CSRFToken存在: {'X-CSRFToken' in request.headers}")
+    current_app.logger.info(f"审批请求 - Accept: {request.headers.get('Accept')}")
+    
+    # 检查是否是AJAX请求 - 修复检测逻辑
+    is_ajax = (
+        request.headers.get('X-Requested-With') == 'XMLHttpRequest' or
+        'X-CSRFToken' in request.headers or
+        request.is_json or
+        request.headers.get('Accept', '').find('application/json') != -1
+    )
+    
+    current_app.logger.info(f"审批请求 - 检测为AJAX: {is_ajax}")
+    
     # 参数验证
     if not action_value or action_value not in ('approve', 'reject'):
+        if is_ajax:
+            return jsonify({
+                'success': False,
+                'message': '无效的审批操作'
+            }), 400
         flash('无效的审批操作', 'danger')
         return redirect(request.referrer or url_for('approval.center'))
     
@@ -311,6 +377,11 @@ def approve(instance_id):
     # 获取审批实例，检查当前步骤是否是授权步骤
     instance = ApprovalInstance.query.get(instance_id)
     if not instance:
+        if is_ajax:
+            return jsonify({
+                'success': False,
+                'message': '找不到审批实例'
+            }), 404
         flash('找不到审批实例', 'danger')
         return redirect(url_for('approval.center'))
     
@@ -321,32 +392,64 @@ def approve(instance_id):
         current_step.action_type == 'authorization'
     )
     
-    # 执行审批操作，如果是授权步骤并且提供了项目类型，则传递项目类型
-    if is_authorization_step and project_type and instance.object_type == 'project':
-        success = process_approval(instance_id, action, comment, project_type=project_type)
-    else:
-        success = process_approval(instance_id, action, comment)
-    
-    if success:
-        if action == ApprovalAction.APPROVE:
-            flash('已同意此审批', 'success')
-            # 记录日志
-            current_app.logger.info(f"用户 {current_user.username} 同意了审批 {instance_id}")
-            # 如果是最后一步和授权步骤，显示授权成功信息
-            if instance.object_type == 'project' and is_authorization_step:
-                from app.models.project import Project
-                project = Project.query.get(instance.object_id)
-                if project and project.authorization_code:
-                    flash(f'已成功生成授权编号: {project.authorization_code}', 'success')
-                    current_app.logger.info(f"为项目 {project.id} 生成授权编号: {project.authorization_code}")
+    try:
+        # 执行审批操作，如果是授权步骤并且提供了项目类型，则传递项目类型
+        from app.helpers.approval_helpers import process_approval as helper_process_approval
+        
+        if is_authorization_step and project_type and instance.object_type == 'project':
+            success = helper_process_approval(instance_id, action, comment, project_type=project_type)
         else:
-            flash('已拒绝此审批', 'warning')
-            current_app.logger.info(f"用户 {current_user.username} 拒绝了审批 {instance_id}")
-    else:
-        flash('处理审批失败，请检查您是否有权限或该审批是否有效', 'danger')
-        current_app.logger.error(f"用户 {current_user.username} 处理审批 {instance_id} 失败")
+            success = helper_process_approval(instance_id, action, comment)
+        
+        if success:
+            if action == ApprovalAction.APPROVE:
+                success_message = '已同意此审批'
+                # 记录日志
+                current_app.logger.info(f"用户 {current_user.username} 同意了审批 {instance_id}")
+                # 如果是最后一步和授权步骤，显示授权成功信息
+                if instance.object_type == 'project' and is_authorization_step:
+                    from app.models.project import Project
+                    project = Project.query.get(instance.object_id)
+                    if project and project.authorization_code:
+                        success_message += f'，已成功生成授权编号: {project.authorization_code}'
+                        current_app.logger.info(f"为项目 {project.id} 生成授权编号: {project.authorization_code}")
+            else:
+                success_message = '已拒绝此审批'
+                current_app.logger.info(f"用户 {current_user.username} 拒绝了审批 {instance_id}")
+            
+            if is_ajax:
+                current_app.logger.info(f"返回JSON响应: {success_message}")
+                return jsonify({
+                    'success': True,
+                    'message': success_message
+                })
+            flash(success_message, 'success' if action == ApprovalAction.APPROVE else 'warning')
+        else:
+            error_message = '处理审批失败，请检查您是否有权限或该审批是否有效'
+            current_app.logger.error(f"用户 {current_user.username} 处理审批 {instance_id} 失败")
+            
+            if is_ajax:
+                return jsonify({
+                    'success': False,
+                    'message': error_message
+                }), 400
+            flash(error_message, 'danger')
+            
+    except Exception as e:
+        error_message = f'处理审批时发生错误: {str(e)}'
+        current_app.logger.error(f"用户 {current_user.username} 处理审批 {instance_id} 时发生异常: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        
+        if is_ajax:
+            return jsonify({
+                'success': False,
+                'message': error_message
+            }), 500
+        flash(error_message, 'danger')
     
-    # 无论处理结果如何，都返回到审批详情页面
+    # 对于非AJAX请求，返回到审批详情页面
+    current_app.logger.info(f"返回重定向响应到审批详情页面")
     return redirect(url_for('approval.detail', instance_id=instance_id))
 
 
@@ -563,7 +666,6 @@ def preview_authorization_code():
         return jsonify({'success': False, 'message': '无效的项目类型'}), 400
     
     # 构建预览格式（不实际生成，避免数据库查询）
-    from datetime import datetime
     year_month = datetime.now().strftime('%Y%m')
     preview_code = f"{prefix}{year_month}-001"
     
@@ -613,7 +715,6 @@ def authorize(instance_id):
     from app.utils.dictionary_helpers import PROJECT_TYPE_LABELS, project_type_label
     
     # 获取当前日期信息，用于预览
-    from datetime import datetime
     today = datetime.now()
     year = today.strftime('%Y')
     month = today.strftime('%m')
@@ -635,4 +736,339 @@ def authorize(instance_id):
                           year=year,
                           month=month,
                           prefix=prefix,
-                          preview_code=preview_code) 
+                          preview_code=preview_code)
+
+
+@approval_bp.route('/quotation/<int:quotation_id>/approve', methods=['POST'])
+@login_required
+def approve_quotation(quotation_id):
+    """报价审核API - 对指定报价单进行审核操作"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '无效的请求数据'}), 400
+            
+        action = data.get('action')  # approve 或 reject
+        comment = data.get('comment', '')
+        
+        if action not in ['approve', 'reject']:
+            return jsonify({'success': False, 'message': '无效的审核动作'}), 400
+        
+        # 获取报价单
+        from app.models.quotation import Quotation
+        quotation = Quotation.query.get(quotation_id)
+        if not quotation:
+            return jsonify({'success': False, 'message': '报价单不存在'}), 404
+        
+        # 检查用户权限 - 只有管理员和有审批权限的用户可以执行审核
+        from app.permissions import has_permission
+        if not (current_user.role == 'admin' or has_permission('quotation_approval', 'create')):
+            return jsonify({'success': False, 'message': '无权限执行审核操作'}), 403
+        
+        # 获取项目当前阶段
+        project_stage = quotation.project.current_stage if quotation.project else None
+        if not project_stage:
+            return jsonify({'success': False, 'message': '项目阶段未设置，无法执行审核'}), 400
+        
+        # 检查是否已经在该阶段获得审核
+        from app.models.quotation import QuotationApprovalStatus
+        target_approval_status = QuotationApprovalStatus.STAGE_TO_APPROVAL.get(project_stage)
+        if not target_approval_status:
+            return jsonify({'success': False, 'message': f'项目阶段 {project_stage} 不支持审核'}), 400
+        
+        # 检查是否已经通过该阶段审核
+        if quotation.approved_stages and target_approval_status in quotation.approved_stages:
+            return jsonify({'success': False, 'message': f'该报价单已在 {project_stage} 阶段获得审核，不允许重复审核'}), 400
+        
+        # 执行审核操作
+        if action == 'approve':
+            # 通过审核
+            quotation.approval_status = target_approval_status
+            
+            # 添加到已审核阶段列表
+            if not quotation.approved_stages:
+                quotation.approved_stages = []
+            quotation.approved_stages.append(target_approval_status)
+            
+            # 添加审核历史
+            if not quotation.approval_history:
+                quotation.approval_history = []
+            quotation.approval_history.append({
+                'action': 'approve',
+                'stage': project_stage,
+                'approval_status': target_approval_status,
+                'approver_id': current_user.id,
+                'approver_name': current_user.username,
+                'comment': comment,
+                'timestamp': datetime.now().isoformat()
+            })
+            
+            message = f'报价单已通过 {QuotationApprovalStatus.APPROVAL_STATUS_LABELS.get(target_approval_status, {}).get("zh", target_approval_status)} 审核'
+            
+        else:  # action == 'reject'
+            # 拒绝审核
+            quotation.approval_status = QuotationApprovalStatus.REJECTED
+            
+            # 添加审核历史
+            if not quotation.approval_history:
+                quotation.approval_history = []
+            quotation.approval_history.append({
+                'action': 'reject',
+                'stage': project_stage,
+                'approver_id': current_user.id,
+                'approver_name': current_user.username,
+                'comment': comment,
+                'timestamp': datetime.now().isoformat()
+            })
+            
+            message = '报价单审核被拒绝'
+        
+        # 保存到数据库
+        from app import db
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'approval_status': quotation.approval_status,
+            'badge_html': quotation.approval_badge_html
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"报价审核操作失败: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        
+        from app import db
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'审核操作失败: {str(e)}'}), 500
+
+
+@approval_bp.route('/quotation/<int:quotation_id>/approval-status', methods=['GET'])
+@login_required  
+def get_quotation_approval_status(quotation_id):
+    """获取报价单审核状态API"""
+    try:
+        # 获取报价单
+        from app.models.quotation import Quotation
+        quotation = Quotation.query.get(quotation_id)
+        if not quotation:
+            return jsonify({'success': False, 'message': '报价单不存在'}), 404
+        
+        # 获取项目当前阶段
+        project_stage = quotation.project.current_stage if quotation.project else None
+        
+        # 检查当前阶段是否可以审核
+        from app.models.quotation import QuotationApprovalStatus
+        target_approval_status = QuotationApprovalStatus.STAGE_TO_APPROVAL.get(project_stage) if project_stage else None
+        can_approve_current_stage = (
+            project_stage and 
+            target_approval_status and 
+            (not quotation.approved_stages or target_approval_status not in quotation.approved_stages)
+        )
+        
+        # 检查用户权限
+        from app.permissions import has_permission
+        can_user_approve = current_user.role == 'admin' or has_permission('quotation_approval', 'create')
+        
+        return jsonify({
+            'success': True,
+            'quotation_id': quotation_id,
+            'approval_status': quotation.approval_status,
+            'approved_stages': quotation.approved_stages or [],
+            'approval_history': quotation.approval_history or [],
+            'project_stage': project_stage,
+            'target_approval_status': target_approval_status,
+            'can_approve_current_stage': can_approve_current_stage,
+            'can_user_approve': can_user_approve,
+            'badge_html': quotation.approval_badge_html
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"获取报价审核状态失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'获取审核状态失败: {str(e)}'}), 500 
+
+
+@approval_bp.route('/batch-delete', methods=['POST'])
+@login_required
+def batch_delete():
+    """批量删除审批流程
+    
+    只有管理员或审批发起人可以删除审批流程
+    """
+    approval_ids = request.form.getlist('approval_ids')
+    
+    if not approval_ids:
+        flash('请选择要删除的审批流程', 'warning')
+        return redirect(url_for('approval.center'))
+    
+    try:
+        deleted_count = 0
+        failed_count = 0
+        
+        for approval_id in approval_ids:
+            try:
+                instance = ApprovalInstance.query.get(int(approval_id))
+                if not instance:
+                    failed_count += 1
+                    continue
+                
+                # 检查权限：只有管理员或发起人可以删除
+                if current_user.role != 'admin' and instance.creator_id != current_user.id:
+                    failed_count += 1
+                    continue
+                
+                # 删除审批实例
+                delete_approval_instance(instance.id)
+                deleted_count += 1
+                
+            except Exception as e:
+                current_app.logger.error(f"删除审批流程 {approval_id} 失败: {str(e)}")
+                failed_count += 1
+        
+        # 显示结果消息
+        if deleted_count > 0:
+            flash(f'成功删除 {deleted_count} 个审批流程', 'success')
+        
+        if failed_count > 0:
+            flash(f'{failed_count} 个审批流程删除失败（权限不足或不存在）', 'warning')
+            
+    except Exception as e:
+        current_app.logger.error(f"批量删除审批流程失败: {str(e)}")
+        flash('批量删除操作失败，请稍后重试', 'danger')
+    
+    return redirect(url_for('approval.center')) 
+
+
+@approval_bp.route('/process/<int:instance_id>', methods=['POST'])
+@login_required
+def process_approval(instance_id):
+    """处理审批 - JSON API版本
+    
+    用于支持前端AJAX请求的审批处理
+    """
+    try:
+        # 获取JSON数据
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '无效的请求数据'})
+        
+        action = data.get('action')
+        comment = data.get('comment', '')
+        
+        if action not in ['approve', 'reject']:
+            return jsonify({'success': False, 'message': '无效的操作类型'})
+        
+        # 获取审批实例
+        instance = ApprovalInstance.query.get_or_404(instance_id)
+        
+        # 检查用户权限
+        if not can_user_approve(instance_id, current_user.id):
+            return jsonify({'success': False, 'message': '您没有权限审批此流程'})
+        
+        # 检查是否是授权步骤
+        current_step = get_current_step_info(instance)
+        is_authorization_step = (
+            current_step and 
+            hasattr(current_step, 'action_type') and 
+            current_step.action_type == 'authorization'
+        )
+        
+        # 处理审批
+        approval_action = ApprovalAction.APPROVE if action == 'approve' else ApprovalAction.REJECT
+        success = process_approval_with_project_type(
+            instance_id, 
+            approval_action,
+            project_type=None,
+            comment=comment,
+            user_id=current_user.id
+        )
+        
+        if success:
+            message = '审批通过' if action == 'approve' else '审批拒绝'
+            
+            # 如果是项目授权步骤，添加授权信息
+            if instance.object_type == 'project' and is_authorization_step and action == 'approve':
+                from app.models.project import Project
+                project = Project.query.get(instance.object_id)
+                if project and project.authorization_code:
+                    message += f'，已生成授权编号: {project.authorization_code}'
+            
+            return jsonify({'success': True, 'message': message})
+        else:
+            return jsonify({'success': False, 'message': '审批处理失败，请检查您的权限或审批状态'})
+            
+    except Exception as e:
+        current_app.logger.error(f"处理审批请求失败: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'message': '服务器错误，请稍后重试'}), 500
+
+
+@approval_bp.route('/test-links')
+@login_required
+def test_links():
+    """测试审批链接生成"""
+    return render_template('test_approval_links.html') 
+
+
+@approval_bp.route('/test-center-links')
+@login_required
+def test_center_links():
+    """测试审批中心链接生成"""
+    return render_template('test_approval_center.html') 
+
+
+@approval_bp.route('/recall/<int:instance_id>', methods=['POST'])
+@login_required
+def recall_approval(instance_id):
+    """召回审批流程
+    
+    只有发起人可以召回正在进行中的审批流程
+    """
+    try:
+        # 获取审批实例
+        instance = ApprovalInstance.query.get_or_404(instance_id)
+        
+        # 检查权限：只有发起人可以召回
+        if current_user.id != instance.created_by:
+            return jsonify({'success': False, 'message': '只有发起人可以召回审批流程'}), 403
+        
+        # 检查状态：只有进行中的审批可以召回
+        if instance.status != ApprovalStatus.PENDING:
+            return jsonify({'success': False, 'message': '只有进行中的审批流程可以召回'}), 400
+        
+        # 获取召回原因
+        data = request.get_json()
+        reason = data.get('reason', '') if data else ''
+        
+        # 更新审批实例状态
+        instance.status = ApprovalStatus.REJECTED
+        instance.ended_at = datetime.now()
+        
+        # 添加召回记录
+        from app.models.approval import ApprovalRecord
+        recall_record = ApprovalRecord(
+            instance_id=instance_id,
+            step_id=None,  # 召回不关联具体步骤
+            approver_id=current_user.id,
+            action='recall',
+            comment=f"发起人召回审批流程。原因：{reason}" if reason else "发起人召回审批流程",
+            timestamp=datetime.now()
+        )
+        
+        db.session.add(recall_record)
+        db.session.commit()
+        
+        # 记录日志
+        current_app.logger.info(f"用户 {current_user.username} 召回了审批实例 {instance_id}")
+        
+        return jsonify({
+            'success': True,
+            'message': '审批流程已成功召回'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"召回审批失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'召回失败: {str(e)}'}), 500 

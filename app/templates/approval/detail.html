@@ -86,6 +86,83 @@
       </div>
     </div>
   </div>
+  {% elif instance.object_type == 'quotation' %}
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-dark text-white">
+          <h5 class="mb-0"><i class="fas fa-file-invoice-dollar me-2"></i>报价单信息</h5>
+        </div>
+        <div class="card-body">
+          {% set quotation = get_quotation_by_id(instance.object_id) if get_quotation_by_id is defined else None %}
+          {% if quotation %}
+          <div class="row">
+            <div class="col-md-4">
+              <table class="table table-sm">
+                <tr>
+                  <th class="standard-font">报价单编号</th>
+                  <td class="standard-font">{{ quotation.quotation_number or '' }}</td>
+                </tr>
+                <tr>
+                  <th class="standard-font">关联项目</th>
+                  <td class="standard-font">{{ quotation.project.project_name if quotation.project else '' }}</td>
+                </tr>
+                <tr>
+                  <th class="standard-font">项目类型</th>
+                  <td class="standard-font">{% if quotation.project and quotation.project.project_type %}{{ render_project_type(quotation.project.project_type)|safe }}{% endif %}</td>
+                </tr>
+              </table>
+            </div>
+            <div class="col-md-4">
+              <table class="table table-sm">
+                <tr>
+                  <th class="standard-font">报价总额</th>
+                  <td class="standard-font">{{ quotation.amount|round(2) if quotation.amount else '0.00' }} 元</td>
+                </tr>
+                <tr>
+                  <th class="standard-font">创建时间</th>
+                  <td class="standard-font">{{ quotation.formatted_created_at or '' }}</td>
+                </tr>
+                <tr>
+                  <th class="standard-font">更新时间</th>
+                  <td class="standard-font">{{ quotation.formatted_updated_at or '' }}</td>
+                </tr>
+              </table>
+            </div>
+            <div class="col-md-4">
+              <table class="table table-sm">
+                <tr>
+                  <th class="standard-font">负责人</th>
+                  <td class="standard-font">{{ quotation.owner.real_name or quotation.owner.username if quotation.owner else '' }}</td>
+                </tr>
+                <tr>
+                  <th class="standard-font">锁定状态</th>
+                  <td class="standard-font">
+                    {% if quotation.is_locked %}
+                      <span class="badge bg-warning">已锁定</span>
+                    {% else %}
+                      <span class="badge bg-success">未锁定</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                <tr>
+                  <th class="standard-font">操作</th>
+                  <td class="standard-font">
+                    <a href="{{ url_for('quotation.view_quotation', id=quotation.id) }}" class="btn btn-sm btn-primary">
+                      <i class="fas fa-eye"></i> 查看报价单
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </div>
+          </div>
+          {% else %}
+          <div class="alert alert-warning standard-font">无法获取报价单信息或报价单已被删除</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
   {% endif %}
   
   <!-- 审批状态卡片 -->

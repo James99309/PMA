@@ -254,8 +254,177 @@ document.addEventListener('DOMContentLoaded', function() {
     // 保存订阅映射
     const subscriptionMap = {{ subscription_map|tojson }};
     
-    // 其他原有功能的JavaScript代码保持不变...
-    // 这里可以添加原有的用户搜索、行为卡片渲染等功能
+    console.log('可用事件:', events);
+    console.log('订阅映射:', subscriptionMap);
+    
+    // 获取DOM元素
+    const userCheckboxes = document.querySelectorAll('.user-checkbox');
+    const behaviorCards = document.getElementById('behaviorCards');
+    const userSearch = document.getElementById('userSearch');
+    const saveButton = document.getElementById('saveSubscriptions');
+    
+    // 用户搜索功能
+    if (userSearch) {
+        userSearch.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const userItems = document.querySelectorAll('.user-item');
+            
+            userItems.forEach(item => {
+                const userName = item.querySelector('label').textContent.toLowerCase();
+                if (userName.includes(searchTerm)) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+    }
+    
+    // 监听用户复选框变化
+    userCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            updateBehaviorCards();
+        });
+    });
+    
+    // 更新行为卡片
+    function updateBehaviorCards() {
+        const selectedUsers = Array.from(userCheckboxes)
+            .filter(cb => cb.checked)
+            .map(cb => ({
+                id: cb.value,
+                name: cb.dataset.userName
+            }));
+        
+        if (selectedUsers.length === 0) {
+            behaviorCards.innerHTML = '<div class="alert alert-info">请在左侧选择要订阅的账户</div>';
+            return;
+        }
+        
+        // 清空现有内容
+        behaviorCards.innerHTML = '';
+        
+        // 为每个选中的用户创建行为卡片
+        selectedUsers.forEach(user => {
+            const cardElement = createBehaviorCard(user);
+            behaviorCards.appendChild(cardElement);
+        });
+    }
+    
+    // 创建行为卡片
+    function createBehaviorCard(user) {
+        const template = document.getElementById('behaviorCardTemplate');
+        const cardElement = template.content.cloneNode(true);
+        
+        // 设置用户信息
+        const cardDiv = cardElement.querySelector('.behavior-card');
+        cardDiv.setAttribute('data-user-id', user.id);
+        
+        const userName = cardElement.querySelector('.user-name');
+        userName.textContent = user.name;
+        
+        // 创建事件复选框
+        const eventContainer = cardElement.querySelector('.event-checkboxes');
+        events.forEach(event => {
+            const checkboxElement = createEventCheckbox(user.id, event);
+            eventContainer.appendChild(checkboxElement);
+        });
+        
+        // 绑定全选/取消全选按钮
+        const selectAllBtn = cardElement.querySelector('.select-all');
+        const deselectAllBtn = cardElement.querySelector('.deselect-all');
+        
+        selectAllBtn.addEventListener('click', function() {
+            const checkboxes = cardDiv.querySelectorAll('.event-checkbox');
+            checkboxes.forEach(cb => cb.checked = true);
+        });
+        
+        deselectAllBtn.addEventListener('click', function() {
+            const checkboxes = cardDiv.querySelectorAll('.event-checkbox');
+            checkboxes.forEach(cb => cb.checked = false);
+        });
+        
+        return cardElement;
+    }
+    
+    // 创建事件复选框
+    function createEventCheckbox(userId, event) {
+        const template = document.getElementById('eventCheckboxTemplate');
+        const checkboxElement = template.content.cloneNode(true);
+        
+        const checkbox = checkboxElement.querySelector('.event-checkbox');
+        const label = checkboxElement.querySelector('.form-check-label');
+        
+        // 设置ID和属性
+        const checkboxId = `user_${userId}_event_${event.id}`;
+        checkbox.id = checkboxId;
+        checkbox.name = `user_${userId}_events`;
+        checkbox.value = event.key;
+        checkbox.setAttribute('data-user-id', userId);
+        checkbox.setAttribute('data-event-id', event.id);
+        
+        label.setAttribute('for', checkboxId);
+        label.textContent = event.label;
+        
+        // 设置初始选中状态
+        if (subscriptionMap[userId] && subscriptionMap[userId][event.key]) {
+            checkbox.checked = true;
+        }
+        
+        return checkboxElement;
+    }
+    
+    // 保存订阅设置
+    if (saveButton) {
+        saveButton.addEventListener('click', function() {
+            const subscriptions = [];
+            
+            const behaviorCardElements = document.querySelectorAll('.behavior-card');
+            behaviorCardElements.forEach(card => {
+                const userId = card.getAttribute('data-user-id');
+                const checkboxes = card.querySelectorAll('.event-checkbox');
+                
+                const userSubscriptions = {
+                    target_user_id: parseInt(userId),
+                    events: {}
+                };
+                
+                checkboxes.forEach(checkbox => {
+                    const eventKey = checkbox.value;
+                    userSubscriptions.events[eventKey] = checkbox.checked;
+                });
+                
+                subscriptions.push(userSubscriptions);
+            });
+            
+            console.log('准备保存的订阅数据:', subscriptions);
+            
+            // 发送到后端
+            fetch('{{ url_for("notification.save_subscriptions") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+                },
+                body: JSON.stringify({ subscriptions: subscriptions })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('success', '订阅设置已保存');
+                } else {
+                    showAlert('danger', data.message || '保存失败');
+                }
+            })
+            .catch(error => {
+                console.error('保存订阅失败:', error);
+                showAlert('danger', '保存失败：' + error.message);
+            });
+        });
+    }
+    
+    // 初始化显示
+    updateBehaviorCards();
 });
 </script>
 {% endblock %}
@@ -301,4 +470,4 @@ document.addEventListener('DOMContentLoaded', function() {
     color: #ffc107 !important;
 }
 </style>
-{% endblock %} 
+{% endblock %}

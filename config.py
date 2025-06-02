@@ -1,122 +1,171 @@
 import os
 from dotenv import load_dotenv
 from datetime import timedelta
-import re
 import logging
 
 # 配置日志记录
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 为activity_tracker模块设置DEBUG日志级别
-activity_logger = logging.getLogger('app.utils.activity_tracker')
-activity_logger.setLevel(logging.DEBUG)
-
 basedir = os.path.abspath(os.path.dirname(__file__))
 load_dotenv(os.path.join(basedir, '.env'))
 
-# 正确的Render数据库URL
-RENDER_DB_URL = 'postgresql://pma_db_sp8d_user:LXNGJmR6bFrNecoaWbdbdzPpltIAd40w@dpg-d0b1gl1r0fns73d1jc1g-a.singapore-postgres.render.com/pma_db_sp8d'
+# 云端Render数据库URL
+CLOUD_DB_URL = 'postgresql://pma_db_sp8d_user:LXNGJmR6bFrNecoaWbdbdzPpltIAd40w@dpg-d0b1gl1r0fns73d1jc1g-a.singapore-postgres.render.com/pma_db_sp8d'
 
 class Config:
+    """基础配置类 - 兼容原有配置"""
+    
     # 基本配置
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'hard-to-guess-string-for-pma-app'
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'cloud-production-secret-key-pma-2025'
     
-    # 数据库配置
-    # 添加Render PostgreSQL数据库支持
-    database_url = os.environ.get('DATABASE_URL')
+    # 数据库配置 - 云端PostgreSQL
+    database_url = os.environ.get('DATABASE_URL') or CLOUD_DB_URL
     
-    # 记录原始数据库URL用于调试
-    if database_url:
-        logger.info(f"原始DATABASE_URL: {database_url}")
-    else:
-        logger.info("未找到DATABASE_URL环境变量，将使用默认SQLite数据库")
-    
-    # Render使用postgres://协议，而SQLAlchemy 1.4+需要postgresql://
+    # 确保使用正确的PostgreSQL协议
     if database_url and database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
-        logger.info(f"转换后的DATABASE_URL: {database_url}")
+        logger.info("已转换数据库URL协议为postgresql://")
     
-    # 检查数据库URL是否包含错误的主机名，如果是则替换为正确的
-    if database_url and 'dpg-d0b1gl1r0fns73d1jc1g-a' in database_url:
-        logger.warning("检测到错误的数据库主机名，正在替换为正确的主机名")
-        database_url = database_url.replace('dpg-d0b1gl1r0fns73d1jc1g-a', 'dpg-d0b1gl1r0fns73d1jc1g-a')
-        logger.info(f"已更正的DATABASE_URL: {database_url}")
-    
-    # 如果在Render环境中运行且没有设置环境变量，使用硬编码的Render数据库URL
-    if os.environ.get('RENDER') and not database_url:
-        logger.info("在Render环境中运行且无数据库URL，使用硬编码的Render数据库URL")
-        database_url = RENDER_DB_URL
-    
-    SQLALCHEMY_DATABASE_URI = database_url or \
-        'sqlite:///' + os.path.join(basedir, 'app.db')
-    
-    # 确保没有硬编码的数据库连接参数
+    SQLALCHEMY_DATABASE_URI = database_url
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
-    # 调试模式
+    # 生产环境配置
     DEBUG = False
+    TESTING = False
     
     # JWT配置
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or SECRET_KEY
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
     
-    # 会话配置 - 强制重新登录
-    PERMANENT_SESSION_LIFETIME = timedelta(hours=2)  # 会话2小时后过期
-    SESSION_COOKIE_SECURE = False  # 开发环境设为False，生产环境应设为True
+    # 会话配置 - 生产环境安全设置
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=8)  # 8小时会话
+    SESSION_COOKIE_SECURE = True  # 生产环境启用HTTPS
     SESSION_COOKIE_HTTPONLY = True  # 防止XSS攻击
     SESSION_COOKIE_SAMESITE = 'Lax'  # CSRF保护
-    REMEMBER_COOKIE_DURATION = timedelta(hours=2)  # 记住我功能也只持续2小时
+    REMEMBER_COOKIE_DURATION = timedelta(days=7)  # 记住我功能7天
     
-    # 邮件配置（硬编码）
-    MAIL_SERVER = 'smtp.gmail.com'
-    MAIL_PORT = 587
+    # 邮件配置
+    MAIL_SERVER = os.environ.get('MAIL_SERVER') or 'smtp.gmail.com'
+    MAIL_PORT = int(os.environ.get('MAIL_PORT') or 587)
     MAIL_USE_TLS = True
-    MAIL_USERNAME = 'james98980566@gmail.com'
-    MAIL_PASSWORD = 'cihkheuuyvnkrtrj'
-    MAIL_DEFAULT_SENDER = 'james98980566@gmail.com'
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME') or 'james98980566@gmail.com'
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD') or 'cihkheuuyvnkrtrj'
+    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER') or 'james98980566@gmail.com'
     ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL') or 'James.ni@evertacsolutions.com'
-    APP_DOMAIN = os.environ.get('APP_DOMAIN') or 'http://localhost:8082'
-    PORT = int(os.environ.get('FLASK_PORT', 8082))
     
-    # PostgreSQL连接池配置
-    if SQLALCHEMY_DATABASE_URI.startswith('postgresql'):
-        SQLALCHEMY_ENGINE_OPTIONS = {
-            'pool_size': 10,
-            'max_overflow': 20,
-            'pool_recycle': 3600,
-            'pool_pre_ping': True
+    # 应用域名配置
+    APP_DOMAIN = os.environ.get('APP_DOMAIN') or 'https://pma-system.onrender.com'
+    PORT = int(os.environ.get('PORT', 10000))  # Render默认端口
+    
+    # PostgreSQL连接池配置 - 云端优化
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_size': 5,  # 云端资源有限，减少连接池大小
+        'max_overflow': 10,
+        'pool_recycle': 1800,  # 30分钟回收连接
+        'pool_pre_ping': True,
+        'pool_timeout': 30,
+        'connect_args': {
+            # 根据数据库URL动态设置SSL模式
+            'sslmode': 'require' if 'render.com' in database_url else 'disable',
+            'connect_timeout': 10,
+            'application_name': 'PMA_Cloud_App'
         }
+    }
+    
+    # 应用版本信息
+    APP_VERSION = '1.2.1'
+    APP_NAME = 'PMA项目管理系统'
+    ENVIRONMENT = 'production'
+    
+    # 云端特定配置
+    CLOUD_PROVIDER = 'render'
+    DEPLOYMENT_DATE = '2025-05-30'
+    
+    # 安全配置
+    WTF_CSRF_ENABLED = True
+    WTF_CSRF_TIME_LIMIT = 3600  # CSRF令牌1小时有效
+    
+    # 文件上传配置
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB最大文件大小
+    UPLOAD_FOLDER = '/tmp/uploads'  # 云端临时目录
+    
+    # 缓存配置
+    CACHE_TYPE = 'simple'
+    CACHE_DEFAULT_TIMEOUT = 300
+    
+    # 日志配置
+    LOG_LEVEL = 'INFO'
+    LOG_TO_STDOUT = True
+
+class CloudConfig(Config):
+    """云端部署配置类"""
+    pass
 
 class DevelopmentConfig(Config):
+    """开发环境配置（基于云端数据库）"""
     DEBUG = True
-    # 确保开发环境也使用正确的数据库URL
-    database_url = os.environ.get('DATABASE_URL')
-    if database_url and database_url.startswith('postgres://'):
-        database_url = database_url.replace('postgres://', 'postgresql://', 1)
-    
-    # 检查数据库URL是否包含错误的主机名，如果是则替换为正确的
-    if database_url and 'dpg-d0b1gl1r0fns73d1jc1g-a' in database_url:
-        database_url = database_url.replace('dpg-d0b1gl1r0fns73d1jc1g-a', 'dpg-d0b1gl1r0fns73d1jc1g-a')
-    
-    SQLALCHEMY_DATABASE_URI = database_url or \
-        'sqlite:///' + os.path.join(basedir, 'app.db')
+    SESSION_COOKIE_SECURE = False  # 开发环境可以使用HTTP
+    LOG_LEVEL = 'DEBUG'
 
 class ProductionConfig(Config):
-    DEBUG = False 
-    # 在生产环境中优先使用环境变量，如果没有则使用硬编码的Render数据库URL
-    database_url = os.environ.get('DATABASE_URL')
-    if database_url and database_url.startswith('postgres://'):
-        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    """生产环境配置"""
+    DEBUG = False
+    TESTING = False
     
-    # 检查数据库URL是否包含错误的主机名，如果是则替换为正确的
-    if database_url and 'dpg-d0b1gl1r0fns73d1jc1g-a' in database_url:
-        database_url = database_url.replace('dpg-d0b1gl1r0fns73d1jc1g-a', 'dpg-d0b1gl1r0fns73d1jc1g-a')
+    # 生产环境额外的安全配置
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    PREFERRED_URL_SCHEME = 'https'
     
-    # 如果没有设置环境变量，使用硬编码的Render数据库URL
-    SQLALCHEMY_DATABASE_URI = database_url or RENDER_DB_URL
+    # 更严格的会话配置
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=4)
+    
+    # 生产环境日志配置
+    LOG_LEVEL = 'WARNING'
 
-# 本地PostgreSQL开发环境配置
-# 取消注释以下行并修改连接参数以使用本地PostgreSQL
-# SQLALCHEMY_DATABASE_URI = 'postgresql://用户名:密码@localhost/pma_development' 
+class TestingConfig(Config):
+    """测试环境配置"""
+    TESTING = True
+    DEBUG = True
+    WTF_CSRF_ENABLED = False
+    
+    # 测试环境使用内存数据库
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+
+# 配置字典
+config = {
+    'development': DevelopmentConfig,
+    'production': ProductionConfig,
+    'testing': TestingConfig,
+    'default': ProductionConfig
+}
+
+def get_config():
+    """根据环境变量获取配置"""
+    env = os.environ.get('FLASK_ENV', 'production')
+    return config.get(env, config['default'])
+
+# 验证云端数据库连接
+def verify_cloud_database():
+    """验证云端数据库连接"""
+    try:
+        from sqlalchemy import create_engine, text
+        engine = create_engine(CLOUD_DB_URL)
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT version()"))
+            version = result.scalar()
+            logger.info(f"云端数据库连接成功: {version}")
+            return True
+    except Exception as e:
+        logger.error(f"云端数据库连接失败: {str(e)}")
+        return False
+
+if __name__ == "__main__":
+    # 测试云端数据库连接
+    print("测试云端数据库连接...")
+    if verify_cloud_database():
+        print("✓ 云端数据库连接正常")
+    else:
+        print("✗ 云端数据库连接失败") 

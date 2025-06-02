@@ -137,6 +137,14 @@ def create_user():
         try:
             db.session.add(user)
             db.session.commit()
+            
+            # 记录创建历史
+            try:
+                from app.utils.change_tracker import ChangeTracker
+                ChangeTracker.log_create(user)
+            except Exception as track_err:
+                logger.warning(f"记录用户创建历史失败: {str(track_err)}")
+            
             flash('用户创建成功', 'success')
             return redirect(url_for('user.list_users'))
         except Exception as db_error:
@@ -189,9 +197,16 @@ def edit_user(user_id):
             user_data = user.to_dict()
             return render_template('user/edit.html', user=user_data, is_edit=True)
         email = email.strip()
+        
+        # 捕获修改前的值
+        from app.utils.change_tracker import ChangeTracker
+        old_values = ChangeTracker.capture_old_values(user)
+        
         old_department = user.department
         old_company = user.company_name
         old_manager = user.is_department_manager
+        old_role = user.role  # 记录旧角色
+        
         user.real_name = real_name
         user.company_name = company
         user.email = email
@@ -202,8 +217,23 @@ def edit_user(user_id):
         user.is_department_manager = is_department_manager
         if password and password.strip():
             user.set_password(password)
+            
+        # 检查角色是否发生变化，如果变化则重置个人权限
+        if old_role != role:
+            logger.info(f"[用户编辑] 用户 {user.username} 角色从 {old_role} 变更为 {role}，重置个人权限")
+            # 删除现有的个人权限设置，让系统使用新角色的权限
+            Permission.query.filter_by(user_id=user.id).delete()
+        
         try:
             db.session.commit()
+            
+            # 记录变更历史
+            try:
+                new_values = ChangeTracker.get_new_values(user, old_values.keys())
+                ChangeTracker.log_update(user, old_values, new_values)
+            except Exception as track_err:
+                logger.warning(f"记录用户变更历史失败: {str(track_err)}")
+            
             from app.models.user import sync_department_manager_affiliations, remove_department_manager_affiliations, sync_affiliations_for_new_member, transfer_member_affiliations_on_department_change
             # 负责人变为True
             if not old_manager and is_department_manager:
@@ -292,6 +322,14 @@ def delete_user(user_id):
             return redirect(url_for('user.edit_user', user_id=user_id))
         # 自动清理归属关系
         Affiliation.query.filter((Affiliation.owner_id == user_id) | (Affiliation.viewer_id == user_id)).delete(synchronize_session=False)
+        
+        # 记录删除历史
+        try:
+            from app.utils.change_tracker import ChangeTracker
+            ChangeTracker.log_delete(user)
+        except Exception as track_err:
+            logger.warning(f"记录用户删除历史失败: {str(track_err)}")
+        
         db.session.delete(user)
         db.session.commit()
         logger.info(f"[用户删除] 成功，目标用户ID: {user_id}")
@@ -313,29 +351,8 @@ def manage_permissions(user_id):
             return redirect(url_for('user.list_users'))
         user_data = user.to_dict()
         modules = get_default_modules()
-        permissions_dict = {}
-        personal_perms = list(user.permissions)
-        if personal_perms:
-            for permission in personal_perms:
-                permissions_dict[permission.module] = {
-                    'module': permission.module,
-                    'can_view': permission.can_view,
-                    'can_create': permission.can_create,
-                    'can_edit': permission.can_edit,
-                    'can_delete': permission.can_delete
-                }
-        else:
-            from app.models.role_permissions import RolePermission
-            perms = RolePermission.query.filter_by(role=user.role).all()
-            for perm in perms:
-                permissions_dict[perm.module] = {
-                    'module': perm.module,
-                    'can_view': perm.can_view,
-                    'can_create': perm.can_create,
-                    'can_edit': perm.can_edit,
-                    'can_delete': perm.can_delete
-                }
-        # 新增：构建role_permissions字典，供前端JS使用
+        
+        # 获取用户的角色权限
         from app.models.role_permissions import RolePermission
         role_perms = RolePermission.query.filter_by(role=user.role).all()
         role_permissions = {}
@@ -346,6 +363,49 @@ def manage_permissions(user_id):
                 'can_edit': perm.can_edit,
                 'can_delete': perm.can_delete
             }
+        
+        # 获取用户的个人权限
+        personal_perms = list(user.permissions)
+        personal_permissions = {}
+        for permission in personal_perms:
+            personal_permissions[permission.module] = {
+                'can_view': permission.can_view,
+                'can_create': permission.can_create,
+                'can_edit': permission.can_edit,
+                'can_delete': permission.can_delete
+            }
+        
+        # 合并权限：个人权限可以增强角色权限，但不能减少
+        permissions_dict = {}
+        all_modules = set()
+        
+        # 收集所有模块
+        for module in modules:
+            all_modules.add(module['id'])
+        for module in role_permissions.keys():
+            all_modules.add(module)
+        for module in personal_permissions.keys():
+            all_modules.add(module)
+        
+        # 为每个模块生成最终权限
+        for module in all_modules:
+            role_perm = role_permissions.get(module, {
+                'can_view': False,
+                'can_create': False,
+                'can_edit': False,
+                'can_delete': False
+            })
+            personal_perm = personal_permissions.get(module, None)
+            
+            # 合并权限：个人权限可以增强角色权限，但不能减少
+            permissions_dict[module] = {
+                'module': module,
+                'can_view': role_perm['can_view'] or (personal_perm is not None and personal_perm['can_view'] == True),
+                'can_create': role_perm['can_create'] or (personal_perm is not None and personal_perm['can_create'] == True),
+                'can_edit': role_perm['can_edit'] or (personal_perm is not None and personal_perm['can_edit'] == True),
+                'can_delete': role_perm['can_delete'] or (personal_perm is not None and personal_perm['can_delete'] == True)
+            }
+        
         ROLE_DICT = {d.key: d.value for d in Dictionary.query.filter_by(type='role').all()}
         return render_template('user/permissions.html', user=user_data, modules=modules, permissions=permissions_dict, role_dict=ROLE_DICT, role_permissions=role_permissions)
     # POST请求 - 保存权限设置
@@ -353,23 +413,71 @@ def manage_permissions(user_id):
         try:
             form_data = request.form
             logger.warning(f"[DEBUG] manage_permissions 被调用，收到请求: user_id={user_id}, form_data={form_data}")
-            permissions = []
-            modules = form_data.getlist('module')
-            for module in modules:
-                permission = {
-                    "module": module,
-                    "can_view": f"view_{module}" in form_data,
-                    "can_create": f"create_{module}" in form_data,
-                    "can_edit": f"edit_{module}" in form_data,
-                    "can_delete": f"delete_{module}" in form_data
-                }
-                permissions.append(permission)
-            logger.warning(f"[DEBUG] 写入 permissions 表，user_id={user_id}, permissions={permissions}")
+            
             user = User.query.get(user_id)
             if not user:
                 flash('用户不存在', 'danger')
                 return redirect(url_for('user.list_users'))
+            
+            # 获取用户的角色权限
+            from app.models.role_permissions import RolePermission
+            role_perms = RolePermission.query.filter_by(role=user.role).all()
+            role_permissions_dict = {}
+            for rp in role_perms:
+                role_permissions_dict[rp.module] = {
+                    'can_view': rp.can_view,
+                    'can_create': rp.can_create,
+                    'can_edit': rp.can_edit,
+                    'can_delete': rp.can_delete
+                }
+            
+            permissions = []
+            modules = form_data.getlist('module')
+            for module in modules:
+                # 获取角色权限
+                role_perm = role_permissions_dict.get(module, {
+                    'can_view': False,
+                    'can_create': False,
+                    'can_edit': False,
+                    'can_delete': False
+                })
+                
+                # 检查用户想要设置的权限
+                wants_view = f"view_{module}" in form_data
+                wants_create = f"create_{module}" in form_data
+                wants_edit = f"edit_{module}" in form_data
+                wants_delete = f"delete_{module}" in form_data
+                
+                # 构建个人权限记录，但只包含角色权限为False且用户想要为True的权限
+                personal_permissions = {}
+                
+                # 对于每个权限，只有在角色权限为False且用户想要True时，才设置个人权限
+                if not role_perm['can_view'] and wants_view:
+                    personal_permissions['can_view'] = True
+                if not role_perm['can_create'] and wants_create:
+                    personal_permissions['can_create'] = True
+                if not role_perm['can_edit'] and wants_edit:
+                    personal_permissions['can_edit'] = True
+                if not role_perm['can_delete'] and wants_delete:
+                    personal_permissions['can_delete'] = True
+                
+                # 只有当至少有一个权限需要设置时，才创建个人权限记录
+                if personal_permissions:
+                    permission = {
+                        "module": module,
+                        "can_view": personal_permissions.get('can_view', False),
+                        "can_create": personal_permissions.get('can_create', False),
+                        "can_edit": personal_permissions.get('can_edit', False),
+                        "can_delete": personal_permissions.get('can_delete', False)
+                    }
+                    permissions.append(permission)
+            
+            logger.warning(f"[DEBUG] 写入 permissions 表，user_id={user_id}, permissions={permissions}")
+            
+            # 删除现有个人权限
             Permission.query.filter_by(user_id=user_id).delete()
+            
+            # 只保存需要的个人权限
             for perm in permissions:
                 module = perm.get('module')
                 permission = Permission(
@@ -381,6 +489,7 @@ def manage_permissions(user_id):
                     can_delete=bool(perm.get('can_delete', False))
                 )
                 db.session.add(permission)
+                
             try:
                 db.session.commit()
                 logger.warning(f"[DEBUG] permissions 表写入完成，user_id={user_id}")
@@ -700,7 +809,8 @@ def get_default_modules():
         {"id": "product", "name": "产品管理", "description": "管理产品信息和价格"},
         {"id": "product_code", "name": "产品编码", "description": "管理产品编码系统"},
         {"id": "user", "name": "用户管理", "description": "管理系统用户"},
-        {"id": "permission", "name": "权限管理", "description": "管理用户权限"}
+        {"id": "permission", "name": "权限管理", "description": "管理用户权限"},
+        {"id": "project_rating", "name": "项目评分🌟", "description": "设置项目五星评分", "type": "switch"}
     ]
 
 @user_bp.route('/detail/<int:user_id>')

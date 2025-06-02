@@ -43,10 +43,103 @@
                             </select>
                         </div>
                     </div>
-                    <div class="col-md-6 d-flex align-items-end">
-                        <div class="mb-3">
-                            <div class="alert alert-info mb-0">
-                                <i class="fas fa-info-circle me-2"></i>选择角色后，可查看和编辑该角色的权限设置。注意：修改角色权限将影响所有具有此角色的用户。
+                    <div class="col-md-6">
+                        <!-- 角色特殊权限说明 -->
+                        <div id="roleSpecialPermissions" class="d-none">
+                            <!-- 系统管理员特权 -->
+                            <div id="adminPermissions" class="card border-warning d-none">
+                                <div class="card-header bg-warning bg-opacity-10 d-flex align-items-center">
+                                    <i class="fas fa-crown text-warning me-2"></i>
+                                    <strong class="text-warning">系统管理员特权：</strong>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-unstyled mb-0">
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>拥有系统所有功能的完全访问权限</li>
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>可以管理所有用户账户和权限配置</li>
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>可以查看、编辑、删除所有数据</li>
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>可以配置系统参数和审批流程</li>
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>可以访问系统管理和维护功能</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            
+                            <!-- 产品经理特殊权限 -->
+                            <div id="productManagerPermissions" class="card border-primary d-none">
+                                <div class="card-header bg-primary bg-opacity-10 d-flex align-items-center">
+                                    <i class="fas fa-star text-primary me-2"></i>
+                                    <strong class="text-primary">产品经理特殊权限：</strong>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-unstyled mb-0">
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>产品信息管理</li>
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>产品价格设置</li>
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>项目评分权限（可配置）</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            
+                            <!-- 渠道经理特权 -->
+                            <div id="channelManagerPermissions" class="card border-info d-none">
+                                <div class="card-header bg-info bg-opacity-10 d-flex align-items-center">
+                                    <i class="fas fa-crown text-info me-2"></i>
+                                    <strong class="text-info">渠道经理特权：</strong>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-unstyled mb-0">
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>可以查看所有渠道跟进项目的详情和报价单</li>
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>可以访问其他用户创建的渠道项目数据</li>
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>对于非自己创建的渠道项目，仅具有查看权限</li>
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>无法编辑或删除其他用户的渠道项目和报价单</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            
+                            <!-- 营销总监特权 -->
+                            <div id="salesDirectorPermissions" class="card border-info d-none">
+                                <div class="card-header bg-info bg-opacity-10 d-flex align-items-center">
+                                    <i class="fas fa-crown text-info me-2"></i>
+                                    <strong class="text-info">营销总监特权：</strong>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-unstyled mb-0">
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>可以查看所有销售重点和渠道跟进项目的详情</li>
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>可以查看销售重点和渠道跟进项目的报价单详情</li>
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>只能查看自己创建的客户信息（除非设置为部门负责人）</li>
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>对于非自己创建的项目，仅具有查看权限</li>
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>无法编辑或删除其他用户的项目和报价单</li>
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>无法操作其他用户项目的阶段推进</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            
+                            <!-- 服务经理特殊权限 -->
+                            <div id="serviceManagerPermissions" class="card border-primary d-none">
+                                <div class="card-header bg-primary bg-opacity-10 d-flex align-items-center">
+                                    <i class="fas fa-star text-primary me-2"></i>
+                                    <strong class="text-primary">服务经理特殊权限：</strong>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-unstyled mb-0">
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>客户服务记录管理</li>
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>项目跟进和更新</li>
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>项目评分权限（可配置）</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            
+                            <!-- 解决方案经理特殊权限 -->
+                            <div id="solutionManagerPermissions" class="card border-primary d-none">
+                                <div class="card-header bg-primary bg-opacity-10 d-flex align-items-center">
+                                    <i class="fas fa-star text-primary me-2"></i>
+                                    <strong class="text-primary">解决方案经理特殊权限：</strong>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-unstyled mb-0">
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>技术方案设计</li>
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>产品技术支持</li>
+                                        <li class="mb-1"><i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem;"></i>项目评分权限（可配置）</li>
+                                    </ul>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -309,7 +402,7 @@
                 if (role && role.key && role.value) {
                     const option = document.createElement('option');
                     option.value = role.key;
-                    option.textContent = `${role.key}（${role.value}）`;
+                    option.textContent = role.value; // 只显示中文名称
                     roleSelect.appendChild(option);
                 }
             });
@@ -338,6 +431,9 @@
             // 显示加载状态
             hideAll();
             loadingState.classList.remove('d-none');
+            
+            // 显示角色特殊权限说明
+            showRoleSpecialPermissions(role);
 
             // 构建API请求URL
             const apiUrl = `/api/v1/permissions/roles/${role}`;
@@ -370,6 +466,7 @@
                     // 显示权限容器
                     hideAll();
                     permissionsContainer.classList.remove('d-none');
+                    document.getElementById('roleSpecialPermissions').classList.remove('d-none');
                 } else {
                     console.error('加载权限数据失败:', data.message);
                     hideAll();
@@ -381,6 +478,51 @@
                 hideAll();
                 errorMessage.classList.remove('d-none');
             });
+        }
+        
+        // 显示角色特殊权限说明
+        function showRoleSpecialPermissions(role) {
+            // 隐藏所有权限卡片
+            document.getElementById('adminPermissions').classList.add('d-none');
+            document.getElementById('productManagerPermissions').classList.add('d-none');
+            document.getElementById('channelManagerPermissions').classList.add('d-none');
+            document.getElementById('salesDirectorPermissions').classList.add('d-none');
+            document.getElementById('serviceManagerPermissions').classList.add('d-none');
+            document.getElementById('solutionManagerPermissions').classList.add('d-none');
+            
+            const specialPermissionsDiv = document.getElementById('roleSpecialPermissions');
+            
+            // 根据角色显示对应的权限卡片
+            switch(role) {
+                case 'admin':
+                    document.getElementById('adminPermissions').classList.remove('d-none');
+                    specialPermissionsDiv.classList.remove('d-none');
+                    break;
+                case 'product_manager':
+                    document.getElementById('productManagerPermissions').classList.remove('d-none');
+                    specialPermissionsDiv.classList.remove('d-none');
+                    break;
+                case 'channel_manager':
+                    document.getElementById('channelManagerPermissions').classList.remove('d-none');
+                    specialPermissionsDiv.classList.remove('d-none');
+                    break;
+                case 'sales_director':
+                    document.getElementById('salesDirectorPermissions').classList.remove('d-none');
+                    specialPermissionsDiv.classList.remove('d-none');
+                    break;
+                case 'service_manager':
+                    document.getElementById('serviceManagerPermissions').classList.remove('d-none');
+                    specialPermissionsDiv.classList.remove('d-none');
+                    break;
+                case 'solution_manager':
+                    document.getElementById('solutionManagerPermissions').classList.remove('d-none');
+                    specialPermissionsDiv.classList.remove('d-none');
+                    break;
+                default:
+                    // 没有特殊权限的角色，隐藏权限说明
+                    specialPermissionsDiv.classList.add('d-none');
+                    break;
+            }
         }
 
         // 隐藏所有状态容器
@@ -426,40 +568,63 @@
                 `;
                 row.appendChild(moduleCell);
                 
-                // 权限复选框列（查看、创建、编辑、删除）
-                const permissions = ['view', 'create', 'edit', 'delete'];
-                permissions.forEach(action => {
-                    const permKey = `can_${action}`;
-                    const isChecked = modulePermission[permKey] === true;
-                    const cell = document.createElement('td');
-                    cell.className = 'text-center';
-                    cell.innerHTML = `
-                        <div class="checkbox-wrapper">
-                            <input type="checkbox" class="form-check-input permission-checkbox"
-                                id="${action}_${module.id}"
+                // 检查是否为开关式权限模块（如项目评分）
+                if (module.type === 'switch') {
+                    // 开关式权限：只显示一个开关，跨越所有权限列
+                    const switchCell = document.createElement('td');
+                    switchCell.className = 'text-center';
+                    switchCell.colSpan = 5; // 跨越查看、创建、编辑、删除、全选列
+                    
+                    const isEnabled = modulePermission.can_create === true; // 使用create权限作为开关状态
+                    switchCell.innerHTML = `
+                        <div class="form-check form-switch d-flex justify-content-center">
+                            <input class="form-check-input switch-permission" type="checkbox" 
+                                id="switch_${module.id}"
                                 data-module="${module.id}"
-                                data-action="${action}"
-                                ${isChecked ? 'checked' : ''}
+                                ${isEnabled ? 'checked' : ''}
+                                disabled>
+                            <label class="form-check-label ms-2" for="switch_${module.id}">
+                                ${isEnabled ? '已启用' : '已禁用'}
+                            </label>
+                        </div>
+                    `;
+                    row.appendChild(switchCell);
+                } else {
+                    // 普通权限：显示查看、创建、编辑、删除复选框
+                    const permissions = ['view', 'create', 'edit', 'delete'];
+                    permissions.forEach(action => {
+                        const permKey = `can_${action}`;
+                        const isChecked = modulePermission[permKey] === true;
+                        const cell = document.createElement('td');
+                        cell.className = 'text-center';
+                        cell.innerHTML = `
+                            <div class="checkbox-wrapper">
+                                <input type="checkbox" class="form-check-input permission-checkbox"
+                                    id="${action}_${module.id}"
+                                    data-module="${module.id}"
+                                    data-action="${action}"
+                                    ${isChecked ? 'checked' : ''}
+                                    disabled>
+                            </div>
+                        `;
+                        row.appendChild(cell);
+                    });
+                    
+                    // 添加模块全选复选框
+                    const allChecked = permissions.every(action => modulePermission[`can_${action}`] === true);
+                    const selectAllCell = document.createElement('td');
+                    selectAllCell.className = 'text-center';
+                    selectAllCell.innerHTML = `
+                        <div class="checkbox-wrapper">
+                            <input type="checkbox" class="form-check-input module-select-all"
+                                id="selectAll_${module.id}"
+                                data-module="${module.id}"
+                                ${allChecked ? 'checked' : ''}
                                 disabled>
                         </div>
                     `;
-                    row.appendChild(cell);
-                });
-                
-                // 添加模块全选复选框
-                const allChecked = permissions.every(action => modulePermission[`can_${action}`] === true);
-                const selectAllCell = document.createElement('td');
-                selectAllCell.className = 'text-center';
-                selectAllCell.innerHTML = `
-                    <div class="checkbox-wrapper">
-                        <input type="checkbox" class="form-check-input module-select-all"
-                            id="selectAll_${module.id}"
-                            data-module="${module.id}"
-                            ${allChecked ? 'checked' : ''}
-                            disabled>
-                    </div>
-                `;
-                row.appendChild(selectAllCell);
+                    row.appendChild(selectAllCell);
+                }
                 
                 // 添加行到表格
                 permissionsTableBody.appendChild(row);
@@ -486,6 +651,16 @@
             document.querySelectorAll('.permission-checkbox').forEach(checkbox => {
                 checkbox.addEventListener('change', function() {
                     updateModuleSelectAllState(this.dataset.module);
+                });
+            });
+            
+            // 为开关式权限添加事件监听
+            document.querySelectorAll('.switch-permission').forEach(switchInput => {
+                switchInput.addEventListener('change', function() {
+                    const label = this.nextElementSibling;
+                    if (label) {
+                        label.textContent = this.checked ? '已启用' : '已禁用';
+                    }
                 });
             });
         }
@@ -646,7 +821,7 @@
         function setEditMode(enable) {
             editMode = enable;
             
-            // 控制复选框
+            // 控制复选框和开关
             document.querySelectorAll('#permissionsTableBody input[type=checkbox]').forEach(cb => {
                 cb.disabled = !enable;
             });

@@ -14,6 +14,8 @@ from app.utils.dictionary_helpers import project_type_label
 from sqlalchemy import and_, or_, desc, asc
 from datetime import datetime
 from flask import url_for
+from app.helpers.project_helpers import lock_project, unlock_project
+from app.models.project import Project
 
 def get_user_created_approvals(user_id=None, object_type=None, status=None, page=1, per_page=20):
     """获取指定用户发起的审批列表
@@ -75,6 +77,33 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
     
     if object_type:
         query = query.filter(ApprovalInstance.object_type == object_type)
+    
+    # 按创建时间倒序排列
+    query = query.order_by(ApprovalInstance.started_at.desc())
+    
+    # 返回分页结果
+    return query.paginate(page=page, per_page=per_page, error_out=False)
+
+
+def get_all_approvals(object_type=None, status=None, page=1, per_page=20):
+    """获取所有审批记录（仅供admin使用）
+    
+    Args:
+        object_type: 过滤特定类型的审批对象
+        status: 过滤特定状态的审批
+        page: 页码
+        per_page: 每页数量
+        
+    Returns:
+        分页对象，包含所有审批实例列表
+    """
+    query = ApprovalInstance.query.options(db.joinedload(ApprovalInstance.process))
+    
+    if object_type:
+        query = query.filter(ApprovalInstance.object_type == object_type)
+        
+    if status:
+        query = query.filter(ApprovalInstance.status == status)
     
     # 按创建时间倒序排列
     query = query.order_by(ApprovalInstance.started_at.desc())
@@ -231,7 +260,7 @@ def get_template_steps(template_id):
     ).order_by(ApprovalStep.step_order.asc()).all()
 
 
-def create_approval_template(name, object_type, creator_id=None, required_fields=None):
+def create_approval_template(name, object_type, creator_id=None, required_fields=None, lock_object_on_start=None, lock_reason=None):
     """创建审批流程模板
     
     Args:
@@ -239,6 +268,8 @@ def create_approval_template(name, object_type, creator_id=None, required_fields
         object_type: 适用业务对象类型
         creator_id: 创建人ID
         required_fields: 发起审批必填字段列表
+        lock_object_on_start: 是否在发起审批后锁定对象
+        lock_reason: 锁定原因
         
     Returns:
         创建的模板对象
@@ -249,16 +280,26 @@ def create_approval_template(name, object_type, creator_id=None, required_fields
     # 处理必填字段
     if isinstance(required_fields, str):
         # 如果是字符串，以逗号分隔，转换为列表
-        required_fields = [field.strip() for field in required_fields.split(',') if field.strip()]
+        field_list = [field.strip() for field in required_fields.split(',') if field.strip()]
     elif required_fields is None:
-        required_fields = []
+        field_list = []
+    else:
+        field_list = required_fields
+    
+    # 去重处理，保持顺序
+    unique_fields = []
+    for field in field_list:
+        if field not in unique_fields:
+            unique_fields.append(field)
         
     template = ApprovalProcessTemplate(
         name=name,
         object_type=object_type,
         created_by=creator_id,
         is_active=True,
-        required_fields=required_fields
+        required_fields=unique_fields,
+        lock_object_on_start=lock_object_on_start if lock_object_on_start is not None else True,
+        lock_reason=lock_reason if lock_reason is not None else '审批流程进行中，暂时锁定编辑'
     )
     
     db.session.add(template)
@@ -268,7 +309,7 @@ def create_approval_template(name, object_type, creator_id=None, required_fields
     return template
 
 
-def update_approval_template(template_id, name=None, object_type=None, is_active=None, required_fields=None):
+def update_approval_template(template_id, name=None, object_type=None, is_active=None, required_fields=None, lock_object_on_start=None, lock_reason=None):
     """更新审批流程模板
     
     Args:
@@ -277,6 +318,8 @@ def update_approval_template(template_id, name=None, object_type=None, is_active
         object_type: 新的适用对象类型
         is_active: 是否启用
         required_fields: 发起审批必填字段列表
+        lock_object_on_start: 是否在发起审批后锁定对象
+        lock_reason: 锁定原因
         
     Returns:
         更新后的模板对象
@@ -294,13 +337,27 @@ def update_approval_template(template_id, name=None, object_type=None, is_active
     if is_active is not None:
         template.is_active = is_active
     
+    if lock_object_on_start is not None:
+        template.lock_object_on_start = lock_object_on_start
+        
+    if lock_reason is not None:
+        template.lock_reason = lock_reason
+    
     # 处理必填字段
     if required_fields is not None:
         if isinstance(required_fields, str):
             # 如果是字符串，以逗号分隔，转换为列表
-            template.required_fields = [field.strip() for field in required_fields.split(',') if field.strip()]
+            field_list = [field.strip() for field in required_fields.split(',') if field.strip()]
         else:
-            template.required_fields = required_fields
+            field_list = required_fields if required_fields else []
+        
+        # 去重处理，保持顺序
+        unique_fields = []
+        for field in field_list:
+            if field not in unique_fields:
+                unique_fields.append(field)
+        
+        template.required_fields = unique_fields
     
     db.session.commit()
     
@@ -315,29 +372,64 @@ def delete_approval_template(template_id):
         template_id: 模板ID
         
     Returns:
-        布尔值，表示是否成功删除
+        字典，包含success、message和instances字段
     """
     template = ApprovalProcessTemplate.query.get(template_id)
     if not template:
-        return False
+        return {
+            'success': False,
+            'message': '审批流程模板不存在',
+            'instances': []
+        }
     
     # 检查是否有关联的审批实例
-    instances = ApprovalInstance.query.filter_by(process_id=template_id).first()
+    instances = ApprovalInstance.query.filter_by(process_id=template_id).all()
     if instances:
-        # 如果有关联实例，则只是将模板标记为禁用
+        # 如果有关联实例，则只是将模板标记为禁用，并返回详细信息
         template.is_active = False
         db.session.commit()
-        return False
+        
+        # 构建实例详情
+        instance_details = []
+        for instance in instances:
+            instance_info = {
+                'id': instance.id,
+                'object_info': f"{get_object_type_display(instance.object_type)} ID: {instance.object_id}",
+                'status': instance.status.value if hasattr(instance.status, 'value') else str(instance.status),
+                'creator': instance.creator.username if instance.creator else '未知',
+                'creator_real_name': instance.creator.real_name if instance.creator and instance.creator.real_name else '',
+                'started_at': instance.started_at.strftime('%Y-%m-%d %H:%M') if instance.started_at else '未知'
+            }
+            instance_details.append(instance_info)
+        
+        return {
+            'success': False,
+            'message': f'无法删除模板"{template.name}"，因为存在 {len(instances)} 个关联的审批实例。模板已被禁用。',
+            'instances': instance_details
+        }
     
-    # 否则，删除模板和所有关联的步骤
-    ApprovalStep.query.filter_by(process_id=template_id).delete()
-    db.session.delete(template)
-    db.session.commit()
-    
-    return True
+    try:
+        # 否则，删除模板和所有关联的步骤
+        ApprovalStep.query.filter_by(process_id=template_id).delete()
+        db.session.delete(template)
+        db.session.commit()
+        
+        return {
+            'success': True,
+            'message': f'审批流程模板"{template.name}"删除成功',
+            'instances': []
+        }
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"删除审批模板失败: {str(e)}")
+        return {
+            'success': False,
+            'message': f'删除模板失败：{str(e)}',
+            'instances': []
+        }
 
 
-def add_approval_step(template_id, step_name, approver_id, send_email=True):
+def add_approval_step(template_id, step_name, approver_id, send_email=True, editable_fields=None, cc_users=None, cc_enabled=False):
     """添加审批步骤
     
     Args:
@@ -345,6 +437,9 @@ def add_approval_step(template_id, step_name, approver_id, send_email=True):
         step_name: 步骤名称
         approver_id: 审批人ID
         send_email: 是否发送邮件通知
+        editable_fields: 在此步骤可编辑的字段列表
+        cc_users: 抄送用户ID列表
+        cc_enabled: 是否启用抄送
         
     Returns:
         新创建的步骤对象，如果模板不存在则返回None
@@ -358,13 +453,24 @@ def add_approval_step(template_id, step_name, approver_id, send_email=True):
         ApprovalStep.process_id == template_id
     ).scalar() or 0
     
+    # 处理可编辑字段
+    if editable_fields is None:
+        editable_fields = []
+    
+    # 处理抄送用户
+    if cc_users is None:
+        cc_users = []
+    
     # 添加新步骤
     step = ApprovalStep(
         process_id=template_id,
         step_order=max_order + 1,
         approver_user_id=approver_id,
         step_name=step_name,
-        send_email=send_email
+        send_email=send_email,
+        editable_fields=editable_fields,
+        cc_users=cc_users,
+        cc_enabled=cc_enabled
     )
     
     db.session.add(step)
@@ -373,7 +479,7 @@ def add_approval_step(template_id, step_name, approver_id, send_email=True):
     return step
 
 
-def update_approval_step(step_id, step_name=None, approver_id=None, send_email=None):
+def update_approval_step(step_id, step_name=None, approver_id=None, send_email=None, editable_fields=None, cc_users=None, cc_enabled=None):
     """更新审批步骤
     
     Args:
@@ -381,6 +487,9 @@ def update_approval_step(step_id, step_name=None, approver_id=None, send_email=N
         step_name: 步骤名称
         approver_id: 审批人ID
         send_email: 是否发送邮件通知
+        editable_fields: 在此步骤可编辑的字段列表
+        cc_users: 抄送用户ID列表
+        cc_enabled: 是否启用抄送
         
     Returns:
         更新后的步骤对象，如果没有找到则返回None
@@ -398,16 +507,26 @@ def update_approval_step(step_id, step_name=None, approver_id=None, send_email=N
     if send_email is not None:
         step.send_email = send_email
     
+    if editable_fields is not None:
+        step.editable_fields = editable_fields
+        
+    if cc_users is not None:
+        step.cc_users = cc_users
+        
+    if cc_enabled is not None:
+        step.cc_enabled = cc_enabled
+    
     db.session.commit()
     
     return step
 
 
-def delete_approval_step(step_id):
+def delete_approval_step(step_id, force=False):
     """删除审批步骤
     
     Args:
         step_id: 步骤ID
+        force: 是否强制删除（忽略进行中实例检查）
         
     Returns:
         布尔值，表示是否成功删除
@@ -417,9 +536,23 @@ def delete_approval_step(step_id):
         return False
     
     template_id = step.process_id
-    current_order = step.step_order
     
-    # 删除步骤
+    # 检查是否有进行中的审批实例
+    if not force:
+        pending_instances = ApprovalInstance.query.filter_by(
+            process_id=template_id,
+            status=ApprovalStatus.PENDING
+        ).first()
+        
+        if pending_instances:
+            current_app.logger.warning(f"无法删除步骤 {step_id}：存在进行中的审批实例")
+            return False
+    
+    # 记录操作日志
+    current_app.logger.info(f"删除审批步骤: {step.step_name} (ID: {step_id})")
+    
+    # 执行删除
+    current_order = step.step_order
     db.session.delete(step)
     
     # 更新后续步骤的序号
@@ -432,7 +565,6 @@ def delete_approval_step(step_id):
         later_step.step_order -= 1
     
     db.session.commit()
-    
     return True
 
 
@@ -529,16 +661,25 @@ def get_object_type_display(object_type):
     return type_map.get(object_type, object_type)
 
 
-def check_template_in_use(template_id):
+def check_template_in_use(template_id, strict_mode=False):
     """检查审批流程模板是否正在使用
     
     Args:
         template_id: 模板ID
+        strict_mode: 严格模式，True时仍然禁止修改已使用模板
         
     Returns:
         布尔值，表示模板是否有关联的审批实例
     """
-    return ApprovalInstance.query.filter_by(process_id=template_id).first() is not None
+    if strict_mode:
+        # 严格模式：有任何关联实例就禁止修改
+        return ApprovalInstance.query.filter_by(process_id=template_id).first() is not None
+    else:
+        # 宽松模式：只有进行中的实例才禁止修改
+        return ApprovalInstance.query.filter_by(
+            process_id=template_id,
+            status=ApprovalStatus.PENDING
+        ).first() is not None
 
 
 def get_object_approval_instance(object_type, object_id):
@@ -551,20 +692,28 @@ def get_object_approval_instance(object_type, object_id):
     Returns:
         对应的审批实例，如果没有则返回None
     """
-    instance = ApprovalInstance.query.filter_by(
+    # 优先查找最新的PENDING实例
+    pending_instance = ApprovalInstance.query.filter_by(
         object_type=object_type,
-        object_id=object_id
-    ).first()
-
-    # 如果没有实例或实例状态不是PENDING，允许重新发起
-    if instance and instance.status == ApprovalStatus.PENDING:
-        return instance
-    elif instance and instance.status == ApprovalStatus.APPROVED:
-        # 已批准的实例也返回，用于显示审批历史
-        return instance
-    else:
-        # 被拒绝或其他情况，允许重新发起审批
-        return None
+        object_id=object_id,
+        status=ApprovalStatus.PENDING
+    ).order_by(ApprovalInstance.started_at.desc()).first()
+    
+    if pending_instance:
+        return pending_instance
+    
+    # 如果没有PENDING实例，查找最新的APPROVED实例（用于显示审批历史）
+    approved_instance = ApprovalInstance.query.filter_by(
+        object_type=object_type,
+        object_id=object_id,
+        status=ApprovalStatus.APPROVED
+    ).order_by(ApprovalInstance.started_at.desc()).first()
+    
+    if approved_instance:
+        return approved_instance
+    
+    # 被拒绝或其他情况，允许重新发起审批
+    return None
 
 
 def get_available_templates(object_type, object_id=None):
@@ -589,7 +738,6 @@ def get_available_templates(object_type, object_id=None):
         business_type = None
         
         if object_type == 'project':
-            from app.models.project import Project
             project = Project.query.get(object_id)
             if project:
                 business_type = project.project_type
@@ -634,6 +782,8 @@ def start_approval_process(object_type, object_id, template_id, user_id=None):
             f"业务对象已存在审批实例: {object_type}:{object_id}, "
             f"实例ID: {existing.id}, 状态: {status_str}"
         )
+        from flask import flash
+        flash(f"发起审批失败，已存在审批流程 (状态: {status_str})", 'danger')
         return None
     
     # 查询历史审批实例，以便在日志中记录
@@ -649,16 +799,22 @@ def start_approval_process(object_type, object_id, template_id, user_id=None):
     template = ApprovalProcessTemplate.query.get(template_id)
     if not template:
         current_app.logger.warning(f"审批模板不存在: {template_id}")
+        from flask import flash
+        flash("发起审批失败，审批模板不存在或已被删除", 'danger')
         return None
         
     if not template.is_active:
         current_app.logger.warning(f"审批模板未启用: {template_id} ({template.name})")
+        from flask import flash
+        flash(f"发起审批失败，审批模板 \"{template.name}\" 未启用", 'danger')
         return None
     
     # 检查模板是否有步骤
     steps = ApprovalStep.query.filter_by(process_id=template_id).order_by(ApprovalStep.step_order.asc()).all()
     if not steps:
         current_app.logger.warning(f"审批模板没有配置审批步骤: {template_id} ({template.name})")
+        from flask import flash
+        flash(f"发起审批失败，审批模板 \"{template.name}\" 没有配置审批步骤", 'danger')
         return None
     
     current_app.logger.info(f"审批模板 {template.name} (ID: {template_id}) 有 {len(steps)} 个步骤")
@@ -671,7 +827,6 @@ def start_approval_process(object_type, object_id, template_id, user_id=None):
         
         # 根据业务对象类型获取对象
         if object_type == 'project':
-            from app.models.project import Project
             obj = Project.query.get(object_id)
         elif object_type == 'quotation':
             from app.models.quotation import Quotation
@@ -731,6 +886,41 @@ def start_approval_process(object_type, object_id, template_id, user_id=None):
         user_id = current_user.id
     
     try:
+        # 获取模板和步骤信息用于创建快照
+        steps = ApprovalStep.query.filter_by(
+            process_id=template_id
+        ).order_by(ApprovalStep.step_order.asc()).all()
+        
+        # 创建模板快照
+        template_snapshot = {
+            'template_id': template.id,
+            'template_name': template.name,
+            'object_type': template.object_type,
+            'required_fields': template.required_fields or [],
+            'lock_object_on_start': template.lock_object_on_start,
+            'lock_reason': template.lock_reason,
+            'created_at': datetime.now().isoformat(),
+            'steps': []
+        }
+        
+        # 保存步骤快照
+        for step in steps:
+            step_data = {
+                'id': step.id,
+                'step_order': step.step_order,
+                'step_name': step.step_name,
+                'approver_user_id': step.approver_user_id,
+                'approver_username': step.approver.username if step.approver else '',
+                'approver_real_name': step.approver.real_name if step.approver else '',
+                'send_email': step.send_email,
+                'action_type': step.action_type,
+                'action_params': step.action_params,
+                'editable_fields': step.editable_fields or [],
+                'cc_users': step.cc_users or [],
+                'cc_enabled': step.cc_enabled
+            }
+            template_snapshot['steps'].append(step_data)
+        
         # 创建审批实例
         instance = ApprovalInstance(
             process_id=template_id,
@@ -739,9 +929,49 @@ def start_approval_process(object_type, object_id, template_id, user_id=None):
             current_step=1,  # 从第一步开始
             status=ApprovalStatus.PENDING,
             started_at=datetime.now(),
-            created_by=user_id
+            created_by=user_id,
+            template_snapshot=template_snapshot,
+            template_version=f"v{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         )
         db.session.add(instance)
+        db.session.flush()  # 获取实例ID但不提交
+        
+        current_app.logger.info(f"已为审批实例创建模板快照，版本: {instance.template_version}")
+        
+        # 如果模板配置了锁定对象，则锁定对象
+        if template.lock_object_on_start:
+            lock_success = False
+            if object_type == 'quotation':
+                from app.helpers.quotation_helpers import lock_quotation
+                lock_success = lock_quotation(
+                    quotation_id=object_id,
+                    reason=template.lock_reason or '审批流程进行中，暂时锁定编辑',
+                    user_id=user_id
+                )
+            elif object_type == 'project':
+                # 先检查项目是否已被锁定，如果是，先解锁再锁定
+                project = Project.query.get(object_id)
+                if project and project.is_locked:
+                    current_app.logger.info(f"项目已被锁定，尝试强制重新锁定: {object_id}, 原因: {project.locked_reason}")
+                
+                lock_success = lock_project(
+                    project_id=object_id,
+                    reason=f"授权编号审批锁定: {template.name}",
+                    user_id=user_id,
+                    force=True  # 强制锁定，即使已经锁定也更新锁定状态
+                )
+            elif object_type == 'customer':
+                # 客户锁定逻辑可以在这里添加
+                lock_success = True  # 暂时跳过客户锁定
+            
+            if not lock_success and object_type in ['quotation', 'project']:
+                current_app.logger.warning(f"锁定{object_type}失败: {object_id}")
+                # 锁定失败时回滚审批实例创建
+                db.session.rollback()
+                from flask import flash
+                flash(f"发起审批失败: 无法锁定{get_object_type_display(object_type)}，请稍后再试", 'danger')
+                return None
+        
         db.session.commit()
         current_app.logger.info(f"成功发起审批流程: {object_type}:{object_id}, 模板ID: {template_id}, 实例ID: {instance.id}")
         return instance
@@ -796,6 +1026,19 @@ def _get_field_display_name(field_name):
         'region': '省份/州',
         'address': '地址',
         'contact_name': '联系人',
+        # 报价单明细相关字段
+        'product_name': '产品名称',
+        'product_model': '产品型号',
+        'product_spec': '产品规格',
+        'product_brand': '产品品牌',
+        'product_unit': '产品单位',
+        'product_price': '产品单价',
+        'discount_rate': '折扣率',
+        'discounted_price': '折后单价',
+        'quantity': '数量',
+        'subtotal': '小计',
+        'product_mn': '产品编码',
+        'remark': '备注'
     }
     
     return field_map.get(field_name, field_name)
@@ -864,10 +1107,15 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
         instance.status = ApprovalStatus.REJECTED
         instance.ended_at = datetime.now()
         
-        # 如果是项目，解锁它
+        # 更新业务对象的审批状态
+        _update_business_object_approval_status(instance, action, user_id, comment)
+        
+        # 解锁对象
         if instance.object_type == 'project':
-            from app.helpers.project_helpers import unlock_project
             unlock_project(instance.object_id, user_id)
+        elif instance.object_type == 'quotation':
+            from app.helpers.quotation_helpers import unlock_quotation
+            unlock_quotation(instance.object_id, user_id)
     else:
         # 获取下一步骤
         next_step_order = instance.current_step + 1
@@ -884,10 +1132,15 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
             instance.status = ApprovalStatus.APPROVED
             instance.ended_at = datetime.now()
             
-            # 如果是项目，解锁它
+            # 更新业务对象的审批状态
+            _update_business_object_approval_status(instance, action, user_id, comment)
+            
+            # 解锁对象
             if instance.object_type == 'project':
-                from app.helpers.project_helpers import unlock_project
                 unlock_project(instance.object_id, user_id)
+            elif instance.object_type == 'quotation':
+                from app.helpers.quotation_helpers import unlock_quotation
+                unlock_quotation(instance.object_id, user_id)
     
     try:
         db.session.commit()
@@ -917,7 +1170,6 @@ def _handle_project_authorization(instance, project_type):
     Returns:
         生成的授权编号或None
     """
-    from app.models.project import Project
     project = Project.query.get(instance.object_id)
     if not project:
         current_app.logger.error(f"找不到项目: {instance.object_id}")
@@ -1019,10 +1271,15 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
         instance.status = ApprovalStatus.REJECTED
         instance.ended_at = datetime.now()
         
-        # 如果是项目，解锁它
+        # 更新业务对象的审批状态
+        _update_business_object_approval_status(instance, action, user_id, comment)
+        
+        # 解锁对象
         if instance.object_type == 'project':
-            from app.helpers.project_helpers import unlock_project
             unlock_project(instance.object_id, user_id)
+        elif instance.object_type == 'quotation':
+            from app.helpers.quotation_helpers import unlock_quotation
+            unlock_quotation(instance.object_id, user_id)
     else:
         # 获取下一步骤
         next_step_order = instance.current_step + 1
@@ -1039,10 +1296,15 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
             instance.status = ApprovalStatus.APPROVED
             instance.ended_at = datetime.now()
             
-            # 如果是项目，解锁它
+            # 更新业务对象的审批状态
+            _update_business_object_approval_status(instance, action, user_id, comment)
+            
+            # 解锁对象
             if instance.object_type == 'project':
-                from app.helpers.project_helpers import unlock_project
                 unlock_project(instance.object_id, user_id)
+            elif instance.object_type == 'quotation':
+                from app.helpers.quotation_helpers import unlock_quotation
+                unlock_quotation(instance.object_id, user_id)
     
     db.session.commit()
     
@@ -1131,7 +1393,20 @@ def get_object_field_options(object_type=None):
         ('valid_days', '有效期'),
         ('currency', '币种'),
         ('total_amount', '总金额'),
-        ('project_type', '项目类型')
+        ('project_type', '项目类型'),
+        # 报价单明细相关字段
+        ('product_name', '产品名称'),
+        ('product_model', '产品型号'),
+        ('product_spec', '产品规格'),
+        ('product_brand', '产品品牌'),
+        ('product_unit', '产品单位'),
+        ('product_price', '产品单价'),
+        ('discount_rate', '折扣率'),
+        ('discounted_price', '折后单价'),
+        ('quantity', '数量'),
+        ('subtotal', '小计'),
+        ('product_mn', '产品编码'),
+        ('remark', '备注')
     ]
     
     customer_fields = [
@@ -1199,3 +1474,159 @@ def get_pending_approval_count(user_id=None):
     ).count()
     
     return count 
+
+
+def get_workflow_steps(approval_instance):
+    """获取审批流程的步骤信息，用于在审批区域显示流程图
+    
+    Args:
+        approval_instance: 审批实例对象
+        
+    Returns:
+        包含步骤信息的列表，每个步骤包含：
+        - order: 步骤顺序
+        - name: 步骤名称
+        - approver: 审批人姓名
+        - is_current: 是否为当前步骤
+        - is_completed: 是否已完成
+        - action: 审批动作（approve/reject）
+        - timestamp: 审批时间
+        - comment: 审批意见
+    """
+    if not approval_instance or not approval_instance.process:
+        return []
+    
+    # 获取流程模板的所有步骤
+    template_steps = ApprovalStep.query.filter_by(
+        process_id=approval_instance.process_id
+    ).order_by(ApprovalStep.step_order.asc()).all()
+    
+    # 获取已完成的审批记录
+    completed_records = ApprovalRecord.query.filter_by(
+        instance_id=approval_instance.id
+    ).order_by(ApprovalRecord.timestamp.asc()).all()
+    
+    # 构建步骤信息
+    workflow_steps = []
+    current_step_index = len(completed_records)
+    
+    for i, step in enumerate(template_steps):
+        step_info = {
+            'order': step.step_order,
+            'name': step.step_name,
+            'approver': step.approver.real_name or step.approver.username if step.approver else '未知',
+            'is_current': i == current_step_index and approval_instance.status == ApprovalStatus.PENDING,
+            'is_completed': i < len(completed_records),
+            'action': None,
+            'timestamp': None,
+            'comment': None
+        }
+        
+        # 如果步骤已完成，添加审批记录信息
+        if i < len(completed_records):
+            record = completed_records[i]
+            step_info.update({
+                'action': record.action,
+                'timestamp': record.timestamp,
+                'comment': record.comment
+            })
+        
+        workflow_steps.append(step_info)
+    
+    return workflow_steps
+
+
+def render_approval_code(instance_id):
+    """渲染审批编号
+    
+    Args:
+        instance_id: 审批实例ID
+        
+    Returns:
+        格式化的审批编号HTML
+    """
+    return f'<span class="badge bg-primary">APV-{instance_id:04d}</span>' 
+
+
+def _update_business_object_approval_status(instance, action, user_id, comment):
+    """更新业务对象的审批状态
+    
+    Args:
+        instance: 审批实例对象
+        action: 审批动作
+        user_id: 操作人ID
+        comment: 审批意见
+    """
+    try:
+        from app.models.user import User
+        user = User.query.get(user_id) if user_id else None
+        
+        if instance.object_type == 'quotation':
+            # 更新报价单的审批状态
+            from app.models.quotation import Quotation, QuotationApprovalStatus
+            quotation = Quotation.query.get(instance.object_id)
+            
+            if quotation and quotation.project:
+                # 根据项目当前阶段确定审批状态
+                project_stage = quotation.project.current_stage
+                target_approval_status = QuotationApprovalStatus.STAGE_TO_APPROVAL.get(project_stage)
+                
+                if target_approval_status and action == ApprovalAction.APPROVE:
+                    # 更新审批状态
+                    quotation.approval_status = target_approval_status
+                    
+                    # 添加到已审核阶段列表
+                    if not quotation.approved_stages:
+                        quotation.approved_stages = []
+                    if target_approval_status not in quotation.approved_stages:
+                        quotation.approved_stages.append(target_approval_status)
+                    
+                    # 添加审核历史
+                    if not quotation.approval_history:
+                        quotation.approval_history = []
+                    quotation.approval_history.append({
+                        'action': 'approve',
+                        'stage': project_stage,
+                        'approval_status': target_approval_status,
+                        'approver_id': user_id,
+                        'approver_name': user.username if user else '未知',
+                        'comment': comment or '',
+                        'timestamp': datetime.now().isoformat(),
+                        'approval_instance_id': instance.id
+                    })
+                    
+                    current_app.logger.info(f"报价单 {quotation.quotation_number} 审批状态已更新为: {target_approval_status}")
+                    
+                elif action == ApprovalAction.REJECT:
+                    # 拒绝审批
+                    quotation.approval_status = QuotationApprovalStatus.REJECTED
+                    
+                    # 添加审核历史
+                    if not quotation.approval_history:
+                        quotation.approval_history = []
+                    quotation.approval_history.append({
+                        'action': 'reject',
+                        'stage': project_stage if quotation.project else None,
+                        'approver_id': user_id,
+                        'approver_name': user.username if user else '未知',
+                        'comment': comment or '',
+                        'timestamp': datetime.now().isoformat(),
+                        'approval_instance_id': instance.id
+                    })
+                    
+                    current_app.logger.info(f"报价单 {quotation.quotation_number} 审批被拒绝")
+        
+        elif instance.object_type == 'project':
+            # 项目审批状态更新逻辑（如果需要的话）
+            # 这里可以根据项目的具体需求来实现
+            pass
+            
+        elif instance.object_type == 'customer':
+            # 客户审批状态更新逻辑（如果需要的话）
+            # 这里可以根据客户的具体需求来实现
+            pass
+            
+    except Exception as e:
+        current_app.logger.error(f"更新业务对象审批状态失败: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc()) 

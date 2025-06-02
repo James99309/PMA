@@ -1,9 +1,9 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, abort
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, abort, session, after_this_request
+from datetime import datetime, date, timedelta
+from flask_login import login_required, current_user
+from app import db, csrf
 from app.models.project import Project
 from app.models.customer import Company, Contact
-from app import db
-from datetime import datetime
-from flask_login import current_user, login_required
 from app.decorators import permission_required
 from app.utils.access_control import get_viewable_data, can_edit_data, get_accessible_data, can_change_project_owner, can_view_project
 import logging
@@ -32,6 +32,10 @@ from app.models.settings import SystemSettings
 from zoneinfo import ZoneInfo
 from app.utils.role_mappings import get_role_display_name
 from app.utils.solution_manager_notifications import notify_solution_managers_project_created, notify_solution_managers_project_stage_changed
+from flask import after_this_request
+from app.utils.change_tracker import ChangeTracker
+from app.helpers.approval_helpers import get_object_approval_instance, get_available_templates
+from app.utils.access_control import can_start_approval
 
 csrf = CSRFProtect()
 
@@ -62,7 +66,13 @@ def list_projects():
     
     # 如果启用了"只看自己"筛选
     if my_projects == '1':
-        query = query.filter(Project.owner_id == current_user.id)
+        # 过滤包括拥有人是自己的和厂商负责人是自己的项目
+        query = query.filter(
+            db.or_(
+                Project.owner_id == current_user.id,
+                Project.vendor_sales_manager_id == current_user.id
+            )
+        )
     # 如果指定了账户ID，按owner_id过滤项目
     elif account_id and account_id.isdigit():
         query = query.filter(Project.owner_id == int(account_id))
@@ -137,11 +147,22 @@ def list_projects():
     
     # 添加排序条件
     try:
-        sort_column = getattr(Project, sort, Project.id)
-        if order == 'desc':
-            sort_column = sort_column.desc()
+        # 特殊处理：当按项目名称排序时，实际按奖励星星数量排序
+        if sort == 'project_name':
+            # 按星星数量排序，空值排在最后
+            if order == 'desc':
+                # 降序：星星多的在前，空值在最后
+                sort_column = Project.rating.desc().nullslast()
+            else:
+                # 升序：星星少的在前，空值在最后  
+                sort_column = Project.rating.asc().nullslast()
         else:
-            sort_column = sort_column.asc()
+            # 其他字段按原逻辑排序
+            sort_column = getattr(Project, sort, Project.id)
+            if order == 'desc':
+                sort_column = sort_column.desc()
+            else:
+                sort_column = sort_column.asc()
         
         projects = query.order_by(sort_column).all()
     except Exception as e:
@@ -188,6 +209,9 @@ def view_project(project_id):
         has_permission = True
     # 项目拥有者可以查看自己的项目
     elif project.owner_id == current_user.id:
+        has_permission = True
+    # 厂商销售负责人可以查看自己负责的项目
+    elif project.vendor_sales_manager_id == current_user.id:
         has_permission = True
     # 通过归属关系获得权限
     else:
@@ -274,10 +298,17 @@ def view_project(project_id):
 
     # 传递阶段key给前端，确保一致性
     current_stage_key = project.current_stage
-    # 如果是中文名，反查key
-    if current_stage_key not in PROJECT_STAGE_LABELS:
-        reverse_lookup = {v['zh']: k for k, v in PROJECT_STAGE_LABELS.items()}
-        current_stage_key = reverse_lookup.get(current_stage_key, current_stage_key)
+    # 如果是英文key，转换为中文名称
+    if current_stage_key in PROJECT_STAGE_LABELS:
+        current_stage_key = PROJECT_STAGE_LABELS[current_stage_key]['zh']
+    # 如果已经是中文名，保持不变
+
+    # 确保阶段历史中的阶段名称也转换为中文
+    for stage_item in stage_history:
+        stage_name = stage_item['stage']
+        if stage_name in PROJECT_STAGE_LABELS:
+            stage_item['stage'] = PROJECT_STAGE_LABELS[stage_name]['zh']
+        # 如果已经是中文名，保持不变
 
     # 查询可选新拥有人
     all_users = []
@@ -320,14 +351,32 @@ def view_project(project_id):
             can_edit_stage = True
         elif project.owner_id == current_user.id:
             can_edit_stage = True and (is_editable or user_role == 'admin')
+        elif project.vendor_sales_manager_id == current_user.id:
+            # 厂商负责人享有与拥有人同等的编辑权限
+            can_edit_stage = True and (is_editable or user_role == 'admin')
         else:
-            # 对于非拥有者，需要检查是否在可查看用户列表中，但渠道经理等角色不能编辑其他人的项目
+            # 对于非拥有者和非厂商负责人，需要检查是否在可查看用户列表中，但渠道经理等角色不能编辑其他人的项目
             allowed_user_ids = current_user.get_viewable_user_ids() if hasattr(current_user, 'get_viewable_user_ids') else [current_user.id]
             if project.owner_id in allowed_user_ids:
                 # 即使可以查看，也不能编辑其他人的项目（除非是管理员）
                 can_edit_stage = False
 
-    return render_template("project/detail.html", project=project, Quotation=Quotation, related_companies=related_companies, stageHistory=stage_history, project_actions=project_actions, current_stage_key=current_stage_key, all_users=all_users, has_change_owner_permission=has_change_owner_permission, user_tree_data=user_tree_data, settings=settings, can_edit_stage=can_edit_stage)
+    return render_template("project/detail.html", 
+                         project=project, 
+                         Quotation=Quotation, 
+                         related_companies=related_companies, 
+                         stageHistory=stage_history, 
+                         project_actions=project_actions, 
+                         current_stage_key=current_stage_key, 
+                         all_users=all_users, 
+                         has_change_owner_permission=has_change_owner_permission, 
+                         user_tree_data=user_tree_data, 
+                         settings=settings, 
+                         can_edit_stage=can_edit_stage,
+                         # 添加审批相关函数
+                         get_object_approval_instance=get_object_approval_instance,
+                         get_available_templates=get_available_templates,
+                         can_start_approval=can_start_approval)
 
 @project.route('/add', methods=['GET', 'POST'])
 @permission_required('project', 'create')
@@ -401,12 +450,47 @@ def add_project():
             db.session.add(project)
             db.session.commit()
             
-            # 触发项目创建通知
+            # 记录创建历史
             try:
-                notify_project_created(project, current_user)
-                notify_solution_managers_project_created(project)
+                ChangeTracker.log_create(project)
+            except Exception as track_err:
+                logger.warning(f"记录项目创建历史失败: {str(track_err)}")
+            
+            # 新增：每次保存后自动刷新活跃度
+            update_active_status(project)
+            
+            # 项目保存后触发评分重新计算
+            try:
+                from app.models.project_scoring import ProjectScoringEngine
+                ProjectScoringEngine.calculate_project_score(project.id, commit=True)
+                current_app.logger.info(f"项目 {project.project_name} 更新后评分已重新计算")
+            except Exception as score_err:
+                current_app.logger.warning(f"项目更新后评分重新计算失败: {str(score_err)}")
+            
+            # 异步触发项目创建通知，避免阻塞保存操作
+            try:
+                import threading
+                from app.services.event_dispatcher import notify_project_created
+                from app.utils.solution_manager_notifications import notify_solution_managers_project_created
+                
+                def send_notifications_async():
+                    """异步发送通知"""
+                    with current_app.app_context():
+                        try:
+                            # 触发项目创建通知
+                            notify_project_created(project, current_user)
+                            # 通知解决方案经理
+                            notify_solution_managers_project_created(project)
+                            current_app.logger.debug('异步项目创建通知已发送')
+                        except Exception as notify_err:
+                            current_app.logger.warning(f"异步触发项目创建通知失败: {str(notify_err)}")
+                
+                # 启动异步通知线程
+                threading.Thread(target=send_notifications_async, daemon=True).start()
+                current_app.logger.debug('异步项目创建通知线程已启动')
+                
             except Exception as notify_err:
-                logger.warning(f"触发项目创建通知失败: {str(notify_err)}")
+                logger.warning(f"启动异步项目创建通知失败: {str(notify_err)}")
             
             flash('项目添加成功！', 'success')
             return redirect(url_for('project.view_project', project_id=project.id))
@@ -452,6 +536,10 @@ def edit_project(project_id):
         return redirect(url_for('project.view_project', project_id=project_id))
     
     if request.method == 'POST':
+        # 在修改前捕获旧值用于变更跟踪
+        from app.utils.change_tracker import ChangeTracker
+        old_values = ChangeTracker.capture_old_values(project)
+        
         try:
             # 必填项校验
             if not request.form.get('project_name'):
@@ -481,6 +569,15 @@ def edit_project(project_id):
             # 保存旧阶段用于后续比较
             old_stage = project.current_stage
             new_stage = request.form.get('current_stage')
+            
+            # 如果传入的是中文阶段名称，转换为英文key
+            if new_stage not in PROJECT_STAGE_LABELS:
+                # 反查中文名称对应的英文key
+                reverse_lookup = {v['zh']: k for k, v in PROJECT_STAGE_LABELS.items()}
+                new_stage_key = reverse_lookup.get(new_stage, new_stage)
+                if new_stage_key != new_stage:
+                    current_app.logger.info(f"阶段名称转换: {new_stage} -> {new_stage_key}")
+                    new_stage = new_stage_key
             
             # 更新当前阶段
             project.current_stage = new_stage
@@ -515,17 +612,49 @@ def edit_project(project_id):
                 project.project_type = new_project_type
             db.session.commit()
             
+            # 记录变更历史
+            try:
+                new_values = ChangeTracker.get_new_values(project, old_values.keys())
+                ChangeTracker.log_update(project, old_values, new_values)
+            except Exception as track_err:
+                logger.warning(f"记录项目变更历史失败: {str(track_err)}")
+            
             # 新增：每次保存后自动刷新活跃度
             update_active_status(project)
+            
+            # 项目保存后触发评分重新计算
+            try:
+                from app.models.project_scoring import ProjectScoringEngine
+                ProjectScoringEngine.calculate_project_score(project.id, commit=True)
+                current_app.logger.info(f"项目 {project.project_name} 更新后评分已重新计算")
+            except Exception as score_err:
+                current_app.logger.warning(f"项目更新后评分重新计算失败: {str(score_err)}")
             
             # 如果项目阶段发生变更，触发通知
             if old_stage != new_stage:
                 try:
+                    import threading
                     from app.services.event_dispatcher import notify_project_status_updated
-                    notify_project_status_updated(project, current_user, old_stage)
-                    notify_solution_managers_project_stage_changed(project, old_stage, new_stage)
+                    from app.utils.solution_manager_notifications import notify_solution_managers_project_stage_changed
+                    
+                    def send_stage_notifications_async():
+                        """异步发送阶段变更通知"""
+                        with current_app.app_context():
+                            try:
+                                # 触发项目阶段变更通知
+                                notify_project_status_updated(project, current_user, old_stage)
+                                # 通知解决方案经理
+                                notify_solution_managers_project_stage_changed(project, old_stage, new_stage)
+                                current_app.logger.debug('异步项目阶段变更通知已发送')
+                            except Exception as notify_err:
+                                current_app.logger.warning(f"异步触发项目阶段变更通知失败: {str(notify_err)}")
+                    
+                    # 启动异步通知线程
+                    threading.Thread(target=send_stage_notifications_async, daemon=True).start()
+                    current_app.logger.debug('异步项目阶段变更通知线程已启动')
+                    
                 except Exception as notify_err:
-                    current_app.logger.warning(f"触发项目阶段变更通知失败: {str(notify_err)}")
+                    current_app.logger.warning(f"启动异步项目阶段变更通知失败: {str(notify_err)}")
             
             # 更新相关客户的活跃状态
             # 查找与项目相关的所有企业名称
@@ -602,19 +731,57 @@ def delete_project(project_id):
         if quotations:
             for quotation in quotations:
                 db.session.delete(quotation)
+            
             logger.info(f"删除项目 {project_id} 前，已删除关联的 {len(quotations)} 个报价单")
         
-        # 先删除项目关联的所有阶段历史记录
+        # 删除项目关联的所有阶段历史记录
         from app.models.projectpm_stage_history import ProjectStageHistory
         stage_histories = ProjectStageHistory.query.filter_by(project_id=project_id).all()
         if stage_histories:
             for history in stage_histories:
                 db.session.delete(history)
-            logger.info(f"删除项目 {project_id} 前，已删除关联的 {len(stage_histories)} 条阶段历史记录")
         
-        # 再删除项目
+        # 删除项目关联的评分记录
+        try:
+            from app.models.project_scoring import ProjectScoringRecord, ProjectTotalScore
+            
+            # 删除评分记录
+            scoring_records = ProjectScoringRecord.query.filter_by(project_id=project_id).all()
+            if scoring_records:
+                for record in scoring_records:
+                    db.session.delete(record)
+            
+            # 删除总评分记录
+            total_scores = ProjectTotalScore.query.filter_by(project_id=project_id).all()
+            if total_scores:
+                for score in total_scores:
+                    db.session.delete(score)
+                    
+        except ImportError:
+            # 如果新评分系统模块不存在，跳过
+            pass
+        
+        # 删除旧的评分记录
+        try:
+            from app.models.project_rating_record import ProjectRatingRecord
+            old_rating_records = ProjectRatingRecord.query.filter_by(project_id=project_id).all()
+            if old_rating_records:
+                for record in old_rating_records:
+                    db.session.delete(record)
+        except ImportError:
+            # 如果旧评分系统模块不存在，跳过
+            pass
+        
+        # 最后删除项目
+        # 记录删除历史（在实际删除前记录）
+        try:
+            ChangeTracker.log_delete(project)
+        except Exception as track_err:
+            logger.warning(f"记录项目删除历史失败: {str(track_err)}")
+        
         db.session.delete(project)
         db.session.commit()
+        
         # 检查是否是AJAX请求
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({
@@ -643,8 +810,10 @@ def apply_authorization(project_id):
     """申请项目授权编号"""
     project = Project.query.get_or_404(project_id)
     
-    # 检查权限 - 只有项目拥有者或管理员可以申请
-    if current_user.id != project.owner_id and current_user.role != 'admin':
+    # 检查权限 - 项目拥有者、厂商负责人或管理员可以申请
+    if (current_user.id != project.owner_id and 
+        current_user.id != project.vendor_sales_manager_id and 
+        current_user.role != 'admin'):
         flash('您没有权限申请此项目的授权编号', 'danger')
         return redirect(url_for('project.view_project', project_id=project_id))
     
@@ -964,7 +1133,51 @@ def batch_delete_projects():
                     
                     logger.info(f"删除项目 {project_id} 前，已删除关联的 {len(quotations)} 个报价单")
                 
-                # 再删除项目
+                # 删除关联的阶段历史记录
+                from app.models.projectpm_stage_history import ProjectStageHistory
+                stage_histories = ProjectStageHistory.query.filter_by(project_id=project_id).all()
+                if stage_histories:
+                    for history in stage_histories:
+                        db.session.delete(history)
+                
+                # 删除项目关联的评分记录
+                try:
+                    from app.models.project_scoring import ProjectScoringRecord, ProjectTotalScore
+                    
+                    # 删除评分记录
+                    scoring_records = ProjectScoringRecord.query.filter_by(project_id=project_id).all()
+                    if scoring_records:
+                        for record in scoring_records:
+                            db.session.delete(record)
+                    
+                    # 删除总评分记录
+                    total_scores = ProjectTotalScore.query.filter_by(project_id=project_id).all()
+                    if total_scores:
+                        for score in total_scores:
+                            db.session.delete(score)
+                            
+                except ImportError:
+                    # 如果新评分系统模块不存在，跳过
+                    pass
+                
+                # 删除旧的评分记录
+                try:
+                    from app.models.project_rating_record import ProjectRatingRecord
+                    old_rating_records = ProjectRatingRecord.query.filter_by(project_id=project_id).all()
+                    if old_rating_records:
+                        for record in old_rating_records:
+                            db.session.delete(record)
+                except ImportError:
+                    # 如果旧评分系统模块不存在，跳过
+                    pass
+                
+                # 最后删除项目
+                # 记录删除历史（在实际删除前记录）
+                try:
+                    ChangeTracker.log_delete(project)
+                except Exception as track_err:
+                    logger.warning(f"记录项目删除历史失败: {str(track_err)}")
+                
                 db.session.delete(project)
                 result['deleted'] += 1
                 
@@ -1014,7 +1227,16 @@ def update_project_stage():
         
         if not project_id or not new_stage:
             return jsonify({'success': False, 'message': '项目ID和阶段不能为空'}), 400
-            
+        
+        # 如果传入的是中文阶段名称，转换为英文key
+        if new_stage not in PROJECT_STAGE_LABELS:
+            # 反查中文名称对应的英文key
+            reverse_lookup = {v['zh']: k for k, v in PROJECT_STAGE_LABELS.items()}
+            new_stage_key = reverse_lookup.get(new_stage, new_stage)
+            if new_stage_key != new_stage:
+                current_app.logger.info(f"阶段名称转换: {new_stage} -> {new_stage_key}")
+                new_stage = new_stage_key
+        
         # 查询项目 - 使用 with_for_update() 锁定行，防止并发更新
         try:
             project = db.session.query(Project).with_for_update().filter(Project.id == project_id).first()
@@ -1038,6 +1260,9 @@ def update_project_stage():
         if current_user.role == 'admin':
             allowed = True
         elif project.owner_id == current_user.id:
+            allowed = True
+        elif project.vendor_sales_manager_id == current_user.id:
+            # 厂商负责人享有与拥有人同等权限
             allowed = True
         else:
             allowed_user_ids = current_user.get_viewable_user_ids() if hasattr(current_user, 'get_viewable_user_ids') else [current_user.id]
@@ -1071,11 +1296,24 @@ def update_project_stage():
                 commit=False  # 不在方法内部提交，与主事务一同提交
             )
 
+            # 更新项目活跃度（在提交前）
+            update_active_status(project, commit=False)
+            
             # 提交所有更改
             db.session.commit()
-            # 新增：每次阶段推进后自动刷新活跃度
-            update_active_status(project)
             current_app.logger.info(f"项目ID={project.id}的阶段从{old_stage}更新为{new_stage}，历史记录已添加")
+            
+            # 提交后再单独重新计算项目评分（避免事务冲突）
+            @after_this_request
+            def calculate_score(response):
+                try:
+                    # 在请求完成后计算评分，使用独立事务
+                    from app.models.project_scoring import ProjectScoringEngine
+                    ProjectScoringEngine.calculate_project_score(project.id, commit=True)
+                    current_app.logger.info(f"项目ID={project.id}阶段推进后评分已重新计算")
+                except Exception as score_err:
+                    current_app.logger.warning(f"重新计算项目评分失败: {str(score_err)}")
+                return response
             
             # 验证更新是否生效
             db.session.refresh(project)
@@ -1086,11 +1324,28 @@ def update_project_stage():
             # 触发阶段变更通知
             if old_stage != new_stage:
                 try:
+                    import threading
                     from app.services.event_dispatcher import notify_project_status_updated
-                    notify_project_status_updated(project, current_user, old_stage)
-                    notify_solution_managers_project_stage_changed(project, old_stage, new_stage)
+                    from app.utils.solution_manager_notifications import notify_solution_managers_project_stage_changed
+                    
+                    def send_stage_notifications_async():
+                        """异步发送阶段变更通知"""
+                        with current_app.app_context():
+                            try:
+                                # 触发项目阶段变更通知
+                                notify_project_status_updated(project, current_user, old_stage)
+                                # 通知解决方案经理
+                                notify_solution_managers_project_stage_changed(project, old_stage, new_stage)
+                                current_app.logger.debug('异步项目阶段变更通知已发送')
+                            except Exception as notify_err:
+                                current_app.logger.warning(f"异步触发项目阶段变更通知失败: {str(notify_err)}")
+                    
+                    # 启动异步通知线程
+                    threading.Thread(target=send_stage_notifications_async, daemon=True).start()
+                    current_app.logger.debug('异步项目阶段变更通知线程已启动')
+                    
                 except Exception as notify_err:
-                    current_app.logger.warning(f"触发项目阶段变更通知失败: {str(notify_err)}")
+                    current_app.logger.warning(f"启动异步项目阶段变更通知失败: {str(notify_err)}")
             
             return jsonify({
                 'success': True, 
@@ -1139,7 +1394,7 @@ def add_action_for_project(project_id):
         if company and company.id not in related_companies_dict:
             related_companies.append(company)
             related_companies_dict[company.id] = company
-            
+    
     if project.system_integrator:
         company = Company.query.filter_by(company_name=project.system_integrator).first()
         if company and company.id not in related_companies_dict:
@@ -1187,7 +1442,7 @@ def add_action_for_project(project_id):
             db.session.commit()
             # 新增：每次添加行动记录后自动刷新项目活跃度和更新时间
             project.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
-            update_active_status(project)
+            update_active_status(project, commit=False)
             db.session.commit()
             # 如果关联了客户，更新客户活跃状态
             if company_id and company_id.isdigit():
@@ -1423,38 +1678,41 @@ def get_users_api():
 @login_required
 @permission_required('project', 'view')
 def get_project_latest_quotation_api(project_id):
-    """获取项目最新报价单API"""
+    """获取项目最新报价信息"""
     try:
         project = Project.query.get_or_404(project_id)
         
-        # 检查查看权限
-        if not can_view_project(current_user, project):
-            return jsonify({
-                'success': False,
-                'message': '您没有权限访问该项目'
-            }), 403
+        # 检查权限
+        if not can_view_project(project, current_user):
+            return jsonify({'success': False, 'message': '无权限查看此项目'}), 403
         
-        # 获取项目的最新报价单
-        from app.models.quotation import Quotation
-        latest_quotation = project.quotations.order_by(Quotation.created_at.desc()).first()
+        # 获取最新报价
+        latest_quotation = Quotation.query.filter_by(project_id=project_id).order_by(Quotation.created_at.desc()).first()
         
         if latest_quotation:
             return jsonify({
                 'success': True,
-                'quotation_id': latest_quotation.id,
-                'quotation_number': latest_quotation.quotation_number,
-                'amount': latest_quotation.amount,
-                'created_at': latest_quotation.created_at.isoformat() if latest_quotation.created_at else None
+                'data': {
+                    'id': latest_quotation.id,
+                    'quotation_number': latest_quotation.quotation_number,
+                    'amount': latest_quotation.amount,
+                    'created_at': latest_quotation.created_at.strftime('%Y-%m-%d %H:%M:%S') if latest_quotation.created_at else None,
+                    'owner': {
+                        'id': latest_quotation.owner.id if latest_quotation.owner else None,
+                        'name': latest_quotation.owner.real_name or latest_quotation.owner.username if latest_quotation.owner else None
+                    }
+                }
             })
         else:
             return jsonify({
-                'success': False,
-                'message': '该项目暂无报价单'
+                'success': True,
+                'data': None,
+                'message': '暂无报价记录'
             })
-        
+            
     except Exception as e:
-        logger.error(f"获取项目最新报价单API失败: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'message': '获取项目报价单信息失败'
-        }), 500 
+        logger.error(f"获取项目最新报价失败: {str(e)}")
+        return jsonify({'success': False, 'message': '获取报价信息失败'}), 500
+
+# 项目评分相关API端点已迁移到新的评分系统
+# 请使用 app/views/project_scoring_api.py 中的新API

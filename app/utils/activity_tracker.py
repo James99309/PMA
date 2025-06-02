@@ -297,13 +297,14 @@ def check_project_activity(project_id=None, days_threshold=None):
     return active_projects, inactive_projects
 
 
-def update_active_status(entity, days_threshold=None):
+def update_active_status(entity, days_threshold=None, commit=True):
     """
     根据实体的updated_at时间更新活跃状态
     
     Args:
         entity: 需要更新活跃状态的实体对象（客户或项目）
         days_threshold: 不活跃天数阈值，如果为None则使用系统设置的阈值
+        commit: 是否自动提交事务，默认为True
         
     Returns:
         bool: 是否活跃
@@ -334,13 +335,15 @@ def update_active_status(entity, days_threshold=None):
             old_status = entity.status
             entity.status = new_status
             db.session.add(entity)
-            db.session.commit()
+            if commit:
+                db.session.commit()
             logger.info(f"{entity.__class__.__name__} ID: {entity.id} 的状态从 {old_status} 变更为 {new_status}")
     elif isinstance(entity, Project):
         if entity.is_active != is_active:
             entity.is_active = is_active
             db.session.add(entity)
-            db.session.commit()
+            if commit:
+                db.session.commit()
             logger.info(f"{entity.__class__.__name__} ID: {entity.id} 的活跃状态变更为 {'活跃' if is_active else '不活跃'}")
     
-    return is_active 
+    return is_active

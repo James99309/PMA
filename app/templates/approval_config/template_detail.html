@@ -1,7 +1,13 @@
 {% extends "base.html" %}
 {% from "macros/approval_config_macros.html" import step_list with context %}
+{% from "macros/approval_macros.html" import render_approval_section with context %}
 
 {% block title %}审批流程模板详情{% endblock %}
+
+{% block head %}
+<!-- 引入审批时间线样式 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid mt-4">
@@ -27,13 +33,13 @@
             <div class="col-md-6">
               <dl class="row">
                 <dt class="col-sm-4">模板名称：</dt>
-                <dd class="col-sm-8">{{ template.name }}</dd>
+                <dd class="col-sm-8" style="color: #000;">{{ template.name }}</dd>
                 
                 <dt class="col-sm-4">适用业务对象：</dt>
-                <dd class="col-sm-8">{{ get_object_type_display(template.object_type) }}</dd>
+                <dd class="col-sm-8" style="color: #000;">{{ get_object_type_display(template.object_type) }}</dd>
                 
                 <dt class="col-sm-4">创建人：</dt>
-                <dd class="col-sm-8">{{ template.creator.username }}</dd>
+                <dd class="col-sm-8" style="color: #000;">{{ template.creator.username }}</dd>
                 
                 {% if template.required_fields and template.required_fields|length > 0 %}
                 <dt class="col-sm-4">必填字段：</dt>
@@ -41,13 +47,15 @@
                   <div class="required-fields-list">
                     {% set field_options = get_object_field_options(template.object_type) %}
                     {% set field_dict = {} %}
-                    {% for field_code, field_name in field_options %}
-                      {% do field_dict.update({field_code: field_name}) %}
+                    {% for option_code, option_name in field_options %}
+                      {% if field_dict.update({option_code: option_name}) %}{% endif %}
                     {% endfor %}
                     
-                    {% for field_code in template.required_fields %}
-                      <span class="badge bg-info">
-                        {% if field_code in field_dict %}{{ field_dict[field_code] }}{% else %}{{ field_code }}{% endif %}
+                    {# 对必填字段进行去重处理 #}
+                    {% set unique_fields = template.required_fields|unique %}
+                    {% for field_code in unique_fields %}
+                      <span class="badge bg-info" style="color: #fff; background-color: #17a2b8 !important;">
+                        {{ field_dict.get(field_code, field_code) }}
                       </span>
                     {% endfor %}
                   </div>
@@ -58,35 +66,62 @@
             <div class="col-md-6">
               <dl class="row">
                 <dt class="col-sm-4">创建时间：</dt>
-                <dd class="col-sm-8">{{ format_datetime(template.created_at) }}</dd>
+                <dd class="col-sm-8" style="color: #000;">{{ format_datetime(template.created_at) }}</dd>
                 
                 <dt class="col-sm-4">状态：</dt>
                 <dd class="col-sm-8">
                   {% if template.is_active %}
-                    <span class="badge badge-success">启用</span>
+                    <span class="badge badge-success" style="color: #fff; background-color: #28a745 !important;">启用</span>
                   {% else %}
-                    <span class="badge badge-danger">禁用</span>
+                    <span class="badge badge-danger" style="color: #fff; background-color: #dc3545 !important;">禁用</span>
                   {% endif %}
                 </dd>
                 
                 <dt class="col-sm-4">是否已使用：</dt>
                 <dd class="col-sm-8">
                   {% if in_use %}
-                    <span class="badge badge-warning">已关联审批实例</span>
+                    <span class="badge badge-warning" style="color: #000; background-color: #ffc107 !important;">已关联审批实例</span>
                     <small class="text-muted d-block">（已关联实例的模板只能修改名称和状态）</small>
                   {% else %}
-                    <span class="badge badge-info">未使用</span>
+                    <span class="badge badge-info" style="color: #fff; background-color: #17a2b8 !important;">未使用</span>
                   {% endif %}
                 </dd>
               </dl>
             </div>
           </div>
 
+          <!-- 版本化说明 -->
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i>
+            <strong>版本化说明：</strong>
+            修改模板不会影响已创建的审批流程，新的审批流程将使用最新的模板配置。
+            当前有 {{ completed_instances_count }} 个已完成实例，{{ pending_instances_count }} 个进行中实例。
+            {% if pending_instances_count > 0 %}
+            <br><small class="text-warning"><i class="fas fa-exclamation-triangle"></i> 有进行中的审批流程时，无法删除或重新排序步骤。</small>
+            {% endif %}
+          </div>
+
           <!-- 分隔线 -->
           <hr>
 
           <!-- 审批步骤列表 -->
-          {{ step_list(steps, users, in_use) }}
+          {{ step_list(steps, users, in_use, template, get_object_field_options) }}
+          
+          <!-- 审批流程图展示 -->
+          {% if approval_instances and approval_instances|length > 0 %}
+          <div class="mt-4">
+            <h5 class="mb-3">
+              <i class="fas fa-project-diagram mr-2"></i>关联的审批流程实例
+            </h5>
+            {% for instance in approval_instances %}
+              <div class="mb-4">
+                <h6 class="text-muted">实例 #{{ instance.id }} - {{ instance.object_type|title }} ID: {{ instance.object_id }}</h6>
+                {{ render_approval_section(instance.object_type, instance.object_id, instance, current_user) }}
+              </div>
+              {% if not loop.last %}<hr class="my-4">{% endif %}
+            {% endfor %}
+          </div>
+          {% endif %}
         </div>
       </div>
     </div>

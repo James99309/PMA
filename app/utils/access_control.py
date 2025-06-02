@@ -140,7 +140,7 @@ def get_viewable_data(model_class, user, special_filters=None):
             )
             
         # 销售角色：查看自己的项目 + 通过归属关系可见的项目 + 自己作为销售负责人的项目，且不能看到业务机会类型的项目
-        if user_role == 'sales':
+        if user_role in ['sales', 'sales_manager']:
             # 获取通过归属关系可以查看的用户ID列表
             viewable_user_ids = [user.id]
             affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
@@ -183,55 +183,62 @@ def get_viewable_data(model_class, user, special_filters=None):
         if user_role in ['finance_director', 'finace_director', 'product_manager', 'product', 'solution_manager', 'product_manager', 'solution']:
             return model_class.query.filter(*special_filters if special_filters else [])
         
-        # 1. 直接归属（自己创建的报价单）
-        owned_query = model_class.query.filter(model_class.owner_id == user.id)
+        # 收集所有可访问的报价单ID列表，避免使用UNION（因为JSON字段无法比较）
+        accessible_quotation_ids = set()
         
-        # 2. 归属链（Affiliation - 下级创建的报价单，参考Project模块逻辑）
+        # 1. 直接归属（自己创建的报价单）
+        owned_quotations = model_class.query.filter(model_class.owner_id == user.id).with_entities(model_class.id).all()
+        accessible_quotation_ids.update([q.id for q in owned_quotations])
+        
+        # 2. 归属链（Affiliation - 下级创建的报价单）
         affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
-        subordinate_query = model_class.query.filter(model_class.owner_id.in_(affiliation_owner_ids))
+        if affiliation_owner_ids:
+            subordinate_quotations = model_class.query.filter(model_class.owner_id.in_(affiliation_owner_ids)).with_entities(model_class.id).all()
+            accessible_quotation_ids.update([q.id for q in subordinate_quotations])
         
         # 3. 销售负责人相关的项目的报价单
         from app.models.project import Project
         sales_manager_projects = Project.query.filter(
             Project.vendor_sales_manager_id == user.id
-        ).all()
-        sales_manager_project_ids = [p.id for p in sales_manager_projects]
-        sales_manager_quotations_query = model_class.query.filter(model_class.project_id.in_(sales_manager_project_ids))
+        ).with_entities(Project.id).all()
+        if sales_manager_projects:
+            sales_manager_project_ids = [p.id for p in sales_manager_projects]
+            sales_manager_quotations = model_class.query.filter(model_class.project_id.in_(sales_manager_project_ids)).with_entities(model_class.id).all()
+            accessible_quotation_ids.update([q.id for q in sales_manager_quotations])
         
         # 4. 角色特殊处理
-        special_query = None
-        
         # 渠道经理特殊处理：可以查看所有渠道跟进项目的报价单
         if user_role == 'channel_manager':
-            # 获取所有渠道跟进项目的ID
-            channel_follow_projects = Project.query.filter_by(project_type='channel_follow').all()
-            channel_follow_project_ids = [p.id for p in channel_follow_projects]
-            # 渠道跟进项目相关的报价单
-            special_query = model_class.query.filter(model_class.project_id.in_(channel_follow_project_ids))
+            channel_follow_projects = Project.query.filter_by(project_type='channel_follow').with_entities(Project.id).all()
+            if channel_follow_projects:
+                channel_follow_project_ids = [p.id for p in channel_follow_projects]
+                channel_quotations = model_class.query.filter(model_class.project_id.in_(channel_follow_project_ids)).with_entities(model_class.id).all()
+                accessible_quotation_ids.update([q.id for q in channel_quotations])
         
         # 营销总监特殊处理：可以查看销售重点和渠道跟进项目的报价单
         elif user_role == 'sales_director':
-            # 获取销售重点和渠道跟进项目的ID
             marketing_projects = Project.query.filter(
                 Project.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进'])
-            ).all()
-            marketing_project_ids = [p.id for p in marketing_projects]
-            # 销售重点和渠道跟进项目相关的报价单
-            special_query = model_class.query.filter(model_class.project_id.in_(marketing_project_ids))
+            ).with_entities(Project.id).all()
+            if marketing_projects:
+                marketing_project_ids = [p.id for p in marketing_projects]
+                marketing_quotations = model_class.query.filter(model_class.project_id.in_(marketing_project_ids)).with_entities(model_class.id).all()
+                accessible_quotation_ids.update([q.id for q in marketing_quotations])
         
         # 服务经理特殊处理
         elif user_role in ['service', 'service_manager']:
-            # 获取所有业务机会项目的ID
-            business_opportunity_projects = Project.query.filter_by(project_type='业务机会').all()
-            business_opportunity_project_ids = [p.id for p in business_opportunity_projects]
-            # 业务机会项目相关的报价单
-            special_query = model_class.query.filter(model_class.project_id.in_(business_opportunity_project_ids))
+            business_opportunity_projects = Project.query.filter_by(project_type='业务机会').with_entities(Project.id).all()
+            if business_opportunity_projects:
+                business_opportunity_project_ids = [p.id for p in business_opportunity_projects]
+                business_quotations = model_class.query.filter(model_class.project_id.in_(business_opportunity_project_ids)).with_entities(model_class.id).all()
+                accessible_quotation_ids.update([q.id for q in business_quotations])
         
-        # 合并查询条件
-        if special_query:
-            return owned_query.union(subordinate_query).union(sales_manager_quotations_query).union(special_query).filter(*special_filters)
+        # 返回基于ID列表的查询
+        if accessible_quotation_ids:
+            return model_class.query.filter(model_class.id.in_(accessible_quotation_ids)).filter(*special_filters if special_filters else [])
         else:
-            return owned_query.union(subordinate_query).union(sales_manager_quotations_query).filter(*special_filters)
+            # 如果没有可访问的报价单，返回空查询
+            return model_class.query.filter(model_class.id == -1)
     
     # 客户特殊权限处理
     if model_class.__name__ in ['Company', 'Contact']:
@@ -285,15 +292,15 @@ def get_viewable_data(model_class, user, special_filters=None):
                 model_class.owner_id.in_(viewable_user_ids),
                 *special_filters
             )
-        # 销售角色：查看自己的客户 + 通过归属关系可见的客户 + 被共享的客户
-        if user_role == 'sales' or model_class.__name__ == 'Company':
+        # 销售角色：查看自己的客户 + 通过归属关系可见的客户 + 被共享的客户 + 厂商负责人项目相关的客户
+        if user_role in ['sales', 'sales_manager']:
             # 获取通过归属关系可以查看的用户ID列表
             viewable_user_ids = [user.id]
             affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
             for affiliation in affiliations:
                 viewable_user_ids.append(affiliation.owner_id)
             
-            # Company模型需要特殊处理共享
+            # Company模型需要特殊处理共享和厂商负责人权限
             if model_class.__name__ == 'Company':
                 from app.models.customer import Contact
                 # 获取用户创建的所有联系人所属的公司ID列表
@@ -310,20 +317,47 @@ def get_viewable_data(model_class, user, special_filters=None):
                         if isinstance(company.shared_with_users, list) and user.id in company.shared_with_users:
                             shared_company_ids.append(company.id)
                 
-                # 合并三个条件
+                # 获取厂商负责人相关的项目涉及的客户
+                from app.models.project import Project
+                vendor_projects = Project.query.filter(Project.vendor_sales_manager_id == user.id).all()
+                vendor_company_names = set()
+                for project in vendor_projects:
+                    if project.end_user:
+                        vendor_company_names.add(project.end_user)
+                    if project.contractor:
+                        vendor_company_names.add(project.contractor)
+                    if project.system_integrator:
+                        vendor_company_names.add(project.system_integrator)
+                    if project.dealer:
+                        vendor_company_names.add(project.dealer)
+                
+                vendor_company_ids = []
+                if vendor_company_names:
+                    vendor_companies = Company.query.filter(Company.company_name.in_(vendor_company_names)).all()
+                    vendor_company_ids = [c.id for c in vendor_companies]
+                
+                # 合并四个条件
                 return model_class.query.filter(
                     or_(
                         model_class.owner_id.in_(viewable_user_ids),
                         model_class.id.in_(user_contact_company_ids),
-                        model_class.id.in_(shared_company_ids)
+                        model_class.id.in_(shared_company_ids),
+                        model_class.id.in_(vendor_company_ids)
                     ),
                     *special_filters
                 )
-            else:  # Contact模型使用常规查询
+            else:
+                # Contact模型的处理
                 return model_class.query.filter(
                     model_class.owner_id.in_(viewable_user_ids),
                     *special_filters
                 )
+        
+        # 默认客户权限逻辑：只能查看自己的数据（除了已在上面特殊处理的角色）
+        return model_class.query.filter(
+            model_class.owner_id == user.id,
+            *special_filters
+        )
     
     # 行动记录的特殊处理
     if model_class.__name__ == 'Action':
@@ -393,6 +427,31 @@ def can_edit_data(model_obj, user):
         # 其他数据按默认规则
         return model_obj.owner_id == user.id
     
+    # 项目特殊处理：厂商负责人享有与拥有人同等权限
+    if model_name == 'Project':
+        # 项目拥有人可以编辑
+        if model_obj.owner_id == user.id:
+            return True
+        # 厂商负责人可以编辑
+        if hasattr(model_obj, 'vendor_sales_manager_id') and model_obj.vendor_sales_manager_id == user.id:
+            return True
+        return False
+    
+    # 报价单特殊处理：项目的厂商负责人可以编辑相关报价单
+    if model_name == 'Quotation':
+        # 报价单拥有人可以编辑
+        if model_obj.owner_id == user.id:
+            return True
+        # 项目的厂商负责人可以编辑相关报价单
+        if (hasattr(model_obj, 'project') and model_obj.project and 
+            hasattr(model_obj.project, 'vendor_sales_manager_id') and 
+            model_obj.project.vendor_sales_manager_id == user.id):
+            return True
+        # 解决方案经理可以编辑所有报价单
+        if user_role in ['solution_manager', 'solution']:
+            return True
+        return False
+    
     # 营销总监只能编辑自己的数据
     if user_role == 'sales_director':
         return model_obj.owner_id == user.id
@@ -402,7 +461,7 @@ def can_edit_data(model_obj, user):
         return model_obj.owner_id == user.id
     
     # 销售角色只能编辑自己的数据
-    if user_role == 'sales':
+    if user_role in ['sales', 'sales_manager']:
         return model_obj.owner_id == user.id
     
     # 其他角色的编辑权限逻辑保持不变
@@ -459,6 +518,27 @@ def can_view_company(user, company):
     contact_count = Contact.query.filter_by(company_id=company.id, owner_id=user.id).count()
     if contact_count > 0:
         return True
+    
+    # 厂商负责人可以查看项目相关的客户
+    # 检查是否有项目涉及该公司，且当前用户是项目的厂商负责人
+    from app.models.project import Project
+    from sqlalchemy import or_
+    
+    # 查询涉及该公司的项目
+    related_projects = Project.query.filter(
+        or_(
+            Project.end_user == company.company_name,
+            Project.design_issues.like(f'%{company.company_name}%'),
+            Project.contractor == company.company_name,
+            Project.system_integrator == company.company_name,
+            Project.dealer == company.company_name
+        ),
+        Project.vendor_sales_manager_id == user.id
+    ).first()
+    
+    if related_projects:
+        return True
+    
     return False
 
 def can_edit_company_info(user, company):
@@ -542,13 +622,18 @@ def can_view_project(user, project):
     """
     判断用户是否有权查看该项目：
     1. 归属人
-    2. 归属链
-    3. 财务总监、解决方案经理、产品经理可以查看所有项目
-    4. 共享（如有 shared_with_users 字段，暂未支持）
+    2. 厂商负责人
+    3. 归属链
+    4. 财务总监、解决方案经理、产品经理可以查看所有项目
+    5. 共享（如有 shared_with_users 字段，暂未支持）
     """
     if user.role == 'admin':
         return True
     if user.id == project.owner_id:
+        return True
+    
+    # 厂商负责人可以查看项目
+    if hasattr(project, 'vendor_sales_manager_id') and project.vendor_sales_manager_id == user.id:
         return True
     
     # 统一处理角色字符串，去除空格
@@ -562,7 +647,7 @@ def can_view_project(user, project):
     affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
     if project.owner_id in affiliation_owner_ids:
         return True
-    return False 
+    return False
 
 def register_context_processors(app):
     """
@@ -610,10 +695,21 @@ def can_change_project_owner(user, project):
     """
     判断用户是否有权修改项目的拥有人。
     - 管理员可修改所有项目
+    - 项目拥有人可以修改
+    - 厂商负责人可以修改
     - 部门负责人（is_department_manager为True或角色为sales_director）可修改本部门成员的项目
     """
     if user.role == 'admin':
         return True
+    
+    # 项目拥有人可以修改
+    if project.owner_id == user.id:
+        return True
+    
+    # 厂商负责人可以修改
+    if hasattr(project, 'vendor_sales_manager_id') and project.vendor_sales_manager_id == user.id:
+        return True
+    
     if getattr(user, 'is_department_manager', False) or user.role == 'sales_director':
         from app.models.user import User
         owner = User.query.get(project.owner_id)
@@ -660,8 +756,15 @@ def can_delete_project(user, project):
     if user_role in ['finance_director', 'finace_director', 'product_manager', 'product', 'solution_manager', 'solution']:
         return False
     
-    # 其他角色只能删除自己创建的项目
-    return project.owner_id == user.id
+    # 项目拥有者可以删除
+    if project.owner_id == user.id:
+        return True
+    
+    # 厂商负责人可以删除
+    if hasattr(project, 'vendor_sales_manager_id') and project.vendor_sales_manager_id == user.id:
+        return True
+    
+    return False
 
 def can_delete_quotation(user, quotation):
     """
@@ -685,5 +788,56 @@ def can_delete_quotation(user, quotation):
     if user_role in ['finance_director', 'finace_director', 'product_manager', 'product', 'solution_manager', 'solution']:
         return False
     
-    # 其他角色只能删除自己创建的报价单
-    return quotation.owner_id == user.id
+    # 报价单拥有者可以删除
+    if quotation.owner_id == user.id:
+        return True
+    
+    # 厂商负责人可以删除项目相关的报价单
+    if (hasattr(quotation, 'project') and quotation.project and 
+        hasattr(quotation.project, 'vendor_sales_manager_id') and 
+        quotation.project.vendor_sales_manager_id == user.id):
+        return True
+    
+    return False
+
+def can_start_approval(model_obj, user):
+    """
+    检查用户是否有权限发起审批流程
+    
+    参数:
+        model_obj: 数据对象（项目或报价单）
+        user: 用户对象
+    
+    返回:
+        bool: 是否有发起审批权限
+    """
+    # 管理员有全部权限
+    if user.role == 'admin':
+        return True
+    
+    model_name = model_obj.__class__.__name__
+    
+    # 项目审批权限检查
+    if model_name == 'Project':
+        # 1. 项目拥有者可以发起审批
+        if model_obj.owner_id == user.id:
+            return True
+        # 2. 项目的厂商销售负责人可以发起审批
+        if hasattr(model_obj, 'vendor_sales_manager_id') and model_obj.vendor_sales_manager_id == user.id:
+            return True
+        return False
+    
+    # 报价单审批权限检查
+    elif model_name == 'Quotation':
+        # 1. 报价单拥有者可以发起审批
+        if model_obj.owner_id == user.id:
+            return True
+        # 2. 报价单关联项目的厂商销售负责人可以发起审批
+        if (hasattr(model_obj, 'project') and model_obj.project and 
+            hasattr(model_obj.project, 'vendor_sales_manager_id') and 
+            model_obj.project.vendor_sales_manager_id == user.id):
+            return True
+        return False
+    
+    # 其他类型的对象，默认只有拥有者可以发起审批
+    return model_obj.owner_id == user.id

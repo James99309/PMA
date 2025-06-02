@@ -3,7 +3,7 @@
 {% block title %}仪表盘 - 项目管理系统{% endblock %}
 
 {% block content %}
-{% from 'macros/ui_helpers.html' import render_project_type %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner %}
 
 {# 角色名称映射 #}
 {% set role_names = {
@@ -51,7 +51,7 @@
                                 </div>
                                 <div class="text-end" style="color: #888; font-size: 0.65rem; min-width: 90px;">
                                     <div>{{ project.updated_at.strftime('%Y-%m-%d') if project.updated_at else '' }}</div>
-                                    <div>{{ project.owner.real_name or project.owner.username if project.owner else '' }}</div>
+                                    <div>{{ render_owner(project.owner) }}</div>
                                 </div>
                             </div>
                         </li>
@@ -88,7 +88,7 @@
                                 </div>
                                 <div class="text-end" style="color: #888; font-size: 0.65rem; min-width: 90px;">
                                     <div>{{ quotation.updated_at.strftime('%Y-%m-%d') if quotation.updated_at else '' }}</div>
-                                    <div>{{ quotation.owner.real_name or quotation.owner.username if quotation.owner else '' }}</div>
+                                    <div>{{ render_owner(quotation.owner) }}</div>
                                 </div>
                             </div>
                         </li>
@@ -125,7 +125,7 @@
                                 </div>
                                 <div class="text-end" style="color: #888; font-size: 0.65rem; min-width: 90px;">
                                     <div>{{ company.updated_at.strftime('%Y-%m-%d') if company.updated_at else '' }}</div>
-                                    <div>{{ company.owner.real_name or company.owner.username if company.owner else '' }}</div>
+                                    <div>{{ render_owner(company.owner) }}</div>
                                 </div>
                             </div>
                         </li>
@@ -297,7 +297,7 @@
                     </li>
                     <li class="list-group-item d-flex justify-content-between">
                         <span>系统版本:</span>
-                        <span>1.0.0</span>
+                        <span>{{ current_version_number or '1.2.0' }}</span>
                     </li>
                     <li class="list-group-item d-flex justify-content-between">
                         <span>上次登录:</span>

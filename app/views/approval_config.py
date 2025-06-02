@@ -17,7 +17,8 @@ from app.helpers.approval_helpers import (
     check_template_in_use,
     get_object_field_options
 )
-from app.models.approval import ApprovalProcessTemplate, ApprovalStep
+from app.models.approval import ApprovalProcessTemplate, ApprovalStep, ApprovalInstance, ApprovalRecord, ApprovalStatus
+from app.models.user import User
 from app import db, csrf
 from flask import current_app
 
@@ -61,38 +62,41 @@ def create_template():
         name = request.form.get('name')
         object_type = request.form.get('object_type')
         required_fields = request.form.getlist('required_fields')
+        lock_object_on_start = request.form.get('lock_object_on_start') == 'on'
+        lock_reason = request.form.get('lock_reason', '审批流程进行中，暂时锁定编辑')
         
         if not name or not object_type:
-            flash('模板名称和业务类型不能为空', 'danger')
+            flash('模板名称和业务对象类型不能为空', 'danger')
             return redirect(url_for('approval_config.create_template'))
         
         # 创建模板
         template = create_approval_template(
-            name=name, 
+            name=name,
             object_type=object_type,
-            required_fields=required_fields
+            creator_id=current_user.id,
+            required_fields=required_fields,
+            lock_object_on_start=lock_object_on_start,
+            lock_reason=lock_reason
         )
         
-        flash('审批流程模板创建成功', 'success')
-        return redirect(url_for('approval_config.template_detail', template_id=template.id))
+        if template:
+            flash('审批流程模板创建成功', 'success')
+            return redirect(url_for('approval_config.template_detail', template_id=template.id))
+        else:
+            flash('创建审批流程模板失败', 'danger')
     
-    # GET请求，渲染创建表单
+    # GET请求，显示创建表单
     object_types = get_object_types()
-    field_options = get_object_field_options()  # 获取所有字段选项
-    
-    return render_template(
-        'approval_config/template_form.html',
-        object_types=object_types,
-        field_options=field_options,
-        is_edit=False
-    )
+    return render_template('approval_config/template_form.html', 
+                         object_types=object_types, 
+                         is_edit=False)
 
 
 @approval_config_bp.route('/process/<int:template_id>')
 @login_required
 @admin_required
 def template_detail(template_id):
-    """审批流程模板详情页"""
+    """查看审批流程模板详情"""
     # 获取模板详情
     template = get_template_details(template_id)
     
@@ -102,15 +106,37 @@ def template_detail(template_id):
     # 获取所有用户，用于选择审批人
     users = get_all_users()
     
-    # 检查模板是否正在使用
-    in_use = check_template_in_use(template_id)
+    # 统计实例状态
+    all_instances = ApprovalInstance.query.filter_by(process_id=template_id).all()
+    pending_instances = [i for i in all_instances if i.status == ApprovalStatus.PENDING]
+    completed_instances = [i for i in all_instances if i.status != ApprovalStatus.PENDING]
+    
+    # 检查是否可以修改（只有进行中的实例才禁止修改）
+    can_modify = len(pending_instances) == 0
+    
+    # 保持向后兼容的 in_use 变量（严格模式）
+    in_use = check_template_in_use(template_id, strict_mode=True)
+    
+    # 获取关联的审批实例（最近的10个）
+    approval_instances = ApprovalInstance.query.filter_by(
+        process_id=template_id
+    ).options(
+        db.joinedload(ApprovalInstance.creator),
+        db.joinedload(ApprovalInstance.process),
+        db.joinedload(ApprovalInstance.records).joinedload(ApprovalRecord.approver),
+        db.joinedload(ApprovalInstance.records).joinedload(ApprovalRecord.step)
+    ).order_by(ApprovalInstance.started_at.desc()).limit(10).all()
     
     return render_template(
         'approval_config/template_detail.html',
         template=template,
         steps=steps,
         users=users,
-        in_use=in_use,
+        in_use=in_use,  # 保持向后兼容
+        can_modify=can_modify,  # 新增：是否可以修改
+        pending_instances_count=len(pending_instances),  # 新增：进行中实例数量
+        completed_instances_count=len(completed_instances),  # 新增：已完成实例数量
+        approval_instances=approval_instances,
         get_object_field_options=get_object_field_options
     )
 
@@ -120,48 +146,46 @@ def template_detail(template_id):
 @admin_required
 def edit_template(template_id):
     """编辑审批流程模板"""
-    # 获取模板详情
-    template = get_template_details(template_id)
+    template = ApprovalProcessTemplate.query.get_or_404(template_id)
     
     if request.method == 'POST':
         name = request.form.get('name')
         object_type = request.form.get('object_type')
         is_active = request.form.get('is_active') == 'on'
         required_fields = request.form.getlist('required_fields')
+        lock_object_on_start = request.form.get('lock_object_on_start') == 'on'
+        lock_reason = request.form.get('lock_reason', '审批流程进行中，暂时锁定编辑')
         
-        if not name or not object_type:
-            flash('模板名称和业务类型不能为空', 'danger')
-            return redirect(url_for('approval_config.edit_template', template_id=template_id))
-        
-        # 检查模板是否正在使用
-        in_use = check_template_in_use(template_id)
-        if in_use and template.object_type != object_type:
-            flash('该模板已经关联了审批实例，无法修改业务类型', 'danger')
+        if not name:
+            flash('模板名称不能为空', 'danger')
             return redirect(url_for('approval_config.edit_template', template_id=template_id))
         
         # 更新模板
-        update_approval_template(
-            template_id,
+        updated_template = update_approval_template(
+            template_id=template_id,
             name=name,
             object_type=object_type,
             is_active=is_active,
-            required_fields=required_fields
+            required_fields=required_fields,
+            lock_object_on_start=lock_object_on_start,
+            lock_reason=lock_reason
         )
         
-        flash('审批流程模板更新成功', 'success')
-        return redirect(url_for('approval_config.template_detail', template_id=template_id))
+        if updated_template:
+            flash('审批流程模板更新成功', 'success')
+            return redirect(url_for('approval_config.template_detail', template_id=template_id))
+        else:
+            flash('更新审批流程模板失败', 'danger')
     
-    # GET请求，渲染编辑表单
+    # GET请求，显示编辑表单
     object_types = get_object_types()
-    field_options = get_object_field_options(template.object_type)  # 获取特定业务对象的字段选项
+    in_use = check_template_in_use(template_id)
     
-    return render_template(
-        'approval_config/template_form.html',
-        template=template,
-        object_types=object_types,
-        field_options=field_options,
-        is_edit=True
-    )
+    return render_template('approval_config/template_form.html',
+                         template=template,
+                         object_types=object_types,
+                         in_use=in_use,
+                         is_edit=True)
 
 
 @approval_config_bp.route('/process/<int:template_id>/delete', methods=['POST'])
@@ -171,42 +195,64 @@ def delete_template(template_id):
     """删除审批流程模板"""
     result = delete_approval_template(template_id)
     
-    if result:
-        flash('审批流程模板删除成功', 'success')
+    if result['success']:
+        flash(result['message'], 'success')
     else:
-        flash('该模板已关联审批实例，已将其禁用', 'warning')
+        # 构建详细的错误信息
+        message = result['message']
+        if result['instances']:
+            message += f"\\n\\n关联的审批实例详情："
+            for instance in result['instances']:
+                creator_info = f"{instance['creator']}"
+                if instance['creator_real_name']:
+                    creator_info += f" ({instance['creator_real_name']})"
+                
+                message += f"\\n• 实例ID: {instance['id']}"
+                message += f"\\n  {instance['object_info']}"
+                message += f"\\n  状态: {instance['status']}"
+                message += f"\\n  发起人: {creator_info}"
+                message += f"\\n  开始时间: {instance['started_at']}"
+        
+        flash(message, 'warning')
     
     return redirect(url_for('approval_config.template_list'))
 
 
-@approval_config_bp.route('/process/<int:template_id>/step/add', methods=['POST'])
+@approval_config_bp.route('/step/add', methods=['POST'])
 @login_required
 @admin_required
-def add_step(template_id):
+def add_step():
     """添加审批步骤"""
+    template_id = request.form.get('template_id', type=int)
     step_name = request.form.get('step_name')
-    approver_id = request.form.get('approver_id')
+    approver_id = request.form.get('approver_id', type=int)
     send_email = request.form.get('send_email') == 'on'
     action_type = request.form.get('action_type')
     
-    if not step_name or not approver_id:
-        flash('步骤名称和审批人不能为空', 'danger')
+    # 新增字段
+    editable_fields = request.form.getlist('editable_fields')
+    cc_users = request.form.getlist('cc_users')
+    cc_enabled = request.form.get('cc_enabled') == 'on'
+    
+    if not template_id or not step_name or not approver_id:
+        flash('模板ID、步骤名称和审批人不能为空', 'danger')
         return redirect(url_for('approval_config.template_detail', template_id=template_id))
     
     # 添加步骤
     step = add_approval_step(
-        template_id,
-        step_name,
-        approver_id,
-        send_email
+        template_id=template_id,
+        step_name=step_name,
+        approver_id=approver_id,
+        send_email=send_email,
+        editable_fields=editable_fields,
+        cc_users=[int(user_id) for user_id in cc_users if user_id.isdigit()],
+        cc_enabled=cc_enabled
     )
     
-    # 如果设置了动作类型，更新步骤
-    if step and action_type:
-        step.action_type = action_type
-        db.session.commit()
-    
+    # 如果添加成功且设置了动作类型，更新动作类型
     if step:
+        step.action_type = action_type if action_type else None
+        db.session.commit()
         flash('审批步骤添加成功', 'success')
     else:
         flash('添加审批步骤失败', 'danger')
@@ -223,9 +269,14 @@ def edit_step(step_id):
     template_id = step.process_id
     
     step_name = request.form.get('step_name')
-    approver_id = request.form.get('approver_id')
+    approver_id = request.form.get('approver_id', type=int)
     send_email = request.form.get('send_email') == 'on'
     action_type = request.form.get('action_type')
+    
+    # 新增字段
+    editable_fields = request.form.getlist('editable_fields')
+    cc_users = request.form.getlist('cc_users')
+    cc_enabled = request.form.get('cc_enabled') == 'on'
     
     if not step_name or not approver_id:
         flash('步骤名称和审批人不能为空', 'danger')
@@ -236,7 +287,10 @@ def edit_step(step_id):
         step_id,
         step_name=step_name,
         approver_id=approver_id,
-        send_email=send_email
+        send_email=send_email,
+        editable_fields=editable_fields,
+        cc_users=[int(user_id) for user_id in cc_users if user_id.isdigit()],
+        cc_enabled=cc_enabled
     )
     
     # 如果更新成功且设置了动作类型，更新动作类型

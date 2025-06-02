@@ -11,7 +11,11 @@ from app.helpers.approval_helpers import (
     can_user_approve,
     get_current_step_info,
     get_object_type_display,
-    get_rejected_approval_history
+    get_rejected_approval_history,
+    get_template_steps,
+    get_workflow_steps,
+    render_approval_code,
+    get_approval_object_url
 )
 # 从ui_helpers导入函数，避免冲突
 from app.helpers.ui_helpers import (
@@ -19,7 +23,8 @@ from app.helpers.ui_helpers import (
     render_action_button, 
     render_user_badge, 
     get_user_display_name,
-    render_filter_button
+    render_filter_button,
+    render_approval_status_badge
 )
 from app.models.approval import ApprovalStatus
 from app.utils.dictionary_helpers import PROJECT_STAGE_LABELS
@@ -50,14 +55,19 @@ def inject_approval_functions():
         can_user_approve,
         get_current_step_info,
         get_object_type_display,
-        get_rejected_approval_history
+        get_rejected_approval_history,
+        get_template_steps,
+        get_workflow_steps,
+        render_approval_code,
+        get_approval_object_url
     )
     from app.models.approval import ApprovalStatus
     from app.helpers.ui_helpers import (
         render_user_badge,
         get_user_display_name,
         format_datetime,
-        render_filter_button
+        render_filter_button,
+        render_approval_status_badge
     )
     
     return {
@@ -73,6 +83,11 @@ def inject_approval_functions():
         'format_datetime': format_datetime,
         'render_filter_button': render_filter_button,
         'get_rejected_approval_history': get_rejected_approval_history,
+        'get_template_steps': get_template_steps,
+        'get_workflow_steps': get_workflow_steps,
+        'render_approval_code': render_approval_code,
+        'get_approval_object_url': get_approval_object_url,
+        'render_approval_status_badge': render_approval_status_badge,
     }
 
 # 添加项目相关的上下文处理器
@@ -141,7 +156,7 @@ def inject_project_stages_config():
         for i, (key, value) in enumerate(PROJECT_STAGE_LABELS.items()):
             stage_info = {
                 'id': i,
-                'key': key,
+                'key': value['zh'],  # 使用中文名称作为key，与前端JavaScript保持一致
                 'name': value['zh']  # 使用中文名称
             }
             

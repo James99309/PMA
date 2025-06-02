@@ -442,6 +442,13 @@ def save():
         
         current_app.logger.debug(f"新产品ID: {new_product.id}")
         
+        # 记录创建历史
+        try:
+            from app.utils.change_tracker import ChangeTracker
+            ChangeTracker.log_create(new_product)
+        except Exception as track_err:
+            current_app.logger.warning(f"记录产品创建历史失败: {str(track_err)}")
+        
         # 处理所有规格数据
         try:
             # 1. 收集现有规格数据 (spec_name[] + spec_value[])
@@ -666,6 +673,10 @@ def update_product(id):
         return redirect(url_for('product_management.index'))
     
     try:
+        # 捕获修改前的值
+        from app.utils.change_tracker import ChangeTracker
+        old_values = ChangeTracker.capture_old_values(dev_product)
+        
         # 更新基本信息
         dev_product.name = request.form.get('name')
         dev_product.model = request.form.get('model')
@@ -834,8 +845,17 @@ def update_product(id):
                                 spec.field_code = option.code
                                 current_app.logger.debug(f"已设置规格 '{specs_data[i]}' 的编码为: {option.code}")
         
+        # 提交更改
         db.session.commit()
-        flash('产品信息已成功更新，自定义规格字段也已同步到产品分类模块', 'success')
+        
+        # 记录变更历史
+        try:
+            new_values = ChangeTracker.get_new_values(dev_product, old_values.keys())
+            ChangeTracker.log_update(dev_product, old_values, new_values)
+        except Exception as track_err:
+            current_app.logger.warning(f"记录产品变更历史失败: {str(track_err)}")
+        
+        flash('产品更新成功！', 'success')
         return redirect(url_for('product_management.index'))
         
     except Exception as e:
@@ -856,6 +876,13 @@ def delete_product(id):
         return redirect(url_for('product_management.index'))
     
     try:
+        # 记录删除历史
+        try:
+            from app.utils.change_tracker import ChangeTracker
+            ChangeTracker.log_delete(dev_product)
+        except Exception as track_err:
+            current_app.logger.warning(f"记录产品删除历史失败: {str(track_err)}")
+        
         # 删除关联的规格记录
         DevProductSpec.query.filter_by(dev_product_id=id).delete()
         
@@ -908,6 +935,13 @@ def batch_delete_products():
             continue
         
         try:
+            # 记录删除历史
+            try:
+                from app.utils.change_tracker import ChangeTracker
+                ChangeTracker.log_delete(product)
+            except Exception as track_err:
+                current_app.logger.warning(f"记录产品删除历史失败: {str(track_err)}")
+            
             # 删除关联的规格记录
             DevProductSpec.query.filter_by(dev_product_id=product.id).delete()
             

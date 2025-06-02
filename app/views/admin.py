@@ -114,6 +114,9 @@ def system_settings():
     if request.method == 'POST':
         # 处理表单提交
         try:
+            # 导入历史记录跟踪器
+            from app.utils.change_tracker import ChangeTracker
+            
             # 遍历表单数据，更新系统设置
             for key in DEFAULT_SETTINGS.keys():
                 if key in request.form:
@@ -127,8 +130,31 @@ def system_settings():
                     except (ValueError, TypeError):
                         flash(f'参数 {key} 必须是有效的数字', 'danger')
                         continue
+                    
+                    # 获取旧值用于历史记录
+                    old_value = SystemSettings.get(key, DEFAULT_SETTINGS[key]['value'])
+                    
                     # 更新设置，直接存储为int
                     SystemSettings.set(key, value)
+                    
+                    # 记录变更历史
+                    try:
+                        # 创建一个虚拟对象来记录系统设置变更
+                        setting_obj = type('SystemSetting', (), {
+                            'id': f'setting_{key}',
+                            '__class__': type('SystemSetting', (), {'__name__': 'SystemSetting'}),
+                            '__tablename__': 'system_settings',
+                            key: value
+                        })()
+                        
+                        old_values = {key: old_value}
+                        new_values = {key: value}
+                        
+                        if old_value != value:
+                            ChangeTracker.log_update(setting_obj, old_values, new_values)
+                    except Exception as track_err:
+                        logger.warning(f"记录系统设置变更历史失败: {str(track_err)}")
+                    
                     logger.info(f"用户 {current_user.username} 更新系统设置: {key}={value}")
             flash('系统设置已成功更新', 'success')
             return redirect(url_for('admin.system_settings'))

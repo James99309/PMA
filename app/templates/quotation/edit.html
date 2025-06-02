@@ -346,7 +346,8 @@ input[type="number"].quantity {
                          data-is-edit-mode="{% if quotation %}true{% else %}false{% endif %}"
                          data-quotation-details='{% if quotation_details_json %}{{ quotation_details_json | safe }}{% else %}[]{% endif %}'
                          data-total-amount="{% if quotation %}{{ quotation.amount }}{% else %}0{% endif %}"
-                         data-quotation-list-url="{{ url_for('quotation.list_quotations') }}">
+                         data-quotation-list-url="{{ url_for('quotation.list_quotations') }}"
+                         data-presetProjectId="{% if preset_project_id %}{{ preset_project_id }}{% endif %}">
                     </div>
 
                     <form id="quotationForm" method="POST">
@@ -949,26 +950,23 @@ $(document).ready(function() {
     }
     
     // 如果URL中有project_id参数，自动选择项目并加载项目信息
-    {% if preset_project_id %}
-    <script>
-    $(function() {
-    // 预设项目ID时，直接加载项目信息
-    $.ajax({
-        url: '/quotation/get_project/{{ preset_project_id }}',
-        method: 'GET',
-        success: function(project) {
-            console.log('获取到预设项目信息:', project);
-            // 填充项目相关信息
-            $('#project_stage').val(project.current_stage || '');
-            $('#project_type').val(project.project_type || '');
-        },
-        error: function(xhr, status, error) {
-            console.error('获取项目信息失败:', error);
-        }
-    });
-    });
-    </script>
-    {% endif %}
+    var presetProjectId = $dataElement.data('presetProjectId');
+    if (presetProjectId) {
+        // 预设项目ID时，直接加载项目信息
+        $.ajax({
+            url: '/quotation/get_project/' + presetProjectId,
+            method: 'GET',
+            success: function(project) {
+                console.log('获取到预设项目信息:', project);
+                // 填充项目相关信息
+                $('#project_stage').val(project.current_stage || '');
+                $('#project_type').val(project.project_type || '');
+            },
+            error: function(xhr, status, error) {
+                console.error('获取项目信息失败:', error);
+            }
+        });
+    }
     
     // 监听表单提交事件
     $('#quotationForm').on('submit', function(e) {
@@ -1075,28 +1073,20 @@ $(document).ready(function() {
                 success: function(response) {
                     console.log('服务器响应:', response);
                     if (response.status === 'success') {
-                        // 如果有警告信息，显示给用户
-                        if (response.warnings && response.warnings.length > 0) {
-                            // 构建警告消息
-                            let warningMsg = "报价单已保存，但存在以下问题:\n\n";
-                            response.warnings.forEach(function(warning, index) {
-                                warningMsg += (index + 1) + ". " + warning + "\n";
-                            });
-                            
-                            // 显示警告消息，但仍然认为操作成功
-                            alert(warningMsg);
-                            // 重定向到报价单列表页
-                            window.location.href = '/quotation/quotations';
+                        // 保存成功，直接跳转到列表页面，不显示弹窗
+                        console.log('报价单保存成功，正在跳转...');
+                        
+                        // 如果有return_to参数，跳转到指定页面，否则跳转到列表页
+                        var returnTo = new URLSearchParams(window.location.search).get('return_to');
+                        if (returnTo) {
+                            window.location.href = decodeURIComponent(returnTo);
                         } else {
-                            // 显示成功消息
-                            alert('报价单保存成功');
-                            // 重定向到报价单列表页
                             window.location.href = '/quotation/quotations';
                         }
                     } else {
                         // 还原按钮状态
                         $submitBtn.html(originalText).prop('disabled', false);
-                        // 显示错误消息
+                        // 只有错误时才显示提示
                         alert('保存失败: ' + (response.message || '未知错误'));
                     }
                 },

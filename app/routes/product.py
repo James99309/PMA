@@ -186,7 +186,7 @@ def process_product_image(file):
 
 @bp.route('/products', methods=['GET'])
 @login_required
-@permission_required('product', 'view')  # 添加产品查看权限装饰器
+@permission_required('product', 'view')  # 产品库只检查product权限
 def product_list():
     """产品列表页面"""
     # 获取用户的产品权限
@@ -224,8 +224,8 @@ def get_products():
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
         search_term = request.args.get('search', '')
-        sort_by = request.args.get('sort_by', 'id')
-        sort_order = request.args.get('sort_order', 'asc')
+        sort_by = request.args.get('sort_by', 'id')  # 默认按ID排序
+        sort_order = request.args.get('sort_order', 'asc')  # 默认升序
         filter_field = request.args.get('filter_field', '')
         filter_value = request.args.get('filter_value', '')
         
@@ -271,6 +271,9 @@ def get_products():
                 query = query.order_by(sort_attr.desc())
             else:
                 query = query.order_by(sort_attr.asc())
+        else:
+            # 默认按ID升序排序
+            query = query.order_by(Product.id.asc())
         
         # 执行分页查询
         pagination = query.paginate(page=page, per_page=per_page)
@@ -772,7 +775,7 @@ def update_product(id):
             }), 404
         
         # 检查所有权
-        if product.owner_id != current_user.id and current_user.role != 'admin':
+        if product.owner_id != current_user.id and current_user.role not in ['admin', 'product_manager']:
             logger.warning(f'用户 {current_user.username} 尝试编辑不属于他的产品 {id}')
             return jsonify({
                 'success': False,

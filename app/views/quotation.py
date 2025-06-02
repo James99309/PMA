@@ -22,6 +22,7 @@ from app.models.settings import SystemSettings
 from zoneinfo import ZoneInfo
 from app.utils.role_mappings import get_role_display_name
 from app.utils.solution_manager_notifications import notify_solution_managers_quotation_created, notify_solution_managers_quotation_updated
+from app.helpers.approval_helpers import get_object_approval_instance, get_current_step_info, can_user_approve
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -367,44 +368,63 @@ def create_quotation():
                     db.session.commit()
                     current_app.logger.info('数据库更改提交成功')
                     
+                    # 手动更新时间戳，确保updated_at字段正确
+                    quotation.updated_at = datetime.utcnow()
+                    db.session.commit()
+                    
+                    # 记录创建历史
+                    try:
+                        from app.utils.change_tracker import ChangeTracker
+                        ChangeTracker.log_create(quotation)
+                    except Exception as track_err:
+                        current_app.logger.warning(f"记录报价单创建历史失败: {str(track_err)}")
+                    
                     # 注意：项目金额更新交由SQLAlchemy事件监听器处理，此处无需手动更新
                     current_app.logger.info('项目报价金额将由事件监听器自动更新')
                     
-                    # 触发报价单创建通知
+                    # 异步触发报价单创建通知，避免阻塞响应
                     try:
                         from app.utils.notification_helpers import trigger_event_notification
                         from flask import url_for
-                        trigger_event_notification(
-                            event_key='quotation_created',
-                            target_user_id=quotation.owner_id,
-                            context={
-                                'quotation': quotation,
-                                'create_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                                'quotation_url': url_for('quotation.view_quotation', id=quotation.id, _external=True),
-                                'current_year': datetime.now().year
-                            }
-                        )
-                        # 通知解决方案经理
-                        notify_solution_managers_quotation_created(quotation)
+                        import threading
+                        from app.utils.solution_manager_notifications import notify_solution_managers_quotation_created
+                        
+                        def send_notifications_async():
+                            """异步发送通知"""
+                            with current_app.app_context():
+                                try:
+                                    # 触发报价单创建通知
+                                    trigger_event_notification(
+                                        event_key='quotation_created',
+                                        target_user_id=quotation.owner_id,
+                                        context={
+                                            'quotation': quotation,
+                                            'create_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                            'quotation_url': url_for('quotation.view_quotation', id=quotation.id, _external=True),
+                                            'current_year': datetime.now().year
+                                        }
+                                    )
+                                    # 通知解决方案经理（异步）
+                                    notify_solution_managers_quotation_created(quotation)
+                                    current_app.logger.debug('异步报价单创建通知已发送')
+                                except Exception as notify_err:
+                                    current_app.logger.warning(f"异步触发报价单创建通知失败: {str(notify_err)}")
+                        
+                        # 启动异步通知线程
+                        threading.Thread(target=send_notifications_async, daemon=True).start()
+                        current_app.logger.debug('异步通知线程已启动')
+                        
                     except Exception as notify_err:
-                        current_app.logger.warning(f"触发报价单创建通知失败: {str(notify_err)}")
+                        logger.warning(f"启动异步通知失败: {str(notify_err)}")
                     
-                    # 如果有错误但保存成功，返回警告信息
-                    if detail_errors:
-                        current_app.logger.warning(f"报价单创建成功，但有以下警告: {', '.join(detail_errors)}")
-                        return jsonify({
-                            'status': 'success',
-                            'message': '报价单创建成功，但存在部分问题',
-                            'warnings': detail_errors,
-                            'quotation_id': quotation.id
-                        })
+                    # 移除flash消息，直接跳转（提升用户体验）
+                    # flash('报价单创建成功！', 'success')
                     
-                    current_app.logger.info('报价单创建成功，无警告信息')
-                    return jsonify({
-                        'status': 'success',
-                        'message': '报价单创建成功',
-                        'quotation_id': quotation.id
-                    })
+                    # 处理返回URL
+                    if return_to and 'project/view' in return_to:
+                        return redirect(return_to)
+                    else:
+                        return redirect(url_for('quotation.list_quotations'))
                 except Exception as commit_error:
                     db.session.rollback()
                     error_type = type(commit_error).__name__
@@ -470,6 +490,13 @@ def create_quotation():
                 # 手动更新时间戳，确保updated_at字段正确
                 quotation.updated_at = datetime.utcnow()
                 db.session.commit()
+                
+                # 记录创建历史
+                try:
+                    from app.utils.change_tracker import ChangeTracker
+                    ChangeTracker.log_create(quotation)
+                except Exception as track_err:
+                    current_app.logger.warning(f"记录报价单创建历史失败: {str(track_err)}")
                 
                 # 注意：项目金额更新交由SQLAlchemy事件监听器处理，此处无需手动更新
                 current_app.logger.info('项目报价金额将由事件监听器自动更新')
@@ -574,6 +601,12 @@ def edit_quotation(id):
             flash('您没有权限编辑此报价单', 'danger')
             return redirect(url_for('quotation.list_quotations'))
         
+        # 检查报价单是否被锁定
+        if quotation.is_locked:
+            lock_info = quotation.lock_status_display
+            flash(f'报价单已被锁定，无法编辑。锁定原因：{lock_info["reason"]}，锁定人：{lock_info["locked_by"]}', 'warning')
+            return redirect(url_for('quotation.view_quotation', id=id))
+        
         # 按产品库产品ID排序获取报价单明细
         from app.models.product import Product
         from sqlalchemy import case
@@ -627,6 +660,10 @@ def edit_quotation(id):
         
         if request.method == 'POST':
             try:
+                # 捕获修改前的值
+                from app.utils.change_tracker import ChangeTracker
+                old_values = ChangeTracker.capture_old_values(quotation)
+                
                 # 验证必填字段
                 if not request.form.get('project_id'):
                     raise ValueError('项目不能为空')
@@ -721,6 +758,13 @@ def edit_quotation(id):
                 # 手动更新时间戳，确保updated_at字段正确
                 quotation.updated_at = datetime.utcnow()
                 db.session.commit()
+                
+                # 记录变更历史
+                try:
+                    new_values = ChangeTracker.get_new_values(quotation, old_values.keys())
+                    ChangeTracker.log_update(quotation, old_values, new_values)
+                except Exception as track_err:
+                    current_app.logger.warning(f"记录报价单变更历史失败: {str(track_err)}")
                 
                 # 强制刷新项目金额
                 project = Project.query.get(quotation.project_id)
@@ -820,25 +864,29 @@ def copy_quotation(id):
 @login_required
 @permission_required('quotation', 'delete')
 def delete_quotation(id):
+    quotation = Quotation.query.get_or_404(id)
+    
+    # 检查删除权限
+    if not can_edit_data(quotation, current_user):
+        flash('您没有权限删除此报价单', 'danger')
+        return redirect(url_for('quotation.list_quotations'))
+    
     try:
-        quotation = Quotation.query.get_or_404(id)
-        if not can_edit_data(quotation, current_user):
-            logger.debug(f"{current_user.username} 无权删除报价单 {quotation.id}")
-            flash('您没有权限删除此报价单', 'danger')
-            return redirect(url_for('quotation.list_quotations'))
-        project_id = quotation.project_id
+        # 记录删除历史
+        try:
+            from app.utils.change_tracker import ChangeTracker
+            ChangeTracker.log_delete(quotation)
+        except Exception as track_err:
+            current_app.logger.warning(f"记录报价单删除历史失败: {str(track_err)}")
+        
         db.session.delete(quotation)
         db.session.commit()
-        
-        # 注意：项目金额更新交由SQLAlchemy事件监听器处理，此处无需手动更新
-        logger.info('项目报价金额将由事件监听器自动更新')
-        
         flash('报价单删除成功！', 'success')
-        return redirect(url_for('project.view_project', project_id=project_id))
     except Exception as e:
         db.session.rollback()
-        flash('删除失败：' + str(e), 'danger')
-        return redirect(url_for('quotation.list_quotations'))
+        flash(f'删除失败：{str(e)}', 'danger')
+    
+    return redirect(url_for('quotation.list_quotations'))
 
 @quotation.route('/batch-delete', methods=['POST'])
 @login_required
@@ -1253,8 +1301,24 @@ def view_quotation(id):
         if has_change_owner_permission:
             filter_by_dept = current_user.role != 'admin'
             user_tree_data = generate_user_tree_data(filter_by_department=filter_by_dept)
+        
+        # 获取审批实例信息
+        approval_instance = get_object_approval_instance('quotation', quotation.id)
+        current_approval_step = None
+        can_current_user_approve = False
+        
+        if approval_instance:
+            current_approval_step = get_current_step_info(approval_instance)
+            can_current_user_approve = can_user_approve(approval_instance.id, current_user.id)
             
-        return render_template('quotation/detail.html', quotation=quotation, all_users=all_users, has_change_owner_permission=has_change_owner_permission, user_tree_data=user_tree_data)
+        return render_template('quotation/detail.html', 
+                             quotation=quotation, 
+                             all_users=all_users, 
+                             has_change_owner_permission=has_change_owner_permission, 
+                             user_tree_data=user_tree_data,
+                             approval_instance=approval_instance,
+                             current_approval_step=current_approval_step,
+                             can_current_user_approve=can_current_user_approve)
     except Exception as e:
         flash(f'加载报价单详情失败：{str(e)}', 'danger')
         return redirect(url_for('quotation.list_quotations'))
@@ -1367,6 +1431,14 @@ def save_quotation(id):
             return jsonify({
                 'status': 'error',
                 'message': '您没有权限编辑此报价单'
+            }), 403
+        
+        # 检查报价单是否被锁定
+        if quotation.is_locked:
+            lock_info = quotation.lock_status_display
+            return jsonify({
+                'status': 'error',
+                'message': f'报价单已被锁定，无法编辑。锁定原因：{lock_info["reason"]}，锁定人：{lock_info["locked_by"]}'
             }), 403
         
         # 使用 request.get_json() 获取JSON数据
@@ -1586,35 +1658,48 @@ def save_quotation(id):
             db.session.commit()
             current_app.logger.info('数据库更改提交成功')
             
-            # 注意：项目金额更新交由SQLAlchemy事件监听器处理，此处无需手动更新
-            current_app.logger.info('项目报价金额将由事件监听器自动更新')
-            
-            # 触发报价单创建通知
+            # 异步触发通知，避免阻塞保存操作
             try:
                 from app.utils.notification_helpers import trigger_event_notification
                 from flask import url_for
-                trigger_event_notification(
-                    event_key='quotation_created',
-                    target_user_id=quotation.owner_id,
-                    context={
-                        'quotation': quotation,
-                        'create_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                        'quotation_url': url_for('quotation.view_quotation', id=quotation.id, _external=True),
-                        'current_year': datetime.now().year
-                    }
-                )
-                # 通知解决方案经理
-                notify_solution_managers_quotation_created(quotation)
+                import threading
+                from app.utils.solution_manager_notifications import notify_solution_managers_quotation_created
+                
+                def send_notifications_async():
+                    """异步发送通知"""
+                    with current_app.app_context():
+                        try:
+                            # 触发报价单更新通知（而不是创建通知）
+                            trigger_event_notification(
+                                event_key='quotation_updated',
+                                target_user_id=quotation.owner_id,
+                                context={
+                                    'quotation': quotation,
+                                    'update_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                    'quotation_url': url_for('quotation.view_quotation', id=quotation.id, _external=True),
+                                    'current_year': datetime.now().year
+                                }
+                            )
+                            current_app.logger.debug('异步事件通知已触发')
+                        except Exception as notify_err:
+                            current_app.logger.warning(f"异步触发通知失败: {str(notify_err)}")
+                
+                # 启动异步通知线程
+                threading.Thread(target=send_notifications_async, daemon=True).start()
+                current_app.logger.debug('异步通知线程已启动')
+                
             except Exception as notify_err:
-                current_app.logger.warning(f"触发报价单创建通知失败: {str(notify_err)}")
+                current_app.logger.warning(f"启动异步通知失败: {str(notify_err)}")
             
+            # 快速返回成功响应
             if detail_errors:
                 current_app.logger.warning(f"报价单保存成功，但有以下警告: {', '.join(detail_errors)}")
                 return jsonify({
-                    'status': 'error',
-                    'message': '报价单明细存在错误，请检查：' + '; '.join(detail_errors),
+                    'status': 'success',
+                    'message': '报价单更新成功',
                     'warnings': detail_errors
-                }), 400
+                }), 200
+            
             current_app.logger.info('报价单更新成功，无警告信息')
             return jsonify({
                 'status': 'success',
@@ -1663,15 +1748,22 @@ def can_view_quotation(user, quotation):
     """
     判断用户是否有权查看该报价单：
     1. 归属人
-    2. 归属链
-    3. 渠道经理可以查看渠道跟进项目的报价单
-    4. 营销总监可以查看销售重点和渠道跟进项目的报价单
-    5. 财务总监、解决方案经理、产品经理可以查看所有报价单
+    2. 厂商负责人（项目的厂商负责人可以查看项目相关的报价单）
+    3. 归属链
+    4. 渠道经理可以查看渠道跟进项目的报价单
+    5. 营销总监可以查看销售重点和渠道跟进项目的报价单
+    6. 财务总监、解决方案经理、产品经理可以查看所有报价单
     暂不考虑共享
     """
     if user.role == 'admin':
         return True
     if user.id == quotation.owner_id:
+        return True
+    
+    # 厂商负责人可以查看项目相关的报价单
+    if (hasattr(quotation, 'project') and quotation.project and 
+        hasattr(quotation.project, 'vendor_sales_manager_id') and 
+        quotation.project.vendor_sales_manager_id == user.id):
         return True
     
     # 统一处理角色字符串，去除空格
@@ -1712,4 +1804,4 @@ def can_view_quotation(user, quotation):
 #         can_edit_data=can_edit_data,
 #         can_view_project=can_view_project,
 #         can_view_quotation=can_view_quotation
-#     ) 
+#     )

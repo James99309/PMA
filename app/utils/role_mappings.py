@@ -55,62 +55,89 @@ def get_role_display_name(role_key):
     # 如果找不到匹配，返回原始值
     return role_key 
 
-def get_role_special_permissions(role_key):
+def get_role_special_permissions(role=None):
     """
-    获取角色的特殊权限描述
+    获取各角色的特殊权限说明
     
     参数:
-        role_key: 角色键名
+        role: 角色名称，如果提供则返回特定角色的权限，否则返回所有角色权限
         
     返回:
-        角色的特殊权限描述列表
+        特定角色的权限列表或者所有角色的权限字典
     """
-    if not role_key:
-        return []
-    
-    # 统一转为小写处理，避免大小写问题
-    role_key_lower = role_key.lower().strip() if isinstance(role_key, str) else ''
-    
-    # 特殊权限映射
-    special_permissions = {
-        'finance_director': [
-            '可查看所有项目列表和详情（只读）',
-            '可查看所有报价单列表和详情（只读）',
-            '不允许编辑或删除项目和报价单',
-            '只能查看自己的客户信息'
-        ],
-        'finace_director': [
-            '可查看所有项目列表和详情（只读）',
-            '可查看所有报价单列表和详情（只读）',
-            '不允许编辑或删除项目和报价单',
-            '只能查看自己的客户信息'
-        ],
-        'solution_manager': [
-            '可查看所有项目列表和详情（只读）',
-            '可查看所有报价单列表和详情',
-            '可编辑所有报价单，但不允许删除',
-            '不允许编辑或删除项目',
-            '可查看所有客户信息'
-        ],
-        'product_manager': [
-            '可查看所有项目列表和详情（只读）',
-            '可查看所有报价单列表和详情（只读）',
-            '不允许编辑或删除项目和报价单',
-            '只能查看自己的客户信息'
-        ],
-        'product': [
-            '可查看所有项目列表和详情（只读）',
-            '可查看所有报价单列表和详情（只读）',
-            '不允许编辑或删除项目和报价单',
-            '只能查看自己的客户信息'
-        ],
-        'solution': [
-            '可查看所有项目列表和详情（只读）',
-            '可查看所有报价单列表和详情',
-            '可编辑所有报价单，但不允许删除',
-            '不允许编辑或删除项目',
-            '可查看所有客户信息'
-        ]
+    role_permissions = {
+        'admin': {
+            'description': '系统管理员拥有所有权限，包括系统设置、用户管理等',
+            'special_permissions': [
+                '系统参数设置',
+                '用户和权限管理', 
+                '所有数据查看权限',
+                '项目评分权限（默认开启）'
+            ],
+            'has_special': True
+        },
+        'sales_director': {
+            'description': '销售总监负责销售团队管理和重要项目决策',
+            'special_permissions': [
+                '部门成员数据查看权限',
+                '销售数据统计查看',
+                '项目审批权限',
+                '项目评分权限（可配置）'
+            ],
+            'has_special': True
+        },
+        'service_manager': {
+            'description': '服务经理负责客户服务和项目跟进',
+            'special_permissions': [
+                '客户服务记录管理',
+                '项目跟进和更新',
+                '项目评分权限（可配置）'
+            ],
+            'has_special': True
+        },
+        'channel_manager': {
+            'description': '渠道经理负责渠道合作伙伴管理',
+            'special_permissions': [
+                '渠道合作伙伴管理',
+                '渠道项目跟进',
+                '项目评分权限（可配置）'
+            ],
+            'has_special': True
+        },
+        'product_manager': {
+            'description': '产品经理负责产品规划和管理',
+            'special_permissions': [
+                '产品信息管理',
+                '产品价格设置',
+                '项目评分权限（可配置）'
+            ],
+            'has_special': True
+        },
+        'solution_manager': {
+            'description': '解决方案经理负责技术方案设计',
+            'special_permissions': [
+                '技术方案设计',
+                '产品技术支持',
+                '项目评分权限（可配置）'
+            ],
+            'has_special': True
+        },
+        'sales': {
+            'description': '销售人员负责客户开发和项目跟进',
+            'special_permissions': [],
+            'has_special': False
+        },
+        'service': {
+            'description': '服务人员负责客户服务和技术支持',
+            'special_permissions': [],
+            'has_special': False
+        }
     }
     
-    return special_permissions.get(role_key_lower, []) 
+    # 如果指定了角色，返回该角色的特殊权限列表
+    if role:
+        role_info = role_permissions.get(role.lower() if isinstance(role, str) else '', {})
+        return role_info.get('special_permissions', []) if role_info.get('has_special', False) else []
+    
+    # 否则返回所有角色的权限信息
+    return role_permissions 

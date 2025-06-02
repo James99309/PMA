@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_quotation_number, render_project_stage %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_quotation_number, render_project_stage, render_project_rating, render_rating_input %}
 {% import 'macros/ui_helpers.html' as ui %}
-{% from 'macros/approval_macros.html' import render_approval_timeline, render_approval_form, render_start_approval_button %}
+{% from 'macros/approval_macros.html' import render_approval_timeline, render_approval_form, render_start_approval_button, render_approval_section %}
 {% from 'macros/ui_modals.html' import render_change_project_owner_modal %}
 
 {% block title %}项目详情{% endblock %}
@@ -37,18 +37,50 @@
 <div class="container mt-4 project-detail-main">
     <div class="row mb-3">
         <div class="col-md-12">
-            <h2>{{ project.project_name }}</h2>
-            <div class="d-flex flex-wrap align-items-center justify-content-end mb-2 gap-2">
-                {{ ui.render_button('返回列表', href=url_for('project.list_projects'), color='secondary') }}
-                {% if current_stage_key != 'signed' and current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) and (not project.is_locked or current_user.role == 'admin') %}
-                    {{ ui.render_button('编辑项目', href=url_for('project.edit_project', project_id=project.id), color='primary') }}
-                {% endif %}
-                {% if current_stage_key != 'signed' and current_user.has_permission('project', 'delete') and (current_user.role == 'admin' or current_user.id == project.owner_id) and (not project.is_locked or current_user.role == 'admin') %}
-                    <form action="{{ url_for('project.delete_project', project_id=project.id) }}" method="post" style="display:inline;">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        {{ ui.render_button('删除项目', type='submit', color='danger') }}
-                    </form>
-                {% endif %}
+            <div class="d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center">
+                    <h2 class="mb-0 me-3">{{ project.project_name }}</h2>
+                    <!-- 五星评分显示在标题旁边 -->
+                    <div class="d-flex align-items-center title-rating">
+                        {% if current_user.has_permission('project_rating', 'create') %}
+                        <!-- 可交互的星星评分 -->
+                        <div class="clickable-stars d-flex" id="clickableStars">
+                            {% for i in range(1, 6) %}
+                                <i class="fas fa-star clickable-star" 
+                                   data-rating="{{ i }}"
+                                   style="color: #dee2e6; font-size: 1.1rem; margin-right: 1px; cursor: pointer; transition: all 0.2s ease;"
+                                   onclick="toggleManualAward()"
+                                   onmouseover="this.style.transform='scale(1.1)'"
+                                   onmouseout="this.style.transform='scale(1)'"></i>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <!-- 只读的星星显示 -->
+                        <div class="readonly-stars d-flex" id="readonlyStars">
+                            {% for i in range(1, 6) %}
+                                <i class="fas fa-star" 
+                                   style="color: #dee2e6; font-size: 1.1rem; margin-right: 1px;"></i>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        <!-- 查看评分详情按钮 - 对所有用户开放 -->
+                        <button type="button" class="btn btn-link btn-sm p-0 ms-2" onclick="showScoringDetails()" title="查看评分详情">
+                            <i class="fas fa-info-circle text-muted"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    {{ ui.render_button('返回列表', href=url_for('project.list_projects'), color='secondary') }}
+                    {% if current_stage_key != 'signed' and current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) and (not project.is_locked or current_user.role == 'admin') %}
+                        {{ ui.render_button('编辑项目', href=url_for('project.edit_project', project_id=project.id), color='primary') }}
+                    {% endif %}
+                    {% if current_stage_key != 'signed' and current_user.has_permission('project', 'delete') and (current_user.role == 'admin' or current_user.id == project.owner_id) and (not project.is_locked or current_user.role == 'admin') %}
+                        <form action="{{ url_for('project.delete_project', project_id=project.id) }}" method="post" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            {{ ui.render_button('删除项目', type='submit', color='danger') }}
+                        </form>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
@@ -376,160 +408,45 @@
     </div>
 
     <!-- 审批流程区域 -->
-    <div class="row mt-4">
-        <div class="col-md-12">
-            <!-- 查找是否有现有的审批实例 -->
-            {% set approval_instance = get_object_approval_instance('project', project.id) if get_object_approval_instance is defined %}
-            {% if approval_instance %}
-                <div class="card mb-4">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0"><i class="fas fa-sitemap me-2"></i>审批流程</h5>
-                    </div>
-                    <div class="card-body">
-                        <!-- 审批进度摘要 -->
-                        {% set records = approval_instance.records %}
-                        {% set total_steps = approval_instance.process.steps|length %}
-                        <div class="row mb-4">
-                            <div class="col-md-12">
-                                <div class="d-flex justify-content-between align-items-center mb-3">
-                                    <h5 class="mb-0">审批进度</h5>
-                                    <span class="badge bg-info standard-font">{{ records|length }}/{{ total_steps }} 步骤</span>
-                                </div>
-                                
-                                <div class="progress mb-4" style="height: 25px;">
-                                    {% set progress_percentage = (records|length / total_steps * 100)|int if total_steps > 0 else 0 %}
-                                    <div class="progress-bar {{ 'bg-success' if approval_instance.status == ApprovalStatus.APPROVED else 'bg-warning' if approval_instance.status == ApprovalStatus.PENDING else 'bg-danger' }}"
-                                        role="progressbar"
-                                        style="width: {{ progress_percentage }}%;"
-                                        aria-valuenow="{{ progress_percentage }}"
-                                        aria-valuemin="0"
-                                        aria-valuemax="100">
-                                        {{ progress_percentage }}%
-                                    </div>
-                                </div>
-                                
-                                {% if approval_instance.status == ApprovalStatus.PENDING %}
-                                    {% set current_step = get_current_step_info(approval_instance) if get_current_step_info is defined %}
-                                    {% if current_step %}
-                                    <div class="current-step-info p-3 bg-light rounded">
-                                        <h6><i class="fas fa-hourglass-half me-2 text-warning"></i>当前步骤</h6>
-                                        <div class="d-flex justify-content-between">
-                                            <div>
-                                                <strong class="standard-font">{{ current_step.step_name }}</strong>
-                                                <div class="text-muted standard-font">审批人: {{ current_step.approver.username }}</div>
-                                            </div>
-                                            <div>
-                                                <span class="badge bg-warning">待审批</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {% endif %}
-                                {% endif %}
-                            </div>
-                        </div>
-                        
-                        <!-- 审批流程时间线 -->
-                        <div class="approval-workflow">
-                            <div class="timeline">
-                                <!-- 流程发起 -->
-                                <div class="timeline-item">
-                                    <div class="timeline-marker bg-info"></div>
-                                    <div class="timeline-content">
-                                        <h4 class="timeline-title">流程发起</h4>
-                                        <p class="standard-font">
-                                            <strong>{{ approval_instance.creator.username }}</strong> 于 
-                                            {{ format_datetime(approval_instance.started_at) }} 发起审批
-                                        </p>
-                                    </div>
-                                </div>
-                                
-                                <!-- 审批步骤记录 -->
-                                {% for record in records %}
-                                    <div class="timeline-item">
-                                        <div class="timeline-marker {% if record.action == 'approve' %}bg-success{% else %}bg-danger{% endif %}"></div>
-                                        <div class="timeline-content">
-                                            <h4 class="timeline-title">{{ record.step.step_name }}</h4>
-                                            <p class="standard-font">
-                                                <strong>{{ record.approver.username }}</strong> 
-                                                {% if record.action == 'approve' %}
-                                                    <span class="text-success">同意</span>
-                                                {% else %}
-                                                    <span class="text-danger">拒绝</span>
-                                                {% endif %}
-                                                于 {{ format_datetime(record.timestamp) }}
-                                            </p>
-                                            {% if record.comment %}
-                                                <div class="mt-2 p-2 bg-light rounded">
-                                                    <i class="fas fa-comment text-muted me-2"></i><span class="standard-font">{{ record.comment }}</span>
-                                                </div>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                {% endfor %}
-                                
-                                <!-- 当前步骤 -->
-                                {% if approval_instance.status == ApprovalStatus.PENDING %}
-                                    {% set current_step = get_current_step_info(approval_instance) if get_current_step_info is defined and current_step is undefined %}
-                                    {% if current_step %}
-                                        <div class="timeline-item">
-                                            <div class="timeline-marker bg-warning"></div>
-                                            <div class="timeline-content">
-                                                <h4 class="timeline-title">{{ current_step.step_name }} <span class="badge bg-warning">当前步骤</span></h4>
-                                                <p class="standard-font">待 <strong>{{ current_step.approver.username }}</strong> 审批</p>
-                                            </div>
-                                        </div>
-                                    {% endif %}
-                                {% endif %}
-                                
-                                <!-- 流程结束状态 -->
-                                <div class="timeline-item">
-                                    <div class="timeline-marker 
-                                        {% if approval_instance.status == ApprovalStatus.APPROVED %}
-                                            bg-success
-                                        {% elif approval_instance.status == ApprovalStatus.REJECTED %}
-                                            bg-danger
-                                        {% else %}
-                                            bg-secondary
-                                        {% endif %}
-                                    "></div>
-                                    <div class="timeline-content">
-                                        <h4 class="timeline-title">流程状态</h4>
-                                        <p class="standard-font">
-                                            {% if approval_instance.status == ApprovalStatus.APPROVED %}
-                                                <span class="text-success"><i class="fas fa-check-circle me-1"></i>审批已通过</span>
-                                            {% elif approval_instance.status == ApprovalStatus.REJECTED %}
-                                                <span class="text-danger"><i class="fas fa-times-circle me-1"></i>审批已拒绝</span>
-                                            {% else %}
-                                                <span class="text-muted"><i class="fas fa-hourglass-half me-1"></i>审批进行中</span>
-                                            {% endif %}
-                                        </p>
-                                        {% if approval_instance.ended_at %}
-                                            <p class="text-muted standard-font">完成时间: {{ format_datetime(approval_instance.ended_at) }}</p>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- 操作按钮区域 -->
-                        <div class="mt-3">
-                            <a href="{{ url_for('approval.detail', instance_id=approval_instance.id) }}" class="btn btn-primary">
-                                <i class="fas fa-external-link-alt me-1"></i> 查看详情
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            {% else %}
-                {{ render_start_approval_button('project', project.id) }}
-            {% endif %}
-        </div>
-    </div>
+    {% set approval_instance = get_object_approval_instance('project', project.id) if get_object_approval_instance is defined %}
+    {{ render_approval_section('project', project.id, approval_instance, current_user) }}
 </div>
 
 
 {% if has_change_owner_permission %}
 {{ render_change_project_owner_modal('changeOwnerModal', url_for('project.change_project_owner', project_id=project.id), all_users, project.owner_id, user_tree_data) }}
 {% endif %}
+
+<!-- 评分详情模态框 -->
+<div class="modal fade" id="ratingDetailsModal" tabindex="-1" aria-labelledby="ratingDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ratingDetailsModalLabel">
+                    <i class="fas fa-star text-warning me-2"></i>项目评分详情
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <h6>当前评分：<span id="modalCurrentRating">0</span>/5星</h6>
+                    <div id="modalStarDisplay" class="mb-3"></div>
+                </div>
+                <div id="ratingRecordsList">
+                    <h6>评分记录：</h6>
+                    <div id="ratingRecordsContent">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-spinner fa-spin"></i> 加载中...
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -657,6 +574,11 @@
         });
 
         // 初始化项目阶段进度条
+        console.log('项目阶段进度条初始化参数:');
+        console.log('- 当前阶段:', '{{ current_stage_key }}');
+        console.log('- 阶段历史:', {{ stageHistory|tojson }});
+        console.log('- 阶段配置:', {{ project_stages_config()|tojson }});
+        
         const projectStageProgress = new ProjectStageProgress({
             containerId: 'projectStageProgress',
             projectId: {{ project.id }},
@@ -706,6 +628,459 @@
         }
     }
 </script>
+
+<script>
+// 页面加载时初始化评分状态
+let currentProjectRating = {{ project.rating or 0 }};
+let userHasAwarded = false;
+let scoringData = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // 加载评分状态
+    loadScoringStatus();
+});
+
+// 加载评分状态
+function loadScoringStatus() {
+    fetch(`/api/project/{{ project.id }}/scoring/status`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            scoringData = data.data;
+            currentProjectRating = data.data.star_rating;
+            userHasAwarded = data.data.user_has_awarded;
+            updateRatingDisplay();
+        } else {
+            console.error('加载评分状态失败:', data.message);
+        }
+    })
+    .catch(error => {
+        console.error('加载评分状态失败:', error);
+    });
+}
+
+// 切换手动奖励
+function toggleManualAward() {
+    // 添加点击反馈效果
+    const clickableStars = document.querySelector('#clickableStars');
+    if (clickableStars) {
+        clickableStars.style.opacity = '0.6';
+        setTimeout(() => {
+            if (clickableStars) clickableStars.style.opacity = '1';
+        }, 200);
+    }
+    
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    
+    fetch(`/api/project/{{ project.id }}/scoring/manual-award`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            action: 'toggle',
+            award_type: 'supervisor_award',
+            notes: '手动奖励切换'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 更新页面显示
+            currentProjectRating = data.data.star_rating;
+            userHasAwarded = data.data.user_has_awarded;
+            updateRatingDisplay();
+            
+            // 简单的视觉反馈
+            const stars = document.querySelectorAll('.clickable-star, .readonly-stars i');
+            stars.forEach(star => {
+                star.style.transform = 'scale(1.2)';
+                setTimeout(() => {
+                    star.style.transform = 'scale(1)';
+                }, 150);
+            });
+        } else {
+            console.error('手动奖励操作失败:', data.message);
+        }
+    })
+    .catch(error => {
+        console.error('手动奖励操作失败:', error);
+    });
+}
+
+// 更新评分显示 - 支持半星显示
+function updateRatingDisplay() {
+    console.log(`开始更新评分显示: ${currentProjectRating}星, 用户已奖励: ${userHasAwarded}`);
+    
+    // 更新可点击星星
+    const clickableStars = document.querySelectorAll('#clickableStars i.clickable-star');
+    const readonlyStars = document.querySelectorAll('#readonlyStars i');
+    
+    const allStars = [...clickableStars, ...readonlyStars];
+    
+    console.log(`找到星星数量: 可点击=${clickableStars.length}, 只读=${readonlyStars.length}`);
+    
+    // 更新星星颜色，支持半星
+    allStars.forEach((star, index) => {
+        const starValue = index + 1;
+        const rating = parseFloat(currentProjectRating);
+        
+        // 先清除所有图标类
+        star.classList.remove('fas', 'far', 'fa-star', 'fa-star-half-alt');
+        
+        if (rating >= starValue) {
+            // 完整星星：评分大于等于当前星星位置
+            star.classList.add('fas', 'fa-star');
+            star.style.color = '#ffc107';
+        } else if (rating >= starValue - 0.5 && rating < starValue) {
+            // 半星：评分在当前星星位置减0.5到当前位置之间
+            star.classList.add('fas', 'fa-star-half-alt');
+            star.style.color = '#ffc107';
+        } else {
+            // 空星
+            star.classList.add('far', 'fa-star');
+            star.style.color = '#dee2e6';
+        }
+        
+        // 恢复原有的属性和事件（只对可点击星星）
+        if (star.classList.contains('clickable-star') || (clickableStars.length > 0 && index < clickableStars.length)) {
+            // 确保添加 clickable-star 类
+            star.classList.add('clickable-star');
+            star.setAttribute('data-rating', starValue);
+            star.setAttribute('onclick', 'toggleManualAward()');
+            star.setAttribute('onmouseover', "this.style.transform='scale(1.1)'");
+            star.setAttribute('onmouseout', "this.style.transform='scale(1)'");
+            star.style.cursor = 'pointer';
+            star.style.transition = 'all 0.2s ease';
+        }
+        
+        // 保持原有样式
+        star.style.fontSize = '1.1rem';
+        star.style.marginRight = '1px';
+    });
+    
+    console.log(`评分已更新: ${currentProjectRating}星, 用户已奖励: ${userHasAwarded}`);
+}
+
+// 显示评分详情
+function showScoringDetails() {
+    // 加载详细评分信息
+    fetch(`/api/project/{{ project.id }}/scoring/details`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayScoringDetailsModal(data.data);
+        } else {
+            showMessage('获取评分详情失败', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('获取评分详情失败:', error);
+        showMessage('获取评分详情失败', 'error');
+    });
+}
+
+// 显示评分详情扩张信息框
+function displayScoringDetailsModal(data) {
+    const expandedInfoHtml = `
+        <div class="modal fade" id="scoringDetailsModal" tabindex="-1">
+            <div class="modal-dialog modal-xl">
+                <div class="modal-content" style="background-color: #f8f9fa; border: none; border-radius: 15px;">
+                    <div class="modal-header border-0" style="background-color: #f8f9fa;">
+                        <h5 class="modal-title text-dark">
+                            项目评分详情 - ${data.project_name}
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body" style="background-color: #f8f9fa; padding: 30px;">
+                        <!-- 总评分显示 -->
+                        <div class="text-center mb-4">
+                            <div class="mb-3">
+                                        ${generateStarsHtml(data.star_rating)}
+                                    </div>
+                            <h6 class="text-muted">总评分：${data.total_score.toFixed(2)}分</h6>
+                        </div>
+                        
+                        <!-- 分类评分展示 -->
+                        <div class="row g-4">
+                            ${generateExpandedScoringCategoriesHtml(data)}
+                        </div>
+                        
+                        <div class="text-center mt-4">
+                            <small class="text-muted">最后计算时间：${new Date(data.last_calculated).toLocaleString('zh-CN')}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 移除已存在的模态框
+    const existingModal = document.getElementById('scoringDetailsModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // 添加新模态框
+    document.body.insertAdjacentHTML('beforeend', expandedInfoHtml);
+    
+    // 显示模态框
+    const modal = new bootstrap.Modal(document.getElementById('scoringDetailsModal'));
+    modal.show();
+}
+
+// 生成扩张式评分分类HTML
+function generateExpandedScoringCategoriesHtml(data) {
+    const categories = {
+        'information': { 
+            label: '信息完整性', 
+            score: data.score_breakdown.information_score,
+            items: [
+                { key: 'project_stage', name: '项目阶段' },
+                { key: 'project_category', name: '项目类别' },
+                { key: 'design_consultant', name: '设计顾问' },
+                { key: 'user_info', name: '用户信息' },
+                { key: 'general_contractor', name: '总承包商' },
+                { key: 'system_integrator', name: '系统集成商' }
+            ]
+        },
+        'quotation': { 
+            label: '报价完整性', 
+            score: data.score_breakdown.quotation_score,
+            items: [
+                { key: 'quotation_exists', name: '报价单' }
+            ]
+        },
+        'stage': { 
+            label: '阶段得分', 
+            score: data.score_breakdown.stage_score,
+            items: [
+                { key: 'stage_bidding', name: '招投标阶段' },
+                { key: 'stage_awarded', name: '中标阶段' },
+                { key: 'stage_pricing', name: '批价阶段' }
+            ]
+        },
+        'manual': { 
+            label: '手动奖励', 
+            score: data.score_breakdown.manual_score,
+            items: [
+                { key: 'supervisor_award', name: '主管奖励' }
+            ]
+        }
+    };
+    
+    let html = '';
+    Object.keys(categories).forEach(category => {
+            const categoryInfo = categories[category];
+        const categoryRecords = data.scoring_records[category] || [];
+        
+        // 计算该分类的最大可能得分
+        let maxPossibleScore = 1.0; // 默认值
+        if (category === 'information') {
+            maxPossibleScore = 0.5; // 信息完整性最多0.5分
+        } else if (category === 'quotation') {
+            maxPossibleScore = 0.5; // 报价完整性最多0.5分
+        } else if (category === 'stage') {
+            maxPossibleScore = 1.5; // 阶段得分最多1.5分（批价）
+        } else if (category === 'manual') {
+            maxPossibleScore = 2.0; // 手动奖励理论上可以很高，设定为2.0分
+        }
+        
+            html += `
+            <div class="col-md-6 mb-4">
+                <div class="card h-100" style="border: none; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <div class="card-header text-center" style="background-color: white; border-bottom: 1px solid #e9ecef; border-radius: 12px 12px 0 0;">
+                        <h6 class="mb-2 text-dark">${categoryInfo.label}</h6>
+                        <div class="mb-2">
+                            ${generateCategoryStarsHtml(categoryInfo.score, maxPossibleScore)}
+                        </div>
+                    </div>
+                    <div class="card-body" style="background-color: white; border-radius: 0 0 12px 12px;">
+                        <div class="row g-2">
+                            ${generateCategoryItemsHtml(categoryInfo.items, categoryRecords, category, categoryInfo.score)}
+                        </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    return html;
+}
+
+// 生成分类星级HTML - 根据分类最大得分显示对应数量的星星
+function generateCategoryStarsHtml(score, maxScore = 1.0) {
+    let html = '';
+    const ratingFloat = parseFloat(score);
+    
+    // 根据最大得分计算星星数量
+    const maxStars = Math.ceil(maxScore * 2); // 每0.5分一颗星
+    
+    // 分数转换为星星：0.5分=1星，1.0分=2星，1.5分=3星
+    const scoreInHalfStars = ratingFloat * 2; // 将分数转为半星单位
+    
+    for (let i = 1; i <= maxStars; i++) {
+        if (i <= Math.floor(scoreInHalfStars)) {
+            // 完整星星
+            html += `<i class="fas fa-star" style="color: #ffc107; font-size: 1.2rem; margin-right: 2px;"></i>`;
+        } else if (i === Math.floor(scoreInHalfStars) + 1 && scoreInHalfStars % 1 >= 0.5) {
+            // 半星
+            html += `<i class="fas fa-star-half-alt" style="color: #ffc107; font-size: 1.2rem; margin-right: 2px;"></i>`;
+        } else {
+            // 空星
+            html += `<i class="far fa-star" style="color: #dee2e6; font-size: 1.2rem; margin-right: 2px;"></i>`;
+        }
+    }
+    
+    return html;
+}
+
+// 生成分类项目HTML（改进版，支持手动奖励详情显示）
+function generateCategoryItemsHtml(items, records, category = '', score = 0) {
+    let html = '';
+    
+    // 如果是手动奖励分类，需要特殊处理
+    if (category === 'manual') {
+        // 显示所有手动奖励记录
+        if (records && records.length > 0) {
+            records.forEach(record => {
+                if (record.score_value > 0) {
+                    const awardedBy = record.awarded_by ? record.awarded_by.name : '未知用户';
+                    const createdDate = new Date(record.created_at).toLocaleDateString('zh-CN');
+                    
+                    html += `
+                        <div class="col-12 mb-3">
+                            <div class="d-flex align-items-start">
+                                <div class="me-3">
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; background-color: #28a745;">
+                                        <i class="fas fa-check" style="color: white; font-size: 12px;"></i>
+                        </div>
+                        </div>
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <span class="text-dark fw-bold" style="font-size: 14px;">手动奖励</span>
+                                            <div class="text-muted" style="font-size: 12px;">
+                                                由 <strong>${awardedBy}</strong> 于 ${createdDate} 给予
+                    </div>
+                                            ${record.notes ? `<div class="text-muted" style="font-size: 11px; font-style: italic;">${record.notes}</div>` : ''}
+                                        </div>
+                                        <span class="badge bg-success" style="font-size: 11px;">+${record.score_value}分</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+                }
+            });
+        }
+        
+        if (!html) {
+            html = '<div class="col-12"><span class="text-muted" style="font-size: 14px;">暂无手动奖励</span></div>';
+        }
+        } else {
+        // 其他分类的原有逻辑
+        items.forEach(item => {
+            let hasRecord = false;
+            
+            // 特殊处理阶段得分
+            if (category === 'stage') {
+                // 获取当前项目的阶段得分，如果有得分说明达到了某个阶段
+                if (score > 0) {
+                    // 根据得分判断当前达到的阶段
+                    if (item.key === 'stage_bidding' && score >= 0.5) {
+                        hasRecord = true; // 招投标阶段：0.5分
+                    } else if (item.key === 'stage_awarded' && score >= 1.0) {
+                        hasRecord = true; // 中标阶段：1.0分
+                    } else if (item.key === 'stage_pricing' && score >= 1.5) {
+                        hasRecord = true; // 批价阶段：1.5分
+                    }
+                }
+            } else {
+                // 检查该项目是否有得分记录
+                hasRecord = records.some(record => record.field_name === item.key && record.score_value > 0);
+            }
+            
+            html += `
+                <div class="col-12 mb-2">
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">
+                            ${hasRecord ? 
+                                '<div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; background-color: #28a745;"><i class="fas fa-check" style="color: white; font-size: 12px;"></i></div>' :
+                                '<div class="rounded-circle" style="width: 24px; height: 24px; background-color: #dee2e6; border: 2px solid #adb5bd;"></div>'
+                            }
+                        </div>
+                        <span class="text-dark" style="font-size: 14px;">${item.name}</span>
+                    </div>
+                </div>
+            `;
+        });
+        
+        if (!html) {
+            html = '<div class="col-12"><span class="text-muted" style="font-size: 14px;">暂无项目</span></div>';
+        }
+    }
+    
+    return html;
+}
+
+// 生成星星HTML - 支持半星
+function generateStarsHtml(rating) {
+    let html = '';
+    const ratingFloat = parseFloat(rating);
+    
+    for (let i = 1; i <= 5; i++) {
+        if (ratingFloat >= i) {
+            // 完整星星：评分大于等于当前星星位置
+            html += `<i class="fas fa-star" style="color: #ffc107; font-size: 2rem; margin-right: 5px;"></i>`;
+        } else if (ratingFloat >= i - 0.5 && ratingFloat < i) {
+            // 半星：评分在当前星星位置减0.5到当前位置之间
+            html += `<i class="fas fa-star-half-alt" style="color: #ffc107; font-size: 2rem; margin-right: 5px;"></i>`;
+        } else {
+            // 空星
+            html += `<i class="far fa-star" style="color: #dee2e6; font-size: 2rem; margin-right: 5px;"></i>`;
+        }
+    }
+    return html;
+}
+
+// 显示消息提示
+function showMessage(message, type = 'info') {
+    // 创建消息元素
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 100px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // 添加到页面
+    document.body.appendChild(alertDiv);
+    
+    // 3秒后自动移除
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.parentNode.removeChild(alertDiv);
+        }
+    }, 3000);
+}
+</script>
+
 {% endblock %}
 
 {% block styles %}
@@ -770,6 +1145,34 @@
 .description-content {
     display: block;
     padding-left: 5px;
+}
+
+/* 可点击星星样式 */
+.clickable-star {
+    transition: all 0.2s ease;
+}
+
+.clickable-star:hover {
+    transform: scale(1.2);
+    filter: brightness(1.2);
+}
+
+.clickable-stars {
+    user-select: none;
+}
+
+/* 标题旁边的星星样式 */
+.title-rating {
+    user-select: none;
+}
+
+.title-rating .clickable-star {
+    transition: all 0.15s ease;
+}
+
+.title-rating .clickable-star:hover {
+    transform: scale(1.15);
+    filter: brightness(1.1);
 }
 
 /* 时间线样式 */

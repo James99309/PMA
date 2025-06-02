@@ -45,6 +45,13 @@
         <i class="fas fa-hourglass-half me-1"></i> 待我审批的
       </a>
     </li>
+    {% if current_user.role == 'admin' %}
+    <li class="nav-item">
+      <a class="nav-link {{ 'active' if current_tab == 'all' else '' }}" href="{{ url_for('approval.center', tab='all') }}">
+        <i class="fas fa-list me-1"></i> 全部审批
+      </a>
+    </li>
+    {% endif %}
   </ul>
   
   <!-- 筛选表单 -->
@@ -56,8 +63,10 @@
       <h5 class="mb-0">
         {% if current_tab == 'created' %}
           <i class="fas fa-file-export me-2"></i> 我发起的审批
-        {% else %}
+        {% elif current_tab == 'pending' %}
           <i class="fas fa-hourglass-half me-2"></i> 待我审批的
+        {% elif current_tab == 'all' %}
+          <i class="fas fa-list me-2"></i> 全部审批记录
         {% endif %}
       </h5>
     </div>

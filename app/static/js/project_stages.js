@@ -128,8 +128,16 @@ class ProjectStageProgress {
      * 渲染进度条
      */
     render() {
+        console.log('ProjectStageProgress 渲染开始:');
+        console.log('- 当前阶段:', this.currentStage);
+        console.log('- 主线阶段:', this.mainStages);
+        console.log('- 分支阶段:', this.branchStages);
+        
         const container = document.getElementById(this.containerId);
-        if (!container) return;
+        if (!container) {
+            console.error('找不到容器元素:', this.containerId);
+            return;
+        }
 
         // 创建进度条容器
         const progressContainer = document.createElement('div');

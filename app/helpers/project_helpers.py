@@ -7,13 +7,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def lock_project(project_id, reason="审批流程锁定", user_id=None):
+def lock_project(project_id, reason="审批流程锁定", user_id=None, force=False):
     """锁定项目，防止编辑
     
     Args:
         project_id: 项目ID
         reason: 锁定原因
         user_id: 锁定人ID，默认为当前登录用户
+        force: 是否强制锁定（即使已锁定也会更新锁定状态）
         
     Returns:
         布尔值，表示是否成功锁定
@@ -26,12 +27,13 @@ def lock_project(project_id, reason="审批流程锁定", user_id=None):
         logger.error(f"项目不存在: {project_id}")
         return False
     
-    # 如果项目已经被锁定，返回False
-    if project.is_locked:
+    # 如果项目已经被锁定，且不是强制锁定，则返回False
+    if project.is_locked and not force:
         logger.warning(f"项目已被锁定: {project_id}, 原因: {project.locked_reason}")
         return False
     
     try:
+        # 无论之前是否锁定，都设置新的锁定状态
         project.is_locked = True
         project.locked_reason = reason
         project.locked_by = user_id

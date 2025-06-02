@@ -1,0 +1,493 @@
+{% extends "base.html" %}
+
+{% block title %}版本管理 - PMA系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="page-header">
+                <h1 class="page-title">
+                    <i class="fas fa-code-branch"></i> 版本管理
+                </h1>
+                <div class="page-options">
+                    <button class="btn btn-primary" onclick="showCreateVersionModal()">
+                        <i class="fas fa-plus"></i> 创建新版本
+                    </button>
+                    <button class="btn btn-secondary" onclick="refreshVersionCheck()">
+                        <i class="fas fa-sync"></i> 刷新版本检查
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 版本统计卡片 -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title">{{ version_stats.total_versions }}</h4>
+                            <p class="card-text">总版本数</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-tags fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title">{{ version_stats.successful_upgrades }}</h4>
+                            <p class="card-text">成功升级</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-check-circle fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title">{{ version_stats.failed_upgrades }}</h4>
+                            <p class="card-text">失败升级</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-exclamation-triangle fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title">{{ version_stats.total_upgrades }}</h4>
+                            <p class="card-text">总升级次数</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-arrow-up fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- 当前版本信息 -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title">
+                        <i class="fas fa-star"></i> 当前版本信息
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if current_version %}
+                    <div class="version-info">
+                        <div class="row">
+                            <div class="col-sm-4"><strong>版本号:</strong></div>
+                            <div class="col-sm-8">
+                                <span class="badge badge-primary">{{ current_version.version_number }}</span>
+                            </div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-sm-4"><strong>版本名称:</strong></div>
+                            <div class="col-sm-8">{{ current_version.version_name or '未设置' }}</div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-sm-4"><strong>发布日期:</strong></div>
+                            <div class="col-sm-8">{{ current_version.release_date.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-sm-4"><strong>环境:</strong></div>
+                            <div class="col-sm-8">
+                                <span class="badge badge-{{ 'success' if current_version.environment == 'production' else 'warning' }}">
+                                    {{ current_version.environment }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-sm-4"><strong>功能统计:</strong></div>
+                            <div class="col-sm-8">
+                                <small class="text-muted">
+                                    新功能: {{ current_version.total_features }} | 
+                                    修复: {{ current_version.total_fixes }} | 
+                                    改进: {{ current_version.total_improvements }}
+                                </small>
+                            </div>
+                        </div>
+                        {% if current_version.description %}
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <strong>版本描述:</strong>
+                                <p class="mt-1">{{ current_version.description }}</p>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted">
+                        <i class="fas fa-info-circle fa-3x mb-3"></i>
+                        <p>尚未设置当前版本</p>
+                        <button class="btn btn-primary" onclick="showCreateVersionModal()">创建第一个版本</button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 系统状态 -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title">
+                        <i class="fas fa-heartbeat"></i> 系统状态
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="system-status">
+                        <div class="text-center">
+                            <i class="fas fa-spinner fa-spin"></i> 正在加载系统状态...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 最近版本和升级日志 -->
+    <div class="row mt-4">
+        <!-- 最近版本 -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-history"></i> 最近版本
+                    </h5>
+                    <a href="{{ url_for('version_management.versions') }}" class="btn btn-sm btn-outline-primary">
+                        查看全部
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if recent_versions %}
+                    <div class="list-group list-group-flush">
+                        {% for version in recent_versions %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">
+                                    {{ version.version_number }}
+                                    {% if version.is_current %}
+                                    <span class="badge badge-success">当前</span>
+                                    {% endif %}
+                                </h6>
+                                <p class="mb-1 text-muted">{{ version.version_name or '未命名版本' }}</p>
+                                <small class="text-muted">{{ version.release_date.strftime('%Y-%m-%d') }}</small>
+                            </div>
+                            <div>
+                                <a href="{{ url_for('version_management.version_detail', version_id=version.id) }}" 
+                                   class="btn btn-sm btn-outline-info">详情</a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted">
+                        <i class="fas fa-inbox fa-2x mb-2"></i>
+                        <p>暂无版本记录</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 最近升级日志 -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-upload"></i> 最近升级
+                    </h5>
+                    <a href="{{ url_for('version_management.upgrade_logs') }}" class="btn btn-sm btn-outline-primary">
+                        查看全部
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if recent_upgrades %}
+                    <div class="list-group list-group-flush">
+                        {% for upgrade in recent_upgrades %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">
+                                        {% if upgrade.from_version %}
+                                        {{ upgrade.from_version }} → {{ upgrade.to_version }}
+                                        {% else %}
+                                        初始版本 {{ upgrade.to_version }}
+                                        {% endif %}
+                                    </h6>
+                                    <p class="mb-1 text-muted">{{ upgrade.operator_name or '系统' }}</p>
+                                    <small class="text-muted">{{ upgrade.upgrade_date.strftime('%Y-%m-%d %H:%M') }}</small>
+                                </div>
+                                <div>
+                                    <span class="badge badge-{{ 'success' if upgrade.status == 'success' else 'danger' if upgrade.status == 'failed' else 'warning' }}">
+                                        {{ upgrade.status }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted">
+                        <i class="fas fa-inbox fa-2x mb-2"></i>
+                        <p>暂无升级记录</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 创建版本模态框 -->
+<div class="modal fade" id="createVersionModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">创建新版本</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <form id="createVersionForm">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="version_number">版本号 *</label>
+                                <input type="text" class="form-control" id="version_number" name="version_number" 
+                                       placeholder="例如: 1.0.0" required>
+                                <small class="form-text text-muted">建议使用语义化版本号</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="version_name">版本名称 *</label>
+                                <input type="text" class="form-control" id="version_name" name="version_name" 
+                                       placeholder="例如: 初始版本" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="description">版本描述 *</label>
+                        <textarea class="form-control" id="description" name="description" rows="3" 
+                                  placeholder="描述此版本的主要功能和改进..." required></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="total_features">新增功能数</label>
+                                <input type="number" class="form-control" id="total_features" name="total_features" 
+                                       value="0" min="0">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="total_fixes">修复问题数</label>
+                                <input type="number" class="form-control" id="total_fixes" name="total_fixes" 
+                                       value="0" min="0">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="total_improvements">改进数量</label>
+                                <input type="number" class="form-control" id="total_improvements" name="total_improvements" 
+                                       value="0" min="0">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="environment">环境</label>
+                                <select class="form-control" id="environment" name="environment">
+                                    <option value="production">生产环境</option>
+                                    <option value="development">开发环境</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="git_commit">Git提交哈希</label>
+                                <input type="text" class="form-control" id="git_commit" name="git_commit" 
+                                       placeholder="例如: abc123def456">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="is_current" name="is_current">
+                        <label class="form-check-label" for="is_current">
+                            设置为当前版本
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">创建版本</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    loadSystemStatus();
+});
+
+function showCreateVersionModal() {
+    $('#createVersionModal').modal('show');
+}
+
+function loadSystemStatus() {
+    $.get('/admin/version/api/current-version')
+        .done(function(response) {
+            if (response.success) {
+                displaySystemStatus(response.data);
+            } else {
+                $('#system-status').html('<div class="alert alert-danger">加载系统状态失败</div>');
+            }
+        })
+        .fail(function() {
+            $('#system-status').html('<div class="alert alert-danger">网络错误</div>');
+        });
+}
+
+function displaySystemStatus(data) {
+    const appInfo = data.app_version_info;
+    const dbVersion = data.database_version;
+    
+    let html = '<div class="row">';
+    
+    // 应用版本
+    html += '<div class="col-12 mb-2">';
+    html += '<strong>应用版本:</strong> <span class="badge badge-info">' + (appInfo.app_version || '未知') + '</span>';
+    html += '</div>';
+    
+    // 环境信息
+    html += '<div class="col-12 mb-2">';
+    html += '<strong>运行环境:</strong> <span class="badge badge-' + (appInfo.environment === 'production' ? 'success' : 'warning') + '">' + appInfo.environment + '</span>';
+    html += '</div>';
+    
+    // 代码一致性
+    if (appInfo.consistency) {
+        html += '<div class="col-12 mb-2">';
+        html += '<strong>代码一致性:</strong> ';
+        const allConsistent = Object.values(appInfo.consistency).every(module => module.is_consistent);
+        html += '<span class="badge badge-' + (allConsistent ? 'success' : 'warning') + '">';
+        html += allConsistent ? '一致' : '存在差异';
+        html += '</span>';
+        html += '</div>';
+    }
+    
+    // 最后检查时间
+    html += '<div class="col-12 mb-2">';
+    html += '<strong>最后检查:</strong> <small class="text-muted">' + data.timestamp + '</small>';
+    html += '</div>';
+    
+    html += '</div>';
+    
+    $('#system-status').html(html);
+}
+
+function refreshVersionCheck() {
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 刷新中...';
+    btn.disabled = true;
+    
+    $.post('/admin/version/api/refresh-version-check')
+        .done(function(response) {
+            if (response.success) {
+                showAlert('版本检查已刷新', 'success');
+                loadSystemStatus();
+            } else {
+                showAlert('刷新失败: ' + response.message, 'danger');
+            }
+        })
+        .fail(function() {
+            showAlert('网络错误', 'danger');
+        })
+        .always(function() {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
+}
+
+$('#createVersionForm').on('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        version_number: $('#version_number').val(),
+        version_name: $('#version_name').val(),
+        description: $('#description').val(),
+        total_features: parseInt($('#total_features').val()) || 0,
+        total_fixes: parseInt($('#total_fixes').val()) || 0,
+        total_improvements: parseInt($('#total_improvements').val()) || 0,
+        environment: $('#environment').val(),
+        git_commit: $('#git_commit').val(),
+        is_current: $('#is_current').is(':checked')
+    };
+    
+    $.ajax({
+        url: '/admin/version/api/create-version',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(formData),
+        success: function(response) {
+            if (response.success) {
+                showAlert('版本创建成功', 'success');
+                $('#createVersionModal').modal('hide');
+                location.reload();
+            } else {
+                showAlert('创建失败: ' + response.message, 'danger');
+            }
+        },
+        error: function() {
+            showAlert('网络错误', 'danger');
+        }
+    });
+});
+
+function showAlert(message, type) {
+    const alert = $('<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
+        message +
+        '<button type="button" class="close" data-dismiss="alert">' +
+        '<span>&times;</span>' +
+        '</button>' +
+        '</div>');
+    
+    $('.container-fluid').prepend(alert);
+    
+    setTimeout(function() {
+        alert.alert('close');
+    }, 5000);
+}
+</script>
+{% endblock %} 

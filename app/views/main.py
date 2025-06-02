@@ -10,7 +10,6 @@ from app.models.customer import Company
 from app.models.action import Action, ActionReply
 from app.models.user import User
 from app.utils.dictionary_helpers import project_type_label
-from app.helpers.ui_helpers import render_user_badge
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import joinedload
 
@@ -22,6 +21,16 @@ main = Blueprint('main', __name__)
 def index():
     logger.info('Accessing index page')
     logger.info('User logged in, rendering index page')
+    
+    # 获取当前版本信息
+    try:
+        from app.models.version_management import VersionRecord
+        current_version = VersionRecord.get_current_version()
+        version_number = current_version.version_number if current_version else '1.2.0'
+    except Exception as e:
+        logger.warning(f"获取版本信息失败: {str(e)}")
+        version_number = '1.2.0'  # 默认版本号
+    
     # 查询当前用户可见的最近5个项目，按更新时间倒序
     recent_projects = get_viewable_data(Project, current_user).order_by(Project.updated_at.desc()).limit(5).all()
     # 查询当前用户可见的最近5条报价，按更新时间倒序
@@ -32,7 +41,12 @@ def index():
     for p in recent_projects:
         if hasattr(p, 'project_type'):
             p.project_type_display = project_type_label(p.project_type)
-    return render_template('index.html', now=datetime.now(), recent_projects=recent_projects, recent_quotations=recent_quotations, recent_companies=recent_companies)
+    return render_template('index.html', 
+                         now=datetime.now(), 
+                         recent_projects=recent_projects, 
+                         recent_quotations=recent_quotations, 
+                         recent_companies=recent_companies,
+                         current_version_number=version_number)
 
 @main.route('/api/recent_work_records')
 @login_required
@@ -127,8 +141,19 @@ def get_recent_work_records():
             project_name = record.project.project_name if record.project else ''
             project_id = record.project.id if record.project else None
             
-            # 使用标准的用户徽章函数生成拥有者徽章HTML
-            owner_badge_html = render_user_badge(record.owner, 'bg-primary') if record.owner else render_user_badge(None)
+            # 使用render_owner宏生成拥有者徽章HTML
+            if record.owner:
+                # 判断是否为厂商账户
+                if record.owner.company_name == '和源通信（上海）股份有限公司':
+                    # 厂商账户使用胶囊造型徽章
+                    display_name = record.owner.real_name if record.owner.real_name else record.owner.username
+                    owner_badge_html = f'<span class="badge bg-primary rounded-pill">{display_name}</span>'
+                else:
+                    # 非厂商账户使用默认造型徽章
+                    display_name = record.owner.real_name if record.owner.real_name else record.owner.username
+                    owner_badge_html = f'<span class="badge bg-secondary">{display_name}</span>'
+            else:
+                owner_badge_html = '<span class="badge bg-secondary">未知</span>'
             
             record_data = {
                 'id': record.id,
@@ -143,7 +168,7 @@ def get_recent_work_records():
                 'has_reply': has_reply,
                 'reply_count': record.replies.count(),
                 'owner_name': record.owner.real_name or record.owner.username if record.owner else '',
-                'owner_badge_html': owner_badge_html,  # 新增：标准徽章HTML
+                'owner_badge_html': owner_badge_html,  # 使用render_owner逻辑的徽章HTML
                 'owner_id': record.owner_id
             }
             result.append(record_data)

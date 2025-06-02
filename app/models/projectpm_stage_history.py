@@ -61,15 +61,23 @@ class ProjectStageHistory(db.Model):
         )
         
         db.session.add(record)
-        if commit:
-            db.session.commit()
-        # 新增：同步更新项目的updated_at字段（北京时间）
+        
+        # 同步更新项目的updated_at字段（北京时间）
         try:
             now = datetime.now(ZoneInfo('Asia/Shanghai'))
             sql = text("UPDATE projects SET updated_at = :now WHERE id = :project_id")
             db.session.execute(sql, {"now": now, "project_id": project_id})
-            if commit:
-                db.session.commit()
         except Exception as e:
             print(f"同步更新项目更新时间失败: {str(e)}")
+        
+        # 只在需要时提交事务
+        if commit:
+            db.session.commit()
+            
+        return record 
+            
+        return record 
+            
+        return record 
+            
         return record 

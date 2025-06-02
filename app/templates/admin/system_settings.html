@@ -173,6 +173,38 @@
                 </div>
             </div>
             
+            <!-- 评分配置管理入口 -->
+            <div class="card settings-card mb-4">
+                <div class="card-body text-center">
+                    <div class="settings-icon">
+                        <i class="fas fa-star text-warning"></i>
+                    </div>
+                    <div class="settings-title">项目评分配置</div>
+                    <div class="settings-description">
+                        管理项目评分系统的各项配置参数，包括信息完整性、报价完整性、阶段得分和手动奖励的分值设置。
+                    </div>
+                    <a href="{{ url_for('scoring_config.scoring_config_list') }}" class="btn btn-outline-warning">
+                        <i class="fas fa-cog me-1"></i> 配置管理
+                    </a>
+                </div>
+            </div>
+            
+            <!-- 历史记录管理入口 -->
+            <div class="card settings-card mb-4">
+                <div class="card-body text-center">
+                    <div class="settings-icon">
+                        <i class="fas fa-history text-info"></i>
+                    </div>
+                    <div class="settings-title">历史记录</div>
+                    <div class="settings-description">
+                        查看系统中所有模块的数据变更历史记录，包括创建、修改、删除等操作的详细信息。
+                    </div>
+                    <a href="{{ url_for('change_history.index') }}" class="btn btn-outline-info">
+                        <i class="fas fa-eye me-1"></i> 查看记录
+                    </a>
+                </div>
+            </div>
+            
             <div class="card settings-card">
                 <div class="card-body">
                     <h5 class="card-title"><i class="fas fa-history me-2"></i>参数生效说明</h5>
@@ -185,6 +217,10 @@
                         <li class="mb-2">
                             <i class="fas fa-check-circle text-success me-2"></i> 
                             <strong>项目活跃度阈值：</strong> 项目状态查询时即时计算
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-star text-warning me-2"></i> 
+                            <strong>项目评分配置：</strong> 修改后需重新计算所有项目评分
                         </li>
                     </ul>
                 </div>
@@ -335,4 +371,4 @@
         }
     });
 </script>
-{% endblock %} 
+{% endblock %}

@@ -16,7 +16,7 @@ from app.utils.filters import project_type_style, project_stage_style, format_da
 from app.utils.dictionary_helpers import (
     project_type_label, project_stage_label, report_source_label, authorization_status_label, company_type_label, product_situation_label, industry_label, status_label, brand_status_label, reporting_source_label, share_permission_label, user_label, get_role_display_name
 )
-from app.utils.access_control import can_edit_company_info, can_edit_data, can_change_company_owner
+from app.utils.access_control import can_edit_company_info, can_edit_data, can_change_company_owner, can_start_approval
 from sqlalchemy.exc import OperationalError
 from sqlalchemy import event, inspect
 from sqlalchemy.engine import Engine
@@ -211,6 +211,7 @@ def create_app(config_class=Config):
     from app.models.dev_product import DevProduct, DevProductSpec
     from app.models.dictionary import Dictionary
     from app.models.projectpm_statistics import ProjectStatistics
+    from app.models.change_log import ChangeLog
 
     # 导入所有视图
     from app.views import main, customer, project, auth, user_bp
@@ -226,6 +227,13 @@ def create_app(config_class=Config):
     
     # 导入搜索API
     from app.api.v1.search import search_bp
+
+    # 导入评分系统蓝图
+    from app.views.scoring_config import scoring_config
+    from app.views.project_scoring_api import project_scoring_api
+    
+    # 导入历史记录蓝图
+    from app.views.change_history import change_history_bp
 
     # 注册所有Blueprint
     app.register_blueprint(main)
@@ -255,6 +263,17 @@ def create_app(config_class=Config):
     from app.views.admin import admin_bp
     app.register_blueprint(admin_bp)
     
+    # 注册评分系统蓝图
+    app.register_blueprint(scoring_config)
+    app.register_blueprint(project_scoring_api)
+    
+    # 注册历史记录蓝图
+    app.register_blueprint(change_history_bp)
+    
+    # 注册版本管理蓝图
+    from app.views.version_management import version_management_bp
+    app.register_blueprint(version_management_bp)
+    
     # 添加版本信息API路由
     @app.route('/api/version', methods=['GET'])
     def get_app_version():
@@ -280,6 +299,15 @@ def create_app(config_class=Config):
             logger.info("应用版本检查完成")
         except Exception as e:
             logger.error(f"应用版本检查失败: {str(e)}")
+        
+        # 版本管理初始化
+        try:
+            from app.utils.version_management_init import initialize_version_management, apply_version_upgrades
+            initialize_version_management()
+            apply_version_upgrades()
+            logger.info("版本管理系统初始化完成")
+        except Exception as e:
+            logger.error(f"版本管理系统初始化失败: {str(e)}")
         
         # 数据所有权初始化 - 已关闭
         '''
@@ -385,6 +413,13 @@ def create_app(config_class=Config):
         
         return {'get_user_by_id': get_user_by_id}
         
+    # 确保current_user在模板中可用
+    @app.context_processor
+    def inject_current_user():
+        """向模板上下文注入current_user"""
+        from flask_login import current_user
+        return {'current_user': current_user}
+        
     # 添加权限检查全局上下文处理器
     @app.context_processor
     def inject_permissions():
@@ -405,40 +440,41 @@ def create_app(config_class=Config):
                     print("[DEBUG][context_processor.has_permission] admin, return True", file=sys.stderr)
                     return True
                     
-                # 优先查找个人权限
+                # 获取角色权限
+                from app.models.role_permissions import RolePermission
+                role_permission = RolePermission.query.filter_by(role=current_user.role, module=module).first()
+                role_has_permission = False
+                if role_permission:
+                    if action == 'view':
+                        role_has_permission = role_permission.can_view
+                    elif action == 'create':
+                        role_has_permission = role_permission.can_create
+                    elif action == 'edit':
+                        role_has_permission = role_permission.can_edit
+                    elif action == 'delete':
+                        role_has_permission = role_permission.can_delete
+                    
+                # 获取个人权限
                 from app.models.user import Permission
                 permission = Permission.query.filter_by(user_id=current_user.id, module=module).first()
-                
-                # 找到个人权限记录，直接判断
+                personal_has_permission = False
                 if permission:
                     if action == 'view':
-                        return permission.can_view
+                        personal_has_permission = permission.can_view
                     elif action == 'create':
-                        return permission.can_create
+                        personal_has_permission = permission.can_create
                     elif action == 'edit':
-                        return permission.can_edit
+                        personal_has_permission = permission.can_edit
                     elif action == 'delete':
-                        return permission.can_delete
-                # 没有个人权限记录，查询角色权限
-                else:
-                    # 导入RolePermission
-                    from app.models.role_permissions import RolePermission
-                    role_permission = RolePermission.query.filter_by(role=current_user.role, module=module).first()
-                    
-                    # 找到角色权限记录
-                    if role_permission:
-                        print(f"[DEBUG][context_processor.has_permission] using role_permission: role={current_user.role}, module={module}", file=sys.stderr)
-                        if action == 'view':
-                            return role_permission.can_view
-                        elif action == 'create':
-                            return role_permission.can_create
-                        elif action == 'edit':
-                            return role_permission.can_edit
-                        elif action == 'delete':
-                            return role_permission.can_delete
+                        personal_has_permission = permission.can_delete
                 
-                # 默认无权限
-                return False
+                # 最终权限 = 角色权限 OR 个人权限
+                final_permission = role_has_permission or personal_has_permission
+                
+                if role_permission:
+                    print(f"[DEBUG][context_processor.has_permission] using role_permission: role={current_user.role}, module={module}", file=sys.stderr)
+                
+                return final_permission
                 
             except Exception as e:
                 # 发生数据库错误时，回滚事务并记录错误
@@ -465,11 +501,29 @@ def create_app(config_class=Config):
     def inject_company_edit_permission():
         """向模板注入公司编辑权限函数"""
         from app.views.quotation import can_view_quotation
+        from app.utils.access_control import can_start_approval
+        
+        def get_project_by_id(project_id):
+            from app.models.project import Project
+            return Project.query.get(project_id)
+        
+        def get_quotation_by_id(quotation_id):
+            from app.models.quotation import Quotation
+            return Quotation.query.get(quotation_id)
+        
+        def get_company_by_id(company_id):
+            from app.models.customer import Company
+            return Company.query.get(company_id)
+        
         return {
             'can_edit_company_info': can_edit_company_info,
             'can_edit_data': can_edit_data,
             'can_change_company_owner': can_change_company_owner,
-            'can_view_quotation': can_view_quotation
+            'can_view_quotation': can_view_quotation,
+            'can_start_approval': can_start_approval,
+            'get_project_by_id': get_project_by_id,
+            'get_quotation_by_id': get_quotation_by_id,
+            'get_company_by_id': get_company_by_id
         }
 
     # 注册自定义过滤器
@@ -581,6 +635,26 @@ def create_app(config_class=Config):
     app.jinja_env.globals['get_template_steps'] = get_template_steps
     app.jinja_env.globals['get_pending_approval_count'] = get_pending_approval_count
     
+    # 添加权限检查和业务对象获取函数
+    from app.utils.access_control import can_start_approval
+    app.jinja_env.globals['can_start_approval'] = can_start_approval
+    
+    def get_project_by_id(project_id):
+        from app.models.project import Project
+        return Project.query.get(project_id)
+    
+    def get_quotation_by_id(quotation_id):
+        from app.models.quotation import Quotation
+        return Quotation.query.get(quotation_id)
+    
+    def get_company_by_id(company_id):
+        from app.models.customer import Company
+        return Company.query.get(company_id)
+    
+    app.jinja_env.globals['get_project_by_id'] = get_project_by_id
+    app.jinja_env.globals['get_quotation_by_id'] = get_quotation_by_id
+    app.jinja_env.globals['get_company_by_id'] = get_company_by_id
+
     # 添加日志调试信息
     @app.context_processor
     def inject_debug_functions():

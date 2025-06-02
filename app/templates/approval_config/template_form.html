@@ -69,6 +69,18 @@
     padding-bottom: 4px;
     border-bottom: 1px solid #dee2e6;
   }
+  /* 确保表单中的文本颜色为黑色 */
+  .form-check-label,
+  .form-label,
+  .form-text,
+  .selected-field-badge,
+  .field-checkbox-item label {
+    color: #000 !important;
+  }
+  /* 确保复选框标签文本为黑色 */
+  .form-check-input + .form-check-label {
+    color: #000 !important;
+  }
 </style>
 {% endblock %}
 
@@ -144,6 +156,38 @@
                   <small class="form-text text-muted">
                     指定发起审批时需要检查的必填字段，为空表示不做必填校验。
                   </small>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 对象锁定配置区域 -->
+            <div class="row mb-3">
+              <div class="col-md-12">
+                <div class="form-group">
+                  <label class="form-label">对象锁定配置</label>
+                  <div class="card border-light">
+                    <div class="card-body">
+                      <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="lock_object_on_start" name="lock_object_on_start" 
+                               {% if not is_edit or template.lock_object_on_start %}checked{% endif %}>
+                        <label class="form-check-label" for="lock_object_on_start">
+                          发起审批后锁定对象编辑
+                          <i class="fas fa-info-circle field-help-icon" data-toggle="tooltip" 
+                             title="启用后，一旦发起审批流程，对象的所有内容将被锁定，直到审批结束才能重新编辑。"></i>
+                        </label>
+                      </div>
+                      
+                      <div class="form-group" id="lock-reason-group">
+                        <label for="lock_reason" class="form-label">锁定原因说明</label>
+                        <input type="text" class="form-control" id="lock_reason" name="lock_reason" 
+                               value="{{ template.lock_reason if is_edit and template.lock_reason else '审批流程进行中，暂时锁定编辑' }}"
+                               placeholder="审批流程进行中，暂时锁定编辑">
+                        <small class="form-text text-muted">
+                          当对象被锁定时，向用户显示的提示信息
+                        </small>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -318,7 +362,20 @@
         {name: 'valid_days', display_name: '有效期'},
         {name: 'currency', display_name: '币种'},
         {name: 'total_amount', display_name: '总金额'},
-        {name: 'project_type', display_name: '项目类型'}
+        {name: 'project_type', display_name: '项目类型'},
+        // 报价单明细相关字段
+        {name: 'product_name', display_name: '产品名称'},
+        {name: 'product_model', display_name: '产品型号'},
+        {name: 'product_spec', display_name: '产品规格'},
+        {name: 'product_brand', display_name: '产品品牌'},
+        {name: 'product_unit', display_name: '产品单位'},
+        {name: 'product_price', display_name: '产品单价'},
+        {name: 'discount_rate', display_name: '折扣率'},
+        {name: 'discounted_price', display_name: '折后单价'},
+        {name: 'quantity', display_name: '数量'},
+        {name: 'subtotal', display_name: '小计'},
+        {name: 'product_mn', display_name: '产品编码'},
+        {name: 'remark', display_name: '备注'}
       ];
       
       // 客户字段

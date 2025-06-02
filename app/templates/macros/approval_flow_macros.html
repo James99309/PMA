@@ -1,0 +1,420 @@
+{# 审批流程图宏 #}
+
+{# 渲染审批流程图 - 统一样式版本 #}
+{% macro render_approval_flow_chart(instance, steps, current_user) %}
+<div class="card mb-4">
+  <div class="card-header bg-primary text-white">
+    <div class="d-flex justify-content-between align-items-center">
+      <h5 class="mb-0"><i class="fas fa-clipboard-check me-2"></i>审批流程</h5>
+      <div class="d-flex gap-2">
+        <!-- 召回按钮 - 只有发起人且状态为pending时显示 -->
+        {% if instance.status.value == 'pending' and current_user and current_user.id == instance.created_by %}
+          <button type="button" class="btn btn-warning btn-sm" 
+                  data-bs-toggle="modal" 
+                  data-bs-target="#recallApprovalModal{{ instance.id }}">
+            <i class="fas fa-undo me-1"></i> 召回
+          </button>
+        {% endif %}
+        <!-- 查看详情按钮 -->
+        <a href="{{ url_for('approval.detail', instance_id=instance.id) }}" 
+           class="btn btn-info btn-sm">
+          <i class="fas fa-eye me-1"></i> 详情
+        </a>
+      </div>
+    </div>
+  </div>
+  <div class="card-body">
+    <!-- 审批基本信息 -->
+    <div class="row mb-4">
+      <div class="col-md-6">
+        <div class="card border-info">
+          <div class="card-header bg-info text-white">
+            <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>基本信息</h6>
+          </div>
+          <div class="card-body">
+            <table class="table table-sm mb-0">
+              <tr>
+                <th class="standard-font" style="width: 35%">审批编号</th>
+                <td class="standard-font">APV-{{ '%04d' % instance.id }}</td>
+              </tr>
+              <tr>
+                <th class="standard-font">流程名称</th>
+                <td class="standard-font">{{ instance.process.name if instance.process else '未知流程' }}</td>
+              </tr>
+              <tr>
+                <th class="standard-font">发起人</th>
+                <td class="standard-font">{{ instance.creator.real_name or instance.creator.username }}</td>
+              </tr>
+              <tr>
+                <th class="standard-font">发起时间</th>
+                <td class="standard-font">{{ format_datetime(instance.started_at) }}</td>
+              </tr>
+              <tr>
+                <th class="standard-font">当前状态</th>
+                <td class="standard-font">
+                  {% if instance.status.value == 'pending' %}
+                    <span class="badge bg-warning text-dark">审批中</span>
+                  {% elif instance.status.value == 'approved' %}
+                    <span class="badge bg-success">已通过</span>
+                  {% elif instance.status.value == 'rejected' %}
+                    <span class="badge bg-danger">已拒绝</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% if instance.ended_at %}
+              <tr>
+                <th class="standard-font">完成时间</th>
+                <td class="standard-font">{{ format_datetime(instance.ended_at) }}</td>
+              </tr>
+              {% endif %}
+            </table>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-md-6">
+        <!-- 当前步骤信息或流程状态 -->
+        {% if instance.status.value == 'pending' %}
+          {% set current_step = get_current_step_info(instance) if get_current_step_info is defined %}
+          {% if current_step %}
+          <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+              <h6 class="mb-0"><i class="fas fa-hourglass-half me-2"></i>当前步骤</h6>
+            </div>
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                  <strong class="standard-font">{{ current_step.step_name }}</strong>
+                  <div class="text-muted standard-font">审批人: {{ current_step.approver.real_name or current_step.approver.username }}</div>
+                </div>
+                <div>
+                  <span class="badge bg-warning">待审批</span>
+                </div>
+              </div>
+              
+              <!-- 审批操作按钮 -->
+              {% if current_user and can_user_approve and can_user_approve(instance.id, current_user.id) %}
+              {% set is_authorization_step = current_step and current_step.action_type == 'authorization' %}
+              
+              <div class="border-top pt-3">
+                <h6 class="text-muted mb-2">审批操作</h6>
+                
+                {% if is_authorization_step and instance.object_type == 'project' %}
+                  <!-- 授权步骤 - 显示进行授权按钮 -->
+                  <div class="d-flex gap-2">
+                    <a href="{{ url_for('approval.authorize', instance_id=instance.id) }}" class="btn btn-primary btn-sm">
+                      <i class="fas fa-key me-1"></i> 进行授权
+                    </a>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="openApprovalActionModal('reject', {{ instance.id }})">
+                      <i class="fas fa-times me-1"></i> 拒绝
+                    </button>
+                  </div>
+                {% else %}
+                  <!-- 普通审批步骤 - 显示通过/拒绝按钮 -->
+                  <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-success btn-sm" onclick="openApprovalActionModal('approve', {{ instance.id }})">
+                      <i class="fas fa-check me-1"></i> 通过
+                    </button>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="openApprovalActionModal('reject', {{ instance.id }})">
+                      <i class="fas fa-times me-1"></i> 拒绝
+                    </button>
+                  </div>
+                {% endif %}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+        {% else %}
+          <div class="card border-secondary">
+            <div class="card-header bg-secondary text-white">
+              <h6 class="mb-0"><i class="fas fa-flag-checkered me-2"></i>流程状态</h6>
+            </div>
+            <div class="card-body text-center">
+              {% if instance.status.value == 'approved' %}
+                <i class="fas fa-check-circle text-success fa-3x mb-3"></i>
+                <h5 class="text-success">审批已通过</h5>
+              {% elif instance.status.value == 'rejected' %}
+                <i class="fas fa-times-circle text-danger fa-3x mb-3"></i>
+                <h5 class="text-danger">审批已拒绝</h5>
+              {% endif %}
+              {% if instance.ended_at %}
+                <p class="text-muted standard-font">完成时间: {{ format_datetime(instance.ended_at) }}</p>
+              {% endif %}
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+    
+    <!-- 审批流程图 -->
+    <div class="card">
+      <div class="card-header bg-dark text-white">
+        <h6 class="mb-0"><i class="fas fa-sitemap me-2"></i>审批流程图</h6>
+      </div>
+      <div class="card-body">
+        <div class="approval-workflow">
+          <div class="timeline">
+            <!-- 流程发起记录 -->
+            <div class="timeline-item">
+              <div class="timeline-marker bg-info"></div>
+              <div class="timeline-content">
+                <div class="d-flex justify-content-between">
+                  <h6 class="timeline-title">流程发起</h6>
+                  <span class="badge bg-info">已完成</span>
+                </div>
+                <p class="standard-font mb-1">发起人: {{ instance.creator.real_name or instance.creator.username }}</p>
+                <p class="text-muted standard-font mb-1">发起时间: {{ format_datetime(instance.started_at) }}</p>
+              </div>
+            </div>
+            
+            <!-- 审批步骤 -->
+            {% set records_dict = {} %}
+            {% for record in instance.records %}
+              {% if records_dict.update({record.step_id: record}) %}{% endif %}
+            {% endfor %}
+            
+            {% for step in steps %}
+              {% set record = records_dict.get(step.id) %}
+              {% set is_current = (instance.status.value == 'pending' and step.step_order == instance.current_step) %}
+              {% set is_completed = record and record.action == 'approve' %}
+              {% set is_rejected = record and record.action == 'reject' %}
+              
+              <div class="timeline-item">
+                <div class="timeline-marker 
+                  {% if is_completed %}
+                    bg-success
+                  {% elif is_rejected %}
+                    bg-danger
+                  {% elif is_current %}
+                    bg-warning
+                  {% else %}
+                    bg-secondary
+                  {% endif %}
+                "></div>
+                <div class="timeline-content">
+                  <div class="d-flex justify-content-between">
+                    <h6 class="timeline-title">步骤 {{ step.step_order }}: {{ step.step_name }}</h6>
+                    {% if is_current %}
+                      <span class="badge bg-warning">当前步骤</span>
+                    {% elif is_completed %}
+                      <span class="badge bg-success">已通过</span>
+                    {% elif is_rejected %}
+                      <span class="badge bg-danger">已拒绝</span>
+                    {% endif %}
+                  </div>
+                  
+                  <p class="standard-font mb-1">审批人: {{ step.approver.real_name or step.approver.username }}</p>
+                  
+                  {% if record %}
+                    <p class="text-muted standard-font mb-1">审批时间: {{ format_datetime(record.timestamp) }}</p>
+                    
+                    {% if record.comment %}
+                      <div class="mt-2 p-2 bg-light rounded">
+                        <i class="fas fa-comment text-muted me-2"></i><span class="standard-font">{{ record.comment }}</span>
+                      </div>
+                    {% endif %}
+                  {% endif %}
+                </div>
+              </div>
+            {% endfor %}
+            
+            <!-- 最终结果 -->
+            <div class="timeline-item">
+              <div class="timeline-marker 
+                {% if instance.status.value == 'approved' %}
+                  bg-success
+                {% elif instance.status.value == 'rejected' %}
+                  bg-danger
+                {% else %}
+                  bg-secondary
+                {% endif %}
+              "></div>
+              <div class="timeline-content">
+                <h6 class="timeline-title">流程结束</h6>
+                <p class="standard-font">
+                  {% if instance.status.value == 'approved' %}
+                    <span class="text-success"><i class="fas fa-check-circle me-1"></i>审批已通过</span>
+                  {% elif instance.status.value == 'rejected' %}
+                    <span class="text-danger"><i class="fas fa-times-circle me-1"></i>审批已拒绝</span>
+                  {% else %}
+                    <span class="text-muted"><i class="fas fa-hourglass-half me-1"></i>审批进行中</span>
+                  {% endif %}
+                </p>
+                {% if instance.ended_at %}
+                  <p class="text-muted standard-font">完成时间: {{ format_datetime(instance.ended_at) }}</p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 审批操作模态框 -->
+{% if current_user and can_user_approve and can_user_approve(instance.id, current_user.id) %}
+<div class="modal fade" id="approvalActionModal{{ instance.id }}" tabindex="-1" aria-labelledby="approvalActionModalLabel{{ instance.id }}" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="approvalActionModalLabel{{ instance.id }}">审批操作</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="approvalActionDisplay{{ instance.id }}" class="alert mb-3">
+          <!-- 动态内容 -->
+        </div>
+        <div class="mb-3">
+          <label for="approvalComment{{ instance.id }}" class="form-label">审批意见</label>
+          <textarea class="form-control" id="approvalComment{{ instance.id }}" rows="3" placeholder="请输入您的审批意见..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn" id="confirmApprovalBtn{{ instance.id }}" onclick="submitApprovalAction({{ instance.id }})">确认</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentApprovalAction{{ instance.id }} = '';
+  
+  function openApprovalActionModal(action, instanceId) {
+    if (instanceId !== {{ instance.id }}) return;
+    
+    currentApprovalAction{{ instance.id }} = action;
+    
+    const actionDisplay = document.getElementById('approvalActionDisplay{{ instance.id }}');
+    const confirmBtn = document.getElementById('confirmApprovalBtn{{ instance.id }}');
+    
+    if (action === 'approve') {
+      actionDisplay.className = 'alert alert-success mb-3';
+      actionDisplay.innerHTML = '<i class="fas fa-check me-2"></i>您确定要通过此审批吗？';
+      confirmBtn.className = 'btn btn-success';
+      confirmBtn.innerHTML = '<i class="fas fa-check me-1"></i>确认通过';
+    } else {
+      actionDisplay.className = 'alert alert-danger mb-3';
+      actionDisplay.innerHTML = '<i class="fas fa-times me-2"></i>您确定要拒绝此审批吗？';
+      confirmBtn.className = 'btn btn-danger';
+      confirmBtn.innerHTML = '<i class="fas fa-times me-1"></i>确认拒绝';
+    }
+    
+    document.getElementById('approvalComment{{ instance.id }}').value = '';
+    
+    const modal = new bootstrap.Modal(document.getElementById('approvalActionModal{{ instance.id }}'));
+    modal.show();
+  }
+  
+  function submitApprovalAction(instanceId) {
+    if (instanceId !== {{ instance.id }}) return;
+    
+    const comment = document.getElementById('approvalComment{{ instance.id }}').value;
+    
+    fetch('{{ url_for("approval.approve", instance_id=instance.id) }}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRFToken': '{{ csrf_token() }}'
+      },
+      body: new URLSearchParams({
+        'action': currentApprovalAction{{ instance.id }},
+        'comment': comment
+      })
+    })
+    .then(response => {
+      if (response.ok) {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('approvalActionModal{{ instance.id }}'));
+        modal.hide();
+        
+        // 显示成功消息并刷新页面
+        alert(currentApprovalAction{{ instance.id }} === 'approve' ? '审批已通过' : '审批已拒绝');
+        window.location.reload();
+      } else {
+        alert('操作失败，请重试');
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('操作失败，请重试');
+    });
+  }
+</script>
+{% endif %}
+
+<!-- 召回确认模态框 -->
+{% if instance.status.value == 'pending' and current_user and current_user.id == instance.created_by %}
+<div class="modal fade" id="recallApprovalModal{{ instance.id }}" tabindex="-1" aria-labelledby="recallApprovalModalLabel{{ instance.id }}" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="recallApprovalModalLabel{{ instance.id }}">确认召回审批</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          您确定要召回此审批流程吗？召回后审批流程将被终止，需要重新发起。
+        </div>
+        <div class="mb-3">
+          <label for="recallReason{{ instance.id }}" class="form-label">召回原因（可选）</label>
+          <textarea class="form-control" id="recallReason{{ instance.id }}" rows="3" placeholder="请输入召回原因..."></textarea>
+        </div>
+        <div class="mb-3">
+          <strong>审批实例信息：</strong><br>
+          <small class="text-muted">
+            实例ID：{{ instance.id }}<br>
+            流程名称：{{ instance.process.name if instance.process else '未知流程' }}<br>
+            当前步骤：{{ instance.current_step }}
+          </small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-warning" onclick="confirmRecallApproval({{ instance.id }})">
+          <i class="fas fa-undo me-1"></i> 确认召回
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function confirmRecallApproval(instanceId) {
+    if (instanceId !== {{ instance.id }}) return;
+    
+    const reason = document.getElementById('recallReason{{ instance.id }}').value;
+    
+    fetch('{{ url_for("approval.recall_approval", instance_id=instance.id) }}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': '{{ csrf_token() }}'
+      },
+      body: JSON.stringify({
+        reason: reason
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('recallApprovalModal{{ instance.id }}'));
+        modal.hide();
+        
+        alert('审批已成功召回');
+        window.location.reload();
+      } else {
+        alert('召回失败: ' + (data.message || '未知错误'));
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('召回失败，请稍后重试');
+    });
+  }
+</script>
+{% endif %}
+
+{% endmacro %} 

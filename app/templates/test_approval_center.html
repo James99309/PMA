@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}测试审批中心链接{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>测试审批中心链接</h1>
+    
+    <div class="card">
+        <div class="card-header">
+            <h5>审批实例链接测试</h5>
+        </div>
+        <div class="card-body">
+            {% set test_instance = get_object_approval_instance('quotation', 642) %}
+            {% if test_instance %}
+                <div class="alert alert-info">
+                    <h6>审批实例信息:</h6>
+                    <ul>
+                        <li><strong>ID:</strong> {{ test_instance.id }}</li>
+                        <li><strong>对象类型:</strong> {{ test_instance.object_type }}</li>
+                        <li><strong>对象ID:</strong> {{ test_instance.object_id }}</li>
+                        <li><strong>状态:</strong> {{ test_instance.status }}</li>
+                    </ul>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>业务详情链接 (正确的):</h6>
+                        {% set business_url = get_approval_object_url(test_instance) %}
+                        <p><code>{{ business_url }}</code></p>
+                        <a href="{{ business_url }}" class="btn btn-primary" target="_blank">
+                            跳转到报价单详情页面
+                        </a>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h6>审批详情链接 (旧的):</h6>
+                        {% set approval_url = url_for('approval.detail', instance_id=test_instance.id) %}
+                        <p><code>{{ approval_url }}</code></p>
+                        <a href="{{ approval_url }}" class="btn btn-secondary" target="_blank">
+                            跳转到审批详情页面
+                        </a>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <h6>模拟审批中心表格行:</h6>
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>审批编号</th>
+                            <th>生成的URL</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <a href="{{ get_approval_object_url(test_instance) }}" class="fw-bold text-primary text-decoration-none">
+                                    APV-{{ '%04d' % test_instance.id }}
+                                </a>
+                            </td>
+                            <td><code>{{ get_approval_object_url(test_instance) }}</code></td>
+                            <td>
+                                <button class="btn btn-sm btn-info" onclick="testLink('{{ get_approval_object_url(test_instance) }}')">
+                                    测试链接
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+            {% else %}
+                <div class="alert alert-danger">
+                    未找到QU202505-006的审批实例
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function testLink(url) {
+    console.log('测试链接:', url);
+    window.open(url, '_blank');
+}
+</script>
+{% endblock %} 

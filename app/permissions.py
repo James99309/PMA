@@ -28,6 +28,7 @@ class Permissions:
     QUOTATION_CREATE = 'quotation_create'
     QUOTATION_EDIT = 'quotation_edit'
     QUOTATION_DELETE = 'quotation_delete'
+    QUOTATION_APPROVAL_CREATE = 'quotation_approval_create'  # 报价审核权限
     
     # 用户管理相关权限
     USER_VIEW = 'user_view'
@@ -78,12 +79,12 @@ def check_permission(permission):
             return role_permission.can_delete
     return False
 
-def permission_required(resource_type, action):
+def permission_required(module, action):
     """
     权限检查装饰器
     
     参数:
-        resource_type: 资源类型 (例如 'project', 'customer')
+        module: 模块名称 (例如 'project', 'customer', 'product_code')
         action: 操作类型 (例如 'view', 'create', 'edit', 'delete')
     
     用法:
@@ -95,17 +96,14 @@ def permission_required(resource_type, action):
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
-            # 构建权限标识符
-            permission_name = f"{resource_type}_{action}"
-            permission_attr = getattr(Permissions, permission_name.upper(), None)
+            if not current_user.is_authenticated:
+                abort(401)  # 未授权
             
-            if permission_attr is None:
-                logger.warning(f"未定义的权限: {permission_name}")
-                abort(500)
-            
-            if not check_permission(permission_attr):
-                logger.warning(f"用户 {current_user.username} (ID: {current_user.id}, 角色: {current_user.role}) 尝试访问无权限的资源: {resource_type}/{action}")
-                abort(403)
+            # 检查权限
+            current_app.logger.debug(f"Checking permission: module={module}, action={action}")
+            if not current_user.has_permission(module, action):
+                current_app.logger.warning(f"Permission denied: user_id={current_user.id}, username={current_user.username}, role={current_user.role}, module={module}, action={action}")
+                abort(403)  # 禁止访问
                 
             return f(*args, **kwargs)
         return decorated_function
