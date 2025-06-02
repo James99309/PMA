@@ -241,9 +241,13 @@ def get_analysis_data():
         except Exception as e:
             logger.warning(f"使用updated_at排序失败: {str(e)}, 尝试使用id排序")
             try:
+                # 回滚失败的事务
+                db.session.rollback()
                 results = query.order_by(QuotationDetail.id.desc()).offset((page - 1) * per_page).limit(per_page).all()
             except Exception as e2:
                 logger.error(f"产品分析查询失败: {str(e2)}")
+                # 回滚失败的事务
+                db.session.rollback()
                 results = []
         
         # 格式化数据

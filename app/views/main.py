@@ -37,9 +37,13 @@ def index():
     except Exception as e:
         logger.warning(f"使用updated_at查询项目失败: {str(e)}，尝试使用id排序")
         try:
+            # 回滚失败的事务
+            db.session.rollback()
             recent_projects = get_viewable_data(Project, current_user).order_by(Project.id.desc()).limit(5).all()
         except Exception as e2:
             logger.error(f"项目查询完全失败: {str(e2)}")
+            # 回滚失败的事务
+            db.session.rollback()
             recent_projects = []
     
     # 查询当前用户可见的最近5条报价，按更新时间倒序
@@ -47,14 +51,30 @@ def index():
         recent_quotations = get_viewable_data(Quotation, current_user).order_by(Quotation.updated_at.desc()).limit(5).all()
     except Exception as e:
         logger.warning(f"报价查询失败: {str(e)}")
-        recent_quotations = []
+        try:
+            # 回滚失败的事务
+            db.session.rollback()
+            recent_quotations = get_viewable_data(Quotation, current_user).order_by(Quotation.id.desc()).limit(5).all()
+        except Exception as e2:
+            logger.error(f"报价查询完全失败: {str(e2)}")
+            # 回滚失败的事务
+            db.session.rollback()
+            recent_quotations = []
     
     # 查询当前用户可见的最近5个客户，按更新时间倒序
     try:
         recent_companies = get_viewable_data(Company, current_user).order_by(Company.updated_at.desc()).limit(5).all()
     except Exception as e:
         logger.warning(f"客户查询失败: {str(e)}")
-        recent_companies = []
+        try:
+            # 回滚失败的事务
+            db.session.rollback()
+            recent_companies = get_viewable_data(Company, current_user).order_by(Company.id.desc()).limit(5).all()
+        except Exception as e2:
+            logger.error(f"客户查询完全失败: {str(e2)}")
+            # 回滚失败的事务
+            db.session.rollback()
+            recent_companies = []
     
     # 在index视图中，recent_projects处理类型key转中文
     for p in recent_projects:
