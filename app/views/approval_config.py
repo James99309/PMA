@@ -122,9 +122,7 @@ def template_detail(template_id):
         process_id=template_id
     ).options(
         db.joinedload(ApprovalInstance.creator),
-        db.joinedload(ApprovalInstance.process),
-        db.joinedload(ApprovalInstance.records).joinedload(ApprovalRecord.approver),
-        db.joinedload(ApprovalInstance.records).joinedload(ApprovalRecord.step)
+        db.joinedload(ApprovalInstance.process)
     ).order_by(ApprovalInstance.started_at.desc()).limit(10).all()
     
     return render_template(

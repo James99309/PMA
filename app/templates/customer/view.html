@@ -29,6 +29,14 @@
                 {% if has_permission('customer', 'edit') and can_edit_company_info(current_user, company) %}
                 {{ render_button('编辑企业', url_for('customer.edit_company', company_id=company.id), color='primary', size='md') }}
                 {% endif %}
+                {% if has_permission('customer', 'delete') and can_edit_data(company, current_user) %}
+                <form method="post" action="{{ url_for('customer.delete_company', company_id=company.id) }}" style="display:inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger btn-md" onclick="return confirm('确定要删除该客户吗？删除后将无法恢复！');">
+                        <i class="fas fa-trash"></i> 删除客户
+                    </button>
+                </form>
+                {% endif %}
             </div>
         </div>
     </div>

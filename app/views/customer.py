@@ -411,6 +411,45 @@ def delete_company(company_id):
         flash('您没有权限删除此企业', 'danger')
         return redirect(url_for('customer.list_companies'))
 
+    # === 新增：检查是否存在关联的联系人 ===
+    existing_contacts = Contact.query.filter_by(company_id=company_id).all()
+    if existing_contacts:
+        contact_names = [contact.name for contact in existing_contacts]
+        flash(f'删除失败：该客户下还有 {len(existing_contacts)} 个联系人，请先转移或删除这些联系人后再删除客户。联系人列表：{", ".join(contact_names)}', 'danger')
+        return redirect(url_for('customer.view_company', company_id=company_id))
+
+    # === 新增：检查是否有项目引用该客户 ===
+    from app.models.project import Project
+    related_projects = Project.query.filter(
+        db.or_(
+            Project.end_user == company.company_name,
+            Project.design_issues == company.company_name,
+            Project.contractor == company.company_name,
+            Project.system_integrator == company.company_name,
+            Project.dealer == company.company_name
+        )
+    ).all()
+    
+    if related_projects:
+        project_info = []
+        for project in related_projects:
+            relationships = []
+            if project.end_user == company.company_name:
+                relationships.append("直接用户")
+            if project.design_issues == company.company_name:
+                relationships.append("设计院")
+            if project.contractor == company.company_name:
+                relationships.append("总承包单位")
+            if project.system_integrator == company.company_name:
+                relationships.append("系统集成商")
+            if project.dealer == company.company_name:
+                relationships.append("经销商")
+            
+            project_info.append(f"{project.project_name}({', '.join(relationships)})")
+        
+        flash(f'删除失败：该客户被 {len(related_projects)} 个项目引用，请先处理这些项目中的客户引用后再删除。相关项目：{"; ".join(project_info)}', 'danger')
+        return redirect(url_for('customer.view_company', company_id=company_id))
+
     try:
         # 记录删除历史
         try:
@@ -418,10 +457,30 @@ def delete_company(company_id):
         except Exception as track_err:
             logger.warning(f"记录客户删除历史失败: {str(track_err)}")
         
+        # === 新增：删除客户审批实例和相关审批记录 ===
+        from app.models.approval import ApprovalInstance, ApprovalRecord
+        customer_approvals = ApprovalInstance.query.filter_by(
+            object_type='customer', 
+            object_id=company_id
+        ).all()
+        
+        if customer_approvals:
+            approval_record_count = 0
+            for approval in customer_approvals:
+                # 删除审批记录
+                records = ApprovalRecord.query.filter_by(instance_id=approval.id).all()
+                approval_record_count += len(records)
+                for record in records:
+                    db.session.delete(record)
+                # 删除审批实例
+                db.session.delete(approval)
+            
+            logger.info(f"已删除 {len(customer_approvals)} 个客户审批实例和 {approval_record_count} 个审批记录")
+        
         # 找到与此公司相关的所有行动记录
         related_actions = Action.query.filter_by(company_id=company.id).all()
         
-        # 删除所有相关的行动记录
+        # 删除所有相关的行动记录（包括其回复，通过级联删除）
         for action in related_actions:
             db.session.delete(action)
             
@@ -1685,16 +1744,50 @@ def batch_delete_companies():
         # 检查操作人是否有权限删除这些企业，未授权的企业自动跳过
         unauthorized_companies = []
         deletable_companies = []
+        companies_with_contacts = []  # === 新增：记录有联系人的客户 ===
+        companies_with_projects = []  # === 新增：记录被项目引用的客户 ===
+        
         for company in companies:
             if can_edit_data(company, current_user):
+                # === 新增：检查是否存在关联的联系人 ===
+                existing_contacts = Contact.query.filter_by(company_id=company.id).all()
+                if existing_contacts:
+                    contact_names = [contact.name for contact in existing_contacts]
+                    companies_with_contacts.append(f"{company.company_name}({len(existing_contacts)}个联系人)")
+                    continue
+                
+                # === 新增：检查是否有项目引用该客户 ===
+                from app.models.project import Project
+                related_projects = Project.query.filter(
+                    db.or_(
+                        Project.end_user == company.company_name,
+                        Project.design_issues == company.company_name,
+                        Project.contractor == company.company_name,
+                        Project.system_integrator == company.company_name,
+                        Project.dealer == company.company_name
+                    )
+                ).all()
+                
+                if related_projects:
+                    companies_with_projects.append(f"{company.company_name}({len(related_projects)}个项目)")
+                    continue
+                
+                # 如果通过所有检查，添加到可删除列表
                 deletable_companies.append(company)
             else:
                 unauthorized_companies.append(company.company_name)
-        if not deletable_companies:
+                
+        if not deletable_companies and (companies_with_contacts or companies_with_projects):
+            error_messages = []
+            if companies_with_contacts:
+                error_messages.append(f'以下客户存在联系人：{", ".join(companies_with_contacts)}')
+            if companies_with_projects:
+                error_messages.append(f'以下客户被项目引用：{", ".join(companies_with_projects)}')
+            
             return jsonify({
                 'success': False, 
-                'message': '您没有权限删除所选企业'
-            }), 403
+                'message': f'批量删除失败：{"; ".join(error_messages)}。请先处理相关数据后再删除。'
+            }), 400
         
         deleted_count = 0
         errors = []
@@ -1702,10 +1795,26 @@ def batch_delete_companies():
         # 开始事务
         try:
             for company in deletable_companies:
+                # === 新增：删除客户审批实例和相关审批记录 ===
+                from app.models.approval import ApprovalInstance, ApprovalRecord
+                customer_approvals = ApprovalInstance.query.filter_by(
+                    object_type='customer', 
+                    object_id=company.id
+                ).all()
+                
+                if customer_approvals:
+                    for approval in customer_approvals:
+                        # 删除审批记录
+                        records = ApprovalRecord.query.filter_by(instance_id=approval.id).all()
+                        for record in records:
+                            db.session.delete(record)
+                        # 删除审批实例
+                        db.session.delete(approval)
+                
                 # 找到与企业相关的所有行动记录
                 related_actions = Action.query.filter_by(company_id=company.id).all()
                 
-                # 删除所有相关的行动记录
+                # 删除所有相关的行动记录（包括其回复，通过级联删除）
                 for action in related_actions:
                     db.session.delete(action)
                 
@@ -1718,6 +1827,10 @@ def batch_delete_companies():
             msg = f'成功删除{deleted_count}个企业'
             if unauthorized_companies:
                 msg += f'，无权删除: {", ".join(unauthorized_companies)}'
+            if companies_with_contacts:
+                msg += f'，跳过有联系人的企业: {", ".join(companies_with_contacts)}'
+            if companies_with_projects:
+                msg += f'，跳过被项目引用的企业: {", ".join(companies_with_projects)}'
             return jsonify({
                 'success': True,
                 'deleted_count': deleted_count,

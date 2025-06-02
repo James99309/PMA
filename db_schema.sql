@@ -205,7 +205,9 @@ CREATE TABLE public.approval_instance (
     started_at timestamp without time zone,
     ended_at timestamp without time zone,
     process_id integer NOT NULL,
-    created_by integer NOT NULL
+    created_by integer NOT NULL,
+    template_snapshot json,
+    template_version character varying(50)
 );
 
 
@@ -296,7 +298,9 @@ CREATE TABLE public.approval_process_template (
     is_active boolean,
     created_by integer NOT NULL,
     created_at timestamp without time zone,
-    required_fields json DEFAULT '[]'::jsonb
+    required_fields json DEFAULT '[]'::jsonb,
+    lock_object_on_start boolean DEFAULT true,
+    lock_reason character varying(200) DEFAULT '审批流程进行中，暂时锁定编辑'::character varying
 );
 
 
@@ -343,6 +347,20 @@ COMMENT ON COLUMN public.approval_process_template.required_fields IS '发起审
 
 
 --
+-- Name: COLUMN approval_process_template.lock_object_on_start; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.approval_process_template.lock_object_on_start IS '发起审批后是否锁定对象编辑';
+
+
+--
+-- Name: COLUMN approval_process_template.lock_reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.approval_process_template.lock_reason IS '锁定原因说明';
+
+
+--
 -- Name: approval_process_template_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -381,7 +399,7 @@ CREATE SEQUENCE public.approval_record_id_seq
 CREATE TABLE public.approval_record (
     id integer DEFAULT nextval('public.approval_record_id_seq'::regclass) NOT NULL,
     instance_id integer NOT NULL,
-    step_id integer NOT NULL,
+    step_id integer,
     approver_id integer NOT NULL,
     action character varying(50) NOT NULL,
     comment text,
@@ -443,7 +461,10 @@ CREATE TABLE public.approval_step (
     step_name character varying(100) NOT NULL,
     send_email boolean,
     action_type character varying(50),
-    action_params json
+    action_params json,
+    editable_fields json DEFAULT '[]'::json,
+    cc_users json DEFAULT '[]'::json,
+    cc_enabled boolean DEFAULT false
 );
 
 
@@ -497,6 +518,27 @@ COMMENT ON COLUMN public.approval_step.action_params IS '动作参数，JSON格�
 
 
 --
+-- Name: COLUMN approval_step.editable_fields; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.approval_step.editable_fields IS '在此步骤可编辑的字段列表';
+
+
+--
+-- Name: COLUMN approval_step.cc_users; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.approval_step.cc_users IS '邮件抄送用户ID列表';
+
+
+--
+-- Name: COLUMN approval_step.cc_enabled; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.approval_step.cc_enabled IS '是否启用邮件抄送';
+
+
+--
 -- Name: approval_step_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -514,6 +556,49 @@ CREATE SEQUENCE public.approval_step_id_seq
 --
 
 ALTER SEQUENCE public.approval_step_id_seq OWNED BY public.approval_step.id;
+
+
+--
+-- Name: change_logs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.change_logs (
+    id integer NOT NULL,
+    module_name character varying(50) NOT NULL,
+    table_name character varying(50) NOT NULL,
+    record_id integer NOT NULL,
+    operation_type character varying(20) NOT NULL,
+    field_name character varying(100),
+    old_value text,
+    new_value text,
+    user_id integer,
+    user_name character varying(80),
+    created_at timestamp without time zone,
+    description character varying(255),
+    ip_address character varying(45),
+    user_agent character varying(255),
+    record_info character varying(255)
+);
+
+
+--
+-- Name: change_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.change_logs_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: change_logs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.change_logs_id_seq OWNED BY public.change_logs.id;
 
 
 --
@@ -655,7 +740,8 @@ CREATE TABLE public.dev_products (
     updated_at timestamp without time zone,
     owner_id integer,
     created_by integer,
-    mn_code character varying(20)
+    mn_code character varying(20),
+    pdf_path character varying(255)
 );
 
 
@@ -784,6 +870,155 @@ CREATE SEQUENCE public.event_registry_id_seq
 --
 
 ALTER SEQUENCE public.event_registry_id_seq OWNED BY public.event_registry.id;
+
+
+--
+-- Name: feature_changes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.feature_changes (
+    id integer NOT NULL,
+    version_id integer NOT NULL,
+    change_type character varying(20) NOT NULL,
+    module_name character varying(50),
+    title character varying(200) NOT NULL,
+    description text,
+    priority character varying(20),
+    impact_level character varying(20),
+    affected_files text,
+    git_commits text,
+    test_status character varying(20),
+    test_notes text,
+    developer_id integer,
+    developer_name character varying(50),
+    created_at timestamp without time zone,
+    completed_at timestamp without time zone
+);
+
+
+--
+-- Name: COLUMN feature_changes.version_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.feature_changes.version_id IS '版本ID';
+
+
+--
+-- Name: COLUMN feature_changes.change_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.feature_changes.change_type IS '变更类型：feature/fix/improvement/security';
+
+
+--
+-- Name: COLUMN feature_changes.module_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.feature_changes.module_name IS '模块名称';
+
+
+--
+-- Name: COLUMN feature_changes.title; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.feature_changes.title IS '变更标题';
+
+
+--
+-- Name: COLUMN feature_changes.description; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.feature_changes.description IS '详细描述';
+
+
+--
+-- Name: COLUMN feature_changes.priority; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.feature_changes.priority IS '优先级：low/medium/high/critical';
+
+
+--
+-- Name: COLUMN feature_changes.impact_level; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.feature_changes.impact_level IS '影响级别：minor/major/breaking';
+
+
+--
+-- Name: COLUMN feature_changes.affected_files; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.feature_changes.affected_files IS '影响的文件列表（JSON格式）';
+
+
+--
+-- Name: COLUMN feature_changes.git_commits; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.feature_changes.git_commits IS '相关Git提交（JSON格式）';
+
+
+--
+-- Name: COLUMN feature_changes.test_status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.feature_changes.test_status IS '测试状态：pending/passed/failed';
+
+
+--
+-- Name: COLUMN feature_changes.test_notes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.feature_changes.test_notes IS '测试说明';
+
+
+--
+-- Name: COLUMN feature_changes.developer_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.feature_changes.developer_id IS '开发人员ID';
+
+
+--
+-- Name: COLUMN feature_changes.developer_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.feature_changes.developer_name IS '开发人员姓名';
+
+
+--
+-- Name: COLUMN feature_changes.created_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.feature_changes.created_at IS '创建时间';
+
+
+--
+-- Name: COLUMN feature_changes.completed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.feature_changes.completed_at IS '完成时间';
+
+
+--
+-- Name: feature_changes_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.feature_changes_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: feature_changes_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.feature_changes_id_seq OWNED BY public.feature_changes.id;
 
 
 --
@@ -1090,7 +1325,8 @@ CREATE TABLE public.products (
     image_path character varying(255),
     created_at timestamp without time zone,
     updated_at timestamp without time zone,
-    owner_id integer
+    owner_id integer,
+    pdf_path character varying(255)
 );
 
 
@@ -1149,6 +1385,165 @@ ALTER SEQUENCE public.project_members_id_seq OWNED BY public.project_members.id;
 
 
 --
+-- Name: project_rating_records; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.project_rating_records (
+    id integer NOT NULL,
+    project_id integer NOT NULL,
+    user_id integer NOT NULL,
+    rating integer NOT NULL,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT project_rating_records_rating_check CHECK ((rating = 1))
+);
+
+
+--
+-- Name: TABLE project_rating_records; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.project_rating_records IS '项目评分记录表';
+
+
+--
+-- Name: COLUMN project_rating_records.id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.project_rating_records.id IS '记录ID';
+
+
+--
+-- Name: COLUMN project_rating_records.project_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.project_rating_records.project_id IS '项目ID';
+
+
+--
+-- Name: COLUMN project_rating_records.user_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.project_rating_records.user_id IS '用户ID';
+
+
+--
+-- Name: COLUMN project_rating_records.rating; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.project_rating_records.rating IS '评分值(固定为1星)';
+
+
+--
+-- Name: COLUMN project_rating_records.created_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.project_rating_records.created_at IS '创建时间';
+
+
+--
+-- Name: COLUMN project_rating_records.updated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.project_rating_records.updated_at IS '更新时间';
+
+
+--
+-- Name: project_rating_records_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.project_rating_records_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: project_rating_records_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.project_rating_records_id_seq OWNED BY public.project_rating_records.id;
+
+
+--
+-- Name: project_scoring_config; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.project_scoring_config (
+    id integer NOT NULL,
+    category character varying(50) NOT NULL,
+    field_name character varying(100) NOT NULL,
+    field_label character varying(200) NOT NULL,
+    score_value numeric(3,2) DEFAULT 0.0 NOT NULL,
+    prerequisite text,
+    is_active boolean DEFAULT true,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+--
+-- Name: project_scoring_config_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.project_scoring_config_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: project_scoring_config_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.project_scoring_config_id_seq OWNED BY public.project_scoring_config.id;
+
+
+--
+-- Name: project_scoring_records; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.project_scoring_records (
+    id integer NOT NULL,
+    project_id integer NOT NULL,
+    category character varying(50) NOT NULL,
+    field_name character varying(100) NOT NULL,
+    score_value numeric(3,2) DEFAULT 0.0 NOT NULL,
+    awarded_by integer,
+    auto_calculated boolean DEFAULT true,
+    notes text,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+--
+-- Name: project_scoring_records_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.project_scoring_records_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: project_scoring_records_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.project_scoring_records_id_seq OWNED BY public.project_scoring_records.id;
+
+
+--
 -- Name: project_stage_history; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1188,6 +1583,45 @@ ALTER SEQUENCE public.project_stage_history_id_seq OWNED BY public.project_stage
 
 
 --
+-- Name: project_total_scores; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.project_total_scores (
+    id integer NOT NULL,
+    project_id integer NOT NULL,
+    information_score numeric(3,2) DEFAULT 0.0,
+    quotation_score numeric(3,2) DEFAULT 0.0,
+    stage_score numeric(3,2) DEFAULT 0.0,
+    manual_score numeric(3,2) DEFAULT 0.0,
+    total_score numeric(3,2) DEFAULT 0.0,
+    star_rating numeric(2,1) DEFAULT 0,
+    last_calculated timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+--
+-- Name: project_total_scores_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.project_total_scores_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: project_total_scores_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.project_total_scores_id_seq OWNED BY public.project_total_scores.id;
+
+
+--
 -- Name: projects; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1220,8 +1654,16 @@ CREATE TABLE public.projects (
     is_active boolean DEFAULT true NOT NULL,
     last_activity_date timestamp without time zone DEFAULT now(),
     activity_reason character varying(50),
-    vendor_sales_manager_id integer
+    vendor_sales_manager_id integer,
+    rating numeric(2,1)
 );
+
+
+--
+-- Name: COLUMN projects.rating; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.projects.rating IS '项目评分(1-5星)，NULL表示未评分';
 
 
 --
@@ -1301,8 +1743,43 @@ CREATE TABLE public.quotations (
     project_type character varying(20),
     created_at timestamp with time zone,
     updated_at timestamp without time zone,
-    owner_id integer
+    owner_id integer,
+    approval_status character varying(50) DEFAULT 'pending'::character varying,
+    approved_stages json DEFAULT '[]'::json,
+    approval_history json DEFAULT '[]'::json,
+    is_locked boolean DEFAULT false,
+    lock_reason character varying(200),
+    locked_by integer,
+    locked_at timestamp without time zone
 );
+
+
+--
+-- Name: COLUMN quotations.is_locked; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.quotations.is_locked IS '是否被锁定';
+
+
+--
+-- Name: COLUMN quotations.lock_reason; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.quotations.lock_reason IS '锁定原因';
+
+
+--
+-- Name: COLUMN quotations.locked_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.quotations.locked_by IS '锁定人ID';
+
+
+--
+-- Name: COLUMN quotations.locked_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.quotations.locked_at IS '锁定时间';
 
 
 --
@@ -1361,6 +1838,194 @@ ALTER SEQUENCE public.role_permissions_id_seq OWNED BY public.role_permissions.i
 
 
 --
+-- Name: solution_manager_email_settings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.solution_manager_email_settings (
+    id integer NOT NULL,
+    user_id integer NOT NULL,
+    quotation_created boolean,
+    quotation_updated boolean,
+    project_created boolean,
+    project_stage_changed boolean,
+    created_at timestamp without time zone,
+    updated_at timestamp without time zone
+);
+
+
+--
+-- Name: COLUMN solution_manager_email_settings.user_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.solution_manager_email_settings.user_id IS '解决方案经理用户ID';
+
+
+--
+-- Name: COLUMN solution_manager_email_settings.quotation_created; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.solution_manager_email_settings.quotation_created IS '报价单新建通知';
+
+
+--
+-- Name: COLUMN solution_manager_email_settings.quotation_updated; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.solution_manager_email_settings.quotation_updated IS '报价单更新通知';
+
+
+--
+-- Name: COLUMN solution_manager_email_settings.project_created; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.solution_manager_email_settings.project_created IS '项目新建通知';
+
+
+--
+-- Name: COLUMN solution_manager_email_settings.project_stage_changed; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.solution_manager_email_settings.project_stage_changed IS '项目阶段推进通知';
+
+
+--
+-- Name: solution_manager_email_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.solution_manager_email_settings_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: solution_manager_email_settings_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.solution_manager_email_settings_id_seq OWNED BY public.solution_manager_email_settings.id;
+
+
+--
+-- Name: system_metrics; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.system_metrics (
+    id integer NOT NULL,
+    version_id integer,
+    avg_response_time double precision,
+    max_response_time double precision,
+    error_rate double precision,
+    active_users integer,
+    total_requests integer,
+    database_size bigint,
+    cpu_usage double precision,
+    memory_usage double precision,
+    disk_usage double precision,
+    recorded_at timestamp without time zone
+);
+
+
+--
+-- Name: COLUMN system_metrics.version_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.system_metrics.version_id IS '版本ID';
+
+
+--
+-- Name: COLUMN system_metrics.avg_response_time; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.system_metrics.avg_response_time IS '平均响应时间（毫秒）';
+
+
+--
+-- Name: COLUMN system_metrics.max_response_time; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.system_metrics.max_response_time IS '最大响应时间（毫秒）';
+
+
+--
+-- Name: COLUMN system_metrics.error_rate; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.system_metrics.error_rate IS '错误率（百分比）';
+
+
+--
+-- Name: COLUMN system_metrics.active_users; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.system_metrics.active_users IS '活跃用户数';
+
+
+--
+-- Name: COLUMN system_metrics.total_requests; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.system_metrics.total_requests IS '总请求数';
+
+
+--
+-- Name: COLUMN system_metrics.database_size; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.system_metrics.database_size IS '数据库大小（字节）';
+
+
+--
+-- Name: COLUMN system_metrics.cpu_usage; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.system_metrics.cpu_usage IS 'CPU使用率（百分比）';
+
+
+--
+-- Name: COLUMN system_metrics.memory_usage; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.system_metrics.memory_usage IS '内存使用率（百分比）';
+
+
+--
+-- Name: COLUMN system_metrics.disk_usage; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.system_metrics.disk_usage IS '磁盘使用率（百分比）';
+
+
+--
+-- Name: COLUMN system_metrics.recorded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.system_metrics.recorded_at IS '记录时间';
+
+
+--
+-- Name: system_metrics_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.system_metrics_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: system_metrics_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.system_metrics_id_seq OWNED BY public.system_metrics.id;
+
+
+--
 -- Name: system_settings; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1392,6 +2057,139 @@ CREATE SEQUENCE public.system_settings_id_seq
 --
 
 ALTER SEQUENCE public.system_settings_id_seq OWNED BY public.system_settings.id;
+
+
+--
+-- Name: upgrade_logs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.upgrade_logs (
+    id integer NOT NULL,
+    version_id integer NOT NULL,
+    from_version character varying(20),
+    to_version character varying(20) NOT NULL,
+    upgrade_date timestamp without time zone NOT NULL,
+    upgrade_type character varying(20),
+    status character varying(20),
+    upgrade_notes text,
+    error_message text,
+    duration_seconds integer,
+    operator_id integer,
+    operator_name character varying(50),
+    environment character varying(20),
+    server_info text
+);
+
+
+--
+-- Name: COLUMN upgrade_logs.version_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.upgrade_logs.version_id IS '版本ID';
+
+
+--
+-- Name: COLUMN upgrade_logs.from_version; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.upgrade_logs.from_version IS '升级前版本';
+
+
+--
+-- Name: COLUMN upgrade_logs.to_version; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.upgrade_logs.to_version IS '升级后版本';
+
+
+--
+-- Name: COLUMN upgrade_logs.upgrade_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.upgrade_logs.upgrade_date IS '升级时间';
+
+
+--
+-- Name: COLUMN upgrade_logs.upgrade_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.upgrade_logs.upgrade_type IS '升级类型：manual/automatic';
+
+
+--
+-- Name: COLUMN upgrade_logs.status; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.upgrade_logs.status IS '升级状态：success/failed/rollback';
+
+
+--
+-- Name: COLUMN upgrade_logs.upgrade_notes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.upgrade_logs.upgrade_notes IS '升级说明';
+
+
+--
+-- Name: COLUMN upgrade_logs.error_message; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.upgrade_logs.error_message IS '错误信息（如果升级失败）';
+
+
+--
+-- Name: COLUMN upgrade_logs.duration_seconds; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.upgrade_logs.duration_seconds IS '升级耗时（秒）';
+
+
+--
+-- Name: COLUMN upgrade_logs.operator_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.upgrade_logs.operator_id IS '操作人员ID';
+
+
+--
+-- Name: COLUMN upgrade_logs.operator_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.upgrade_logs.operator_name IS '操作人员姓名';
+
+
+--
+-- Name: COLUMN upgrade_logs.environment; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.upgrade_logs.environment IS '升级环境';
+
+
+--
+-- Name: COLUMN upgrade_logs.server_info; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.upgrade_logs.server_info IS '服务器信息';
+
+
+--
+-- Name: upgrade_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.upgrade_logs_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: upgrade_logs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.upgrade_logs_id_seq OWNED BY public.upgrade_logs.id;
 
 
 --
@@ -1504,6 +2302,139 @@ ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
 
 
 --
+-- Name: version_records; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.version_records (
+    id integer NOT NULL,
+    version_number character varying(20) NOT NULL,
+    version_name character varying(100),
+    release_date timestamp without time zone NOT NULL,
+    description text,
+    is_current boolean,
+    environment character varying(20),
+    total_features integer,
+    total_fixes integer,
+    total_improvements integer,
+    git_commit character varying(40),
+    build_number character varying(20),
+    created_at timestamp without time zone,
+    updated_at timestamp without time zone
+);
+
+
+--
+-- Name: COLUMN version_records.version_number; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.version_records.version_number IS '版本号，如1.0.0';
+
+
+--
+-- Name: COLUMN version_records.version_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.version_records.version_name IS '版本名称';
+
+
+--
+-- Name: COLUMN version_records.release_date; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.version_records.release_date IS '发布日期';
+
+
+--
+-- Name: COLUMN version_records.description; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.version_records.description IS '版本描述';
+
+
+--
+-- Name: COLUMN version_records.is_current; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.version_records.is_current IS '是否为当前版本';
+
+
+--
+-- Name: COLUMN version_records.environment; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.version_records.environment IS '环境：development/production';
+
+
+--
+-- Name: COLUMN version_records.total_features; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.version_records.total_features IS '新增功能数量';
+
+
+--
+-- Name: COLUMN version_records.total_fixes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.version_records.total_fixes IS '修复问题数量';
+
+
+--
+-- Name: COLUMN version_records.total_improvements; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.version_records.total_improvements IS '改进数量';
+
+
+--
+-- Name: COLUMN version_records.git_commit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.version_records.git_commit IS 'Git提交哈希';
+
+
+--
+-- Name: COLUMN version_records.build_number; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.version_records.build_number IS '构建号';
+
+
+--
+-- Name: COLUMN version_records.created_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.version_records.created_at IS '创建时间';
+
+
+--
+-- Name: COLUMN version_records.updated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.version_records.updated_at IS '更新时间';
+
+
+--
+-- Name: version_records_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.version_records_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: version_records_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.version_records_id_seq OWNED BY public.version_records.id;
+
+
+--
 -- Name: action_reply id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -1546,6 +2477,13 @@ ALTER TABLE ONLY public.approval_step ALTER COLUMN id SET DEFAULT nextval('publi
 
 
 --
+-- Name: change_logs id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.change_logs ALTER COLUMN id SET DEFAULT nextval('public.change_logs_id_seq'::regclass);
+
+
+--
 -- Name: companies id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -1585,6 +2523,13 @@ ALTER TABLE ONLY public.dictionaries ALTER COLUMN id SET DEFAULT nextval('public
 --
 
 ALTER TABLE ONLY public.event_registry ALTER COLUMN id SET DEFAULT nextval('public.event_registry_id_seq'::regclass);
+
+
+--
+-- Name: feature_changes id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.feature_changes ALTER COLUMN id SET DEFAULT nextval('public.feature_changes_id_seq'::regclass);
 
 
 --
@@ -1658,10 +2603,38 @@ ALTER TABLE ONLY public.project_members ALTER COLUMN id SET DEFAULT nextval('pub
 
 
 --
+-- Name: project_rating_records id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.project_rating_records ALTER COLUMN id SET DEFAULT nextval('public.project_rating_records_id_seq'::regclass);
+
+
+--
+-- Name: project_scoring_config id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.project_scoring_config ALTER COLUMN id SET DEFAULT nextval('public.project_scoring_config_id_seq'::regclass);
+
+
+--
+-- Name: project_scoring_records id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.project_scoring_records ALTER COLUMN id SET DEFAULT nextval('public.project_scoring_records_id_seq'::regclass);
+
+
+--
 -- Name: project_stage_history id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.project_stage_history ALTER COLUMN id SET DEFAULT nextval('public.project_stage_history_id_seq'::regclass);
+
+
+--
+-- Name: project_total_scores id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.project_total_scores ALTER COLUMN id SET DEFAULT nextval('public.project_total_scores_id_seq'::regclass);
 
 
 --
@@ -1693,10 +2666,31 @@ ALTER TABLE ONLY public.role_permissions ALTER COLUMN id SET DEFAULT nextval('pu
 
 
 --
+-- Name: solution_manager_email_settings id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.solution_manager_email_settings ALTER COLUMN id SET DEFAULT nextval('public.solution_manager_email_settings_id_seq'::regclass);
+
+
+--
+-- Name: system_metrics id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.system_metrics ALTER COLUMN id SET DEFAULT nextval('public.system_metrics_id_seq'::regclass);
+
+
+--
 -- Name: system_settings id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system_settings ALTER COLUMN id SET DEFAULT nextval('public.system_settings_id_seq'::regclass);
+
+
+--
+-- Name: upgrade_logs id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.upgrade_logs ALTER COLUMN id SET DEFAULT nextval('public.upgrade_logs_id_seq'::regclass);
 
 
 --
@@ -1711,6 +2705,13 @@ ALTER TABLE ONLY public.user_event_subscriptions ALTER COLUMN id SET DEFAULT nex
 --
 
 ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
+
+
+--
+-- Name: version_records id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.version_records ALTER COLUMN id SET DEFAULT nextval('public.version_records_id_seq'::regclass);
 
 
 --
@@ -1778,6 +2779,14 @@ ALTER TABLE ONLY public.approval_step
 
 
 --
+-- Name: change_logs change_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.change_logs
+    ADD CONSTRAINT change_logs_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: companies companies_company_code_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1839,6 +2848,14 @@ ALTER TABLE ONLY public.event_registry
 
 ALTER TABLE ONLY public.event_registry
     ADD CONSTRAINT event_registry_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: feature_changes feature_changes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.feature_changes
+    ADD CONSTRAINT feature_changes_pkey PRIMARY KEY (id);
 
 
 --
@@ -1946,11 +2963,75 @@ ALTER TABLE ONLY public.project_members
 
 
 --
+-- Name: project_rating_records project_rating_records_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.project_rating_records
+    ADD CONSTRAINT project_rating_records_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: project_rating_records project_rating_records_project_id_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.project_rating_records
+    ADD CONSTRAINT project_rating_records_project_id_user_id_key UNIQUE (project_id, user_id);
+
+
+--
+-- Name: project_scoring_config project_scoring_config_category_field_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.project_scoring_config
+    ADD CONSTRAINT project_scoring_config_category_field_name_key UNIQUE (category, field_name);
+
+
+--
+-- Name: project_scoring_config project_scoring_config_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.project_scoring_config
+    ADD CONSTRAINT project_scoring_config_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: project_scoring_records project_scoring_records_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.project_scoring_records
+    ADD CONSTRAINT project_scoring_records_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: project_scoring_records project_scoring_records_project_id_category_field_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.project_scoring_records
+    ADD CONSTRAINT project_scoring_records_project_id_category_field_name_key UNIQUE (project_id, category, field_name);
+
+
+--
 -- Name: project_stage_history project_stage_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.project_stage_history
     ADD CONSTRAINT project_stage_history_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: project_total_scores project_total_scores_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.project_total_scores
+    ADD CONSTRAINT project_total_scores_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: project_total_scores project_total_scores_project_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.project_total_scores
+    ADD CONSTRAINT project_total_scores_project_id_key UNIQUE (project_id);
 
 
 --
@@ -1994,6 +3075,22 @@ ALTER TABLE ONLY public.role_permissions
 
 
 --
+-- Name: solution_manager_email_settings solution_manager_email_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.solution_manager_email_settings
+    ADD CONSTRAINT solution_manager_email_settings_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: system_metrics system_metrics_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.system_metrics
+    ADD CONSTRAINT system_metrics_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: system_settings system_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2031,6 +3128,22 @@ ALTER TABLE ONLY public.dictionaries
 
 ALTER TABLE ONLY public.permissions
     ADD CONSTRAINT uix_user_module UNIQUE (user_id, module);
+
+
+--
+-- Name: upgrade_logs upgrade_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.upgrade_logs
+    ADD CONSTRAINT upgrade_logs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: solution_manager_email_settings uq_solution_manager_email_user; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.solution_manager_email_settings
+    ADD CONSTRAINT uq_solution_manager_email_user UNIQUE (user_id);
 
 
 --
@@ -2087,6 +3200,78 @@ ALTER TABLE ONLY public.users
 
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_wechat_openid_key UNIQUE (wechat_openid);
+
+
+--
+-- Name: version_records version_records_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.version_records
+    ADD CONSTRAINT version_records_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: version_records version_records_version_number_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.version_records
+    ADD CONSTRAINT version_records_version_number_key UNIQUE (version_number);
+
+
+--
+-- Name: idx_project_rating_records_created_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_project_rating_records_created_at ON public.project_rating_records USING btree (created_at);
+
+
+--
+-- Name: idx_project_rating_records_project_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_project_rating_records_project_id ON public.project_rating_records USING btree (project_id);
+
+
+--
+-- Name: idx_project_rating_records_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_project_rating_records_user_id ON public.project_rating_records USING btree (user_id);
+
+
+--
+-- Name: idx_quotations_is_locked; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_quotations_is_locked ON public.quotations USING btree (is_locked);
+
+
+--
+-- Name: idx_quotations_locked_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_quotations_locked_by ON public.quotations USING btree (locked_by);
+
+
+--
+-- Name: idx_scoring_config_category; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_scoring_config_category ON public.project_scoring_config USING btree (category);
+
+
+--
+-- Name: idx_scoring_records_category; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_scoring_records_category ON public.project_scoring_records USING btree (category);
+
+
+--
+-- Name: idx_scoring_records_project; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_scoring_records_project ON public.project_scoring_records USING btree (project_id);
 
 
 --
@@ -2238,6 +3423,14 @@ ALTER TABLE ONLY public.approval_step
 
 
 --
+-- Name: change_logs change_logs_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.change_logs
+    ADD CONSTRAINT change_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
 -- Name: companies companies_owner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2307,6 +3500,22 @@ ALTER TABLE ONLY public.dev_products
 
 ALTER TABLE ONLY public.dev_products
     ADD CONSTRAINT dev_products_subcategory_id_fkey FOREIGN KEY (subcategory_id) REFERENCES public.product_subcategories(id);
+
+
+--
+-- Name: feature_changes feature_changes_developer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.feature_changes
+    ADD CONSTRAINT feature_changes_developer_id_fkey FOREIGN KEY (developer_id) REFERENCES public.users(id);
+
+
+--
+-- Name: feature_changes feature_changes_version_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.feature_changes
+    ADD CONSTRAINT feature_changes_version_id_fkey FOREIGN KEY (version_id) REFERENCES public.version_records(id);
 
 
 --
@@ -2438,11 +3647,51 @@ ALTER TABLE ONLY public.project_members
 
 
 --
+-- Name: project_rating_records project_rating_records_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.project_rating_records
+    ADD CONSTRAINT project_rating_records_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
+
+
+--
+-- Name: project_rating_records project_rating_records_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.project_rating_records
+    ADD CONSTRAINT project_rating_records_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: project_scoring_records project_scoring_records_awarded_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.project_scoring_records
+    ADD CONSTRAINT project_scoring_records_awarded_by_fkey FOREIGN KEY (awarded_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: project_scoring_records project_scoring_records_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.project_scoring_records
+    ADD CONSTRAINT project_scoring_records_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
+
+
+--
 -- Name: project_stage_history project_stage_history_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.project_stage_history
     ADD CONSTRAINT project_stage_history_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id);
+
+
+--
+-- Name: project_total_scores project_total_scores_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.project_total_scores
+    ADD CONSTRAINT project_total_scores_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
 
 
 --
@@ -2486,6 +3735,14 @@ ALTER TABLE ONLY public.quotations
 
 
 --
+-- Name: quotations quotations_locked_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.quotations
+    ADD CONSTRAINT quotations_locked_by_fkey FOREIGN KEY (locked_by) REFERENCES public.users(id);
+
+
+--
 -- Name: quotations quotations_owner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2499,6 +3756,38 @@ ALTER TABLE ONLY public.quotations
 
 ALTER TABLE ONLY public.quotations
     ADD CONSTRAINT quotations_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id);
+
+
+--
+-- Name: solution_manager_email_settings solution_manager_email_settings_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.solution_manager_email_settings
+    ADD CONSTRAINT solution_manager_email_settings_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+--
+-- Name: system_metrics system_metrics_version_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.system_metrics
+    ADD CONSTRAINT system_metrics_version_id_fkey FOREIGN KEY (version_id) REFERENCES public.version_records(id);
+
+
+--
+-- Name: upgrade_logs upgrade_logs_operator_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.upgrade_logs
+    ADD CONSTRAINT upgrade_logs_operator_id_fkey FOREIGN KEY (operator_id) REFERENCES public.users(id);
+
+
+--
+-- Name: upgrade_logs upgrade_logs_version_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.upgrade_logs
+    ADD CONSTRAINT upgrade_logs_version_id_fkey FOREIGN KEY (version_id) REFERENCES public.version_records(id);
 
 
 --

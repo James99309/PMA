@@ -879,6 +879,35 @@ def delete_quotation(id):
         except Exception as track_err:
             current_app.logger.warning(f"记录报价单删除历史失败: {str(track_err)}")
         
+        # === 新增：删除报价单审批实例和相关审批记录 ===
+        from app.models.approval import ApprovalInstance, ApprovalRecord
+        quotation_approvals = ApprovalInstance.query.filter_by(
+            object_type='quotation', 
+            object_id=id
+        ).all()
+        
+        if quotation_approvals:
+            approval_record_count = 0
+            for approval in quotation_approvals:
+                # 删除审批记录
+                records = ApprovalRecord.query.filter_by(instance_id=approval.id).all()
+                approval_record_count += len(records)
+                for record in records:
+                    db.session.delete(record)
+                # 删除审批实例
+                db.session.delete(approval)
+            
+            current_app.logger.info(f"已删除 {len(quotation_approvals)} 个报价单审批实例和 {approval_record_count} 个审批记录")
+        
+        # === 新增：显式删除报价单明细 ===
+        from app.models.quotation import QuotationDetail
+        quotation_details = QuotationDetail.query.filter_by(quotation_id=id).all()
+        
+        if quotation_details:
+            for detail in quotation_details:
+                db.session.delete(detail)
+            current_app.logger.info(f"已删除 {len(quotation_details)} 个报价单明细")
+        
         db.session.delete(quotation)
         db.session.commit()
         flash('报价单删除成功！', 'success')
@@ -908,6 +937,31 @@ def batch_delete_quotations():
                         # 记录涉及的项目ID
                         if quotation.project_id:
                             project_ids.add(quotation.project_id)
+                        
+                        # === 新增：删除报价单审批实例和相关审批记录 ===
+                        from app.models.approval import ApprovalInstance, ApprovalRecord
+                        quotation_approvals = ApprovalInstance.query.filter_by(
+                            object_type='quotation', 
+                            object_id=quotation_id
+                        ).all()
+                        
+                        if quotation_approvals:
+                            for approval in quotation_approvals:
+                                # 删除审批记录
+                                records = ApprovalRecord.query.filter_by(instance_id=approval.id).all()
+                                for record in records:
+                                    db.session.delete(record)
+                                # 删除审批实例
+                                db.session.delete(approval)
+                        
+                        # === 新增：显式删除报价单明细 ===
+                        from app.models.quotation import QuotationDetail
+                        quotation_details = QuotationDetail.query.filter_by(quotation_id=quotation_id).all()
+                        
+                        if quotation_details:
+                            for detail in quotation_details:
+                                db.session.delete(detail)
+                        
                         # 删除报价单
                         db.session.delete(quotation)
                         deleted_count += 1

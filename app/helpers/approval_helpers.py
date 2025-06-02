@@ -16,9 +16,11 @@ from datetime import datetime
 from flask import url_for
 from app.helpers.project_helpers import lock_project, unlock_project
 from app.models.project import Project
+from app.models.quotation import Quotation
+from app.models.customer import Company
 
 def get_user_created_approvals(user_id=None, object_type=None, status=None, page=1, per_page=20):
-    """获取指定用户发起的审批列表
+    """获取指定用户发起的审批列表 - 改进版，只返回关联业务对象存在的审批
     
     Args:
         user_id: 用户ID，默认为当前登录用户
@@ -33,11 +35,47 @@ def get_user_created_approvals(user_id=None, object_type=None, status=None, page
     if user_id is None:
         user_id = current_user.id
         
-    query = ApprovalInstance.query.options(db.joinedload(ApprovalInstance.process)).filter(ApprovalInstance.created_by == user_id)
+    # 基础查询
+    query = ApprovalInstance.query.options(db.joinedload(ApprovalInstance.process)).filter(
+        ApprovalInstance.created_by == user_id
+    )
     
-    if object_type:
-        query = query.filter(ApprovalInstance.object_type == object_type)
+    # 根据业务对象类型添加JOIN条件，确保业务对象存在
+    if object_type == 'project':
+        query = query.join(Project, ApprovalInstance.object_id == Project.id).filter(
+            ApprovalInstance.object_type == 'project'
+        )
+    elif object_type == 'quotation':
+        query = query.join(Quotation, ApprovalInstance.object_id == Quotation.id).filter(
+            ApprovalInstance.object_type == 'quotation'
+        )
+    elif object_type == 'customer':
+        query = query.join(Company, ApprovalInstance.object_id == Company.id).filter(
+            ApprovalInstance.object_type == 'customer'
+        )
+    else:
+        # 如果没有指定类型，使用复杂的联合查询确保所有业务对象都存在
+        project_subquery = db.session.query(ApprovalInstance.id).filter(
+            ApprovalInstance.object_type == 'project'
+        ).join(Project, ApprovalInstance.object_id == Project.id)
         
+        quotation_subquery = db.session.query(ApprovalInstance.id).filter(
+            ApprovalInstance.object_type == 'quotation'
+        ).join(Quotation, ApprovalInstance.object_id == Quotation.id)
+        
+        customer_subquery = db.session.query(ApprovalInstance.id).filter(
+            ApprovalInstance.object_type == 'customer'
+        ).join(Company, ApprovalInstance.object_id == Company.id)
+        
+        # 只查询存在于任一子查询中的审批实例
+        query = query.filter(
+            or_(
+                ApprovalInstance.id.in_(project_subquery),
+                ApprovalInstance.id.in_(quotation_subquery),
+                ApprovalInstance.id.in_(customer_subquery)
+            )
+        )
+    
     if status:
         query = query.filter(ApprovalInstance.status == status)
     
@@ -49,7 +87,7 @@ def get_user_created_approvals(user_id=None, object_type=None, status=None, page
 
 
 def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=20):
-    """获取待用户审批的列表
+    """获取待用户审批的列表 - 改进版，只返回关联业务对象存在的审批
     
     Args:
         user_id: 用户ID，默认为当前登录用户
@@ -75,8 +113,41 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
         ApprovalInstance.status == ApprovalStatus.PENDING
     )
     
-    if object_type:
-        query = query.filter(ApprovalInstance.object_type == object_type)
+    # 根据业务对象类型添加JOIN条件，确保业务对象存在
+    if object_type == 'project':
+        query = query.join(Project, ApprovalInstance.object_id == Project.id).filter(
+            ApprovalInstance.object_type == 'project'
+        )
+    elif object_type == 'quotation':
+        query = query.join(Quotation, ApprovalInstance.object_id == Quotation.id).filter(
+            ApprovalInstance.object_type == 'quotation'
+        )
+    elif object_type == 'customer':
+        query = query.join(Company, ApprovalInstance.object_id == Company.id).filter(
+            ApprovalInstance.object_type == 'customer'
+        )
+    else:
+        # 如果没有指定类型，使用复杂的联合查询确保所有业务对象都存在
+        project_subquery = db.session.query(ApprovalInstance.id).filter(
+            ApprovalInstance.object_type == 'project'
+        ).join(Project, ApprovalInstance.object_id == Project.id)
+        
+        quotation_subquery = db.session.query(ApprovalInstance.id).filter(
+            ApprovalInstance.object_type == 'quotation'
+        ).join(Quotation, ApprovalInstance.object_id == Quotation.id)
+        
+        customer_subquery = db.session.query(ApprovalInstance.id).filter(
+            ApprovalInstance.object_type == 'customer'
+        ).join(Company, ApprovalInstance.object_id == Company.id)
+        
+        # 只查询存在于任一子查询中的审批实例
+        query = query.filter(
+            or_(
+                ApprovalInstance.id.in_(project_subquery),
+                ApprovalInstance.id.in_(quotation_subquery),
+                ApprovalInstance.id.in_(customer_subquery)
+            )
+        )
     
     # 按创建时间倒序排列
     query = query.order_by(ApprovalInstance.started_at.desc())
@@ -86,7 +157,7 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
 
 
 def get_all_approvals(object_type=None, status=None, page=1, per_page=20):
-    """获取所有审批记录（仅供admin使用）
+    """获取所有审批记录（仅供admin使用）- 改进版，只返回关联业务对象存在的审批
     
     Args:
         object_type: 过滤特定类型的审批对象
@@ -99,9 +170,42 @@ def get_all_approvals(object_type=None, status=None, page=1, per_page=20):
     """
     query = ApprovalInstance.query.options(db.joinedload(ApprovalInstance.process))
     
-    if object_type:
-        query = query.filter(ApprovalInstance.object_type == object_type)
+    # 根据业务对象类型添加JOIN条件，确保业务对象存在
+    if object_type == 'project':
+        query = query.join(Project, ApprovalInstance.object_id == Project.id).filter(
+            ApprovalInstance.object_type == 'project'
+        )
+    elif object_type == 'quotation':
+        query = query.join(Quotation, ApprovalInstance.object_id == Quotation.id).filter(
+            ApprovalInstance.object_type == 'quotation'
+        )
+    elif object_type == 'customer':
+        query = query.join(Company, ApprovalInstance.object_id == Company.id).filter(
+            ApprovalInstance.object_type == 'customer'
+        )
+    else:
+        # 如果没有指定类型，使用复杂的联合查询确保所有业务对象都存在
+        project_subquery = db.session.query(ApprovalInstance.id).filter(
+            ApprovalInstance.object_type == 'project'
+        ).join(Project, ApprovalInstance.object_id == Project.id)
         
+        quotation_subquery = db.session.query(ApprovalInstance.id).filter(
+            ApprovalInstance.object_type == 'quotation'
+        ).join(Quotation, ApprovalInstance.object_id == Quotation.id)
+        
+        customer_subquery = db.session.query(ApprovalInstance.id).filter(
+            ApprovalInstance.object_type == 'customer'
+        ).join(Company, ApprovalInstance.object_id == Company.id)
+        
+        # 只查询存在于任一子查询中的审批实例
+        query = query.filter(
+            or_(
+                ApprovalInstance.id.in_(project_subquery),
+                ApprovalInstance.id.in_(quotation_subquery),
+                ApprovalInstance.id.in_(customer_subquery)
+            )
+        )
+    
     if status:
         query = query.filter(ApprovalInstance.status == status)
     
@@ -1201,7 +1305,6 @@ def _handle_project_authorization(instance, project_type):
         project.report_time = datetime.now().date()  # 更新报备日期为当前日期
         
         # 同步更新所有关联报价单的project_stage和project_type
-        from app.models.quotation import Quotation
         quotations = Quotation.query.filter_by(project_id=project.id).all()
         for q in quotations:
             q.project_stage = project.current_stage
