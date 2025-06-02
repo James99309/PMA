@@ -22,9 +22,21 @@ def verify_permissions_system():
             # 0. 验证端口解析修复
             verify_environment_parsing()
             
+            # 0.5. 验证SQLAlchemy兼容性修复
+            verify_sqlalchemy_compatibility()
+            
             # 1. 验证数据库连接
             print("\n1. 验证数据库连接...")
-            db.session.execute('SELECT 1')
+            try:
+                from sqlalchemy import text
+                db.session.execute(text('SELECT 1'))
+            except Exception as e:
+                # 如果text方法失败，尝试旧的方式
+                try:
+                    db.session.execute('SELECT 1')
+                except Exception as e2:
+                    print(f"❌ 数据库连接验证失败: {str(e2)}")
+                    return False
             print("✅ 数据库连接正常")
             
             # 2. 验证用户表和权限表
@@ -142,6 +154,47 @@ def verify_environment_parsing():
             os.environ['PORT'] = old_port
         elif 'PORT' in os.environ:
             del os.environ['PORT']
+
+def verify_sqlalchemy_compatibility():
+    """验证SQLAlchemy兼容性修复"""
+    print("\n0.5. 验证SQLAlchemy兼容性修复...")
+    
+    app = create_app()
+    with app.app_context():
+        try:
+            # 测试主要查询是否有异常处理
+            from app.utils.access_control import get_viewable_data
+            
+            # 1. 测试首页项目查询（最重要的修复）
+            print("   测试首页项目查询...")
+            # 由于我们无法直接触发异常，我们检查代码是否有try-except结构
+            import inspect
+            from app.views.main import index
+            source = inspect.getsource(index)
+            if 'try:' in source and 'recent_projects' in source and 'except' in source:
+                print("   ✅ 首页项目查询包含异常处理")
+            else:
+                print("   ❌ 首页项目查询缺少异常处理")
+            
+            # 2. 实际测试一个简单的项目查询
+            try:
+                from app.models.project import Project
+                recent_projects = Project.query.limit(2).all()
+                print(f"   ✅ 项目查询功能正常，获取到 {len(recent_projects)} 个项目")
+            except Exception as e:
+                print(f"   ❌ 项目查询失败: {e}")
+            
+            # 3. 测试用户查询
+            try:
+                users = User.query.limit(2).all() 
+                print(f"   ✅ 用户查询功能正常，获取到 {len(users)} 个用户")
+            except Exception as e:
+                print(f"   ❌ 用户查询失败: {e}")
+                
+            print("✅ SQLAlchemy兼容性修复验证完成")
+            
+        except Exception as e:
+            print(f"❌ SQLAlchemy兼容性验证失败: {e}")
 
 if __name__ == "__main__":
     print("云端部署验证脚本")

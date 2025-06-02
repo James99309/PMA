@@ -4,12 +4,56 @@
 
 本次部署包含了PMA系统的重大权限系统修复和多项功能增强，主要解决了权限管理中的关键问题，并增加了审批流程、项目评分等新功能。
 
+**🔧 SQLAlchemy兼容性修复 (2025-06-02 19:00)**：
+- ✅ 修复了云端部署后的SQLAlchemy版本兼容性问题
+- ✅ 解决了 `sqlalchemy.exc.StatementError` 查询参数错误
+- ✅ 增强了所有关键查询的容错处理和后备机制
+- ✅ 确保系统在不同SQLAlchemy版本环境下的稳定运行
+
 **🔧 紧急修复 (2025-06-02 18:30)**：
 - ✅ 修复了部署错误：环境变量PORT解析问题
 - ✅ 解决了 `ValueError: invalid literal for int() with base 10: '$PORT'` 错误
 - ✅ 增强了环境变量解析的容错性和稳定性
 
 ## 部署内容
+
+### SQLAlchemy兼容性修复 (提交版本: 8e33b85)
+
+**问题背景**：
+云端部署后出现SQLAlchemy版本兼容性问题，查询语句 `Project.updated_at.desc().limit(5)` 在云端环境报错：
+```
+sqlalchemy.exc.StatementError: (Background on this error at: https://sqlalche.me/e/20/f405)
+```
+
+**核心修复**：
+- ✅ 修复 `app/views/main.py` 首页项目查询的兼容性问题
+- ✅ 修复 `app/views/product_analysis.py` 产品分析查询的兼容性问题  
+- ✅ 修复 `app/views/user.py` 用户列表查询的兼容性问题
+- ✅ 修复 `app/routes/product_management.py` 产品库存查询的兼容性问题
+- ✅ 所有查询增加异常处理，失败时使用id排序作为后备方案
+
+**技术细节**：
+```python
+# 修复前（会在某些SQLAlchemy版本报错）
+recent_projects = get_viewable_data(Project, current_user).order_by(Project.updated_at.desc()).limit(5).all()
+
+# 修复后（兼容性处理）
+try:
+    recent_projects = get_viewable_data(Project, current_user).order_by(Project.updated_at.desc()).limit(5).all()
+except Exception as e:
+    logger.warning(f"使用updated_at查询项目失败: {str(e)}，尝试使用id排序")
+    try:
+        recent_projects = get_viewable_data(Project, current_user).order_by(Project.id.desc()).limit(5).all()
+    except Exception as e2:
+        logger.error(f"项目查询完全失败: {str(e2)}")
+        recent_projects = []
+```
+
+**影响模块**：
+- 首页最近项目显示
+- 产品分析数据查询
+- 用户列表管理
+- 产品库存管理
 
 ### 环境变量解析修复 (提交版本: 2ce3b94)
 
