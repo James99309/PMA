@@ -55,6 +55,14 @@ def save_product_image(file):
     - 成功时返回保存的文件路径，失败时返回None
     """
     if file and allowed_file(file.filename):
+        # 检查文件大小（最大600KB）
+        file.seek(0, 2)  # 移动到文件末尾
+        file_size = file.tell()  # 获取文件大小
+        file.seek(0)  # 重置文件指针
+        if file_size > 600 * 1024:  # 600KB
+            logger.warning(f"图片文件过大: {file_size} bytes (最大600KB)")
+            return None
+        
         # 创建安全的文件名
         filename = secure_filename(file.filename)
         # 使用UUID生成唯一文件名前缀

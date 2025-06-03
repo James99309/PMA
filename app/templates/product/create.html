@@ -283,7 +283,7 @@
                                 <button type="button" id="upload-image-btn" class="btn btn-sm btn-outline-primary">选择图片</button>
                                 <button type="button" id="remove-image-btn" class="btn btn-sm btn-outline-danger" {% if not product or not product.image_path %}style="display: none;"{% endif %}>移除图片</button>
                             </div>
-                            <small class="text-muted">支持JPG、PNG格式，图片将自动调整为正方形</small>
+                            <small class="text-muted">支持JPG、PNG格式，图片大小不超过600KB，将自动调整为正方形</small>
                         </div>
                     </div>
 
@@ -1214,9 +1214,9 @@
                     return;
                 }
 
-                // 检查文件大小（最大5MB）
-                if (file.size > 5 * 1024 * 1024) {
-                    alert('图片大小不能超过5MB');
+                // 检查文件大小（最大600KB）
+                if (file.size > 600 * 1024) {
+                    alert('图片大小不能超过600KB');
                     return;
                 }
 

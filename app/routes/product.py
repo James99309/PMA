@@ -115,12 +115,20 @@ def save_product_pdf(file):
 def process_product_image(file):
     if file and allowed_file(file.filename):
         try:
+            # 检查文件大小（最大600KB）
+            file.seek(0, 2)  # 移动到文件末尾
+            file_size = file.tell()  # 获取文件大小
+            file.seek(0)  # 重置文件指针
+            if file_size > 600 * 1024:  # 600KB
+                logger.warning(f"图片文件过大: {file_size} bytes (最大600KB)")
+                return None
+            
             # 生成安全的唯一文件名
             original_filename = secure_filename(file.filename)
             extension = original_filename.rsplit('.', 1)[1].lower()
             unique_filename = f"{uuid.uuid4().hex}.{extension}"
             
-            logger.debug(f"处理图片: {original_filename} -> {unique_filename}")
+            logger.debug(f"处理图片: {original_filename} -> {unique_filename}, 大小: {file_size} bytes")
             
             # 确保上传目录存在
             if not os.path.exists(UPLOAD_FOLDER):
@@ -154,9 +162,9 @@ def process_product_image(file):
                 img = img.resize((500, 500), Image.Resampling.LANCZOS)
                 logger.debug("图片已调整大小为 500x500")
                 
-                # 保存处理后的图片
+                # 保存处理后的图片，使用更高的压缩率以减小文件大小
                 final_path = os.path.join(UPLOAD_FOLDER, unique_filename)
-                img.save(final_path, optimize=True, quality=85)
+                img.save(final_path, optimize=True, quality=75)  # 降低质量从85到75
                 logger.debug(f"处理后的图片已保存: {final_path}")
                 
                 # 删除临时文件
