@@ -122,7 +122,7 @@
                                     <div class="col-md-6">
                                         <label for="product_image" class="form-label">产品图片</label>
                                         <input type="file" class="form-control" id="product_image" name="product_image" accept="image/*">
-                                        <div class="form-text">支持 PNG, JPG, JPEG, GIF 格式，图片大小不超过600KB</div>
+                                        <div class="form-text">支持 PNG, JPG, JPEG, GIF 格式，图片大小不超过5MB</div>
                                     </div>
                                     <div class="col-md-6">
                                         {% if dev_product.image_path %}
@@ -144,7 +144,7 @@
                                     <div class="col-md-6">
                                         <label for="product_pdf" class="form-label">产品PDF文件</label>
                                         <input type="file" class="form-control" id="product_pdf" name="product_pdf" accept=".pdf">
-                                        <div class="form-text">支持 PDF 格式，文件大小不超过 2MB</div>
+                                        <div class="form-text">支持 PDF 格式，文件大小不超过12MB，文件名必须是英文字符</div>
                                     </div>
                                     <div class="col-md-6">
                                         {% if dev_product.pdf_path %}
@@ -1108,14 +1108,53 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 
-                // 检查文件大小（最大600KB）
-                if (file.size > 600 * 1024) {
-                    alert('图片大小不能超过600KB，请选择更小的图片或压缩后再上传');
+                // 检查文件名是否为英文
+                if (!/^[a-zA-Z0-9._-]+$/.test(file.name)) {
+                    alert('文件名必须是英文字符（包括字母、数字、点、下划线、连字符）');
+                    e.target.value = '';
+                    return;
+                }
+                
+                // 检查文件大小（最大5MB）
+                if (file.size > 5 * 1024 * 1024) {
+                    alert('图片大小不能超过5MB，请选择更小的图片或压缩后再上传');
                     e.target.value = '';
                     return;
                 }
                 
                 console.log('图片文件检查通过:', file.name, '大小:', Math.round(file.size / 1024) + 'KB');
+            }
+        });
+    }
+
+    // 添加PDF文件大小和文件名检查
+    const productPdfInput = document.getElementById('product_pdf');
+    if (productPdfInput) {
+        productPdfInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                // 检查文件类型
+                if (!file.type.match('application/pdf')) {
+                    alert('请选择PDF文件');
+                    e.target.value = '';
+                    return;
+                }
+                
+                // 检查文件名是否为英文
+                if (!/^[a-zA-Z0-9._-]+$/.test(file.name)) {
+                    alert('文件名必须是英文字符（包括字母、数字、点、下划线、连字符）');
+                    e.target.value = '';
+                    return;
+                }
+                
+                // 检查文件大小（最大12MB）
+                if (file.size > 12 * 1024 * 1024) {
+                    alert('PDF文件大小不能超过12MB，请选择更小的文件');
+                    e.target.value = '';
+                    return;
+                }
+                
+                console.log('PDF文件检查通过:', file.name, '大小:', Math.round(file.size / 1024) + 'KB');
             }
         });
     }

@@ -1201,7 +1201,7 @@ $(document).ready(function() {
                                                     alert('报价单保存成功');
                                                     // 跳转到报价单详情页面
                                                     var quotationId = response.quotation_id; if (!quotationId) { var pathParts = window.location.pathname.split("/"); for (var i = 0; i < pathParts.length; i++) { if (pathParts[i] === "quotation" && i + 1 < pathParts.length) { quotationId = pathParts[i + 1]; break; } } }
-                                                    if (quotationId && quotationId !== "edit" && quotationId !== "create") {
+                                                    if (quotationId && quotationId !== 'edit') {
                                                         window.location.href = '/quotation/' + quotationId + '/detail';
                                                     } else {
                                                         window.location.href = '/quotation/quotations';

@@ -55,13 +55,19 @@ def allowed_file(filename):
 def allowed_pdf_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_PDF_EXTENSIONS
 
-# 检查文件大小是否在限制内（2MB）
+# 添加英文文件名验证函数
+def validate_english_filename(filename):
+    """验证文件名是否为英文字符（字母、数字、点、下划线、连字符）"""
+    import re
+    return re.match(r'^[a-zA-Z0-9._-]+$', filename) is not None
+
+# 检查文件大小是否在限制内（12MB）
 def check_file_size(file):
-    """检查文件大小是否在2MB以内"""
+    """检查文件大小是否在12MB以内"""
     file.seek(0, 2)  # 移动到文件末尾
     file_size = file.tell()  # 获取文件大小
     file.seek(0)  # 重置文件指针
-    return file_size <= 2 * 1024 * 1024  # 2MB
+    return file_size <= 12 * 1024 * 1024  # 12MB
 
 # 保存上传的PDF文件
 def save_product_pdf(file):
@@ -75,9 +81,13 @@ def save_product_pdf(file):
     - 成功时返回保存的文件路径，失败时返回None和错误信息
     """
     if file and allowed_pdf_file(file.filename):
+        # 验证文件名是否为英文
+        if not validate_english_filename(file.filename):
+            return None, "文件名必须是英文字符（字母、数字、点、下划线、连字符）"
+            
         # 检查文件大小
         if not check_file_size(file):
-            return None, "PDF文件大小不能超过2MB"
+            return None, "PDF文件大小不能超过12MB"
         
         # 重置文件指针到开始位置（修复第一次上传失败的问题）
         file.seek(0)
@@ -114,13 +124,18 @@ def save_product_pdf(file):
 # 处理图片上传、调整大小并保存
 def process_product_image(file):
     if file and allowed_file(file.filename):
+        # 验证文件名是否为英文
+        if not validate_english_filename(file.filename):
+            logger.warning(f"文件名包含非英文字符: {file.filename}")
+            return None
+            
         try:
-            # 检查文件大小（最大600KB）
+            # 检查文件大小（最大5MB）
             file.seek(0, 2)  # 移动到文件末尾
             file_size = file.tell()  # 获取文件大小
             file.seek(0)  # 重置文件指针
-            if file_size > 600 * 1024:  # 600KB
-                logger.warning(f"图片文件过大: {file_size} bytes (最大600KB)")
+            if file_size > 5 * 1024 * 1024:  # 5MB
+                logger.warning(f"图片文件过大: {file_size} bytes (最大5MB)")
                 return None
             
             # 生成安全的唯一文件名

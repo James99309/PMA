@@ -389,26 +389,37 @@ def create_quotation():
                         import threading
                         from app.utils.solution_manager_notifications import notify_solution_managers_quotation_created
                         
+                        # 在线程外获取app实例和必要数据
+                        app = current_app._get_current_object()
+                        quotation_owner_id = quotation.owner_id
+                        quotation_id = quotation.id
+                        
                         def send_notifications_async():
                             """异步发送通知"""
-                            with current_app.app_context():
+                            with app.app_context():
                                 try:
-                                    # 触发报价单创建通知
-                                    trigger_event_notification(
-                                        event_key='quotation_created',
-                                        target_user_id=quotation.owner_id,
-                                        context={
-                                            'quotation': quotation,
-                                            'create_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                                            'quotation_url': url_for('quotation.view_quotation', id=quotation.id, _external=True),
-                                            'current_year': datetime.now().year
-                                        }
-                                    )
-                                    # 通知解决方案经理（异步）
-                                    notify_solution_managers_quotation_created(quotation)
-                                    current_app.logger.debug('异步报价单创建通知已发送')
+                                    # 重新查询quotation对象以获取最新状态
+                                    fresh_quotation = Quotation.query.get(quotation_id)
+                                    if fresh_quotation:
+                                        # 构建URL而不使用url_for
+                                        quotation_url = f"http://localhost:10000/quotation/{quotation_id}/detail"
+                                        
+                                        # 触发报价单创建通知
+                                        trigger_event_notification(
+                                            event_key='quotation_created',
+                                            target_user_id=quotation_owner_id,
+                                            context={
+                                                'quotation': fresh_quotation,
+                                                'create_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                                'quotation_url': quotation_url,
+                                                'current_year': datetime.now().year
+                                            }
+                                        )
+                                        # 通知解决方案经理（异步）
+                                        notify_solution_managers_quotation_created(fresh_quotation)
+                                        app.logger.debug('异步报价单创建通知已发送')
                                 except Exception as notify_err:
-                                    current_app.logger.warning(f"异步触发报价单创建通知失败: {str(notify_err)}")
+                                    app.logger.warning(f"异步触发报价单创建通知失败: {str(notify_err)}")
                         
                         # 启动异步通知线程
                         threading.Thread(target=send_notifications_async, daemon=True).start()
@@ -1719,24 +1730,35 @@ def save_quotation(id):
                 import threading
                 from app.utils.solution_manager_notifications import notify_solution_managers_quotation_created
                 
+                # 在线程外获取app实例和必要数据
+                app = current_app._get_current_object()
+                quotation_owner_id = quotation.owner_id
+                quotation_id = quotation.id
+                
                 def send_notifications_async():
                     """异步发送通知"""
-                    with current_app.app_context():
+                    with app.app_context():
                         try:
-                            # 触发报价单更新通知（而不是创建通知）
-                            trigger_event_notification(
-                                event_key='quotation_updated',
-                                target_user_id=quotation.owner_id,
-                                context={
-                                    'quotation': quotation,
-                                    'update_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                                    'quotation_url': url_for('quotation.view_quotation', id=quotation.id, _external=True),
-                                    'current_year': datetime.now().year
-                                }
-                            )
-                            current_app.logger.debug('异步事件通知已触发')
+                            # 重新查询quotation对象以获取最新状态
+                            fresh_quotation = Quotation.query.get(quotation_id)
+                            if fresh_quotation:
+                                # 构建URL而不使用url_for
+                                quotation_url = f"http://localhost:10000/quotation/{quotation_id}/detail"
+                                
+                                # 触发报价单更新通知（而不是创建通知）
+                                trigger_event_notification(
+                                    event_key='quotation_updated',
+                                    target_user_id=quotation_owner_id,
+                                    context={
+                                        'quotation': fresh_quotation,
+                                        'update_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                        'quotation_url': quotation_url,
+                                        'current_year': datetime.now().year
+                                    }
+                                )
+                                app.logger.debug('异步事件通知已触发')
                         except Exception as notify_err:
-                            current_app.logger.warning(f"异步触发通知失败: {str(notify_err)}")
+                            app.logger.warning(f"异步触发通知失败: {str(notify_err)}")
                 
                 # 启动异步通知线程
                 threading.Thread(target=send_notifications_async, daemon=True).start()
@@ -1751,13 +1773,15 @@ def save_quotation(id):
                 return jsonify({
                     'status': 'success',
                     'message': '报价单更新成功',
-                    'warnings': detail_errors
+                    'warnings': detail_errors,
+                    'quotation_id': id
                 }), 200
             
             current_app.logger.info('报价单更新成功，无警告信息')
             return jsonify({
                 'status': 'success',
-                'message': '报价单更新成功'
+                'message': '报价单更新成功',
+                'quotation_id': id
             })
         except Exception as commit_error:
             db.session.rollback()

@@ -87,6 +87,23 @@
                                     <th class="bg-light">报价总额</th>
                                     <td class="fw-bold">{{ render_currency(quotation.amount) }}</td>
                                 </tr>
+                                <tr>
+                                    <th class="bg-light">汇总折扣率</th>
+                                    <td class="fw-bold">
+                                        {% set total_market_value = 0 %}
+                                        {% set total_discounted_value = 0 %}
+                                        {% for detail in quotation.details %}
+                                            {% set total_market_value = total_market_value + (detail.market_price * detail.quantity) %}
+                                            {% set total_discounted_value = total_discounted_value + detail.total_price %}
+                                        {% endfor %}
+                                        {% if total_market_value > 0 %}
+                                            {% set overall_discount_rate = (total_discounted_value / total_market_value * 100) %}
+                                            {{ "%.1f"|format(overall_discount_rate) }}%
+                                        {% else %}
+                                            100.0%
+                                        {% endif %}
+                                    </td>
+                                </tr>
                                 {% if quotation.is_locked %}
                                 <tr>
                                     <th class="bg-light">锁定状态</th>
