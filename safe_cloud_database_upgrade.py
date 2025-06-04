@@ -85,6 +85,15 @@ class SafeDatabaseUpgrade:
             logger.info(f"表 {table_name} 不存在，跳过删除")
             return None
     
+    def safe_add_constraint(self, table_name, constraint_name, constraint_sql):
+        """安全添加约束"""
+        if not self.check_constraint_exists(table_name, constraint_name):
+            logger.info(f"添加约束: {constraint_name}")
+            return constraint_sql
+        else:
+            logger.info(f"约束 {constraint_name} 已存在，跳过创建")
+            return None
+    
     def fix_approval_record_step_id(self):
         """修复approval_record表的step_id NULL值问题"""
         logger.info("检查并修复approval_record.step_id NULL值...")
@@ -146,8 +155,11 @@ class SafeDatabaseUpgrade:
             if sql:
                 safe_sql.append(sql)
             
-            # 创建新约束
-            safe_sql.append("ALTER TABLE project_scoring_config ADD CONSTRAINT uq_scoring_config UNIQUE (category, field_name)")
+            # 安全创建新约束
+            sql = self.safe_add_constraint('project_scoring_config', 'uq_scoring_config', 
+                                         "ALTER TABLE project_scoring_config ADD CONSTRAINT uq_scoring_config UNIQUE (category, field_name)")
+            if sql:
+                safe_sql.append(sql)
         
         # 3. 安全删除project_scoring_records约束和索引
         logger.info("=== 处理project_scoring_records表 ===")
@@ -163,8 +175,11 @@ class SafeDatabaseUpgrade:
             if sql:
                 safe_sql.append(sql)
             
-            # 创建新约束
-            safe_sql.append("ALTER TABLE project_scoring_records ADD CONSTRAINT uq_scoring_record_with_user UNIQUE (project_id, category, field_name, awarded_by)")
+            # 安全创建新约束
+            sql = self.safe_add_constraint('project_scoring_records', 'uq_scoring_record_with_user',
+                                         "ALTER TABLE project_scoring_records ADD CONSTRAINT uq_scoring_record_with_user UNIQUE (project_id, category, field_name, awarded_by)")
+            if sql:
+                safe_sql.append(sql)
         
         # 4. 安全删除quotations表的索引
         logger.info("=== 处理quotations表 ===")

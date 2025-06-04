@@ -108,6 +108,18 @@ perform_safe_upgrade() {
             return 0
         else
             log_error "安全升级脚本执行失败"
+            
+            # 如果安全升级失败，尝试使用约束冲突修复脚本
+            if [ -f "fix_constraint_conflict.py" ]; then
+                log_warning "尝试使用约束冲突修复脚本..."
+                if python fix_constraint_conflict.py; then
+                    log_success "约束冲突修复成功"
+                    return 0
+                else
+                    log_error "约束冲突修复也失败"
+                fi
+            fi
+            
             return 1
         fi
     else
