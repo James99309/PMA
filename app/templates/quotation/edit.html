@@ -430,7 +430,7 @@ input[type="number"].quantity {
                                                 <tr>
                                                     <th class="name-column">产品名称</th>
                                                     <th style="min-width: 130px;">产品型号</th>
-                                                    <th class="desc-column">产品描述</th>
+                                                    <th class="desc-column">产品规格</th>
                                                     <th style="min-width: 90px;">品牌</th>
                                                     <th style="min-width: 70px;">单位</th>
                                                     <th class="price-column">市场单价</th>
@@ -1085,6 +1085,12 @@ $(document).ready(function() {
                 success: function(response) {
                     console.log('服务器响应:', response);
                     if (response.status === 'success') {
+                        // 检查是否有警告信息
+                        if (response.warnings && response.warnings.length > 0) {
+                            var warningMessage = '报价单保存成功，但有以下提示：\n\n' + response.warnings.join('\n');
+                            alert(warningMessage);
+                        }
+                        
                         // 保存成功，跳转到报价单详情页面
                         console.log('报价单保存成功，正在跳转到详情页面...');
                         
@@ -1101,7 +1107,7 @@ $(document).ready(function() {
                             }
                         }
                         
-                        if (quotationId && quotationId !== 'edit' && quotationId !== 'create') {
+                        if (quotationId && quotationId !== "edit" && quotationId !== "create") {
                             // 跳转到报价单详情页面
                             window.location.href = '/quotation/' + quotationId + '/detail';
                         } else {

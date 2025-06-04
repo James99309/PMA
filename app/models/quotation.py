@@ -6,6 +6,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.models.project import Project
 import random
 import string
+import hashlib
+import json
 
 class QuotationApprovalStatus:
     """报价审核状态常量"""
@@ -69,6 +71,13 @@ class Quotation(db.Model):
     approved_stages = db.Column(db.JSON, default=list)  # 已审核的阶段列表
     approval_history = db.Column(db.JSON, default=list)  # 审核历史记录
     
+    # 统一确认徽章字段
+    confirmation_badge_status = db.Column(db.String(20), default='none')  # none/pending/confirmed
+    confirmation_badge_color = db.Column(db.String(20))  # 徽章颜色
+    confirmed_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # 确认人
+    confirmed_at = db.Column(db.DateTime)  # 确认时间
+    product_signature = db.Column(db.String(64))  # 产品明细数字签名
+    
     # 锁定相关字段
     is_locked = db.Column(db.Boolean, default=False)  # 是否被锁定
     lock_reason = db.Column(db.String(200))  # 锁定原因
@@ -84,6 +93,9 @@ class Quotation(db.Model):
     
     # 锁定人关联
     locker = db.relationship('User', foreign_keys=[locked_by], backref='locked_quotations')
+    
+    # 确认人关联
+    confirmer = db.relationship('User', foreign_keys=[confirmed_by], backref='confirmed_quotations')
     
     # 关联关系
     project = db.relationship('Project', back_populates='quotations')
@@ -183,15 +195,6 @@ class Quotation(db.Model):
         """获取审核状态标签"""
         return QuotationApprovalStatus.get_status_label(self.approval_status)
 
-    @property 
-    def approval_badge_html(self):
-        """获取审核状态徽章HTML"""
-        if not self.approval_status or self.approval_status == QuotationApprovalStatus.PENDING:
-            return ''
-        
-        status_info = self.approval_status_label
-        return f'<span class="badge badge-approval" style="background-color: {status_info["color"]}; color: white; font-size: 0.75rem;">{status_info["zh"]}</span>'
-
     def lock(self, reason, user_id):
         """锁定报价单"""
         self.is_locked = True
@@ -223,6 +226,82 @@ class Quotation(db.Model):
             'locked_by': self.locker.real_name or self.locker.username if self.locker else '未知',
             'locked_at': self.locked_at.strftime('%Y-%m-%d %H:%M:%S') if self.locked_at else ''
         }
+
+    def calculate_product_signature(self):
+        """计算产品明细的数字签名，用于检测关键变化（行数和MN号）"""
+        if not self.details:
+            return None
+        
+        # 构造签名内容：只关注产品数量和各产品的MN号
+        signature_data = {
+            'count': len(self.details),
+            'mn_list': []
+        }
+        
+        for detail in self.details:
+            # 只记录MN号，不关注数量变化
+            signature_data['mn_list'].append(detail.product_mn or '')
+        
+        # 按MN号排序确保一致性
+        signature_data['mn_list'].sort()
+        
+        # 生成MD5签名
+        signature_string = json.dumps(signature_data, sort_keys=True)
+        return hashlib.md5(signature_string.encode()).hexdigest()
+    
+    def update_product_signature(self):
+        """更新产品明细签名"""
+        new_signature = self.calculate_product_signature()
+        old_signature = self.product_signature
+        
+        # 如果签名发生变化且当前有确认徽章，则清除徽章
+        if old_signature and new_signature != old_signature:
+            if self.confirmation_badge_status == 'confirmed':
+                self.confirmation_badge_status = 'none'
+                self.confirmation_badge_color = None
+                self.confirmed_by = None
+                self.confirmed_at = None
+        
+        self.product_signature = new_signature
+    
+    def set_confirmation_badge(self, color, user_id):
+        """设置确认徽章"""
+        self.confirmation_badge_status = 'confirmed'
+        self.confirmation_badge_color = color
+        self.confirmed_by = user_id
+        self.confirmed_at = datetime.now()
+        # 更新签名以匹配当前产品明细
+        self.product_signature = self.calculate_product_signature()
+    
+    def clear_confirmation_badge(self):
+        """清除确认徽章"""
+        self.confirmation_badge_status = 'none'
+        self.confirmation_badge_color = None
+        self.confirmed_by = None
+        self.confirmed_at = None
+    
+    def set_pending_confirmation_badge(self):
+        """设置待确认徽章（审批后自动添加）"""
+        if self.confirmation_badge_status == 'none':
+            self.confirmation_badge_status = 'pending'
+            self.confirmation_badge_color = '#6c757d'  # 默认灰色
+            self.product_signature = self.calculate_product_signature()
+    
+    @property
+    def confirmation_badge_html(self):
+        """获取确认徽章HTML"""
+        if self.confirmation_badge_status == 'none':
+            return ''
+        
+        if self.confirmation_badge_status == 'pending':
+            return f'<span class="badge confirmation-badge" style="background-color: #6c757d; color: white; font-size: 0.75rem;" title="待确认">✓</span>'
+        elif self.confirmation_badge_status == 'confirmed':
+            color = self.confirmation_badge_color or '#28a745'
+            confirmer_name = self.confirmer.real_name if self.confirmer else '未知'
+            confirmed_time = self.confirmed_at.strftime('%Y-%m-%d %H:%M') if self.confirmed_at else ''
+            return f'<span class="badge confirmation-badge" style="background-color: {color}; color: white; font-size: 0.75rem;" title="已确认 - {confirmer_name} ({confirmed_time})">✓</span>'
+        
+        return ''
 
 # 添加SQLAlchemy事件监听器
 @event.listens_for(Quotation, 'after_insert')
@@ -264,7 +343,7 @@ def update_project_quotation_on_delete(mapper, connection, target):
             """)
             connection.execute(sql, {"project_id": target.project_id, "now": now})
     except Exception as e:
-        print(f"更新项目报价总额时发生错误: {str(e)}")
+        print(f"删除报价单后更新项目报价总额时发生错误: {str(e)}")
 
 class QuotationDetail(db.Model):
     __tablename__ = 'quotation_details'
@@ -282,10 +361,99 @@ class QuotationDetail(db.Model):
     unit_price = db.Column(db.Float)  # 单价（计算得出）
     total_price = db.Column(db.Float)  # 总价（计算得出）
     product_mn = db.Column(db.String(100))  # 产品料号
+    
+    # 产品明细确认字段 - 暂时注释掉数据库字段，使用会话存储
+    # is_confirmed = db.Column(db.Boolean, default=False)  # 是否确认
+    # confirmed_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # 确认人
+    # confirmed_at = db.Column(db.DateTime)  # 确认时间
+    
     created_at = db.Column(db.DateTime, default=datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    
+    # 确认人关联 - 暂时注释掉
+    # confirmer = db.relationship('User', foreign_keys=[confirmed_by], backref='confirmed_detail_items')
     
     def calculate_prices(self):
         """计算单价和总价"""
         self.unit_price = self.market_price * self.discount
-        self.total_price = self.unit_price * self.quantity 
+        self.total_price = self.unit_price * self.quantity
+
+# 产品明细变化监听器
+@event.listens_for(QuotationDetail, 'after_insert')
+@event.listens_for(QuotationDetail, 'after_update')
+@event.listens_for(QuotationDetail, 'after_delete')
+def update_quotation_product_signature(mapper, connection, target):
+    """产品明细变化时更新报价单的产品签名（只关注行数和MN号变化）"""
+    try:
+        # 获取报价单ID
+        quotation_id = target.quotation_id
+        if quotation_id:
+            # 计算新的签名（只关注行数和MN号）
+            result = connection.execute(text("""
+                SELECT 
+                    COUNT(*) as detail_count,
+                    COALESCE(
+                        JSON_AGG(
+                            COALESCE(product_mn, '')
+                            ORDER BY COALESCE(product_mn, '')
+                        ),
+                        '[]'::json
+                    ) as mn_list
+                FROM quotation_details 
+                WHERE quotation_id = :quotation_id
+            """), {"quotation_id": quotation_id})
+            
+            row = result.fetchone()
+            if row:
+                detail_count = row[0]
+                mn_list_json = row[1]
+                
+                # 构造签名数据（只包含行数和MN号列表）
+                signature_data = {
+                    'count': detail_count,
+                    'mn_list': mn_list_json if isinstance(mn_list_json, list) else []
+                }
+                
+                # 生成签名
+                import json
+                import hashlib
+                signature_string = json.dumps(signature_data, sort_keys=True)
+                new_signature = hashlib.md5(signature_string.encode()).hexdigest()
+                
+                # 检查当前报价单的确认徽章状态
+                quotation_result = connection.execute(text("""
+                    SELECT confirmation_badge_status, product_signature
+                    FROM quotations 
+                    WHERE id = :quotation_id
+                """), {"quotation_id": quotation_id})
+                
+                quotation_row = quotation_result.fetchone()
+                if quotation_row:
+                    current_status = quotation_row[0]
+                    old_signature = quotation_row[1]
+                    
+                    # 如果签名发生变化且当前有确认徽章，则清除徽章（静默处理）
+                    if old_signature and new_signature != old_signature and current_status == 'confirmed':
+                        connection.execute(text("""
+                            UPDATE quotations 
+                            SET 
+                                confirmation_badge_status = 'none',
+                                confirmation_badge_color = NULL,
+                                confirmed_by = NULL,
+                                confirmed_at = NULL,
+                                product_signature = :new_signature
+                            WHERE id = :quotation_id
+                        """), {"quotation_id": quotation_id, "new_signature": new_signature})
+                        
+                        # 记录日志（仅用于调试和审计）
+                        print(f"报价单 {quotation_id} 的产品明细发生关键变化（行数或MN号），已自动清除数据库确认状态")
+                    else:
+                        # 只更新签名
+                        connection.execute(text("""
+                            UPDATE quotations 
+                            SET product_signature = :new_signature
+                            WHERE id = :quotation_id
+                        """), {"quotation_id": quotation_id, "new_signature": new_signature})
+                        
+    except Exception as e:
+        print(f"更新产品签名时发生错误: {str(e)}") 

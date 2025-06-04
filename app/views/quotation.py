@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
 from app.models.quotation import Quotation, QuotationDetail
 from app.models.project import Project
 from app.models.customer import Company, Contact
@@ -23,6 +23,8 @@ from zoneinfo import ZoneInfo
 from app.utils.role_mappings import get_role_display_name
 from app.utils.solution_manager_notifications import notify_solution_managers_quotation_created, notify_solution_managers_quotation_updated
 from app.helpers.approval_helpers import get_object_approval_instance, get_current_step_info, can_user_approve
+from sqlalchemy import event
+from app.models.quotation import update_quotation_product_signature, QuotationDetail
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -675,6 +677,9 @@ def edit_quotation(id):
                 from app.utils.change_tracker import ChangeTracker
                 old_values = ChangeTracker.capture_old_values(quotation)
                 
+                # 捕获修改前的产品明细签名，用于检测变化
+                old_product_signature = quotation.calculate_product_signature()
+                
                 # 验证必填字段
                 if not request.form.get('project_id'):
                     raise ValueError('项目不能为空')
@@ -687,88 +692,122 @@ def edit_quotation(id):
                     quotation.project_stage = project.current_stage
                     quotation.project_type = project.project_type
                 
-                # 先移除旧的明细
-                for detail in quotation.details:
-                    db.session.delete(detail)
-                quotation.details.clear()
+                event.remove(QuotationDetail, 'after_delete', update_quotation_product_signature)
                 
-                # 获取表单数据
-                product_names = request.form.getlist('product_name[]')
-                product_models = request.form.getlist('product_model[]')
-                product_descs = request.form.getlist('product_spec[]')
-                brands = request.form.getlist('product_brand[]')
-                units = request.form.getlist('product_unit[]')
-                discounts = request.form.getlist('discount_rate[]')
-                market_prices = request.form.getlist('product_price[]')
-                quantities = request.form.getlist('quantity[]')
-                product_mns = request.form.getlist('product_mn[]')  # 添加MN号字段
-                
-                # 验证是否有产品明细
-                if not product_names:
-                    raise ValueError('请至少添加一个产品')
-                
-                # 验证所有列表长度是否一致
-                lists_length = [len(x) for x in [
-                    product_names, product_models, product_descs, brands,
-                    units, discounts, market_prices, quantities
-                ]]
-                if len(set(lists_length)) > 1:
-                    raise ValueError('产品数据不完整，请检查后重试')
-                
-                total_amount = 0.0
-                for i in range(len(product_names)):
-                    try:
-                        # 验证必填字段
-                        if not product_names[i].strip():
-                            raise ValueError(f'第 {i+1} 行产品名称不能为空')
-                        if not product_models[i].strip():
-                            raise ValueError(f'第 {i+1} 行产品型号不能为空')
-                        
-                        # 清理并验证数值字段
+                try:
+                    # 先移除旧的明细
+                    for detail in quotation.details:
+                        db.session.delete(detail)
+                    quotation.details.clear()
+                    
+                    # 获取表单数据
+                    product_names = request.form.getlist('product_name[]')
+                    product_models = request.form.getlist('product_model[]')
+                    product_descs = request.form.getlist('product_spec[]')
+                    brands = request.form.getlist('product_brand[]')
+                    units = request.form.getlist('product_unit[]')
+                    discounts = request.form.getlist('discount_rate[]')
+                    market_prices = request.form.getlist('product_price[]')
+                    quantities = request.form.getlist('quantity[]')
+                    product_mns = request.form.getlist('product_mn[]')  # 添加MN号字段
+                    
+                    # 验证是否有产品明细
+                    if not product_names:
+                        raise ValueError('请至少添加一个产品')
+                    
+                    # 验证所有列表长度是否一致
+                    lists_length = [len(x) for x in [
+                        product_names, product_models, product_descs, brands,
+                        units, discounts, market_prices, quantities
+                    ]]
+                    if len(set(lists_length)) > 1:
+                        raise ValueError('产品数据不完整，请检查后重试')
+                    
+                    total_amount = 0.0
+                    for i in range(len(product_names)):
                         try:
-                            market_price = float(market_prices[i].replace(',', '') if market_prices[i] else '0')
-                            discount = float(discounts[i].replace(',', '') if discounts[i] else '0')
-                            quantity = int(quantities[i].replace(',', '') if quantities[i] else '0')
+                            # 验证必填字段
+                            if not product_names[i].strip():
+                                raise ValueError(f'第 {i+1} 行产品名称不能为空')
+                            if not product_models[i].strip():
+                                raise ValueError(f'第 {i+1} 行产品型号不能为空')
                             
-                            if market_price < 0:
-                                raise ValueError(f'第 {i+1} 行市场价格不能为负数')
-                            if discount < 0:
-                                raise ValueError(f'第 {i+1} 行折扣率不能为负数')
-                            if quantity <= 0:
-                                raise ValueError(f'第 {i+1} 行数量必须大于0')
-                        except ValueError as e:
-                            if str(e).startswith('第'):
-                                raise e
-                            raise ValueError(f'第 {i+1} 行数据格式错误：{str(e)}')
+                            # 清理并验证数值字段
+                            try:
+                                market_price = float(market_prices[i].replace(',', '') if market_prices[i] else '0')
+                                discount = float(discounts[i].replace(',', '') if discounts[i] else '0')
+                                quantity = int(quantities[i].replace(',', '') if quantities[i] else '0')
+                                
+                                if market_price < 0:
+                                    raise ValueError(f'第 {i+1} 行市场价格不能为负数')
+                                if discount < 0:
+                                    raise ValueError(f'第 {i+1} 行折扣率不能为负数')
+                                if quantity <= 0:
+                                    raise ValueError(f'第 {i+1} 行数量必须大于0')
+                            except ValueError as e:
+                                if str(e).startswith('第'):
+                                    raise e
+                                raise ValueError(f'第 {i+1} 行数据格式错误：{str(e)}')
+                            
+                            # 计算价格
+                            discounted_price = market_price * (discount / 100)
+                            subtotal = discounted_price * quantity
+                            total_amount += subtotal
+                            
+                            # 创建明细记录
+                            detail = QuotationDetail(
+                                product_name=product_names[i].strip(),
+                                product_model=product_models[i].strip(),
+                                product_desc=product_descs[i].strip() if product_descs[i] else None,
+                                brand=brands[i].strip() if brands[i] else None,
+                                unit=units[i].strip() if units[i] else None,
+                                discount=discount/100,
+                                market_price=market_price,
+                                quantity=quantity,
+                                unit_price=discounted_price,
+                                total_price=subtotal,
+                                product_mn=product_mns[i] if i < len(product_mns) else ''  # 添加MN号
+                            )
+                            quotation.details.append(detail)
+                        except Exception as e:
+                            raise ValueError(f'处理第 {i+1} 行数据时出错：{str(e)}')
+                    
+                    # 更新报价单总金额
+                    quotation.amount = total_amount
+                    # 手动更新时间戳，确保updated_at字段正确
+                    quotation.updated_at = datetime.utcnow()
+                    
+                finally:
+                    # 重新注册事件监听器
+                    event.listen(QuotationDetail, 'after_insert', update_quotation_product_signature)
+                    event.listen(QuotationDetail, 'after_update', update_quotation_product_signature)
+                    event.listen(QuotationDetail, 'after_delete', update_quotation_product_signature)
+                    
+                    # 在重新注册事件监听器后立即进行签名检测和状态处理
+                    try:
+                        # 检测产品明细是否发生变化
+                        new_product_signature = quotation.calculate_product_signature()
+                        product_details_changed = old_product_signature != new_product_signature
                         
-                        # 计算价格
-                        discounted_price = market_price * (discount / 100)
-                        subtotal = discounted_price * quantity
-                        total_amount += subtotal
+                        # 如果产品明细发生关键变化，手动清除确认状态
+                        if product_details_changed and quotation.confirmation_badge_status == 'confirmed':
+                            quotation.confirmation_badge_status = 'none'
+                            quotation.confirmation_badge_color = None
+                            quotation.confirmed_by = None
+                            quotation.confirmed_at = None
+                            current_app.logger.info(f"报价单 {quotation.id} 的产品明细发生关键变化（行数或MN号），已手动清除确认状态")
                         
-                        # 创建明细记录
-                        detail = QuotationDetail(
-                            product_name=product_names[i].strip(),
-                            product_model=product_models[i].strip(),
-                            product_desc=product_descs[i].strip() if product_descs[i] else None,
-                            brand=brands[i].strip() if brands[i] else None,
-                            unit=units[i].strip() if units[i] else None,
-                            discount=discount/100,
-                            market_price=market_price,
-                            quantity=quantity,
-                            unit_price=discounted_price,
-                            total_price=subtotal,
-                            product_mn=product_mns[i] if i < len(product_mns) else ''  # 添加MN号
-                        )
-                        quotation.details.append(detail)
-                    except Exception as e:
-                        raise ValueError(f'处理第 {i+1} 行数据时出错：{str(e)}')
-                
-                # 更新报价单总金额
-                quotation.amount = total_amount
-                # 手动更新时间戳，确保updated_at字段正确
-                quotation.updated_at = datetime.utcnow()
-                db.session.commit()
+                        # 更新产品签名
+                        quotation.product_signature = new_product_signature
+                        current_app.logger.debug(f"产品签名更新: {old_product_signature} -> {new_product_signature}, 变化: {product_details_changed}")
+                        
+                        # 临时再次禁用事件监听器，避免在提交时触发
+                        event.remove(QuotationDetail, 'after_insert', update_quotation_product_signature)
+                        event.remove(QuotationDetail, 'after_update', update_quotation_product_signature)
+                        event.remove(QuotationDetail, 'after_delete', update_quotation_product_signature)
+                        
+                    except Exception as signature_error:
+                        current_app.logger.error(f"处理产品签名和确认状态时出错: {str(signature_error)}")
                 
                 # 记录变更历史
                 try:
@@ -1506,6 +1545,13 @@ def save_quotation(id):
                 'message': f'报价单已被锁定，无法编辑。锁定原因：{lock_info["reason"]}，锁定人：{lock_info["locked_by"]}'
             }), 403
         
+        # 捕获修改前的值
+        from app.utils.change_tracker import ChangeTracker
+        old_values = ChangeTracker.capture_old_values(quotation)
+        
+        # 捕获修改前的产品明细签名，用于检测变化
+        old_product_signature = quotation.calculate_product_signature()
+        
         # 使用 request.get_json() 获取JSON数据
         data = request.get_json()
         
@@ -1576,221 +1622,281 @@ def save_quotation(id):
         quotation.updated_at = datetime.utcnow()
         current_app.logger.debug(f'更新报价单总金额: {total_amount}')
         
-        # 先删除原有明细项
+        # 临时禁用事件监听器，避免删除重建过程中触发不必要的签名变化
+        event.remove(QuotationDetail, 'after_insert', update_quotation_product_signature)
+        event.remove(QuotationDetail, 'after_update', update_quotation_product_signature)
+        event.remove(QuotationDetail, 'after_delete', update_quotation_product_signature)
+        
         try:
-            old_details_count = QuotationDetail.query.filter_by(quotation_id=id).count()
-            current_app.logger.debug(f'准备删除原有明细项，数量: {old_details_count}')
-            
-            for detail in quotation.details:
-                db.session.delete(detail)
-            current_app.logger.debug('成功删除原有明细项')
-        except Exception as delete_error:
-            current_app.logger.error(f"删除原有明细项失败: {str(delete_error)}")
-            return jsonify({
-                'status': 'error',
-                'message': f'删除原有明细项失败: {str(delete_error)}'
-            }), 500
-        
-        # 添加新的明细项
-        details = data.get('details', [])
-        detail_errors = []
-        
-        if not details:
-            current_app.logger.warning("报价单没有明细项")
-            return jsonify({
-                'status': 'error',
-                'message': '报价单必须包含至少一个明细项'
-            }), 400
-        
-        if not isinstance(details, list):
-            current_app.logger.error(f'明细项不是列表格式: {type(details)}')
-            return jsonify({
-                'status': 'error',
-                'message': '明细项必须是数组格式'
-            }), 400
-        
-        current_app.logger.debug(f'开始处理 {len(details)} 个明细项')
-        
-        for index, detail in enumerate(details):
+            # 先删除原有明细项
             try:
-                current_app.logger.debug(f'处理第 {index+1} 个明细项: {detail}')
-                if not isinstance(detail, dict):
-                    error_msg = f"第 {index+1} 行数据格式错误，必须是对象格式"
+                old_details_count = QuotationDetail.query.filter_by(quotation_id=id).count()
+                current_app.logger.debug(f'准备删除原有明细项，数量: {old_details_count}')
+                
+                for detail in quotation.details:
+                    db.session.delete(detail)
+                quotation.details.clear()
+                current_app.logger.debug('成功删除原有明细项')
+            except Exception as delete_error:
+                current_app.logger.error(f"删除原有明细项失败: {str(delete_error)}")
+                return jsonify({
+                    'status': 'error',
+                    'message': f'删除原有明细项失败: {str(delete_error)}'
+                }), 500
+            
+            # 添加新的明细项
+            details = data.get('details', [])
+            detail_errors = []
+            
+            if not details:
+                current_app.logger.warning("报价单没有明细项")
+                return jsonify({
+                    'status': 'error',
+                    'message': '报价单必须包含至少一个明细项'
+                }), 400
+            
+            if not isinstance(details, list):
+                current_app.logger.error(f'明细项不是列表格式: {type(details)}')
+                return jsonify({
+                    'status': 'error',
+                    'message': '明细项必须是数组格式'
+                }), 400
+            
+            current_app.logger.debug(f'开始处理 {len(details)} 个明细项')
+            
+            for index, detail in enumerate(details):
+                try:
+                    current_app.logger.debug(f'处理第 {index+1} 个明细项: {detail}')
+                    if not isinstance(detail, dict):
+                        error_msg = f"第 {index+1} 行数据格式错误，必须是对象格式"
+                        current_app.logger.error(error_msg)
+                        detail_errors.append(error_msg)
+                        continue
+                    # 验证必填字段
+                    product_name = detail.get('product_name', '').strip()
+                    if not product_name:
+                        error_msg = f"第 {index+1} 行产品名称不能为空"
+                        current_app.logger.warning(error_msg)
+                        detail_errors.append(error_msg)
+                        continue
+                    # 安全地获取数值字段
+                    try:
+                        market_price = float(detail.get('market_price', 0))
+                        current_app.logger.debug(f'第 {index+1} 行市场价格: {market_price}')
+                    except (ValueError, TypeError) as e:
+                        market_price = 0
+                        error_msg = f"第 {index+1} 行市场价格格式无效"
+                        current_app.logger.warning(f"{error_msg}: {str(e)}")
+                        detail_errors.append(error_msg)
+                    
+                    try:
+                        discount = float(detail.get('discount_rate', 100)) / 100
+                        # 确保折扣率不小于0，不限制上限
+                        if discount < 0:
+                            error_msg = f"第 {index+1} 行折扣率不能为负数"
+                            current_app.logger.warning(error_msg)
+                            detail_errors.append(error_msg)
+                            discount = 0
+                    except (ValueError, TypeError) as e:
+                        discount = 1.0
+                        error_msg = f"第 {index+1} 行折扣率格式无效，已设为100%"
+                        current_app.logger.warning(f"{error_msg}: {str(e)}")
+                        detail_errors.append(error_msg)
+                    
+                    try:
+                        quantity = int(detail.get('quantity', 1))
+                        current_app.logger.debug(f'第 {index+1} 行数量: {quantity}')
+                        
+                        if quantity <= 0:
+                            quantity = 1
+                            error_msg = f"第 {index+1} 行数量必须大于0，已设为1"
+                            current_app.logger.warning(error_msg)
+                            detail_errors.append(error_msg)
+                    except (ValueError, TypeError) as e:
+                        quantity = 1
+                        error_msg = f"第 {index+1} 行数量格式无效，已设为1"
+                        current_app.logger.warning(f"{error_msg}: {str(e)}")
+                        detail_errors.append(error_msg)
+                    
+                    try:
+                        unit_price = float(detail.get('unit_price', 0))
+                        current_app.logger.debug(f'第 {index+1} 行单价: {unit_price}')
+                        
+                        if unit_price < 0:
+                            unit_price = 0
+                            error_msg = f"第 {index+1} 行单价不能为负数，已设为0"
+                            current_app.logger.warning(error_msg)
+                            detail_errors.append(error_msg)
+                    except (ValueError, TypeError) as e:
+                        unit_price = 0
+                        error_msg = f"第 {index+1} 行单价格式无效，已设为0"
+                        current_app.logger.warning(f"{error_msg}: {str(e)}")
+                        detail_errors.append(error_msg)
+                    
+                    try:
+                        total_price = float(detail.get('total_price', 0))
+                        current_app.logger.debug(f'第 {index+1} 行小计: {total_price}')
+                        
+                        if total_price < 0:
+                            total_price = 0
+                            error_msg = f"第 {index+1} 行小计不能为负数，已设为0"
+                            current_app.logger.warning(error_msg)
+                            detail_errors.append(error_msg)
+                    except (ValueError, TypeError) as e:
+                        # 如果小计无效，从单价和数量重新计算
+                        total_price = unit_price * quantity
+                        error_msg = f"第 {index+1} 行小计格式无效，已重新计算为: {total_price}"
+                        current_app.logger.warning(f"{error_msg}: {str(e)}")
+                        detail_errors.append(error_msg)
+                    
+                    # 创建新明细
+                    new_detail = QuotationDetail(
+                        quotation_id=id,
+                        product_name=product_name,
+                        product_model=detail.get('product_model', ''),
+                        product_desc=detail.get('product_desc', ''),
+                        brand=detail.get('brand', ''),
+                        unit=detail.get('unit', ''),
+                        quantity=quantity,
+                        discount=discount,
+                        market_price=market_price,
+                        unit_price=unit_price,
+                        total_price=total_price,
+                        product_mn=detail.get('product_mn', '')
+                    )
+                    current_app.logger.debug(f'创建第 {index+1} 行明细项')
+                    quotation.details.append(new_detail)
+                except Exception as item_error:
+                    error_msg = f"处理第 {index+1} 行明细时出错: {str(item_error)}"
                     current_app.logger.error(error_msg)
                     detail_errors.append(error_msg)
-                    continue
-                # 验证必填字段
-                product_name = detail.get('product_name', '').strip()
-                if not product_name:
-                    error_msg = f"第 {index+1} 行产品名称不能为空"
-                    current_app.logger.warning(error_msg)
-                    detail_errors.append(error_msg)
-                    continue
-                # 安全地获取数值字段
-                try:
-                    market_price = float(detail.get('market_price', 0))
-                    current_app.logger.debug(f'第 {index+1} 行市场价格: {market_price}')
-                except (ValueError, TypeError) as e:
-                    market_price = 0
-                    error_msg = f"第 {index+1} 行市场价格格式无效"
-                    current_app.logger.warning(f"{error_msg}: {str(e)}")
-                    detail_errors.append(error_msg)
-                
-                try:
-                    discount = float(detail.get('discount_rate', 100)) / 100
-                    # 确保折扣率不小于0，不限制上限
-                    if discount < 0:
-                        error_msg = f"第 {index+1} 行折扣率不能为负数"
-                        current_app.logger.warning(error_msg)
-                        detail_errors.append(error_msg)
-                        discount = 0
-                except (ValueError, TypeError) as e:
-                    discount = 1.0
-                    error_msg = f"第 {index+1} 行折扣率格式无效，已设为100%"
-                    current_app.logger.warning(f"{error_msg}: {str(e)}")
-                    detail_errors.append(error_msg)
-                
-                try:
-                    quantity = int(detail.get('quantity', 1))
-                    current_app.logger.debug(f'第 {index+1} 行数量: {quantity}')
-                    
-                    if quantity <= 0:
-                        quantity = 1
-                        error_msg = f"第 {index+1} 行数量必须大于0，已设为1"
-                        current_app.logger.warning(error_msg)
-                        detail_errors.append(error_msg)
-                except (ValueError, TypeError) as e:
-                    quantity = 1
-                    error_msg = f"第 {index+1} 行数量格式无效，已设为1"
-                    current_app.logger.warning(f"{error_msg}: {str(e)}")
-                    detail_errors.append(error_msg)
-                
-                try:
-                    unit_price = float(detail.get('unit_price', 0))
-                    current_app.logger.debug(f'第 {index+1} 行单价: {unit_price}')
-                    
-                    if unit_price < 0:
-                        unit_price = 0
-                        error_msg = f"第 {index+1} 行单价不能为负数，已设为0"
-                        current_app.logger.warning(error_msg)
-                        detail_errors.append(error_msg)
-                except (ValueError, TypeError) as e:
-                    unit_price = 0
-                    error_msg = f"第 {index+1} 行单价格式无效，已设为0"
-                    current_app.logger.warning(f"{error_msg}: {str(e)}")
-                    detail_errors.append(error_msg)
-                
-                try:
-                    total_price = float(detail.get('total_price', 0))
-                    current_app.logger.debug(f'第 {index+1} 行小计: {total_price}')
-                    
-                    if total_price < 0:
-                        total_price = 0
-                        error_msg = f"第 {index+1} 行小计不能为负数，已设为0"
-                        current_app.logger.warning(error_msg)
-                        detail_errors.append(error_msg)
-                except (ValueError, TypeError) as e:
-                    # 如果小计无效，从单价和数量重新计算
-                    total_price = unit_price * quantity
-                    error_msg = f"第 {index+1} 行小计格式无效，已重新计算为: {total_price}"
-                    current_app.logger.warning(f"{error_msg}: {str(e)}")
-                    detail_errors.append(error_msg)
-                
-                # 创建新明细
-                new_detail = QuotationDetail(
-                    quotation_id=id,
-                    product_name=product_name,
-                    product_model=detail.get('product_model', ''),
-                    product_desc=detail.get('product_desc', ''),
-                    brand=detail.get('brand', ''),
-                    unit=detail.get('unit', ''),
-                    quantity=quantity,
-                    discount=discount,
-                    market_price=market_price,
-                    unit_price=unit_price,
-                    total_price=total_price,
-                    product_mn=detail.get('product_mn', '')
-                )
-                current_app.logger.debug(f'创建第 {index+1} 行明细项')
-                quotation.details.append(new_detail)
-            except Exception as item_error:
-                error_msg = f"处理第 {index+1} 行明细时出错: {str(item_error)}"
-                current_app.logger.error(error_msg)
-                detail_errors.append(error_msg)
-        
-        try:
-            current_app.logger.info('准备提交所有更改到数据库...')
-            db.session.commit()
-            current_app.logger.info('数据库更改提交成功')
             
-            # 异步触发通知，避免阻塞保存操作
+            # 在提交前进行签名检测和状态处理
             try:
-                from app.utils.notification_helpers import trigger_event_notification
-                from flask import url_for
-                import threading
-                from app.utils.solution_manager_notifications import notify_solution_managers_quotation_created
+                # 检测产品明细是否发生变化
+                new_product_signature = quotation.calculate_product_signature()
+                product_details_changed = old_product_signature != new_product_signature
                 
-                # 在线程外获取app实例和必要数据
-                app = current_app._get_current_object()
-                quotation_owner_id = quotation.owner_id
-                quotation_id = quotation.id
+                # 如果产品明细发生关键变化，手动清除确认状态
+                if product_details_changed and quotation.confirmation_badge_status == 'confirmed':
+                    quotation.confirmation_badge_status = 'none'
+                    quotation.confirmation_badge_color = None
+                    quotation.confirmed_by = None
+                    quotation.confirmed_at = None
+                    current_app.logger.info(f"报价单 {quotation.id} 的产品明细发生关键变化（行数或MN号），已手动清除确认状态")
                 
-                def send_notifications_async():
-                    """异步发送通知"""
-                    with app.app_context():
-                        try:
-                            # 重新查询quotation对象以获取最新状态
-                            fresh_quotation = Quotation.query.get(quotation_id)
-                            if fresh_quotation:
-                                # 构建URL而不使用url_for
-                                quotation_url = f"http://localhost:10000/quotation/{quotation_id}/detail"
-                                
-                                # 触发报价单更新通知（而不是创建通知）
-                                trigger_event_notification(
-                                    event_key='quotation_updated',
-                                    target_user_id=quotation_owner_id,
-                                    context={
-                                        'quotation': fresh_quotation,
-                                        'update_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                                        'quotation_url': quotation_url,
-                                        'current_year': datetime.now().year
-                                    }
-                                )
-                                app.logger.debug('异步事件通知已触发')
-                        except Exception as notify_err:
-                            app.logger.warning(f"异步触发通知失败: {str(notify_err)}")
+                # 更新产品签名
+                quotation.product_signature = new_product_signature
+                current_app.logger.debug(f"产品签名更新: {old_product_signature} -> {new_product_signature}, 变化: {product_details_changed}")
                 
-                # 启动异步通知线程
-                threading.Thread(target=send_notifications_async, daemon=True).start()
-                current_app.logger.debug('异步通知线程已启动')
-                
-            except Exception as notify_err:
-                current_app.logger.warning(f"启动异步通知失败: {str(notify_err)}")
+            except Exception as signature_error:
+                current_app.logger.error(f"处理产品签名和确认状态时出错: {str(signature_error)}")
             
-            # 快速返回成功响应
-            if detail_errors:
-                current_app.logger.warning(f"报价单保存成功，但有以下警告: {', '.join(detail_errors)}")
+            # 提交更改（在事件监听器被禁用的情况下）
+            try:
+                current_app.logger.info('准备提交所有更改到数据库...')
+                db.session.commit()
+                current_app.logger.info('数据库更改提交成功')
+            except Exception as commit_error:
+                db.session.rollback()
+                error_type = type(commit_error).__name__
+                current_app.logger.error(f"提交更改时出错: {error_type} - {str(commit_error)}")
                 return jsonify({
-                    'status': 'success',
-                    'message': '报价单更新成功',
-                    'warnings': detail_errors,
-                    'quotation_id': id
-                }), 200
+                    'status': 'error',
+                    'message': f'保存失败: {error_type} - {str(commit_error)}'
+                }), 500
+                    
+        finally:
+            # 确保事件监听器在任何情况下都能恢复
+            try:
+                event.listen(QuotationDetail, 'after_insert', update_quotation_product_signature)
+                event.listen(QuotationDetail, 'after_update', update_quotation_product_signature)
+                event.listen(QuotationDetail, 'after_delete', update_quotation_product_signature)
+                current_app.logger.debug("事件监听器已恢复")
+            except Exception as restore_error:
+                current_app.logger.error(f"恢复事件监听器时出错: {str(restore_error)}")
+        
+        # 记录变更历史
+        try:
+            new_values = ChangeTracker.get_new_values(quotation, old_values.keys())
+            ChangeTracker.log_update(quotation, old_values, new_values)
+        except Exception as track_err:
+            current_app.logger.warning(f"记录报价单变更历史失败: {str(track_err)}")
+        
+        # 强制刷新项目金额
+        try:
+            project = Project.query.get(quotation.project_id)
+            if project:
+                total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
+                project.quotation_customer = total
+            db.session.commit()
+        except Exception as project_update_error:
+            current_app.logger.warning(f"更新项目金额失败: {str(project_update_error)}")
+        
+        # 异步触发通知，避免阻塞保存操作
+        try:
+            from app.utils.notification_helpers import trigger_event_notification
+            from flask import url_for
+            import threading
+            from app.utils.solution_manager_notifications import notify_solution_managers_quotation_created
             
-            current_app.logger.info('报价单更新成功，无警告信息')
-            return jsonify({
+            # 在线程外获取app实例和必要数据
+            app = current_app._get_current_object()
+            quotation_owner_id = quotation.owner_id
+            quotation_id = quotation.id
+            
+            def send_notifications_async():
+                """异步发送通知"""
+                with app.app_context():
+                    try:
+                        # 重新查询quotation对象以获取最新状态
+                        fresh_quotation = Quotation.query.get(quotation_id)
+                        if fresh_quotation:
+                            # 构建URL而不使用url_for
+                            quotation_url = f"http://localhost:10000/quotation/{quotation_id}/detail"
+                            
+                            # 触发报价单更新通知（而不是创建通知）
+                            trigger_event_notification(
+                                event_key='quotation_updated',
+                                target_user_id=quotation_owner_id,
+                                context={
+                                    'quotation': fresh_quotation,
+                                    'update_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                    'quotation_url': quotation_url,
+                                    'current_year': datetime.now().year
+                                }
+                            )
+                            app.logger.debug('异步事件通知已触发')
+                    except Exception as notify_err:
+                        app.logger.warning(f"异步触发通知失败: {str(notify_err)}")
+            
+            # 启动异步通知线程
+            threading.Thread(target=send_notifications_async, daemon=True).start()
+            current_app.logger.debug('异步通知线程已启动')
+            
+        except Exception as notify_err:
+            current_app.logger.warning(f"启动异步通知失败: {str(notify_err)}")
+        
+        # 快速返回成功响应
+        if detail_errors:
+            current_app.logger.warning(f"报价单保存成功，但有以下警告: {', '.join(detail_errors)}")
+            response_data = {
                 'status': 'success',
                 'message': '报价单更新成功',
+                'warnings': detail_errors,
                 'quotation_id': id
-            })
-        except Exception as commit_error:
-            db.session.rollback()
-            error_type = type(commit_error).__name__
-            current_app.logger.error(f"提交更改时出错: {error_type} - {str(commit_error)}")
-            return jsonify({
-                'status': 'error',
-                'message': f'保存失败: {error_type} - {str(commit_error)}'
-            }), 500
+            }
+            
+            return jsonify(response_data), 200
+        
+        current_app.logger.info('报价单更新成功，无警告信息')
+        response_data = {
+            'status': 'success',
+            'message': '报价单更新成功',
+            'quotation_id': id
+        }
+        
+        return jsonify(response_data)
                 
     except Exception as e:
         error_type = type(e).__name__
@@ -1883,3 +1989,155 @@ def can_view_quotation(user, quotation):
 #         can_view_project=can_view_project,
 #         can_view_quotation=can_view_quotation
 #     )
+
+@quotation.route('/quotation_detail/<int:detail_id>/toggle_confirmation', methods=['POST'])
+@login_required
+def toggle_detail_confirmation(detail_id):
+    """切换产品明细的确认状态 - 只有解决方案经理和admin可以操作"""
+    try:
+        # 检查权限
+        if current_user.role not in ['solution_manager', 'admin']:
+            return jsonify({
+                'success': False,
+                'message': '权限不足，只有解决方案经理和管理员可以操作确认状态'
+            }), 403
+        
+        # 查找产品明细
+        detail = QuotationDetail.query.get_or_404(detail_id)
+        
+        # 检查报价单是否可编辑（锁定状态检查）
+        if detail.quotation.is_locked:
+            return jsonify({
+                'success': False,
+                'message': '报价单已被锁定，无法修改确认状态'
+            }), 400
+        
+        # 暂时使用会话存储确认状态，避免数据库字段依赖
+        session_key = f'detail_confirmation_{detail_id}'
+        current_status = session.get(session_key, False)
+        
+        # 切换确认状态
+        if current_status:
+            # 取消确认
+            session[session_key] = False
+            action = 'unconfirmed'
+            message = '已取消确认'
+        else:
+            # 确认
+            session[session_key] = True
+            action = 'confirmed'
+            message = '已确认'
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'action': action,
+            'is_confirmed': session[session_key],
+            'confirmed_by': current_user.real_name or current_user.username,
+            'confirmed_at': datetime.now().strftime('%Y-%m-%d %H:%M')
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'操作失败：{str(e)}'
+        }), 500
+
+@quotation.route('/quotation/<int:quotation_id>/toggle_product_detail_confirmation', methods=['POST'])
+@login_required
+def toggle_product_detail_confirmation(quotation_id):
+    """切换报价单产品明细的整体确认状态 - 只有解决方案经理和admin可以操作"""
+    try:
+        # 检查权限
+        if current_user.role not in ['solution_manager', 'admin']:
+            return jsonify({
+                'success': False,
+                'message': '权限不足，只有解决方案经理和管理员可以操作确认状态'
+            }), 403
+        
+        # 查找报价单
+        quotation = Quotation.query.get_or_404(quotation_id)
+        
+        # 检查报价单是否可编辑（锁定状态检查）
+        if quotation.is_locked:
+            return jsonify({
+                'success': False,
+                'message': '报价单已被锁定，无法修改确认状态'
+            }), 400
+        
+        # 使用数据库确认徽章字段而不是会话存储
+        current_status = quotation.confirmation_badge_status == 'confirmed'
+        
+        # 切换确认状态
+        if current_status:
+            # 取消确认
+            quotation.clear_confirmation_badge()
+            action = 'unconfirmed'
+            message = '已取消产品明细确认'
+        else:
+            # 确认 - 使用绿色徽章
+            quotation.set_confirmation_badge('#28a745', current_user.id)
+            action = 'confirmed'
+            message = '已确认产品明细'
+        
+        # 保存到数据库
+        db.session.commit()
+        
+        # 记录确认信息
+        confirmed_by = current_user.real_name or current_user.username
+        confirmed_at = quotation.confirmed_at.strftime('%Y-%m-%d %H:%M') if quotation.confirmed_at else None
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'action': action,
+            'is_confirmed': quotation.confirmation_badge_status == 'confirmed',
+            'confirmed_by': confirmed_by if quotation.confirmation_badge_status == 'confirmed' else None,
+            'confirmed_at': confirmed_at if quotation.confirmation_badge_status == 'confirmed' else None
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'message': f'操作失败：{str(e)}'
+        }), 500
+
+@quotation.route('/quotation/<int:quotation_id>/product_detail_confirmation_status', methods=['GET'])
+@login_required
+def get_product_detail_confirmation_status(quotation_id):
+    """获取报价单产品明细的确认状态"""
+    try:
+        # 查找报价单
+        quotation = Quotation.query.get_or_404(quotation_id)
+        
+        # 检查查看权限
+        if not can_view_quotation(current_user, quotation):
+            return jsonify({
+                'success': False,
+                'message': '权限不足，无法查看该报价单'
+            }), 403
+        
+        # 从数据库获取确认状态
+        is_confirmed = quotation.confirmation_badge_status == 'confirmed'
+        
+        # 获取确认信息
+        confirmed_by = None
+        confirmed_at = None
+        
+        if is_confirmed and quotation.confirmer:
+            confirmed_by = quotation.confirmer.real_name or quotation.confirmer.username
+            confirmed_at = quotation.confirmed_at.strftime('%Y-%m-%d %H:%M') if quotation.confirmed_at else None
+        
+        return jsonify({
+            'success': True,
+            'is_confirmed': is_confirmed,
+            'confirmed_by': confirmed_by,
+            'confirmed_at': confirmed_at
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'获取状态失败：{str(e)}'
+        }), 500

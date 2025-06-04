@@ -803,6 +803,9 @@ def approve_quotation(quotation_id):
                 'timestamp': datetime.now().isoformat()
             })
             
+            # 添加待确认徽章（新增逻辑）
+            quotation.set_pending_confirmation_badge()
+            
             message = f'报价单已通过 {QuotationApprovalStatus.APPROVAL_STATUS_LABELS.get(target_approval_status, {}).get("zh", target_approval_status)} 审核'
             
         else:  # action == 'reject'
@@ -830,8 +833,7 @@ def approve_quotation(quotation_id):
         return jsonify({
             'success': True,
             'message': message,
-            'approval_status': quotation.approval_status,
-            'badge_html': quotation.approval_badge_html
+            'approval_status': quotation.approval_status
         })
         
     except Exception as e:
@@ -880,8 +882,7 @@ def get_quotation_approval_status(quotation_id):
             'project_stage': project_stage,
             'target_approval_status': target_approval_status,
             'can_approve_current_stage': can_approve_current_stage,
-            'can_user_approve': can_user_approve,
-            'badge_html': quotation.approval_badge_html
+            'can_user_approve': can_user_approve
         })
         
     except Exception as e:

@@ -1,11 +1,168 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_quotation_number, render_currency, render_project_stage, render_button, render_confirm_cancel, render_approval_badge %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_quotation_number, render_currency, render_project_stage, render_button, render_confirm_cancel %}
 {% from 'macros/ui_modals.html' import render_change_owner_modal %}
 {% from 'macros/approval_macros.html' import render_start_approval_button, render_approval_section with context %}
 
 {% block head %}
 <!-- 引入审批时间线样式 -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
+<style>
+/* 产品明细表格样式 */
+.product-details-table {
+    min-width: 1200px; /* 设置最小宽度确保横向滚动 */
+}
+
+.product-details-table th,
+.product-details-table td {
+    white-space: nowrap;
+    padding: 8px 12px;
+    vertical-align: middle;
+    border: 1px solid #dee2e6;
+}
+
+/* 设置各列的固定宽度 */
+.product-details-table th:nth-child(1), /* 序号 */
+.product-details-table td:nth-child(1) {
+    width: 60px;
+    min-width: 60px;
+    text-align: center;
+}
+
+.product-details-table th:nth-child(2), /* 产品名称 */
+.product-details-table td:nth-child(2) {
+    width: 200px;
+    min-width: 200px;
+}
+
+.product-details-table th:nth-child(3), /* 产品型号 */
+.product-details-table td:nth-child(3) {
+    width: 150px;
+    min-width: 150px;
+}
+
+.product-details-table th:nth-child(4), /* 产品规格 */
+.product-details-table td:nth-child(4) {
+    width: 200px;
+    min-width: 200px;
+}
+
+.product-details-table th:nth-child(5), /* 品牌 */
+.product-details-table td:nth-child(5) {
+    width: 120px;
+    min-width: 120px;
+}
+
+/* 基础列样式 - 在JavaScript中动态调整 */
+.product-details-table th,
+.product-details-table td {
+    text-align: left;
+}
+
+.product-details-table .text-right {
+    text-align: right;
+}
+
+.product-details-table .text-center {
+    text-align: center;
+}
+
+/* 规格字段文本省略样式 */
+.spec-text {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: inline-block;
+    cursor: help;
+}
+
+/* 表格容器样式 */
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* 表格头部样式 */
+.product-details-table thead th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #495057;
+    border-bottom: 2px solid #dee2e6;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+/* 总计行样式 */
+.product-details-table tfoot td {
+    font-weight: bold;
+    background-color: #f8f9fa;
+}
+
+/* 产品明细确认徽章样式 */
+.product-detail-confirmation-badge {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid #28a745;
+    background-color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 16px;
+    color: #28a745;
+    user-select: none;
+    margin-left: 12px;
+    position: relative;
+}
+
+/* 未确认状态显示问号 */
+.product-detail-confirmation-badge::before {
+    content: '?';
+    font-weight: bold;
+}
+
+.product-detail-confirmation-badge.confirmed {
+    background-color: #28a745;
+    color: #fff;
+}
+
+.product-detail-confirmation-badge.confirmed::before {
+    content: '✓';
+    font-weight: bold;
+}
+
+.product-detail-confirmation-badge:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+}
+
+.product-detail-confirmation-badge.disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+    border-color: #6c757d;
+    color: #6c757d;
+}
+
+.product-detail-confirmation-badge.disabled:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+/* 确认状态指示器 */
+.confirmation-status {
+    font-size: 12px;
+    color: #6c757d;
+    margin-left: 8px;
+    font-weight: normal;
+}
+
+.confirmation-status.confirmed {
+    color: #28a745;
+}
+</style>
 {% endblock %}
 
 {% block content %}
@@ -30,32 +187,24 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <div class="d-flex align-items-center">
-                                <h5 class="mb-0">{{ render_quotation_number(quotation.quotation_number, size="large") }}</h5>
-                            </div>
-                            <div class="text-muted fs-6 mt-1 d-flex align-items-center">
-                                <span>{{ quotation.project.project_name }} 报价单</span>
-                                {% if quotation.approval_status and quotation.approval_status != 'pending' %}
-                                    <span class="ms-2">{{ render_approval_badge(quotation.approval_status) }}</span>
-                                {% endif %}
+                                <h5 class="mb-0">{{ quotation.project.project_name }} 报价单</h5>
+                                <div class="ms-3">
+                                    {{ render_quotation_number(quotation.quotation_number, size="large") }}
+                                    {% if quotation.confirmation_badge_html %}
+                                        <span class="ms-2">{{ quotation.confirmation_badge_html|safe }}</span>
+                                    {% endif %}
+                                </div>
                             </div>
                         </div>
-                        <div>
-                            {% if quotation.project and quotation.project.current_stage == 'signed' %}
-                                {# 签约阶段不显示编辑、删除、复制按钮 #}
-                            {% else %}
-                                <!-- 编辑、删除、复制按钮原位保留，仅在非签约阶段显示 -->
-                                {% if can_edit_data(quotation, current_user) %}
-                                    {{ render_button('编辑', url_for('quotation.edit_quotation', id=quotation.id), color='primary', size='sm', extra_class='me-2') }}
-                                {% endif %}
-                                {% if can_delete_quotation(current_user, quotation) %}
-                                    <form action="{{ url_for('quotation.delete_quotation', id=quotation.id) }}" method="post" style="display:inline;" onsubmit="return confirm('确定要删除此报价单吗？此操作不可恢复。');">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                        {{ render_button('删除', None, color='danger', type='submit', size='sm', extra_class='me-2') }}
-                                    </form>
-                                {% endif %}
-                                {% if can_view_quotation(current_user, quotation) %}
-                                    {{ render_button('复制', url_for('quotation.copy_quotation', id=quotation.id), color='secondary', size='sm') }}
-                                {% endif %}
+                        <div class="d-flex gap-2">
+                            {% if has_permission('quotation', 'edit') %}
+                                {{ render_button('编辑', href=url_for('quotation.edit_quotation', id=quotation.id), color='warning', icon='fas fa-edit', size='sm') }}
+                            {% endif %}
+                            {% if has_permission('quotation', 'edit') %}
+                                {{ render_button('复制', color='info', icon='fas fa-copy', size='sm', type='button', attrs='onclick="copyQuotation(' ~ quotation.id ~ ')"') }}
+                            {% endif %}
+                            {% if has_permission('quotation', 'delete') %}
+                                {{ render_button('删除', color='danger', icon='fas fa-trash', size='sm', type='button', attrs='onclick="deleteQuotation(' ~ quotation.id ~ ')"') }}
                             {% endif %}
                         </div>
                     </div>
@@ -66,13 +215,7 @@
                         <div class="col-md-6">
                             <table class="table table-bordered">
                                 <tr>
-                                    <th class="bg-light" style="width: 30%">报价单编号</th>
-                                    <td>
-                                        {{ render_quotation_number(quotation.quotation_number) }}
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <th class="bg-light">关联项目</th>
+                                    <th class="bg-light" style="width: 30%">关联项目</th>
                                     <td>{{ quotation.project.project_name }}</td>
                                 </tr>
                                 <tr>
@@ -84,70 +227,32 @@
                                     <td>{% if quotation.project.project_type %}{{ quotation.project.project_type|project_type_label('zh') }}{% else %}无{% endif %}</td>
                                 </tr>
                                 <tr>
-                                    <th class="bg-light">报价总额</th>
-                                    <td class="fw-bold">{{ render_currency(quotation.amount) }}</td>
+                                    <th class="bg-light">联系人</th>
+                                    <td>{{ quotation.contact.name if quotation.contact else '无' }}</td>
                                 </tr>
-                                <tr>
-                                    <th class="bg-light">汇总折扣率</th>
-                                    <td class="fw-bold">
-                                        {% set total_market_value = 0 %}
-                                        {% set total_discounted_value = 0 %}
-                                        {% for detail in quotation.details %}
-                                            {% set total_market_value = total_market_value + (detail.market_price * detail.quantity) %}
-                                            {% set total_discounted_value = total_discounted_value + detail.total_price %}
-                                        {% endfor %}
-                                        {% if total_market_value > 0 %}
-                                            {% set overall_discount_rate = (total_discounted_value / total_market_value * 100) %}
-                                            {{ "%.1f"|format(overall_discount_rate) }}%
-                                        {% else %}
-                                            100.0%
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% if quotation.is_locked %}
-                                <tr>
-                                    <th class="bg-light">锁定状态</th>
-                                    <td>
-                                        <span class="badge bg-warning text-dark">
-                                            <i class="fas fa-lock"></i> 已锁定
-                                        </span>
-                                        <br>
-                                        <small class="text-muted">
-                                            锁定原因：{{ quotation.lock_reason }}<br>
-                                            锁定人：{{ quotation.locker.real_name or quotation.locker.username if quotation.locker else '未知' }}<br>
-                                            锁定时间：{{ quotation.locked_at.strftime('%Y-%m-%d %H:%M:%S') if quotation.locked_at else '未知' }}
-                                        </small>
-                                    </td>
-                                </tr>
-                                {% endif %}
                             </table>
                         </div>
                         <div class="col-md-6">
                             <table class="table table-bordered">
                                 <tr>
-                                    <th class="bg-light" style="width: 30%">创建时间</th>
-                                    <td>{{ render_datetime(quotation.created_at) }}</td>
+                                    <th class="bg-light" style="width: 30%">报价总额</th>
+                                    <td>{{ render_currency(quotation.amount) }}</td>
                                 </tr>
                                 <tr>
-                                    <th class="bg-light">最后更新</th>
-                                    <td>{{ render_datetime(quotation.updated_at) }}</td>
+                                    <th class="bg-light">负责人</th>
+                                    <td>{{ render_owner(quotation.owner) }}</td>
                                 </tr>
                                 <tr>
-                                    <th class="bg-light">所有者</th>
-                                    <td>
-                                        {{ render_owner(quotation.owner) }}
-                                        {% if has_change_owner_permission %}
-                                            <button class="btn btn-link btn-sm p-0 ms-2" data-bs-toggle="modal" data-bs-target="#changeOwnerModal">修改</button>
-                                        {% endif %}
-                                    </td>
+                                    <th class="bg-light">创建时间</th>
+                                    <td>{{ quotation.formatted_created_at }}</td>
                                 </tr>
                                 <tr>
-                                    <th class="bg-light">直接用户</th>
-                                    <td>{{ quotation.project.end_user or '未设置' }}</td>
+                                    <th class="bg-light">更新时间</th>
+                                    <td>{{ quotation.formatted_updated_at }}</td>
                                 </tr>
                                 <tr>
-                                    <th class="bg-light">经销商</th>
-                                    <td>{{ quotation.project.dealer or '未设置' }}</td>
+                                    <th class="bg-light">锁定状态</th>
+                                    <td>{{ quotation.lock_status_display }}</td>
                                 </tr>
                             </table>
                         </div>
@@ -156,63 +261,90 @@
             </div>
         </div>
     </div>
-    
+
     <!-- 产品明细卡片 -->
     <div class="row mb-3">
         <div class="col-12">
             <div class="card">
                 <div class="card-header">
-                    <h5 class="mb-0">产品明细</h5>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <h6 class="mb-0">产品明细</h6>
+                            <!-- 产品明细确认徽章 -->
+                            <span class="product-detail-confirmation-badge {% if current_user.role not in ['solution_manager', 'admin'] %}disabled{% endif %}" 
+                                  id="product-detail-confirmation-badge"
+                                  data-quotation-id="{{ quotation.id }}" 
+                                  data-confirmed="false"
+                                  title="{% if current_user.role in ['solution_manager', 'admin'] %}点击确认产品明细{% else %}仅解决方案经理和管理员可以确认{% endif %}">
+                            </span>
+                            <span class="confirmation-status" id="confirmation-status">
+                                未确认
+                            </span>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-striped table-hover" style="font-size: 0.875rem;">
-                            <thead class="bg-light">
+                        <table class="table table-striped table-hover product-details-table">
+                            <thead>
                                 <tr>
-                                    <th class="text-start">#</th>
-                                    <th class="text-start">产品名称</th>
-                                    <th class="text-start">产品型号</th>
-                                    <th class="text-start">品牌</th>
-                                    <th class="text-start">单位</th>
-                                    <th class="text-end">市场单价</th>
-                                    <th class="text-end">折扣率(%)</th>
-                                    {% if not current_user.role in ['product_manager', 'product'] %}
-                                    <th class="text-end">单价</th>
+                                    <th>序号</th>
+                                    <th>产品名称</th>
+                                    <th>产品型号</th>
+                                    <th>产品规格</th>
+                                    <th>品牌</th>
+                                    {% if current_user.role not in ['product_manager', 'product'] %}
+                                    <th class="text-right">市场价</th>
+                                    <th class="text-center">折扣率</th>
                                     {% endif %}
-                                    <th class="text-end">数量</th>
-                                    {% if not current_user.role in ['product_manager', 'product'] %}
-                                    <th class="text-end">小计</th>
-                                    {% endif %}
-                                    <th class="text-start">MN号</th>
+                                    <th class="text-right">单价</th>
+                                    <th class="text-center">数量</th>
+                                    <th class="text-center">单位</th>
+                                    <th class="text-right">总价</th>
+                                    <th>产品料号</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for detail in quotation.details %}
                                 <tr>
-                                    <td>{{ loop.index }}</td>
-                                    <td>{{ detail.product_name }}</td>
-                                    <td>{{ detail.product_model }}</td>
-                                    <td>{{ detail.brand }}</td>
-                                    <td>{{ detail.unit }}</td>
-                                    <td class="text-end">{{ render_currency(detail.market_price) }}</td>
-                                    <td class="text-end">{{ "%.1f"|format(detail.discount * 100) }}</td>
-                                    {% if not current_user.role in ['product_manager', 'product'] %}
-                                    <td class="text-end">{{ render_currency(detail.unit_price) }}</td>
+                                    <td class="text-center">{{ loop.index }}</td>
+                                    <td>{{ detail.product_name or '-' }}</td>
+                                    <td>{{ detail.product_model or '-' }}</td>
+                                    <td>
+                                        {% if detail.product_desc and detail.product_desc|length > 30 %}
+                                            <span class="spec-text" title="{{ detail.product_desc }}">{{ detail.product_desc[:30] }}...</span>
+                                        {% else %}
+                                            {{ detail.product_desc or '-' }}
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ detail.brand or '-' }}</td>
+                                    {% if current_user.role not in ['product_manager', 'product'] %}
+                                    <td class="text-right">{{ render_currency(detail.market_price) if detail.market_price else '-' }}</td>
+                                    <td class="text-center">{{ '%.1f%%'|format((detail.discount * 100) if detail.discount else 100) }}</td>
                                     {% endif %}
-                                    <td class="text-end">{{ detail.quantity }}</td>
-                                    {% if not current_user.role in ['product_manager', 'product'] %}
-                                    <td class="text-end fw-bold">{{ render_currency(detail.total_price) }}</td>
-                                    {% endif %}
-                                    <td>{{ detail.product_mn }}</td>
+                                    <td class="text-right">{{ render_currency(detail.unit_price) if detail.unit_price else '-' }}</td>
+                                    <td class="text-center">{{ detail.quantity or 0 }}</td>
+                                    <td class="text-center">{{ detail.unit or '-' }}</td>
+                                    <td class="text-right">{{ render_currency(detail.total_price) if detail.total_price else '-' }}</td>
+                                    <td>{{ detail.product_mn or '-' }}</td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="{% if current_user.role in ['product_manager', 'product'] %}10{% else %}12{% endif %}" class="text-center text-muted">
+                                        暂无产品明细
+                                        {% if has_permission('quotation', 'edit') and quotation.is_editable %}
+                                            <br><a href="{{ url_for('quotation.edit_quotation', id=quotation.id) }}" class="btn btn-link btn-sm">添加产品明细</a>
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                             <tfoot>
                                 <tr class="bg-light">
                                     {% if current_user.role in ['product_manager', 'product'] %}
-                                    <td colspan="8" class="text-end fw-bold">总计金额：</td>
+                                    <td colspan="11" class="text-end fw-bold">总计金额：</td>
                                     {% else %}
-                                    <td colspan="10" class="text-end fw-bold">总计金额：</td>
+                                    <td colspan="11" class="text-end fw-bold">总计金额：</td>
                                     {% endif %}
                                     <td class="text-end fw-bold">{{ render_currency(quotation.amount) }}</td>
                                 </tr>
@@ -232,14 +364,60 @@
 <!-- 添加Font Awesome图标库 -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 
-{% if has_change_owner_permission %}
-{{ render_change_owner_modal('changeOwnerModal', url_for('quotation.change_quotation_owner', id=quotation.id), all_users, quotation.owner_id, user_tree_data) }}
-{% endif %}
-
+<!-- 用户配置数据 -->
+<div id="user-config" 
+     data-role="{{ current_user.role|e }}"
+     data-can-confirm="{% if current_user.role in ['solution_manager', 'admin'] %}true{% else %}false{% endif %}"
+     data-is-product-role="{% if current_user.role in ['product_manager', 'product'] %}true{% else %}false{% endif %}"
+     style="display: none;"></div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+// 从HTML data属性获取用户配置
+const userConfigElement = document.getElementById('user-config');
+const userConfig = {
+    role: userConfigElement.getAttribute('data-role'),
+    canConfirm: userConfigElement.getAttribute('data-can-confirm') === 'true',
+    isProductRole: userConfigElement.getAttribute('data-is-product-role') === 'true'
+};
+
+console.log('用户配置:', userConfig);
+
+// 动态设置表格列样式
+document.addEventListener('DOMContentLoaded', function() {
+    // 设置列宽度
+    const table = document.querySelector('.product-details-table');
+    if (table && !userConfig.isProductRole) {
+        // 有市场价和折扣率列的情况
+        const style = document.createElement('style');
+        style.textContent = `
+            .product-details-table th:nth-child(6), .product-details-table td:nth-child(6) { width: 120px; min-width: 120px; }
+            .product-details-table th:nth-child(7), .product-details-table td:nth-child(7) { width: 100px; min-width: 100px; }
+            .product-details-table th:nth-child(8), .product-details-table td:nth-child(8) { width: 120px; min-width: 120px; }
+            .product-details-table th:nth-child(9), .product-details-table td:nth-child(9) { width: 80px; min-width: 80px; }
+            .product-details-table th:nth-child(10), .product-details-table td:nth-child(10) { width: 80px; min-width: 80px; }
+            .product-details-table th:nth-child(11), .product-details-table td:nth-child(11) { width: 120px; min-width: 120px; }
+            .product-details-table th:nth-child(12), .product-details-table td:nth-child(12) { width: 150px; min-width: 150px; }
+        `;
+        document.head.appendChild(style);
+    } else if (table && userConfig.isProductRole) {
+        // 没有市场价和折扣率列的情况
+        const style = document.createElement('style');
+        style.textContent = `
+            .product-details-table th:nth-child(6), .product-details-table td:nth-child(6) { width: 120px; min-width: 120px; }
+            .product-details-table th:nth-child(7), .product-details-table td:nth-child(7) { width: 80px; min-width: 80px; }
+            .product-details-table th:nth-child(8), .product-details-table td:nth-child(8) { width: 80px; min-width: 80px; }
+            .product-details-table th:nth-child(9), .product-details-table td:nth-child(9) { width: 120px; min-width: 120px; }
+            .product-details-table th:nth-child(10), .product-details-table td:nth-child(10) { width: 150px; min-width: 150px; }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    // 初始化产品明细确认徽章
+    initProductDetailConfirmationBadge();
+});
+
 function copyQuotation(id) {
     if (confirm('确定要复制这个报价单吗？')) {
         fetch(`/quotation/quotation/${id}/copy`, {
@@ -275,6 +453,144 @@ function deleteQuotation(id) {
             }
         });
     }
+}
+
+// 产品明细确认徽章初始化
+function initProductDetailConfirmationBadge() {
+    const badge = document.getElementById('product-detail-confirmation-badge');
+    const statusText = document.getElementById('confirmation-status');
+    
+    if (!badge) return;
+    
+    const quotationId = badge.getAttribute('data-quotation-id');
+    
+    // 获取当前确认状态
+    loadConfirmationStatus(quotationId);
+    
+    // 如果用户没有权限，则禁用点击
+    if (!userConfig.canConfirm) {
+        badge.classList.add('disabled');
+        return;
+    }
+    
+    // 添加点击事件
+    badge.addEventListener('click', function() {
+        if (badge.classList.contains('disabled')) {
+            return;
+        }
+        
+        // 获取CSRF token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        
+        // 发送请求切换确认状态
+        fetch(`/quotation/quotation/${quotationId}/toggle_product_detail_confirmation`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // 更新徽章状态
+                updateConfirmationBadge(data.is_confirmed, data.confirmed_by, data.confirmed_at);
+                
+                // 显示成功消息
+                showMessage(data.message, 'success');
+            } else {
+                // 显示错误消息
+                showMessage(data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('切换确认状态时出错:', error);
+            showMessage('操作失败，请重试', 'error');
+        });
+    });
+}
+
+// 加载确认状态
+function loadConfirmationStatus(quotationId) {
+    fetch(`/quotation/quotation/${quotationId}/product_detail_confirmation_status`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            updateConfirmationBadge(data.is_confirmed, data.confirmed_by, data.confirmed_at);
+        }
+    })
+    .catch(error => {
+        console.error('加载确认状态时出错:', error);
+    });
+}
+
+// 更新确认徽章状态
+function updateConfirmationBadge(isConfirmed, confirmedBy, confirmedAt) {
+    const badge = document.getElementById('product-detail-confirmation-badge');
+    const statusText = document.getElementById('confirmation-status');
+    
+    console.log('更新确认徽章状态:', {
+        isConfirmed: isConfirmed,
+        confirmedBy: confirmedBy,
+        confirmedAt: confirmedAt,
+        badge: badge,
+        statusText: statusText
+    });
+    
+    if (!badge || !statusText) {
+        console.error('找不到确认徽章或状态文本元素');
+        return;
+    }
+    
+    if (isConfirmed) {
+        console.log('设置为已确认状态');
+        badge.classList.add('confirmed');
+        badge.setAttribute('data-confirmed', 'true');
+        statusText.textContent = `已确认 - ${confirmedBy}`;
+        statusText.classList.add('confirmed');
+        badge.title = `已确认 - ${confirmedBy} (${confirmedAt}) - 点击取消确认`;
+    } else {
+        console.log('设置为未确认状态');
+        badge.classList.remove('confirmed');
+        badge.setAttribute('data-confirmed', 'false');
+        statusText.textContent = '未确认';
+        statusText.classList.remove('confirmed');
+        badge.title = userConfig.canConfirm ? '点击确认产品明细' : '仅解决方案经理和管理员可以确认';
+    }
+    
+    console.log('徽章类名:', badge.className);
+    console.log('状态文本:', statusText.textContent);
+}
+
+// 显示消息的辅助函数
+function showMessage(message, type) {
+    // 创建消息元素
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show`;
+    messageDiv.style.position = 'fixed';
+    messageDiv.style.top = '20px';
+    messageDiv.style.right = '20px';
+    messageDiv.style.zIndex = '9999';
+    messageDiv.style.minWidth = '300px';
+    
+    messageDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(messageDiv);
+    
+    // 3秒后自动移除
+    setTimeout(() => {
+        if (messageDiv.parentNode) {
+            messageDiv.parentNode.removeChild(messageDiv);
+        }
+    }, 3000);
 }
 </script>
 {% endblock %} 

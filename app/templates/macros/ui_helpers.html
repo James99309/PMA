@@ -153,6 +153,8 @@
     {%- set btn_class = "btn bg-secondary text-white me-2" %}
   {%- elif color == "info" %}
     {%- set btn_class = "btn bg-info text-white me-2" %}
+  {%- elif color == "warning" %}
+    {%- set btn_class = "btn bg-warning text-dark me-2" %}
   {%- elif color == "danger" %}
     {%- set btn_class = "btn text-white me-2" %}
     {%- set inline_style = "background-color: #dc3545;" %}
@@ -1129,20 +1131,5 @@
     <span class="badge {{ color_class }} text-white">{{ user.real_name or user.username }}</span>
   {% else %}
     <span class="badge bg-secondary text-white">未指定</span>
-  {% endif %}
-{% endmacro %}
-
-{# 审批状态徽章宏 - 胶囊状 #}
-{% macro render_approval_status_badge(status) %}
-  {% if status.name == 'PENDING' %}
-    <span class="badge rounded-pill bg-warning text-dark">审批中</span>
-  {% elif status.name == 'APPROVED' %}
-    <span class="badge rounded-pill bg-success text-white">已通过</span>
-  {% elif status.name == 'REJECTED' %}
-    <span class="badge rounded-pill bg-danger text-white">已拒绝</span>
-  {% elif status.name == 'CANCELLED' %}
-    <span class="badge rounded-pill bg-secondary text-white">已取消</span>
-  {% else %}
-    <span class="badge rounded-pill bg-secondary text-white">未知状态</span>
   {% endif %}
 {% endmacro %}

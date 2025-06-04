@@ -277,7 +277,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         <thead>
                             <tr>
                                 {% if has_permission('project', 'delete') %}
-                                <th style="width: 40px;" rowspan="2">
+                                <th style="width: 40px;">
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="selectAll">
                                     </div>
@@ -440,7 +440,10 @@ document.addEventListener('DOMContentLoaded', function () {
                             </tr>
                             <tr class="filter-row" style="display: none;">
                                 {% if has_permission('project', 'delete') %}
-                                <th></th> <!-- 复选框列 -->
+                                <th style="width: 40px;">
+                                    <!-- 复选框列的筛选区域保持空白 -->
+                                    <div style="height: 28px;"></div>
+                                </th>
                                 {% endif %}
 
                                 <th><input type="text" class="form-control form-control-sm filter-input" data-field="owner_id" placeholder="筛选..."></th>
@@ -681,16 +684,20 @@ document.addEventListener('DOMContentLoaded', function () {
     cursor: pointer;
     opacity: 0.7;
     transition: all 0.2s;
+    padding: 4px; /* 增加可点击区域 */
+    border-radius: 3px; /* 添加圆角 */
 }
 
 .filter-icon:hover {
     color: #0d6efd;
     opacity: 1;
+    background-color: rgba(13, 110, 253, 0.1); /* 悬停背景色 */
 }
 
 .filter-icon.active {
     color: #0d6efd;
     opacity: 1;
+    background-color: rgba(13, 110, 253, 0.2); /* 激活状态背景色 */
 }
 
 /* 表头内容布局 */
@@ -726,6 +733,7 @@ document.addEventListener('DOMContentLoaded', function () {
     box-shadow: 0 1px 1px rgba(0,0,0,0.05);
     height: 40px; /* 设置筛选行固定高度 */
     vertical-align: middle;
+    border-bottom: 1px solid #dee2e6; /* 添加底部边框 */
 }
 
 .filter-input {
@@ -736,6 +744,14 @@ document.addEventListener('DOMContentLoaded', function () {
     border-radius: 3px;
     height: 28px; /* 设置输入框固定高度 */
     box-sizing: border-box;
+    background-color: #fff;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.filter-input:focus {
+    border-color: #86b7fe;
+    outline: 0;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
 }
 
 /* 滚动条样式美化 */
@@ -1423,394 +1439,415 @@ document.addEventListener('DOMContentLoaded', function() {
 // 输入框实时搜索
 searchInput.addEventListener('input', function() {
     performSearch();
-    });
+});
 
-    // 获取表格容器
-    const tableContainer = document.querySelector('.table-responsive');
+});
 
-    // 记住和恢复滚动位置
-    if (tableContainer) {
-        // 尝试从sessionStorage恢复滚动位置
-        const savedScrollTop = sessionStorage.getItem('projectListScrollTop');
-        const savedScrollLeft = sessionStorage.getItem('projectListScrollLeft');
-
-        if (savedScrollTop !== null) {
-            tableContainer.scrollTop = parseInt(savedScrollTop);
+// ===================== 独立的筛选功能初始化 =====================
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('开始独立初始化列筛选功能');
+    
+    // 延迟初始化，确保其他功能先完成
+    setTimeout(function() {
+        console.log('延迟初始化筛选功能');
+        
+        // 立即保存原始数据
+        saveOriginalData();
+        console.log('筛选功能：原始数据已保存');
+        
+        // 获取筛选功能元素
+        const filterIcons = document.querySelectorAll('.filter-icon');
+        const filterRow = document.querySelector('.filter-row');
+        const filterInputs = document.querySelectorAll('.filter-input');
+        
+        console.log('找到筛选图标数量:', filterIcons.length, '筛选输入框数量:', filterInputs.length);
+        console.log('筛选行元素:', filterRow);
+        
+        if (filterIcons.length === 0 || filterInputs.length === 0) {
+            console.error('未找到筛选功能元素，可能DOM未完全加载');
+            return;
         }
+        
+        // 记录筛选状态
+        let isFilterRowVisible = filterRow && filterRow.style.display !== 'none';
+        console.log('初始筛选行显示状态:', isFilterRowVisible);
 
-        if (savedScrollLeft !== null) {
-            tableContainer.scrollLeft = parseInt(savedScrollLeft);
-        }
+        // 点击筛选图标时显示/隐藏筛选行
+        filterIcons.forEach((icon, index) => {
+            console.log(`绑定筛选图标 ${index}，字段:`, icon.getAttribute('data-field'));
+            
+            icon.addEventListener('click', function(e) {
+                e.stopPropagation(); // 阻止事件冒泡到th元素
 
-        // 保存滚动位置
-        tableContainer.addEventListener('scroll', function() {
-            sessionStorage.setItem('projectListScrollTop', this.scrollTop);
-            sessionStorage.setItem('projectListScrollLeft', this.scrollLeft);
-        });
+                const field = this.getAttribute('data-field');
+                console.log('点击筛选图标，字段:', field);
 
-        // 添加键盘导航支持
-        document.addEventListener('keydown', function(e) {
-            // 只有当表格区域可见时才响应键盘事件
-            if (isElementInViewport(tableContainer)) {
-                // Home键 - 滚动到顶部
-                if (e.key === 'Home') {
-                    tableContainer.scrollTop = 0;
-                    e.preventDefault();
-                }
-                // End键 - 滚动到底部
-                else if (e.key === 'End') {
-                    tableContainer.scrollTop = tableContainer.scrollHeight;
-                    e.preventDefault();
-                }
-                // Page Up键 - 向上翻页
-                else if (e.key === 'PageUp') {
-                    tableContainer.scrollTop -= tableContainer.clientHeight;
-                    e.preventDefault();
-                }
-                // Page Down键 - 向下翻页
-                else if (e.key === 'PageDown') {
-                    tableContainer.scrollTop += tableContainer.clientHeight;
-                    e.preventDefault();
-                }
-            }
-        });
-    }
-
-    // 处理滚动控制按钮
-    const scrollTopBtn = document.querySelector('.scroll-top');
-    const scrollBottomBtn = document.querySelector('.scroll-bottom');
-
-    if (scrollTopBtn && tableContainer) {
-        scrollTopBtn.addEventListener('click', function() {
-            tableContainer.scrollTop = 0;
-        });
-    }
-
-    if (scrollBottomBtn && tableContainer) {
-        scrollBottomBtn.addEventListener('click', function() {
-            tableContainer.scrollTop = tableContainer.scrollHeight;
-        });
-    }
-
-    // 根据滚动位置显示/隐藏滚动按钮
-    const scrollControls = document.querySelector('.scroll-controls');
-    if (scrollControls && tableContainer) {
-        // 初始隐藏
-        if (tableContainer.scrollHeight <= tableContainer.clientHeight) {
-            scrollControls.style.display = 'none';
-        }
-
-        // 监听表格容器的滚动事件
-        tableContainer.addEventListener('scroll', function() {
-            // 如果表格内容不需要滚动，则隐藏控制按钮
-            if (tableContainer.scrollHeight <= tableContainer.clientHeight) {
-                scrollControls.style.display = 'none';
-                return;
-            }
-
-            // 否则显示控制按钮
-            scrollControls.style.display = 'flex';
-        });
-
-        // 监听窗口大小变化
-        window.addEventListener('resize', function() {
-            if (tableContainer.scrollHeight <= tableContainer.clientHeight) {
-                scrollControls.style.display = 'none';
-            } else {
-                scrollControls.style.display = 'flex';
-            }
-        });
-    }
-
-    // 表头筛选功能
-    const filterIcons = document.querySelectorAll('.filter-icon');
-    const filterRow = document.querySelector('.filter-row');
-    const filterInputs = document.querySelectorAll('.filter-input');
-
-    // 记录筛选状态
-    let isFilterRowVisible = filterRow.style.display !== 'none';
-
-    // 点击筛选图标时显示/隐藏筛选行
-    filterIcons.forEach(icon => {
-        icon.addEventListener('click', function(e) {
-            e.stopPropagation(); // 阻止事件冒泡到th元素
-
-            const field = this.getAttribute('data-field');
-
-            // 切换筛选行显示状态
-            if (!isFilterRowVisible) {
-                filterRow.style.display = '';
-                isFilterRowVisible = true;
-                this.classList.add('active');
-
-                // 聚焦当前列的输入框
-                const input = document.querySelector(`.filter-input[data-field="${field}"]`);
-                if (input) {
-                    setTimeout(() => input.focus(), 100);
-                }
-            } else {
-                // 如果已经显示，检查是否是切换其他列的筛选
-                const activeIcon = document.querySelector('.filter-icon.active');
-
-                // 如果点击的是同一列，并且没有输入值，则隐藏筛选行
-                const currentInput = document.querySelector(`.filter-input[data-field="${field}"]`);
-                if (activeIcon && activeIcon.getAttribute('data-field') === field &&
-                    (!currentInput || !currentInput.value.trim())) {
-                    filterRow.style.display = 'none';
-                    isFilterRowVisible = false;
-                    activeIcon.classList.remove('active');
-                } else {
-                    // 清除所有图标的活动状态
-                    filterIcons.forEach(i => {
-                        if (i.getAttribute('data-field') !== field &&
-                            !document.querySelector(`.filter-input[data-field="${i.getAttribute('data-field')}"]`).value.trim()) {
-                            i.classList.remove('active');
-                        }
-                    });
-
-                    // 设置当前图标为活动状态
+                // 切换筛选行显示状态
+                if (!isFilterRowVisible) {
+                    filterRow.style.display = '';
+                    isFilterRowVisible = true;
                     this.classList.add('active');
+                    console.log('显示筛选行');
 
                     // 聚焦当前列的输入框
-                    if (currentInput) {
-                        setTimeout(() => currentInput.focus(), 100);
+                    const input = document.querySelector(`.filter-input[data-field="${field}"]`);
+                    if (input) {
+                        setTimeout(() => input.focus(), 100);
+                    }
+                } else {
+                    // 如果已经显示，检查是否是切换其他列的筛选
+                    const activeIcon = document.querySelector('.filter-icon.active');
+
+                    // 如果点击的是同一列，并且没有输入值，则隐藏筛选行并恢复所有内容
+                    const currentInput = document.querySelector(`.filter-input[data-field="${field}"]`);
+                    if (activeIcon && activeIcon.getAttribute('data-field') === field &&
+                        (!currentInput || !currentInput.value.trim())) {
+                        
+                        // 清除当前输入框的值
+                        if (currentInput) {
+                            currentInput.value = '';
+                        }
+                        
+                        // 隐藏筛选行
+                        filterRow.style.display = 'none';
+                        isFilterRowVisible = false;
+                        activeIcon.classList.remove('active');
+                        console.log('隐藏筛选行并清除筛选');
+                        
+                        // 恢复所有项目显示
+                        clearAllFilters();
+                    } else {
+                        // 清除所有图标的活动状态
+                        filterIcons.forEach(i => {
+                            if (i.getAttribute('data-field') !== field &&
+                                !document.querySelector(`.filter-input[data-field="${i.getAttribute('data-field')}"]`).value.trim()) {
+                                i.classList.remove('active');
+                            }
+                        });
+
+                        // 设置当前图标为活动状态
+                        this.classList.add('active');
+
+                        // 聚焦当前列的输入框
+                        if (currentInput) {
+                            setTimeout(() => currentInput.focus(), 100);
+                        }
                     }
                 }
-            }
+            });
         });
-    });
 
-    // 添加点击其他区域隐藏筛选行的功能
-    document.addEventListener('click', function(e) {
-        // 如果点击的不是筛选相关元素，则隐藏筛选行
-        if (isFilterRowVisible &&
-            !e.target.closest('.filter-row') &&
-            !e.target.closest('.filter-icon')) {
-
-            // 检查是否有任何筛选条件
-            let hasActiveFilters = false;
-            filterInputs.forEach(input => {
-                if (input.value.trim()) {
-                    hasActiveFilters = true;
-                    // 保持对应筛选图标高亮
-                    const field = input.getAttribute('data-field');
-                    const icon = document.querySelector(`.filter-icon[data-field="${field}"]`);
-                    if (icon) icon.classList.add('active');
-                }
+        // 处理筛选输入框的输入事件
+        filterInputs.forEach((input, index) => {
+            console.log(`绑定筛选输入框 ${index}，字段:`, input.getAttribute('data-field'));
+            
+            input.addEventListener('input', function() {
+                console.log('筛选输入事件触发，字段:', this.getAttribute('data-field'), '值:', this.value);
+                // 实时筛选，不提交到服务器
+                performColumnFilter();
             });
 
-            // 如果没有筛选条件，隐藏筛选行
-            if (!hasActiveFilters) {
-                filterRow.style.display = 'none';
-                isFilterRowVisible = false;
-
-                // 移除所有图标的活动状态
-                filterIcons.forEach(icon => icon.classList.remove('active'));
-            }
-        }
-    });
-
-    // 处理筛选输入框的输入事件
-    filterInputs.forEach(input => {
-        input.addEventListener('input', function() {
-            performColumnFilter();
-        });
-
-        input.addEventListener('change', function() {
-            performColumnFilter();
-        });
-
-        // 防止筛选输入框的点击事件冒泡，避免影响筛选行的显示
-        input.addEventListener('click', function(e) {
-            e.stopPropagation();
-        });
-
-        input.addEventListener('keydown', function(e) {
-            // 按ESC键清除筛选条件
-            if (e.key === 'Escape') {
-                this.value = '';
+            input.addEventListener('change', function() {
+                console.log('筛选change事件触发，字段:', this.getAttribute('data-field'), '值:', this.value);
+                // 当输入框失去焦点时，也执行筛选
                 performColumnFilter();
+            });
 
-                // 检查是否所有筛选都为空，如果是则隐藏筛选行
-                let allEmpty = true;
-                filterInputs.forEach(inp => {
-                    if (inp.value.trim()) allEmpty = false;
+            // 防止筛选输入框的点击事件冒泡，避免影响筛选行的显示
+            input.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+
+            input.addEventListener('keydown', function(e) {
+                // 按ESC键清除筛选条件
+                if (e.key === 'Escape') {
+                    this.value = '';
+                    performColumnFilter();
+
+                    // 检查是否所有筛选都为空，如果是则隐藏筛选行
+                    let allEmpty = true;
+                    filterInputs.forEach(inp => {
+                        if (inp.value.trim()) allEmpty = false;
+                    });
+
+                    if (allEmpty) {
+                        filterRow.style.display = 'none';
+                        isFilterRowVisible = false;
+
+                        // 移除所有图标的活动状态
+                        filterIcons.forEach(icon => icon.classList.remove('active'));
+                        
+                        // 恢复所有项目显示
+                        clearAllFilters();
+                    }
+                }
+
+                // 按回车键时仅应用筛选，不向服务器提交（避免500错误）
+                if (e.key === 'Enter') {
+                    e.preventDefault(); // 阻止默认的表单提交行为
+                    performColumnFilter(); // 只执行客户端筛选
+                }
+            });
+        });
+        
+        // 添加点击其他区域隐藏筛选行的功能
+        document.addEventListener('click', function(e) {
+            // 如果点击的不是筛选相关元素，则隐藏筛选行
+            if (isFilterRowVisible &&
+                !e.target.closest('.filter-row') &&
+                !e.target.closest('.filter-icon')) {
+
+                // 检查是否有任何筛选条件
+                let hasActiveFilters = false;
+                filterInputs.forEach(input => {
+                    if (input.value.trim()) {
+                        hasActiveFilters = true;
+                        // 保持对应筛选图标高亮
+                        const field = input.getAttribute('data-field');
+                        const icon = document.querySelector(`.filter-icon[data-field="${field}"]`);
+                        if (icon) icon.classList.add('active');
+                    }
                 });
 
-                if (allEmpty) {
+                // 如果没有筛选条件，隐藏筛选行并恢复所有项目显示
+                if (!hasActiveFilters) {
                     filterRow.style.display = 'none';
                     isFilterRowVisible = false;
 
                     // 移除所有图标的活动状态
                     filterIcons.forEach(icon => icon.classList.remove('active'));
+                    
+                    // 恢复所有项目显示
+                    clearAllFilters();
                 }
-            }
-
-            // 按回车键时应用筛选并向服务器提交
-            if (e.key === 'Enter') {
-                // 向服务器提交筛选参数
-                submitFiltersToServer();
-            }
-        });
-    });
-
-    // 向服务器提交筛选参数
-    function submitFiltersToServer() {
-        const urlParams = new URLSearchParams(window.location.search);
-
-        // 保留当前的排序和搜索参数
-        const sort = urlParams.get('sort') || 'id';
-        const order = urlParams.get('order') || 'desc';
-        const search = urlParams.get('search') || '';
-
-        // 构建新的URL
-        let newUrl = window.location.pathname + '?';
-        if (search) {
-            newUrl += 'search=' + encodeURIComponent(search) + '&';
-        }
-        newUrl += 'sort=' + sort + '&order=' + order;
-
-        // 收集所有筛选参数
-        const activeFilters = {};
-        filterInputs.forEach(input => {
-            const value = input.value.trim();
-            if (value) {
-                const field = input.getAttribute('data-field');
-                activeFilters[field] = value;
-                newUrl += `&filter_${field}=${encodeURIComponent(value)}`;
-            }
-        });
-
-        // 重定向到新URL
-        window.location.href = newUrl;
-    }
-
-    // 执行列筛选
-    function performColumnFilter() {
-        const rows = document.querySelectorAll('tbody tr');
-        const tableBody = document.querySelector('.table tbody');
-
-        // 收集所有筛选条件
-        const filters = {};
-        filterInputs.forEach(input => {
-            const field = input.getAttribute('data-field');
-            const value = input.value.trim().toLowerCase();
-            if (value) {
-                filters[field] = value;
             }
         });
         
-        // 用于存储匹配和被过滤的行
-        const matchedRows = [];
-        const filteredRows = [];
+        console.log('列筛选功能初始化完成');
+        
+    }, 500); // 延迟500ms确保主要功能先初始化完成
+});
 
-        // 应用筛选
-        rows.forEach(row => {
-            let showRow = true;
+// 恢复所有项目显示的函数
+function restoreAllItems() {
+    console.log('恢复所有项目显示，原始行数:', originalTableRows.length, '原始卡片数:', originalMobileCards.length);
+    
+    // 如果原始数据未保存，重新保存
+    if (originalTableRows.length === 0) {
+        console.log('原始数据为空，重新保存');
+        saveOriginalData();
+    }
+    
+    // 恢复PC端表格行显示
+    originalTableRows.forEach(row => {
+        row.classList.remove('filtered');
+        row.style.display = '';
+    });
+    
+    // 恢复移动端卡片显示
+    originalMobileCards.forEach(card => {
+        card.classList.remove('filtered');
+        card.style.display = '';
+    });
+}
 
-            // 检查每个筛选条件
-            for (const [field, filterValue] of Object.entries(filters)) {
-                const columnIndex = getColumnIndexByField(field);
-                if (columnIndex !== -1) {
-                    const cell = row.cells[columnIndex];
-                    if (cell) {
-                        const cellValue = cell.textContent.toLowerCase();
+// 清除所有筛选条件的函数
+function clearAllFilters() {
+    console.log('清除所有筛选条件');
+    
+    // 清除所有筛选输入框的值（不触发input事件）
+    const filterInputs = document.querySelectorAll('.filter-input');
+    filterInputs.forEach(input => {
+        input.value = '';
+    });
+    
+    // 移除所有筛选图标的活动状态
+    const filterIcons = document.querySelectorAll('.filter-icon');
+    filterIcons.forEach(icon => {
+        icon.classList.remove('active');
+    });
+    
+    // 恢复所有项目显示
+    restoreAllItems();
+}
 
-                        // 日期字段特殊处理
-                        if (field === 'report_time' || field === 'delivery_forecast' ||
-                            field === 'created_at' || field === 'updated_at') {
+// 执行列筛选
+function performColumnFilter() {
+    console.log('开始执行列筛选');
+    
+    // 如果原始数据未保存，重新保存
+    if (originalTableRows.length === 0) {
+        console.log('原始数据为空，重新保存');
+        saveOriginalData();
+    }
+    
+    console.log('当前原始数据行数:', originalTableRows.length, '卡片数:', originalMobileCards.length);
+    
+    const tableBody = document.querySelector('.table tbody');
+    const mobileContainer = document.querySelector('.d-block.d-lg-none');
+    const filterInputs = document.querySelectorAll('.filter-input');
 
-                            // 比较日期（YYYY-MM-DD格式）
-                            const cellDate = cellValue.match(/\d{4}-\d{2}-\d{2}/);
+    // 收集所有筛选条件
+    const filters = {};
+    filterInputs.forEach(input => {
+        const field = input.getAttribute('data-field');
+        const value = input.value.trim().toLowerCase();
+        if (value) {
+            filters[field] = value;
+            console.log('添加筛选条件:', field, '=', value);
+        }
+    });
+    
+    console.log('筛选条件数量:', Object.keys(filters).length);
+    
+    // 如果没有筛选条件，恢复所有项目显示
+    if (Object.keys(filters).length === 0) {
+        console.log('无筛选条件，恢复所有项目显示');
+        restoreAllItems();
+        return;
+    }
+    
+    // 筛选PC端表格行
+    let visibleRowCount = 0;
+    console.log('开始筛选表格行，总行数:', originalTableRows.length);
+    
+    originalTableRows.forEach((row, index) => {
+        let showRow = true;
 
-                            if (cellDate && cellDate[0] !== filterValue) {
-                                showRow = false;
-                                break;
-                            } else if (!cellDate && filterValue) {
-                                showRow = false;
-                                break;
-                            }
-                        }
-                        // 数字字段特殊处理
-                        else if (field === 'quotation_customer') {
-                            // 移除逗号后比较数字
-                            const numericCellValue = cellValue.replace(/,/g, '');
-                            if (!numericCellValue.includes(filterValue)) {
-                                showRow = false;
-                                break;
-                            }
-                        }
-                        // 普通文本字段
-                        else if (!cellValue.includes(filterValue)) {
+        // 检查每个筛选条件
+        for (const [field, filterValue] of Object.entries(filters)) {
+            const columnIndex = getColumnIndexByField(field);
+            if (columnIndex !== -1) {
+                const cell = row.cells[columnIndex];
+                if (cell) {
+                    const cellValue = cell.textContent.toLowerCase();
+
+                    // 日期字段特殊处理
+                    if (field === 'report_time' || field === 'delivery_forecast' ||
+                        field === 'created_at' || field === 'updated_at') {
+
+                        // 比较日期（YYYY-MM-DD格式）
+                        const cellDate = cellValue.match(/\d{4}-\d{2}-\d{2}/);
+
+                        if (cellDate && cellDate[0] !== filterValue) {
+                            showRow = false;
+                            break;
+                        } else if (!cellDate && filterValue) {
                             showRow = false;
                             break;
                         }
                     }
+                    // 数字字段特殊处理
+                    else if (field === 'quotation_customer') {
+                        // 移除逗号后比较数字
+                        const numericCellValue = cellValue.replace(/,/g, '');
+                        if (!numericCellValue.includes(filterValue)) {
+                            showRow = false;
+                            break;
+                        }
+                    }
+                    // 普通文本字段
+                    else if (!cellValue.includes(filterValue)) {
+                        showRow = false;
+                        break;
+                    }
                 }
-            }
-
-            // 根据筛选结果分组
-            if (showRow) {
-                matchedRows.push(row);
-                row.classList.remove('filtered');
             } else {
-                filteredRows.push(row);
-                row.classList.add('filtered');
+                console.log('无法找到字段对应的列索引:', field);
             }
-        });
+        }
 
-        // 重新排列表格行：匹配的行在前，被过滤的行不显示
-        if (tableBody) {
-            // 清空表格
-            while (tableBody.firstChild) {
-                tableBody.removeChild(tableBody.firstChild);
+        // 设置行的可见性
+        if (showRow) {
+            row.style.display = '';
+            row.classList.remove('filtered');
+            visibleRowCount++;
+        } else {
+            row.style.display = 'none';
+            row.classList.add('filtered');
+        }
+    });
+
+    // 筛选移动端卡片
+    let visibleCardCount = 0;
+    console.log('开始筛选移动端卡片，总卡片数:', originalMobileCards.length);
+    
+    originalMobileCards.forEach((card, index) => {
+        let showCard = true;
+        const cardText = card.textContent.toLowerCase();
+
+        // 检查每个筛选条件（移动端使用简单的文本匹配）
+        for (const [field, filterValue] of Object.entries(filters)) {
+            if (!cardText.includes(filterValue)) {
+                showCard = false;
+                break;
             }
-            
-            // 添加匹配的行
-            matchedRows.forEach(row => {
+        }
+
+        // 设置卡片的可见性
+        if (showCard) {
+            card.style.display = '';
+            card.classList.remove('filtered');
+            visibleCardCount++;
+        } else {
+            card.style.display = 'none';
+            card.classList.add('filtered');
+        }
+    });
+
+    console.log('筛选完成，可见行数:', visibleRowCount, '可见卡片数:', visibleCardCount);
+
+    // 确保所有原始数据都在DOM中
+    if (tableBody) {
+        originalTableRows.forEach(row => {
+            if (!tableBody.contains(row)) {
                 tableBody.appendChild(row);
-                row.style.display = '';
-            });
-            
-            // 被过滤的行不再添加回DOM
-            filteredRows.forEach(row => {
-                row.style.display = 'none';
-            });
-        }
-
-        // 高亮活动的筛选图标
-        filterIcons.forEach(icon => {
-            const field = icon.getAttribute('data-field');
-            const input = document.querySelector(`.filter-input[data-field="${field}"]`);
-
-            if (input && input.value.trim()) {
-                icon.classList.add('active');
-            } else {
-                icon.classList.remove('active');
             }
         });
-        
-        // 更新按钮状态
-        if (typeof updateClearButtonState === 'function') {
-            setTimeout(updateClearButtonState, 0);
-        }
     }
-
-    // 根据字段名获取列索引
-    function getColumnIndexByField(field) {
-        // 计算列偏移量，考虑到复选框列
-        const hasCheckbox = document.querySelector('th .form-check') !== null;
-        const offset = hasCheckbox ? 1 : 0;
-
-        // 获取表头和字段的映射关系
-        const thElements = document.querySelectorAll('th[data-sort]');
-        for (let i = 0; i < thElements.length; i++) {
-            if (thElements[i].getAttribute('data-sort') === field) {
-                return i + offset;
+    
+    if (mobileContainer) {
+        originalMobileCards.forEach(card => {
+            if (!mobileContainer.contains(card)) {
+                mobileContainer.appendChild(card);
             }
-        }
-        return -1;
+        });
     }
+
+    // 高亮活动的筛选图标
+    const filterIcons = document.querySelectorAll('.filter-icon');
+    filterIcons.forEach(icon => {
+        const field = icon.getAttribute('data-field');
+        const input = document.querySelector(`.filter-input[data-field="${field}"]`);
+
+        if (input && input.value.trim()) {
+            icon.classList.add('active');
+        } else {
+            icon.classList.remove('active');
+        }
+    });
+    
+    // 更新按钮状态
+    if (typeof updateClearButtonState === 'function') {
+        setTimeout(updateClearButtonState, 0);
+    }
+}
+
+// 根据字段名获取列索引
+function getColumnIndexByField(field) {
+    // 计算列偏移量，考虑到复选框列
+    const hasCheckbox = document.querySelector('th .form-check') !== null;
+    const offset = hasCheckbox ? 1 : 0;
+
+    // 获取表头和字段的映射关系
+    const thElements = document.querySelectorAll('th[data-sort]');
+    for (let i = 0; i < thElements.length; i++) {
+        if (thElements[i].getAttribute('data-sort') === field) {
+            return i + offset;
+        }
+    }
+    return -1;
+}
 
 // 添加排序功能
     // 排序状态变量
@@ -2077,7 +2114,6 @@ if (tableContainer) {
         }
     }
 }
-});
 
 // 项目批量导入功能
 document.addEventListener('DOMContentLoaded', function() {
@@ -2871,3 +2907,116 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="{{ url_for('static', filename='js/project_statistics.js') }}"></script>
 <script src="{{ url_for('static', filename='js/project_statistics.js') }}"></script>
 {% endblock %}
+
+<!-- 在页面加载时保存原始数据结构 -->
+<script>
+let originalTableRows = [];
+let originalMobileCards = [];
+
+// 保存原始数据结构
+function saveOriginalData() {
+    const tableRows = document.querySelectorAll('.table tbody tr');
+    const mobileCards = document.querySelectorAll('.d-block.d-lg-none .card');
+    
+    originalTableRows = Array.from(tableRows);
+    originalMobileCards = Array.from(mobileCards);
+    
+    console.log('已保存原始数据，表格行数:', originalTableRows.length, '移动端卡片数:', originalMobileCards.length);
+    
+    // 额外验证：检查保存的数据是否有效
+    if (originalTableRows.length > 0) {
+        console.log('第一行数据示例:', originalTableRows[0].textContent.substring(0, 100));
+    }
+    if (originalMobileCards.length > 0) {
+        console.log('第一个卡片数据示例:', originalMobileCards[0].textContent.substring(0, 100));
+    }
+}
+
+// 在页面加载完成后立即保存原始数据，并在筛选功能初始化前确保数据已保存
+document.addEventListener('DOMContentLoaded', function() {
+    // 立即保存原始数据
+    console.log('页面加载完成，开始保存原始数据');
+    saveOriginalData();
+    
+    // 如果第一次保存失败（可能因为DOM还未完全准备好），稍后再试
+    if (originalTableRows.length === 0) {
+        console.log('首次保存失败，1秒后重试');
+        setTimeout(function() {
+            saveOriginalData();
+            if (originalTableRows.length === 0) {
+                console.error('重试后仍无法保存原始数据，可能表格还未渲染');
+            }
+        }, 1000);
+    }
+});
+</script>
+
+<!-- 筛选功能调试代码 -->
+<script>
+// 添加全局调试函数，可在浏览器控制台中调用
+window.debugFilterFunction = function() {
+    console.log('=== 筛选功能调试信息 ===');
+    
+    const filterIcons = document.querySelectorAll('.filter-icon');
+    const filterRow = document.querySelector('.filter-row');
+    const filterInputs = document.querySelectorAll('.filter-input');
+    
+    console.log('筛选图标数量:', filterIcons.length);
+    console.log('筛选行元素:', filterRow);
+    console.log('筛选输入框数量:', filterInputs.length);
+    console.log('原始数据行数:', originalTableRows.length);
+    console.log('原始卡片数:', originalMobileCards.length);
+    
+    if (filterIcons.length > 0) {
+        console.log('第一个筛选图标:', filterIcons[0]);
+        console.log('第一个筛选图标的data-field:', filterIcons[0].getAttribute('data-field'));
+        
+        // 检查事件监听器
+        console.log('第一个筛选图标的事件监听器数量:', getEventListeners ? getEventListeners(filterIcons[0]) : '无法检查(需要在开发者工具中运行)');
+    }
+    
+    if (filterInputs.length > 0) {
+        console.log('第一个筛选输入框:', filterInputs[0]);
+        console.log('第一个筛选输入框的data-field:', filterInputs[0].getAttribute('data-field'));
+    }
+    
+    // 测试点击第一个筛选图标
+    if (filterIcons.length > 0) {
+        console.log('测试点击第一个筛选图标...');
+        filterIcons[0].click();
+        
+        // 检查筛选行是否显示
+        setTimeout(() => {
+            const isVisible = filterRow && filterRow.style.display !== 'none';
+            console.log('点击后筛选行是否显示:', isVisible);
+        }, 100);
+    }
+    
+    console.log('=== 调试信息结束 ===');
+};
+
+// 测试筛选功能的简化版本
+window.testFilter = function() {
+    console.log('开始测试筛选功能...');
+    const firstIcon = document.querySelector('.filter-icon');
+    if (firstIcon) {
+        console.log('找到第一个筛选图标，准备点击');
+        firstIcon.click();
+    } else {
+        console.error('未找到筛选图标');
+    }
+};
+
+// 在页面完全加载后自动运行一次调试
+window.addEventListener('load', function() {
+    setTimeout(function() {
+        console.log('页面完全加载，自动运行筛选功能调试');
+        console.log('您可以在控制台中运行 debugFilterFunction() 来查看详细调试信息');
+        console.log('您可以在控制台中运行 testFilter() 来测试筛选功能');
+        
+        if (typeof window.debugFilterFunction === 'function') {
+            window.debugFilterFunction();
+        }
+    }, 1000);
+});
+</script>

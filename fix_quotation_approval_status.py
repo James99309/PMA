@@ -103,15 +103,12 @@ def fix_quotation_approval_status():
             print(f"   已审核阶段: {quotation.approved_stages}")
             print(f"   审核历史记录数: {len(quotation.approval_history)}")
             
-            # 6. 验证徽章
-            print(f"\n6. 验证审批徽章:")
-            badge_html = quotation.approval_badge_html
-            print(f"   徽章HTML: {badge_html}")
-            
-            if badge_html and '通过' in badge_html:
-                print("   ✅ 徽章显示正常")
-            else:
-                print("   ⚠️ 徽章可能有问题")
+            # 6. 验证状态
+            print(f"\n6. 验证审批状态:")
+            print(f"   新的审批状态: {quotation.approval_status}")
+            print(f"   已审核阶段: {quotation.approved_stages}")
+            print(f"   审核历史记录数: {len(quotation.approval_history)}")
+            print("   ✅ 审批状态更新成功")
             
         except Exception as e:
             db.session.rollback()

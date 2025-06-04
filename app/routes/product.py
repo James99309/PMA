@@ -820,9 +820,15 @@ def update_product(id):
         
         # 只有管理员能修改生产状态
         if current_user.role == 'admin':
-            is_active = request.form.get('is_active') == 'true'
-            product_data['status'] = 'active' if is_active else 'discontinued'
-            logger.debug(f"管理员更新产品状态: is_active={request.form.get('is_active')}, 转换为 status={product_data['status']}")
+            # 直接从表单获取status字段，而不是错误的is_active字段
+            status_value = request.form.get('status')
+            if status_value in ['active', 'discontinued', 'upcoming']:
+                product_data['status'] = status_value
+                logger.debug(f"管理员更新产品状态: status={status_value}")
+            else:
+                # 如果状态值无效，保持原状态
+                product_data['status'] = product.status
+                logger.debug(f"状态值无效({status_value})，保持原状态: {product_data['status']}")
         else:
             # 非管理员不能修改生产状态，保持原状态
             product_data['status'] = product.status

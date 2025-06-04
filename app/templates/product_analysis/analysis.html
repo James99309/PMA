@@ -1691,7 +1691,7 @@ function renderTableRows(data) {
             </td>
             <td class="col-stage">${formatStage(item.current_stage)}</td>
             <td class="col-quotation">
-                <a href="/quotation/${item.quotation_id}/detail" class="badge rounded-pill" style="background-color: #e6e6e6; color: #0056b3; font-family: 'Helvetica Neue', sans-serif; font-size: 0.85rem; font-weight: normal; padding: 0.3em 0.75em; text-decoration: none;" title="${item.quotation_number || '-'}">
+                <a href="/quotation/view/${item.quotation_id}" class="badge rounded-pill" style="background-color: #e6e6e6; color: #0056b3; font-family: 'Helvetica Neue', sans-serif; font-size: 0.85rem; font-weight: normal; padding: 0.3em 0.75em; text-decoration: none;" title="${item.quotation_number || '-'}">
                     ${item.quotation_number || '-'}
                 </a>
             </td>

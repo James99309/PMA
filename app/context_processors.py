@@ -23,8 +23,7 @@ from app.helpers.ui_helpers import (
     render_action_button, 
     render_user_badge, 
     get_user_display_name,
-    render_filter_button,
-    render_approval_status_badge
+    render_filter_button
 )
 from app.models.approval import ApprovalStatus
 from app.utils.dictionary_helpers import PROJECT_STAGE_LABELS
@@ -66,8 +65,7 @@ def inject_approval_functions():
         render_user_badge,
         get_user_display_name,
         format_datetime,
-        render_filter_button,
-        render_approval_status_badge
+        render_filter_button
     )
     
     return {
@@ -87,7 +85,6 @@ def inject_approval_functions():
         'get_workflow_steps': get_workflow_steps,
         'render_approval_code': render_approval_code,
         'get_approval_object_url': get_approval_object_url,
-        'render_approval_status_badge': render_approval_status_badge,
     }
 
 # 添加项目相关的上下文处理器

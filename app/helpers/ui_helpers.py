@@ -1,25 +1,5 @@
-from app.models.approval import ApprovalStatus
 from flask import url_for
 import datetime
-
-def render_approval_status_badge(status):
-    """渲染审批状态徽章
-    
-    Args:
-        status: ApprovalStatus枚举值
-        
-    Returns:
-        HTML徽章元素字符串
-    """
-    if status == ApprovalStatus.PENDING:
-        return '<span class="badge badge-warning">审批中</span>'
-    elif status == ApprovalStatus.APPROVED:
-        return '<span class="badge badge-success">已通过</span>'
-    elif status == ApprovalStatus.REJECTED:
-        return '<span class="badge badge-danger">已拒绝</span>'
-    else:
-        return '<span class="badge badge-secondary">未知状态</span>'
-
 
 def render_action_button(text, url, btn_class="btn-primary", icon=None, small=False):
     """渲染操作按钮

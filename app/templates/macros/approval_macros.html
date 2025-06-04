@@ -1,6 +1,6 @@
 {% from "macros/ui_helpers.html" import render_pagination with context %}
 {% from "macros/ui_helpers.html" import render_button with context %}
-{% from "macros/ui_helpers.html" import render_user_badge, render_approval_status_badge with context %}
+{% from "macros/ui_helpers.html" import render_user_badge with context %}
 
 {# 审批时间线样式 #}
 <style>
@@ -123,7 +123,19 @@
               <td>{{ render_user_badge(item.creator, "bg-info") |safe }}</td>
               {% set current_step = get_current_step_info(item) %}
               <td>{{ render_user_badge(current_step.approver if current_step else None, "bg-primary") |safe }}</td>
-              <td>{{ render_approval_status_badge(item.status)|safe }}</td>
+              <td>
+                {% if item.status.name == 'PENDING' %}
+                  <span class="badge rounded-pill bg-warning text-dark">审批中</span>
+                {% elif item.status.name == 'APPROVED' %}
+                  <span class="badge rounded-pill bg-success text-white">已通过</span>
+                {% elif item.status.name == 'REJECTED' %}
+                  <span class="badge rounded-pill bg-danger text-white">已拒绝</span>
+                {% elif item.status.name == 'CANCELLED' %}
+                  <span class="badge rounded-pill bg-secondary text-white">已取消</span>
+                {% else %}
+                  <span class="badge rounded-pill bg-secondary text-white">未知状态</span>
+                {% endif %}
+              </td>
               <td class="d-none d-md-table-cell">{{ format_datetime(item.started_at) }}</td>
             </tr>
           {% endfor %}
@@ -313,7 +325,17 @@
     <div class="card-header">
       <h5 class="mb-0">
         <i class="fas fa-history me-2"></i> 审批流程
-        {{ render_approval_status_badge(instance.status)|safe }}
+        {% if instance.status.name == 'PENDING' %}
+          <span class="badge rounded-pill bg-warning text-dark">审批中</span>
+        {% elif instance.status.name == 'APPROVED' %}
+          <span class="badge rounded-pill bg-success text-white">已通过</span>
+        {% elif instance.status.name == 'REJECTED' %}
+          <span class="badge rounded-pill bg-danger text-white">已拒绝</span>
+        {% elif instance.status.name == 'CANCELLED' %}
+          <span class="badge rounded-pill bg-secondary text-white">已取消</span>
+        {% else %}
+          <span class="badge rounded-pill bg-secondary text-white">未知状态</span>
+        {% endif %}
       </h5>
     </div>
     <div class="card-body">
@@ -650,7 +672,17 @@
 {% macro render_object_approval_status(object_type, object_id) %}
   {% set instance = get_object_approval_instance(object_type, object_id) %}
   {% if instance %}
-    {{ render_approval_status_badge(instance.status)|safe }}
+    {% if instance.status.name == 'PENDING' %}
+      <span class="badge rounded-pill bg-warning text-dark">审批中</span>
+    {% elif instance.status.name == 'APPROVED' %}
+      <span class="badge rounded-pill bg-success text-white">已通过</span>
+    {% elif instance.status.name == 'REJECTED' %}
+      <span class="badge rounded-pill bg-danger text-white">已拒绝</span>
+    {% elif instance.status.name == 'CANCELLED' %}
+      <span class="badge rounded-pill bg-secondary text-white">已取消</span>
+    {% else %}
+      <span class="badge rounded-pill bg-secondary text-white">未知状态</span>
+    {% endif %}
   {% else %}
     <span class="badge bg-secondary">未审批</span>
   {% endif %} 
@@ -710,7 +742,19 @@
                                         </tr>
                                         <tr>
                                             <th class="standard-font">当前状态</th>
-                                            <td class="standard-font">{{ render_approval_status_badge(approval_instance.status)|safe }}</td>
+                                            <td class="standard-font">
+                                              {% if approval_instance.status.name == 'PENDING' %}
+                                                <span class="badge rounded-pill bg-warning text-dark">审批中</span>
+                                              {% elif approval_instance.status.name == 'APPROVED' %}
+                                                <span class="badge rounded-pill bg-success text-white">已通过</span>
+                                              {% elif approval_instance.status.name == 'REJECTED' %}
+                                                <span class="badge rounded-pill bg-danger text-white">已拒绝</span>
+                                              {% elif approval_instance.status.name == 'CANCELLED' %}
+                                                <span class="badge rounded-pill bg-secondary text-white">已取消</span>
+                                              {% else %}
+                                                <span class="badge rounded-pill bg-secondary text-white">未知状态</span>
+                                              {% endif %}
+                                            </td>
                                         </tr>
                                         {% if approval_instance.ended_at %}
                                         <tr>
@@ -799,6 +843,66 @@
                         </div>
                     </div>
                     
+                    <!-- 报价单确认徽章操作区域 - 仅在报价单页面显示 -->
+                    {% if object_type == 'quotation' and (current_user.role == 'admin' or current_user.role == 'solution_manager') %}
+                    {% set quotation = get_quotation_by_id(object_id) if get_quotation_by_id is defined %}
+                    {% if quotation %}
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card border-info">
+                                <div class="card-header bg-info text-white">
+                                    <h6 class="mb-0"><i class="fas fa-certificate me-2"></i>确认徽章</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="d-flex align-items-center gap-2 mb-2">
+                                                <span class="text-muted">当前状态：</span>
+                                                <span id="current-badge-display">
+                                                    {% if quotation.confirmation_badge_html %}
+                                                        {{ quotation.confirmation_badge_html|safe }}
+                                                    {% else %}
+                                                        <span class="text-muted">无</span>
+                                                    {% endif %}
+                                                </span>
+                                            </div>
+                                            
+                                            {% if quotation.confirmation_badge_status != 'none' %}
+                                            <div class="mb-2">
+                                                <small class="text-muted">
+                                                    {% if quotation.confirmation_badge_status == 'confirmed' and quotation.confirmer %}
+                                                        已确认 - {{ quotation.confirmer.real_name or quotation.confirmer.username }}
+                                                        {% if quotation.confirmed_at %}
+                                                            ({{ quotation.confirmed_at.strftime('%Y-%m-%d %H:%M') }})
+                                                        {% endif %}
+                                                    {% elif quotation.confirmation_badge_status == 'pending' %}
+                                                        待确认状态
+                                                    {% endif %}
+                                                </small>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <div class="col-md-6">
+                                            <div class="btn-group" role="group">
+                                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="showConfirmationBadgeModal()">
+                                                    <i class="fas fa-check"></i> 设置确认
+                                                </button>
+                                                {% if quotation.confirmation_badge_status != 'none' %}
+                                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearConfirmationBadge()">
+                                                    <i class="fas fa-times"></i> 清除
+                                                </button>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                    
                     <!-- 审批流程图 -->
                     <div class="card">
                         <div class="card-header bg-dark text-white">
@@ -883,6 +987,145 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- 确认徽章设置模态框 - 仅在报价单页面显示 -->
+            {% if object_type == 'quotation' and (current_user.role == 'admin' or current_user.role == 'solution_manager') %}
+            <div class="modal fade" id="confirmationBadgeModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">设置确认徽章</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label">选择徽章颜色</label>
+                                <div class="row g-2">
+                                    <div class="col-auto">
+                                        <button type="button" class="btn color-btn" style="background-color: #28a745; width: 40px; height: 40px;" 
+                                                data-color="#28a745" title="绿色"></button>
+                                    </div>
+                                    <div class="col-auto">
+                                        <button type="button" class="btn color-btn" style="background-color: #007bff; width: 40px; height: 40px;" 
+                                                data-color="#007bff" title="蓝色"></button>
+                                    </div>
+                                    <div class="col-auto">
+                                        <button type="button" class="btn color-btn" style="background-color: #ffc107; width: 40px; height: 40px;" 
+                                                data-color="#ffc107" title="黄色"></button>
+                                    </div>
+                                    <div class="col-auto">
+                                        <button type="button" class="btn color-btn" style="background-color: #fd7e14; width: 40px; height: 40px;" 
+                                                data-color="#fd7e14" title="橙色"></button>
+                                    </div>
+                                    <div class="col-auto">
+                                        <button type="button" class="btn color-btn" style="background-color: #e83e8c; width: 40px; height: 40px;" 
+                                                data-color="#e83e8c" title="粉色"></button>
+                                    </div>
+                                    <div class="col-auto">
+                                        <button type="button" class="btn color-btn" style="background-color: #6f42c1; width: 40px; height: 40px;" 
+                                                data-color="#6f42c1" title="紫色"></button>
+                                    </div>
+                                </div>
+                                <small class="text-muted">点击选择颜色</small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">预览</label>
+                                <div id="badge-preview">
+                                    <span class="badge" style="background-color: #28a745; color: white; font-size: 0.75rem;">✓</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="button" class="btn btn-primary" id="confirmBadgeBtn">确认设置</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <script>
+                // 确认徽章相关功能
+                let selectedColor = '#28a745'; // 默认绿色
+
+                function showConfirmationBadgeModal() {
+                    const modal = new bootstrap.Modal(document.getElementById('confirmationBadgeModal'));
+                    modal.show();
+                }
+
+                function clearConfirmationBadge() {
+                    if (!confirm('确定要清除确认徽章吗？')) {
+                        return;
+                    }
+                    
+                    fetch(`/quotation/{{ object_id }}/confirmation-badge`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload(); // 刷新页面显示最新状态
+                        } else {
+                            alert('清除失败: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('清除确认徽章失败:', error);
+                        alert('清除失败，请重试');
+                    });
+                }
+
+                // 颜色选择
+                document.addEventListener('DOMContentLoaded', function() {
+                    document.querySelectorAll('.color-btn').forEach(btn => {
+                        btn.addEventListener('click', function() {
+                            // 移除其他按钮的选中状态
+                            document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('border', 'border-dark'));
+                            
+                            // 设置当前按钮为选中状态
+                            this.classList.add('border', 'border-dark');
+                            
+                            selectedColor = this.dataset.color;
+                            
+                            // 更新预览
+                            const preview = document.getElementById('badge-preview');
+                            preview.innerHTML = `<span class="badge" style="background-color: ${selectedColor}; color: white; font-size: 0.75rem;">✓</span>`;
+                        });
+                    });
+
+                    // 确认设置按钮
+                    const confirmBtn = document.getElementById('confirmBadgeBtn');
+                    if (confirmBtn) {
+                        confirmBtn.addEventListener('click', function() {
+                            fetch(`/quotation/{{ object_id }}/confirmation-badge`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    color: selectedColor
+                                })
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    location.reload(); // 刷新页面显示最新状态
+                                } else {
+                                    alert('设置失败: ' + data.message);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('设置确认徽章失败:', error);
+                                alert('设置失败，请重试');
+                            });
+                        });
+                    }
+                });
+            </script>
+            {% endif %}
             
             <!-- 审批操作模态框 -->
             {% if current_user and can_user_approve and can_user_approve(approval_instance.id, current_user.id) %}
