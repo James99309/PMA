@@ -1439,14 +1439,14 @@ document.addEventListener('DOMContentLoaded', function() {
 // 输入框实时搜索
 searchInput.addEventListener('input', function() {
     performSearch();
-});
+    });
 
 });
 
 // ===================== 独立的筛选功能初始化 =====================
 document.addEventListener('DOMContentLoaded', function() {
     console.log('开始独立初始化列筛选功能');
-    
+
     // 延迟初始化，确保其他功能先完成
     setTimeout(function() {
         console.log('延迟初始化筛选功能');
@@ -1465,43 +1465,43 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (filterIcons.length === 0 || filterInputs.length === 0) {
             console.error('未找到筛选功能元素，可能DOM未完全加载');
-            return;
-        }
-        
-        // 记录筛选状态
+                return;
+            }
+
+    // 记录筛选状态
         let isFilterRowVisible = filterRow && filterRow.style.display !== 'none';
         console.log('初始筛选行显示状态:', isFilterRowVisible);
 
-        // 点击筛选图标时显示/隐藏筛选行
+    // 点击筛选图标时显示/隐藏筛选行
         filterIcons.forEach((icon, index) => {
             console.log(`绑定筛选图标 ${index}，字段:`, icon.getAttribute('data-field'));
             
-            icon.addEventListener('click', function(e) {
-                e.stopPropagation(); // 阻止事件冒泡到th元素
+        icon.addEventListener('click', function(e) {
+            e.stopPropagation(); // 阻止事件冒泡到th元素
 
-                const field = this.getAttribute('data-field');
+            const field = this.getAttribute('data-field');
                 console.log('点击筛选图标，字段:', field);
 
-                // 切换筛选行显示状态
-                if (!isFilterRowVisible) {
-                    filterRow.style.display = '';
-                    isFilterRowVisible = true;
-                    this.classList.add('active');
+            // 切换筛选行显示状态
+            if (!isFilterRowVisible) {
+                filterRow.style.display = '';
+                isFilterRowVisible = true;
+                this.classList.add('active');
                     console.log('显示筛选行');
 
-                    // 聚焦当前列的输入框
-                    const input = document.querySelector(`.filter-input[data-field="${field}"]`);
-                    if (input) {
-                        setTimeout(() => input.focus(), 100);
-                    }
-                } else {
-                    // 如果已经显示，检查是否是切换其他列的筛选
-                    const activeIcon = document.querySelector('.filter-icon.active');
+                // 聚焦当前列的输入框
+                const input = document.querySelector(`.filter-input[data-field="${field}"]`);
+                if (input) {
+                    setTimeout(() => input.focus(), 100);
+                }
+            } else {
+                // 如果已经显示，检查是否是切换其他列的筛选
+                const activeIcon = document.querySelector('.filter-icon.active');
 
                     // 如果点击的是同一列，并且没有输入值，则隐藏筛选行并恢复所有内容
-                    const currentInput = document.querySelector(`.filter-input[data-field="${field}"]`);
-                    if (activeIcon && activeIcon.getAttribute('data-field') === field &&
-                        (!currentInput || !currentInput.value.trim())) {
+                const currentInput = document.querySelector(`.filter-input[data-field="${field}"]`);
+                if (activeIcon && activeIcon.getAttribute('data-field') === field &&
+                    (!currentInput || !currentInput.value.trim())) {
                         
                         // 清除当前输入框的值
                         if (currentInput) {
@@ -1509,87 +1509,87 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                         
                         // 隐藏筛选行
-                        filterRow.style.display = 'none';
-                        isFilterRowVisible = false;
-                        activeIcon.classList.remove('active');
+                    filterRow.style.display = 'none';
+                    isFilterRowVisible = false;
+                    activeIcon.classList.remove('active');
                         console.log('隐藏筛选行并清除筛选');
                         
                         // 恢复所有项目显示
                         clearAllFilters();
-                    } else {
-                        // 清除所有图标的活动状态
-                        filterIcons.forEach(i => {
-                            if (i.getAttribute('data-field') !== field &&
-                                !document.querySelector(`.filter-input[data-field="${i.getAttribute('data-field')}"]`).value.trim()) {
-                                i.classList.remove('active');
-                            }
-                        });
-
-                        // 设置当前图标为活动状态
-                        this.classList.add('active');
-
-                        // 聚焦当前列的输入框
-                        if (currentInput) {
-                            setTimeout(() => currentInput.focus(), 100);
+                } else {
+                    // 清除所有图标的活动状态
+                    filterIcons.forEach(i => {
+                        if (i.getAttribute('data-field') !== field &&
+                            !document.querySelector(`.filter-input[data-field="${i.getAttribute('data-field')}"]`).value.trim()) {
+                            i.classList.remove('active');
                         }
+                    });
+
+                    // 设置当前图标为活动状态
+                    this.classList.add('active');
+
+                    // 聚焦当前列的输入框
+                    if (currentInput) {
+                        setTimeout(() => currentInput.focus(), 100);
                     }
                 }
-            });
+            }
         });
+    });
 
-        // 处理筛选输入框的输入事件
+    // 处理筛选输入框的输入事件
         filterInputs.forEach((input, index) => {
             console.log(`绑定筛选输入框 ${index}，字段:`, input.getAttribute('data-field'));
             
-            input.addEventListener('input', function() {
+        input.addEventListener('input', function() {
                 console.log('筛选输入事件触发，字段:', this.getAttribute('data-field'), '值:', this.value);
                 // 实时筛选，不提交到服务器
-                performColumnFilter();
-            });
+            performColumnFilter();
+        });
 
-            input.addEventListener('change', function() {
+        input.addEventListener('change', function() {
                 console.log('筛选change事件触发，字段:', this.getAttribute('data-field'), '值:', this.value);
                 // 当输入框失去焦点时，也执行筛选
+            performColumnFilter();
+        });
+
+        // 防止筛选输入框的点击事件冒泡，避免影响筛选行的显示
+        input.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+
+        input.addEventListener('keydown', function(e) {
+            // 按ESC键清除筛选条件
+            if (e.key === 'Escape') {
+                this.value = '';
                 performColumnFilter();
-            });
 
-            // 防止筛选输入框的点击事件冒泡，避免影响筛选行的显示
-            input.addEventListener('click', function(e) {
-                e.stopPropagation();
-            });
+                // 检查是否所有筛选都为空，如果是则隐藏筛选行
+                let allEmpty = true;
+                filterInputs.forEach(inp => {
+                    if (inp.value.trim()) allEmpty = false;
+                });
 
-            input.addEventListener('keydown', function(e) {
-                // 按ESC键清除筛选条件
-                if (e.key === 'Escape') {
-                    this.value = '';
-                    performColumnFilter();
+                if (allEmpty) {
+                    filterRow.style.display = 'none';
+                    isFilterRowVisible = false;
 
-                    // 检查是否所有筛选都为空，如果是则隐藏筛选行
-                    let allEmpty = true;
-                    filterInputs.forEach(inp => {
-                        if (inp.value.trim()) allEmpty = false;
-                    });
-
-                    if (allEmpty) {
-                        filterRow.style.display = 'none';
-                        isFilterRowVisible = false;
-
-                        // 移除所有图标的活动状态
-                        filterIcons.forEach(icon => icon.classList.remove('active'));
+                    // 移除所有图标的活动状态
+                    filterIcons.forEach(icon => icon.classList.remove('active'));
                         
                         // 恢复所有项目显示
                         clearAllFilters();
-                    }
                 }
+            }
 
                 // 按回车键时仅应用筛选，不向服务器提交（避免500错误）
-                if (e.key === 'Enter') {
+            if (e.key === 'Enter') {
                     e.preventDefault(); // 阻止默认的表单提交行为
                     performColumnFilter(); // 只执行客户端筛选
-                }
-            });
+            }
         });
-        
+    });
+
         // 添加点击其他区域隐藏筛选行的功能
         document.addEventListener('click', function(e) {
             // 如果点击的不是筛选相关元素，则隐藏筛选行
@@ -1654,10 +1654,10 @@ function restoreAllItems() {
 // 清除所有筛选条件的函数
 function clearAllFilters() {
     console.log('清除所有筛选条件');
-    
+
     // 清除所有筛选输入框的值（不触发input事件）
     const filterInputs = document.querySelectorAll('.filter-input');
-    filterInputs.forEach(input => {
+        filterInputs.forEach(input => {
         input.value = '';
     });
     
@@ -1665,14 +1665,14 @@ function clearAllFilters() {
     const filterIcons = document.querySelectorAll('.filter-icon');
     filterIcons.forEach(icon => {
         icon.classList.remove('active');
-    });
-    
+        });
+
     // 恢复所有项目显示
     restoreAllItems();
-}
+    }
 
-// 执行列筛选
-function performColumnFilter() {
+    // 执行列筛选
+    function performColumnFilter() {
     console.log('开始执行列筛选');
     
     // 如果原始数据未保存，重新保存
@@ -1683,21 +1683,21 @@ function performColumnFilter() {
     
     console.log('当前原始数据行数:', originalTableRows.length, '卡片数:', originalMobileCards.length);
     
-    const tableBody = document.querySelector('.table tbody');
+        const tableBody = document.querySelector('.table tbody');
     const mobileContainer = document.querySelector('.d-block.d-lg-none');
     const filterInputs = document.querySelectorAll('.filter-input');
 
-    // 收集所有筛选条件
-    const filters = {};
-    filterInputs.forEach(input => {
-        const field = input.getAttribute('data-field');
-        const value = input.value.trim().toLowerCase();
-        if (value) {
-            filters[field] = value;
+        // 收集所有筛选条件
+        const filters = {};
+        filterInputs.forEach(input => {
+            const field = input.getAttribute('data-field');
+            const value = input.value.trim().toLowerCase();
+            if (value) {
+                filters[field] = value;
             console.log('添加筛选条件:', field, '=', value);
-        }
-    });
-    
+            }
+        });
+        
     console.log('筛选条件数量:', Object.keys(filters).length);
     
     // 如果没有筛选条件，恢复所有项目显示
@@ -1710,63 +1710,63 @@ function performColumnFilter() {
     // 筛选PC端表格行
     let visibleRowCount = 0;
     console.log('开始筛选表格行，总行数:', originalTableRows.length);
-    
+
     originalTableRows.forEach((row, index) => {
-        let showRow = true;
+            let showRow = true;
 
-        // 检查每个筛选条件
-        for (const [field, filterValue] of Object.entries(filters)) {
-            const columnIndex = getColumnIndexByField(field);
-            if (columnIndex !== -1) {
-                const cell = row.cells[columnIndex];
-                if (cell) {
-                    const cellValue = cell.textContent.toLowerCase();
+            // 检查每个筛选条件
+            for (const [field, filterValue] of Object.entries(filters)) {
+                const columnIndex = getColumnIndexByField(field);
+                if (columnIndex !== -1) {
+                    const cell = row.cells[columnIndex];
+                    if (cell) {
+                        const cellValue = cell.textContent.toLowerCase();
 
-                    // 日期字段特殊处理
-                    if (field === 'report_time' || field === 'delivery_forecast' ||
-                        field === 'created_at' || field === 'updated_at') {
+                        // 日期字段特殊处理
+                        if (field === 'report_time' || field === 'delivery_forecast' ||
+                            field === 'created_at' || field === 'updated_at') {
 
-                        // 比较日期（YYYY-MM-DD格式）
-                        const cellDate = cellValue.match(/\d{4}-\d{2}-\d{2}/);
+                            // 比较日期（YYYY-MM-DD格式）
+                            const cellDate = cellValue.match(/\d{4}-\d{2}-\d{2}/);
 
-                        if (cellDate && cellDate[0] !== filterValue) {
-                            showRow = false;
-                            break;
-                        } else if (!cellDate && filterValue) {
+                            if (cellDate && cellDate[0] !== filterValue) {
+                                showRow = false;
+                                break;
+                            } else if (!cellDate && filterValue) {
+                                showRow = false;
+                                break;
+                            }
+                        }
+                        // 数字字段特殊处理
+                        else if (field === 'quotation_customer') {
+                            // 移除逗号后比较数字
+                            const numericCellValue = cellValue.replace(/,/g, '');
+                            if (!numericCellValue.includes(filterValue)) {
+                                showRow = false;
+                                break;
+                            }
+                        }
+                        // 普通文本字段
+                        else if (!cellValue.includes(filterValue)) {
                             showRow = false;
                             break;
                         }
                     }
-                    // 数字字段特殊处理
-                    else if (field === 'quotation_customer') {
-                        // 移除逗号后比较数字
-                        const numericCellValue = cellValue.replace(/,/g, '');
-                        if (!numericCellValue.includes(filterValue)) {
-                            showRow = false;
-                            break;
-                        }
-                    }
-                    // 普通文本字段
-                    else if (!cellValue.includes(filterValue)) {
-                        showRow = false;
-                        break;
-                    }
-                }
             } else {
                 console.log('无法找到字段对应的列索引:', field);
+                }
             }
-        }
 
         // 设置行的可见性
-        if (showRow) {
+            if (showRow) {
             row.style.display = '';
-            row.classList.remove('filtered');
+                row.classList.remove('filtered');
             visibleRowCount++;
-        } else {
+            } else {
             row.style.display = 'none';
-            row.classList.add('filtered');
-        }
-    });
+                row.classList.add('filtered');
+            }
+        });
 
     // 筛选移动端卡片
     let visibleCardCount = 0;
@@ -1792,7 +1792,7 @@ function performColumnFilter() {
         } else {
             card.style.display = 'none';
             card.classList.add('filtered');
-        }
+            }
     });
 
     console.log('筛选完成，可见行数:', visibleRowCount, '可见卡片数:', visibleCardCount);
@@ -1811,43 +1811,43 @@ function performColumnFilter() {
             if (!mobileContainer.contains(card)) {
                 mobileContainer.appendChild(card);
             }
-        });
-    }
+            });
+        }
 
-    // 高亮活动的筛选图标
+        // 高亮活动的筛选图标
     const filterIcons = document.querySelectorAll('.filter-icon');
-    filterIcons.forEach(icon => {
-        const field = icon.getAttribute('data-field');
-        const input = document.querySelector(`.filter-input[data-field="${field}"]`);
+        filterIcons.forEach(icon => {
+            const field = icon.getAttribute('data-field');
+            const input = document.querySelector(`.filter-input[data-field="${field}"]`);
 
-        if (input && input.value.trim()) {
-            icon.classList.add('active');
-        } else {
-            icon.classList.remove('active');
-        }
-    });
-    
-    // 更新按钮状态
-    if (typeof updateClearButtonState === 'function') {
-        setTimeout(updateClearButtonState, 0);
-    }
-}
-
-// 根据字段名获取列索引
-function getColumnIndexByField(field) {
-    // 计算列偏移量，考虑到复选框列
-    const hasCheckbox = document.querySelector('th .form-check') !== null;
-    const offset = hasCheckbox ? 1 : 0;
-
-    // 获取表头和字段的映射关系
-    const thElements = document.querySelectorAll('th[data-sort]');
-    for (let i = 0; i < thElements.length; i++) {
-        if (thElements[i].getAttribute('data-sort') === field) {
-            return i + offset;
+            if (input && input.value.trim()) {
+                icon.classList.add('active');
+            } else {
+                icon.classList.remove('active');
+            }
+        });
+        
+        // 更新按钮状态
+        if (typeof updateClearButtonState === 'function') {
+            setTimeout(updateClearButtonState, 0);
         }
     }
-    return -1;
-}
+
+    // 根据字段名获取列索引
+    function getColumnIndexByField(field) {
+        // 计算列偏移量，考虑到复选框列
+        const hasCheckbox = document.querySelector('th .form-check') !== null;
+        const offset = hasCheckbox ? 1 : 0;
+
+        // 获取表头和字段的映射关系
+        const thElements = document.querySelectorAll('th[data-sort]');
+        for (let i = 0; i < thElements.length; i++) {
+            if (thElements[i].getAttribute('data-sort') === field) {
+                return i + offset;
+            }
+        }
+        return -1;
+    }
 
 // 添加排序功能
     // 排序状态变量
