@@ -84,6 +84,9 @@ class Quotation(db.Model):
     locked_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # 锁定人
     locked_at = db.Column(db.DateTime)  # 锁定时间
     
+    # 植入总额合计字段
+    implant_total_amount = db.Column(db.Float, default=0.0)  # 植入总额合计
+    
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo('Asia/Shanghai')))
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -154,6 +157,20 @@ class Quotation(db.Model):
     def formatted_updated_at(self):
         """返回格式化的更新时间"""
         return self.updated_at.strftime('%Y-%m-%d') if self.updated_at else ''
+
+    @property
+    def formatted_implant_total_amount(self):
+        """返回格式化的植入总额合计"""
+        return '{:,.2f}'.format(self.implant_total_amount) if self.implant_total_amount else '0.00'
+
+    def calculate_implant_total_amount(self):
+        """计算植入总额合计"""
+        total = 0.0
+        for detail in self.details:
+            if detail.brand == '和源通信':
+                total += (detail.market_price or 0) * (detail.quantity or 0)
+        self.implant_total_amount = total
+        return total
 
     def can_approve_for_stage(self, stage):
         """检查是否可以对指定阶段进行审核"""
@@ -362,6 +379,9 @@ class QuotationDetail(db.Model):
     total_price = db.Column(db.Float)  # 总价（计算得出）
     product_mn = db.Column(db.String(100))  # 产品料号
     
+    # 植入小计字段
+    implant_subtotal = db.Column(db.Float, default=0.0)  # 植入小计：当产品品牌是和源通信时，零售价格 * 产品数量的值
+    
     # 产品明细确认字段 - 暂时注释掉数据库字段，使用会话存储
     # is_confirmed = db.Column(db.Boolean, default=False)  # 是否确认
     # confirmed_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # 确认人
@@ -374,16 +394,27 @@ class QuotationDetail(db.Model):
     # confirmer = db.relationship('User', foreign_keys=[confirmed_by], backref='confirmed_detail_items')
     
     def calculate_prices(self):
-        """计算单价和总价"""
+        """计算单价、总价和植入小计"""
         self.unit_price = self.market_price * self.discount
         self.total_price = self.unit_price * self.quantity
+        
+        # 计算植入小计：当产品品牌是和源通信时，使用零售价格 * 产品数量
+        if self.brand == '和源通信':
+            self.implant_subtotal = (self.market_price or 0) * (self.quantity or 0)
+        else:
+            self.implant_subtotal = 0.0
+
+    @property
+    def formatted_implant_subtotal(self):
+        """返回格式化的植入小计"""
+        return '{:,.2f}'.format(self.implant_subtotal) if self.implant_subtotal else '0.00'
 
 # 产品明细变化监听器
 @event.listens_for(QuotationDetail, 'after_insert')
 @event.listens_for(QuotationDetail, 'after_update')
 @event.listens_for(QuotationDetail, 'after_delete')
 def update_quotation_product_signature(mapper, connection, target):
-    """产品明细变化时更新报价单的产品签名（只关注行数和MN号变化）"""
+    """产品明细变化时更新报价单的产品签名和植入总额合计"""
     try:
         # 获取报价单ID
         quotation_id = target.quotation_id
@@ -398,7 +429,13 @@ def update_quotation_product_signature(mapper, connection, target):
                             ORDER BY COALESCE(product_mn, '')
                         ),
                         '[]'::json
-                    ) as mn_list
+                    ) as mn_list,
+                    COALESCE(SUM(
+                        CASE WHEN brand = '和源通信' 
+                        THEN COALESCE(market_price, 0) * COALESCE(quantity, 0)
+                        ELSE 0 
+                        END
+                    ), 0) as implant_total
                 FROM quotation_details 
                 WHERE quotation_id = :quotation_id
             """), {"quotation_id": quotation_id})
@@ -407,6 +444,7 @@ def update_quotation_product_signature(mapper, connection, target):
             if row:
                 detail_count = row[0]
                 mn_list_json = row[1]
+                implant_total = row[2]
                 
                 # 构造签名数据（只包含行数和MN号列表）
                 signature_data = {
@@ -441,19 +479,22 @@ def update_quotation_product_signature(mapper, connection, target):
                                 confirmation_badge_color = NULL,
                                 confirmed_by = NULL,
                                 confirmed_at = NULL,
-                                product_signature = :new_signature
+                                product_signature = :new_signature,
+                                implant_total_amount = :implant_total
                             WHERE id = :quotation_id
-                        """), {"quotation_id": quotation_id, "new_signature": new_signature})
+                        """), {"quotation_id": quotation_id, "new_signature": new_signature, "implant_total": implant_total})
                         
                         # 记录日志（仅用于调试和审计）
                         print(f"报价单 {quotation_id} 的产品明细发生关键变化（行数或MN号），已自动清除数据库确认状态")
                     else:
-                        # 只更新签名
+                        # 只更新签名和植入总额合计
                         connection.execute(text("""
                             UPDATE quotations 
-                            SET product_signature = :new_signature
+                            SET 
+                                product_signature = :new_signature,
+                                implant_total_amount = :implant_total
                             WHERE id = :quotation_id
-                        """), {"quotation_id": quotation_id, "new_signature": new_signature})
+                        """), {"quotation_id": quotation_id, "new_signature": new_signature, "implant_total": implant_total})
                         
     except Exception as e:
-        print(f"更新产品签名时发生错误: {str(e)}") 
+        print(f"更新产品签名和植入总额合计时发生错误: {str(e)}") 

@@ -116,7 +116,8 @@ def get_quotation_detail_fields():
         'market_price',     # 市场价
         'unit_price',       # 单价
         'total_price',      # 总价
-        'product_mn'        # 产品料号
+        'product_mn',       # 产品料号
+        'implant_subtotal'  # 植入小计
     ]
 
 
@@ -127,10 +128,11 @@ def get_quotation_fields():
         字段列表
     """
     return [
-        'quotation_number',  # 报价单编号
-        'project_id',       # 项目ID
-        'contact_id',       # 联系人ID
-        'amount',           # 总金额
-        'project_stage',    # 项目阶段
-        'project_type'      # 项目类型
+        'quotation_number',     # 报价单编号
+        'project_id',          # 项目ID
+        'contact_id',          # 联系人ID
+        'amount',              # 总金额
+        'project_stage',       # 项目阶段
+        'project_type',        # 项目类型
+        'implant_total_amount' # 植入总额合计
     ] 

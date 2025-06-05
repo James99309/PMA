@@ -121,10 +121,10 @@
 {% endmacro %}
 
 {% macro render_currency(amount) %}
-  {% if amount %}
+  {% if amount is not none %}
     ￥{{ '{:,.2f}'.format(amount) }}
   {% else %}
-
+    -
   {% endif %}
 {% endmacro %}
 

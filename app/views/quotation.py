@@ -496,6 +496,10 @@ def create_quotation():
                         total_price=subtotal,
                         product_mn=product_mns[i] if i < len(product_mns) else ''  # 添加MN号
                     )
+                    
+                    # 计算植入小计
+                    detail.calculate_prices()
+                    
                     quotation.details.append(detail)
                 
                 # 更新报价单总金额
@@ -768,6 +772,10 @@ def edit_quotation(id):
                                 total_price=subtotal,
                                 product_mn=product_mns[i] if i < len(product_mns) else ''  # 添加MN号
                             )
+                            
+                            # 计算植入小计
+                            detail.calculate_prices()
+                            
                             quotation.details.append(detail)
                         except Exception as e:
                             raise ValueError(f'处理第 {i+1} 行数据时出错：{str(e)}')
@@ -888,6 +896,10 @@ def copy_quotation(id):
                 total_price=detail.total_price,
                 product_mn=detail.product_mn if hasattr(detail, 'product_mn') else ''  # 添加MN号
             )
+            
+            # 计算植入小计
+            new_detail.calculate_prices()
+            
             new_quotation.details.append(new_detail)
         
         # 设置总金额
