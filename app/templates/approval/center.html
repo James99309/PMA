@@ -5,10 +5,96 @@
 
 {% block head %}
 <style>
+  /* 审批列表表格滚动样式 */
+  .approval-table-container {
+    position: relative;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    overflow: hidden;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  
+  .approval-table-scroll {
+    overflow-x: auto;
+    overflow-y: visible;
+    max-width: 100%;
+    scrollbar-width: thin;
+    scrollbar-color: #ff8c00 #f1f1f1;
+  }
+  
+  .approval-table-scroll::-webkit-scrollbar {
+    height: 8px;
+  }
+  
+  .approval-table-scroll::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+  }
+  
+  .approval-table-scroll::-webkit-scrollbar-thumb {
+    background: #ff8c00;
+    border-radius: 4px;
+    transition: background 0.3s ease;
+  }
+  
+  .approval-table-scroll::-webkit-scrollbar-thumb:hover {
+    background: #e67e00;
+  }
+  
+  .approval-table {
+    min-width: 1200px;
+    margin-bottom: 0;
+    border: none;
+  }
+  
+  .approval-table thead th {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+    color: #495057;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    white-space: nowrap;
+    padding: 12px 8px;
+  }
+  
+  .approval-table tbody td {
+    padding: 12px 8px;
+    vertical-align: middle;
+    border-bottom: 1px solid #f1f3f4;
+    white-space: nowrap;
+  }
+  
+  .approval-table tbody tr:hover {
+    background-color: #f8f9fa;
+  }
+  
+  /* 审批编号胶囊样式优化 */
+  .approval-table .badge.rounded-pill {
+    font-size: 0.8rem;
+    padding: 6px 12px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  
+  .approval-table .badge.rounded-pill:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(255, 140, 0, 0.3);
+  }
+  
   /* 移动端优化样式 */
   @media (max-width: 767.98px) {
-    .table-responsive {
-      font-size: 0.9rem;
+    .approval-table {
+      min-width: 800px;
+    }
+    
+    .approval-table thead th,
+    .approval-table tbody td {
+      padding: 8px 6px;
+      font-size: 0.85rem;
     }
     
     .badge {
@@ -24,6 +110,31 @@
       margin-bottom: 0.75rem;
     }
   }
+  
+  /* 平板端优化 */
+  @media (min-width: 768px) and (max-width: 1199.98px) {
+    .approval-table {
+      min-width: 1000px;
+    }
+  }
+  
+  /* 滚动提示 */
+  .approval-table-container::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 20px;
+    height: 100%;
+    background: linear-gradient(to left, rgba(255,255,255,0.8) 0%, transparent 100%);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  
+  .approval-table-scroll:not(:hover)::after {
+    opacity: 1;
+  }
 </style>
 {% endblock %}
 
@@ -34,25 +145,19 @@
   </div>
   
   <!-- 标签页切换 -->
-  <ul class="nav nav-pills mb-4">
-    <li class="nav-item">
-      <a class="nav-link {{ 'active' if current_tab == 'created' else '' }}" href="{{ url_for('approval.center', tab='created') }}">
-        <i class="fas fa-file-export me-1"></i> 我发起的
-      </a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link {{ 'active' if current_tab == 'pending' else '' }}" href="{{ url_for('approval.center', tab='pending') }}">
-        <i class="fas fa-hourglass-half me-1"></i> 待我审批的
-      </a>
-    </li>
-    {% if current_user.role == 'admin' %}
-    <li class="nav-item">
-      <a class="nav-link {{ 'active' if current_tab == 'all' else '' }}" href="{{ url_for('approval.center', tab='all') }}">
-        <i class="fas fa-list me-1"></i> 全部审批
-      </a>
-    </li>
-    {% endif %}
-  </ul>
+  <div class="card mb-4">
+    <div class="card-header">
+      {% set approval_tabs = [
+        {'key': 'created', 'label': '我发起的', 'icon': 'fas fa-file-export'},
+        {'key': 'pending', 'label': '待我审批的', 'icon': 'fas fa-hourglass-half'},
+        {'key': 'pricing_order', 'label': '批价单审批', 'icon': 'fas fa-file-invoice-dollar'}
+      ] %}
+      {% if current_user.role == 'admin' %}
+        {% set _ = approval_tabs.append({'key': 'all', 'label': '全部审批', 'icon': 'fas fa-list'}) %}
+      {% endif %}
+      {{ render_standard_tabs(approval_tabs, current_tab, url_for('approval.center')) | safe }}
+    </div>
+  </div>
   
   <!-- 筛选表单 -->
   {{ approval_filter_form(current_tab, object_type, status) }}
@@ -65,6 +170,8 @@
           <i class="fas fa-file-export me-2"></i> 我发起的审批
         {% elif current_tab == 'pending' %}
           <i class="fas fa-hourglass-half me-2"></i> 待我审批的
+        {% elif current_tab == 'pricing_order' %}
+          <i class="fas fa-file-invoice-dollar me-2"></i> 批价单审批
         {% elif current_tab == 'all' %}
           <i class="fas fa-list me-2"></i> 全部审批记录
         {% endif %}
@@ -101,6 +208,138 @@
         }
       }
     });
+    
+    // Ajax分页支持
+    initAjaxPagination();
+  });
+  
+  function initAjaxPagination() {
+    // 绑定Ajax分页链接事件
+    document.addEventListener('click', function(e) {
+      if (e.target.classList.contains('ajax-page-link') || e.target.closest('.ajax-page-link')) {
+        e.preventDefault();
+        
+        const link = e.target.classList.contains('ajax-page-link') ? e.target : e.target.closest('.ajax-page-link');
+        const page = link.getAttribute('data-page');
+        const containerId = link.getAttribute('data-container');
+        const paginationId = link.getAttribute('data-pagination');
+        
+        if (page) {
+          loadPage(page, containerId, paginationId);
+        }
+      }
+    });
+  }
+  
+  function loadPage(page, containerId = 'approvalTableContainer', paginationId = 'paginationContainer') {
+    // 获取当前URL参数
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.set('page', page);
+    
+    // 显示加载状态
+    const container = document.getElementById(containerId);
+    const paginationContainer = document.getElementById(paginationId);
+    
+    if (container) {
+      container.style.opacity = '0.6';
+      container.style.pointerEvents = 'none';
+    }
+    
+    if (paginationContainer) {
+      paginationContainer.style.opacity = '0.6';
+    }
+    
+    // 发送Ajax请求
+    fetch(`{{ url_for('approval.center') }}?${urlParams.toString()}`, {
+      method: 'GET',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Accept': 'text/html'
+      }
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('网络请求失败');
+      }
+      return response.text();
+    })
+    .then(html => {
+      // 解析返回的HTML
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      
+      // 更新表格内容
+      const newTableContainer = doc.getElementById(containerId);
+      const newPaginationContainer = doc.getElementById(paginationId);
+      
+      if (newTableContainer && container) {
+        container.innerHTML = newTableContainer.innerHTML;
+        container.style.opacity = '1';
+        container.style.pointerEvents = 'auto';
+      }
+      
+      if (newPaginationContainer && paginationContainer) {
+        paginationContainer.innerHTML = newPaginationContainer.innerHTML;
+        paginationContainer.style.opacity = '1';
+      }
+      
+      // 更新URL但不刷新页面
+      const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
+      window.history.pushState({page: page}, '', newUrl);
+      
+      // 重新初始化表格事件
+      initTableEvents();
+    })
+    .catch(error => {
+      console.error('加载页面失败:', error);
+      
+      // 恢复状态
+      if (container) {
+        container.style.opacity = '1';
+        container.style.pointerEvents = 'auto';
+      }
+      
+      if (paginationContainer) {
+        paginationContainer.style.opacity = '1';
+      }
+      
+      // 显示错误提示
+      alert('加载页面失败，请重试');
+    });
+  }
+  
+  function initTableEvents() {
+    // 重新初始化移动端点击事件
+    const tableRows = document.querySelectorAll('tbody tr');
+    
+    tableRows.forEach(row => {
+      const link = row.querySelector('a');
+      if (link) {
+        const url = link.getAttribute('href');
+        
+        // 只在移动端启用整行点击
+        if (window.innerWidth < 768) {
+          row.style.cursor = 'pointer';
+          row.addEventListener('click', function(e) {
+            // 如果点击的是链接本身，不需要重复导航
+            if (e.target.tagName === 'A' || e.target.closest('a')) {
+              return;
+            }
+            window.location.href = url;
+          });
+        }
+      }
+    });
+  }
+  
+  // 处理浏览器前进后退
+  window.addEventListener('popstate', function(e) {
+    if (e.state && e.state.page) {
+      loadPage(e.state.page);
+    } else {
+      // 如果没有状态，重新加载页面
+      window.location.reload();
+    }
   });
 </script>
 {% endblock %} 

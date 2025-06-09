@@ -50,6 +50,7 @@ const STAGE_COLORS_COUNT = {
     'pre_tender': 'rgba(2, 103, 5, 0.3)',     // 026705 透明度 30%
     'tendering': 'rgba(2, 103, 5, 0.5)',     // 026705 透明度 50%
     'awarded': 'rgba(2, 103, 5, 0.7)',       // 026705 透明度 70%
+    'quoted': 'rgba(108, 117, 125, 0.8)',    // 6C757D 透明度 80% (Bootstrap secondary color)
     'signed': 'rgba(2, 103, 5, 1)',         // 026705 透明度 100%
     'lost': 'rgba(108, 3, 3, 1)',         // 6C0303 透明度 100%
     'paused': 'rgba(189, 194, 189, 1)'      // BDC2BD 透明度 100%
@@ -62,6 +63,7 @@ const STAGE_COLORS_AMOUNT = {
     'pre_tender': 'rgba(7, 70, 160, 0.3)',    // 0746A0 透明度 30%
     'tendering': 'rgba(7, 70, 160, 0.5)',    // 0746A0 透明度 50%
     'awarded': 'rgba(7, 70, 160, 0.7)',      // 0746A0 透明度 70%
+    'quoted': 'rgba(108, 117, 125, 0.8)',    // 6C757D 透明度 80% (Bootstrap secondary color)
     'signed': 'rgba(7, 70, 160, 1)',        // 0746A0 透明度 100%
     'lost': 'rgba(108, 3, 3, 1)',         // 6C0303 透明度 100%
     'paused': 'rgba(189, 194, 189, 1)'      // BDC2BD 透明度 100%
@@ -74,6 +76,7 @@ const STAGE_COLORS = {
     'pre_tender': 'rgba(2, 103, 5, 0.3)',
     'tendering': 'rgba(2, 103, 5, 0.5)',
     'awarded': 'rgba(2, 103, 5, 0.7)',
+    'quoted': 'rgba(108, 117, 125, 0.8)',
     'signed': 'rgba(2, 103, 5, 1)',
     'lost': 'rgba(108, 3, 3, 1)',
     'paused': 'rgba(189, 194, 189, 1)'
@@ -693,7 +696,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('tenderingProjectsAmount').textContent = '0';
         }
         
-        // 更新中标项目数据（英文key）
+                // 更新中标项目数据（英文key）
         if (stats.stage_counts && stats.stage_counts['awarded']) {
             document.getElementById('wonProjectsCount').textContent = formatNumber(stats.stage_counts['awarded'] || 0);
         } else {
@@ -705,7 +708,85 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             document.getElementById('wonProjectsAmount').textContent = '0';
         }
+
+        // 更新批价项目数据（英文key）
+        if (stats.stage_counts && stats.stage_counts['quoted']) {
+            document.getElementById('quotedProjectsCount').textContent = formatNumber(stats.stage_counts['quoted'] || 0);
+        } else {
+            document.getElementById('quotedProjectsCount').textContent = '0';
+        }
         
+        if (stats.stage_amounts && stats.stage_amounts['quoted']) {
+            document.getElementById('quotedProjectsAmount').textContent = formatNumber(Math.round((stats.stage_amounts['quoted'] || 0) / 10000));
+        } else {
+            document.getElementById('quotedProjectsAmount').textContent = '0';
+        }
+
+        // 更新发现阶段数据
+        if (stats.stage_counts && stats.stage_counts['discover']) {
+            document.getElementById('discoverProjectsCount').textContent = formatNumber(stats.stage_counts['discover'] || 0);
+        } else {
+            document.getElementById('discoverProjectsCount').textContent = '0';
+        }
+        
+        if (stats.stage_amounts && stats.stage_amounts['discover']) {
+            document.getElementById('discoverProjectsAmount').textContent = formatNumber(Math.round((stats.stage_amounts['discover'] || 0) / 10000));
+        } else {
+            document.getElementById('discoverProjectsAmount').textContent = '0';
+        }
+
+        // 更新植入阶段数据
+        if (stats.stage_counts && stats.stage_counts['embed']) {
+            document.getElementById('embedProjectsCount').textContent = formatNumber(stats.stage_counts['embed'] || 0);
+        } else {
+            document.getElementById('embedProjectsCount').textContent = '0';
+        }
+        
+        if (stats.stage_amounts && stats.stage_amounts['embed']) {
+            document.getElementById('embedProjectsAmount').textContent = formatNumber(Math.round((stats.stage_amounts['embed'] || 0) / 10000));
+        } else {
+            document.getElementById('embedProjectsAmount').textContent = '0';
+        }
+
+        // 更新招标前阶段数据
+        if (stats.stage_counts && stats.stage_counts['pre_tender']) {
+            document.getElementById('preTenderProjectsCount').textContent = formatNumber(stats.stage_counts['pre_tender'] || 0);
+        } else {
+            document.getElementById('preTenderProjectsCount').textContent = '0';
+        }
+        
+        if (stats.stage_amounts && stats.stage_amounts['pre_tender']) {
+            document.getElementById('preTenderProjectsAmount').textContent = formatNumber(Math.round((stats.stage_amounts['pre_tender'] || 0) / 10000));
+        } else {
+            document.getElementById('preTenderProjectsAmount').textContent = '0';
+        }
+
+        // 更新失败阶段数据
+        if (stats.stage_counts && stats.stage_counts['lost']) {
+            document.getElementById('lostProjectsCount').textContent = formatNumber(stats.stage_counts['lost'] || 0);
+        } else {
+            document.getElementById('lostProjectsCount').textContent = '0';
+        }
+        
+        if (stats.stage_amounts && stats.stage_amounts['lost']) {
+            document.getElementById('lostProjectsAmount').textContent = formatNumber(Math.round((stats.stage_amounts['lost'] || 0) / 10000));
+        } else {
+            document.getElementById('lostProjectsAmount').textContent = '0';
+        }
+
+        // 更新搁置阶段数据
+        if (stats.stage_counts && stats.stage_counts['paused']) {
+            document.getElementById('pausedProjectsCount').textContent = formatNumber(stats.stage_counts['paused'] || 0);
+        } else {
+            document.getElementById('pausedProjectsCount').textContent = '0';
+        }
+        
+        if (stats.stage_amounts && stats.stage_amounts['paused']) {
+            document.getElementById('pausedProjectsAmount').textContent = formatNumber(Math.round((stats.stage_amounts['paused'] || 0) / 10000));
+        } else {
+            document.getElementById('pausedProjectsAmount').textContent = '0';
+        }
+
         // 业务推进统计（本期新建+更新的项目）
         const newCount = stats.new_projects_count || 0;
         const updatedCount = stats.updated_projects_count || 0;

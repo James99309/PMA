@@ -2153,3 +2153,83 @@ def get_product_detail_confirmation_status(quotation_id):
             'success': False,
             'message': f'获取状态失败：{str(e)}'
         }), 500
+
+@quotation.route('/export_pdf/<int:quotation_id>')
+@login_required
+@permission_required('quotation', 'view')
+def export_pdf(quotation_id):
+    """导出报价单PDF"""
+    try:
+        # 查找报价单
+        quotation = Quotation.query.get_or_404(quotation_id)
+        
+        # 检查查看权限
+        if not can_view_quotation(current_user, quotation):
+            flash('权限不足，无法导出该报价单', 'danger')
+            return redirect(url_for('quotation.list_quotations'))
+        
+        from app.services.pdf_generator import PDFGenerator
+        
+        # 生成PDF
+        pdf_generator = PDFGenerator()
+        pdf_result = pdf_generator.generate_quotation_pdf(quotation)
+        pdf_content = pdf_result['content']
+        filename = pdf_result['filename']
+        
+        # 返回PDF文件
+        from flask import make_response
+        from urllib.parse import quote
+        response = make_response(pdf_content)
+        response.headers['Content-Type'] = 'application/pdf'
+        # 使用URL编码处理中文文件名
+        encoded_filename = quote(filename.encode('utf-8'))
+        response.headers['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{encoded_filename}'
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"导出报价单PDF失败: {str(e)}", exc_info=True)
+        flash(f'导出PDF失败：{str(e)}', 'danger')
+        return redirect(url_for('quotation.view_quotation', id=quotation_id))
+
+@quotation.route('/export_excel/<int:quotation_id>')
+@login_required
+@permission_required('quotation', 'view')
+def export_excel(quotation_id):
+    """导出报价单Excel"""
+    try:
+        # 查找报价单
+        quotation = Quotation.query.get_or_404(quotation_id)
+        
+        # 检查查看权限
+        if not can_view_quotation(current_user, quotation):
+            flash('权限不足，无法导出该报价单', 'danger')
+            return redirect(url_for('quotation.list_quotations'))
+        
+        from app.services.excel_generator import ExcelGenerator
+        
+        # 生成Excel
+        excel_generator = ExcelGenerator()
+        excel_content = excel_generator.generate_quotation_excel(quotation)
+        
+        # 设置文件名：报价单编号 & 项目名称
+        project_name = quotation.project.project_name if quotation.project else "未知项目"
+        # 清理文件名中的特殊字符
+        safe_project_name = "".join(c for c in project_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        filename = f"{quotation.quotation_number} & {safe_project_name}.xlsx"
+        
+        # 返回Excel文件
+        from flask import make_response
+        from urllib.parse import quote
+        response = make_response(excel_content)
+        response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        # 使用URL编码处理中文文件名
+        encoded_filename = quote(filename.encode('utf-8'))
+        response.headers['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{encoded_filename}'
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"导出报价单Excel失败: {str(e)}", exc_info=True)
+        flash(f'导出Excel失败：{str(e)}', 'danger')
+        return redirect(url_for('quotation.view_quotation', id=quotation_id))

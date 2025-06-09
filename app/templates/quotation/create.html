@@ -332,22 +332,19 @@ input[type="number"].discount-rate {
     display: none !important; /* 隐藏%符号 */
 }
 
-/* 确保折扣率输入框的上下箭头正常显示且位置合理 */
+/* 隐藏数量和折扣率输入框的上下箭头 */
+input[type="number"].quantity::-webkit-outer-spin-button,
+input[type="number"].quantity::-webkit-inner-spin-button,
 input[type="number"].discount-rate::-webkit-outer-spin-button,
 input[type="number"].discount-rate::-webkit-inner-spin-button {
-    opacity: 1 !important;
-    margin: 0 !important;
-    width: 20px !important;
-    height: 100% !important;
-    cursor: pointer !important;
+    -webkit-appearance: none;
+    margin: 0;
 }
 
-/* Firefox的特殊处理 */
-@-moz-document url-prefix() {
-    input[type="number"].discount-rate {
-        -moz-appearance: textfield !important;
-        padding-right: 25px !important;
-    }
+/* Firefox的特殊处理 - 隐藏数量和折扣率字段的上下箭头 */
+input[type="number"].quantity,
+input[type="number"].discount-rate {
+    -moz-appearance: textfield !important;
 }
 
 /* 折扣率容器样式优化 */

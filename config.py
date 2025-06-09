@@ -34,6 +34,9 @@ class Config:
     DEBUG = False
     TESTING = False
     
+    # 模板配置
+    TEMPLATES_AUTO_RELOAD = True  # 强制模板自动重载
+    
     # JWT配置
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or SECRET_KEY
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)

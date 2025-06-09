@@ -134,6 +134,9 @@ def list_projects():
                 else:
                     # 如果没有找到任何项目，返回空结果
                     query = query.filter(Project.id == -1)  # 不会匹配任何项目
+        elif field == 'current_stage':
+            # 处理阶段过滤，直接使用英文key进行匹配
+            query = query.filter(Project.current_stage == value)
         elif hasattr(Project, field):
             # 处理不同类型的字段
             if field in ['report_time', 'delivery_forecast', 'created_at', 'updated_at']:
@@ -259,45 +262,106 @@ def view_project(project_id):
         related_companies['system_integrator'] = integrator_company.id if integrator_company else None
     
     # 解析阶段变更历史，生成stageHistory结构
+    # 优先使用project_stage_history表中的数据，如果没有则从stage_description解析
+    from app.models.projectpm_stage_history import ProjectStageHistory
+    
     stage_history = []
-    if project.stage_description:
-        # 匹配形如：[阶段变更] 阶段A → 阶段B (更新者: xxx, 时间: yyyy-mm-dd HH:MM:SS)
-        pattern = re.compile(r'\[阶段变更\][^\n]*?([\u4e00-\u9fa5A-Za-z0-9_]+) ?(?:→|-) ?([\u4e00-\u9fa5A-Za-z0-9_]+).*?时间: (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})')
-        matches = list(pattern.finditer(project.stage_description))
-        # 按时间顺序生成阶段历史
-        for i, match in enumerate(matches):
-            from_stage, to_stage, change_time = match.group(1), match.group(2), match.group(3)
-            # 上一个阶段的endDate为本次变更时间
-            if i == 0:
-                # 项目创建时的阶段
-                stage_history.append({
-                    'stage': from_stage,
-                    'startDate': str(project.report_time) if project.report_time else '',
-                    'endDate': change_time
-                })
+    history_records = ProjectStageHistory.query.filter_by(project_id=project_id).order_by(ProjectStageHistory.change_date).all()
+    
+    if history_records:
+        # 使用project_stage_history表中的数据，去除重复记录
+        # 按阶段变更去重，保留最新的记录
+        unique_records = []
+        seen_changes = set()
+        for record in history_records:
+            change_key = f"{record.from_stage}->{record.to_stage}"
+            if change_key not in seen_changes:
+                unique_records.append(record)
+                seen_changes.add(change_key)
             else:
-                # 上一个to_stage的endDate为本次变更时间
-                stage_history[-1]['endDate'] = change_time
-            # 新阶段的startDate为本次变更时间
+                # 如果是重复的变更，保留时间更晚的记录
+                for i, existing in enumerate(unique_records):
+                    if f"{existing.from_stage}->{existing.to_stage}" == change_key:
+                        if record.change_date > existing.change_date:
+                            unique_records[i] = record
+                        break
+        
+        current_stage_start = None
+        for i, record in enumerate(unique_records):
+            if i == 0:
+                # 第一条记录，需要添加初始阶段（如果有from_stage）
+                if record.from_stage:
+                    stage_history.append({
+                        'stage': record.from_stage,
+                        'startDate': str(project.report_time) if project.report_time else '',
+                        'endDate': str(record.change_date)
+                    })
+                # 添加变更后的阶段
+                stage_history.append({
+                    'stage': record.to_stage,
+                    'startDate': str(record.change_date),
+                    'endDate': None
+                })
+                current_stage_start = str(record.change_date)
+            else:
+                # 后续记录，更新上一个阶段的endDate，添加新阶段
+                if stage_history:
+                    stage_history[-1]['endDate'] = str(record.change_date)
+                stage_history.append({
+                    'stage': record.to_stage,
+                    'startDate': str(record.change_date),
+                    'endDate': None
+                })
+                current_stage_start = str(record.change_date)
+        
+        # 确保当前阶段是最后一个阶段
+        if stage_history and stage_history[-1]['stage'] != project.current_stage:
+            # 如果最后一个历史记录的阶段与当前阶段不一致，添加当前阶段
             stage_history.append({
-                'stage': to_stage,
-                'startDate': change_time,
+                'stage': project.current_stage,
+                'startDate': current_stage_start or str(project.report_time) if project.report_time else '',
                 'endDate': None
             })
-        # 如果没有任何变更记录，只有当前阶段
-        if not matches:
+    else:
+        # 没有project_stage_history记录，尝试从stage_description解析
+        if project.stage_description:
+            # 匹配形如：[阶段变更] 阶段A → 阶段B (更新者: xxx, 时间: yyyy-mm-dd HH:MM:SS)
+            pattern = re.compile(r'\[阶段变更\][^\n]*?([\u4e00-\u9fa5A-Za-z0-9_]+) ?(?:→|-) ?([\u4e00-\u9fa5A-Za-z0-9_]+).*?时间: (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})')
+            matches = list(pattern.finditer(project.stage_description))
+            # 按时间顺序生成阶段历史
+            for i, match in enumerate(matches):
+                from_stage, to_stage, change_time = match.group(1), match.group(2), match.group(3)
+                # 上一个阶段的endDate为本次变更时间
+                if i == 0:
+                    # 项目创建时的阶段
+                    stage_history.append({
+                        'stage': from_stage,
+                        'startDate': str(project.report_time) if project.report_time else '',
+                        'endDate': change_time
+                    })
+                else:
+                    # 上一个to_stage的endDate为本次变更时间
+                    stage_history[-1]['endDate'] = change_time
+                # 新阶段的startDate为本次变更时间
+                stage_history.append({
+                    'stage': to_stage,
+                    'startDate': change_time,
+                    'endDate': None
+                })
+            # 如果没有任何变更记录，只有当前阶段
+            if not matches:
+                stage_history.append({
+                    'stage': project.current_stage,
+                    'startDate': str(project.report_time) if project.report_time else '',
+                    'endDate': None
+                })
+        else:
+            # 没有历史，只有当前阶段
             stage_history.append({
                 'stage': project.current_stage,
                 'startDate': str(project.report_time) if project.report_time else '',
                 'endDate': None
             })
-    else:
-        # 没有历史，只有当前阶段
-        stage_history.append({
-            'stage': project.current_stage,
-            'startDate': str(project.report_time) if project.report_time else '',
-            'endDate': None
-        })
 
     # 查询项目相关的行动记录，按时间倒序排列
     project_actions = Action.query.filter_by(project_id=project_id).order_by(Action.date.desc(), Action.created_at.desc()).all()
@@ -1270,6 +1334,103 @@ def batch_delete_projects():
             'message': f'操作失败: {str(e)}'
         })
 
+def update_project_stage_business_logic(project_id, new_stage, current_user_id):
+    """
+    业务逻辑函数：更新项目阶段并处理批价单创建
+    供测试脚本和其他业务逻辑调用
+    """
+    try:
+        from app.models.user import User
+        user = User.query.get(current_user_id)
+        if not user:
+            return {'error': '用户不存在'}
+        
+        # 查询项目
+        project = Project.query.get(project_id)
+        if not project:
+            return {'error': '项目不存在'}
+        
+        old_stage = project.current_stage
+        
+        # 检查从批价到签约的流程 - 严格控制，只有批价单审批通过才能推进
+        if new_stage == 'signed' and old_stage == 'quoted':
+            from app.models.quotation import Quotation
+            from app.models.pricing_order import PricingOrder
+            
+            # 获取项目的最新报价单
+            latest_quotation = Quotation.query.filter_by(project_id=project_id).order_by(
+                Quotation.created_at.desc()
+            ).first()
+            
+            if not latest_quotation:
+                return {'error': '项目未找到相关报价单，无法推进到签约阶段。请先创建报价单。'}
+            
+            # 检查报价单是否有审核标记
+            has_approval = (
+                # 传统审核流程：有审核状态且不是pending/rejected，且有已审核阶段
+                (latest_quotation.approval_status and 
+                 latest_quotation.approval_status != 'pending' and
+                 latest_quotation.approval_status != 'rejected' and
+                 latest_quotation.approved_stages) or
+                # 或者有确认徽章（产品明细已确认）
+                (latest_quotation.confirmation_badge_status == 'confirmed')
+            )
+            
+            if not has_approval:
+                return {'error': f'报价单 {latest_quotation.quotation_number} 尚未完成审核，无法推进到签约阶段。请先完成报价单审核流程。'}
+            
+            # 检查是否已存在批价单且已审批通过
+            existing_pricing_order = PricingOrder.query.filter_by(
+                project_id=project_id,
+                quotation_id=latest_quotation.id
+            ).first()
+            
+            if not existing_pricing_order:
+                return {'error': f'项目尚未创建批价单，无法推进到签约阶段。请先创建并完成批价单审批流程。'}
+            
+            # 检查批价单是否已审批通过
+            if existing_pricing_order.status != 'approved':
+                return {'error': f'批价单 {existing_pricing_order.order_number} 尚未审批通过（当前状态：{existing_pricing_order.status_label["zh"]}），无法推进到签约阶段。请先完成批价单审批流程。'}
+        
+        # 更新项目阶段
+        project.current_stage = new_stage
+        
+        # 同步更新所有关联报价单的project_stage和project_type
+        from app.models.quotation import Quotation
+        quotations = Quotation.query.filter_by(project_id=project.id).all()
+        for q in quotations:
+            q.project_stage = new_stage
+            q.project_type = project.project_type
+        
+        # 创建阶段历史记录
+        try:
+            from app.models.projectpm_stage_history import ProjectStageHistory
+            ProjectStageHistory.add_history_record(
+                project_id=project.id,
+                from_stage=old_stage,
+                to_stage=new_stage,
+                change_date=datetime.now(),
+                remarks=f"业务逻辑推进: {user.username}",
+                commit=False  # 不在方法内部提交，与主事务一同提交
+            )
+        except Exception as history_err:
+            # 历史记录失败不应阻塞主流程
+            pass
+        
+        db.session.commit()
+        
+        return {
+            'success': True,
+            'project_id': project_id,
+            'old_stage': old_stage,
+            'new_stage': new_stage,
+            'message': '项目阶段更新成功'
+        }
+        
+    except Exception as e:
+        db.session.rollback()
+        return {'error': f'更新项目阶段失败: {str(e)}'}
+
 @project.route('/api/update_stage', methods=['POST'])
 @login_required
 @permission_required('project', 'edit')
@@ -1336,8 +1497,112 @@ def update_project_stage():
         if not allowed:
             return jsonify({'success': False, 'message': '您没有权限修改此项目'}), 403
             
-        # 更新项目阶段
+        # **新增: 签约阶段检测逻辑（批价流程）**
         old_stage = project.current_stage
+        pricing_flow_info = None
+        should_block_progress = False
+        
+        if new_stage == 'signed' and old_stage == 'quoted':
+            # 从批价阶段推进到签约阶段，检查批价流程状态
+            from app.models.quotation import Quotation
+            from app.models.pricing_order import PricingOrder
+            
+            # 获取项目的最新报价单
+            latest_quotation = Quotation.query.filter_by(project_id=project_id).order_by(
+                Quotation.created_at.desc()
+            ).first()
+            
+            if not latest_quotation:
+                # 无报价单，阻止推进
+                should_block_progress = True
+                pricing_flow_info = {
+                    'has_quotation': False,
+                    'has_pricing_order': False,
+                    'message': '项目未找到相关报价单，无法推进到签约阶段。请先创建报价单。',
+                    'action_required': 'create_quotation'
+                }
+            else:
+                # 检查报价单是否有审核标记
+                has_approval = (
+                    # 传统审核流程：有审核状态且不是pending/rejected，且有已审核阶段
+                    (latest_quotation.approval_status and 
+                     latest_quotation.approval_status != 'pending' and
+                     latest_quotation.approval_status != 'rejected' and
+                     latest_quotation.approved_stages) or
+                    # 或者有确认徽章（产品明细已确认）
+                    (latest_quotation.confirmation_badge_status == 'confirmed')
+                )
+                
+                if not has_approval:
+                    # 报价单没有审核标记，阻止推进
+                    should_block_progress = True
+                    pricing_flow_info = {
+                        'has_quotation': True,
+                        'has_approval': False,
+                        'quotation_number': latest_quotation.quotation_number,
+                        'message': f'报价单 {latest_quotation.quotation_number} 尚未完成审核，无法推进到签约阶段。请先完成报价单审核流程。',
+                        'action_required': 'complete_quotation_approval',
+                        'quotation_id': latest_quotation.id
+                    }
+                else:
+                    # 有报价单且有审核标记，检查是否已存在批价单
+                    existing_pricing_order = PricingOrder.query.filter_by(
+                        project_id=project_id,
+                        quotation_id=latest_quotation.id
+                    ).first()
+                    
+                    if existing_pricing_order:
+                        # 已存在批价单，检查审批状态
+                        if existing_pricing_order.status == 'approved':
+                            # 批价单已审批通过，可以推进到签约
+                            pricing_flow_info = {
+                                'has_quotation': True,
+                                'has_approval': True,
+                                'has_pricing_order': True,
+                                'quotation_number': latest_quotation.quotation_number,
+                                'pricing_order_number': existing_pricing_order.order_number,
+                                'pricing_order_status': existing_pricing_order.status,
+                                'message': f'批价单 {existing_pricing_order.order_number} 已审批通过，项目可以推进到签约阶段。',
+                                'action_required': 'view_pricing_order',
+                                'pricing_order_id': existing_pricing_order.id
+                            }
+                        else:
+                            # 批价单存在但未审批通过，阻止推进
+                            should_block_progress = True
+                            pricing_flow_info = {
+                                'has_quotation': True,
+                                'has_approval': True,
+                                'has_pricing_order': True,
+                                'quotation_number': latest_quotation.quotation_number,
+                                'pricing_order_number': existing_pricing_order.order_number,
+                                'pricing_order_status': existing_pricing_order.status,
+                                'message': f'批价单 {existing_pricing_order.order_number} 尚未审批通过（当前状态：{existing_pricing_order.status_label["zh"]}），无法推进到签约阶段。请先完成批价单审批流程。',
+                                'action_required': 'view_pricing_order',
+                                'pricing_order_id': existing_pricing_order.id
+                            }
+                    else:
+                        # 有报价单有审核但无批价单，阻止推进并提示创建
+                        should_block_progress = True
+                        pricing_flow_info = {
+                            'has_quotation': True,
+                            'has_approval': True,
+                            'has_pricing_order': False,
+                            'quotation_number': latest_quotation.quotation_number,
+                            'message': f'项目尚未创建批价单，无法推进到签约阶段。请先创建并完成批价单审批流程。',
+                            'action_required': 'create_pricing_order',
+                            'quotation_id': latest_quotation.id
+                        }
+        
+        # 如果需要阻止推进，回滚到原阶段
+        if should_block_progress:
+            return jsonify({
+                'success': False, 
+                'message': pricing_flow_info['message'],
+                'pricing_flow': pricing_flow_info,
+                'current_stage': old_stage  # 保持原阶段
+            }), 400
+        
+        # 更新项目阶段
         project.current_stage = new_stage
         # 同步更新所有关联报价单的project_stage和project_type
         from app.models.quotation import Quotation
@@ -1409,7 +1674,8 @@ def update_project_stage():
                 except Exception as notify_err:
                     current_app.logger.warning(f"启动异步项目阶段变更通知失败: {str(notify_err)}")
             
-            return jsonify({
+            # 构建响应数据
+            response_data = {
                 'success': True, 
                 'message': '项目阶段已更新',
                 'data': {
@@ -1417,7 +1683,13 @@ def update_project_stage():
                     'current_stage': project.current_stage,
                     'old_stage': old_stage
                 }
-            }), 200
+            }
+            
+            # 如果有批价流程信息，添加到响应中
+            if pricing_flow_info:
+                response_data['pricing_flow'] = pricing_flow_info
+            
+            return jsonify(response_data), 200
             
         except Exception as db_err:
             db.session.rollback()

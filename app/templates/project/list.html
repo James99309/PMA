@@ -68,18 +68,18 @@
             <div id="dashboardWrapper" style="display:none;">
                 {% include 'project/statistics_dashboard.html' %}
             </div>
-            <!-- 账户选择器和统计切换按钮迁移自statistics_dashboard.html -->
+            <!-- 账户选择器 -->
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <div class="d-flex align-items-center">
-                <div class="dropdown account-selector">
-                    <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="accountSelectorBtn" data-bs-toggle="dropdown" aria-expanded="false">
-                        全部账户
-                    </button>
-                    <ul class="dropdown-menu" id="accountSelectorMenu" aria-labelledby="accountSelectorBtn">
-                        <li><a class="dropdown-item active" href="#" data-account-id="all">全部账户</a></li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item text-center"><div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">加载中...</span></div></a></li>
-                    </ul>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="dropdown account-selector">
+                        <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="accountSelectorBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                            全部账户
+                        </button>
+                        <ul class="dropdown-menu" id="accountSelectorMenu" aria-labelledby="accountSelectorBtn">
+                            <li><a class="dropdown-item active" href="#" data-account-id="all">全部账户</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-center"><div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">加载中...</span></div></a></li>
+                        </ul>
                     </div>
                 </div>
                 {# 统计总览按钮已移至标题区，此处删除避免重复 #}
@@ -2043,6 +2043,7 @@ function clearAllFilters() {
     updateBatchDeleteButton();
 
 // 添加行滚动焦点效果
+const tableContainer = document.querySelector('.table-responsive');
 if (tableContainer) {
     const rows = document.querySelectorAll('.table tbody tr');
     let lastHighlightedRow = null;
@@ -2905,7 +2906,6 @@ document.addEventListener('DOMContentLoaded', function() {
 <!-- 引用项目列表账户同步模块 -->
 <script src="{{ url_for('static', filename='js/project_list_account.js') }}"></script>
 <script src="{{ url_for('static', filename='js/project_statistics.js') }}"></script>
-<script src="{{ url_for('static', filename='js/project_statistics.js') }}"></script>
 {% endblock %}
 
 <!-- 在页面加载时保存原始数据结构 -->
@@ -2932,6 +2932,29 @@ function saveOriginalData() {
     }
 }
 
+// 检查卡片激活状态的函数
+function checkCardActiveState(cardId, paramNames, expectedValues) {
+    const card = document.getElementById(cardId);
+    if (!card) return;
+    
+    const params = new URLSearchParams(window.location.search);
+    let allMatch = true;
+    
+    for (let i = 0; i < paramNames.length; i++) {
+        const paramValue = params.get(paramNames[i]);
+        if (paramValue !== expectedValues[i]) {
+            allMatch = false;
+            break;
+        }
+    }
+    
+    if (allMatch) {
+        card.classList.add('active-filter');
+    } else {
+        card.classList.remove('active-filter');
+    }
+}
+
 // 在页面加载完成后立即保存原始数据，并在筛选功能初始化前确保数据已保存
 document.addEventListener('DOMContentLoaded', function() {
     // 立即保存原始数据
@@ -2948,11 +2971,17 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }, 1000);
     }
+    
+
 });
+
+
 </script>
 
 <!-- 筛选功能调试代码 -->
 <script>
+
+
 // 添加全局调试函数，可在浏览器控制台中调用
 window.debugFilterFunction = function() {
     console.log('=== 筛选功能调试信息 ===');
@@ -3007,12 +3036,16 @@ window.testFilter = function() {
     }
 };
 
+
+
 // 在页面完全加载后自动运行一次调试
 window.addEventListener('load', function() {
     setTimeout(function() {
         console.log('页面完全加载，自动运行筛选功能调试');
-        console.log('您可以在控制台中运行 debugFilterFunction() 来查看详细调试信息');
-        console.log('您可以在控制台中运行 testFilter() 来测试筛选功能');
+        console.log('您可以在控制台中运行以下命令:');
+        console.log('  debugFilterFunction() - 查看详细调试信息');
+        console.log('  testFilter() - 测试筛选功能');
+
         
         if (typeof window.debugFilterFunction === 'function') {
             window.debugFilterFunction();

@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="IjI3YWE1YzYwMjExNjg1ZWI4YmI1ZjJkMGUxZjAxZjM1MWEyN2IwYTUi.aEWShg.CbkotiK-SnvEn89vwcPC0iTepsc">
+    <title>审批中心</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --pa-blue: #16a0bf;
+            --pa-dark-blue: #0e7c8f;
+            --pa-light-blue: #1db0d3;
+            --pa-bg-light: #f8f9fa;
+        }
+        body {
+            background-color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .top-nav {
+            background-color: #17a2b8;
+            color: white;
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+        }
+        .top-nav a {
+            color: white;
+            text-decoration: none;
+            margin-left: 15px;
+        }
+        .top-nav .user-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .top-nav .user-dropdown-toggle {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            min-width: 150px;
+            text-align: right;
+        }
+        .top-nav .user-dropdown-toggle:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .top-nav .user-dropdown-menu {
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: none;
+            z-index: 1000;
+            min-width: 160px;
+        }
+        .top-nav .user-dropdown-menu.show {
+            display: block;
+        }
+        .top-nav .user-dropdown-item {
+            display: block;
+            padding: 8px 15px;
+            color: #333;
+            text-decoration: none;
+        }
+        .top-nav .user-dropdown-item:hover {
+            background-color: #f5f5f5;
+        }
+        .top-nav .user-dropdown-item i {
+            margin-right: 8px;
+            width: 16px;
+            text-align: center;
+        }
+        .top-nav .user-info {
+            display: flex;
+            align-items: center;
+        }
+        .top-nav .user-avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: #0b5ed7;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 8px;
+            font-size: 12px;
+        }
+        .top-nav .badge {
+            font-size: 0.7rem;
+            font-weight: normal;
+            padding: 0.2em 0.6em;
+            margin-left: 5px;
+        }
+        .top-nav .user-info span {
+            display: flex;
+            align-items: center;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            font-size: 1.4rem;
+            margin: 10px 0;
+        }
+        .logo img {
+            height: 40px;
+            margin-right: 10px;
+        }
+        .logo span {
+            color: var(--pa-blue);
+            font-weight: 300;
+        }
+        .logo strong {
+            color: #333;
+        }
+        .main-nav {
+            background: #16a0bf;
+            margin-bottom: 20px;
+            border-bottom: none;
+        }
+        .main-nav .nav-tabs {
+            border-bottom: none;
+        }
+        .main-nav .nav-link {
+            color: #fff !important;
+            font-weight: 500;
+            font-size: 14px;
+            padding: 0.7rem 1.1rem;
+            border-bottom: none;
+            background: transparent;
+            transition: color 0.2s;
+            white-space: nowrap;
+        }
+        .main-nav .nav-link.active, .main-nav .nav-link:focus {
+            color: var(--pa-blue) !important;
+            background: #fff;
+            border-radius: 6px 6px 0 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        .main-nav .nav-link:not(.active):hover {
+            color: var(--pa-blue) !important;
+            background: transparent;
+        }
+        .main-nav .nav-link:not(.active) {
+            color: #fff !important;
+            background: transparent;
+        }
+        .main-nav .nav-item {
+            margin-bottom: 0;
+        }
+        .main-nav .user-dropdown-toggle, .main-nav .user-dropdown-menu {
+            background: transparent;
+        }
+        .main-nav .user-dropdown-menu {
+            min-width: 180px;
+        }
+        .main-nav .user-dropdown-item {
+            color: #333;
+        }
+        .main-nav .user-dropdown-item:hover {
+            background: #f5f5f5;
+        }
+        .main-nav .user-info {
+            color: #fff;
+            font-weight: 500;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        .main-nav .user-avatar {
+            background: #0b5ed7;
+            color: #fff;
+        }
+        .main-nav .user-dropdown-toggle {
+            min-width: 0;
+        }
+        .main-nav .user-dropdown {
+            margin-left: 1.5rem;
+        }
+        .main-nav .d-flex.align-items-center.ms-auto {
+            gap: 0.5rem;
+            flex-wrap: nowrap;
+        }
+        .main-nav .nav-link {
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .btn-primary {
+            background-color: var(--pa-blue);
+            border-color: var(--pa-blue);
+        }
+        .btn-primary:hover {
+            background-color: var(--pa-dark-blue);
+            border-color: var(--pa-dark-blue);
+        }
+        .btn-outline-primary {
+            color: var(--pa-blue);
+            border-color: var(--pa-blue);
+        }
+        .btn-outline-primary:hover {
+            background-color: var(--pa-blue);
+            border-color: var(--pa-blue);
+        }
+        .card {
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border: 1px solid #e7e7e7;
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background-color: #fff;
+            border-bottom: 1px solid #e7e7e7;
+            font-weight: 500;
+        }
+        .dashboard-card {
+            border-radius: 4px;
+            border: 1px solid #e7e7e7;
+            padding: 15px;
+            height: 100%;
+        }
+        .dashboard-title {
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        /* 多级下拉菜单样式 */
+        .dropdown-submenu {
+            position: absolute;
+            left: 100%;
+            top: 0;
+            margin-top: 0;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+        
+        .dropdown-item.dropdown-toggle {
+            position: relative;
+        }
+        
+        .dropdown-item.dropdown-toggle::after {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        .dropdown-item.dropdown-toggle:hover + .dropdown-submenu,
+        .dropdown-submenu:hover {
+            display: block;
+        }
+        
+        .dropdown-item.dropdown-toggle:active,
+        .dropdown-item.dropdown-toggle:focus {
+            color: #fff;
+            background-color: var(--pa-blue);
+        }
+    </style>
+    <link href="/static/css/style.css" rel="stylesheet">
+    
+    
+<style>
+  /* 审批列表表格滚动样式 */
+  .approval-table-container {
+    position: relative;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    overflow: hidden;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  
+  .approval-table-scroll {
+    overflow-x: auto;
+    overflow-y: visible;
+    max-width: 100%;
+    scrollbar-width: thin;
+    scrollbar-color: #ff8c00 #f1f1f1;
+  }
+  
+  .approval-table-scroll::-webkit-scrollbar {
+    height: 8px;
+  }
+  
+  .approval-table-scroll::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+  }
+  
+  .approval-table-scroll::-webkit-scrollbar-thumb {
+    background: #ff8c00;
+    border-radius: 4px;
+    transition: background 0.3s ease;
+  }
+  
+  .approval-table-scroll::-webkit-scrollbar-thumb:hover {
+    background: #e67e00;
+  }
+  
+  .approval-table {
+    min-width: 1200px;
+    margin-bottom: 0;
+    border: none;
+  }
+  
+  .approval-table thead th {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+    color: #495057;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    white-space: nowrap;
+    padding: 12px 8px;
+  }
+  
+  .approval-table tbody td {
+    padding: 12px 8px;
+    vertical-align: middle;
+    border-bottom: 1px solid #f1f3f4;
+    white-space: nowrap;
+  }
+  
+  .approval-table tbody tr:hover {
+    background-color: #f8f9fa;
+  }
+  
+  /* 审批编号胶囊样式优化 */
+  .approval-table .badge.rounded-pill {
+    font-size: 0.8rem;
+    padding: 6px 12px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  
+  .approval-table .badge.rounded-pill:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(255, 140, 0, 0.3);
+  }
+  
+  /* 移动端优化样式 */
+  @media (max-width: 767.98px) {
+    .approval-table {
+      min-width: 800px;
+    }
+    
+    .approval-table thead th,
+    .approval-table tbody td {
+      padding: 8px 6px;
+      font-size: 0.85rem;
+    }
+    
+    .badge {
+      white-space: normal;
+      text-align: left;
+    }
+    
+    .nav-pills .nav-link {
+      padding: 0.5rem;
+    }
+    
+    .filter-form .form-group {
+      margin-bottom: 0.75rem;
+    }
+  }
+  
+  /* 平板端优化 */
+  @media (min-width: 768px) and (max-width: 1199.98px) {
+    .approval-table {
+      min-width: 1000px;
+    }
+  }
+  
+  /* 滚动提示 */
+  .approval-table-container::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 20px;
+    height: 100%;
+    background: linear-gradient(to left, rgba(255,255,255,0.8) 0%, transparent 100%);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  
+  .approval-table-scroll:not(:hover)::after {
+    opacity: 1;
+  }
+</style>
+
+</head>
+<body>
+    <!-- 固定顶部主导航，含logo、系统名、菜单、账户 -->
+    <nav class="main-nav navbar navbar-expand-lg navbar-dark" style="background-color: #16a0bf; z-index: 1040; position: fixed; top: 0; width: 100%;">
+        <div class="container d-flex align-items-center justify-content-between flex-wrap">
+            <div class="d-flex align-items-center logo-title-wrap w-100 w-lg-auto py-2 py-lg-0" style="min-height: 44px;">
+                <img src="/static/img/logo.png" alt="Logo" class="main-logo" style="max-height: 48px; width: auto; margin-right: 8px; object-fit: contain;">
+                <span class="logo-title text-truncate" style="font-size: 2rem; font-weight: bold; color: #fff; white-space: nowrap; overflow: visible; max-width: none;">业务机会管理系统</span>
+                <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="切换导航" style="border: none; box-shadow: none;">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+            </div>
+            <div class="collapse navbar-collapse" id="mainNavbar">
+                <ul class="navbar-nav main-menu-list" style="width: 220px; max-width: 90vw;">
+                    
+                    <li class="nav-item">
+                        <a class="nav-link text-sm py-2 " href="/">仪表盘</a>
+                    </li>
+                    
+                    <li class="nav-item">
+                        <a class="nav-link text-sm py-2 " href="/customer/">客户管理</a>
+                    </li>
+                    
+                    
+                    <li class="nav-item">
+                        <a class="nav-link text-sm py-2 " href="/project/">项目管理</a>
+                    </li>
+                    
+                    
+                    <li class="nav-item d-lg-none">
+                        <details>
+                            <summary class="nav-link text-sm py-2 mb-0 " style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+                                <span>报价管理</span>
+                                <svg class="ms-1" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            </summary>
+                            <ul class="list-unstyled ps-3 mb-0">
+                                <li><a class="nav-link text-sm py-2" href="/quotation/quotations">报价单列表</a></li>
+                                <li><a class="nav-link text-sm py-2" href="/product_analysis/analysis">产品分析</a></li>
+                            </ul>
+                        </details>
+                    </li>
+                    <li class="nav-item dropdown d-none d-lg-block">
+                        <a class="nav-link dropdown-toggle text-sm py-2 "
+                           href="#" id="quotationDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            报价管理
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="quotationDropdown">
+                            <li><a class="dropdown-item" href="/quotation/quotations">报价单列表</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/product_analysis/analysis">产品分析</a></li>
+                        </ul>
+                    </li>
+                    
+                    
+                    <li class="nav-item">
+                        <a class="nav-link text-sm py-2 " href="/products">产品库</a>
+                    </li>
+                    
+                    
+                    
+                    
+                    
+                    
+                </ul>
+                <!-- PC端账户logo和退出 -->
+                
+                <div class="d-none d-lg-flex align-items-center ms-auto">
+                  <div class="dropdown">
+                    <div class="user-avatar-capsule position-relative" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                      <div class="d-flex align-items-center">
+                        <span class="avatar-initial">N</span>
+                        <span class="user-name">NIJIE</span>
+                        <i class="fas fa-caret-down dropdown-arrow"></i>
+                      </div>
+                      
+                      
+                    </div>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                      <li>
+                        <a class="dropdown-item" href="/user/profile">
+                          <i class="fas fa-user-cog me-2"></i> 个人设置
+                        </a>
+                      </li>
+                      <li>
+                        <a class="dropdown-item" href="/notification/center">
+                          <i class="fas fa-bell me-2"></i> 通知中心
+                        </a>
+                      </li>
+                      <li>
+                        <a class="dropdown-item" href="/approval/center">
+                          <i class="fas fa-tasks me-2"></i> 审批中心
+                          
+                          
+                        </a>
+                      </li>
+                      <li>
+                        <a class="dropdown-item" href="/admin/history/">
+                          <i class="fas fa-history me-2"></i> 历史记录
+                        </a>
+                      </li>
+                      <li><hr class="dropdown-divider"></li>
+                      <li>
+                        <a class="dropdown-item" href="/auth/logout">
+                          <i class="fas fa-sign-out-alt me-2"></i> 退出系统
+                        </a>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+                <!-- 移动端账户logo和退出 -->
+                <div class="d-lg-none border-top border-light-subtle mt-2 pt-2 pb-1 px-2 user-info-mobile text-white text-sm" style="font-size: 0.95rem;">
+                  <div class="d-flex align-items-center justify-content-between px-2 py-2">
+                    <div class="user-avatar-capsule-mobile">
+                      <span class="avatar-initial-mobile">N</span>
+                      <span class="user-name-mobile">NIJIE</span>
+                    </div>
+                    <div class="d-flex align-items-center">
+                      <a href="/user/profile" class="text-white me-3" title="个人设置">
+                        <i class="fas fa-user-cog"></i>
+                      </a>
+                      <a href="/notification/center" class="text-white me-3 position-relative" title="通知中心">
+                        <i class="fas fa-bell"></i>
+                      </a>
+                      <a href="/approval/center" class="text-white me-3 position-relative" title="审批中心">
+                        <i class="fas fa-tasks"></i>
+                        
+                        
+                      </a>
+                      <a href="/admin/history/" class="text-white me-3" title="历史记录">
+                        <i class="fas fa-history"></i>
+                      </a>
+                      <a href="/auth/logout" class="text-white text-decoration-none text-sm"><i class="fas fa-sign-out-alt"></i></a>
+                    </div>
+                  </div>
+                </div>
+                
+            </div>
+        </div>
+    </nav>
+    <style>
+    .navbar-dark .navbar-toggler {
+        border-color: transparent;
+        box-shadow: none;
+    }
+    .navbar-dark .navbar-toggler-icon {
+        background-image: url("data:image/svg+xml;charset=utf8,%3Csvg viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath stroke='rgba%28255,255,255,1%29' stroke-width='2' stroke-linecap='round' stroke-miterlimit='10' d='M4 7h22M4 15h22M4 23h22'/%3E%3C/svg%3E");
+    }
+    .navbar-nav .nav-link.active, .navbar-nav .nav-link:focus {
+        color: #167ac6 !important;
+        font-weight: bold !important;
+        border-left: 0;
+        border-bottom: 3px solid #167ac6;
+        background: none !important;
+    }
+    .navbar-nav .nav-link {
+        font-family: 'Microsoft YaHei', Arial, sans-serif;
+        font-weight: 400;
+        color: #fff !important;
+        border-left: 0;
+        border-bottom: 3px solid transparent;
+        background: none !important;
+    }
+    /* 响应式菜单选中样式：移动端为左侧竖线，PC端为底部横线 */
+    @media (max-width: 991.98px) {
+        .main-menu-list .nav-link.active, .main-menu-list .nav-link:focus {
+            border-left: 4px solid #167ac6 !important;
+            border-bottom: none !important;
+            color: #167ac6 !important;
+            font-weight: bold !important;
+            background: none !important;
+        }
+    }
+    @media (min-width: 992px) {
+        .main-menu-list .nav-link.active, .main-menu-list .nav-link:focus {
+            border-left: none !important;
+            border-bottom: 3px solid #167ac6 !important;
+            color: #167ac6 !important;
+            font-weight: bold !important;
+            background: none !important;
+        }
+    }
+    /* 主内容区顶部padding，避免菜单遮挡 */
+    body { padding-top: 80px !important; }
+    @media (max-width: 991.98px) { body { padding-top: 120px !important; } }
+    .main-nav.fixed-top { box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    
+    /* 胶囊型用户头像样式 */
+    .user-avatar-capsule {
+        background: #b13a5b;
+        border-radius: 20px;
+        padding: 6px 12px 6px 6px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        min-height: 32px;
+    }
+    
+    .user-avatar-capsule:hover {
+        background: #9d2f4a;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(177, 58, 91, 0.3);
+    }
+    
+    .user-avatar-capsule .avatar-initial {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #fff;
+        margin-right: 8px;
+    }
+    
+    .user-avatar-capsule .user-name {
+        color: #fff;
+        font-size: 0.9rem;
+        font-weight: 500;
+        margin-right: 6px;
+    }
+    
+    .user-avatar-capsule .dropdown-arrow {
+        color: #fff;
+        font-size: 0.8rem;
+        opacity: 0.8;
+        transition: transform 0.2s ease;
+    }
+    
+    .user-avatar-capsule[aria-expanded="true"] .dropdown-arrow {
+        transform: rotate(180deg);
+    }
+    
+    .user-avatar-capsule .notification-badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        background: #dc3545;
+        color: white;
+        border-radius: 10px;
+        padding: 2px 6px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        min-width: 18px;
+        text-align: center;
+        border: 2px solid #16a0bf;
+    }
+    
+    /* 移动端胶囊型头像样式 */
+    .user-avatar-capsule-mobile {
+        background: #b13a5b;
+        border-radius: 16px;
+        padding: 4px 10px 4px 4px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    .user-avatar-capsule-mobile .avatar-initial-mobile {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        width: 16px;
+        height: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #fff;
+    }
+    
+    .user-avatar-capsule-mobile .user-name-mobile {
+        color: #fff;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    </style>
+
+    
+        
+    
+
+    <main class="container mb-5">
+        <style>
+        body { padding-top: 90px !important; }
+        @media (max-width: 991.98px) { body { padding-top: 120px !important; } }
+        .main-nav.fixed-top { box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+        </style>
+        
+<div class="container mt-4 pt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4 page-title-container">
+    <h1 class="page-title approval-title"><i class="fas fa-clipboard-check me-2"></i> 审批中心</h1>
+  </div>
+  
+  <!-- 标签页切换 -->
+  <div class="card mb-4">
+    <div class="card-header">
+      
+      
+      <ul class="nav nav-tabs card-header-tabs" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link " href="/approval/center?tab=created" role="tab">
+                <i class="fas fa-file-export me-1"></i>我发起的
+            </a>
+        </li>
+        
+        <li class="nav-item">
+            <a class="nav-link " href="/approval/center?tab=pending" role="tab">
+                <i class="fas fa-hourglass-half me-1"></i>待我审批的
+            </a>
+        </li>
+        
+        <li class="nav-item">
+            <a class="nav-link active" href="/approval/center?tab=pricing_order" role="tab">
+                <i class="fas fa-file-invoice-dollar me-1"></i>批价单审批
+            </a>
+        </li>
+        </ul>
+    </div>
+  </div>
+  
+  <!-- 筛选表单 -->
+  
+  <form class="filter-form mb-4" method="get">
+    <input type="hidden" name="tab" value="pricing_order">
+    
+    <div class="row g-2">
+      <div class="col-md-4 col-sm-6">
+        <div class="form-group">
+          <label for="object_type" class="form-label">业务类型</label>
+          <select class="form-select" id="object_type" name="object_type">
+            <option value="">全部类型</option>
+            <option value="project" >项目</option>
+            <option value="quotation" >报价单</option>
+            <option value="customer" >客户</option>
+            <option value="pricing_order" >批价单</option>
+          </select>
+        </div>
+      </div>
+      
+      
+      
+      <div class="col-md-8 col-sm-12 d-flex align-items-end">
+        <div class="d-flex flex-wrap gap-2 w-100 justify-content-start">
+          
+    <button type="submit" class="btn btn-primary btn-sm">
+        <i class="fas fa-filter me-1"></i>筛选
+    </button>
+    
+          
+          <a href="/approval/center?tab=pricing_order" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-sync-alt me-1"></i> 重置
+          </a>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  
+  <!-- 审批列表 -->
+  <div class="card">
+    <div class="card-header">
+      <h5 class="mb-0">
+        
+          <i class="fas fa-file-invoice-dollar me-2"></i> 批价单审批
+        
+      </h5>
+    </div>
+    <div class="card-body p-0">
+      
+  <!-- 批量操作工具栏 -->
+  <div class="d-flex justify-content-between align-items-center mb-3 p-3 bg-light rounded">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="selectAll">
+      <label class="form-check-label" for="selectAll">
+        全选
+      </label>
+    </div>
+    <div id="batchActionsContainer" style="display: none;">
+      
+  
+    <button type="button" class="btn text-white me-2 py-2 px-3 text-sm rounded-pill" style="background-color: #dc3545;" id="batchDeleteBtn"><i class="fas fa-trash me-1"></i>
+        <span class="d-none d-md-inline">批量删除</span>
+    </button>
+  
+
+    </div>
+  </div>
+  
+  <!-- 审批列表表格容器 -->
+  <div class="approval-table-container">
+    <div class="table-responsive approval-table-scroll">
+      <table class="table table-striped table-hover align-middle approval-table">
+      <thead>
+        <tr>
+          <th width="50">
+            <input type="checkbox" class="form-check-input" id="selectAllHeader">
+          </th>
+          <th width="200">审批编号</th>
+          <th width="200">流程名称</th>
+          <th width="180">关联业务</th>
+          <th width="150">提交人</th>
+          <th width="150">当前审批人</th>
+          <th width="120">状态</th>
+          <th width="180" class="d-none d-md-table-cell">发起时间</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+          
+            <tr>
+              <td>
+                <input type="checkbox" class="form-check-input approval-checkbox" value="po_36">
+              </td>
+              <td>
+                
+                
+                <a href="/pricing_order/36?_t=2459133" class="text-decoration-none" title="跳转到业务详情页面">
+                  
+                    <span class="badge rounded-pill" style="background-color: #ff8c00; color: white; font-weight: 500;">批价单-36</span>
+                  
+                </a>
+                <div class="d-md-none small text-muted">
+                  pricing_order · 2025-06-08 13:07
+                </div>
+                
+                
+              </td>
+              <td>
+                
+                  批价单审批流程 - 渠道跟进类
+                
+              </td>
+              <td>
+                
+                
+                  
+                  
+                    
+                    
+                      <span class="badge bg-warning rounded-pill">PO-0036</span>
+                    
+                  
+                
+              </td>
+              <td>
+  
+    
+    
+      
+      <span class="badge bg-primary rounded-pill">系统管理员</span>
+    
+  
+</td>
+              
+              
+              <td>
+  
+    
+    
+      
+      <span class="badge bg-primary rounded-pill">郭小会</span>
+    
+  
+</td>
+              <td>
+                
+                  <span class="badge rounded-pill bg-success text-white">已通过</span>
+                
+              </td>
+              <td class="d-none d-md-table-cell">2025-06-08 21:07</td>
+            </tr>
+          
+        
+      </tbody>
+    </table>
+    </div>
+  </div>
+  
+  
+  
+  
+  <!-- 批量删除确认模态框 -->
+  <div class="modal fade" id="batchDeleteModal" tabindex="-1" aria-labelledby="batchDeleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="batchDeleteModalLabel">确认批量删除</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p>您确定要删除选中的 <span id="selectedCount">0</span> 个审批流程吗？</p>
+          <p class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i> 此操作不可撤销！</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="button" class="btn btn-danger" id="confirmBatchDelete">确认删除</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const selectAll = document.getElementById('selectAll');
+      const selectAllHeader = document.getElementById('selectAllHeader');
+      const checkboxes = document.querySelectorAll('.approval-checkbox');
+      const batchActionsContainer = document.getElementById('batchActionsContainer');
+      const batchDeleteBtn = document.getElementById('batchDeleteBtn');
+      const batchDeleteModal = new bootstrap.Modal(document.getElementById('batchDeleteModal'));
+      
+      // 全选功能
+      function updateSelectAll() {
+        const checkedCount = document.querySelectorAll('.approval-checkbox:checked').length;
+        const totalCount = checkboxes.length;
+        
+        selectAll.checked = checkedCount === totalCount && totalCount > 0;
+        selectAllHeader.checked = selectAll.checked;
+        selectAll.indeterminate = checkedCount > 0 && checkedCount < totalCount;
+        selectAllHeader.indeterminate = selectAll.indeterminate;
+        
+        // 显示/隐藏批量操作按钮
+        if (checkedCount > 0) {
+          batchActionsContainer.style.display = 'block';
+        } else {
+          batchActionsContainer.style.display = 'none';
+        }
+      }
+      
+      // 全选事件
+      [selectAll, selectAllHeader].forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+          checkboxes.forEach(cb => cb.checked = this.checked);
+          updateSelectAll();
+        });
+      });
+      
+      // 单个复选框事件
+      checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateSelectAll);
+      });
+      
+      // 批量删除按钮事件
+      batchDeleteBtn.addEventListener('click', function() {
+        const selectedIds = Array.from(document.querySelectorAll('.approval-checkbox:checked')).map(cb => cb.value);
+        document.getElementById('selectedCount').textContent = selectedIds.length;
+        batchDeleteModal.show();
+      });
+      
+      // 确认批量删除
+      document.getElementById('confirmBatchDelete').addEventListener('click', function() {
+        const selectedIds = Array.from(document.querySelectorAll('.approval-checkbox:checked')).map(cb => cb.value);
+        
+        if (selectedIds.length > 0) {
+          // 创建表单并提交
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = '/approval/batch-delete';
+          
+          // 添加CSRF token
+          const csrfToken = document.createElement('input');
+          csrfToken.type = 'hidden';
+          csrfToken.name = 'csrf_token';
+          csrfToken.value = 'IjI3YWE1YzYwMjExNjg1ZWI4YmI1ZjJkMGUxZjAxZjM1MWEyN2IwYTUi.aEWShg.CbkotiK-SnvEn89vwcPC0iTepsc';
+          form.appendChild(csrfToken);
+          
+          // 添加选中的ID
+          selectedIds.forEach(id => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'approval_ids';
+            input.value = id;
+            form.appendChild(input);
+          });
+          
+          document.body.appendChild(form);
+          form.submit();
+        }
+        
+        batchDeleteModal.hide();
+      });
+      
+      // 初始化状态
+      updateSelectAll();
+    });
+  </script>
+
+    </div>
+  </div>
+</div>
+
+    </main>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 用户下拉菜单交互
+        document.addEventListener('DOMContentLoaded', function() {
+            const userDropdown = document.getElementById('userDropdown');
+            const userDropdownMenu = document.getElementById('userDropdownMenu');
+
+            if(userDropdown && userDropdownMenu) {
+                userDropdown.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    userDropdownMenu.classList.toggle('show');
+                });
+
+                // 点击其他区域关闭下拉菜单
+                document.addEventListener('click', function() {
+                    userDropdownMenu.classList.remove('show');
+                });
+
+                // 防止点击菜单内部时关闭菜单
+                userDropdownMenu.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                });
+            }
+            
+            // 处理多级下拉菜单
+            const dropdownItems = document.querySelectorAll('.dropdown-item.dropdown-toggle');
+            dropdownItems.forEach(item => {
+                item.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // 找到下一级菜单
+                    const submenu = this.nextElementSibling;
+                    if (submenu && submenu.classList.contains('dropdown-menu')) {
+                        submenu.classList.toggle('show');
+                    }
+                });
+            });
+            
+            // 点击其他区域关闭所有子菜单
+            document.addEventListener('click', function() {
+                const submenus = document.querySelectorAll('.dropdown-submenu.show');
+                submenus.forEach(menu => menu.classList.remove('show'));
+            });
+
+            // 设置AJAX请求的CSRF令牌
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+            // 为所有AJAX请求添加CSRF令牌
+            $(document).ajaxSend(function(e, xhr, options) {
+                xhr.setRequestHeader("X-CSRFToken", csrfToken);
+            });
+
+            // 为fetch请求准备CSRF头
+            window.fetchWithCsrf = function(url, options = {}) {
+                options.headers = options.headers || {};
+                options.headers['X-CSRFToken'] = csrfToken;
+                return fetch(url, options);
+            };
+        });
+
+        // 表头下拉筛选交互脚本
+        function toggleAll(allCheckbox, field) {
+            const options = document.querySelectorAll(`#${field}_options input[type="checkbox"]`);
+            options.forEach(cb => cb.checked = allCheckbox.checked);
+        }
+
+        function filterOptions(input) {
+            const value = input.value.toLowerCase();
+            const container = input.closest('.dropdown-menu').querySelector('.filter-options');
+            const items = container.querySelectorAll('.form-check');
+            items.forEach(item => {
+                const label = item.querySelector('label');
+                const text = label.textContent.toLowerCase();
+                item.style.display = text.includes(value) ? '' : 'none';
+            });
+        }
+    </script>
+    
+<script>
+  // 移动端点击行跳转到详情
+  document.addEventListener('DOMContentLoaded', function() {
+    const tableRows = document.querySelectorAll('tbody tr');
+    
+    tableRows.forEach(row => {
+      const link = row.querySelector('a');
+      if (link) {
+        const url = link.getAttribute('href');
+        
+        // 只在移动端启用整行点击
+        if (window.innerWidth < 768) {
+          row.style.cursor = 'pointer';
+          row.addEventListener('click', function(e) {
+            // 如果点击的是链接本身，不需要重复导航
+            if (e.target.tagName === 'A' || e.target.closest('a')) {
+              return;
+            }
+            window.location.href = url;
+          });
+        }
+      }
+    });
+  });
+</script>
+
+</body>
+</html>

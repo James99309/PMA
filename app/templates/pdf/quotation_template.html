@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>报价单 - {{ quotation.quotation_number }}</title>
+</head>
+<body>
+    <!-- 公司信息头部 -->
+    <div class="document-header">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+            <div style="flex: 1;">
+                <h1 style="font-size: 20px; font-weight: bold; color: #0066cc; margin: 0;">和源通信（上海）股份有限公司</h1>
+                <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                    <div>武威路88号19楼6楼</div>
+                    <div>普陀区 上海市</div>
+                    <div>中国 (200335)</div>
+                    <div>021-62596028</div>
+                    <div>www.evertac.net</div>
+                </div>
+            </div>
+            <div style="text-align: right;">
+                <h1 style="font-size: 24px; font-weight: bold; color: #0066cc; margin: 0;">报价单</h1>
+            </div>
+        </div>
+    </div>
+
+    <!-- 基本信息 -->
+    <div class="order-info">
+        <table class="info-table">
+            <tr>
+                <td class="info-label">项目名称</td>
+                <td class="info-value">{{ quotation.project.project_name if quotation.project else '-' }}</td>
+                <td class="info-label">报价单编号</td>
+                <td class="info-value">{{ quotation.quotation_number }}</td>
+            </tr>
+            <tr>
+                <td class="info-label">客户单位</td>
+                <td class="info-value">{{ quotation.project.end_user if quotation.project and quotation.project.end_user else '-' }}</td>
+                <td class="info-label">货币类型</td>
+                <td class="info-value">人民币（CNY）</td>
+            </tr>
+            <tr>
+                <td class="info-label">报价日期</td>
+                <td class="info-value">{{ quotation.created_at.strftime('%Y年%m月%d日') if quotation.created_at else '-' }}</td>
+                <td class="info-label">拥有者</td>
+                <td class="info-value">{{ quotation.owner.real_name or quotation.owner.username if quotation.owner else '-' }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- 产品明细 -->
+    <div class="section-title">产品明细</div>
+    <table class="details-table">
+        <thead>
+            <tr>
+                <th style="width: 5%;">序号</th>
+                <th style="width: 20%;">产品名称</th>
+                <th style="width: 15%;">型号</th>
+                <th style="width: 20%;">指标描述</th>
+                <th style="width: 10%;">品牌</th>
+                <th style="width: 8%;">单位</th>
+                <th style="width: 8%;">数量</th>
+                <th style="width: 10%;">单价</th>
+                <th style="width: 10%;">小计</th>
+                <th style="width: 12%;">MN</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for detail in quotation.details %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td class="text-left">{{ detail.product_name or '-' }}</td>
+                <td class="text-left">{{ detail.product_model or '-' }}</td>
+                <td class="text-left">{{ detail.product_desc or '-' }}</td>
+                <td class="text-left">{{ detail.brand or '-' }}</td>
+                <td>{{ detail.unit or '-' }}</td>
+                <td>{{ detail.quantity or 0 }}</td>
+                <td class="text-right">{{ '{:,.2f}'.format(detail.unit_price) if detail.unit_price else '0.00' }}</td>
+                <td class="text-right">{{ '{:,.2f}'.format(detail.total_price) if detail.total_price else '0.00' }}</td>
+                <td class="text-left">{{ detail.product_mn or '-' }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="10" style="text-align: center; color: #666;">暂无产品明细</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- 总价 -->
+    <div class="summary-section">
+        <div class="total-amount">
+            总价：¥{{ '{:,.2f}'.format(quotation.amount) if quotation.amount else '0.00' }}
+        </div>
+    </div>
+
+    <!-- 页脚信息 -->
+    <div style="margin-top: 40px; font-size: 10px; color: #666; text-align: center;">
+        <div>生成时间：{{ generated_at.strftime('%Y年%m月%d日 %H:%M:%S') }}</div>
+        <div style="margin-top: 5px;">此报价单由系统自动生成</div>
+    </div>
+</body>
+</html> 

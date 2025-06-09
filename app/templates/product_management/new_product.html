@@ -149,7 +149,7 @@
                                     <div class="col-md-6">
                                         <label for="product_image" class="form-label">产品图片</label>
                                         <input type="file" class="form-control" id="product_image" name="product_image" accept="image/*">
-                                        <div class="form-text">支持 PNG, JPG, JPEG, GIF 格式，图片大小不超过5MB，文件名必须是英文字符</div>
+                                        <div class="form-text">支持 PNG, JPG, JPEG, GIF 格式，图片大小不超过5MB，支持中文文件名</div>
                                     </div>
                                 </div>
 
@@ -1091,13 +1091,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 检查文件类型
                 if (!file.type.match('image.*')) {
                     alert('请选择图片文件（PNG、JPG、JPEG、GIF）');
-                    e.target.value = '';
-                    return;
-                }
-                
-                // 检查文件名是否为英文
-                if (!/^[a-zA-Z0-9._-]+$/.test(file.name)) {
-                    alert('文件名必须是英文字符（包括字母、数字、点、下划线、连字符）');
                     e.target.value = '';
                     return;
                 }

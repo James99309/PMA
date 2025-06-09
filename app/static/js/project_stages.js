@@ -1,6 +1,18 @@
 /**
  * 项目阶段可视化进度条组件
  */
+
+/**
+ * 阻塞进度推进错误类
+ */
+class BlockedProgressError extends Error {
+    constructor(data) {
+        super(data.message || '阶段推进被阻止');
+        this.name = 'BlockedProgressError';
+        this.data = data;
+    }
+}
+
 class ProjectStageProgress {
     constructor(options) {
         this.containerId = options.containerId;
@@ -90,9 +102,11 @@ class ProjectStageProgress {
         // 如果有阶段历史，使用历史计算持续时间
         if (this.stageHistory && Array.isArray(this.stageHistory)) {
             this.stageDurations = this.stageHistory.map(stage => {
+                // 对于当前阶段，确保天数计算是从推进日到今天
+                const endDate = stage.endDate || new Date();
                 return {
                     stageName: stage.stage,
-                    days: this.calculateDaysBetween(stage.startDate, stage.endDate || new Date())
+                    days: this.calculateDaysBetween(stage.startDate, endDate)
                 };
             });
         } else {
@@ -179,16 +193,22 @@ class ProjectStageProgress {
                 stageName.className = 'stage-name';
                 stageName.textContent = stage.name;
                 stageMarker.appendChild(stageName);
-                // 推进信息
+                // 推进信息 - 对于当前阶段，显示推进到这个阶段的日期和从推进日到今天的天数
                 const durationItem = this.stageDurations.find(item => item.stageName === stage.key);
                 const days = durationItem ? durationItem.days : '未知';
                 let stageExtra = '';
                 if (this.stageHistory && Array.isArray(this.stageHistory)) {
                     const historyItem = this.stageHistory.find(item => item.stage === stage.key);
-                    if (historyItem && historyItem.startDate && typeof days === 'number' && days > 0) {
-                        stageExtra = `${historyItem.startDate.split(' ')[0]}｜${days}天`;
-                    } else if (historyItem && historyItem.startDate) {
-                        stageExtra = `${historyItem.startDate.split(' ')[0]}`;
+                    if (historyItem && historyItem.startDate) {
+                        // 显示推进到这个阶段的日期
+                        const stageDate = historyItem.startDate.split(' ')[0];
+                        if (typeof days === 'number' && days > 0) {
+                            // 显示推进日期和从推进日到今天的天数
+                            stageExtra = `${stageDate}｜${days}天`;
+                        } else {
+                            // 只显示推进日期
+                            stageExtra = stageDate;
+                        }
                     } else if (typeof days === 'number' && days > 0) {
                         stageExtra = `${days}天`;
                     }
@@ -238,16 +258,22 @@ class ProjectStageProgress {
             stageName.textContent = stage.name;
             stageMarker.appendChild(stageName);
 
-            // 推进信息
+            // 推进信息 - 显示推进到这个阶段的日期和从推进日到今天的天数
             const durationItem = this.stageDurations.find(item => item.stageName === stage.key);
             const days = durationItem ? durationItem.days : '未知';
             let stageExtra = '';
             if (this.stageHistory && Array.isArray(this.stageHistory)) {
                 const historyItem = this.stageHistory.find(item => item.stage === stage.key);
-                if (historyItem && historyItem.startDate && typeof days === 'number' && days > 0) {
-                    stageExtra = `${historyItem.startDate.split(' ')[0]}｜${days}天`;
-                } else if (historyItem && historyItem.startDate) {
-                    stageExtra = `${historyItem.startDate.split(' ')[0]}`;
+                if (historyItem && historyItem.startDate) {
+                    // 显示推进到这个阶段的日期
+                    const stageDate = historyItem.startDate.split(' ')[0];
+                    if (typeof days === 'number' && days > 0) {
+                        // 显示推进日期和从推进日到今天的天数
+                        stageExtra = `${stageDate}｜${days}天`;
+                    } else {
+                        // 只显示推进日期
+                        stageExtra = stageDate;
+                    }
                 } else if (typeof days === 'number' && days > 0) {
                     stageExtra = `${days}天`;
                 }
@@ -325,16 +351,22 @@ class ProjectStageProgress {
             branchName.textContent = branch.name;
             branchMarker.appendChild(branchName);
 
-            // 推进信息
+            // 推进信息 - 显示推进到这个阶段的日期和从推进日到今天的天数
             const durationItem = this.stageDurations.find(item => item.stageName === branch.key);
             const days = durationItem ? durationItem.days : '未知';
             let stageExtra = '';
             if (this.stageHistory && Array.isArray(this.stageHistory)) {
                 const historyItem = this.stageHistory.find(item => item.stage === branch.key);
-                if (historyItem && historyItem.startDate && typeof days === 'number' && days > 0) {
-                    stageExtra = `${historyItem.startDate.split(' ')[0]}｜${days}天`;
-                } else if (historyItem && historyItem.startDate) {
-                    stageExtra = `${historyItem.startDate.split(' ')[0]}`;
+                if (historyItem && historyItem.startDate) {
+                    // 显示推进到这个阶段的日期
+                    const stageDate = historyItem.startDate.split(' ')[0];
+                    if (typeof days === 'number' && days > 0) {
+                        // 显示推进日期和从推进日到今天的天数
+                        stageExtra = `${stageDate}｜${days}天`;
+                    } else {
+                        // 只显示推进日期
+                        stageExtra = stageDate;
+                    }
                 } else if (typeof days === 'number' && days > 0) {
                     stageExtra = `${days}天`;
                 }
@@ -460,20 +492,31 @@ class ProjectStageProgress {
             })
         })
         .then(response => {
-            if (!response.ok) {
+            if (response.ok) {
+                return response.json();
+            } else if (response.status === 400) {
+                // 处理阻塞响应（批价流程检查失败）
+                return response.json().then(data => {
+                    throw new BlockedProgressError(data);
+                });
+            } else {
                 throw new Error(`网络请求失败: ${response.status} ${response.statusText}`);
             }
-            return response.json();
         })
         .then(data => {
             if (data.success) {
                 console.log('项目阶段已成功更新为: ' + targetStage);
                 
-                // 强制完全刷新页面（不使用缓存）
-                // 使用 location.reload(true) 强制浏览器不使用缓存
-                // 并添加时间戳参数确保是全新请求
-                window.location.href = window.location.href.split('?')[0] + 
-                    '?_nocache=' + new Date().getTime();
+                // 移除加载指示器
+                document.body.removeChild(loadingOverlay);
+                
+                // **新增: 处理批价流程信息**
+                if (data.pricing_flow) {
+                    this.handlePricingFlowPrompt(data.pricing_flow);
+                } else {
+                    // 没有批价流程信息，直接刷新页面
+                    this.refreshPage();
+                }
             } else {
                 const errorMsg = data.message || '未知错误';
                 console.error('更新阶段失败: ' + errorMsg);
@@ -483,11 +526,372 @@ class ProjectStageProgress {
             }
         })
         .catch(error => {
-            console.error('更新阶段错误:', error);
-            alert('更新阶段时发生错误: ' + error.message);
             // 移除加载指示器
             document.body.removeChild(loadingOverlay);
+            
+            if (error instanceof BlockedProgressError) {
+                // 处理阻塞的进度推进（批价流程检查失败）
+                console.log('阶段推进被阻止:', error.data.message);
+                
+                if (error.data.pricing_flow) {
+                    // 显示批价流程相关的提示
+                    this.handlePricingFlowPrompt(error.data.pricing_flow);
+                } else {
+                    // 显示一般性的阻塞信息
+                    alert(error.data.message || '阶段推进被阻止');
+                }
+            } else {
+                console.error('更新阶段错误:', error);
+                alert('更新阶段时发生错误: ' + error.message);
+            }
         });
+    }
+    
+    /**
+     * 处理批价流程提示
+     */
+    handlePricingFlowPrompt(pricingFlow) {
+        const modalId = 'pricingFlowModal';
+        let modalHtml = '';
+        
+        if (pricingFlow.action_required === 'create_pricing_order') {
+            // 需要创建批价单
+            modalHtml = `
+                <div class="modal fade" id="${modalId}" tabindex="-1" aria-labelledby="pricingFlowModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header bg-success text-white">
+                                <h5 class="modal-title" id="pricingFlowModalLabel">
+                                    <i class="fas fa-file-invoice-dollar me-2"></i>签约流程 - 批价单创建
+                                </h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="alert alert-success mb-3">
+                                    <i class="fas fa-check-circle me-2"></i>
+                                    项目已成功推进到签约阶段！
+                                </div>
+                                
+                                <div class="d-flex align-items-start mb-3">
+                                    <i class="fas fa-file-alt text-success me-3 mt-1" style="font-size: 1.2em;"></i>
+                                    <div>
+                                        <h6 class="mb-1">发现已审核报价单</h6>
+                                        <p class="mb-0 text-muted">报价单号：<strong>${pricingFlow.quotation_number}</strong></p>
+                                        <p class="mb-0 text-success"><i class="fas fa-check me-1"></i>审核状态：已通过审核</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="alert alert-info mb-3">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    ${pricingFlow.message}
+                                </div>
+                                
+                                <p class="mb-0">您可以选择以下操作：</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                    <i class="fas fa-times me-1"></i>稍后处理
+                                </button>
+                                <button type="button" class="btn btn-success" id="createPricingOrderBtn">
+                                    <i class="fas fa-plus me-1"></i>创建批价单
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else if (pricingFlow.action_required === 'view_pricing_order') {
+            // 已存在批价单
+            modalHtml = `
+                <div class="modal fade" id="${modalId}" tabindex="-1" aria-labelledby="pricingFlowModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header bg-success text-white">
+                                <h5 class="modal-title" id="pricingFlowModalLabel">
+                                    <i class="fas fa-check-circle me-2"></i>签约流程 - 批价单状态
+                                </h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="alert alert-success mb-3">
+                                    <i class="fas fa-check-circle me-2"></i>
+                                    项目已成功推进到签约阶段！
+                                </div>
+                                
+                                <div class="d-flex align-items-start mb-3">
+                                    <i class="fas fa-file-invoice-dollar text-primary me-3 mt-1" style="font-size: 1.2em;"></i>
+                                    <div>
+                                        <h6 class="mb-1">已存在批价单</h6>
+                                        <p class="mb-1 text-muted">
+                                            批价单号：<strong>${pricingFlow.pricing_order_number}</strong>
+                                        </p>
+                                        <p class="mb-0 text-muted">
+                                            状态：<span class="badge bg-info">${this.getPricingOrderStatusLabel(pricingFlow.pricing_order_status)}</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <div class="alert alert-info mb-3">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    ${pricingFlow.message}
+                                </div>
+                                
+                                <p class="mb-0">您可以选择以下操作：</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                    <i class="fas fa-times me-1"></i>关闭
+                                </button>
+                                <button type="button" class="btn btn-primary" id="viewPricingOrderBtn">
+                                    <i class="fas fa-eye me-1"></i>查看批价单
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else if (pricingFlow.action_required === 'complete_quotation_approval') {
+            // 需要完成报价单审核
+            modalHtml = `
+                <div class="modal fade" id="${modalId}" tabindex="-1" aria-labelledby="pricingFlowModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header bg-warning text-dark">
+                                <h5 class="modal-title" id="pricingFlowModalLabel">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>签约流程 - 审核缺失
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="alert alert-warning mb-3">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    无法推进到签约阶段！
+                                </div>
+                                
+                                <div class="d-flex align-items-start mb-3">
+                                    <i class="fas fa-file-alt text-warning me-3 mt-1" style="font-size: 1.2em;"></i>
+                                    <div>
+                                        <h6 class="mb-1">发现报价单但缺少审核</h6>
+                                        <p class="mb-0 text-muted">报价单号：<strong>${pricingFlow.quotation_number}</strong></p>
+                                        <p class="mb-0 text-warning"><i class="fas fa-times me-1"></i>审核状态：未审核或审核未通过</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="alert alert-danger mb-3">
+                                    <i class="fas fa-times-circle me-2"></i>
+                                    ${pricingFlow.message}
+                                </div>
+                                
+                                <p class="mb-0">请先完成以下操作再重新推进：</p>
+                                <ul class="mt-2">
+                                    <li>确保报价单内容完整</li>
+                                    <li>提交报价单审批流程</li>
+                                    <li>等待审批通过</li>
+                                    <li>然后再推进到签约阶段</li>
+                                </ul>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                    <i class="fas fa-times me-1"></i>知道了
+                                </button>
+                                <button type="button" class="btn btn-warning" id="viewQuotationBtn">
+                                    <i class="fas fa-eye me-1"></i>查看报价单
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else if (pricingFlow.action_required === 'create_quotation') {
+            // 需要创建报价单
+            modalHtml = `
+                <div class="modal fade" id="${modalId}" tabindex="-1" aria-labelledby="pricingFlowModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header bg-danger text-white">
+                                <h5 class="modal-title" id="pricingFlowModalLabel">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>签约流程 - 报价单缺失
+                                </h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="alert alert-danger mb-3">
+                                    <i class="fas fa-times-circle me-2"></i>
+                                    无法推进到签约阶段！
+                                </div>
+                                
+                                <div class="alert alert-warning mb-3">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    ${pricingFlow.message}
+                                </div>
+                                
+                                <p class="mb-0">建议您先完成以下操作：</p>
+                                <ul class="mt-2">
+                                    <li>为项目创建报价单</li>
+                                    <li>完善报价单产品明细</li>
+                                    <li>完成报价单审批流程</li>
+                                    <li>然后再发起签约流程</li>
+                                </ul>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                    <i class="fas fa-times me-1"></i>知道了
+                                </button>
+                                <button type="button" class="btn btn-danger" id="createQuotationBtn">
+                                    <i class="fas fa-plus me-1"></i>创建报价单
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 移除已存在的模态框
+        const existingModal = document.getElementById(modalId);
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // 添加新模态框到DOM
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // 显示模态框
+        const modal = new bootstrap.Modal(document.getElementById(modalId));
+        modal.show();
+        
+        // 绑定按钮事件
+        this.bindPricingFlowModalEvents(pricingFlow, modal);
+    }
+    
+    /**
+     * 绑定批价流程模态框按钮事件
+     */
+    bindPricingFlowModalEvents(pricingFlow, modal) {
+        const createPricingOrderBtn = document.getElementById('createPricingOrderBtn');
+        const viewPricingOrderBtn = document.getElementById('viewPricingOrderBtn');
+        const createQuotationBtn = document.getElementById('createQuotationBtn');
+        const viewQuotationBtn = document.getElementById('viewQuotationBtn');
+        
+        if (createPricingOrderBtn) {
+            createPricingOrderBtn.addEventListener('click', () => {
+                modal.hide();
+                // 发起创建批价单流程
+                this.createPricingOrder(pricingFlow.quotation_id);
+            });
+        }
+        
+        if (viewPricingOrderBtn) {
+            viewPricingOrderBtn.addEventListener('click', () => {
+                modal.hide();
+                // 跳转到批价单详情页面
+                window.location.href = `/pricing_order/${pricingFlow.pricing_order_id}`;
+            });
+        }
+        
+        if (createQuotationBtn) {
+            createQuotationBtn.addEventListener('click', () => {
+                modal.hide();
+                // 跳转到创建报价单页面
+                window.open(`/quotation/add?project_id=${this.projectId}`, '_blank');
+                this.refreshPage();
+            });
+        }
+        
+        if (viewQuotationBtn) {
+            viewQuotationBtn.addEventListener('click', () => {
+                modal.hide();
+                // 跳转到报价单详情页面
+                window.open(`/quotation/${pricingFlow.quotation_id}/detail`, '_blank');
+                this.refreshPage();
+            });
+        }
+        
+        // 模态框关闭后刷新页面
+        modal._element.addEventListener('hidden.bs.modal', () => {
+            this.refreshPage();
+        });
+    }
+    
+    /**
+     * 创建批价单
+     */
+    createPricingOrder(quotationId) {
+        // 显示加载指示器
+        const loadingHtml = `
+            <div id="createPricingOrderLoading" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                 background-color: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;">
+                <div style="background: white; padding: 20px; border-radius: 8px; text-align: center;">
+                    <div class="spinner-border text-primary mb-2" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div>正在创建批价单...</div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', loadingHtml);
+        
+        // 调用创建批价单API
+        fetch(`/pricing_order/project/${this.projectId}/start_pricing_process`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': this.csrfToken
+            },
+            body: JSON.stringify({
+                quotation_id: quotationId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // 移除加载指示器
+            const loading = document.getElementById('createPricingOrderLoading');
+            if (loading) loading.remove();
+            
+            if (data.success) {
+                // 成功创建，直接跳转到批价单编辑页面
+                if (data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    // 如果没有返回redirect_url，刷新页面
+                    this.refreshPage();
+                }
+            } else {
+                alert('创建批价单失败：' + (data.message || '未知错误'));
+                this.refreshPage();
+            }
+        })
+        .catch(error => {
+            // 移除加载指示器
+            const loading = document.getElementById('createPricingOrderLoading');
+            if (loading) loading.remove();
+            
+            console.error('创建批价单错误:', error);
+            alert('创建批价单时发生错误：' + error.message);
+            this.refreshPage();
+        });
+    }
+    
+    /**
+     * 获取批价单状态标签
+     */
+    getPricingOrderStatusLabel(status) {
+        const statusLabels = {
+            'draft': '草稿',
+            'pending': '审批中',
+            'approved': '已批准',
+            'rejected': '已拒绝'
+        };
+        return statusLabels[status] || status;
+    }
+    
+    /**
+     * 刷新页面
+     */
+    refreshPage() {
+        // 强制完全刷新页面（不使用缓存）
+        window.location.href = window.location.href.split('?')[0] + 
+            '?_nocache=' + new Date().getTime();
     }
 
     /**

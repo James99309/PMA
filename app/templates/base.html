@@ -471,18 +471,16 @@
                 {% if current_user.is_authenticated or session.get('user_id') %}
                 <div class="d-none d-lg-flex align-items-center ms-auto">
                   <div class="dropdown">
-                    <div class="d-flex align-items-center user-info-pc" style="white-space:nowrap; cursor:pointer;" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                      <span class="rounded-circle d-inline-flex align-items-center justify-content-center me-2 position-relative" style="background:#b13a5b;width:24px;height:24px;font-size:0.95rem;color:#fff;">
-                        {{ (current_user.username or session.get('username', 'U'))[0]|upper }}
-                        {% set pending_count = get_pending_approval_count() %}
-                        {% if pending_count > 0 %}
-                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem; transform: translate(-80%, -30%);">
-                          {{ pending_count }}
-                        </span>
-                        {% endif %}
-                      </span>
-                      <span class="user-name" style="font-size:1rem; color:#fff; font-weight:500;">{{current_user.username or session.get('username','用户')}}</span>
-                      <i class="fas fa-caret-down ms-1 text-white"></i>
+                    <div class="user-avatar-capsule position-relative" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                      <div class="d-flex align-items-center">
+                        <span class="avatar-initial">{{ (current_user.username or session.get('username', 'U'))[0]|upper }}</span>
+                        <span class="user-name">{{current_user.username or session.get('username','用户')}}</span>
+                        <i class="fas fa-caret-down dropdown-arrow"></i>
+                      </div>
+                      {% set pending_count = get_pending_approval_count() %}
+                      {% if pending_count > 0 %}
+                      <span class="notification-badge">{{ pending_count }}</span>
+                      {% endif %}
                     </div>
                     <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
                       <li>
@@ -521,11 +519,9 @@
                 <!-- 移动端账户logo和退出 -->
                 <div class="d-lg-none border-top border-light-subtle mt-2 pt-2 pb-1 px-2 user-info-mobile text-white text-sm" style="font-size: 0.95rem;">
                   <div class="d-flex align-items-center justify-content-between px-2 py-2">
-                    <div class="d-flex align-items-center" style="gap: 0.5rem;">
-                      <span class="rounded-circle d-inline-flex align-items-center justify-content-center" style="background:#b13a5b;width:24px;height:24px;font-size:0.95rem;color:#fff;">
-                        {{ (current_user.username or session.get('username', 'U'))[0]|upper }}
-                      </span>
-                      <span class="ms-1">{{current_user.username or session.get('username','用户')}}</span>
+                    <div class="user-avatar-capsule-mobile">
+                      <span class="avatar-initial-mobile">{{ (current_user.username or session.get('username', 'U'))[0]|upper }}</span>
+                      <span class="user-name-mobile">{{current_user.username or session.get('username','用户')}}</span>
                     </div>
                     <div class="d-flex align-items-center">
                       <a href="{{ url_for('user.profile') }}" class="text-white me-3" title="个人设置">
@@ -601,6 +597,101 @@
     body { padding-top: 80px !important; }
     @media (max-width: 991.98px) { body { padding-top: 120px !important; } }
     .main-nav.fixed-top { box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    
+    /* 胶囊型用户头像样式 */
+    .user-avatar-capsule {
+        background: #b13a5b;
+        border-radius: 20px;
+        padding: 6px 12px 6px 6px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        min-height: 32px;
+    }
+    
+    .user-avatar-capsule:hover {
+        background: #9d2f4a;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(177, 58, 91, 0.3);
+    }
+    
+    .user-avatar-capsule .avatar-initial {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #fff;
+        margin-right: 8px;
+    }
+    
+    .user-avatar-capsule .user-name {
+        color: #fff;
+        font-size: 0.9rem;
+        font-weight: 500;
+        margin-right: 6px;
+    }
+    
+    .user-avatar-capsule .dropdown-arrow {
+        color: #fff;
+        font-size: 0.8rem;
+        opacity: 0.8;
+        transition: transform 0.2s ease;
+    }
+    
+    .user-avatar-capsule[aria-expanded="true"] .dropdown-arrow {
+        transform: rotate(180deg);
+    }
+    
+    .user-avatar-capsule .notification-badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        background: #dc3545;
+        color: white;
+        border-radius: 10px;
+        padding: 2px 6px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        min-width: 18px;
+        text-align: center;
+        border: 2px solid #16a0bf;
+    }
+    
+    /* 移动端胶囊型头像样式 */
+    .user-avatar-capsule-mobile {
+        background: #b13a5b;
+        border-radius: 16px;
+        padding: 4px 10px 4px 4px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    .user-avatar-capsule-mobile .avatar-initial-mobile {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        width: 16px;
+        height: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #fff;
+    }
+    
+    .user-avatar-capsule-mobile .user-name-mobile {
+        color: #fff;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
     </style>
 
     {% with messages = get_flashed_messages(with_categories=true) %}

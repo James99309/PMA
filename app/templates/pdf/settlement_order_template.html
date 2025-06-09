@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>结算单 - {{ settlement_order.order_number if settlement_order else pricing_order.order_number }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1.5cm;
+        }
+        
+        body {
+            font-family: "Songti SC", "宋体", "SimSun", "Arial", sans-serif;
+            font-size: 12px;
+            line-height: 1.4;
+            margin: 0;
+            padding: 0;
+            color: #000;
+            position: relative;
+        }
+        
+        /* 水印样式 */
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 48px;
+            color: rgba(0, 0, 0, 0.1);
+            font-weight: bold;
+            z-index: -1;
+            pointer-events: none;
+        }
+        
+        /* 页面头部样式 */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+        }
+        
+        .company-info {
+            flex: 1;
+            text-align: left;
+        }
+        
+        .project-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #000;
+        }
+        
+        .distributor-name {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        
+        .document-header {
+            flex: 1;
+            text-align: right;
+        }
+        
+        .document-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .order-badges {
+            margin-bottom: 10px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 0.35em 0.65em;
+            font-size: 10px;
+            font-weight: 500;
+            line-height: 1;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: baseline;
+            border-radius: 0.375rem;
+            margin-right: 5px;
+        }
+        
+        .badge-order {
+            background-color: #17a2b8;
+            color: white;
+            border-radius: 50px;
+        }
+        
+        .badge-status {
+            border-radius: 50px;
+        }
+        
+        .badge-status.draft {
+            background-color: #6c757d;
+            color: white;
+        }
+        
+        .badge-status.pending {
+            background-color: #ffc107;
+            color: #000;
+        }
+        
+        .badge-status.approved {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .badge-status.rejected {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        .badge-project-type {
+            border-radius: 50px;
+            color: white;
+        }
+        
+        .badge-project-type.channel_follow {
+            background-color: #5BC0DE;
+        }
+        
+        .badge-project-type.sales_focus {
+            background-color: #0B6EFD;
+        }
+        
+        .badge-project-type.business_opportunity {
+            background-color: #198754;
+        }
+        
+        .badge-project-type.default {
+            background-color: #6c757d;
+        }
+        
+        .order-date {
+            font-size: 12px;
+            color: #333;
+        }
+        
+        /* 项目信息表格 */
+        .project-info {
+            margin-bottom: 15px;
+        }
+        
+        .project-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+        
+        .project-table td {
+            padding: 4px 8px;
+            border: 1px solid #000;
+            vertical-align: middle;
+        }
+        
+        .project-table .label {
+            background-color: #f0f0f0;
+            font-weight: bold;
+            width: 12%;
+            text-align: center;
+        }
+        
+        .project-table .value {
+            width: 38%;
+            text-align: left;
+        }
+        
+        /* 金额汇总 */
+        .amount-summary {
+            margin: 15px 0;
+            text-align: left;
+            padding: 8px;
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+        }
+        
+        .total-amount {
+            font-size: 14px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .amount-left {
+            display: flex;
+            align-items: center;
+        }
+        
+        .amount-label {
+            margin-right: 20px;
+        }
+        
+        .amount-value {
+            margin-right: 30px;
+            color: #000;
+        }
+        
+        .discount-rate {
+            color: #000;
+            font-weight: bold;
+        }
+        
+        /* 产品明细表格 */
+        .details-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 9px;
+        }
+        
+        .details-table th,
+        .details-table td {
+            border: 1px solid #000;
+            padding: 4px 2px;
+            text-align: center;
+            vertical-align: middle;
+        }
+        
+        .details-table th {
+            background-color: #000000;
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 10px;
+        }
+        
+        .details-table .text-left {
+            text-align: left;
+        }
+        
+        .details-table .text-right {
+            text-align: right;
+        }
+        
+        /* 总计行 */
+        .total-row {
+            font-weight: bold;
+            background-color: #f8f8f8;
+        }
+        
+        /* 分页 */
+        .page-break {
+            page-break-before: always;
+        }
+        
+        .no-break {
+            page-break-inside: avoid;
+        }
+    </style>
+</head>
+<body>
+    <!-- 水印 -->
+    <div class="watermark">和源通信科技有限公司</div>
+    
+    <!-- 页面头部 -->
+    <div class="page-header">
+        <div class="company-info">
+            <div class="project-title">{{ pricing_order.project.project_name if pricing_order.project else '未知项目' }}</div>
+            <div class="distributor-name">{{ pricing_order.distributor.company_name if pricing_order.distributor else '分销商信息缺失' }}</div>
+        </div>
+        <div class="document-header">
+            <div class="document-title">结算单</div>
+            <div class="order-badges">
+                <span class="badge badge-order">{{ settlement_order.order_number if settlement_order else pricing_order.order_number }}</span>
+                {% set status = settlement_order.status if settlement_order else pricing_order.status %}
+                <span class="badge badge-status {{ status }}">
+                    {% if status == 'draft' %}草稿
+                    {% elif status == 'pending' %}审批中
+                    {% elif status == 'approved' %}已批准
+                    {% elif status == 'rejected' %}已拒绝
+                    {% else %}{{ status }}
+                    {% endif %}
+                </span>
+                {% if pricing_order.project and pricing_order.project.project_type %}
+                <span class="badge badge-project-type {{ pricing_order.project.project_type if pricing_order.project.project_type in ['channel_follow', 'sales_focus', 'business_opportunity'] else 'default' }}">
+                    {% set project_type = pricing_order.project.project_type %}
+                    {% if project_type == 'channel_follow' %}渠道跟进
+                    {% elif project_type == 'sales_focus' %}销售重点
+                    {% elif project_type == 'business_opportunity' %}业务机会
+                    {% else %}{{ project_type }}
+                    {% endif %}
+                </span>
+                {% endif %}
+            </div>
+            <div class="order-date">{{ pricing_order.created_at.strftime('%Y年%m月%d日') if pricing_order.created_at else '-' }}</div>
+        </div>
+    </div>
+    
+    <!-- 项目基本信息 -->
+    <div class="project-info">
+        <table class="project-table">
+            <tr>
+                <td class="label">项目名称</td>
+                <td class="value">{{ pricing_order.project.project_name if pricing_order.project else '-' }}</td>
+                <td class="label">项目类型</td>
+                <td class="value">
+                    {% set project_type = pricing_order.project.project_type if pricing_order.project else '' %}
+                    {% if project_type == 'channel_follow' %}渠道跟进
+                    {% elif project_type == 'sales_focus' %}销售重点
+                    {% elif project_type == 'business_opportunity' %}业务机会
+                    {% else %}{{ project_type or '-' }}
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td class="label">经销商</td>
+                <td class="value">{{ pricing_order.dealer.company_name if pricing_order.dealer else '-' }}</td>
+                <td class="label">分销商</td>
+                <td class="value">{{ pricing_order.distributor.company_name if pricing_order.distributor else '-' }}</td>
+            </tr>
+            <tr>
+                <td class="label">拥有人</td>
+                <td class="value">{{ pricing_order.project.owner.real_name if pricing_order.project and pricing_order.project.owner else '-' }}</td>
+                <td class="label">销售负责人</td>
+                <td class="value">{{ pricing_order.project.vendor_sales_manager.real_name if pricing_order.project and pricing_order.project.vendor_sales_manager else '-' }}</td>
+            </tr>
+            <tr>
+                <td class="label">提货时间</td>
+                <td class="value" colspan="3">{{ pricing_order.project.delivery_forecast.strftime('%Y年%m月%d日') if pricing_order.project and pricing_order.project.delivery_forecast else '-' }}</td>
+            </tr>
+        </table>
+    </div>
+    
+    <!-- 金额汇总 -->
+    <div class="amount-summary">
+        <div class="total-amount">
+            <div class="amount-left">
+                <span class="amount-label">结算总金额</span>
+                <span class="amount-value">{{ "{:,.0f}".format(pricing_order.settlement_total_amount or 0) }} RMB</span>
+            </div>
+            <div class="amount-right">
+                <span class="discount-rate">总折扣率 {{ "%.2f%%" % ((pricing_order.settlement_total_discount_rate or 0) * 100) }}</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 产品明细表格 -->
+    <table class="details-table">
+        <thead>
+            <tr>
+                <th style="width: 4%;">序号</th>
+                <th style="width: 15%;">产品名称</th>
+                <th style="width: 10%;">型号</th>
+                <th style="width: 20%;">指标描述</th>
+                <th style="width: 8%;">品牌</th>
+                <th style="width: 5%;">单位</th>
+                <th style="width: 5%;">数量</th>
+                <th style="width: 8%;">零售价</th>
+                <th style="width: 5%;">折扣率</th>
+                <th style="width: 8%;">提货单价</th>
+                <th style="width: 8%;">提货合计</th>
+                <th style="width: 8%;">MN</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for detail in pricing_order.settlement_details %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td class="text-left">{{ detail.product_name }}</td>
+                <td>{{ detail.product_model or '-' }}</td>
+                <td class="text-left">{{ detail.product_desc or '-' }}</td>
+                <td>{{ detail.brand or '和源通信' }}</td>
+                <td>{{ detail.unit or '套' }}</td>
+                <td>{{ detail.quantity }}</td>
+                <td class="text-right">{{ "{:,.2f}".format(detail.market_price or 0) }}</td>
+                <td>{{ "{:.0f}%".format(detail.discount_rate * 100) }}</td>
+                <td class="text-right">{{ "{:,.2f}".format(detail.unit_price) }}</td>
+                <td class="text-right">{{ "{:,.2f}".format(detail.total_price) }}</td>
+                <td>{{ detail.product_mn or '-' }}</td>
+            </tr>
+            {% endfor %}
+            <!-- 总计行 -->
+            <tr class="total-row">
+                <td colspan="7" class="text-right">总计</td>
+                <td class="text-right">{{ "{:,.2f}".format(pricing_order.pricing_total_amount or 0) }}</td>
+                <td></td>
+                <td></td>
+                <td class="text-right">{{ "{:,.2f}".format(pricing_order.settlement_total_amount or 0) }}</td>
+                <td></td>
+            </tr>
+        </tbody>
+    </table>
+</body>
+</html> 

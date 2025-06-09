@@ -85,6 +85,36 @@ class ProjectStatistics:
             stats['won_projects_count'] = len(won_projects)
             stats['won_projects_amount'] = sum(p.quotation_customer or 0 for p in won_projects)
 
+            # 批价项目统计
+            quoted_projects = [p for p in all_projects if p.current_stage == 'quoted']
+            stats['quoted_projects_count'] = len(quoted_projects)
+            stats['quoted_projects_amount'] = sum(p.quotation_customer or 0 for p in quoted_projects)
+
+            # 发现阶段项目统计
+            discover_projects = [p for p in all_projects if p.current_stage == 'discover']
+            stats['discover_projects_count'] = len(discover_projects)
+            stats['discover_projects_amount'] = sum(p.quotation_customer or 0 for p in discover_projects)
+
+            # 植入阶段项目统计
+            embed_projects = [p for p in all_projects if p.current_stage == 'embed']
+            stats['embed_projects_count'] = len(embed_projects)
+            stats['embed_projects_amount'] = sum(p.quotation_customer or 0 for p in embed_projects)
+
+            # 招标前阶段项目统计
+            pre_tender_projects = [p for p in all_projects if p.current_stage == 'pre_tender']
+            stats['pre_tender_projects_count'] = len(pre_tender_projects)
+            stats['pre_tender_projects_amount'] = sum(p.quotation_customer or 0 for p in pre_tender_projects)
+
+            # 失败阶段项目统计
+            lost_projects = [p for p in all_projects if p.current_stage == 'lost']
+            stats['lost_projects_count'] = len(lost_projects)
+            stats['lost_projects_amount'] = sum(p.quotation_customer or 0 for p in lost_projects)
+
+            # 搁置阶段项目统计
+            paused_projects = [p for p in all_projects if p.current_stage == 'paused']
+            stats['paused_projects_count'] = len(paused_projects)
+            stats['paused_projects_amount'] = sum(p.quotation_customer or 0 for p in paused_projects)
+
             # 业务推进统计（本月主线阶段推进，且不含切换到失败/搁置）
             today = datetime.now().date()
             start_date = today.replace(day=1)

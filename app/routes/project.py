@@ -96,7 +96,7 @@ def edit_project(id):
             db.session.commit()
             print("项目更新成功")
             flash('项目更新成功', 'success')
-            return redirect(url_for('project.view_project', id=project.id))
+            return redirect(url_for('project.view_project', project_id=project.id))
             
         except Exception as e:
             db.session.rollback()

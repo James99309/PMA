@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}批价单功能测试{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2>批价单功能测试</h2>
+    
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>创建测试批价单</h5>
+                </div>
+                <div class="card-body">
+                    <form id="testForm">
+                        <div class="form-group">
+                            <label for="projectId">项目ID</label>
+                            <input type="number" class="form-control" id="projectId" placeholder="输入项目ID">
+                        </div>
+                        <div class="form-group">
+                            <label for="quotationId">报价单ID</label>
+                            <input type="number" class="form-control" id="quotationId" placeholder="输入报价单ID">
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="startPricingProcess()">
+                            启动批价流程
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>现有批价单列表</h5>
+                </div>
+                <div class="card-body">
+                    <a href="{{ url_for('pricing_order.list_pricing_orders') }}" class="btn btn-info">
+                        查看批价单列表
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function startPricingProcess() {
+    const projectId = $('#projectId').val();
+    const quotationId = $('#quotationId').val();
+    
+    if (!projectId) {
+        alert('请输入项目ID');
+        return;
+    }
+    
+    fetch(`/pricing_order/project/${projectId}/start_pricing_process`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (data.redirect_url) {
+                window.location.href = data.redirect_url;
+            } else {
+                alert('批价单创建成功');
+            }
+        } else {
+            alert('创建失败: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('请求失败: ' + error.message);
+    });
+}
+</script>
+{% endblock %} 

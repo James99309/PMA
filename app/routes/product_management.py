@@ -61,11 +61,6 @@ def save_product_image(file):
     - 成功时返回保存的文件路径，失败时返回None
     """
     if file and allowed_file(file.filename):
-        # 验证文件名是否为英文
-        if not validate_english_filename(file.filename):
-            logger.warning(f"文件名包含非英文字符: {file.filename}")
-            return None
-            
         # 检查文件大小（最大5MB）
         file.seek(0, 2)  # 移动到文件末尾
         file_size = file.tell()  # 获取文件大小
@@ -74,10 +69,20 @@ def save_product_image(file):
             logger.warning(f"图片文件过大: {file_size} bytes (最大5MB)")
             return None
         
-        # 创建安全的文件名
-        filename = secure_filename(file.filename)
-        # 使用UUID生成唯一文件名前缀
-        unique_filename = f"{uuid.uuid4().hex}_{filename}"
+        # 处理文件名，支持中文字符
+        original_filename = file.filename
+        # 获取文件扩展名
+        if '.' in original_filename:
+            name_part, extension = original_filename.rsplit('.', 1)
+            extension = extension.lower()
+        else:
+            name_part = original_filename
+            extension = 'jpg'  # 默认扩展名
+        
+        # 生成唯一文件名，保留原始文件名（包括中文）
+        # 移除文件名中的特殊字符，但保留中文、英文、数字、下划线、连字符
+        safe_name = re.sub(r'[^\w\u4e00-\u9fff\-_.]', '_', name_part)
+        unique_filename = f"{uuid.uuid4().hex}_{safe_name}.{extension}"
         
         # 确保上传目录存在
         upload_folder = os.path.join(current_app.static_folder, 'uploads', 'products')
@@ -104,18 +109,24 @@ def save_product_pdf(file):
     - 成功时返回保存的文件路径，失败时返回None
     """
     if file and allowed_pdf_file(file.filename):
-        # 验证文件名是否为英文
-        if not validate_english_filename(file.filename):
-            return None, "文件名必须是英文字符（字母、数字、点、下划线、连字符）"
-            
         # 检查文件大小
         if not check_file_size(file):
             return None, "PDF文件大小不能超过12MB"
         
-        # 创建安全的文件名
-        filename = secure_filename(file.filename)
-        # 使用UUID生成唯一文件名前缀
-        unique_filename = f"{uuid.uuid4().hex}_{filename}"
+        # 处理文件名，支持中文字符
+        original_filename = file.filename
+        # 获取文件扩展名
+        if '.' in original_filename:
+            name_part, extension = original_filename.rsplit('.', 1)
+            extension = extension.lower()
+        else:
+            name_part = original_filename
+            extension = 'pdf'
+        
+        # 生成唯一文件名，保留原始文件名（包括中文）
+        # 移除文件名中的特殊字符，但保留中文、英文、数字、下划线、连字符
+        safe_name = re.sub(r'[^\w\u4e00-\u9fff\-_.]', '_', name_part)
+        unique_filename = f"{uuid.uuid4().hex}_{safe_name}.{extension}"
         
         # 确保上传目录存在
         upload_folder = os.path.join(current_app.static_folder, 'uploads', 'products', 'pdfs')

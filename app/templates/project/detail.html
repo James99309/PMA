@@ -37,39 +37,41 @@
 <div class="container mt-4 project-detail-main">
     <div class="row mb-3">
         <div class="col-md-12">
-            <div class="d-flex align-items-center justify-content-between">
-                <div class="d-flex align-items-center">
-                    <h2 class="mb-0 me-3">{{ project.project_name }}</h2>
-                    <!-- 五星评分显示在标题旁边 -->
-                    <div class="d-flex align-items-center title-rating">
-                        {% if current_user.has_permission('project_rating', 'create') %}
-                        <!-- 可交互的星星评分 -->
-                        <div class="clickable-stars d-flex" id="clickableStars">
-                            {% for i in range(1, 6) %}
-                                <i class="fas fa-star clickable-star" 
-                                   data-rating="{{ i }}"
-                                   style="color: #dee2e6; font-size: 1.1rem; margin-right: 1px; cursor: pointer; transition: all 0.2s ease;"
-                                   onclick="toggleManualAward()"
-                                   onmouseover="this.style.transform='scale(1.1)'"
-                                   onmouseout="this.style.transform='scale(1)'"></i>
-                            {% endfor %}
+            <div class="d-flex align-items-start justify-content-between">
+                <div class="flex-grow-1" style="max-width: 60%; min-width: 0;">
+                    <div class="d-flex align-items-center flex-wrap">
+                        <h2 class="mb-0 me-3 text-truncate" style="max-width: 100%;" title="{{ project.project_name }}">{{ project.project_name }}</h2>
+                        <!-- 五星评分显示在标题旁边 -->
+                        <div class="d-flex align-items-center title-rating mt-1">
+                            {% if current_user.has_permission('project_rating', 'create') %}
+                            <!-- 可交互的星星评分 -->
+                            <div class="clickable-stars d-flex" id="clickableStars">
+                                {% for i in range(1, 6) %}
+                                    <i class="fas fa-star clickable-star" 
+                                       data-rating="{{ i }}"
+                                       style="color: #dee2e6; font-size: 1.1rem; margin-right: 1px; cursor: pointer; transition: all 0.2s ease;"
+                                       onclick="toggleManualAward()"
+                                       onmouseover="this.style.transform='scale(1.1)'"
+                                       onmouseout="this.style.transform='scale(1)'"></i>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <!-- 只读的星星显示 -->
+                            <div class="readonly-stars d-flex" id="readonlyStars">
+                                {% for i in range(1, 6) %}
+                                    <i class="fas fa-star" 
+                                       style="color: #dee2e6; font-size: 1.1rem; margin-right: 1px;"></i>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            <!-- 查看评分详情按钮 - 对所有用户开放 -->
+                            <button type="button" class="btn btn-link btn-sm p-0 ms-2" onclick="showScoringDetails()" title="查看评分详情">
+                                <i class="fas fa-info-circle text-muted"></i>
+                            </button>
                         </div>
-                        {% else %}
-                        <!-- 只读的星星显示 -->
-                        <div class="readonly-stars d-flex" id="readonlyStars">
-                            {% for i in range(1, 6) %}
-                                <i class="fas fa-star" 
-                                   style="color: #dee2e6; font-size: 1.1rem; margin-right: 1px;"></i>
-                            {% endfor %}
-                        </div>
-                        {% endif %}
-                        <!-- 查看评分详情按钮 - 对所有用户开放 -->
-                        <button type="button" class="btn btn-link btn-sm p-0 ms-2" onclick="showScoringDetails()" title="查看评分详情">
-                            <i class="fas fa-info-circle text-muted"></i>
-                        </button>
                     </div>
                 </div>
-                <div class="d-flex flex-wrap align-items-center gap-2">
+                <div class="d-flex flex-wrap align-items-center gap-2 flex-shrink-0">
                     {{ ui.render_button('返回列表', href=url_for('project.list_projects'), color='secondary') }}
                     {% if current_stage_key != 'signed' and current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) and (not project.is_locked or current_user.role == 'admin') %}
                         {{ ui.render_button('编辑项目', href=url_for('project.edit_project', project_id=project.id), color='primary') }}
@@ -113,7 +115,7 @@
                         <div class="col-md-6">
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>项目名称：</strong></div>
-                                <div class="col-md-8">{{ project.project_name }}</div>
+                                <div class="col-md-8 text-break" style="word-wrap: break-word;">{{ project.project_name }}</div>
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>报备时间：</strong></div>
@@ -204,6 +206,20 @@
                                         <span class="badge bg-secondary">不活跃</span>
                                     {% endif %}
                                     <small class="ms-2 text-muted">阈值: {{ settings.project_activity_threshold|default(7) }}天</small>
+                                </div>
+                            </div>
+                            <div class="row mb-2">
+                                <div class="col-md-4"><strong>锁定状态：</strong></div>
+                                <div class="col-md-8">
+                                    {% if project.is_locked %}
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="fas fa-lock me-1"></i>已锁定
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-unlock me-1"></i>未锁定
+                                        </span>
+                                    {% endif %}
                                 </div>
                             </div>
                             <div class="row mb-2">
@@ -408,8 +424,10 @@
     </div>
 
     <!-- 审批流程区域 -->
+    {% if not project.is_locked %}
     {% set approval_instance = get_object_approval_instance('project', project.id) if get_object_approval_instance is defined %}
     {{ render_approval_section('project', project.id, approval_instance, current_user) }}
+    {% endif %}
 </div>
 
 
@@ -588,10 +606,7 @@
             canEdit: {{ can_edit_stage|lower }},
             isLocked: {{ project.is_locked|lower }},
             userRole: '{{ current_user.role }}',
-            {% if stageHistory %}
-            stageHistory: {{ stageHistory|tojson }},
-            {% endif %}
-            // 从后端传递标准阶段定义
+            {% if stageHistory %}stageHistory: {{ stageHistory|tojson }},{% endif %}
             stageDefs: {{ project_stages_config()|tojson }}
         });
 

@@ -1,9 +1,19 @@
 {% macro render_project_type(type) %}
     {% set color = '#6c757d' %}
-    {% if type == 'sales_focus' %}{% set color = '#0B6EFD' %}{% endif %}
-    {% if type == 'channel_follow' %}{% set color = '#5BC0DE' %}{% endif %}
-    {% if type == 'business_opportunity' %}{% set color = '#198754' %}{% endif %}
-    <span class="badge rounded-pill" style="background-color: {{ color }}; color: #fff;">{{ type|project_type_label('zh') }}</span>
+    {% if type == 'sales_focus' or type == '销售重点' %}{% set color = '#0B6EFD' %}{% endif %}
+    {% if type == 'channel_follow' or type == '渠道跟进' %}{% set color = '#5BC0DE' %}{% endif %}
+    {% if type == 'business_opportunity' or type == '业务机会' %}{% set color = '#198754' %}{% endif %}
+    {% set type_map = {
+        'sales_focus': '销售重点',
+        'channel_follow': '渠道跟进', 
+        'business_opportunity': '业务机会'
+    } %}
+    {% set display_type = type_map.get(type, type) %}
+    <span class="badge rounded-pill" style="background-color: {{ color }}; color: #fff;">{{ display_type }}</span>
+{% endmacro %}
+
+{% macro render_pricing_order_number(order_number) %}
+    <span class="badge rounded-pill" style="background-color: #ff8c00; color: white; font-weight: 500;">{{ order_number }}</span>
 {% endmacro %}
 
 {% macro render_owner(owner) %}
@@ -1115,6 +1125,64 @@
   {% endif %}
 {% endmacro %}
 
+{# Ajax分页组件宏 - 支持无刷新翻页 #}
+{% macro render_ajax_pagination(pagination, container_id='approvalTableContainer', pagination_id='paginationContainer') %}
+  {% if pagination.pages > 1 %}
+    <nav aria-label="分页导航">
+      <ul class="pagination pagination-sm justify-content-center mb-0">
+        {# 上一页 #}
+        {% if pagination.has_prev %}
+          <li class="page-item">
+            <a class="page-link ajax-page-link" href="#" data-page="{{ pagination.prev_num }}" data-container="{{ container_id }}" data-pagination="{{ pagination_id }}">
+              <i class="fas fa-chevron-left"></i>
+            </a>
+          </li>
+        {% else %}
+          <li class="page-item disabled">
+            <span class="page-link">
+              <i class="fas fa-chevron-left"></i>
+            </span>
+          </li>
+        {% endif %}
+
+        {# 页码 #}
+        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+          {% if page_num %}
+            {% if page_num != pagination.page %}
+              <li class="page-item">
+                <a class="page-link ajax-page-link" href="#" data-page="{{ page_num }}" data-container="{{ container_id }}" data-pagination="{{ pagination_id }}">{{ page_num }}</a>
+              </li>
+            {% else %}
+              <li class="page-item active">
+                <span class="page-link">{{ page_num }}</span>
+              </li>
+            {% endif %}
+          {% else %}
+            <li class="page-item disabled">
+              <span class="page-link">…</span>
+            </li>
+          {% endif %}
+        {% endfor %}
+
+        {# 下一页 #}
+        {% if pagination.has_next %}
+          <li class="page-item">
+            <a class="page-link ajax-page-link" href="#" data-page="{{ pagination.next_num }}" data-container="{{ container_id }}" data-pagination="{{ pagination_id }}">
+              <i class="fas fa-chevron-right"></i>
+            </a>
+          </li>
+        {% else %}
+          <li class="page-item disabled">
+            <span class="page-link">
+              <i class="fas fa-chevron-right"></i>
+            </span>
+          </li>
+        {% endif %}
+      </ul>
+    </nav>
+  {% endif %}
+{% endmacro %}
+
 {# 筛选按钮宏 #}
 {% macro render_filter_button(text, type="button", color="primary", icon="") %}
   <button type="{{ type }}" class="btn btn-{{ color }} btn-sm">
@@ -1132,4 +1200,221 @@
   {% else %}
     <span class="badge bg-secondary text-white">未指定</span>
   {% endif %}
+{% endmacro %}
+
+{# 标准动画提示函数 - JavaScript和CSS #}
+{% macro render_animated_alert_script() %}
+<style>
+/* 提示框动画样式 */
+.standard-alert-notification {
+    position: relative;
+    margin: 1rem 0;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border: none;
+    transition: all 0.3s ease;
+    z-index: 1000;
+}
+
+.standard-alert-notification .alert-content {
+    flex: 1;
+    line-height: 1.5;
+}
+
+.standard-alert-notification .btn-close {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    opacity: 0.7;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.standard-alert-notification .btn-close:hover {
+    opacity: 1;
+}
+
+.standard-alert-notification.alert-success {
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    border-left: 4px solid #28a745;
+    color: #155724;
+}
+
+.standard-alert-notification.alert-danger {
+    background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+    border-left: 4px solid #dc3545;
+    color: #721c24;
+}
+
+.standard-alert-notification.alert-warning {
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+    border-left: 4px solid #ffc107;
+    color: #856404;
+}
+
+.standard-alert-notification.alert-info {
+    background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+    border-left: 4px solid #17a2b8;
+    color: #0c5460;
+}
+
+/* 条件检查列表样式 */
+.condition-check-list {
+    margin: 0.5rem 0;
+    padding: 0;
+    list-style: none;
+}
+
+.condition-check-item {
+    display: flex;
+    align-items: center;
+    margin: 0.3rem 0;
+    font-size: 0.9rem;
+}
+
+.condition-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+
+.condition-icon.success {
+    background-color: #28a745;
+    color: white;
+}
+
+.condition-icon.error {
+    background-color: #dc3545;
+    color: white;
+}
+
+.condition-text {
+    flex: 1;
+}
+</style>
+
+<script>
+/**
+ * 标准动画提示函数
+ * @param {string} type - 提示类型: 'success', 'error', 'warning', 'info'
+ * @param {string} message - 主要消息内容
+ * @param {Array} conditions - 条件检查列表 [{text: '条件描述', passed: true/false}]
+ * @param {string} targetSelector - 目标元素选择器，提示框将插入到该元素后面
+ * @param {number} autoHideDelay - 自动隐藏延迟时间（毫秒），默认5000
+ */
+function showStandardAlert(type, message, conditions = [], targetSelector = null, autoHideDelay = 5000) {
+    // 移除已存在的提示
+    $('.standard-alert-notification').remove();
+    
+    const alertClass = type === 'success' ? 'alert-success' : 
+                      type === 'warning' ? 'alert-warning' : 
+                      type === 'info' ? 'alert-info' : 'alert-danger';
+    const iconClass = type === 'success' ? 'fa-check-circle' : 
+                      type === 'warning' ? 'fa-exclamation-triangle' : 
+                      type === 'info' ? 'fa-info-circle' : 'fa-exclamation-circle';
+    
+    // 构建条件检查列表HTML
+    let conditionsHtml = '';
+    if (conditions && conditions.length > 0) {
+        conditionsHtml = '<ul class="condition-check-list">';
+        conditions.forEach(condition => {
+            const iconType = condition.passed ? 'success' : 'error';
+            const iconSymbol = condition.passed ? '✓' : '✗';
+            conditionsHtml += `
+                <li class="condition-check-item">
+                    <div class="condition-icon ${iconType}">${iconSymbol}</div>
+                    <span class="condition-text">${condition.text}</span>
+                </li>
+            `;
+        });
+        conditionsHtml += '</ul>';
+    }
+    
+    // 创建下拉式提示框
+    const alertHtml = `
+        <div class="standard-alert-notification alert ${alertClass} alert-dismissible" role="alert">
+            <div class="d-flex align-items-start">
+                <i class="fas ${iconClass} me-2 mt-1"></i>
+                <div class="alert-content">
+                    <div>${message.replace(/\n/g, '<br>')}</div>
+                    ${conditionsHtml}
+                </div>
+                <button type="button" class="btn-close ms-auto" onclick="dismissStandardAlert()">×</button>
+            </div>
+        </div>
+    `;
+    
+    // 确定插入位置
+    let $target;
+    if (targetSelector) {
+        $target = $(targetSelector);
+    } else {
+        // 默认插入到第一个卡片后面
+        $target = $('.card').first();
+    }
+    
+    if ($target.length === 0) {
+        // 如果没有找到目标，插入到body开头
+        $('body').prepend(alertHtml);
+    } else {
+        $target.after(alertHtml);
+    }
+    
+    // 添加下拉动画
+    const $alert = $('.standard-alert-notification');
+    $alert.css({
+        'transform': 'translateY(-100%)',
+        'opacity': '0'
+    }).animate({
+        'transform': 'translateY(0)',
+        'opacity': '1'
+    }, 300);
+    
+    // 自动消失
+    if (autoHideDelay > 0) {
+        setTimeout(() => {
+            dismissStandardAlert();
+        }, autoHideDelay);
+    }
+}
+
+/**
+ * 手动关闭标准提示
+ */
+function dismissStandardAlert() {
+    const $alert = $('.standard-alert-notification');
+    if ($alert.length) {
+        $alert.animate({
+            'transform': 'translateY(-100%)',
+            'opacity': '0'
+        }, 300, function() {
+            $alert.remove();
+        });
+    }
+}
+
+/**
+ * 渠道信息验证专用函数
+ * @param {Object} validationResult - 验证结果对象
+ * @param {string} targetSelector - 目标选择器
+ */
+function showChannelValidationAlert(validationResult, targetSelector = '.card:has(#dealerSelect)') {
+    if (validationResult.valid) {
+        showStandardAlert('success', '渠道信息验证通过', validationResult.conditions, targetSelector, 3000);
+    } else {
+        showStandardAlert('warning', '提交条件不满足，请检查以下条件：', validationResult.conditions, targetSelector, 0);
+    }
+}
+</script>
 {% endmacro %}

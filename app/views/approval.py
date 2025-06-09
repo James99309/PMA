@@ -13,6 +13,7 @@ from app.helpers.approval_helpers import (
     get_template_steps,
     get_approval_records_by_instance,
     get_current_step_info,
+    get_last_approver,
     delete_approval_instance,
     can_user_approve,
     get_template_details,
@@ -46,7 +47,7 @@ def center():
     """
     # 获取查询参数
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 10, type=int)
+    per_page = request.args.get('per_page', 20, type=int)  # 修改默认每页记录数为20
     object_type = request.args.get('object_type')
     status = request.args.get('status')
     tab = request.args.get('tab', 'created')  # 默认显示"我发起的"标签
@@ -60,34 +61,47 @@ def center():
             page=page,
             per_page=per_page
         )
+    elif tab == 'pricing_order':
+        # 批价单审批 - 显示所有和当前用户相关的批价单
+        from app.helpers.approval_helpers import get_user_pricing_order_approvals
+        approvals = get_user_pricing_order_approvals(
+            user_id=current_user.id,
+            status=status,
+            page=page,
+            per_page=per_page
+        )
     elif tab == 'all' and current_user.role == 'admin':
         # 全部审批（仅admin可见）
-        status_enum = None
+        status_param = None
         if status:
             try:
-                status_enum = ApprovalStatus[status.upper()]
+                # 尝试转换为枚举类型
+                status_param = ApprovalStatus[status.upper()]
             except (KeyError, AttributeError):
-                pass
+                # 如果转换失败，直接使用字符串（用于批价单的草稿状态等）
+                status_param = status
         
         approvals = get_all_approvals(
             object_type=object_type,
-            status=status_enum,
+            status=status_param,
             page=page,
             per_page=per_page
         )
     else:
         # 我发起的
-        status_enum = None
+        status_param = None
         if status:
             try:
-                status_enum = ApprovalStatus[status.upper()]
+                # 尝试转换为枚举类型
+                status_param = ApprovalStatus[status.upper()]
             except (KeyError, AttributeError):
-                pass
+                # 如果转换失败，直接使用字符串（用于批价单的草稿状态等）
+                status_param = status
                 
         approvals = get_user_created_approvals(
             user_id=current_user.id,
             object_type=object_type,
-            status=status_enum,
+            status=status_param,
             page=page,
             per_page=per_page
         )
@@ -909,23 +923,53 @@ def batch_delete():
         
         for approval_id in approval_ids:
             try:
-                instance = ApprovalInstance.query.get(int(approval_id))
-                if not instance:
-                    failed_count += 1
-                    continue
-                
-                # 检查权限：只有管理员或发起人可以删除
-                if current_user.role != 'admin' and instance.creator_id != current_user.id:
-                    failed_count += 1
-                    continue
-                
-                # 删除审批实例
-                delete_approval_instance(instance.id)
-                deleted_count += 1
+                # 检查是否是批价单ID（格式：po_123）
+                if approval_id.startswith('po_'):
+                    # 处理批价单删除
+                    pricing_order_id = int(approval_id.split('_')[1])
+                    from app.models.pricing_order import PricingOrder
+                    pricing_order = PricingOrder.query.get(pricing_order_id)
+                    
+                    if not pricing_order:
+                        failed_count += 1
+                        continue
+                    
+                    # 检查权限：只有管理员或发起人可以删除
+                    if current_user.role != 'admin' and pricing_order.created_by != current_user.id:
+                        failed_count += 1
+                        continue
+                    
+                    # 删除批价单（只允许删除草稿状态的批价单）
+                    if pricing_order.status == 'draft':
+                        db.session.delete(pricing_order)
+                        deleted_count += 1
+                    else:
+                        failed_count += 1
+                        continue
+                        
+                else:
+                    # 处理通用审批实例删除
+                    instance = ApprovalInstance.query.get(int(approval_id))
+                    if not instance:
+                        failed_count += 1
+                        continue
+                    
+                    # 检查权限：只有管理员或发起人可以删除
+                    if current_user.role != 'admin' and instance.creator_id != current_user.id:
+                        failed_count += 1
+                        continue
+                    
+                    # 删除审批实例
+                    delete_approval_instance(instance.id)
+                    deleted_count += 1
                 
             except Exception as e:
                 current_app.logger.error(f"删除审批流程 {approval_id} 失败: {str(e)}")
                 failed_count += 1
+        
+        # 统一提交数据库事务
+        if deleted_count > 0:
+            db.session.commit()
         
         # 显示结果消息
         if deleted_count > 0:
@@ -935,6 +979,7 @@ def batch_delete():
             flash(f'{failed_count} 个审批流程删除失败（权限不足或不存在）', 'warning')
             
     except Exception as e:
+        db.session.rollback()
         current_app.logger.error(f"批量删除审批流程失败: {str(e)}")
         flash('批量删除操作失败，请稍后重试', 'danger')
     

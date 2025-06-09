@@ -1,0 +1,3748 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button, render_animated_alert_script, render_pricing_order_number, render_project_type %}
+
+{% block title %}批价单编辑 - {{ pricing_order.order_number }}{% endblock %}
+
+{% block head %}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<!-- 引入审批时间线样式 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
+{% endblock %}
+
+{% block content %}
+<!-- 引入标准提示函数 -->
+{{ render_animated_alert_script() }}
+
+<div class="container-fluid">
+    <!-- 页面标题 -->
+    <div class="row mb-4 mt-3">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-2">批价单</h2>
+                    <div class="mb-2">
+                        {{ render_pricing_order_number(pricing_order.order_number) }}
+                        {% if pricing_order.project and pricing_order.project.project_type %}
+                            {{ render_project_type(pricing_order.project.project_type) }}
+                        {% else %}
+                            <span class="badge bg-secondary rounded-pill">未知类型</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if pricing_order.created_by == current_user.id and pricing_order.status == 'draft' %}
+                <div>
+                    {{ render_button('删除批价单', color='danger', icon='fas fa-trash', type='button', attrs='data-bs-toggle="modal" data-bs-target="#deletePricingOrderModal"') }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 项目信息区域 -->
+    <div class="card mb-3">
+        <div class="card-header">
+            <h5><i class="fas fa-project-diagram"></i> 项目信息</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>关联项目：</strong>
+                        <a href="{{ url_for('project.view_project', project_id=pricing_order.project.id) }}" 
+                           class="text-primary" target="_blank">
+                            {{ pricing_order.project.project_name }}
+                        </a>
+                    </p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>报价单：</strong>
+                        <a href="{{ url_for('quotation.view_quotation', id=pricing_order.quotation.id) }}" 
+                           class="badge rounded-pill" 
+                           style="background-color: #e6e6e6; color: #0056b3; font-family: 'Helvetica Neue', sans-serif; font-size: 0.85rem; font-weight: normal; padding: 0.3em 0.75em; text-decoration: none;" 
+                           target="_blank">{{ pricing_order.quotation.quotation_number }}</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 渠道信息区域 -->
+    <div class="card mb-3">
+        <div class="card-header">
+            <h5><i class="fas fa-users"></i> 渠道信息</h5>
+        </div>
+        <div class="card-body">
+            <form id="basicInfoForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group mb-3">
+                            <label for="dealerSelect">经销商</label>
+                            <select class="form-control" id="dealerSelect" name="dealer_id"
+                                    {% if not can_edit_pricing %}disabled{% endif %}
+                                    onchange="onDealerChange()">
+                                <option value="">请选择经销商</option>
+                                {% for dealer in project_dealers %}
+                                <option value="{{ dealer.id }}"
+                                        {% if pricing_order.dealer_id == dealer.id %}selected{% endif %}>
+                                    {{ dealer.company_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <!-- 厂商直签开关 -->
+                        <div class="form-group mb-4">
+                            <div class="d-inline-flex align-items-center gap-3 flex-nowrap">
+                                <div class="toggle-switch">
+                                    <input type="checkbox" id="directContractSwitch" 
+                                           {% if pricing_order.is_direct_contract %}checked{% endif %}
+                                           {% if not can_edit_pricing %}disabled{% endif %}>
+                                    <span class="toggle-slider" onclick="toggleDirectContractSwitch()"></span>
+                                </div>
+                                <span class="form-label mb-0 text-nowrap">厂商直签</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group mb-3">
+                            <label for="distributorSelect">分销商</label>
+                            <select class="form-control" id="distributorSelect" name="distributor_id" 
+                                    {% if not can_edit_pricing %}disabled{% endif %}
+                                    onchange="onDistributorChange()">
+                                <option value="">请选择分销商</option>
+                                {% for distributor in distributors %}
+                                <option value="{{ distributor.id }}" 
+                                        {% if pricing_order.distributor_id == distributor.id %}selected{% endif %}>
+                                    {{ distributor.company_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <!-- 厂家提货开关 -->
+                        <div class="form-group mb-4">
+                            <div class="d-inline-flex align-items-center gap-3 flex-nowrap">
+                                <div class="toggle-switch">
+                                    <input type="checkbox" id="factoryPickupSwitch" 
+                                           {% if pricing_order.is_factory_pickup %}checked{% endif %}
+                                           {% if not can_edit_pricing %}disabled{% endif %}>
+                                    <span class="toggle-slider" onclick="toggleFactoryPickupSwitch()"></span>
+                                </div>
+                                <span class="form-label mb-0 text-nowrap">从厂家提货</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 产品明细页签区域 -->
+    <div class="card mb-3">
+        <div class="card-header">
+            <ul class="nav nav-tabs card-header-tabs" id="productTabs" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" id="pricing-tab" data-bs-toggle="tab" href="#pricing-content" 
+                       role="tab" aria-controls="pricing-content" aria-selected="true">
+                        批价单产品明细
+                    </a>
+                </li>
+                {% if can_view_settlement %}
+                <li class="nav-item">
+                    <a class="nav-link" id="settlement-tab" data-bs-toggle="tab" href="#settlement-content" 
+                       role="tab" aria-controls="settlement-content" aria-selected="false">
+                        结算单产品明细
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </div>
+        <div class="card-body">
+            <div class="tab-content" id="productTabContent">
+                <!-- 批价单产品明细 -->
+                <div class="tab-pane fade show active" id="pricing-content" role="tabpanel" aria-labelledby="pricing-tab">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6>批价单产品明细</h6>
+                    </div>
+                    
+                    <div class="table-container">
+                    <div class="table-responsive">
+                            <table class="table table-bordered table-hover" id="pricingTable">
+                                <thead>
+                                    <tr>
+                                        <th class="name-column">产品名称</th>
+                                        <th style="min-width: 130px;">产品型号</th>
+                                        <th class="desc-column">产品规格</th>
+                                        <th style="min-width: 90px;">品牌</th>
+                                        <th style="min-width: 70px;">单位</th>
+                                        <th class="price-column">市场单价</th>
+                                        <th style="min-width: 90px;">折扣率%</th>
+                                        <th class="price-column">单价</th>
+                                        <th style="min-width: 70px;">数量</th>
+                                        <th class="price-column">小计</th>
+                                        <th style="min-width: 130px;">MN</th>
+                                    {% if can_edit_pricing %}
+                                        <th class="action-column" style="min-width: 50px;">操作</th>
+                                    {% endif %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                    {% if pricing_order.pricing_details %}
+                                {% for detail in pricing_order.pricing_details %}
+                                <tr data-detail-id="{{ detail.id }}">
+                                        <td>
+                                            {% if can_edit_pricing %}
+                                            <div class="product-name-container">
+                                                <input type="text" class="form-control product-name" 
+                                                       value="{{ detail.product_name }}" 
+                                                       required placeholder="点击选择产品...">
+                                            </div>
+                                            {% else %}
+                                            {{ detail.product_name }}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if can_edit_pricing %}
+                                            <div class="product-model-container">
+                                                <input type="text" class="form-control product-model" 
+                                                       value="{{ detail.product_model or '' }}" readonly>
+                                            </div>
+                                            {% else %}
+                                            {{ detail.product_model or '-' }}
+                                            {% endif %}
+                                        </td>
+                                    <td>
+                                            {% if can_edit_pricing %}
+                                            <input type="text" class="form-control product-spec" 
+                                                   value="{{ detail.product_desc or '' }}" readonly>
+                                            {% else %}
+                                            {{ detail.product_desc or '-' }}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if can_edit_pricing %}
+                                            <input type="text" class="form-control product-brand" 
+                                                   value="{{ detail.brand or '' }}" readonly>
+                                            {% else %}
+                                        <span class="badge badge-{% if detail.brand == '和源通信' %}primary{% else %}secondary{% endif %}">
+                                            {{ detail.brand or '-' }}
+                                        </span>
+                                            {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if can_edit_pricing %}
+                                            <input type="text" class="form-control product-unit" 
+                                                   value="{{ detail.unit or '' }}" readonly>
+                                        {% else %}
+                                            {{ detail.unit or '-' }}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if can_edit_pricing %}
+                                            <input type="text" class="form-control product-price" 
+                                                   value="{{ '%.2f'|format(detail.market_price) }}" 
+                                                   data-raw-value="{{ detail.market_price }}" readonly>
+                                            {% else %}
+                                            ¥{{ "{:,.2f}".format(detail.market_price) }}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if can_edit_pricing %}
+                                            <div class="discount-rate-container">
+                                                <input type="number" class="form-control discount-rate" 
+                                                       value="{{ '%.1f'|format(detail.discount_rate * 100) }}" 
+                                                       min="0" step="0.1" max="1000" required>
+                                            </div>
+                                        {% else %}
+                                        {{ "{:.2f}".format(detail.discount_rate * 100) }}%
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if can_edit_pricing %}
+                                            <input type="text" class="form-control discounted-price" 
+                                                   value="{{ '%.2f'|format(detail.unit_price) }}" 
+                                                   data-raw-value="{{ detail.unit_price }}" placeholder="输入单价">
+                                        {% else %}
+                                        ¥{{ "{:,.2f}".format(detail.unit_price) }}
+                                        {% endif %}
+                                    </td>
+                                        <td>
+                                    {% if can_edit_pricing %}
+                                            <input type="number" class="form-control quantity" 
+                                                   value="{{ detail.quantity }}" min="1" step="1" required>
+                                            {% else %}
+                                            {{ detail.quantity }}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if can_edit_pricing %}
+                                            <input type="text" class="form-control subtotal" 
+                                                   value="{{ '%.2f'|format(detail.total_price) }}" 
+                                                   data-raw-value="{{ detail.total_price }}" readonly>
+                                            {% else %}
+                                            ¥{{ "{:,.2f}".format(detail.total_price) }}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if can_edit_pricing %}
+                                            <input type="text" class="form-control product-mn" 
+                                                   value="{{ detail.product_mn or '' }}" readonly>
+                                            {% else %}
+                                            {{ detail.product_mn or '-' }}
+                                            {% endif %}
+                                        </td>
+                                        {% if can_edit_pricing %}
+                                        <td class="text-center">
+                                        {% if detail.is_deletable %}
+                                            <button type="button" class="btn btn-danger btn-sm remove-row" 
+                                                data-detail-id="{{ detail.id }}">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                        {% else %}
+                                        <span class="text-muted" title="和源通信品牌产品不可删除">
+                                            <i class="fas fa-lock"></i>
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    {% endif %}
+                                </tr>
+                                {% endfor %}
+                                    {% else %}
+                                    {% if can_edit_pricing %}
+                                    <tr>
+                                        <td>
+                                            <div class="product-name-container">
+                                                <input type="text" class="form-control product-name" 
+                                                       required placeholder="点击选择产品...">
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="product-model-container">
+                                                <input type="text" class="form-control product-model" readonly>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <input type="text" class="form-control product-spec" readonly>
+                                        </td>
+                                        <td>
+                                            <input type="text" class="form-control product-brand" readonly>
+                                        </td>
+                                        <td>
+                                            <input type="text" class="form-control product-unit" readonly>
+                                        </td>
+                                        <td>
+                                            <input type="text" class="form-control product-price" readonly>
+                                        </td>
+                                        <td>
+                                            <div class="discount-rate-container">
+                                                <input type="number" class="form-control discount-rate" 
+                                                       value="100.0" min="0" step="0.1" max="1000" required>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <input type="text" class="form-control discounted-price" 
+                                                   placeholder="输入单价">
+                                        </td>
+                                        <td>
+                                            <input type="number" class="form-control quantity" 
+                                                   value="1" min="1" step="1" required>
+                                        </td>
+                                        <td>
+                                            <input type="text" class="form-control subtotal" readonly>
+                                        </td>
+                                        <td>
+                                            <input type="text" class="form-control product-mn" readonly>
+                                        </td>
+                                        <td class="text-center">
+                                            <button type="button" class="btn btn-danger btn-sm remove-row">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                    {% endif %}
+                            </tbody>
+                        </table>
+                        </div>
+                    </div>
+                    
+                    <!-- 移动端卡片视图 - 批价单产品明细 -->
+                    <div class="mobile-card-container">
+                        {% if pricing_order.pricing_details %}
+                        {% for detail in pricing_order.pricing_details %}
+                        <div class="mobile-product-card" data-detail-id="{{ detail.id }}">
+                            <!-- 卡片头部 -->
+                            <div class="mobile-card-header">
+                                <h6 class="mobile-card-title">{{ detail.product_name }}</h6>
+                                {% if can_edit_pricing %}
+                                <div class="mobile-card-actions">
+                                    {% if detail.is_deletable %}
+                                    <button type="button" class="mobile-delete-btn remove-row" data-detail-id="{{ detail.id }}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    {% else %}
+                                    <span class="mobile-lock-icon" title="和源通信品牌产品不可删除">
+                                        <i class="fas fa-lock text-muted"></i>
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- 卡片主要内容 -->
+                            <div class="mobile-card-body">
+                                <div class="mobile-card-row">
+                                    <span class="mobile-card-label">型号</span>
+                                    <div class="mobile-card-value">
+                                        {% if can_edit_pricing %}
+                                        <input type="text" class="mobile-card-input product-model" 
+                                               value="{{ detail.product_model or '' }}" readonly>
+                                        {% else %}
+                                        {{ detail.product_model or '-' }}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="mobile-card-row">
+                                    <span class="mobile-card-label">品牌</span>
+                                    <div class="mobile-card-value">
+                                        {% if can_edit_pricing %}
+                                        <input type="text" class="mobile-card-input product-brand" 
+                                               value="{{ detail.brand or '' }}" readonly>
+                                        {% else %}
+                                        <span class="mobile-badge {% if detail.brand == '和源通信' %}badge-brand{% endif %}">
+                                            {{ detail.brand or '-' }}
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="mobile-card-row">
+                                    <span class="mobile-card-label">数量</span>
+                                    <div class="mobile-card-value">
+                                        {% if can_edit_pricing %}
+                                        <input type="number" class="mobile-card-input quantity" 
+                                               value="{{ detail.quantity }}" min="1" step="1" required>
+                                        {% else %}
+                                        {{ detail.quantity }} {{ detail.unit or '台' }}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="mobile-card-row">
+                                    <span class="mobile-card-label">折扣率</span>
+                                    <div class="mobile-card-value">
+                                        {% if can_edit_pricing %}
+                                        <input type="number" class="mobile-card-input discount-rate" 
+                                               value="{{ '%.1f'|format(detail.discount_rate * 100) }}" 
+                                               min="0" step="0.1" max="1000" required>%
+                                        {% else %}
+                                        {{ "{:.1f}".format(detail.discount_rate * 100) }}%
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="mobile-card-row">
+                                    <span class="mobile-card-label">单价</span>
+                                    <div class="mobile-card-value mobile-price-highlight">
+                                        {% if can_edit_pricing %}
+                                        <input type="text" class="mobile-card-input discounted-price" 
+                                               value="{{ '%.2f'|format(detail.unit_price) }}" 
+                                               data-raw-value="{{ detail.unit_price }}" placeholder="输入单价">
+                                        {% else %}
+                                        {{ "{:,.2f}".format(detail.unit_price) }}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="mobile-card-row">
+                                    <span class="mobile-card-label">小计</span>
+                                    <div class="mobile-card-value mobile-subtotal-highlight">
+                                        {% if can_edit_pricing %}
+                                        <input type="text" class="mobile-card-input subtotal" 
+                                               value="{{ '%.2f'|format(detail.total_price) }}" 
+                                               data-raw-value="{{ detail.total_price }}" readonly>
+                                        {% else %}
+                                        {{ "{:,.2f}".format(detail.total_price) }}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <!-- 展开按钮 -->
+                                <button class="mobile-expand-btn" onclick="toggleMobileDetails(this)">
+                                    <i class="fas fa-chevron-down"></i> 查看详情
+                                </button>
+                                
+                                <!-- 隐藏的详细信息 -->
+                                <div class="mobile-card-details">
+                                    <div class="mobile-card-row">
+                                        <span class="mobile-card-label">规格</span>
+                                        <div class="mobile-card-value">
+                                            {% if can_edit_pricing %}
+                                            <input type="text" class="mobile-card-input product-spec" 
+                                                   value="{{ detail.product_desc or '' }}" readonly>
+                                            {% else %}
+                                            {{ detail.product_desc or '-' }}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mobile-card-row">
+                                        <span class="mobile-card-label">单位</span>
+                                        <div class="mobile-card-value">
+                                            {% if can_edit_pricing %}
+                                            <input type="text" class="mobile-card-input product-unit" 
+                                                   value="{{ detail.unit or '' }}" readonly>
+                                            {% else %}
+                                            {{ detail.unit or '-' }}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mobile-card-row">
+                                        <span class="mobile-card-label">市场价</span>
+                                        <div class="mobile-card-value">
+                                            {% if can_edit_pricing %}
+                                            <input type="text" class="mobile-card-input product-price" 
+                                                   value="{{ '%.2f'|format(detail.market_price) }}" 
+                                                   data-raw-value="{{ detail.market_price }}" readonly>
+                                            {% else %}
+                                            {{ "{:,.2f}".format(detail.market_price) }}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mobile-card-row">
+                                        <span class="mobile-card-label">MN</span>
+                                        <div class="mobile-card-value">
+                                            {% if can_edit_pricing %}
+                                            <input type="text" class="mobile-card-input product-mn" 
+                                                   value="{{ detail.product_mn or '' }}" readonly>
+                                            {% else %}
+                                            {{ detail.product_mn or '-' }}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <!-- 空状态 -->
+                        <div class="text-center py-4">
+                            <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">暂无产品明细</p>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    
+                    <!-- 批价单总额显示 - 加入总折扣率 -->
+                    <div class="row mt-3">
+                        <div class="col-md-6 offset-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span><strong>批价单总折扣率：</strong></span>
+                                        <div>
+                                            {% if can_edit_pricing %}
+                                            <input type="number" class="form-control form-control-sm d-inline-block" 
+                                                   style="width: 100px;" value="{{ pricing_order.pricing_discount_percentage }}"
+                                                   min="0" max="1000" step="0.1" id="pricingTotalDiscount"
+                                                   onchange="updateTotalDiscount('pricing', this.value)">
+                                            <span class="ml-1">%</span>
+                                            {% else %}
+                                            <span class="text-primary" id="pricingTotalDiscount">
+                                                {{ pricing_order.pricing_discount_percentage }}%
+                                            </span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span><strong>批价单总金额：</strong></span>
+                                        <span class="text-primary" id="pricingTotalAmount">
+                                            ¥{{ pricing_order.formatted_pricing_total_amount }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+
+                </div>
+
+                <!-- 结算单产品明细 -->
+                {% if can_view_settlement %}
+                <div class="tab-pane fade" id="settlement-content" role="tabpanel" aria-labelledby="settlement-tab">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6>结算单产品明细</h6>
+                    </div>
+                    
+                    <div class="table-container">
+                    <div class="table-responsive">
+                            <table class="table table-bordered table-hover" id="settlementTable">
+                                <thead>
+                                    <tr>
+                                        <th class="name-column">产品名称</th>
+                                        <th style="min-width: 130px;">产品型号</th>
+                                        <th class="desc-column">产品规格</th>
+                                        <th style="min-width: 90px;">品牌</th>
+                                        <th style="min-width: 70px;">单位</th>
+                                        <th class="price-column">市场单价</th>
+                                        <th style="min-width: 90px;">折扣率%</th>
+                                        <th class="price-column">单价</th>
+                                        <th style="min-width: 70px;">数量</th>
+                                        <th class="price-column">小计</th>
+                                        <th style="min-width: 130px;">MN</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for detail in pricing_order.settlement_details %}
+                                <tr data-detail-id="{{ detail.id }}">
+                                        <td>
+                                            {% if can_edit_settlement %}
+                                            <div class="product-name-container">
+                                                <input type="text" class="form-control product-name" 
+                                                       value="{{ detail.product_name }}" 
+                                                       required placeholder="点击选择产品...">
+                                            </div>
+                                            {% else %}
+                                            {{ detail.product_name }}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if can_edit_settlement %}
+                                            <div class="product-model-container">
+                                                <input type="text" class="form-control product-model" 
+                                                       value="{{ detail.product_model or '' }}" readonly>
+                                            </div>
+                                            {% else %}
+                                            {{ detail.product_model or '-' }}
+                                            {% endif %}
+                                        </td>
+                                    <td>
+                                            {% if can_edit_settlement %}
+                                            <input type="text" class="form-control product-spec" 
+                                                   value="{{ detail.product_desc or '' }}" readonly>
+                                            {% else %}
+                                            {{ detail.product_desc or '-' }}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if can_edit_settlement %}
+                                            <input type="text" class="form-control product-brand" 
+                                                   value="{{ detail.brand or '' }}" readonly>
+                                            {% else %}
+                                        <span class="badge badge-{% if detail.brand == '和源通信' %}primary{% else %}secondary{% endif %}">
+                                            {{ detail.brand or '-' }}
+                                        </span>
+                                            {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if can_edit_settlement %}
+                                            <input type="text" class="form-control product-unit" 
+                                                   value="{{ detail.unit or '' }}" readonly>
+                                            {% else %}
+                                            {{ detail.quantity }}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if can_edit_settlement %}
+                                            <input type="text" class="form-control product-price" 
+                                                   value="{{ '%.2f'|format(detail.market_price) }}" 
+                                                   data-raw-value="{{ detail.market_price }}" readonly>
+                                            {% else %}
+                                            ¥{{ "{:,.2f}".format(detail.market_price) }}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if can_edit_settlement %}
+                                            <div class="discount-rate-container">
+                                                <input type="number" class="form-control discount-rate" 
+                                                       value="{{ '%.1f'|format(detail.discount_rate * 100) }}" 
+                                                       min="0" step="0.1" max="1000" required>
+                                            </div>
+                                        {% else %}
+                                        {{ "{:.2f}".format(detail.discount_rate * 100) }}%
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if can_edit_settlement %}
+                                            <input type="text" class="form-control discounted-price" 
+                                                   value="{{ '%.2f'|format(detail.unit_price) }}" 
+                                                   data-raw-value="{{ detail.unit_price }}" placeholder="输入单价">
+                                        {% else %}
+                                        ¥{{ "{:,.2f}".format(detail.unit_price) }}
+                                        {% endif %}
+                                    </td>
+                                        <td>
+                                            {% if can_edit_settlement %}
+                                            <input type="number" class="form-control quantity" 
+                                                   value="{{ detail.quantity }}" min="1" step="1" required>
+                                            {% else %}
+                                            {{ detail.quantity }}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if can_edit_settlement %}
+                                            <input type="text" class="form-control subtotal" 
+                                                   value="{{ '%.2f'|format(detail.total_price) }}" 
+                                                   data-raw-value="{{ detail.total_price }}" readonly>
+                                            {% else %}
+                                            ¥{{ "{:,.2f}".format(detail.total_price) }}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if can_edit_settlement %}
+                                            <input type="text" class="form-control product-mn" 
+                                                   value="{{ detail.product_mn or '' }}" readonly>
+                                            {% else %}
+                                            {{ detail.product_mn or '-' }}
+                                            {% endif %}
+                                        </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        </div>
+                    </div>
+                    
+                    <!-- 移动端卡片视图 - 结算单产品明细 -->
+                    <div class="mobile-card-container">
+                        {% if pricing_order.settlement_details %}
+                        {% for detail in pricing_order.settlement_details %}
+                        <div class="mobile-product-card" data-detail-id="{{ detail.id }}">
+                            <!-- 卡片头部 -->
+                            <div class="mobile-card-header">
+                                <h6 class="mobile-card-title">{{ detail.product_name }}</h6>
+                            </div>
+                            
+                            <!-- 卡片主要内容 -->
+                            <div class="mobile-card-body">
+                                <div class="mobile-card-row">
+                                    <span class="mobile-card-label">型号</span>
+                                    <div class="mobile-card-value">
+                                        {% if can_edit_settlement %}
+                                        <input type="text" class="mobile-card-input product-model" 
+                                               value="{{ detail.product_model or '' }}" readonly>
+                                        {% else %}
+                                        {{ detail.product_model or '-' }}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="mobile-card-row">
+                                    <span class="mobile-card-label">品牌</span>
+                                    <div class="mobile-card-value">
+                                        {% if can_edit_settlement %}
+                                        <input type="text" class="mobile-card-input product-brand" 
+                                               value="{{ detail.brand or '' }}" readonly>
+                                        {% else %}
+                                        <span class="mobile-badge {% if detail.brand == '和源通信' %}badge-brand{% endif %}">
+                                            {{ detail.brand or '-' }}
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="mobile-card-row">
+                                    <span class="mobile-card-label">数量</span>
+                                    <div class="mobile-card-value">
+                                        {% if can_edit_settlement %}
+                                        <input type="number" class="mobile-card-input quantity" 
+                                               value="{{ detail.quantity }}" min="1" step="1" required>
+                                        {% else %}
+                                        {{ detail.quantity }} {{ detail.unit or '台' }}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="mobile-card-row">
+                                    <span class="mobile-card-label">折扣率</span>
+                                    <div class="mobile-card-value">
+                                        {% if can_edit_settlement %}
+                                        <input type="number" class="mobile-card-input discount-rate" 
+                                               value="{{ '%.1f'|format(detail.discount_rate * 100) }}" 
+                                               min="0" step="0.1" max="1000" required>%
+                                        {% else %}
+                                        {{ "{:.1f}".format(detail.discount_rate * 100) }}%
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="mobile-card-row">
+                                    <span class="mobile-card-label">单价</span>
+                                    <div class="mobile-card-value mobile-price-highlight">
+                                        {% if can_edit_settlement %}
+                                        <input type="text" class="mobile-card-input discounted-price" 
+                                               value="{{ '%.2f'|format(detail.unit_price) }}" 
+                                               data-raw-value="{{ detail.unit_price }}" placeholder="输入单价">
+                                        {% else %}
+                                        {{ "{:,.2f}".format(detail.unit_price) }}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="mobile-card-row">
+                                    <span class="mobile-card-label">小计</span>
+                                    <div class="mobile-card-value mobile-subtotal-highlight">
+                                        {% if can_edit_settlement %}
+                                        <input type="text" class="mobile-card-input subtotal" 
+                                               value="{{ '%.2f'|format(detail.total_price) }}" 
+                                               data-raw-value="{{ detail.total_price }}" readonly>
+                                        {% else %}
+                                        {{ "{:,.2f}".format(detail.total_price) }}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <!-- 展开按钮 -->
+                                <button class="mobile-expand-btn" onclick="toggleMobileDetails(this)">
+                                    <i class="fas fa-chevron-down"></i> 查看详情
+                                </button>
+                                
+                                <!-- 隐藏的详细信息 -->
+                                <div class="mobile-card-details">
+                                    <div class="mobile-card-row">
+                                        <span class="mobile-card-label">规格</span>
+                                        <div class="mobile-card-value">
+                                            {% if can_edit_settlement %}
+                                            <input type="text" class="mobile-card-input product-spec" 
+                                                   value="{{ detail.product_desc or '' }}" readonly>
+                                            {% else %}
+                                            {{ detail.product_desc or '-' }}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mobile-card-row">
+                                        <span class="mobile-card-label">单位</span>
+                                        <div class="mobile-card-value">
+                                            {% if can_edit_settlement %}
+                                            <input type="text" class="mobile-card-input product-unit" 
+                                                   value="{{ detail.unit or '' }}" readonly>
+                                            {% else %}
+                                            {{ detail.unit or '-' }}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                                                         <div class="mobile-card-row">
+                                         <span class="mobile-card-label">市场价</span>
+                                         <div class="mobile-card-value">
+                                             {% if can_edit_settlement %}
+                                             <input type="text" class="mobile-card-input product-price" 
+                                                    value="{{ '%.2f'|format(detail.market_price) }}" 
+                                                    data-raw-value="{{ detail.market_price }}" readonly>
+                                             {% else %}
+                                             {{ "{:,.2f}".format(detail.market_price) }}
+                                             {% endif %}
+                                         </div>
+                                     </div>
+                                    
+                                    <div class="mobile-card-row">
+                                        <span class="mobile-card-label">MN</span>
+                                        <div class="mobile-card-value">
+                                            {% if can_edit_settlement %}
+                                            <input type="text" class="mobile-card-input product-mn" 
+                                                   value="{{ detail.product_mn or '' }}" readonly>
+                                            {% else %}
+                                            {{ detail.product_mn or '-' }}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <!-- 空状态 -->
+                        <div class="text-center py-4">
+                            <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">暂无结算单明细</p>
+                            <small class="text-muted">结算单明细将从批价单同步</small>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    
+                    <!-- 分销利润显示 -->
+                    <div class="row mt-3">
+                        <div class="col-md-6 offset-md-6">
+                            <div class="card bg-info text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <span><strong>分销利润：</strong></span>
+                                        <span id="distributionProfit">¥0.00</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mt-2">
+                                        <span><strong>利润率：</strong></span>
+                                        <span id="profitMargin">0.00%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 结算单总额显示 -->
+                    <div class="row mt-3">
+                        <div class="col-md-6 offset-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <span><strong>结算单总折扣率：</strong></span>
+                                        <div>
+                                            {% if can_edit_settlement %}
+                                            <input type="number" class="form-control form-control-sm d-inline-block" 
+                                                   style="width: 100px;" value="{{ pricing_order.settlement_discount_percentage }}"
+                                                   min="0" max="1000" step="0.1" id="settlementTotalDiscount"
+                                                   onchange="updateTotalDiscount('settlement', this.value)">
+                                            <span>%</span>
+                                            {% else %}
+                                            <span class="text-success" id="settlementTotalDiscount">
+                                                {{ pricing_order.settlement_discount_percentage }}%
+                                            </span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="d-flex justify-content-between mt-2">
+                                        <span><strong>结算单总金额：</strong></span>
+                                        <span class="text-success" id="settlementTotalAmount">
+                                            ¥{{ pricing_order.formatted_settlement_total_amount }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 审批流程模块 -->
+    <div class="card">
+        <div class="card-header bg-dark text-white">
+            <h6 class="mb-0"><i class="fas fa-sitemap me-2"></i>审批流程图</h6>
+        </div>
+        <div class="card-body">
+            <div class="approval-workflow">
+                <div class="timeline">
+                    {% set visible_records = pricing_order.approval_records|selectattr('action', '!=', 'recall')|list|sort(attribute='step_order') %}
+                    {% for record in visible_records %}
+                        <div class="timeline-item">
+                            <div class="timeline-marker 
+                                {% if record.action == 'approve' %}
+                                    bg-success
+                                {% elif record.action == 'reject' %}
+                                    bg-danger
+                                {% elif record.step_order == pricing_order.current_approval_step and pricing_order.status == 'pending' %}
+                                    bg-warning
+                                {% else %}
+                                    bg-secondary
+                                {% endif %}
+                            "></div>
+                            <div class="timeline-content">
+                                <div class="d-flex justify-content-between">
+                                    <h6 class="timeline-title">步骤 {{ record.step_order }}: {{ record.step_name }}</h6>
+                                    {% if record.step_order == pricing_order.current_approval_step and pricing_order.status == 'pending' %}
+                                        <span class="badge bg-warning">当前步骤</span>
+                                    {% elif record.action == 'approve' %}
+                                        <span class="badge bg-success">已通过</span>
+                                    {% elif record.action == 'reject' %}
+                                        <span class="badge bg-danger">已拒绝</span>
+                                    {% elif pricing_order.status == 'approved' and not record.action %}
+                                        <span class="badge bg-info">自动审批</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">待审批</span>
+                                    {% endif %}
+                                </div>
+                                
+                                <p class="standard-font mb-1">审批人: {{ record.approver.username if record.approver else '未指定' }}</p>
+                                
+                                {% if record.approved_at %}
+                                    <p class="text-muted standard-font mb-1">审批时间: {{ record.formatted_approved_at }}</p>
+                                    
+                                    {% if record.is_fast_approval %}
+                                        <div class="mt-2 p-2 bg-success border border-success rounded">
+                                            <i class="fas fa-bolt text-white me-2"></i>
+                                            <span class="standard-font text-white">{{ record.fast_approval_reason }}</span>
+                                        </div>
+                                    {% endif %}
+                                    
+                                    {% if record.comment %}
+                                        <div class="mt-2 p-2 bg-light rounded">
+                                            <i class="fas fa-comment text-muted me-2"></i><span class="standard-font">{{ record.comment }}</span>
+                                        </div>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                    
+                    <!-- 最终结果 - 只有在流程真正结束时才显示 -->
+                    {% if pricing_order.status in ['approved', 'rejected'] %}
+                    <div class="timeline-item">
+                        <div class="timeline-marker 
+                            {% if pricing_order.status == 'approved' %}
+                                bg-success
+                            {% elif pricing_order.status == 'rejected' %}
+                                bg-danger
+                            {% endif %}
+                        "></div>
+                        <div class="timeline-content">
+                            <h6 class="timeline-title">流程结束</h6>
+                            <p class="standard-font">
+                                {% if pricing_order.status == 'approved' %}
+                                    <span class="text-success"><i class="fas fa-check-circle me-1"></i>审批已通过</span>
+                                {% elif pricing_order.status == 'rejected' %}
+                                    <span class="text-danger"><i class="fas fa-times-circle me-1"></i>审批已拒绝</span>
+                                {% endif %}
+                            </p>
+                            {% if pricing_order.approved_at %}
+                                <p class="text-muted standard-font">完成时间: {{ pricing_order.approved_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- 当前审批人操作区 -->
+            {% if current_approval_record and pricing_order.status == 'pending' %}
+            <div class="mt-4 p-3 border rounded bg-light">
+                <div class="alert alert-primary mb-3">
+                    <h6><i class="fas fa-bell me-2"></i>您有待审批的批价单</h6>
+                    <p class="mb-0">当前步骤：{{ current_approval_record.step_name }}</p>
+                    {% if can_edit_pricing or can_edit_settlement %}
+                    <p class="mb-0 text-info"><i class="fas fa-edit me-1"></i>您可以在审批过程中编辑产品明细和折扣率</p>
+                    {% endif %}
+                </div>
+                
+                <form id="approvalForm">
+                    <div class="mb-3">
+                        <label for="approvalComment" class="form-label">审批意见</label>
+                        <textarea class="form-control" id="approvalComment" rows="3" 
+                                  placeholder="请输入审批意见..."></textarea>
+                    </div>
+                    <div class="d-flex gap-2">
+                        {{ render_button('通过', type='button', color='success', icon='fas fa-check', attrs='onclick="openApprovalModal(\'approve\')"') }}
+                        {{ render_button('拒绝', type='button', color='danger', icon='fas fa-times', attrs='onclick="openApprovalModal(\'reject\')"') }}
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+
+            <!-- 操作按钮区域 -->
+            {% if pricing_order.created_by == current_user.id %}
+                {% if pricing_order.status == 'draft' %}
+                <!-- 草稿状态：显示保存和提交按钮 -->
+                <div class="submit-approval-section">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        批价单编辑完成后，请点击"保存批价单"保存修改，或直接"提交审批"进入审批流程。
+                    </div>
+                    <div class="action-buttons">
+                        {{ render_button('保存批价单', type='button', color='primary', icon='fas fa-save', attrs='id="savePricingOrderBtn"') }}
+                        {{ render_button('提交审批', type='button', color='info', icon='fas fa-paper-plane', attrs='id="submitApprovalBtn"') }}
+                    </div>
+                </div>
+                {% elif pricing_order.status == 'pending' %}
+                <!-- 审批中状态：显示召回按钮 -->
+                <div class="submit-approval-section">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-clock"></i>
+                        批价单正在审批中，您可以召回进行修改。
+                    </div>
+                    <div class="action-buttons">
+                        {{ render_button('召回批价单', type='button', color='warning', icon='fas fa-undo', attrs='id="recallPricingOrderBtn" data-bs-toggle="modal" data-bs-target="#recallPricingOrderModal"') }}
+                    </div>
+                </div>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+
+
+<!-- 召回确认模态框 -->
+<div class="modal fade" id="recallPricingOrderModal" tabindex="-1" aria-labelledby="recallPricingOrderModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="recallPricingOrderModalLabel">确认召回批价单</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    您确定要召回此批价单吗？召回后审批流程将被终止，需要重新提交审批。
+                </p>
+                <div class="mb-3">
+                    <label for="recallReason" class="form-label">召回原因（可选）</label>
+                    <textarea class="form-control" id="recallReason" rows="3" placeholder="请输入召回原因..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                {{ render_button('取消', type='button', color='secondary', attrs='data-bs-dismiss="modal"') }}
+                {{ render_button('确认召回', type='button', color='warning', icon='fas fa-undo', attrs='onclick="confirmRecallPricingOrder()"') }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认模态框 -->
+<div class="modal fade" id="deletePricingOrderModal" tabindex="-1" aria-labelledby="deletePricingOrderModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deletePricingOrderModalLabel">确认删除批价单</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    您确定要删除此批价单吗？删除后将无法恢复，请谨慎操作。
+                </p>
+                <div class="alert alert-warning">
+                    <strong>注意：</strong>只有草稿状态且未发起审批的批价单才能删除。
+                </div>
+                <div class="mb-3">
+                    <label for="deleteReason" class="form-label">删除原因（可选）</label>
+                    <textarea class="form-control" id="deleteReason" rows="3" placeholder="请输入删除原因..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                {{ render_button('取消', type='button', color='secondary', attrs='data-bs-dismiss="modal"') }}
+                {{ render_button('确认删除', type='button', color='danger', icon='fas fa-trash', attrs='onclick="confirmDeletePricingOrder()"') }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 审批确认模态框 -->
+<div class="modal fade" id="approvalModal" tabindex="-1" aria-labelledby="approvalModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="approvalModalLabel">审批确认</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="approvalActionDisplay" class="alert mb-3">
+                    <!-- 动态内容 -->
+                </div>
+                <div class="mb-3">
+                    <label for="modalApprovalComment" class="form-label">审批意见</label>
+                    <textarea class="form-control" id="modalApprovalComment" rows="3" placeholder="请输入您的审批意见..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                {{ render_button('取消', type='button', color='secondary', attrs='data-bs-dismiss="modal"') }}
+                <button type="button" class="btn" id="confirmApprovalBtn" onclick="confirmApproval()">确认</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 样式 -->
+<style>
+
+/* 表格容器样式 */
+.table-container {
+    position: relative;
+    margin-right: 60px; /* 为固定的操作列留出空间 */
+}
+
+.table-responsive {
+    overflow-x: auto;
+    margin-right: -60px; /* 补偿容器的margin-right */
+}
+
+/* 表格基础样式 */
+.table {
+    margin-bottom: 0;
+    font-size: 0.875rem;
+}
+
+.table th,
+.table td {
+    white-space: nowrap;
+    vertical-align: middle;
+    padding: 0.4rem 0.5rem;
+}
+
+/* 固定操作列样式 */
+.action-column,
+.table td:last-child {
+    position: sticky;
+    right: 0;
+    background-color: #fff;
+    z-index: 1;
+    width: 60px;
+    min-width: 60px;
+    text-align: center;
+    border-left: 1px solid #dee2e6;
+}
+
+.action-column {
+    background-color: #f8f9fa;
+}
+
+/* 输入框样式优化 */
+.form-control {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    min-height: 30px;
+    height: calc(1.5em + 0.5rem + 2px);
+}
+
+/* 数字输入框特殊样式 */
+input[type="number"].form-control {
+    text-align: right;
+    font-family: 'Roboto Mono', monospace;
+    letter-spacing: -0.2px;
+}
+
+/* 表头样式调整 */
+.table thead th {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+/* 列宽度控制 */
+.name-column {
+    min-width: 180px;
+    max-width: 220px;
+}
+
+.desc-column {
+    min-width: 200px;
+    max-width: 250px;
+}
+
+.price-column {
+    min-width: 120px;
+    max-width: 150px;
+    text-align: right;
+}
+
+/* 产品名称输入框容器 */
+.product-name-container {
+    position: relative;
+}
+
+.product-name-container .form-control {
+    cursor: pointer;
+}
+
+.product-name-container .form-control:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* 产品型号容器 */
+.product-model-container {
+    position: relative;
+}
+
+/* 折扣率输入框组 */
+.discount-rate-container {
+    position: relative;
+}
+
+.discount-rate-container .form-control {
+    padding-right: 20px;
+}
+
+.discount-rate-container::after {
+    content: '%';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: #6c757d;
+    font-size: 0.875rem;
+}
+
+/* 悬停效果 */
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.075);
+}
+
+/* 焦点状态 */
+.form-control:focus {
+    border-color: #80bdff;
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* 只读输入框样式 */
+.form-control[readonly] {
+    background-color: #f8f9fa;
+    opacity: 1;
+    color: #495057;
+}
+
+/* 删除按钮样式 */
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    border-radius: 0.2rem;
+}
+
+/* 响应式调整 */
+@media (max-width: 1200px) {
+    .table-container {
+        margin-right: 0;
+    }
+    
+    .table-responsive {
+        margin-right: 0;
+    }
+    
+    .action-column,
+    .table td:last-child {
+        position: static;
+        background-color: transparent;
+    }
+}
+
+
+
+/* 移动端卡片风格样式 */
+@media (max-width: 768px) {
+    /* 隐藏桌面端表格，显示移动端卡片 */
+    .table-responsive {
+        display: none;
+    }
+    
+    /* 移动端卡片容器 */
+    .mobile-card-container {
+        display: block;
+    }
+    
+    /* 移动端产品卡片样式 */
+    .mobile-product-card {
+        background: #fff;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        padding: 1rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: box-shadow 0.2s ease;
+    }
+    
+    .mobile-product-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    
+    /* 卡片头部 */
+    .mobile-card-header {
+        display: flex;
+        justify-content: between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .mobile-card-title {
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: #333;
+        margin: 0;
+        flex: 1;
+        line-height: 1.3;
+    }
+    
+    .mobile-card-actions {
+        margin-left: 0.5rem;
+    }
+    
+    /* 卡片内容区域 */
+    .mobile-card-body {
+        font-size: 0.85rem;
+    }
+    
+    .mobile-card-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+        min-height: 32px;
+    }
+    
+    .mobile-card-row:last-child {
+        margin-bottom: 0;
+    }
+    
+    .mobile-card-label {
+        font-weight: 500;
+        color: #666;
+        width: 80px;
+        flex-shrink: 0;
+    }
+    
+    .mobile-card-value {
+        flex: 1;
+        text-align: right;
+    }
+    
+    .mobile-card-input {
+        width: 100%;
+        max-width: 120px;
+        font-size: 0.85rem;
+        padding: 0.25rem 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+    
+    .mobile-card-input:focus {
+        border-color: #16a0bf;
+        box-shadow: 0 0 0 2px rgba(22, 160, 191, 0.2);
+        outline: none;
+    }
+    
+    .mobile-card-input[readonly] {
+        background-color: #f8f9fa;
+        color: #6c757d;
+    }
+    
+    /* 价格突出显示 */
+    .mobile-price-highlight {
+        font-weight: 600;
+        color: #16a0bf;
+        font-size: 0.9rem;
+    }
+    
+    .mobile-subtotal-highlight {
+        font-weight: 700;
+        color: #28a745;
+        font-size: 1rem;
+    }
+    
+    /* 徽章样式 */
+    .mobile-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        line-height: 1;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: baseline;
+        border-radius: 0.375rem;
+        background-color: #6c757d;
+        color: #fff;
+    }
+    
+    .mobile-badge.badge-brand {
+        background-color: #17a2b8;
+    }
+    
+    /* 删除按钮 */
+    .mobile-delete-btn {
+        background: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+    }
+    
+    /* 展开/收起按钮 */
+    .mobile-expand-btn {
+        background: transparent;
+        border: none;
+        color: #16a0bf;
+        font-size: 0.8rem;
+        padding: 0.25rem 0.5rem;
+        margin-top: 0.5rem;
+        width: 100%;
+        text-align: center;
+    }
+    
+    /* 隐藏的详细信息 */
+    .mobile-card-details {
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #e9ecef;
+        display: none;
+    }
+    
+    .mobile-card-details.show {
+        display: block;
+    }
+    
+    /* 页面布局调整 */
+    .container-fluid {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+    
+    .card {
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+    
+    .card-header {
+        padding: 0.75rem 1rem;
+        font-size: 0.9rem;
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+    
+    /* 页签样式优化 */
+    
+    /* 移动端输入框优化 */
+    .mobile-card-input:read-only {
+        background-color: #f8f9fa;
+        border-color: #e9ecef;
+    }
+    
+    /* 移动端数字输入框去掉spinner */
+    .mobile-card-input[type="number"] {
+        -webkit-appearance: none;
+        -moz-appearance: textfield;
+    }
+    
+    .mobile-card-input[type="number"]::-webkit-outer-spin-button,
+    .mobile-card-input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    
+    /* 移动端锁定图标样式 */
+    .mobile-lock-icon {
+        font-size: 14px;
+        color: #6c757d;
+        margin-left: 0.5rem;
+    }
+    .nav-tabs .nav-link {
+        font-size: 0.85rem;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    /* 总额显示卡片 */
+    .bg-light {
+        border-radius: 8px;
+    }
+    
+    /* 响应式表单控件 */
+    .form-control {
+        font-size: 0.85rem;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .form-select {
+        font-size: 0.85rem;
+        padding: 0.5rem 0.75rem;
+    }
+    
+
+    
+    /* 隐藏number输入框的滚动按键 */
+    .mobile-card-input[type="number"]::-webkit-outer-spin-button,
+    .mobile-card-input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    
+    .mobile-card-input[type="number"] {
+        -moz-appearance: textfield;
+    }
+    
+    /* 隐藏总折扣率输入框的滚动按键 */
+    #pricingTotalDiscount::-webkit-outer-spin-button,
+    #pricingTotalDiscount::-webkit-inner-spin-button,
+    #settlementTotalDiscount::-webkit-outer-spin-button,
+    #settlementTotalDiscount::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    
+    #pricingTotalDiscount,
+    #settlementTotalDiscount {
+        -moz-appearance: textfield;
+    }
+}
+
+/* 大屏幕时隐藏移动端卡片 */
+@media (min-width: 769px) {
+    .mobile-card-container {
+        display: none;
+    }
+}
+
+/* 自定义滚动条样式 */
+.table-responsive::-webkit-scrollbar {
+    height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 10px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* 加载状态 */
+.loading-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* 错误状态 */
+.has-error .form-control {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
+/* 成功状态 */
+.has-success .form-control {
+    border-color: #28a745;
+    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+}
+
+/* 隐藏批价单编辑界面产品明细中数量字段和折扣率字段的上下滚动按键 */
+input[type="number"].quantity::-webkit-outer-spin-button,
+input[type="number"].quantity::-webkit-inner-spin-button,
+input[type="number"].discount-rate::-webkit-outer-spin-button,
+input[type="number"].discount-rate::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type="number"].quantity,
+input[type="number"].discount-rate {
+    -moz-appearance: textfield;
+}
+
+/* Toggle Switch 样式 - 与项目列表页保持一致 */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 60px;
+  height: 30px;
+}
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.toggle-slider {
+  position: absolute;
+  background-color: #000;
+  transition: .4s;
+  border-radius: 34px;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+.toggle-slider::before {
+  position: absolute;
+  content: "OFF";
+  color: white;
+  font-size: 12px;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  transition: .4s;
+}
+.toggle-slider::after {
+  content: "";
+  position: absolute;
+  height: 22px;
+  width: 22px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  border-radius: 50%;
+  transition: .4s;
+}
+.toggle-switch input:checked + .toggle-slider::after {
+  transform: translateX(30px);
+}
+.toggle-switch input:checked + .toggle-slider::before {
+  content: "ON";
+  left: 8px;
+}
+
+/* 禁用状态样式 */
+.toggle-switch input:disabled + .toggle-slider {
+  background-color: #ccc;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.toggle-switch input:disabled + .toggle-slider::before {
+  color: #999;
+}
+.toggle-switch input:disabled + .toggle-slider::after {
+  background-color: #f5f5f5;
+}
+
+/* 悬停效果 */
+.toggle-slider:hover {
+  box-shadow: 0 0 8px rgba(0,0,0,0.3);
+}
+.toggle-switch input:disabled + .toggle-slider:hover {
+  box-shadow: none;
+}
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 设置全局变量
+const PRICING_ORDER_ID = "{{ pricing_order.id }}";
+
+// 更新基本信息（前端缓存）
+function updateBasicInfo(field, value) {
+    console.log('更新基本信息（前端缓存）:', field, value);
+    
+    // 记录到前端缓存，不立即保存到数据库
+    if (!window.pricingOrderCache) {
+        window.pricingOrderCache = {};
+    }
+    
+    window.pricingOrderCache[field] = value;
+    console.log('当前缓存:', window.pricingOrderCache);
+}
+
+// 厂商直签开关点击处理
+function toggleDirectContractSwitch() {
+    const directContractSwitch = document.getElementById('directContractSwitch');
+    
+    // 如果开关被禁用，不执行任何操作
+    if (directContractSwitch.disabled) {
+        return;
+    }
+    
+    // 切换开关状态
+    directContractSwitch.checked = !directContractSwitch.checked;
+    
+    // 调用原有的处理逻辑
+    toggleDirectContract();
+}
+
+// 厂商直签开关处理
+function toggleDirectContract() {
+    const directContractSwitch = document.getElementById('directContractSwitch');
+    const dealerSelect = document.getElementById('dealerSelect');
+    const distributorSelect = document.getElementById('distributorSelect');
+    const factoryPickupSwitch = document.getElementById('factoryPickupSwitch');
+    
+    console.log('厂商直签开关状态:', directContractSwitch.checked);
+    
+    if (directContractSwitch.checked) {
+        // 厂商直签开启：禁用经销商和分销商选择，清空内容
+        dealerSelect.disabled = true;
+        distributorSelect.disabled = true;
+        dealerSelect.value = '';
+        distributorSelect.value = '';
+        
+        // 同时禁用厂家提货开关
+        factoryPickupSwitch.disabled = true;
+        factoryPickupSwitch.checked = false;
+        
+        // 更新缓存
+        updateBasicInfo('dealer_id', '');
+        updateBasicInfo('distributor_id', '');
+        updateBasicInfo('is_direct_contract', true);
+        updateBasicInfo('is_factory_pickup', false);
+    } else {
+        // 厂商直签关闭：启用经销商选择
+        dealerSelect.disabled = false;
+        
+        // 根据经销商内容决定是否启用其他控件
+        updateSwitchesBasedOnDealer();
+        
+        updateBasicInfo('is_direct_contract', false);
+    }
+}
+
+// 厂家提货开关点击处理
+function toggleFactoryPickupSwitch() {
+    const factoryPickupSwitch = document.getElementById('factoryPickupSwitch');
+    
+    // 如果开关被禁用，不执行任何操作
+    if (factoryPickupSwitch.disabled) {
+        return;
+    }
+    
+    // 切换开关状态
+    factoryPickupSwitch.checked = !factoryPickupSwitch.checked;
+    
+    // 调用原有的处理逻辑
+    toggleFactoryPickup();
+}
+
+// 厂家提货开关处理
+function toggleFactoryPickup() {
+    const factoryPickupSwitch = document.getElementById('factoryPickupSwitch');
+    const distributorSelect = document.getElementById('distributorSelect');
+    
+    console.log('厂家提货开关状态:', factoryPickupSwitch.checked);
+    
+    if (factoryPickupSwitch.checked) {
+        // 厂家提货开启：禁用分销商选择，清空内容
+        distributorSelect.disabled = true;
+        distributorSelect.value = '';
+        
+        updateBasicInfo('distributor_id', '');
+        updateBasicInfo('is_factory_pickup', true);
+    } else {
+        // 厂家提货关闭：启用分销商选择
+        distributorSelect.disabled = false;
+        
+        updateBasicInfo('is_factory_pickup', false);
+    }
+}
+
+// 经销商选择变化时的处理
+function onDealerChange() {
+    const dealerSelect = document.getElementById('dealerSelect');
+    
+    // 更新缓存
+    updateBasicInfo('dealer_id', dealerSelect.value);
+    
+    // 根据经销商选择状态更新开关
+    updateSwitchesBasedOnDealer();
+}
+
+// 分销商选择变化时的处理
+function onDistributorChange() {
+    const distributorSelect = document.getElementById('distributorSelect');
+    
+    // 更新缓存
+    updateBasicInfo('distributor_id', distributorSelect.value);
+    
+    // 更新厂家提货开关状态
+    updateFactoryPickupSwitchState();
+}
+
+// 页面加载时初始化开关状态
+function initializeSwitches() {
+    const directContractSwitch = document.getElementById('directContractSwitch');
+    const factoryPickupSwitch = document.getElementById('factoryPickupSwitch');
+    const distributorSelect = document.getElementById('distributorSelect');
+    const dealerSelect = document.getElementById('dealerSelect');
+    
+    // 初始化厂商直签状态
+    if (directContractSwitch.checked) {
+        toggleDirectContract();
+    }
+    
+    // 根据经销商输入框内容控制开关状态
+    updateSwitchesBasedOnDealer();
+    
+    // 初始化厂家提货状态
+    if (factoryPickupSwitch.checked) {
+        toggleFactoryPickup();
+    }
+}
+
+// 根据经销商输入框内容更新开关状态
+function updateSwitchesBasedOnDealer() {
+    const dealerSelect = document.getElementById('dealerSelect');
+    const distributorSelect = document.getElementById('distributorSelect');
+    const factoryPickupSwitch = document.getElementById('factoryPickupSwitch');
+    const directContractSwitch = document.getElementById('directContractSwitch');
+    
+    const hasDealer = dealerSelect.value && dealerSelect.value.trim() !== '';
+    
+    console.log('经销商选择状态:', hasDealer, '经销商值:', dealerSelect.value);
+    
+    if (!hasDealer) {
+        // 没有经销商时：禁用分销商选择框和厂家提货开关
+        distributorSelect.disabled = true;
+        distributorSelect.value = '';
+        factoryPickupSwitch.disabled = true;
+        factoryPickupSwitch.checked = false;
+        
+        // 更新缓存
+        updateBasicInfo('distributor_id', '');
+        updateBasicInfo('is_factory_pickup', false);
+    } else {
+        // 有经销商时：如果不是厂商直签，则启用分销商选择框
+        if (!directContractSwitch.checked) {
+            distributorSelect.disabled = false;
+            // 厂家提货开关根据分销商内容决定是否启用
+            updateFactoryPickupSwitchState();
+        }
+    }
+}
+
+// 更新厂家提货开关状态
+function updateFactoryPickupSwitchState() {
+    const distributorSelect = document.getElementById('distributorSelect');
+    const factoryPickupSwitch = document.getElementById('factoryPickupSwitch');
+    const dealerSelect = document.getElementById('dealerSelect');
+    
+    const hasDealer = dealerSelect.value && dealerSelect.value.trim() !== '';
+    const hasDistributor = distributorSelect.value && distributorSelect.value.trim() !== '';
+    
+    if (hasDealer) {
+        // 有经销商时，厂家提货开关可以启用
+        factoryPickupSwitch.disabled = false;
+    } else {
+        // 没有经销商时，禁用厂家提货开关
+        factoryPickupSwitch.disabled = true;
+        factoryPickupSwitch.checked = false;
+        updateBasicInfo('is_factory_pickup', false);
+    }
+}
+
+// 验证渠道信息
+function validateChannelInfo() {
+    const directContractSwitch = document.getElementById('directContractSwitch');
+    const factoryPickupSwitch = document.getElementById('factoryPickupSwitch');
+    const dealerSelect = document.getElementById('dealerSelect');
+    const distributorSelect = document.getElementById('distributorSelect');
+    
+    const isDirectContract = directContractSwitch.checked;
+    const isFactoryPickup = factoryPickupSwitch.checked;
+    const hasDealer = dealerSelect.value && dealerSelect.value.trim() !== '';
+    const hasDistributor = distributorSelect.value && distributorSelect.value.trim() !== '';
+    
+    // 构建条件检查列表
+    const conditions = [
+        {
+            text: '开启厂商直签',
+            passed: isDirectContract
+        },
+        {
+            text: '同时选择经销商和分销商',
+            passed: hasDealer && hasDistributor
+        },
+        {
+            text: '选择经销商并开启从厂家提货',
+            passed: hasDealer && isFactoryPickup
+        }
+    ];
+    
+    // 检查是否有任何条件通过
+    const isValid = conditions.some(condition => condition.passed);
+    
+    return {
+        valid: isValid,
+        conditions: conditions,
+        message: isValid ? '渠道信息验证通过' : '提交条件不满足，请确保以下条件之一成立：'
+    };
+}
+
+// 更新批价单明细
+function updatePricingDetail(detailId, field, value) {
+    const data = {
+        detail_id: detailId
+    };
+    data[field] = parseFloat(value);
+    
+    fetch(`/pricing_order/${PRICING_ORDER_ID}/update_pricing_detail`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 更新总额显示，不刷新页面
+            $('#pricingTotalAmount').text('¥' + data.pricing_total_amount);
+            if ($('#pricingTotalDiscount').length) {
+                $('#pricingTotalDiscount').val(data.pricing_discount_percentage);
+            }
+            $('#settlementTotalAmount').text('¥' + data.settlement_total_amount);
+            if ($('#settlementTotalDiscount').length) {
+                $('#settlementTotalDiscount').val(data.settlement_discount_percentage);
+            }
+            
+            // 更新当前行的单价和小计（避免刷新）
+            updateRowDisplay(detailId, data);
+            
+            showAlert('success', '明细更新成功');
+        } else {
+            showAlert('error', data.message);
+        }
+    })
+    .catch(error => {
+        showAlert('error', '更新失败: ' + error.message);
+    });
+}
+
+// 更新批价单明细单价（反算折扣率）
+function updatePricingDetailUnitPrice(detailId, unitPrice) {
+    const data = {
+        detail_id: detailId,
+        unit_price: parseFloat(unitPrice)
+    };
+    
+    fetch(`/pricing_order/${PRICING_ORDER_ID}/update_pricing_detail`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 更新总额显示
+            $('#pricingTotalAmount').text('¥' + data.pricing_total_amount);
+            if ($('#pricingTotalDiscount').length) {
+                $('#pricingTotalDiscount').val(data.pricing_discount_percentage);
+            }
+            
+            // 更新当前行的折扣率和小计
+            updateRowDisplay(detailId, data);
+            
+            showAlert('success', '单价更新成功');
+        } else {
+            showAlert('error', data.message);
+        }
+    })
+    .catch(error => {
+        showAlert('error', '更新失败: ' + error.message);
+    });
+}
+
+// 更新结算单明细
+function updateSettlementDetail(detailId, field, value) {
+    const data = {
+        detail_id: detailId
+    };
+    data[field] = parseFloat(value);
+    
+    fetch(`/pricing_order/${PRICING_ORDER_ID}/update_settlement_detail`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 更新总额显示，不刷新页面
+            $('#settlementTotalAmount').text('¥' + data.settlement_total_amount);
+            if ($('#settlementTotalDiscount').length) {
+                $('#settlementTotalDiscount').val(data.settlement_discount_percentage);
+            }
+            
+            // 更新当前行显示
+            updateSettlementRowDisplay(detailId, data);
+            
+            showAlert('success', '结算单明细更新成功');
+        } else {
+            showAlert('error', data.message);
+        }
+    })
+    .catch(error => {
+        showAlert('error', '更新失败: ' + error.message);
+    });
+}
+
+// 更新总折扣率（纯前端计算，联动所有明细）
+function updateTotalDiscount(tabType, value) {
+    console.log('更新总折扣率:', tabType, value);
+    
+    const discountRate = parseFloat(value) / 100; // 转换为小数
+    const tableId = tabType === 'pricing' ? '#pricingTable' : '#settlementTable';
+    
+    // 更新表格中所有行的折扣率和价格
+    $(`${tableId} tbody tr`).each(function() {
+        const $row = $(this);
+        const productName = $row.find('.product-name').val();
+        
+        // 只处理有产品名称的行
+        if (productName && productName.trim()) {
+            // 获取市场价
+            const marketPrice = parseFloat($row.find('.product-price').data('raw-value')) || 0;
+            const quantity = parseInt($row.find('.quantity').val()) || 1;
+            
+            // 计算新的单价和小计
+            const newUnitPrice = marketPrice * discountRate;
+            const newSubtotal = newUnitPrice * quantity;
+            
+            // 更新折扣率显示（保留一位小数）
+            $row.find('.discount-rate').val((discountRate * 100).toFixed(1));
+            
+            // 更新单价显示
+            $row.find('.discounted-price')
+                .val(newUnitPrice.toFixed(2))
+                .data('raw-value', newUnitPrice);
+            
+            // 更新小计显示
+            $row.find('.subtotal')
+                .val(newSubtotal.toFixed(2))
+                .data('raw-value', newSubtotal);
+            
+            // 同步到移动端卡片
+            const detailId = $row.data('detail-id');
+            if (detailId) {
+                const $mobileCard = $(`.mobile-product-card[data-detail-id="${detailId}"]`);
+                if ($mobileCard.length) {
+                    $mobileCard.find('.discount-rate').val((discountRate * 100).toFixed(1));
+                    $mobileCard.find('.discounted-price')
+                        .val(newUnitPrice.toFixed(2))
+                        .data('raw-value', newUnitPrice);
+                    $mobileCard.find('.subtotal')
+                        .val(newSubtotal.toFixed(2))
+                        .data('raw-value', newSubtotal);
+                }
+            }
+        }
+    });
+    
+    // 重新计算并更新总金额
+    updateTableTotals();
+    
+    console.log(`总折扣率已更新为 ${value}%，所有明细已重新计算`);
+}
+
+// 计算并更新总折扣率（基于明细折扣率的加权平均）
+function calculateAndUpdateTotalDiscountRate(tabType) {
+    const tableId = tabType === 'pricing' ? '#pricingTable' : '#settlementTable';
+    const totalDiscountInputId = tabType === 'pricing' ? '#pricingTotalDiscount' : '#settlementTotalDiscount';
+    
+    let totalMarketValue = 0;
+    let totalDiscountedValue = 0;
+    let validRowCount = 0;
+    
+    // 遍历所有行计算加权平均折扣率
+    $(`${tableId} tbody tr`).each(function() {
+        const $row = $(this);
+        const productName = $row.find('.product-name').val();
+        
+        if (productName && productName.trim()) {
+            const marketPrice = parseFloat($row.find('.product-price').data('raw-value')) || 0;
+            const quantity = parseInt($row.find('.quantity').val()) || 1;
+            const discountRate = parseFloat($row.find('.discount-rate').val()) || 0;
+            
+            if (marketPrice > 0) {
+                const rowMarketValue = marketPrice * quantity;
+                const rowDiscountedValue = rowMarketValue * (discountRate / 100);
+                
+                totalMarketValue += rowMarketValue;
+                totalDiscountedValue += rowDiscountedValue;
+                validRowCount++;
+            }
+        }
+    });
+    
+    // 计算加权平均折扣率
+    let averageDiscountRate = 0;
+    if (totalMarketValue > 0) {
+        averageDiscountRate = (totalDiscountedValue / totalMarketValue) * 100;
+    }
+    
+    // 更新总折扣率输入框（保留一位小数）
+    $(totalDiscountInputId).val(averageDiscountRate.toFixed(1));
+    
+    console.log(`${tabType}表格总折扣率已更新为: ${averageDiscountRate.toFixed(1)}% (基于${validRowCount}行数据)`);
+    
+    return averageDiscountRate;
+}
+
+// 根据明细数据更新表格行
+function updateRowFromDetailData(detail, tabType) {
+    const tableId = tabType === 'pricing' ? '#pricingTable' : '#settlementTable';
+    const $row = $(`${tableId} tr[data-detail-id="${detail.id}"]`);
+    
+    if ($row.length > 0) {
+        // 更新折扣率
+        $row.find('.discount-rate').val((detail.discount_rate * 100).toFixed(1));
+        
+        // 更新单价
+        const formattedUnitPrice = formatNumber(detail.unit_price);
+        $row.find('.discounted-price')
+            .val(formattedUnitPrice)
+            .data('raw-value', detail.unit_price);
+        
+        // 更新小计
+        const formattedTotalPrice = formatNumber(detail.total_price);
+        $row.find('.subtotal')
+            .val(formattedTotalPrice)
+            .data('raw-value', detail.total_price);
+        
+        console.log(`已更新${tabType}表格行${detail.id}:`, {
+            折扣率: detail.discount_rate * 100,
+            单价: detail.unit_price,
+            小计: detail.total_price
+        });
+    }
+}
+
+// 更新行显示（批价单）
+function updateRowDisplay(detailId, responseData) {
+    const row = $(`tr[data-detail-id="${detailId}"]`);
+    if (row.length && responseData.updated_detail) {
+        const detail = responseData.updated_detail;
+        // 更新折扣率（保留一位小数）
+        row.find('.discount-rate').val((detail.discount_rate * 100).toFixed(1));
+        // 更新单价
+        row.find('.discounted-price')
+            .val(detail.unit_price.toFixed(2))
+            .data('raw-value', detail.unit_price);
+        // 更新小计
+        row.find('.subtotal')
+            .val(detail.total_price.toFixed(2))
+            .data('raw-value', detail.total_price);
+        
+        // 同步到移动端卡片
+        const mobileCard = $(`.mobile-product-card[data-detail-id="${detailId}"]`);
+        if (mobileCard.length) {
+            mobileCard.find('.discount-rate').val((detail.discount_rate * 100).toFixed(1));
+            mobileCard.find('.discounted-price')
+                .val(detail.unit_price.toFixed(2))
+                .data('raw-value', detail.unit_price);
+            mobileCard.find('.subtotal')
+                .val(detail.total_price.toFixed(2))
+                .data('raw-value', detail.total_price);
+        }
+    }
+}
+
+// 更新行显示（结算单）
+function updateSettlementRowDisplay(detailId, responseData) {
+    const row = $(`#settlementTable tr[data-detail-id="${detailId}"]`);
+    if (row.length && responseData.updated_detail) {
+        const detail = responseData.updated_detail;
+        // 更新折扣率（保留一位小数）
+        row.find('.discount-rate').val((detail.discount_rate * 100).toFixed(1));
+        // 更新单价
+        row.find('.discounted-price')
+            .val(detail.unit_price.toFixed(2))
+            .data('raw-value', detail.unit_price);
+        // 更新小计
+        row.find('.subtotal')
+            .val(detail.total_price.toFixed(2))
+            .data('raw-value', detail.total_price);
+        
+        // 同步到移动端卡片
+        const mobileCard = $(`.mobile-product-card[data-detail-id="${detailId}"]`);
+        if (mobileCard.length) {
+            mobileCard.find('.discount-rate').val((detail.discount_rate * 100).toFixed(1));
+            mobileCard.find('.discounted-price')
+                .val(detail.unit_price.toFixed(2))
+                .data('raw-value', detail.unit_price);
+            mobileCard.find('.subtotal')
+                .val(detail.total_price.toFixed(2))
+                .data('raw-value', detail.total_price);
+        }
+    }
+}
+
+// 实时计算行的单价和小计（前端即时更新）
+/*
+function calculateRowValues(row, triggerType) {
+    const marketPrice = parseFloat(row.find('td:nth-child(5)').text().replace(/[^\d.]/g, '')) || 0;
+    let quantity = parseInt(row.find('.quantity').val()) || 1;
+    
+    let discountRate, unitPrice;
+    
+    if (triggerType === 'discount_rate') {
+        // 从折扣率计算单价
+        discountRate = parseFloat(row.find('.discount-rate').val()) / 100;
+        unitPrice = marketPrice * discountRate;
+        // 更新单价显示
+        row.find('.discounted-price').val(unitPrice.toFixed(2));
+    } else if (triggerType === 'unit_price') {
+        // 从单价计算折扣率
+        unitPrice = parseFloat(row.find('.discounted-price').val()) || 0;
+        discountRate = marketPrice > 0 ? unitPrice / marketPrice : 1;
+        // 更新折扣率显示
+        row.find('.discount-rate').val((discountRate * 100).toFixed(2));
+    } else if (triggerType === 'quantity') {
+        // 数量变化，使用当前的单价重新计算小计
+        unitPrice = parseFloat(row.find('.discounted-price').val()) || 0;
+        // 如果单价为0，使用折扣率和市场价计算单价
+        if (unitPrice === 0) {
+            discountRate = parseFloat(row.find('.discount-rate').val()) / 100 || 1;
+            unitPrice = marketPrice * discountRate;
+            row.find('.discounted-price').val(unitPrice.toFixed(2));
+        }
+    }
+    
+    // 计算小计（数量 × 单价）
+    const subtotal = unitPrice * quantity;
+    
+    // 更新小计显示 - 根据表格类型选择正确的列
+    if (row.closest('#pricingTable').length > 0) {
+        // 批价单表格：小计是第9列
+        row.find('td:nth-child(9)').text('¥' + subtotal.toLocaleString('zh-CN', {minimumFractionDigits: 2}));
+    } else if (row.closest('#settlementTable').length > 0) {
+        // 结算单表格：小计是第8列
+        row.find('td:nth-child(8)').text('¥' + subtotal.toLocaleString('zh-CN', {minimumFractionDigits: 2}));
+    }
+    
+    // 重新计算总额
+    updateTableTotals();
+    
+    // 添加调试信息
+    console.log(`计算更新 - 类型: ${triggerType}, 数量: ${quantity}, 单价: ${unitPrice}, 小计: ${subtotal}`);
+}
+*/
+
+// 初始化已有行的数据
+function initializeExistingRows() {
+    try {
+        console.log('初始化已有行的数据');
+        
+        // 初始化批价单表格的已有行
+        $('#pricingTable tbody tr').each(function() {
+            var $row = $(this);
+            var productName = $row.find('.product-name').val();
+            
+            if (productName && productName.trim()) {
+                // 确保市场价格有正确的data-raw-value
+                var $priceInput = $row.find('.product-price');
+                var priceValue = $priceInput.data('raw-value');
+                if (!priceValue) {
+                    var displayPrice = $priceInput.val().replace(/[^\d.]/g, '');
+                    if (displayPrice) {
+                        priceValue = parseFloat(displayPrice);
+                        $priceInput.data('raw-value', priceValue);
+                    }
+                }
+                
+                // 确保单价有正确的data-raw-value
+                var $unitPriceInput = $row.find('.discounted-price');
+                var unitPriceValue = $unitPriceInput.data('raw-value');
+                if (!unitPriceValue) {
+                    var displayUnitPrice = $unitPriceInput.val().replace(/[^\d.]/g, '');
+                    if (displayUnitPrice) {
+                        unitPriceValue = parseFloat(displayUnitPrice);
+                        $unitPriceInput.data('raw-value', unitPriceValue);
+                    }
+                }
+                
+                // 确保小计有正确的data-raw-value
+                var $subtotalInput = $row.find('.subtotal');
+                var subtotalValue = $subtotalInput.data('raw-value');
+                if (!subtotalValue) {
+                    var displaySubtotal = $subtotalInput.val().replace(/[^\d.]/g, '');
+                    if (displaySubtotal) {
+                        subtotalValue = parseFloat(displaySubtotal);
+                        $subtotalInput.data('raw-value', subtotalValue);
+                    }
+                }
+                
+                console.log('已有行初始化:', {
+                    产品: productName,
+                    市场价: priceValue,
+                    单价: unitPriceValue,
+                    小计: subtotalValue
+                });
+            }
+        });
+        
+        // 初始化结算单表格的已有行
+        $('#settlementTable tbody tr').each(function() {
+            var $row = $(this);
+            var productName = $row.find('.product-name').val();
+            
+            if (productName && productName.trim()) {
+                // 确保市场价格有正确的data-raw-value
+                var $priceInput = $row.find('.product-price');
+                var priceValue = $priceInput.data('raw-value');
+                if (!priceValue) {
+                    var displayPrice = $priceInput.val().replace(/[^\d.]/g, '');
+                    if (displayPrice) {
+                        priceValue = parseFloat(displayPrice);
+                        $priceInput.data('raw-value', priceValue);
+                    }
+                }
+                
+                // 确保单价有正确的data-raw-value
+                var $unitPriceInput = $row.find('.discounted-price');
+                var unitPriceValue = $unitPriceInput.data('raw-value');
+                if (!unitPriceValue) {
+                    var displayUnitPrice = $unitPriceInput.val().replace(/[^\d.]/g, '');
+                    if (displayUnitPrice) {
+                        unitPriceValue = parseFloat(displayUnitPrice);
+                        $unitPriceInput.data('raw-value', unitPriceValue);
+                    }
+                }
+                
+                // 确保小计有正确的data-raw-value
+                var $subtotalInput = $row.find('.subtotal');
+                var subtotalValue = $subtotalInput.data('raw-value');
+                if (!subtotalValue) {
+                    var displaySubtotal = $subtotalInput.val().replace(/[^\d.]/g, '');
+                    if (displaySubtotal) {
+                        subtotalValue = parseFloat(displaySubtotal);
+                        $subtotalInput.data('raw-value', subtotalValue);
+                    }
+                }
+            }
+        });
+        
+        console.log('已有行数据初始化完成');
+    } catch (e) {
+        console.error('初始化已有行数据时出错:', e);
+    }
+}
+
+// 更新表格总额 (总价 = 所有行小计之和)
+function updateTableTotals() {
+    try {
+        console.log('更新表格总额');
+        
+        // 计算批价单总额
+        let pricingTotal = 0;
+        let pricingRowCount = 0;
+        $('#pricingTable tbody tr').each(function() {
+            var $row = $(this);
+            var productName = $row.find('.product-name').val();
+            
+            // 只计算有产品名称的行
+            if (productName && productName.trim()) {
+                var subtotalValue = $row.find('.subtotal').data('raw-value');
+                if (subtotalValue && !isNaN(subtotalValue)) {
+                    pricingTotal += subtotalValue;
+                    pricingRowCount++;
+                } else {
+                    // 如果没有data值，尝试从显示值解析
+                    var displayValue = $row.find('.subtotal').val();
+                    if (displayValue) {
+                        var parsed = parseFloat(displayValue.replace(/[^\d.]/g, ''));
+                        if (!isNaN(parsed)) {
+                            pricingTotal += parsed;
+                            pricingRowCount++;
+                            // 保存解析出的原始值
+                            $row.find('.subtotal').data('raw-value', parsed);
+                        }
+                    }
+                }
+            }
+        });
+        
+        // 更新批价单总额显示
+        $('#pricingTotalAmount').text('¥' + formatNumber(pricingTotal));
+        
+        // 计算结算单总额（如果存在）
+        if ($('#settlementTable tbody tr').length > 0) {
+            let settlementTotal = 0;
+            let settlementRowCount = 0;
+            $('#settlementTable tbody tr').each(function() {
+                var $row = $(this);
+                var productName = $row.find('.product-name').val();
+                
+                // 只计算有产品名称的行
+                if (productName && productName.trim()) {
+                    var subtotalValue = $row.find('.subtotal').data('raw-value');
+                    if (subtotalValue && !isNaN(subtotalValue)) {
+                        settlementTotal += subtotalValue;
+                        settlementRowCount++;
+                    } else {
+                        // 如果没有data值，尝试从显示值解析
+                        var displayValue = $row.find('.subtotal').val();
+                        if (displayValue) {
+                            var parsed = parseFloat(displayValue.replace(/[^\d.]/g, ''));
+                            if (!isNaN(parsed)) {
+                                settlementTotal += parsed;
+                                settlementRowCount++;
+                                // 保存解析出的原始值
+                                $row.find('.subtotal').data('raw-value', parsed);
+                            }
+                        }
+                    }
+                }
+            });
+            // 更新结算单总额显示
+            $('#settlementTotalAmount').text('¥' + formatNumber(settlementTotal));
+            console.log('结算单总额:', settlementTotal, '有效行数:', settlementRowCount);
+        }
+        
+        console.log('批价单总额:', pricingTotal, '有效行数:', pricingRowCount);
+        
+        // 更新分销利润和利润率
+        updateDistributionProfit();
+    } catch (e) {
+        console.error('更新表格总额时出错:', e);
+    }
+}
+
+// 更新分销利润和利润率
+function updateDistributionProfit() {
+    try {
+        // 获取批价单总额
+        let pricingTotal = 0;
+        const pricingTotalText = $('#pricingTotalAmount').text();
+        if (pricingTotalText) {
+            pricingTotal = parseFloat(pricingTotalText.replace(/[^\d.]/g, '')) || 0;
+        }
+        
+        // 获取结算单总额
+        let settlementTotal = 0;
+        const settlementTotalText = $('#settlementTotalAmount').text();
+        if (settlementTotalText) {
+            settlementTotal = parseFloat(settlementTotalText.replace(/[^\d.]/g, '')) || 0;
+        }
+        
+        // 计算分销利润 = 批价单总额 - 结算单总额
+        const distributionProfit = pricingTotal - settlementTotal;
+        
+        // 计算利润率 = (批价单总额 - 结算单总额) / 批价单总额 * 100%
+        let profitMargin = 0;
+        if (pricingTotal > 0) {
+            profitMargin = (distributionProfit / pricingTotal) * 100;
+        }
+        
+        // 更新显示
+        $('#distributionProfit').text('¥' + formatNumber(distributionProfit));
+        $('#profitMargin').text(profitMargin.toFixed(2) + '%');
+        
+        console.log('分销利润计算:', {
+            pricingTotal: pricingTotal,
+            settlementTotal: settlementTotal,
+            distributionProfit: distributionProfit,
+            profitMargin: profitMargin.toFixed(2) + '%'
+        });
+        
+    } catch (e) {
+        console.error('更新分销利润时出错:', e);
+        $('#distributionProfit').text('¥0.00');
+        $('#profitMargin').text('0.00%');
+    }
+}
+
+// 绑定输入事件监听器
+$(document).ready(function() {
+    // 批价单和结算单的实时计算事件
+    $('#pricingTable, #settlementTable').on('input', '.discount-rate', function() {
+        var $row = $(this).closest('tr');
+        var marketPrice = parseFloat($row.find('.product-price').data('raw-value')) || 0;
+        var discountRate = parseFloat($(this).val());
+        
+        // 增加详细的调试信息
+        console.log('=== 折扣率变更调试 ===');
+        console.log('市场价格字段:', $row.find('.product-price'));
+        console.log('市场价格 data-raw-value:', $row.find('.product-price').data('raw-value'));
+        console.log('市场价格显示值:', $row.find('.product-price').val());
+        console.log('解析后的市场价格:', marketPrice);
+        console.log('输入的折扣率:', discountRate);
+        
+        // 如果市场价格为0，尝试从显示值获取
+        if (marketPrice === 0) {
+            var displayPrice = $row.find('.product-price').val();
+            if (displayPrice) {
+                var cleanPrice = displayPrice.replace(/[^\d.]/g, '');
+                marketPrice = parseFloat(cleanPrice) || 0;
+                console.log('从显示值获取市场价格:', displayPrice, '清理后:', cleanPrice, '解析后:', marketPrice);
+                
+                // 更新data-raw-value
+                if (marketPrice > 0) {
+                    $row.find('.product-price').data('raw-value', marketPrice);
+                    console.log('已更新市场价格 data-raw-value:', marketPrice);
+                }
+            }
+        }
+        
+        // 验证折扣率输入
+        if (isNaN(discountRate) || discountRate < 0) {
+            discountRate = 0;
+            $(this).val('0.0');
+            console.log('折扣率无效，重置为0');
+        }
+        if (discountRate > 1000) {
+            discountRate = 1000;
+            $(this).val('1000.0');
+            console.log('折扣率超过上限，重置为1000');
+        }
+        
+        // 计算折扣后价格 (单价 = 市场价 * 折扣率%)
+        var discountedPrice = marketPrice * (discountRate / 100);
+        console.log('计算公式: ' + marketPrice + ' * (' + discountRate + ' / 100) = ' + discountedPrice);
+        
+        // 更新单价显示
+        $row.find('.discounted-price')
+            .data('raw-value', discountedPrice)
+            .val(formatNumber(discountedPrice));
+        
+        console.log('单价已更新: data-raw-value=' + discountedPrice + ', 显示值=' + formatNumber(discountedPrice));
+        
+        // 重新计算小计和总价
+        calculateSubtotal($row);
+        
+        // 根据明细折扣率重新计算总折扣率
+        const tabType = $row.closest('#pricingTable').length > 0 ? 'pricing' : 'settlement';
+        calculateAndUpdateTotalDiscountRate(tabType);
+        
+        console.log('=== 折扣率变更调试结束 ===');
+    });
+
+    // 监听单价输入变化，更新折扣率
+    $('#pricingTable, #settlementTable').on('input', '.discounted-price', function() {
+        var $row = $(this).closest('tr');
+        var rawValue = $(this).val().replace(/[^\d.]/g, '');
+        
+        if (rawValue) {
+            // 处理可能的多个小数点
+            let parts = rawValue.split('.');
+            if (parts.length > 2) {
+                rawValue = parts[0] + '.' + parts.slice(1).join('');
+            }
+            
+            var discountedPrice = parseFloat(rawValue);
+            if (!isNaN(discountedPrice) && discountedPrice >= 0) {
+                // 保存原始值
+                $(this).data('raw-value', discountedPrice);
+                
+                // 反算折扣率 (折扣率% = 单价 / 市场价 * 100)
+                var marketPrice = parseFloat($row.find('.product-price').data('raw-value')) || 0;
+                if (marketPrice > 0) {
+                    var discountRate = (discountedPrice / marketPrice) * 100;
+                    discountRate = Math.max(0, Math.min(1000, discountRate)); // 限制在0-1000%之间
+                    $row.find('.discount-rate').val(discountRate.toFixed(1));
+                    console.log('单价变化: 单价=', discountedPrice, '市场价=', marketPrice, '折扣率=', discountRate.toFixed(1) + '%');
+                }
+                
+                // 重新计算小计和总价
+                calculateSubtotal($row);
+                
+                // 根据明细折扣率重新计算总折扣率
+                const tabType = $row.closest('#pricingTable').length > 0 ? 'pricing' : 'settlement';
+                calculateAndUpdateTotalDiscountRate(tabType);
+            }
+        }
+    });
+
+    // 单价失去焦点时格式化
+    $('#pricingTable, #settlementTable').on('blur', '.discounted-price', function() {
+        var $input = $(this);
+        var rawValue = $input.data('raw-value');
+        if (rawValue && !isNaN(rawValue)) {
+            $input.val(formatNumber(rawValue));
+        }
+    });
+
+    // 监听数量变更事件 (小计 = 数量 * 单价)
+    $('#pricingTable, #settlementTable').on('input change', '.quantity', function() {
+        var $row = $(this).closest('tr');
+        var quantity = parseInt($(this).val());
+        
+        // 验证数量输入
+        if (isNaN(quantity) || quantity < 1) {
+            quantity = 1;
+            $(this).val('1');
+        }
+        
+        console.log('数量变化: 数量=', quantity);
+        // 重新计算小计和总价
+        calculateSubtotal($row);
+    });
+    
+    // 删除产品按钮事件
+    $(document).on('click', '.remove-row', function() {
+        const detailId = $(this).data('detail-id');
+        if (detailId) {
+        deleteProduct(detailId);
+        } else {
+            // 如果没有detailId，说明是新添加的行，直接删除
+            if ($('#pricingTable tbody tr').length > 1 || $('#settlementTable tbody tr').length > 1) {
+                $(this).closest('tr').remove();
+                updateTableTotals();
+            }
+        }
+    });
+    
+
+
+    // 保存和提交按钮事件
+    $('#savePricingOrderBtn').on('click', function() {
+        savePricingOrder();
+    });
+
+    $('#submitApprovalBtn').on('click', function() {
+        submitForApproval();
+    });
+
+    // 页面加载时初始化已有行的数据
+    initializeExistingRows();
+    
+    // 页面加载时计算一次总额
+    updateTableTotals();
+
+    // 初始化产品自动完成功能
+    initializeProductAutocomplete();
+    
+    // 调试：显示绑定成功信息
+    console.log('批价单事件绑定完成 - 使用改进的联动逻辑');
+
+    // 绑定分销商和经销商选择事件（前端缓存）
+    $('#distributorSelect').on('change', function() {
+        const value = $(this).val();
+        updateBasicInfo('distributor_id', value || null);
+    });
+    
+    // 经销商选择
+    $('#dealerSelect').on('change', function() {
+        const value = $(this).val();
+        updateBasicInfo('dealer_id', value || null);
+    });
+    
+    // 初始化前端缓存
+    window.pricingOrderCache = {};
+    
+    // 移动端数量输入框事件绑定 - 使用PC端逻辑
+    $(document).on('input change', '.mobile-card-input.quantity', function() {
+        const $input = $(this);
+        const $card = $input.closest('.mobile-product-card');
+        const detailId = $card.data('detail-id');
+        const newQuantity = parseInt($input.val()) || 1;
+        
+        // 同步到桌面端表格
+        if (detailId) {
+            const $desktopRow = $(`#pricingTable tr[data-detail-id="${detailId}"], #settlementTable tr[data-detail-id="${detailId}"]`);
+            if ($desktopRow.length) {
+                $desktopRow.find('.quantity').val(newQuantity);
+            }
+        }
+        
+        // 实时计算（前端计算，不调用数据库）
+        calculateMobileRowValues($card, 'quantity');
+        
+        // 重新计算总折扣率
+        const currentTab = $('.nav-tabs .nav-link.active').attr('id');
+        const tabType = currentTab === 'pricing-tab' ? 'pricing' : 'settlement';
+        calculateAndUpdateTotalDiscountRate(tabType);
+    });
+    
+    // 移动端折扣率输入框事件绑定 - 使用PC端逻辑
+    $(document).on('input change', '.mobile-card-input.discount-rate', function() {
+        const $input = $(this);
+        const $card = $input.closest('.mobile-product-card');
+        const detailId = $card.data('detail-id');
+        const newDiscountRate = parseFloat($input.val()) || 0;
+        
+        // 同步到桌面端表格
+        if (detailId) {
+            const $desktopRow = $(`#pricingTable tr[data-detail-id="${detailId}"], #settlementTable tr[data-detail-id="${detailId}"]`);
+            if ($desktopRow.length) {
+                $desktopRow.find('.discount-rate').val(newDiscountRate);
+            }
+        }
+        
+        // 实时计算（前端计算，不调用数据库）
+        calculateMobileRowValues($card, 'discount_rate');
+        
+        // 重新计算总折扣率
+        const currentTab = $('.nav-tabs .nav-link.active').attr('id');
+        const tabType = currentTab === 'pricing-tab' ? 'pricing' : 'settlement';
+        calculateAndUpdateTotalDiscountRate(tabType);
+    });
+});
+
+
+
+// 初始化产品自动完成功能
+function initializeProductAutocomplete() {
+    // 移除所有现有菜单
+    $('.product-menu-container').remove();
+    
+    // 添加必要的样式
+    if (!$('#product-menu-styles').length) {
+        $('head').append(`
+            <style id="product-menu-styles">
+                .product-menu-container {
+                    position: absolute;
+                    background: white;
+                    border: 1px solid #ddd;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                    z-index: 9999;
+                    display: flex;
+                }
+                .menu-item {
+                    font-size: 0.75rem;
+                }
+                .menu-item img {
+                    flex-shrink: 0;
+                    width: 40px;
+                    height: 40px;
+                    object-fit: contain;
+                    margin-right: 10px;
+                    border-radius: 4px;
+                }
+                .menu-item .text-wrap {
+                    white-space: normal !important;
+                    word-break: break-word;
+                    flex: 1;
+                }
+                .menu-list {
+                    border-right: 1px solid #eee;
+                    max-height: 350px;
+                    overflow-y: auto;
+                }
+                .category-list {
+                    width: 180px;
+                }
+                .product-list {
+                    width: 220px;
+                    display: none;
+                }
+                .model-list {
+                    width: 220px;
+                    display: none;
+                }
+                .spec-list {
+                    width: 240px;
+                    display: none;
+                }
+                .menu-item {
+                    padding: 8px 12px;
+                    cursor: pointer;
+                    border-bottom: 1px solid #f0f0f0;
+                    position: relative;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+                .menu-item:after {
+                    content: "▶";
+                    position: absolute;
+                    right: 10px;
+                    font-size: 10px;
+                    color: #999;
+                }
+                .menu-item:hover {
+                    background-color: #f0f7ff;
+                }
+                .menu-item.active {
+                    background-color: #e0f0ff;
+                }
+                .menu-item.no-arrow:after {
+                    content: "";
+                }
+                .menu-loading {
+                    padding: 8px 12px;
+                    color: #888;
+                    font-style: italic;
+                }
+            </style>
+        `);
+    }
+    
+    // 为产品名称输入框添加事件
+    $('.product-name').each(function() {
+        var $input = $(this);
+        
+        // 移除之前的事件和自动完成功能
+        $input.off('click focus');
+        if ($input.data('uiAutocomplete')) {
+            $input.autocomplete('destroy');
+        }
+        
+        // 点击或获取焦点时显示菜单
+        $input.on('click focus', function(e) {
+            e.stopPropagation();
+            console.log('点击产品名称输入框');
+            
+            // 移除现有菜单
+            $('.product-menu-container').remove();
+            
+            // 创建菜单结构
+            var $menu = $('<div class="product-menu-container"></div>');
+            var $categories = $('<div class="category-list menu-list"></div>');
+            var $products = $('<div class="product-list menu-list"></div>');
+            var $models = $('<div class="model-list menu-list"></div>');
+            var $specs = $('<div class="spec-list menu-list"></div>');
+            
+            $categories.html('<div class="menu-loading">加载中...</div>');
+            $products.html('<div class="menu-loading">请选择左侧类别</div>');
+            $models.html('<div class="menu-loading">请选择产品名称</div>');
+            $specs.html('<div class="menu-loading">请选择产品型号</div>');
+            
+            $menu.append($categories).append($products).append($models).append($specs);
+            
+            // 定位菜单
+            var pos = $input.offset();
+            $menu.css({
+                top: pos.top + $input.outerHeight() + 'px',
+                left: pos.left + 'px'
+            });
+            
+            // 添加到页面
+            $('body').append($menu);
+            
+            // 加载产品类别
+            $.ajax({
+                url: '/quotation/products/categories',
+                method: 'GET',
+                cache: false,
+                headers: {
+                    'Pragma': 'no-cache',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate'
+                },
+                data: {
+                    '_': new Date().getTime()
+                },
+                success: function(categories) {
+                    console.log('获取到产品类别数组:', categories);
+                    $categories.empty();
+                    
+                    if (!categories || categories.length === 0) {
+                        $categories.html('<div class="menu-loading">无产品类别</div>');
+                        return;
+                    }
+                    
+                    // 添加类别选项
+                    categories.forEach(function(category) {
+                        var $item = $('<div class="menu-item"></div>')
+                            .text(category)
+                            .data('category', category);
+                        
+                        $item.on('click', function() {
+                            // 高亮当前类别
+                            $('.category-list .menu-item').removeClass('active');
+                            $(this).addClass('active');
+                            
+                            // 隐藏型号和规格列表
+                            $models.hide();
+                            $specs.hide();
+                            
+                            // 显示产品列表并加载数据
+                            $products.show();
+                            $products.html('<div class="menu-loading">加载中...</div>');
+                            
+                            var selectedCategory = $(this).data('category');
+                            console.log('选中类别:', selectedCategory);
+                            
+                            // 加载该类别下的产品
+                            $.ajax({
+                                url: '/quotation/products/by-category',
+                                method: 'GET',
+                                data: { category: selectedCategory },
+                                success: function(products) {
+                                    console.log('获取到产品列表:', products);
+                                    $products.empty();
+                                    
+                                    if (!products || products.length === 0) {
+                                        $products.html('<div class="menu-loading">该类别无产品</div>');
+                                        return;
+                                    }
+                                    
+                                    products.forEach(function(product) {
+                                        var $item = $('<div class="menu-item"></div>')
+                                            .text(product.name)
+                                            .data('product', product);
+                                        
+                                        $item.on('click', function() {
+                                            $('.product-list .menu-item').removeClass('active');
+                                            $(this).addClass('active');
+                                            
+                                            $specs.hide();
+                                            $models.show();
+                                            $models.html('<div class="menu-loading">加载中...</div>');
+                                            
+                                            var selectedProduct = $(this).data('product');
+                                            
+                                            // 加载产品型号
+                                            $.ajax({
+                                                url: '/quotation/products/models',
+                                                method: 'GET',
+                                                data: { 
+                                                    category: selectedCategory,
+                                                    product_name: selectedProduct.name
+                                                },
+                                                success: function(models) {
+                                                    $models.empty();
+                                                    
+                                                    if (!models || models.length === 0) {
+                                                        $models.html('<div class="menu-loading">该产品无型号</div>');
+                                                        return;
+                                                    }
+                                                    
+                                                    models.forEach(function(model) {
+                                                        var $item = $('<div class="menu-item"></div>')
+                                                            .text(model.model)
+                                                            .data('model', model);
+                                                        
+                                                        $item.on('click', function() {
+                                                            $('.model-list .menu-item').removeClass('active');
+                                                            $(this).addClass('active');
+                                                            
+                                                            $specs.show();
+                                                            $specs.html('<div class="menu-loading">加载中...</div>');
+                                                            
+                                                            var selectedModel = $(this).data('model');
+                                                            
+                                                            // 加载产品规格
+                                                            $.ajax({
+                                                                url: '/quotation/products/specifications',
+                                                                method: 'GET',
+                                                                data: {
+                                                                    category: selectedCategory,
+                                                                    product_name: selectedProduct.name,
+                                                                    model: selectedModel.model
+                                                                },
+                                                                success: function(specs) {
+                                                                    $specs.empty();
+                                                                    
+                                                                    if (!specs || specs.length === 0) {
+                                                                        $specs.html('<div class="menu-loading">该型号无规格</div>');
+                                                                        return;
+                                                                    }
+                                                                    
+                                                                    specs.forEach(function(spec) {
+                                                                        var $item = $('<div class="menu-item no-arrow"></div>')
+                                                                            .text(spec.specification || '标准规格')
+                                                                            .data('spec', spec);
+                                                                        
+                                                                        $item.on('click', function() {
+                                                                            var selectedSpec = $(this).data('spec');
+                                                                            
+                                                                            // 填充产品信息
+                                                                            var $row = $input.closest('tr');
+                                                                            $input.val(selectedProduct.name);
+                                                                            fillProductDetails($row, selectedSpec);
+                                                                            
+                                                                            // 关闭菜单
+                                                                            $('.product-menu-container').remove();
+                                                                        });
+                                                                        
+                                                                        $specs.append($item);
+                                                                    });
+                                                                },
+                                                                error: function() {
+                                                                    $specs.html('<div class="menu-loading">加载规格失败</div>');
+                                                                }
+                                                            });
+                                                        });
+                                                        
+                                                        $models.append($item);
+                                                    });
+                                                },
+                                                error: function() {
+                                                    $models.html('<div class="menu-loading">加载型号失败</div>');
+                                                }
+                                            });
+                                        });
+                                        
+                                        $products.append($item);
+                                    });
+                                },
+                                error: function() {
+                                    $products.html('<div class="menu-loading">加载产品失败</div>');
+                                }
+                            });
+                        });
+                        
+                        $categories.append($item);
+                    });
+                },
+                error: function() {
+                    $categories.html('<div class="menu-loading">加载类别失败</div>');
+                }
+            });
+        });
+    });
+}
+
+// 填充产品详情
+function fillProductDetails($row, product) {
+    console.log('填充产品详情，完整产品数据:', JSON.stringify(product, null, 2));
+    
+    // 填充产品型号
+    $row.find('.product-model').val(product.model || '');
+    
+    // 填充产品规格
+    $row.find('.product-spec').val(product.specification || '');
+    
+    // 填充品牌
+    $row.find('.product-brand').val(product.brand || '');
+    
+    // 填充单位
+    $row.find('.product-unit').val(product.unit || '');
+    
+    // 填充MN
+    let mnValue = product.product_mn || '';
+    $row.find('.product-mn').val(mnValue);
+    
+    // 设置市场价格
+    let price = parseFloat(product.retail_price) || 0;
+    $row.find('.product-price')
+        .val(formatNumber(price))
+        .data('raw-value', price);
+    
+    // 设置初始折扣率为100%
+    $row.find('.discount-rate').val('100.0');
+    
+    // 设置初始折扣后单价等于市场价格
+    let $discountedInput = $row.find('.discounted-price');
+    $discountedInput
+        .val(formatNumber(price))
+        .data('raw-value', price);
+    
+    // 设置初始数量为1
+    let $quantityInput = $row.find('.quantity');
+    $quantityInput.val('1');
+    
+    // 计算并设置小计
+    let subtotal = price * 1;
+    let formattedSubtotal = formatNumber(subtotal);
+    $row.find('.subtotal')
+        .val(formattedSubtotal)
+        .data('raw-value', subtotal)
+        .attr('title', formattedSubtotal);
+    
+    // 更新总计
+    updateTableTotals();
+}
+
+// 格式化数字为带千位分隔符和两位小数的字符串
+function formatNumber(number) {
+    try {
+        let num = parseFloat(number);
+        if (isNaN(num)) {
+            console.warn('formatNumber接收到无效的数值:', number);
+            return '0.00';
+        }
+        
+        return num.toLocaleString('zh-CN', { 
+            minimumFractionDigits: 2, 
+            maximumFractionDigits: 2 
+        });
+    } catch (e) {
+        console.error('格式化数字时出错:', e, '输入值:', number);
+        return '0.00';
+    }
+}
+
+// 计算小计 (小计 = 数量 * 单价)
+function calculateSubtotal($row) {
+    try {
+        var quantity = parseInt($row.find('.quantity').val()) || 1;
+        var unitPrice = parseFloat($row.find('.discounted-price').data('raw-value')) || 0;
+        
+        console.log('=== 小计计算调试 ===');
+        console.log('数量输入值:', $row.find('.quantity').val(), '解析后:', quantity);
+        console.log('单价 data-raw-value:', $row.find('.discounted-price').data('raw-value'), '解析后:', unitPrice);
+        console.log('单价显示值:', $row.find('.discounted-price').val());
+        
+        // 如果没有原始值，尝试从显示值解析
+        if (unitPrice === 0) {
+            var displayValue = $row.find('.discounted-price').val().replace(/[^\d.]/g, '');
+            unitPrice = parseFloat(displayValue) || 0;
+            console.log('从显示值解析单价:', displayValue, '解析后:', unitPrice);
+            if (unitPrice > 0) {
+                $row.find('.discounted-price').data('raw-value', unitPrice);
+                console.log('已更新单价 data-raw-value:', unitPrice);
+            }
+        }
+        
+        // 计算小计
+        var subtotal = quantity * unitPrice;
+        console.log('小计计算: ' + quantity + ' * ' + unitPrice + ' = ' + subtotal);
+        
+        // 更新小计显示
+        var formattedSubtotal = formatNumber(subtotal);
+        $row.find('.subtotal')
+            .val(formattedSubtotal)
+            .data('raw-value', subtotal)
+            .attr('title', formattedSubtotal);
+        
+        console.log('小计已更新: data-raw-value=' + subtotal + ', 显示值=' + formattedSubtotal);
+        
+        // 立即更新总计
+        updateTableTotals();
+        
+        console.log('=== 小计计算调试结束 ===');
+        return subtotal;
+    } catch (e) {
+        console.error('计算小计时出错:', e);
+        return 0;
+    }
+}
+
+// 点击其他地方关闭产品选择菜单
+$(document).on('click', function(e) {
+    if (!$(e.target).closest('.product-menu-container, .product-name').length) {
+        $('.product-menu-container').remove();
+    }
+});
+
+
+
+
+
+// 删除产品
+function deleteProduct(detailId) {
+    if (!confirm('确定要删除这个产品吗？')) {
+        return;
+    }
+    
+    fetch(`/pricing_order/${PRICING_ORDER_ID}/delete_product/${detailId}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            showAlert('error', data.message);
+        }
+    })
+    .catch(error => {
+        showAlert('error', '删除失败: ' + error.message);
+    });
+}
+
+// 移动端实时计算函数（不调用数据库）
+function calculateMobileRowValues($element, triggerType) {
+    console.log('移动端实时计算:', triggerType);
+    
+    // 判断是移动端卡片还是桌面端表格行
+    const isMobileCard = $element.hasClass('mobile-product-card');
+    const $container = isMobileCard ? $element : $element.closest('tr');
+    
+    // 获取基础数据
+    const marketPrice = parseFloat($container.find('.product-price').data('raw-value')) || 0;
+    const quantity = parseInt($container.find('.quantity').val()) || 1;
+    
+    let discountRate, unitPrice;
+    
+    if (triggerType === 'discount_rate') {
+        // 从折扣率计算单价
+        discountRate = parseFloat($container.find('.discount-rate').val()) / 100;
+        unitPrice = marketPrice * discountRate;
+        
+        // 更新单价显示
+        $container.find('.discounted-price')
+            .val(unitPrice.toFixed(2))
+            .data('raw-value', unitPrice);
+            
+    } else if (triggerType === 'quantity') {
+        // 数量变化，使用当前的单价重新计算小计
+        unitPrice = parseFloat($container.find('.discounted-price').data('raw-value')) || 0;
+        
+        // 如果单价为0，使用折扣率和市场价计算单价
+        if (unitPrice === 0) {
+            discountRate = parseFloat($container.find('.discount-rate').val()) / 100 || 1;
+            unitPrice = marketPrice * discountRate;
+            $container.find('.discounted-price')
+                .val(unitPrice.toFixed(2))
+                .data('raw-value', unitPrice);
+        }
+    }
+    
+    // 计算小计（数量 × 单价）
+    const subtotal = unitPrice * quantity;
+    
+    // 更新小计显示
+    $container.find('.subtotal')
+        .val(subtotal.toFixed(2))
+        .data('raw-value', subtotal);
+    
+    // 如果是移动端卡片，同步到对应的桌面端表格行
+    if (isMobileCard) {
+        const detailId = $container.data('detail-id');
+        if (detailId) {
+            const $desktopRow = $(`#pricingTable tr[data-detail-id="${detailId}"], #settlementTable tr[data-detail-id="${detailId}"]`);
+            if ($desktopRow.length) {
+                $desktopRow.find('.discounted-price')
+                    .val(unitPrice.toFixed(2))
+                    .data('raw-value', unitPrice);
+                $desktopRow.find('.subtotal')
+                    .val(subtotal.toFixed(2))
+                    .data('raw-value', subtotal);
+            }
+        }
+    }
+    
+    // 更新总额显示
+    updateTableTotals();
+    
+    console.log(`移动端计算完成 - 类型: ${triggerType}, 数量: ${quantity}, 单价: ${unitPrice.toFixed(2)}, 小计: ${subtotal.toFixed(2)}`);
+}
+
+
+
+// 审批相关变量
+let currentApprovalAction = '';
+
+// 打开审批模态框
+function openApprovalModal(action) {
+    currentApprovalAction = action;
+    
+    const actionDisplay = document.getElementById('approvalActionDisplay');
+    const confirmBtn = document.getElementById('confirmApprovalBtn');
+    const modalComment = document.getElementById('modalApprovalComment');
+    
+    // 同步当前的审批意见到模态框
+    const currentComment = document.getElementById('approvalComment').value;
+    modalComment.value = currentComment;
+    
+    if (action === 'approve') {
+        actionDisplay.className = 'alert alert-success mb-3';
+        actionDisplay.innerHTML = '<i class="fas fa-check me-2"></i>您确定要通过此批价单吗？';
+        confirmBtn.className = 'btn btn-success';
+        confirmBtn.innerHTML = '<i class="fas fa-check me-1"></i>确认通过';
+    } else {
+        actionDisplay.className = 'alert alert-danger mb-3';
+        actionDisplay.innerHTML = '<i class="fas fa-times me-2"></i>您确定要拒绝此批价单吗？';
+        confirmBtn.className = 'btn btn-danger';
+        confirmBtn.innerHTML = '<i class="fas fa-times me-1"></i>确认拒绝';
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('approvalModal'));
+    modal.show();
+}
+
+// 确认审批操作
+function confirmApproval() {
+    const comment = document.getElementById('modalApprovalComment').value;
+    
+    // 同步审批意见回主表单
+    document.getElementById('approvalComment').value = comment;
+    
+    const data = {
+        action: currentApprovalAction,
+        comment: comment
+    };
+    
+    // 显示处理中状态
+    const confirmBtn = document.getElementById('confirmApprovalBtn');
+    const originalText = confirmBtn.innerHTML;
+    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>处理中...';
+    confirmBtn.disabled = true;
+    
+    fetch(`/pricing_order/${PRICING_ORDER_ID}/approve`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 关闭模态框
+            const modal = bootstrap.Modal.getInstance(document.getElementById('approvalModal'));
+            modal.hide();
+            
+            // 显示成功消息
+            const actionText = currentApprovalAction === 'approve' ? '通过' : '拒绝';
+            showStandardAlert('success', `批价单审批${actionText}成功！`, [], '.card:has(#dealerSelect)', 2000);
+            
+            // 延迟刷新页面
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+        } else {
+            showStandardAlert('error', data.message || '审批失败', [], '.card:has(#dealerSelect)');
+            // 恢复按钮状态
+            confirmBtn.innerHTML = originalText;
+            confirmBtn.disabled = false;
+        }
+    })
+    .catch(error => {
+        showStandardAlert('error', '审批失败: ' + error.message, [], '.card:has(#dealerSelect)');
+        // 恢复按钮状态
+        confirmBtn.innerHTML = originalText;
+        confirmBtn.disabled = false;
+    });
+}
+
+// 保持原有的submitApproval函数以兼容性（已弃用）
+function submitApproval(action) {
+    openApprovalModal(action);
+}
+
+// 使用标准提示函数替换原有的showAlert
+function showAlert(type, message, conditions = []) {
+    showStandardAlert(type, message, conditions, '.card:has(#dealerSelect)');
+}
+
+// 保存批价单（包含基本信息和明细）
+function savePricingOrder() {
+    console.log('开始保存批价单...');
+    
+    // 收集所有数据
+    const saveData = {
+        basic_info: window.pricingOrderCache || {},
+        pricing_details: collectPricingDetails(),
+        settlement_details: collectSettlementDetails()
+    };
+    
+    console.log('保存数据:', saveData);
+    
+    // 显示保存中状态
+    const $saveBtn = $('#savePricingOrderBtn');
+    const originalText = $saveBtn.html();
+    $saveBtn.html('<i class="fas fa-spinner fa-spin"></i> 保存中...').prop('disabled', true);
+    
+    fetch(`/pricing_order/${PRICING_ORDER_ID}/save_all`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(saveData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', '批价单保存成功！');
+            // 清空缓存
+            window.pricingOrderCache = {};
+            // 延迟后返回上一页
+            setTimeout(() => {
+                window.history.back();
+            }, 1000);
+        } else {
+            showAlert('error', data.message || '保存失败');
+            // 恢复按钮状态
+            $saveBtn.html(originalText).prop('disabled', false);
+        }
+    })
+    .catch(error => {
+        console.error('保存失败:', error);
+        showAlert('error', '保存失败: ' + error.message);
+        // 恢复按钮状态
+        $saveBtn.html(originalText).prop('disabled', false);
+    });
+}
+
+
+
+// 收集批价单明细数据（前端）
+function collectPricingDetails() {
+    const details = [];
+    
+    // 检查批价单表格是否存在
+    const $pricingTable = $('#pricingTable');
+    if ($pricingTable.length === 0) {
+        console.log('批价单表格不存在，返回空数组');
+        return details;
+    }
+    
+    $pricingTable.find('tbody tr').each(function() {
+        const $row = $(this);
+        const $productNameInput = $row.find('.product-name');
+        
+        // 检查产品名称输入框是否存在
+        if ($productNameInput.length === 0) {
+            console.log('产品名称输入框不存在，跳过此行');
+            return true; // 继续下一行
+        }
+        
+        const productName = $productNameInput.val();
+        if (!productName || !productName.trim()) {
+            return true; // 跳过空行
+        }
+        
+        // 获取当前行的实际计算值
+        const marketPrice = parseFloat($row.find('.product-price').data('raw-value')) || parseFloat($row.find('.product-price').val().replace(/[^\\d.]/g, '')) || 0;
+        const unitPrice = parseFloat($row.find('.discounted-price').data('raw-value')) || parseFloat($row.find('.discounted-price').val().replace(/[^\\d.]/g, '')) || 0;
+        const quantity = parseInt($row.find('.quantity').val()) || 1;
+        const discountRate = parseFloat($row.find('.discount-rate').val()) || 100;
+        
+        console.log(`收集明细 - 产品: ${productName}, 市场价: ${marketPrice}, 单价: ${unitPrice}, 数量: ${quantity}, 折扣率: ${discountRate}%`);
+        
+        details.push({
+            product_name: productName.trim(),
+            product_model: $row.find('.product-model').val() || '',
+            product_desc: $row.find('.product-spec').val() || '',
+            brand: $row.find('.product-brand').val() || '',
+            unit: $row.find('.product-unit').val() || '台',
+            product_mn: $row.find('.product-mn').val() || '',
+            market_price: marketPrice,
+            unit_price: unitPrice,  // 添加单价字段
+            quantity: quantity,
+            discount_rate: discountRate  // 保持百分比形式，后端会处理转换
+        });
+    });
+    
+    console.log('收集到的批价单明细:', details);
+    return details;
+}
+
+// 收集结算单明细数据（前端）
+function collectSettlementDetails() {
+    const details = [];
+    
+    // 检查结算单表格是否存在
+    const $settlementTable = $('#settlementTable');
+    if ($settlementTable.length === 0) {
+        console.log('结算单表格不存在，返回空数组');
+        return details;
+    }
+    
+    $settlementTable.find('tbody tr').each(function() {
+        const $row = $(this);
+        const $productNameInput = $row.find('.product-name');
+        
+        // 检查产品名称输入框是否存在
+        if ($productNameInput.length === 0) {
+            console.log('产品名称输入框不存在，跳过此行');
+            return true; // 继续下一行
+        }
+        
+        const productName = $productNameInput.val();
+        if (!productName || !productName.trim()) {
+            return true; // 跳过空行
+        }
+        
+        const id = $row.data('id');
+        
+        // 获取当前行的实际计算值
+        const marketPrice = parseFloat($row.find('.product-price').data('raw-value')) || parseFloat($row.find('.product-price').val().replace(/[^\\d.]/g, '')) || 0;
+        const unitPrice = parseFloat($row.find('.discounted-price').data('raw-value')) || parseFloat($row.find('.discounted-price').val().replace(/[^\\d.]/g, '')) || 0;
+        const quantity = parseInt($row.find('.quantity').val()) || 1;
+        const discountRate = parseFloat($row.find('.discount-rate').val()) || 100;
+        
+        console.log(`收集结算单明细 - 产品: ${productName}, 市场价: ${marketPrice}, 单价: ${unitPrice}, 数量: ${quantity}, 折扣率: ${discountRate}%`);
+        
+        details.push({
+            id: id,
+            product_name: productName.trim(),
+            product_model: $row.find('.product-model').val() || '',
+            product_desc: $row.find('.product-spec').val() || '',
+            brand: $row.find('.product-brand').val() || '',
+            unit: $row.find('.product-unit').val() || '台',
+            product_mn: $row.find('.product-mn').val() || '',
+            market_price: marketPrice,
+            quantity: quantity,
+            discount_rate: discountRate,  // 保持百分比形式
+            unit_price: unitPrice
+        });
+    });
+    
+    console.log('收集到的结算单明细:', details);
+    return details;
+}
+
+// 提交审批函数
+function submitForApproval() {
+    // 验证渠道信息
+    const validationResult = validateChannelInfo();
+    if (!validationResult.valid) {
+        showChannelValidationAlert(validationResult);
+        return;
+    }
+    
+    if (!confirm('确定要提交批价单审批吗？提交后将无法修改。')) {
+        return;
+    }
+    
+    console.log('开始提交审批...');
+    
+    // 收集所有数据
+    const submitData = {
+        basic_info: window.pricingOrderCache || {},
+        pricing_details: collectPricingDetails()
+    };
+    
+    console.log('提交数据:', submitData);
+    
+    // 简单验证
+    if (submitData.pricing_details.length === 0) {
+        showAlert('error', '请至少添加一个产品明细');
+        return;
+    }
+    
+    // 显示提交中状态
+    const $submitBtn = $('#submitApprovalBtn');
+    const originalText = $submitBtn.html();
+    $submitBtn.html('<i class="fas fa-spinner fa-spin"></i> 提交中...').prop('disabled', true);
+    
+    fetch(`/pricing_order/${PRICING_ORDER_ID}/save_and_submit`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(submitData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', '批价单已提交审批！');
+            // 清空缓存
+            window.pricingOrderCache = {};
+            // 延迟跳转到审批中心
+            setTimeout(() => {
+                window.location.href = '/approval/center?tab=created&object_type=pricing_order';
+            }, 1500);
+        } else {
+            showAlert('error', data.message || '提交审批失败');
+            // 恢复按钮状态
+            $submitBtn.html(originalText).prop('disabled', false);
+        }
+    })
+    .catch(error => {
+        console.error('提交审批错误:', error);
+        showAlert('error', '提交审批失败，请稍后重试');
+        // 恢复按钮状态
+        $submitBtn.html(originalText).prop('disabled', false);
+    });
+}
+
+// 召回批价单函数
+function confirmRecallPricingOrder() {
+    const reason = document.getElementById('recallReason').value;
+    
+    // 关闭模态框
+    const modal = bootstrap.Modal.getInstance(document.getElementById('recallPricingOrderModal'));
+    modal.hide();
+    
+    // 显示加载状态
+    showAlert('info', '正在召回批价单...');
+    
+    fetch(`/pricing_order/${PRICING_ORDER_ID}/recall`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            reason: reason
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', '批价单已成功召回！');
+            // 延迟刷新页面显示新状态
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+        } else {
+            showAlert('error', '召回失败: ' + (data.message || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('召回失败:', error);
+        showAlert('error', '召回失败，请稍后重试');
+    });
+}
+
+// 删除批价单函数
+function confirmDeletePricingOrder() {
+    const reason = document.getElementById('deleteReason').value;
+    
+    // 关闭模态框
+    const modal = bootstrap.Modal.getInstance(document.getElementById('deletePricingOrderModal'));
+    modal.hide();
+    
+    // 显示加载状态
+    showAlert('info', '正在删除批价单...');
+    
+    fetch(`/pricing_order/${PRICING_ORDER_ID}/delete`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            reason: reason
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', '批价单已成功删除！');
+            // 延迟跳转到批价单列表
+            setTimeout(() => {
+                window.location.href = '/pricing_order/list';
+            }, 1500);
+        } else {
+            showAlert('error', '删除失败: ' + (data.message || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('删除失败:', error);
+        showAlert('error', '删除失败，请稍后重试');
+    });
+}
+</script>
+
+<!-- 初始化数据 -->
+<script type="text/javascript">
+// 初始化前端缓存
+window.pricingOrderCache = {
+    distributor_id: null,
+    dealer_id: null
+};
+
+// 初始化Bootstrap页签切换
+document.addEventListener('DOMContentLoaded', function() {
+    // 确保Bootstrap页签能正常工作
+    const triggerTabList = document.querySelectorAll('#productTabs button[data-bs-toggle="tab"], #productTabs a[data-bs-toggle="tab"]');
+    triggerTabList.forEach(triggerEl => {
+        const tabTrigger = new bootstrap.Tab(triggerEl);
+        
+        triggerEl.addEventListener('click', event => {
+            event.preventDefault();
+            tabTrigger.show();
+        });
+    });
+    
+    // 初始化开关状态
+    initializeSwitches();
+    
+    // 初始化分销利润计算
+    updateDistributionProfit();
+    
+    console.log('页签初始化完成');
+});
+
+// 移动端卡片展开/收起功能
+function toggleMobileDetails(button) {
+    const card = button.closest('.mobile-product-card');
+    const details = card.querySelector('.mobile-card-details');
+    const icon = button.querySelector('i');
+    
+    if (details.classList.contains('show')) {
+        // 收起
+        details.classList.remove('show');
+        icon.className = 'fas fa-chevron-down';
+        button.innerHTML = '<i class="fas fa-chevron-down"></i> 查看详情';
+    } else {
+        // 展开
+        details.classList.add('show');
+        icon.className = 'fas fa-chevron-up';
+        button.innerHTML = '<i class="fas fa-chevron-up"></i> 收起详情';
+    }
+}
+
+// 移动端事件绑定已整合到主$(document).ready函数中
+</script>
+{% endblock %} 

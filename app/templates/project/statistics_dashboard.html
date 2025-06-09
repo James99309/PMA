@@ -20,9 +20,9 @@
                 <!-- 统计内容容器 -->
                 <div id="statisticsCards" class="col-12 d-none">
                     <!-- 项目统计概览 - 顶部水平展示 -->
-                    <div class="row g-3 mb-4">
+                    <div class="d-flex flex-wrap gap-3 mb-4" style="justify-content: space-between;">
                         <!-- 有效项目总览卡片 -->
-                        <div class="col-md-3">
+                        <div style="flex: 1; min-width: 200px;">
                             <div class="card border-0 shadow-sm h-100 bg-light" id="validProjectsCard" style="cursor:pointer;" onclick="filterValidProjects()">
                                 <div class="card-body">
                                     <h6 class="card-title text-primary">
@@ -46,7 +46,7 @@
                         </div>
                         
                         <!-- 招标项目卡片 -->
-                        <div class="col-md-3">
+                        <div style="flex: 1; min-width: 200px;">
                             <div class="card border-0 shadow-sm h-100 bg-warning bg-opacity-10" id="tenderingProjectsCard" style="cursor:pointer;" onclick="filterTenderingProjects()">
                                 <div class="card-body">
                                     <h6 class="card-title text-warning">
@@ -70,7 +70,7 @@
                         </div>
                         
                         <!-- 中标项目卡片 -->
-                        <div class="col-md-3">
+                        <div style="flex: 1; min-width: 200px;">
                             <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10" id="wonProjectsCard" style="cursor:pointer;" onclick="filterWonProjects()">
                                 <div class="card-body">
                                     <h6 class="card-title text-success">
@@ -93,8 +93,32 @@
                             </div>
                         </div>
                         
+                        <!-- 批价项目卡片 -->
+                        <div style="flex: 1; min-width: 200px;">
+                            <div class="card border-0 shadow-sm h-100 bg-secondary bg-opacity-10" id="quotedProjectsCard" style="cursor:pointer;" onclick="filterQuotedProjects()">
+                                <div class="card-body">
+                                    <h6 class="card-title text-secondary">
+                                        <i class="fas fa-file-invoice-dollar me-1"></i> 批价
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="当前批价阶段的项目统计"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                        <div>
+                                            <span class="fs-5 fw-bold" id="quotedProjectsCount">0</span>
+                                            <span class="text-muted ms-1">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-5 fw-bold" id="quotedProjectsAmount">0</span>
+                                            <span class="text-muted ms-1">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <!-- 业务推进卡片 -->
-                        <div class="col-md-3">
+                        <div style="flex: 1; min-width: 200px;">
                             <div class="card border-0 shadow-sm h-100 bg-info bg-opacity-10" id="updatedProjectsCard" style="cursor:pointer;" onclick="filterUpdatedProjects()">
                                 <div class="card-body">
                                     <h6 class="card-title text-info">
@@ -110,6 +134,129 @@
                                         </div>
                                         <div>
                                             <span class="fs-5 fw-bold" id="updatedProjectsAmount">0</span>
+                                            <span class="text-muted ms-1">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 第二行：新增阶段选项卡 -->
+                    <div class="d-flex flex-wrap gap-3 mb-4" style="justify-content: space-between;">
+                        <!-- 发现阶段卡片 -->
+                        <div style="flex: 1; min-width: 200px;">
+                            <div class="card border-0 shadow-sm h-100 bg-primary bg-opacity-10" id="discoverProjectsCard" style="cursor:pointer;" onclick="filterDiscoverProjects()">
+                                <div class="card-body">
+                                    <h6 class="card-title text-primary">
+                                        <i class="fas fa-search me-1"></i> 发现
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="当前处于发现阶段的项目统计"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                        <div>
+                                            <span class="fs-5 fw-bold" id="discoverProjectsCount">0</span>
+                                            <span class="text-muted ms-1">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-5 fw-bold" id="discoverProjectsAmount">0</span>
+                                            <span class="text-muted ms-1">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 植入阶段卡片 -->
+                        <div style="flex: 1; min-width: 200px;">
+                            <div class="card border-0 shadow-sm h-100 bg-info bg-opacity-10" id="embedProjectsCard" style="cursor:pointer;" onclick="filterEmbedProjects()">
+                                <div class="card-body">
+                                    <h6 class="card-title text-info">
+                                        <i class="fas fa-seedling me-1"></i> 植入
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="当前处于植入阶段的项目统计"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                        <div>
+                                            <span class="fs-5 fw-bold" id="embedProjectsCount">0</span>
+                                            <span class="text-muted ms-1">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-5 fw-bold" id="embedProjectsAmount">0</span>
+                                            <span class="text-muted ms-1">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 招标前阶段卡片 -->
+                        <div style="flex: 1; min-width: 200px;">
+                            <div class="card border-0 shadow-sm h-100 bg-warning bg-opacity-10" id="preTenderProjectsCard" style="cursor:pointer;" onclick="filterPreTenderProjects()">
+                                <div class="card-body">
+                                    <h6 class="card-title text-warning">
+                                        <i class="fas fa-clock me-1"></i> 招标前
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="当前处于招标前阶段的项目统计"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                        <div>
+                                            <span class="fs-5 fw-bold" id="preTenderProjectsCount">0</span>
+                                            <span class="text-muted ms-1">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-5 fw-bold" id="preTenderProjectsAmount">0</span>
+                                            <span class="text-muted ms-1">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 失败阶段卡片 -->
+                        <div style="flex: 1; min-width: 200px;">
+                            <div class="card border-0 shadow-sm h-100 bg-danger bg-opacity-10" id="lostProjectsCard" style="cursor:pointer;" onclick="filterLostProjects()">
+                                <div class="card-body">
+                                    <h6 class="card-title text-danger">
+                                        <i class="fas fa-times-circle me-1"></i> 失败
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="当前处于失败状态的项目统计"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                        <div>
+                                            <span class="fs-5 fw-bold" id="lostProjectsCount">0</span>
+                                            <span class="text-muted ms-1">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-5 fw-bold" id="lostProjectsAmount">0</span>
+                                            <span class="text-muted ms-1">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 搁置阶段卡片 -->
+                        <div style="flex: 1; min-width: 200px;">
+                            <div class="card border-0 shadow-sm h-100 bg-secondary bg-opacity-10" id="pausedProjectsCard" style="cursor:pointer;" onclick="filterPausedProjects()">
+                                <div class="card-body">
+                                    <h6 class="card-title text-secondary">
+                                        <i class="fas fa-pause-circle me-1"></i> 搁置
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="当前处于搁置状态的项目统计"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                        <div>
+                                            <span class="fs-5 fw-bold" id="pausedProjectsCount">0</span>
+                                            <span class="text-muted ms-1">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-5 fw-bold" id="pausedProjectsAmount">0</span>
                                             <span class="text-muted ms-1">万元</span>
                                         </div>
                                     </div>
@@ -196,6 +343,8 @@
 .project-statistics-panel {
     margin-bottom: 20px;
 }
+
+
 
 .project-statistics-panel .card {
     border: none;
@@ -392,6 +541,55 @@
     background-color: #e6f5f9 !important;
     border-left: 4px solid #0dcaf0 !important;
 }
+
+/* 阶段选项卡选中状态样式 */
+.stage-card-selected {
+    border-left: 4px solid #0d6efd !important;
+    background-color: rgba(13, 110, 253, 0.05) !important;
+    transform: translateX(2px);
+    transition: all 0.3s ease;
+}
+
+/* 各个阶段卡片的选中状态样式 */
+#discoverProjectsCard.stage-card-selected {
+    border-left: 4px solid #0d6efd !important;
+    background-color: rgba(13, 110, 253, 0.08) !important;
+}
+
+#embedProjectsCard.stage-card-selected {
+    border-left: 4px solid #0dcaf0 !important;
+    background-color: rgba(13, 202, 240, 0.08) !important;
+}
+
+#preTenderProjectsCard.stage-card-selected {
+    border-left: 4px solid #ffc107 !important;
+    background-color: rgba(255, 193, 7, 0.08) !important;
+}
+
+#tenderingProjectsCard.stage-card-selected {
+    border-left: 4px solid #ffc107 !important;
+    background-color: rgba(255, 193, 7, 0.08) !important;
+}
+
+#wonProjectsCard.stage-card-selected {
+    border-left: 4px solid #198754 !important;
+    background-color: rgba(25, 135, 84, 0.08) !important;
+}
+
+#quotedProjectsCard.stage-card-selected {
+    border-left: 4px solid #6c757d !important;
+    background-color: rgba(108, 117, 125, 0.08) !important;
+}
+
+#lostProjectsCard.stage-card-selected {
+    border-left: 4px solid #dc3545 !important;
+    background-color: rgba(220, 53, 69, 0.08) !important;
+}
+
+#pausedProjectsCard.stage-card-selected {
+    border-left: 4px solid #6c757d !important;
+    background-color: rgba(108, 117, 125, 0.08) !important;
+}
 </style>
 
 <!-- 统计脚本在此处 -->
@@ -456,11 +654,46 @@ function filterValidProjects() {
 }
 
 /**
- * 过滤招标中项目函数，点击招标中卡片时触发
+ * 过滤发现阶段项目函数
  */
-function filterTenderingProjects() {
+function filterDiscoverProjects() {
+    filterProjectsByStage('discover', 'discoverProjectsCard');
+}
+
+/**
+ * 过滤植入阶段项目函数
+ */
+function filterEmbedProjects() {
+    filterProjectsByStage('embed', 'embedProjectsCard');
+}
+
+/**
+ * 过滤招标前阶段项目函数
+ */
+function filterPreTenderProjects() {
+    filterProjectsByStage('pre_tender', 'preTenderProjectsCard');
+}
+
+/**
+ * 过滤失败阶段项目函数
+ */
+function filterLostProjects() {
+    filterProjectsByStage('lost', 'lostProjectsCard');
+}
+
+/**
+ * 过滤搁置阶段项目函数
+ */
+function filterPausedProjects() {
+    filterProjectsByStage('paused', 'pausedProjectsCard');
+}
+
+/**
+ * 通用阶段筛选函数
+ */
+function filterProjectsByStage(stage, cardId) {
     // 点击反馈效果
-    const card = document.getElementById('tenderingProjectsCard');
+    const card = document.getElementById(cardId);
     
     // 添加动画效果
     if (card) {
@@ -469,18 +702,29 @@ function filterTenderingProjects() {
             card.classList.remove('pulse-effect');
         }, 300);
         
-        // 检查当前URL是否已经应用了招标中过滤
+        // 检查当前URL是否已经应用了该阶段过滤
         const currentUrl = new URL(window.location.href);
         const params = new URLSearchParams(currentUrl.search);
-        const hasCurrentStageFilter = params.get('filter_current_stage') === 'tendering';
+        const hasCurrentStageFilter = params.get('filter_current_stage') === stage;
+        
+        // 移除所有阶段卡片的选中状态
+        const allStageCards = [
+            'discoverProjectsCard', 'embedProjectsCard', 'preTenderProjectsCard',
+            'tenderingProjectsCard', 'wonProjectsCard', 'quotedProjectsCard',
+            'lostProjectsCard', 'pausedProjectsCard'
+        ];
+        allStageCards.forEach(id => {
+            const stageCard = document.getElementById(id);
+            if (stageCard) {
+                stageCard.classList.remove('stage-card-selected');
+                stageCard.classList.remove('active-filter');
+            }
+        });
         
         // 如果已经应用了过滤，则取消过滤（切换状态）
         if (hasCurrentStageFilter) {
-            // 移除招标中的过滤条件
+            // 移除该阶段的过滤条件
             params.delete('filter_current_stage');
-            
-            // 移除卡片的活跃状态
-            card.classList.remove('active-filter');
             
             // 保持统计面板打开状态
             params.set('keep_panel', 'true');
@@ -490,7 +734,8 @@ function filterTenderingProjects() {
             return;
         }
         
-        // 添加卡片的活跃状态
+        // 添加当前卡片的选中状态
+        card.classList.add('stage-card-selected');
         card.classList.add('active-filter');
     }
     
@@ -501,8 +746,8 @@ function filterTenderingProjects() {
     // 移除可能存在的其他状态过滤器
     params.delete('filter_current_stage');
     
-    // 添加招标中的过滤条件
-    params.set('filter_current_stage', 'tendering');
+    // 添加该阶段的过滤条件
+    params.set('filter_current_stage', stage);
     
     // 保持统计面板打开状态
     params.set('keep_panel', 'true');
@@ -512,59 +757,17 @@ function filterTenderingProjects() {
 }
 
 /**
+ * 过滤招标中项目函数，点击招标中卡片时触发
+ */
+function filterTenderingProjects() {
+    filterProjectsByStage('tendering', 'tenderingProjectsCard');
+}
+
+/**
  * 过滤中标项目函数，点击中标卡片时触发
  */
 function filterWonProjects() {
-    // 点击反馈效果
-    const card = document.getElementById('wonProjectsCard');
-    
-    // 添加动画效果
-    if (card) {
-        card.classList.add('pulse-effect');
-        setTimeout(() => {
-            card.classList.remove('pulse-effect');
-        }, 300);
-        
-        // 检查当前URL是否已经应用了中标过滤
-        const currentUrl = new URL(window.location.href);
-        const params = new URLSearchParams(currentUrl.search);
-        const hasCurrentStageFilter = params.get('filter_current_stage') === 'awarded';
-        
-        // 如果已经应用了过滤，则取消过滤（切换状态）
-        if (hasCurrentStageFilter) {
-            // 移除中标的过滤条件
-            params.delete('filter_current_stage');
-            
-            // 移除卡片的活跃状态
-            card.classList.remove('active-filter');
-            
-            // 保持统计面板打开状态
-            params.set('keep_panel', 'true');
-            
-            // 重新加载页面以应用筛选条件
-            window.location.href = '/project/?' + params.toString();
-            return;
-        }
-        
-        // 添加卡片的活跃状态
-        card.classList.add('active-filter');
-    }
-    
-    // 构建查询参数，确保包含当前的其他查询条件
-    const currentUrl = new URL(window.location.href);
-    const params = new URLSearchParams(currentUrl.search);
-    
-    // 移除可能存在的其他状态过滤器
-    params.delete('filter_current_stage');
-    
-    // 添加中标的过滤条件
-    params.set('filter_current_stage', 'awarded');
-    
-    // 保持统计面板打开状态
-    params.set('keep_panel', 'true');
-    
-    // 重新加载页面以应用筛选条件
-    window.location.href = '/project/?' + params.toString();
+    filterProjectsByStage('awarded', 'wonProjectsCard');
 }
 
 /**
@@ -625,6 +828,13 @@ function filterUpdatedProjects() {
     
     // 重新加载页面以应用筛选条件
     window.location.href = '/project/?' + params.toString();
+}
+
+/**
+ * 过滤批价项目函数，点击批价卡片时触发
+ */
+function filterQuotedProjects() {
+    filterProjectsByStage('quoted', 'quotedProjectsCard');
 }
 
 /**
@@ -736,7 +946,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const validProjectsCard = document.getElementById('validProjectsCard');
     const tenderingProjectsCard = document.getElementById('tenderingProjectsCard');
     const wonProjectsCard = document.getElementById('wonProjectsCard');
+    const quotedProjectsCard = document.getElementById('quotedProjectsCard');
     const updatedProjectsCard = document.getElementById('updatedProjectsCard');
+    
+    // 新增的阶段卡片
+    const discoverProjectsCard = document.getElementById('discoverProjectsCard');
+    const embedProjectsCard = document.getElementById('embedProjectsCard');
+    const preTenderProjectsCard = document.getElementById('preTenderProjectsCard');
+    const lostProjectsCard = document.getElementById('lostProjectsCard');
+    const pausedProjectsCard = document.getElementById('pausedProjectsCard');
     
     // 获取URL参数
     const params = new URLSearchParams(window.location.search);
@@ -754,21 +972,35 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // 设置招标中项目卡片状态
-    if (tenderingProjectsCard) {
-        if (currentStageFilter === 'tendering') {
-            tenderingProjectsCard.classList.add('active-filter');
-        } else {
-            tenderingProjectsCard.classList.remove('active-filter');
-        }
-    }
+    // 移除所有阶段卡片的选中状态
+    const allStageCards = [tenderingProjectsCard, wonProjectsCard, quotedProjectsCard, 
+                          discoverProjectsCard, embedProjectsCard, preTenderProjectsCard, 
+                          lostProjectsCard, pausedProjectsCard];
     
-    // 设置中标项目卡片状态
-    if (wonProjectsCard) {
-        if (currentStageFilter === 'awarded') {
-            wonProjectsCard.classList.add('active-filter');
-        } else {
-            wonProjectsCard.classList.remove('active-filter');
+    allStageCards.forEach(card => {
+        if (card) {
+            card.classList.remove('active-filter');
+            card.classList.remove('stage-card-selected');
+        }
+    });
+    
+    // 根据当前阶段过滤器设置对应的卡片选中状态
+    if (currentStageFilter) {
+        const stageToCardMap = {
+            'tendering': tenderingProjectsCard,
+            'awarded': wonProjectsCard,
+            'quoted': quotedProjectsCard,
+            'discover': discoverProjectsCard,
+            'embed': embedProjectsCard,
+            'pre_tender': preTenderProjectsCard,
+            'lost': lostProjectsCard,
+            'paused': pausedProjectsCard
+        };
+        
+        const selectedCard = stageToCardMap[currentStageFilter];
+        if (selectedCard) {
+            selectedCard.classList.add('active-filter');
+            selectedCard.classList.add('stage-card-selected');
         }
     }
     
@@ -942,9 +1174,21 @@ function clientSideFilter(filters) {
                 const stageName = stageCell.textContent.trim();
                 let match = false;
                 
-                if (filters.currentStage === 'tendering' && stageName.includes('招标中')) {
+                if (filters.currentStage === 'discover' && stageName.includes('发现')) {
+                    match = true;
+                } else if (filters.currentStage === 'embed' && stageName.includes('植入')) {
+                    match = true;
+                } else if (filters.currentStage === 'pre_tender' && stageName.includes('招标前')) {
+                    match = true;
+                } else if (filters.currentStage === 'tendering' && stageName.includes('招标中')) {
                     match = true;
                 } else if (filters.currentStage === 'awarded' && stageName.includes('中标')) {
+                    match = true;
+                } else if (filters.currentStage === 'quoted' && stageName.includes('批价')) {
+                    match = true;
+                } else if (filters.currentStage === 'lost' && stageName.includes('失败')) {
+                    match = true;
+                } else if (filters.currentStage === 'paused' && stageName.includes('搁置')) {
                     match = true;
                 }
                 
@@ -1049,9 +1293,21 @@ function clientSideFilter(filters) {
                 const stageName = stageBadge.textContent.trim();
                 let match = false;
                 
-                if (filters.currentStage === 'tendering' && stageName.includes('招标中')) {
+                if (filters.currentStage === 'discover' && stageName.includes('发现')) {
+                    match = true;
+                } else if (filters.currentStage === 'embed' && stageName.includes('植入')) {
+                    match = true;
+                } else if (filters.currentStage === 'pre_tender' && stageName.includes('招标前')) {
+                    match = true;
+                } else if (filters.currentStage === 'tendering' && stageName.includes('招标中')) {
                     match = true;
                 } else if (filters.currentStage === 'awarded' && stageName.includes('中标')) {
+                    match = true;
+                } else if (filters.currentStage === 'quoted' && stageName.includes('批价')) {
+                    match = true;
+                } else if (filters.currentStage === 'lost' && stageName.includes('失败')) {
+                    match = true;
+                } else if (filters.currentStage === 'paused' && stageName.includes('搁置')) {
                     match = true;
                 }
                 
@@ -1204,7 +1460,13 @@ function clearAllCardFilters() {
         document.getElementById('validProjectsCard'),
         document.getElementById('tenderingProjectsCard'),
         document.getElementById('wonProjectsCard'),
-        document.getElementById('updatedProjectsCard')
+        document.getElementById('quotedProjectsCard'),
+        document.getElementById('updatedProjectsCard'),
+        document.getElementById('discoverProjectsCard'),
+        document.getElementById('embedProjectsCard'),
+        document.getElementById('preTenderProjectsCard'),
+        document.getElementById('lostProjectsCard'),
+        document.getElementById('pausedProjectsCard')
     ];
     
     cards.forEach(card => {
@@ -1243,4 +1505,50 @@ window.clearAllCardFilters = clearAllCardFilters;
 
 // 将恢复函数暴露给全局，以便主页面可以调用
 window.restoreAllRecords = restoreAllRecords;
+
+/**
+ * 检查URL参数并设置阶段卡片的选中状态
+ */
+function checkAndSetStageCardSelection() {
+    const currentUrl = new URL(window.location.href);
+    const params = new URLSearchParams(currentUrl.search);
+    const currentStage = params.get('filter_current_stage');
+    
+    // 阶段到卡片ID的映射
+    const stageToCardMap = {
+        'discover': 'discoverProjectsCard',
+        'embed': 'embedProjectsCard',
+        'pre_tender': 'preTenderProjectsCard',
+        'tendering': 'tenderingProjectsCard',
+        'awarded': 'wonProjectsCard',
+        'quoted': 'quotedProjectsCard',
+        'lost': 'lostProjectsCard',
+        'paused': 'pausedProjectsCard'
+    };
+    
+    // 移除所有阶段卡片的选中状态
+    Object.values(stageToCardMap).forEach(cardId => {
+        const card = document.getElementById(cardId);
+        if (card) {
+            card.classList.remove('stage-card-selected');
+        }
+    });
+    
+    // 如果URL中有当前阶段参数，设置对应卡片为选中状态
+    if (currentStage && stageToCardMap[currentStage]) {
+        const selectedCard = document.getElementById(stageToCardMap[currentStage]);
+        if (selectedCard) {
+            selectedCard.classList.add('stage-card-selected');
+        }
+    }
+}
+
+// 页面加载完成后检查并设置选中状态
+document.addEventListener('DOMContentLoaded', function() {
+    // 延迟执行，确保所有元素都已渲染
+    setTimeout(checkAndSetStageCardSelection, 100);
+});
+
+// 将函数暴露给全局，以便外部调用
+window.checkAndSetStageCardSelection = checkAndSetStageCardSelection;
 </script> 

@@ -99,6 +99,7 @@ def get_object_type_display(object_type):
         'project': '项目',
         'quotation': '报价单',
         'customer': '客户',
+        'pricing_order': '批价单',
     }
     
     return type_map.get(object_type, object_type)
@@ -122,4 +123,52 @@ def get_user_display_name(user):
     elif hasattr(user, 'username'):
         return user.username
     else:
-        return str(user) 
+        return str(user)
+
+
+def render_standard_tabs(tabs, current_tab, base_url, extra_params=None):
+    """渲染标准页签
+    
+    Args:
+        tabs: 页签列表，每个元素为字典 {'key': 'tab_key', 'label': '页签名称', 'icon': 'fas fa-icon'}
+        current_tab: 当前激活的页签key
+        base_url: 基础URL（不含参数）
+        extra_params: 额外的URL参数字典
+        
+    Returns:
+        HTML页签元素字符串
+    """
+    if extra_params is None:
+        extra_params = {}
+    
+    tab_html = '<ul class="nav nav-tabs card-header-tabs" role="tablist">'
+    
+    for tab in tabs:
+        tab_key = tab['key']
+        tab_label = tab['label']
+        tab_icon = tab.get('icon', '')
+        
+        # 构建URL参数
+        url_params = {'tab': tab_key}
+        url_params.update(extra_params)
+        
+        # 构建完整URL
+        param_str = '&'.join([f'{k}={v}' for k, v in url_params.items()])
+        full_url = f'{base_url}?{param_str}'
+        
+        # 判断是否为当前激活页签
+        active_class = 'active' if tab_key == current_tab else ''
+        
+        # 图标HTML
+        icon_html = f'<i class="{tab_icon} me-1"></i>' if tab_icon else ''
+        
+        tab_html += f'''
+        <li class="nav-item">
+            <a class="nav-link {active_class}" href="{full_url}" role="tab">
+                {icon_html}{tab_label}
+            </a>
+        </li>
+        '''
+    
+    tab_html += '</ul>'
+    return tab_html 

@@ -124,11 +124,6 @@ def save_product_pdf(file):
 # 处理图片上传、调整大小并保存
 def process_product_image(file):
     if file and allowed_file(file.filename):
-        # 验证文件名是否为英文
-        if not validate_english_filename(file.filename):
-            logger.warning(f"文件名包含非英文字符: {file.filename}")
-            return None
-            
         try:
             # 检查文件大小（最大5MB）
             file.seek(0, 2)  # 移动到文件末尾
@@ -138,10 +133,21 @@ def process_product_image(file):
                 logger.warning(f"图片文件过大: {file_size} bytes (最大5MB)")
                 return None
             
-            # 生成安全的唯一文件名
-            original_filename = secure_filename(file.filename)
-            extension = original_filename.rsplit('.', 1)[1].lower()
-            unique_filename = f"{uuid.uuid4().hex}.{extension}"
+            # 处理文件名，支持中文字符
+            original_filename = file.filename
+            # 获取文件扩展名
+            if '.' in original_filename:
+                name_part, extension = original_filename.rsplit('.', 1)
+                extension = extension.lower()
+            else:
+                name_part = original_filename
+                extension = 'jpg'  # 默认扩展名
+            
+            # 生成唯一文件名，保留原始文件名（包括中文）
+            import re
+            # 移除文件名中的特殊字符，但保留中文、英文、数字、下划线、连字符
+            safe_name = re.sub(r'[^\w\u4e00-\u9fff\-_.]', '_', name_part)
+            unique_filename = f"{uuid.uuid4().hex}_{safe_name}.{extension}"
             
             logger.debug(f"处理图片: {original_filename} -> {unique_filename}, 大小: {file_size} bytes")
             

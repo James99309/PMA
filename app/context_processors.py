@@ -10,6 +10,7 @@ from app.helpers.approval_helpers import (
     get_available_templates,
     can_user_approve,
     get_current_step_info,
+    get_last_approver,
     get_object_type_display,
     get_rejected_approval_history,
     get_template_steps,
@@ -23,7 +24,8 @@ from app.helpers.ui_helpers import (
     render_action_button, 
     render_user_badge, 
     get_user_display_name,
-    render_filter_button
+    render_filter_button,
+    render_standard_tabs
 )
 from app.models.approval import ApprovalStatus
 from app.utils.dictionary_helpers import PROJECT_STAGE_LABELS
@@ -53,20 +55,37 @@ def inject_approval_functions():
         get_available_templates,
         can_user_approve,
         get_current_step_info,
+        get_last_approver,
         get_object_type_display,
         get_rejected_approval_history,
         get_template_steps,
         get_workflow_steps,
         render_approval_code,
-        get_approval_object_url
+        get_approval_object_url,
+        get_quotation_by_id,
+        get_customer_by_id
     )
     from app.models.approval import ApprovalStatus
     from app.helpers.ui_helpers import (
         render_user_badge,
         get_user_display_name,
         format_datetime,
-        render_filter_button
+        render_filter_button,
+        render_standard_tabs
     )
+    from app.utils.filters import format_datetime_local
+    
+    def get_pricing_order_by_id(pricing_order_id):
+        """从数据库获取批价单详情，供模板使用
+        
+        Args:
+            pricing_order_id: 批价单ID
+            
+        Returns:
+            批价单对象，如果不存在则返回None
+        """
+        from app.models.pricing_order import PricingOrder
+        return PricingOrder.query.get(pricing_order_id)
     
     return {
         'check_template_in_use': check_template_in_use,
@@ -74,17 +93,23 @@ def inject_approval_functions():
         'get_available_templates': get_available_templates,
         'can_user_approve': can_user_approve,
         'get_current_step_info': get_current_step_info,
+        'get_last_approver': get_last_approver,
         'ApprovalStatus': ApprovalStatus,
         'get_object_type_display': get_object_type_display,
         'render_user_badge': render_user_badge,
         'get_user_display_name': get_user_display_name,
         'format_datetime': format_datetime,
+        'format_datetime_local': format_datetime_local,
         'render_filter_button': render_filter_button,
+        'render_standard_tabs': render_standard_tabs,
         'get_rejected_approval_history': get_rejected_approval_history,
         'get_template_steps': get_template_steps,
         'get_workflow_steps': get_workflow_steps,
         'render_approval_code': render_approval_code,
         'get_approval_object_url': get_approval_object_url,
+        'get_quotation_by_id': get_quotation_by_id,
+        'get_customer_by_id': get_customer_by_id,
+        'get_pricing_order_by_id': get_pricing_order_by_id,
     }
 
 # 添加项目相关的上下文处理器
