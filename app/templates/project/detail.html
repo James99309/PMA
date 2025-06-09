@@ -905,7 +905,7 @@ function generateExpandedScoringCategoriesHtml(data) {
         // 计算该分类的最大可能得分
         let maxPossibleScore = 1.0; // 默认值
         if (category === 'information') {
-            maxPossibleScore = 0.5; // 信息完整性最多0.5分
+            maxPossibleScore = 0.5; // 信息完整性最多0.5分（阈值逻辑）
         } else if (category === 'quotation') {
             maxPossibleScore = 0.5; // 报价完整性最多0.5分
         } else if (category === 'stage') {
@@ -916,17 +916,16 @@ function generateExpandedScoringCategoriesHtml(data) {
         
             html += `
             <div class="col-md-6 mb-4">
-                <div class="card h-100" style="border: none; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-                    <div class="card-header text-center" style="background-color: white; border-bottom: 1px solid #e9ecef; border-radius: 12px 12px 0 0;">
-                        <h6 class="mb-2 text-dark">${categoryInfo.label}</h6>
-                        <div class="mb-2">
+                <div class="card h-100" style="border: none; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); max-width: 100%;">
+                    <div class="card-header text-center" style="background-color: white; border-bottom: 1px solid #e9ecef; border-radius: 12px 12px 0 0; padding: 1rem;">
+                        <h6 class="mb-2 text-dark" style="font-size: 0.95rem;">${categoryInfo.label}</h6>
+                        <div class="mb-2" style="display: flex; justify-content: center; flex-wrap: wrap;">
                             ${generateCategoryStarsHtml(categoryInfo.score, maxPossibleScore)}
                         </div>
                     </div>
-                    <div class="card-body" style="background-color: white; border-radius: 0 0 12px 12px;">
-                        <div class="row g-2">
+                    <div class="card-body" style="background-color: white; border-radius: 0 0 12px 12px; padding: 1rem; overflow: hidden;">
+                        <div class="row g-2" style="margin: 0;">
                             ${generateCategoryItemsHtml(categoryInfo.items, categoryRecords, category, categoryInfo.score)}
-                        </div>
                         </div>
                     </div>
                 </div>
@@ -938,27 +937,32 @@ function generateExpandedScoringCategoriesHtml(data) {
 }
 
 // 生成分类星级HTML - 根据分类最大得分显示对应数量的星星
-function generateCategoryStarsHtml(score, maxScore = 1.0) {
+function generateCategoryStarsHtml(score, maxScore) {
+    maxScore = maxScore || 1.0;
     let html = '';
     const ratingFloat = parseFloat(score);
     
-    // 根据最大得分计算星星数量
-    const maxStars = Math.ceil(maxScore * 2); // 每0.5分一颗星
+    // 计算完整星星数量
+    const fullStars = Math.floor(ratingFloat);
+    // 计算是否有半星
+    const hasHalfStar = (ratingFloat % 1) >= 0.5;
+    // 计算最大星星数量
+    const maxStarsCount = Math.ceil(maxScore);
     
-    // 分数转换为星星：0.5分=1星，1.0分=2星，1.5分=3星
-    const scoreInHalfStars = ratingFloat * 2; // 将分数转为半星单位
+    // 生成完整星星
+    for (let i = 0; i < fullStars; i++) {
+        html += '<i class="fas fa-star" style="color: #ffc107; font-size: 1.2rem; margin-right: 2px;"></i>';
+    }
     
-    for (let i = 1; i <= maxStars; i++) {
-        if (i <= Math.floor(scoreInHalfStars)) {
-            // 完整星星
-            html += `<i class="fas fa-star" style="color: #ffc107; font-size: 1.2rem; margin-right: 2px;"></i>`;
-        } else if (i === Math.floor(scoreInHalfStars) + 1 && scoreInHalfStars % 1 >= 0.5) {
-            // 半星
-            html += `<i class="fas fa-star-half-alt" style="color: #ffc107; font-size: 1.2rem; margin-right: 2px;"></i>`;
-        } else {
-            // 空星
-            html += `<i class="far fa-star" style="color: #dee2e6; font-size: 1.2rem; margin-right: 2px;"></i>`;
-        }
+    // 生成半星
+    if (hasHalfStar && fullStars < maxStarsCount) {
+        html += '<i class="fas fa-star-half-alt" style="color: #ffc107; font-size: 1.2rem; margin-right: 2px;"></i>';
+    }
+    
+    // 生成空星
+    const totalShownStars = fullStars + (hasHalfStar ? 1 : 0);
+    for (let i = totalShownStars; i < maxStarsCount; i++) {
+        html += '<i class="far fa-star" style="color: #dee2e6; font-size: 1.2rem; margin-right: 2px;"></i>';
     }
     
     return html;
@@ -1027,7 +1031,12 @@ function generateCategoryItemsHtml(items, records, category = '', score = 0) {
                 }
             } else {
                 // 检查该项目是否有得分记录
-                hasRecord = records.some(record => record.field_name === item.key && record.score_value > 0);
+                // 特殊处理报价完整性：如果分类得分大于0，说明报价单存在
+                if (category === 'quotation') {
+                    hasRecord = score > 0; // 直接根据分类得分判断
+                } else {
+                    hasRecord = records.some(record => record.field_name === item.key && record.score_value > 0);
+                }
             }
             
             html += `

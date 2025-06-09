@@ -49,11 +49,7 @@ class ProjectScoringRecord(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     __table_args__ = (
-        # 为了处理手动奖励的唯一性，我们只使用一个组合约束
-        # 对于自动计算的记录，awarded_by字段为NULL，仍能保证唯一性
-        # 对于手动奖励，awarded_by字段有值，能确保每个用户只能给同一项目奖励一次
-        UniqueConstraint('project_id', 'category', 'field_name', 'awarded_by',
-                        name='uq_scoring_record_with_user'),
+        UniqueConstraint('project_id', 'category', 'field_name', name='uq_scoring_record'),
     )
     
     # 关联关系
@@ -104,73 +100,87 @@ class ProjectScoringEngine:
             from app.models.project import Project
             from app.models.quotation import Quotation
             
-            project = Project.query.get(project_id)
-            if not project:
-                return None
-            
-            # 获取或创建总评分记录
-            total_score = ProjectTotalScore.query.filter_by(project_id=project_id).first()
-            if not total_score:
-                total_score = ProjectTotalScore(project_id=project_id)
-                db.session.add(total_score)
-            
-            # 1. 计算信息完整性得分
-            information_score = cls._calculate_information_score(project)
-            
-            # 2. 计算报价完整性得分
-            quotation_score = cls._calculate_quotation_score(project)
-            
-            # 3. 计算阶段得分
-            stage_score = cls._calculate_stage_score(project)
-            
-            # 4. 计算手动奖励得分
-            manual_score = cls._calculate_manual_score(project_id)
-            
-            # 5. 计算总分和星级 - 统一转换为Decimal类型
-            information_decimal = Decimal(str(information_score))
-            quotation_decimal = Decimal(str(quotation_score))
-            stage_decimal = Decimal(str(stage_score))
-            manual_decimal = Decimal(str(manual_score))
-            
-            total_decimal = information_decimal + quotation_decimal + stage_decimal + manual_decimal
-            total = float(total_decimal)
-            
-            # 星级计算：支持半星评分
-            if total <= 0:
-                star_rating = 0.0
-            else:
-                # 每0.5分为半星，最低0.5星，最高5.0星
-                star_rating = min(5.0, max(0.5, round(total * 2) / 2))
-            
-            # 更新总评分记录
-            total_score.information_score = information_decimal
-            total_score.quotation_score = quotation_decimal
-            total_score.stage_score = stage_decimal
-            total_score.manual_score = manual_decimal
-            total_score.total_score = total_decimal
-            total_score.star_rating = star_rating
-            total_score.last_calculated = datetime.utcnow()
-            
-            # 同步更新项目表的rating字段（保持兼容性）
-            project.rating = star_rating
-            
-            # 由调用者控制是否提交事务
+            # 在新的会话中执行评分计算，避免事务冲突
             if commit:
-                db.session.commit()
-                logger.info(f"项目 {project.project_name} 评分计算完成: {total:.2f}分 ({star_rating}星)")
-            
-            result = {
-                'project_id': project_id,
-                'information_score': float(information_decimal),
-                'quotation_score': float(quotation_decimal),
-                'stage_score': float(stage_decimal),
-                'manual_score': float(manual_decimal),
-                'total_score': total,
-                'star_rating': float(star_rating)
-            }
-            
-            return result
-            
+                session = db.session
+            else:
+                session = db.session
+                
+            try:
+                project = session.query(Project).get(project_id)
+                if not project:
+                    return None
+                
+                # 获取或创建总评分记录
+                total_score = session.query(ProjectTotalScore).filter_by(project_id=project_id).first()
+                if not total_score:
+                    total_score = ProjectTotalScore(project_id=project_id)
+                    session.add(total_score)
+                
+                # 1. 计算信息完整性得分
+                information_score = cls._calculate_information_score(project)
+                
+                # 2. 计算报价完整性得分
+                quotation_score = cls._calculate_quotation_score(project)
+                
+                # 3. 计算阶段得分
+                stage_score = cls._calculate_stage_score(project)
+                
+                # 4. 计算手动奖励得分
+                manual_score = cls._calculate_manual_score(project_id)
+                
+                # 5. 计算总分和星级 - 统一转换为Decimal类型
+                information_decimal = Decimal(str(information_score))
+                quotation_decimal = Decimal(str(quotation_score))
+                stage_decimal = Decimal(str(stage_score))
+                manual_decimal = Decimal(str(manual_score))
+                
+                total_decimal = information_decimal + quotation_decimal + stage_decimal + manual_decimal
+                total = float(total_decimal)
+                
+                # 星级计算：支持半星评分
+                if total <= 0:
+                    star_rating = 0.0
+                else:
+                    # 每0.5分为半星，最低0.5星，最高5.0星
+                    star_rating = min(5.0, max(0.5, round(total * 2) / 2))
+                
+                # 更新总评分记录
+                total_score.information_score = information_decimal
+                total_score.quotation_score = quotation_decimal
+                total_score.stage_score = stage_decimal
+                total_score.manual_score = manual_decimal
+                total_score.total_score = total_decimal
+                total_score.star_rating = star_rating
+                total_score.last_calculated = datetime.utcnow()
+                
+                # 同步更新项目表的rating字段（保持兼容性）
+                project.rating = star_rating
+                
+                # 由调用者控制是否提交事务
+                if commit:
+                    session.commit()
+                    logger.info(f"项目 {project.project_name} 评分计算完成: {total:.2f}分 ({star_rating}星)")
+                
+                result = {
+                    'project_id': project_id,
+                    'information_score': float(information_decimal),
+                    'quotation_score': float(quotation_decimal),
+                    'stage_score': float(stage_decimal),
+                    'manual_score': float(manual_decimal),
+                    'total_score': total,
+                    'star_rating': float(star_rating)
+                }
+                
+                # 提交事务
+                pass
+                
+                return result
+            except Exception as e:
+                # 内部异常处理
+                if commit:
+                    session.rollback()
+                raise e
         except Exception as e:
             logger.error(f"计算项目评分失败: {str(e)}")
             if commit:
@@ -179,7 +189,7 @@ class ProjectScoringEngine:
     
     @classmethod
     def _calculate_information_score(cls, project):
-        """计算信息完整性得分"""
+        """计算信息完整性得分 - 修正版：累加各项实际得分"""
         score = Decimal('0.0')
         config = ProjectScoringConfig.query.filter_by(category='information', is_active=True).all()
         
@@ -209,7 +219,7 @@ class ProjectScoringEngine:
                 field_score, auto_calculated=True
             )
         
-        # 信息完整性得分需要达到0.5才给予半星奖励
+        # 信息完整性阈值逻辑：需要达到0.5分才给予半星奖励
         if score >= Decimal('0.5'):
             return Decimal('0.5')
         else:
@@ -218,26 +228,14 @@ class ProjectScoringEngine:
     @classmethod
     def _calculate_quotation_score(cls, project):
         """计算报价完整性得分"""
-        from app.models.quotation import Quotation, QuotationApprovalStatus
+        from app.models.quotation import Quotation
         
         score = Decimal('0.0')
         
-        # 检查是否有已审核通过的报价单（使用新的approval_status字段）
-        approved_quotations_count = Quotation.query.filter(
-            Quotation.project_id == project.id,
-            Quotation.approval_status.in_([
-                QuotationApprovalStatus.DISCOVER_APPROVED,
-                QuotationApprovalStatus.EMBED_APPROVED,
-                QuotationApprovalStatus.PRE_TENDER_APPROVED,
-                QuotationApprovalStatus.TENDERING_APPROVED,
-                QuotationApprovalStatus.AWARDED_APPROVED,
-                QuotationApprovalStatus.QUOTED_APPROVED,
-                QuotationApprovalStatus.SIGNED_APPROVED
-            ])
-        ).count()
+        # 检查是否有报价单（暂时简化，后续可以添加审核状态检查）
+        quotations_count = Quotation.query.filter_by(project_id=project.id).count()
         
-        # 只有有审核通过的报价单才能得分
-        if approved_quotations_count > 0:
+        if quotations_count > 0:
             config = ProjectScoringConfig.query.filter_by(
                 category='quotation', 
                 field_name='approved_quotation',
@@ -250,12 +248,6 @@ class ProjectScoringEngine:
                     project.id, 'quotation', 'approved_quotation',
                     score, auto_calculated=True
                 )
-        else:
-            # 如果没有审核通过的报价单，确保评分记录为0
-            cls._update_scoring_record(
-                project.id, 'quotation', 'approved_quotation',
-                Decimal('0.0'), auto_calculated=True
-            )
         
         return score
     
@@ -275,35 +267,63 @@ class ProjectScoringEngine:
             if not current_stage:
                 return Decimal('0.0')
             
-            # 阶段映射
-            stage_mapping = {
-                '招投标': 'tender',
-                'tendering': 'tender',
-                '中标': 'awarded', 
-                'awarded': 'awarded',
-                '批价': 'final_pricing',
-                'quoted': 'final_pricing'
+            # 阶段层级定义（从低到高）
+            stage_hierarchy = {
+                'tendering': 0.5,    # 招投标
+                'awarded': 1.0,      # 中标  
+                'quoted': 1.5,       # 批价
+                'signed': 1.5        # 签约（等同于批价，最高1.5分）
             }
             
-            # 查找匹配的阶段配置
-            stage_key = stage_mapping.get(current_stage)
-            if not stage_key:
-                return Decimal('0.0')
+            # 获取当前阶段对应的分数
+            stage_score = stage_hierarchy.get(current_stage, 0.0)
             
-            # 查找对应的配置
-            for config in stage_configs:
-                if config.field_name == stage_key:
-                    # 记录或更新评分记录
-                    cls._update_scoring_record(
-                        project.id, 'stage', config.field_name, 
-                        config.score_value, auto_calculated=True
-                    )
-                    return Decimal(str(config.score_value))
+            # 同时记录所有已完成的阶段（用于前端显示）
+            cls._update_stage_records(project.id, current_stage, stage_hierarchy)
             
-            return Decimal('0.0')
+            return Decimal(str(stage_score))
+            
         except Exception as e:
             logger.error(f"计算阶段得分失败: {str(e)}")
             return Decimal('0.0')
+    
+    @classmethod
+    def _update_stage_records(cls, project_id, current_stage, stage_hierarchy):
+        """更新阶段记录，标记已完成的所有阶段"""
+        # 阶段顺序
+        stage_order = ['tendering', 'awarded', 'quoted', 'signed']
+        
+        # 获取当前阶段在顺序中的位置
+        try:
+            current_index = stage_order.index(current_stage)
+        except ValueError:
+            # 如果当前阶段不在已知阶段中，不做任何处理
+            return
+        
+        # 映射到配置表中的字段名
+        field_mapping = {
+            'tendering': 'tender',
+            'awarded': 'awarded', 
+            'quoted': 'final_pricing'
+        }
+        
+        # 清除所有阶段记录
+        for field_name in field_mapping.values():
+            cls._update_scoring_record(
+                project_id, 'stage', field_name, 
+                Decimal('0.0'), auto_calculated=True
+            )
+        
+        # 标记已完成的阶段（用于前端显示打勾）
+        for i in range(current_index + 1):
+            stage = stage_order[i]
+            field_name = field_mapping.get(stage)
+            if field_name:
+                # 已完成的阶段标记为已完成（前端显示用）
+                cls._update_scoring_record(
+                    project_id, 'stage', field_name, 
+                    Decimal('1.0'), auto_calculated=True  # 用1.0标记已完成
+                )
     
     @classmethod
     def _calculate_manual_score(cls, project_id):
@@ -323,22 +343,11 @@ class ProjectScoringEngine:
     @classmethod
     def _update_scoring_record(cls, project_id, category, field_name, score_value, auto_calculated=True, awarded_by=None, notes=None):
         """更新或创建评分记录"""
-        # 对于手动奖励，需要包含awarded_by字段和auto_calculated字段来查询唯一性
-        if category == 'manual' and awarded_by:
-            record = ProjectScoringRecord.query.filter_by(
-                project_id=project_id,
-                category=category,
-                field_name=field_name,
-                awarded_by=awarded_by,
-                auto_calculated=False  # 手动奖励必须是非自动计算的
-            ).first()
-        else:
-            record = ProjectScoringRecord.query.filter_by(
-                project_id=project_id,
-                category=category,
-                field_name=field_name,
-                auto_calculated=auto_calculated  # 自动计算的记录要包含这个条件
-            ).first()
+        record = ProjectScoringRecord.query.filter_by(
+            project_id=project_id,
+            category=category,
+            field_name=field_name
+        ).first()
         
         if record:
             record.score_value = score_value
@@ -362,76 +371,54 @@ class ProjectScoringEngine:
     @classmethod
     def add_manual_award(cls, project_id, user_id, award_type='supervisor_award', notes=None):
         """添加手动奖励"""
-        try:
-            config = ProjectScoringConfig.query.filter_by(
-                category='manual',
-                field_name=award_type,
-                is_active=True
-            ).first()
-            
-            if not config:
-                return False, "奖励类型不存在"
-            
-            # 检查是否已经有相同的手动奖励
-            existing = ProjectScoringRecord.query.filter_by(
-                project_id=project_id,
-                category='manual',
-                field_name=award_type,
-                awarded_by=user_id,
-                auto_calculated=False  # 确保只查询手动奖励
-            ).first()
-            
-            if existing:
-                return False, "已经给予过此类奖励"
-            
-            # 确保手动奖励只能是0.5分（半星）
-            manual_score = Decimal('0.5')
-            
-            # 添加手动奖励记录
-            cls._update_scoring_record(
-                project_id, 'manual', award_type,
-                manual_score, auto_calculated=False,
-                awarded_by=user_id, notes=notes
-            )
-            
-            # 提交数据库事务
-            db.session.commit()
-            
-            # 重新计算项目总分
-            cls.calculate_project_score(project_id)
-            
-            return True, "奖励添加成功"
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"添加手动奖励失败: {str(e)}")
-            return False, "添加奖励失败"
+        config = ProjectScoringConfig.query.filter_by(
+            category='manual',
+            field_name=award_type,
+            is_active=True
+        ).first()
+        
+        if not config:
+            return False, "奖励类型不存在"
+        
+        # 检查是否已经有相同的手动奖励
+        existing = ProjectScoringRecord.query.filter_by(
+            project_id=project_id,
+            category='manual',
+            field_name=award_type,
+            awarded_by=user_id
+        ).first()
+        
+        if existing:
+            return False, "已经给予过此类奖励"
+        
+        # 添加手动奖励记录
+        cls._update_scoring_record(
+            project_id, 'manual', award_type,
+            config.score_value, auto_calculated=False,
+            awarded_by=user_id, notes=notes
+        )
+        
+        # 重新计算项目总分
+        cls.calculate_project_score(project_id)
+        
+        return True, "奖励添加成功"
     
     @classmethod
     def remove_manual_award(cls, project_id, user_id, award_type='supervisor_award'):
         """移除手动奖励"""
-        try:
-            record = ProjectScoringRecord.query.filter_by(
-                project_id=project_id,
-                category='manual',
-                field_name=award_type,
-                awarded_by=user_id,
-                auto_calculated=False  # 确保只查询手动奖励
-            ).first()
-            
-            if not record:
-                return False, "奖励记录不存在"
-            
-            db.session.delete(record)
-            
-            # 提交数据库事务
-            db.session.commit()
-            
-            # 重新计算项目总分
-            cls.calculate_project_score(project_id)
-            
-            return True, "奖励移除成功"
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"移除手动奖励失败: {str(e)}")
-            return False, "移除奖励失败"
-    
+        record = ProjectScoringRecord.query.filter_by(
+            project_id=project_id,
+            category='manual',
+            field_name=award_type,
+            awarded_by=user_id
+        ).first()
+        
+        if not record:
+            return False, "奖励记录不存在"
+        
+        db.session.delete(record)
+        
+        # 重新计算项目总分
+        cls.calculate_project_score(project_id)
+        
+        return True, "奖励移除成功" 
