@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_quotation_number, render_currency, render_project_stage, render_button, render_confirm_cancel %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_quotation_number, render_currency, render_project_stage, render_button, render_confirm_cancel, render_confirmation_badge %}
 {% from 'macros/ui_modals.html' import render_change_owner_modal %}
 {% from 'macros/approval_macros.html' import render_start_approval_button, render_approval_section with context %}
 
@@ -99,67 +99,28 @@
     background-color: #f8f9fa;
 }
 
-/* 产品明细确认徽章样式 */
-.product-detail-confirmation-badge {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: 2px solid #28a745;
-    background-color: #fff;
+/* 标准确认徽章点击区域样式 */
+.confirmation-badge-container {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
+    margin-left: 8px;
     cursor: pointer;
-    transition: all 0.3s ease;
-    font-size: 16px;
-    color: #28a745;
-    user-select: none;
-    margin-left: 12px;
     position: relative;
 }
 
-/* 未确认状态显示问号 */
-.product-detail-confirmation-badge::before {
-    content: '?';
-    font-weight: bold;
-}
-
-.product-detail-confirmation-badge.confirmed {
-    background-color: #28a745;
-    color: #fff;
-}
-
-.product-detail-confirmation-badge.confirmed::before {
-    content: '✓';
-    font-weight: bold;
-}
-
-.product-detail-confirmation-badge:hover {
-    transform: scale(1.1);
-    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
-}
-
-.product-detail-confirmation-badge.disabled {
+.confirmation-badge-container.disabled {
     cursor: not-allowed;
     opacity: 0.6;
-    border-color: #6c757d;
-    color: #6c757d;
 }
 
-.product-detail-confirmation-badge.disabled:hover {
-    transform: none;
-    box-shadow: none;
-}
-
-/* 确认状态指示器 */
-.confirmation-status {
+.confirmation-badge-container .confirmation-status {
     font-size: 12px;
     color: #6c757d;
     margin-left: 8px;
     font-weight: normal;
 }
 
-.confirmation-status.confirmed {
+.confirmation-badge-container .confirmation-status.confirmed {
     color: #28a745;
 }
 </style>
@@ -192,9 +153,6 @@
                                 </h5>
                                 <div class="ms-3 mt-1">
                                     {{ render_quotation_number(quotation.quotation_number, size="large") }}
-                                    {% if quotation.confirmation_badge_html %}
-                                        <span class="ms-2">{{ quotation.confirmation_badge_html|safe }}</span>
-                                    {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -306,16 +264,21 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <div class="d-flex align-items-center">
                             <h6 class="mb-0">产品明细</h6>
-                            <!-- 产品明细确认徽章 -->
-                            <span class="product-detail-confirmation-badge {% if current_user.role not in ['solution_manager', 'admin'] %}disabled{% endif %}" 
-                                  id="product-detail-confirmation-badge"
-                                  data-quotation-id="{{ quotation.id }}" 
-                                  data-confirmed="false"
-                                  title="{% if current_user.role in ['solution_manager', 'admin'] %}点击确认产品明细{% else %}仅解决方案经理和管理员可以确认{% endif %}">
-                            </span>
-                            <span class="confirmation-status" id="confirmation-status">
-                                未确认
-                            </span>
+                            <!-- 使用标准徽章替代自定义徽章 -->
+                            <div class="confirmation-badge-container {% if current_user.role not in ['solution_manager', 'admin'] %}disabled{% endif %}" 
+                                 id="confirmation-badge-container"
+                                 data-quotation-id="{{ quotation.id }}"
+                                 title="{% if current_user.role in ['solution_manager', 'admin'] %}点击确认产品明细{% else %}仅解决方案经理和管理员可以确认{% endif %}">
+                                <!-- 初始徽章显示：如果已确认显示绿色徽章，如果未确认且有权限显示空心徽章 -->
+                                {% if quotation.confirmation_badge_status == 'confirmed' %}
+                                    {{ render_confirmation_badge(quotation, "产品明细已确认") }}
+                                {% elif current_user.role in ['solution_manager', 'admin'] %}
+                                    {{ render_confirmation_badge(quotation, "产品明细已确认", show_unconfirmed=true) }}
+                                {% endif %}
+                                <span class="confirmation-status" id="confirmation-status">
+                                    {% if quotation.confirmation_badge_status == 'confirmed' %}已确认{% else %}未确认{% endif %}
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -495,25 +458,25 @@ function deleteQuotation(id) {
 
 // 产品明细确认徽章初始化
 function initProductDetailConfirmationBadge() {
-    const badge = document.getElementById('product-detail-confirmation-badge');
+    const badgeContainer = document.getElementById('confirmation-badge-container');
     const statusText = document.getElementById('confirmation-status');
     
-    if (!badge) return;
+    if (!badgeContainer) return;
     
-    const quotationId = badge.getAttribute('data-quotation-id');
+    const quotationId = badgeContainer.getAttribute('data-quotation-id');
     
     // 获取当前确认状态
     loadConfirmationStatus(quotationId);
     
     // 如果用户没有权限，则禁用点击
     if (!userConfig.canConfirm) {
-        badge.classList.add('disabled');
+        badgeContainer.classList.add('disabled');
         return;
     }
     
     // 添加点击事件
-    badge.addEventListener('click', function() {
-        if (badge.classList.contains('disabled')) {
+    badgeContainer.addEventListener('click', function() {
+        if (badgeContainer.classList.contains('disabled')) {
             return;
         }
         
@@ -569,39 +532,56 @@ function loadConfirmationStatus(quotationId) {
 
 // 更新确认徽章状态
 function updateConfirmationBadge(isConfirmed, confirmedBy, confirmedAt) {
-    const badge = document.getElementById('product-detail-confirmation-badge');
+    const badgeContainer = document.getElementById('confirmation-badge-container');
     const statusText = document.getElementById('confirmation-status');
     
     console.log('更新确认徽章状态:', {
         isConfirmed: isConfirmed,
         confirmedBy: confirmedBy,
         confirmedAt: confirmedAt,
-        badge: badge,
+        badgeContainer: badgeContainer,
         statusText: statusText
     });
     
-    if (!badge || !statusText) {
-        console.error('找不到确认徽章或状态文本元素');
+    if (!badgeContainer || !statusText) {
+        console.error('找不到确认徽章容器或状态文本元素');
         return;
     }
     
+    // 清除现有的所有徽章（包括服务器端渲染的和JavaScript动态添加的）
+    const existingBadges = badgeContainer.querySelectorAll('.confirmation-badge-confirmed, .confirmation-badge-unconfirmed, .render-confirmation-badge');
+    existingBadges.forEach(badge => badge.remove());
+    
     if (isConfirmed) {
         console.log('设置为已确认状态');
-        badge.classList.add('confirmed');
-        badge.setAttribute('data-confirmed', 'true');
+        // 更新状态文本和样式
         statusText.textContent = `已确认 - ${confirmedBy}`;
         statusText.classList.add('confirmed');
-        badge.title = `已确认 - ${confirmedBy} (${confirmedAt}) - 点击取消确认`;
+        badgeContainer.title = `已确认 - ${confirmedBy} (${confirmedAt}) - 点击取消确认`;
+        
+        // 动态插入确认徽章HTML
+        const confirmedBadgeHTML = `<span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background-color: #28a745; color: #fff; font-size: 10px; line-height: 1; vertical-align: middle; margin-left: 4px;" 
+                                         title="产品明细已确认" class="confirmation-badge-confirmed">
+                                     <i class="fas fa-check" style="font-size: 10px;"></i>
+                                   </span>`;
+        statusText.insertAdjacentHTML('beforebegin', confirmedBadgeHTML);
     } else {
         console.log('设置为未确认状态');
-        badge.classList.remove('confirmed');
-        badge.setAttribute('data-confirmed', 'false');
+        // 更新状态文本和样式
         statusText.textContent = '未确认';
         statusText.classList.remove('confirmed');
-        badge.title = userConfig.canConfirm ? '点击确认产品明细' : '仅解决方案经理和管理员可以确认';
+        badgeContainer.title = userConfig.canConfirm ? '点击确认产品明细' : '仅解决方案经理和管理员可以确认';
+        
+        // 如果用户有权限，显示未确认的空心徽章
+        if (userConfig.canConfirm) {
+            const unconfirmedBadgeHTML = `<span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; border: 2px solid #6c757d; background-color: transparent; color: #6c757d; font-size: 8px; line-height: 1; vertical-align: middle; margin-left: 4px; cursor: pointer;" 
+                                               title="点击确认产品明细" class="confirmation-badge-unconfirmed">
+                                           <i class="fas fa-question" style="font-size: 8px;"></i>
+                                         </span>`;
+            statusText.insertAdjacentHTML('beforebegin', unconfirmedBadgeHTML);
+        }
     }
     
-    console.log('徽章类名:', badge.className);
     console.log('状态文本:', statusText.textContent);
 }
 

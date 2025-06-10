@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_quotation_number, render_project_stage, render_project_rating, render_rating_input %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_quotation_number, render_project_stage, render_project_rating, render_rating_input, render_confirmation_badge %}
 {% import 'macros/ui_helpers.html' as ui %}
 {% from 'macros/approval_macros.html' import render_approval_timeline, render_approval_form, render_start_approval_button, render_approval_section %}
 {% from 'macros/ui_modals.html' import render_change_project_owner_modal %}
@@ -139,15 +139,17 @@
                                 <div class="col-md-4"><strong>报价总额：</strong></div>
                                 <div class="col-md-8">
 {% if project.quotations.count() > 0 %}
-    <a href="{{ url_for('quotation.view_quotation', id=project.quotations.order_by(Quotation.created_at.desc()).first().id) }}"
+    {% set latest_quotation = project.quotations.order_by(Quotation.created_at.desc()).first() %}
+    <a href="{{ url_for('quotation.view_quotation', id=latest_quotation.id) }}"
        class="quotation-link" title="查看报价单详情">
         {{ render_currency(project.quotation_customer) }}
     </a>
+    {{ render_confirmation_badge(latest_quotation, "报价单产品明细已确认") }}
     {% if current_stage_key != 'signed' %}
         <!-- 这里插入报价单的编辑和删除按钮（如有） -->
         {# 例如：#}
-        {# {{ ui.render_button("编辑报价单", href=url_for('quotation.edit_quotation', id=project.quotations.order_by(Quotation.created_at.desc()).first().id), color="primary", icon="fas fa-edit", extra_class="btn-sm ms-2") }} #}
-        {# {{ ui.render_button("删除报价单", href=url_for('quotation.delete_quotation', id=project.quotations.order_by(Quotation.created_at.desc()).first().id), color="danger", icon="fas fa-trash", extra_class="btn-sm ms-2") }} #}
+        {# {{ ui.render_button("编辑报价单", href=url_for('quotation.edit_quotation', id=latest_quotation.id), color="primary", icon="fas fa-edit", extra_class="btn-sm ms-2") }} #}
+        {# {{ ui.render_button("删除报价单", href=url_for('quotation.delete_quotation', id=latest_quotation.id), color="danger", icon="fas fa-trash", extra_class="btn-sm ms-2") }} #}
     {% endif %}
 {% else %}
     {% if current_user.has_permission('quotation', 'create') %}
@@ -424,10 +426,8 @@
     </div>
 
     <!-- 审批流程区域 -->
-    {% if not project.is_locked %}
     {% set approval_instance = get_object_approval_instance('project', project.id) if get_object_approval_instance is defined %}
     {{ render_approval_section('project', project.id, approval_instance, current_user) }}
-    {% endif %}
 </div>
 
 

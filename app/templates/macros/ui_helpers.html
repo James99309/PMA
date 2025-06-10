@@ -114,6 +114,24 @@
   {% endif %}
 {% endmacro %}
 
+{% macro render_confirmation_badge(quotation, title="产品明细已确认", show_unconfirmed=false) %}
+  {% if quotation %}
+    {% if quotation.confirmation_badge_status == "confirmed" %}
+      <!-- 已确认状态：绿色实心徽章 -->
+      <span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background-color: #28a745; color: #fff; font-size: 10px; line-height: 1; vertical-align: middle; margin-left: 4px;" 
+            title="{{ title }}" class="confirmation-badge-confirmed">
+        <i class="fas fa-check" style="font-size: 10px;"></i>
+      </span>
+    {% elif show_unconfirmed %}
+      <!-- 未确认状态：空心徽章，用于指导点击 -->
+      <span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; border: 2px solid #6c757d; background-color: transparent; color: #6c757d; font-size: 8px; line-height: 1; vertical-align: middle; margin-left: 4px; cursor: pointer;" 
+            title="点击确认产品明细" class="confirmation-badge-unconfirmed">
+        <i class="fas fa-question" style="font-size: 8px;"></i>
+      </span>
+    {% endif %}
+  {% endif %}
+{% endmacro %}
+
 {% macro render_date(date, format='%Y-%m-%d') %}
   {% if date %}
     {{ date.strftime(format) }}
@@ -1418,3 +1436,4 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
 }
 </script>
 {% endmacro %}
+

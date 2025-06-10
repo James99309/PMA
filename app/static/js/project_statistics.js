@@ -787,6 +787,19 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('pausedProjectsAmount').textContent = '0';
         }
 
+        // 更新签约阶段数据
+        if (stats.stage_counts && stats.stage_counts['signed']) {
+            document.getElementById('signedProjectsCount').textContent = formatNumber(stats.stage_counts['signed'] || 0);
+        } else {
+            document.getElementById('signedProjectsCount').textContent = '0';
+        }
+        
+        if (stats.stage_amounts && stats.stage_amounts['signed']) {
+            document.getElementById('signedProjectsAmount').textContent = formatNumber(Math.round((stats.stage_amounts['signed'] || 0) / 10000));
+        } else {
+            document.getElementById('signedProjectsAmount').textContent = '0';
+        }
+
         // 业务推进统计（本期新建+更新的项目）
         const newCount = stats.new_projects_count || 0;
         const updatedCount = stats.updated_projects_count || 0;

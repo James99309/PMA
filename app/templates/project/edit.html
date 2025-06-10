@@ -2,6 +2,21 @@
 {% from 'macros/ui_helpers.html' import render_authorization_code %}
 {% import 'macros/ui_helpers.html' as ui %}
 
+{% block head %}
+{{ super() }}
+<style>
+    /* 项目编辑页面主容器顶部留白，避免被fixed导航遮挡 */
+    .container.page-with-fixed-nav {
+        margin-top: 72px !important; /* 72px为主导航高度+安全间距 */
+    }
+    @media (max-width: 991.98px) {
+        .container.page-with-fixed-nav {
+            margin-top: 120px !important;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <!-- 添加一个隐藏的div用于调试 -->
 <div style="display:none;" id="debug-info">
@@ -17,7 +32,7 @@
     {% endif %}
 </div>
 
-<div class="container mt-4">
+<div class="container mt-4 page-with-fixed-nav">
     <h2 class="mb-4">{% if project %}编辑项目{% else %}添加项目{% endif %}</h2>
 
     <!-- 授权编号提示框 -->

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_authorization_code, render_datetime, render_project_stage, render_status_badge, render_project_rating %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_authorization_code, render_datetime, render_project_stage, render_status_badge, render_project_rating, render_confirmation_badge %}
 {% import 'macros/ui_helpers.html' as ui %}
 
 {% block title %}项目管理{% endblock %}
@@ -244,8 +244,14 @@ document.addEventListener('DOMContentLoaded', function () {
                         <span class="d-none" data-vendor-sales-manager-id=""></span>
                         {% endif %}
                         {% if project.quotation_customer %}
-                        <div class="small mb-1">
-                            <i class="fas fa-yen-sign text-secondary me-1"></i>报价: {{ '{:,.2f}'.format(project.quotation_customer) }}元
+                        <div class="small mb-1 d-flex align-items-center">
+                            <span>
+                                <i class="fas fa-yen-sign text-secondary me-1"></i>报价: {{ '{:,.2f}'.format(project.quotation_customer) }}元
+                            </span>
+                            {% if project.quotations.count() > 0 %}
+                            {% set latest_quotation = project.quotations.order_by(Quotation.created_at.desc()).first() %}
+                            {{ render_confirmation_badge(latest_quotation) }}
+                            {% endif %}
                         </div>
                         {% endif %}
                         <div class="small mb-1">
@@ -289,7 +295,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <span class="th-text">拥有者</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="owner_id"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="owner_id"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -298,7 +303,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <span class="th-text">厂商负责人</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="vendor_sales_manager_id"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="vendor_sales_manager_id"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -307,7 +311,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <span class="th-text">授权编号</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="authorization_code"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="authorization_code"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -316,7 +319,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <span class="th-text">项目名称</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="project_name"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="project_name"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -325,7 +327,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <span class="th-text">活跃状态</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="is_active"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="is_active"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -334,7 +335,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <span class="th-text">当前阶段</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="current_stage"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="current_stage"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -343,7 +343,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <span class="th-text">项目类型</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="project_type"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="project_type"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -352,7 +351,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <span class="th-text">报价（元）</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="quotation_customer"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="quotation_customer"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -361,7 +359,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <span class="th-text">报备来源</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="report_source"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="report_source"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -370,7 +367,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <span class="th-text">直接用户</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="end_user"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="end_user"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -379,7 +375,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <span class="th-text">设计院及顾问</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="design_issues"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="design_issues"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -388,7 +383,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <span class="th-text">总承包单位</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="contractor"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="contractor"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -397,7 +391,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <span class="th-text">系统集成商</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="system_integrator"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="system_integrator"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -406,7 +399,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <span class="th-text">出货预期日期</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="delivery_forecast"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="delivery_forecast"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -415,7 +407,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <span class="th-text">报备日期</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="report_time"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="report_time"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -424,7 +415,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <span class="th-text">更新时间</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="updated_at"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="updated_at"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -433,7 +423,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <span class="th-text">创建日期</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="created_at"></i>
-                                            <i class="fas fa-filter filter-icon" data-field="created_at"></i>
                                         </div>
                                     </div>
                                 </th>
@@ -511,10 +500,14 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <td>{{ render_project_type(project.project_type) if project.project_type else '' }}</td>
                                 <td>
                                     {% if project.quotation_customer and project.quotations.count() > 0 %}
-                                    <a href="{{ url_for('quotation.view_quotation', id=project.quotations.order_by(Quotation.created_at.desc()).first().id) }}"
-                                       class="quotation-link" title="查看报价单详情">
-                                        {{ '{:,.2f}'.format(project.quotation_customer) }}
-                                    </a>
+                                    <div class="d-flex align-items-center">
+                                        <a href="{{ url_for('quotation.view_quotation', id=project.quotations.order_by(Quotation.created_at.desc()).first().id) }}"
+                                           class="quotation-link" title="查看报价单详情">
+                                            {{ '{:,.2f}'.format(project.quotation_customer) }}
+                                        </a>
+                                        {% set latest_quotation = project.quotations.order_by(Quotation.created_at.desc()).first() %}
+                                        {{ render_confirmation_badge(latest_quotation) }}
+                                    </div>
                                     {% else %}
                                     {{ '{:,.2f}'.format(project.quotation_customer) if project.quotation_customer else '' }}
                                     {% endif %}
@@ -865,6 +858,8 @@ document.addEventListener('DOMContentLoaded', function () {
         text-align: center;
     }
 }
+
+/* 审批徽章样式已迁移到标准UI函数，不再需要自定义样式 */
 </style>
 
 <!--

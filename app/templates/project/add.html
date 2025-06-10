@@ -2,8 +2,23 @@
 {% from 'macros/ui_helpers.html' import render_authorization_code %}
 {% import 'macros/ui_helpers.html' as ui %}
 
+{% block head %}
+{{ super() }}
+<style>
+    /* 项目添加页面主容器顶部留白，避免被fixed导航遮挡 */
+    .container.page-with-fixed-nav {
+        margin-top: 72px !important; /* 72px为主导航高度+安全间距 */
+    }
+    @media (max-width: 991.98px) {
+        .container.page-with-fixed-nav {
+            margin-top: 120px !important;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
+<div class="container mt-4 page-with-fixed-nav">
     <h2 class="mb-4">添加项目</h2>
 
     <form method="POST">

@@ -115,6 +115,11 @@ class ProjectStatistics:
             stats['paused_projects_count'] = len(paused_projects)
             stats['paused_projects_amount'] = sum(p.quotation_customer or 0 for p in paused_projects)
 
+            # 签约阶段项目统计
+            signed_projects = [p for p in all_projects if p.current_stage == 'signed']
+            stats['signed_projects_count'] = len(signed_projects)
+            stats['signed_projects_amount'] = sum(p.quotation_customer or 0 for p in signed_projects)
+
             # 业务推进统计（本月主线阶段推进，且不含切换到失败/搁置）
             today = datetime.now().date()
             start_date = today.replace(day=1)

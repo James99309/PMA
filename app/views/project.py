@@ -94,6 +94,22 @@ def list_projects():
             field = key[7:]  # 移除'filter_'前缀
             filters[field] = value
     
+    # 移除默认的有效业务过滤逻辑
+    # 现在页面默认显示所有项目，包括签约、失败、搁置状态的项目
+    # 用户需要主动点击"有效项目"筛选卡才会应用过滤条件
+    
+    # 注释掉默认过滤逻辑，恢复显示所有项目
+    # enable_default_valid_filter = (
+    #     'stage_not' not in filters and 
+    #     'current_stage' not in filters and
+    #     not any(key in request.args for key in ['filter_stage_not', 'filter_current_stage', 'business_update_filter'])
+    # )
+    # 
+    # if enable_default_valid_filter:
+    #     # 应用默认的有效业务过滤：排除搁置、失败和签约阶段，且有授权编号
+    #     filters['stage_not'] = 'lost,paused,signed'
+    #     filters['has_authorization'] = '1'
+    
     # 应用筛选条件
     for field, value in filters.items():
         # 处理特殊筛选条件
@@ -112,12 +128,35 @@ def list_projects():
         elif field == 'stage_not':
             # 排除特定阶段的项目
             excluded_stages = value.split(',')
+            
+            # 基础排除：排除当前阶段在排除列表中的项目
             for stage in excluded_stages:
                 stage = stage.strip()
                 if stage:
                     query = query.filter(Project.current_stage != stage)
-        elif field == 'updated_this_month':
-            # 筛选本月有阶段变更的项目
+            
+            # 增强逻辑：如果排除列表包含 'lost' 或 'paused'，还要排除历史上曾经进入这些状态的项目
+            critical_stages = []
+            for stage in excluded_stages:
+                stage = stage.strip()
+                if stage in ['lost', 'paused']:
+                    critical_stages.append(stage)
+            
+            if critical_stages:
+                # 查询曾经进入失败或搁置状态的项目ID
+                from app.models.projectpm_stage_history import ProjectStageHistory
+                
+                # 查找历史上进入过关键状态的项目
+                historical_excluded_ids = db.session.query(ProjectStageHistory.project_id).filter(
+                    ProjectStageHistory.to_stage.in_(critical_stages)
+                ).distinct().all()
+                
+                if historical_excluded_ids:
+                    # 排除这些项目
+                    excluded_project_ids = [p.project_id for p in historical_excluded_ids]
+                    query = query.filter(~Project.id.in_(excluded_project_ids))
+        elif field == 'updated_this_month' or field.endswith('_update_filter'):
+            # 筛选本月有阶段变更的项目（支持 updated_this_month 和 business_update_filter）
             if value == '1':
                 today = datetime.now().date()
                 start_date = today.replace(day=1)  # 本月1号

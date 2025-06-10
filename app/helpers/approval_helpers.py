@@ -1335,9 +1335,30 @@ def get_available_templates(object_type, object_id=None):
             project = Project.query.get(object_id)
             if project:
                 business_type = project.project_type
+                
+                # 特殊筛选：已有授权编号的项目不能再申请授权编号
+                if project.authorization_code:
+                    current_app.logger.info(f"项目 {project.id} 已有授权编号 {project.authorization_code}，过滤授权模板")
+                    
+                    # 过滤掉包含授权步骤的模板
+                    filtered_templates = []
+                    for template in templates:
+                        # 检查模板是否包含授权步骤
+                        steps = ApprovalStep.query.filter_by(process_id=template.id).all()
+                        has_auth_step = any(
+                            hasattr(step, 'action_type') and step.action_type == 'authorization' 
+                            for step in steps
+                        )
+                        
+                        if not has_auth_step:
+                            filtered_templates.append(template)
+                        else:
+                            current_app.logger.info(f"过滤授权模板: {template.name} (ID: {template.id})")
+                    
+                    templates = filtered_templates
         
-        # 如果获取到了业务类型，过滤模板
-        if business_type:
+        # 如果获取到了业务类型，进一步过滤模板
+        if business_type and templates:
             # 检查模板名称是否包含业务类型关键词
             filtered_templates = []
             for template in templates:
