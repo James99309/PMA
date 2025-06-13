@@ -1347,6 +1347,125 @@ def get_products_by_category():
             'message': str(e)
         }), 500
 
+@quotation.route('/products/models', methods=['GET'])
+def get_product_models():
+    """获取指定类别和产品名称的型号列表"""
+    try:
+        category = request.args.get('category', '')
+        product_name = request.args.get('product_name', '')
+        logger.debug(f'正在获取产品型号，类别: "{category}", 产品名称: "{product_name}"')
+        
+        if not category or not product_name:
+            return jsonify([])
+        
+        # 查询指定类别和产品名称的产品
+        products = Product.query.filter_by(
+            category=category,
+            product_name=product_name
+        ).filter(Product.status != '停产').order_by(Product.id).all()
+        
+        logger.debug(f'找到 {len(products)} 个产品')
+        
+        def decimal_to_float(obj):
+            if isinstance(obj, Decimal):
+                return float(obj)
+            return obj
+        
+        result = []
+        for p in products:
+            try:
+                product_dict = {
+                    'id': p.id,
+                    'product_name': p.product_name,
+                    'model': p.model,
+                    'specification': p.specification,
+                    'brand': p.brand,
+                    'unit': p.unit,
+                    'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
+                    'product_mn': p.product_mn
+                }
+                result.append(product_dict)
+                logger.debug(f'成功处理产品: {p.product_name}, 型号: {p.model}')
+            except Exception as e:
+                logger.error(f'处理产品时出错: {p.id} - {str(e)}')
+                continue
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f'获取产品型号列表时出错: {str(e)}')
+        return jsonify({
+            'error': '获取产品型号列表失败',
+            'message': str(e)
+        }), 500
+
+@quotation.route('/products/specs', methods=['GET'])
+def get_product_specs():
+    """获取指定类别、产品名称和型号的规格列表"""
+    try:
+        category = request.args.get('category', '')
+        product_name = request.args.get('product_name', '')
+        # 修复：同时支持 product_model 和 model 参数
+        product_model = request.args.get('model', '') or request.args.get('product_model', '')
+        logger.debug(f'正在获取产品规格，类别: "{category}", 产品名称: "{product_name}", 型号: "{product_model}"')
+        
+        if not category or not product_name or not product_model:
+            return jsonify([])
+        
+        # 查询指定条件的产品
+        products = Product.query.filter_by(
+            category=category,
+            product_name=product_name,
+            model=product_model
+        ).filter(Product.status != '停产').order_by(Product.id).all()
+        
+        logger.debug(f'找到 {len(products)} 个产品')
+        
+        def decimal_to_float(obj):
+            if isinstance(obj, Decimal):
+                return float(obj)
+            return obj
+        
+        result = []
+        for p in products:
+            try:
+                # 处理产品图片
+                product_image = None
+                if hasattr(p, 'image_path') and p.image_path:
+                    # 确保图片路径是相对于static目录的
+                    if p.image_path.startswith('/static/'):
+                        product_image = p.image_path
+                    elif p.image_path.startswith('static/'):
+                        product_image = '/' + p.image_path
+                    else:
+                        product_image = '/static/' + p.image_path.lstrip('/')
+                
+                product_dict = {
+                    'id': p.id,
+                    'product_name': p.product_name,
+                    'model': p.model,  # 修复：使用正确的字段名
+                    'specification': p.specification,  # 修复：使用正确的字段名
+                    'brand': p.brand,
+                    'unit': p.unit,
+                    'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
+                    'product_mn': p.product_mn,
+                    'image_path': product_image  # 添加图片路径
+                }
+                result.append(product_dict)
+                logger.debug(f'成功处理产品: {p.product_name}, 规格: {p.specification}')
+            except Exception as e:
+                logger.error(f'处理产品时出错: {p.id} - {str(e)}')
+                continue
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f'获取产品规格列表时出错: {str(e)}')
+        return jsonify({
+            'error': '获取产品规格列表失败',
+            'message': str(e)
+        }), 500
+
 @quotation.route('/<int:id>/detail')
 @login_required
 @permission_required('quotation', 'view')

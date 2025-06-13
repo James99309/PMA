@@ -128,7 +128,7 @@ def edit_project(id):
         'designers': company_query.filter_by(company_type='设计院及顾问').all(),
         'contractors': company_query.filter_by(company_type='总承包单位').all(),
         'integrators': company_query.filter_by(company_type='系统集成商').all(),
-        'dealers': company_query.filter_by(company_type='经销商').all()
+        'dealers': company_query.filter(Company.company_type.in_(['经销商', 'dealer'])).all()
     }
     
     return render_template(
@@ -188,7 +188,7 @@ def add_project():
                         'designers': Company.query.filter_by(company_type='设计院及顾问').all(),
                         'contractors': Company.query.filter_by(company_type='总承包单位').all(),
                         'integrators': Company.query.filter_by(company_type='系统集成商').all(),
-                        'dealers': Company.query.filter_by(company_type='经销商').all()
+                        'dealers': Company.query.filter(Company.company_type.in_(['经销商', 'dealer'])).all()
                     }
                 except:
                     companies = {
@@ -208,7 +208,7 @@ def add_project():
             'designers': Company.query.filter_by(company_type='设计院及顾问').all(),
             'contractors': Company.query.filter_by(company_type='总承包单位').all(),
             'integrators': Company.query.filter_by(company_type='系统集成商').all(),
-            'dealers': Company.query.filter_by(company_type='经销商').all()
+            'dealers': Company.query.filter(Company.company_type.in_(['经销商', 'dealer'])).all()
         }
         
         # 添加调试日志
@@ -302,7 +302,7 @@ def list_projects():
             'designers': company_query.filter_by(company_type='设计院及顾问').all(),
             'contractors': company_query.filter_by(company_type='总承包单位').all(),
             'integrators': company_query.filter_by(company_type='系统集成商').all(),
-            'dealers': company_query.filter_by(company_type='经销商').all()
+            'dealers': company_query.filter(Company.company_type.in_(['经销商', 'dealer'])).all()
         }
         
         # 添加调试日志

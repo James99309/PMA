@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="Ijc4NDE5ZjNmYzI0YTA4NTBhMzdlYjYwMDgzMmZkOGJiYjljNWFiMmQi.aErxEg.d9oztyqqFlSfgYxQ6c-GBujJ3sQ">
+    <title>项目管理系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --pa-blue: #16a0bf;
+            --pa-dark-blue: #0e7c8f;
+            --pa-light-blue: #1db0d3;
+            --pa-bg-light: #f8f9fa;
+        }
+        body {
+            background-color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .top-nav {
+            background-color: #17a2b8;
+            color: white;
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+        }
+        .top-nav a {
+            color: white;
+            text-decoration: none;
+            margin-left: 15px;
+        }
+        .top-nav .user-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .top-nav .user-dropdown-toggle {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            min-width: 150px;
+            text-align: right;
+        }
+        .top-nav .user-dropdown-toggle:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .top-nav .user-dropdown-menu {
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: none;
+            z-index: 1000;
+            min-width: 160px;
+        }
+        .top-nav .user-dropdown-menu.show {
+            display: block;
+        }
+        .top-nav .user-dropdown-item {
+            display: block;
+            padding: 8px 15px;
+            color: #333;
+            text-decoration: none;
+        }
+        .top-nav .user-dropdown-item:hover {
+            background-color: #f5f5f5;
+        }
+        .top-nav .user-dropdown-item i {
+            margin-right: 8px;
+            width: 16px;
+            text-align: center;
+        }
+        .top-nav .user-info {
+            display: flex;
+            align-items: center;
+        }
+        .top-nav .user-avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: #0b5ed7;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 8px;
+            font-size: 12px;
+        }
+        .top-nav .badge {
+            font-size: 0.7rem;
+            font-weight: normal;
+            padding: 0.2em 0.6em;
+            margin-left: 5px;
+        }
+        .top-nav .user-info span {
+            display: flex;
+            align-items: center;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            font-size: 1.4rem;
+            margin: 10px 0;
+        }
+        .logo img {
+            height: 40px;
+            margin-right: 10px;
+        }
+        .logo span {
+            color: var(--pa-blue);
+            font-weight: 300;
+        }
+        .logo strong {
+            color: #333;
+        }
+        .main-nav {
+            background: #16a0bf;
+            margin-bottom: 20px;
+            border-bottom: none;
+        }
+        .main-nav .nav-tabs {
+            border-bottom: none;
+        }
+        .main-nav .nav-link {
+            color: #fff !important;
+            font-weight: 500;
+            font-size: 14px;
+            padding: 0.7rem 1.1rem;
+            border-bottom: none;
+            background: transparent;
+            transition: color 0.2s;
+            white-space: nowrap;
+        }
+        .main-nav .nav-link.active, .main-nav .nav-link:focus {
+            color: var(--pa-blue) !important;
+            background: #fff;
+            border-radius: 6px 6px 0 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        .main-nav .nav-link:not(.active):hover {
+            color: var(--pa-blue) !important;
+            background: transparent;
+        }
+        .main-nav .nav-link:not(.active) {
+            color: #fff !important;
+            background: transparent;
+        }
+        .main-nav .nav-item {
+            margin-bottom: 0;
+        }
+        .main-nav .user-dropdown-toggle, .main-nav .user-dropdown-menu {
+            background: transparent;
+        }
+        .main-nav .user-dropdown-menu {
+            min-width: 180px;
+        }
+        .main-nav .user-dropdown-item {
+            color: #333;
+        }
+        .main-nav .user-dropdown-item:hover {
+            background: #f5f5f5;
+        }
+        .main-nav .user-info {
+            color: #fff;
+            font-weight: 500;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        .main-nav .user-avatar {
+            background: #0b5ed7;
+            color: #fff;
+        }
+        .main-nav .user-dropdown-toggle {
+            min-width: 0;
+        }
+        .main-nav .user-dropdown {
+            margin-left: 1.5rem;
+        }
+        .main-nav .d-flex.align-items-center.ms-auto {
+            gap: 0.5rem;
+            flex-wrap: nowrap;
+        }
+        .main-nav .nav-link {
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .btn-primary {
+            background-color: var(--pa-blue);
+            border-color: var(--pa-blue);
+        }
+        .btn-primary:hover {
+            background-color: var(--pa-dark-blue);
+            border-color: var(--pa-dark-blue);
+        }
+        .btn-outline-primary {
+            color: var(--pa-blue);
+            border-color: var(--pa-blue);
+        }
+        .btn-outline-primary:hover {
+            background-color: var(--pa-blue);
+            border-color: var(--pa-blue);
+        }
+        .card {
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border: 1px solid #e7e7e7;
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background-color: #fff;
+            border-bottom: 1px solid #e7e7e7;
+            font-weight: 500;
+        }
+        .dashboard-card {
+            border-radius: 4px;
+            border: 1px solid #e7e7e7;
+            padding: 15px;
+            height: 100%;
+        }
+        .dashboard-title {
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        /* 多级下拉菜单样式 */
+        .dropdown-submenu {
+            position: absolute;
+            left: 100%;
+            top: 0;
+            margin-top: 0;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+        
+        .dropdown-item.dropdown-toggle {
+            position: relative;
+        }
+        
+        .dropdown-item.dropdown-toggle::after {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        .dropdown-item.dropdown-toggle:hover + .dropdown-submenu,
+        .dropdown-submenu:hover {
+            display: block;
+        }
+        
+        .dropdown-item.dropdown-toggle:active,
+        .dropdown-item.dropdown-toggle:focus {
+            color: #fff;
+            background-color: var(--pa-blue);
+        }
+    </style>
+    <link href="/static/css/style.css" rel="stylesheet">
+    
+    
+</head>
+<body>
+    <!-- 固定顶部主导航，含logo、系统名、菜单、账户 -->
+    <nav class="main-nav navbar navbar-expand-lg navbar-dark" style="background-color: #16a0bf; z-index: 1040; position: fixed; top: 0; width: 100%;">
+        <div class="container d-flex align-items-center justify-content-between flex-wrap">
+            <div class="d-flex align-items-center logo-title-wrap w-100 w-lg-auto py-2 py-lg-0" style="min-height: 44px;">
+                <img src="/static/img/logo.png" alt="Logo" class="main-logo" style="max-height: 48px; width: auto; margin-right: 8px; object-fit: contain;">
+                <span class="logo-title text-truncate" style="font-size: 2rem; font-weight: bold; color: #fff; white-space: nowrap; overflow: visible; max-width: none;">业务机会管理系统</span>
+                <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="切换导航" style="border: none; box-shadow: none;">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+            </div>
+            <div class="collapse navbar-collapse" id="mainNavbar">
+                <ul class="navbar-nav main-menu-list" style="width: 220px; max-width: 90vw;">
+                    
+                </ul>
+                <!-- PC端账户logo和退出 -->
+                
+            </div>
+        </div>
+    </nav>
+    <style>
+    .navbar-dark .navbar-toggler {
+        border-color: transparent;
+        box-shadow: none;
+    }
+    .navbar-dark .navbar-toggler-icon {
+        background-image: url("data:image/svg+xml;charset=utf8,%3Csvg viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath stroke='rgba%28255,255,255,1%29' stroke-width='2' stroke-linecap='round' stroke-miterlimit='10' d='M4 7h22M4 15h22M4 23h22'/%3E%3C/svg%3E");
+    }
+    .navbar-nav .nav-link.active, .navbar-nav .nav-link:focus {
+        color: #167ac6 !important;
+        font-weight: bold !important;
+        border-left: 0;
+        border-bottom: 3px solid #167ac6;
+        background: none !important;
+    }
+    .navbar-nav .nav-link {
+        font-family: 'Microsoft YaHei', Arial, sans-serif;
+        font-weight: 400;
+        color: #fff !important;
+        border-left: 0;
+        border-bottom: 3px solid transparent;
+        background: none !important;
+    }
+    /* 响应式菜单选中样式：移动端为左侧竖线，PC端为底部横线 */
+    @media (max-width: 991.98px) {
+        .main-menu-list .nav-link.active, .main-menu-list .nav-link:focus {
+            border-left: 4px solid #167ac6 !important;
+            border-bottom: none !important;
+            color: #167ac6 !important;
+            font-weight: bold !important;
+            background: none !important;
+        }
+    }
+    @media (min-width: 992px) {
+        .main-menu-list .nav-link.active, .main-menu-list .nav-link:focus {
+            border-left: none !important;
+            border-bottom: 3px solid #167ac6 !important;
+            color: #167ac6 !important;
+            font-weight: bold !important;
+            background: none !important;
+        }
+    }
+    /* 主内容区顶部padding，避免菜单遮挡 */
+    body { padding-top: 80px !important; }
+    @media (max-width: 991.98px) { body { padding-top: 120px !important; } }
+    .main-nav.fixed-top { box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    
+    /* 胶囊型用户头像样式 */
+    .user-avatar-capsule {
+        background: #b13a5b;
+        border-radius: 20px;
+        padding: 6px 12px 6px 6px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        min-height: 32px;
+    }
+    
+    .user-avatar-capsule:hover {
+        background: #9d2f4a;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(177, 58, 91, 0.3);
+    }
+    
+    .user-avatar-capsule .avatar-initial {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #fff;
+        margin-right: 8px;
+    }
+    
+    .user-avatar-capsule .user-name {
+        color: #fff;
+        font-size: 0.9rem;
+        font-weight: 500;
+        margin-right: 6px;
+    }
+    
+    .user-avatar-capsule .dropdown-arrow {
+        color: #fff;
+        font-size: 0.8rem;
+        opacity: 0.8;
+        transition: transform 0.2s ease;
+    }
+    
+    .user-avatar-capsule[aria-expanded="true"] .dropdown-arrow {
+        transform: rotate(180deg);
+    }
+    
+    .user-avatar-capsule .notification-badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        background: #dc3545;
+        color: white;
+        border-radius: 10px;
+        padding: 2px 6px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        min-width: 18px;
+        text-align: center;
+        border: 2px solid #16a0bf;
+    }
+    
+    /* 移动端胶囊型头像样式 */
+    .user-avatar-capsule-mobile {
+        background: #b13a5b;
+        border-radius: 16px;
+        padding: 4px 10px 4px 4px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    .user-avatar-capsule-mobile .avatar-initial-mobile {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        width: 16px;
+        height: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #fff;
+    }
+    
+    .user-avatar-capsule-mobile .user-name-mobile {
+        color: #fff;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    </style>
+
+    
+        
+    
+
+    <main class="container mb-5">
+        <style>
+        body { padding-top: 90px !important; }
+        @media (max-width: 991.98px) { body { padding-top: 120px !important; } }
+        .main-nav.fixed-top { box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+        </style>
+        
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <div class="text-center mb-4">
+                        <h4 class="mb-1">欢迎登录销售项目管理系统</h4>
+                        <p class="text-muted small">Original evertacsolutions</p>
+                    </div>
+
+                    
+                        
+                    
+
+                    <form method="POST" class="needs-validation" novalidate>
+                        <input type="hidden" name="csrf_token" value="Ijc4NDE5ZjNmYzI0YTA4NTBhMzdlYjYwMDgzMmZkOGJiYjljNWFiMmQi.aErxEg.d9oztyqqFlSfgYxQ6c-GBujJ3sQ">
+                        <div class="mb-3">
+                            <label for="username" class="form-label">用户名或邮箱</label>
+                            <input type="text" class="form-control" id="username" name="username"
+                                   placeholder="请输入用户名或邮箱" required autofocus>
+                            <div class="invalid-feedback">
+                                请输入用户名或邮箱
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">密码</label>
+                            <div class="input-group has-validation">
+                                <input type="password" class="form-control" id="password" name="password"
+                                       placeholder="请输入密码" required>
+                                <button class="btn btn-outline-secondary" type="button" id="togglePassword" tabindex="-1">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                <div class="invalid-feedback">
+                                    请输入密码
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="remember" name="remember">
+                            <label class="form-check-label" for="remember">记住我</label>
+                        </div>
+                        <div class="d-grid gap-2 mb-3">
+                            <button type="submit" class="btn btn-primary">登录</button>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <a href="/auth/forgot-password" class="text-decoration-none small">忘记密码?</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 密码显示/隐藏切换
+    document.getElementById('togglePassword').addEventListener('click', function() {
+        const passwordInput = document.getElementById('password');
+        const icon = this.querySelector('i');
+
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            icon.classList.remove('bi-eye');
+            icon.classList.add('bi-eye-slash');
+        } else {
+            passwordInput.type = 'password';
+            icon.classList.remove('bi-eye-slash');
+            icon.classList.add('bi-eye');
+        }
+    });
+
+    // 表单验证
+    (function() {
+        'use strict'
+        var forms = document.querySelectorAll('.needs-validation');
+
+        Array.prototype.slice.call(forms).forEach(function(form) {
+            form.addEventListener('submit', function(event) {
+                if (!form.checkValidity()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+
+                form.classList.add('was-validated');
+            }, false);
+        });
+    })();
+</script>
+
+    </main>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 用户下拉菜单交互
+        document.addEventListener('DOMContentLoaded', function() {
+            const userDropdown = document.getElementById('userDropdown');
+            const userDropdownMenu = document.getElementById('userDropdownMenu');
+
+            if(userDropdown && userDropdownMenu) {
+                userDropdown.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    userDropdownMenu.classList.toggle('show');
+                });
+
+                // 点击其他区域关闭下拉菜单
+                document.addEventListener('click', function() {
+                    userDropdownMenu.classList.remove('show');
+                });
+
+                // 防止点击菜单内部时关闭菜单
+                userDropdownMenu.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                });
+            }
+            
+            // 处理多级下拉菜单
+            const dropdownItems = document.querySelectorAll('.dropdown-item.dropdown-toggle');
+            dropdownItems.forEach(item => {
+                item.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // 找到下一级菜单
+                    const submenu = this.nextElementSibling;
+                    if (submenu && submenu.classList.contains('dropdown-menu')) {
+                        submenu.classList.toggle('show');
+                    }
+                });
+            });
+            
+            // 点击其他区域关闭所有子菜单
+            document.addEventListener('click', function() {
+                const submenus = document.querySelectorAll('.dropdown-submenu.show');
+                submenus.forEach(menu => menu.classList.remove('show'));
+            });
+
+            // 设置AJAX请求的CSRF令牌
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+            // 为所有AJAX请求添加CSRF令牌
+            $(document).ajaxSend(function(e, xhr, options) {
+                xhr.setRequestHeader("X-CSRFToken", csrfToken);
+            });
+
+            // 为fetch请求准备CSRF头
+            window.fetchWithCsrf = function(url, options = {}) {
+                options.headers = options.headers || {};
+                options.headers['X-CSRFToken'] = csrfToken;
+                return fetch(url, options);
+            };
+        });
+
+        // 表头下拉筛选交互脚本
+        function toggleAll(allCheckbox, field) {
+            const options = document.querySelectorAll(`#${field}_options input[type="checkbox"]`);
+            options.forEach(cb => cb.checked = allCheckbox.checked);
+        }
+
+        function filterOptions(input) {
+            const value = input.value.toLowerCase();
+            const container = input.closest('.dropdown-menu').querySelector('.filter-options');
+            const items = container.querySelectorAll('.form-check');
+            items.forEach(item => {
+                const label = item.querySelector('label');
+                const text = label.textContent.toLowerCase();
+                item.style.display = text.includes(value) ? '' : 'none';
+            });
+        }
+    </script>
+    
+</body>
+</html>

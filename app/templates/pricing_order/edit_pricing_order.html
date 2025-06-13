@@ -961,7 +961,7 @@
                                     {% endif %}
                                 </div>
                                 
-                                <p class="standard-font mb-1">审批人: {{ record.approver.username if record.approver else '未指定' }}</p>
+                                <p class="standard-font mb-1">审批人: {{ record.approver.real_name or record.approver.username if record.approver else '未指定' }}</p>
                                 
                                 {% if record.approved_at %}
                                     <p class="text-muted standard-font mb-1">审批时间: {{ record.formatted_approved_at }}</p>

@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button %}
+
+{% block title %}库存管理系统{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+    /* 库存管理页面主容器顶部留白，避免被fixed导航遮挡 */
+    .container.page-with-fixed-nav {
+        margin-top: 72px !important; /* 72px为主导航高度+安全间距 */
+    }
+    @media (max-width: 991.98px) {
+        .container.page-with-fixed-nav {
+            margin-top: 120px !important;
+        }
+    }
+
+    .module-card {
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        border: none;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    .module-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+
+    .module-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+
+    .module-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+
+    .module-description {
+        color: #6c757d;
+        font-size: 0.9rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .stats-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .stats-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+    }
+
+    /* 智能徽章样式 - 与库存列表页面统一 */
+    .badge-circle {
+        border-radius: 50% !important;
+        width: 2rem;
+        height: 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .badge-pill {
+        border-radius: 1rem !important;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    /* 卡片悬停效果 */
+    .card:hover {
+        transform: translateY(-2px);
+        transition: all 0.3s ease;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4 page-with-fixed-nav">
+    <!-- 页面标题 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="mb-0">
+                    <i class="fas fa-warehouse me-2"></i>库存管理系统
+                </h2>
+            </div>
+        </div>
+    </div>
+
+    <!-- 库存状态统计卡片 - 采用项目管理风格，与库存列表页面统一 -->
+    <div class="d-flex flex-wrap gap-3 mb-4" style="justify-content: space-between;">
+        <!-- 总库存项目卡片 -->
+        <div style="flex: 1; min-width: 200px;">
+            <div class="card border-0 shadow-sm h-100 bg-light" id="totalStockCard" style="cursor:pointer;">
+                <div class="card-body">
+                    <h6 class="card-title text-primary">
+                        <i class="fas fa-boxes me-1"></i> 总库存项目
+                    </h6>
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <div>
+                            <span class="fs-4 fw-bold" id="totalCount">{{ stats.total_inventory if stats else 0 }}</span>
+                            <span class="text-muted ms-1">项</span>
+                        </div>
+                        <div>
+                            <span class="badge {% if (stats.total_inventory if stats else 0) < 100 %}badge-circle{% else %}badge-pill{% endif %} bg-primary">{{ stats.total_inventory if stats else 0 }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 今日入库卡片 -->
+        <div style="flex: 1; min-width: 200px;">
+            <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10" id="normalStockCard" style="cursor:pointer;">
+                <div class="card-body">
+                    <h6 class="card-title text-success">
+                        <i class="fas fa-arrow-up me-1"></i> 今日入库
+                    </h6>
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <div>
+                            <span class="fs-4 fw-bold" id="normalCount">{{ stats.today_in if stats else 0 }}</span>
+                            <span class="text-muted ms-1">项</span>
+                        </div>
+                        <div>
+                            <span class="badge {% if (stats.today_in if stats else 0) < 100 %}badge-circle{% else %}badge-pill{% endif %} bg-success">{{ stats.today_in if stats else 0 }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 低库存预警卡片 -->
+        <div style="flex: 1; min-width: 200px;">
+            <div class="card border-0 shadow-sm h-100 bg-warning bg-opacity-10" id="lowStockCard" style="cursor:pointer;">
+                <div class="card-body">
+                    <h6 class="card-title text-warning">
+                        <i class="fas fa-exclamation-triangle me-1"></i> 低库存预警
+                    </h6>
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <div>
+                            <span class="fs-4 fw-bold" id="lowStockCount">{{ stats.low_stock if stats else 0 }}</span>
+                            <span class="text-muted ms-1">项</span>
+                        </div>
+                        <div>
+                            <span class="badge {% if (stats.low_stock if stats else 0) < 100 %}badge-circle{% else %}badge-pill{% endif %} bg-warning">{{ stats.low_stock if stats else 0 }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 待处理结算卡片 -->
+        <div style="flex: 1; min-width: 200px;">
+            <div class="card border-0 shadow-sm h-100 bg-info bg-opacity-10" id="zeroStockCard" style="cursor:pointer;">
+                <div class="card-body">
+                    <h6 class="card-title text-info">
+                        <i class="fas fa-file-invoice me-1"></i> 待处理结算
+                    </h6>
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <div>
+                            <span class="fs-4 fw-bold" id="zeroCount">{{ stats.pending_settlements if stats else 0 }}</span>
+                            <span class="text-muted ms-1">项</span>
+                        </div>
+                        <div>
+                            <span class="badge {% if (stats.pending_settlements if stats else 0) < 100 %}badge-circle{% else %}badge-pill{% endif %} bg-info">{{ stats.pending_settlements if stats else 0 }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 功能模块 -->
+    <div class="row">
+        <!-- 库存管理模块 -->
+        <div class="col-md-4 mb-4">
+            <div class="card module-card h-100">
+                <div class="card-body text-center">
+                    <div class="text-primary module-icon">
+                        <i class="fas fa-cubes"></i>
+                    </div>
+                    <h5 class="module-title">库存管理</h5>
+                    <p class="module-description">
+                        管理产品库存，查看库存状态，处理入库出库操作，设置库存预警线。
+                    </p>
+                    <div class="d-grid gap-2">
+                        {{ render_button('查看库存', href=url_for('inventory.stock_list'), color='primary', icon='fas fa-list') }}
+                        {{ render_button('批量添加库存', href=url_for('inventory.add_inventory'), color='auxiliary', icon='fas fa-layer-group', size='sm') }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 结算管理模块 -->
+        <div class="col-md-4 mb-4">
+            <div class="card module-card h-100">
+                <div class="card-body text-center">
+                    <div class="text-success module-icon">
+                        <i class="fas fa-calculator"></i>
+                    </div>
+                    <h5 class="module-title">结算管理</h5>
+                    <p class="module-description">
+                        处理库存结算，生成结算单据，跟踪结算状态，管理结算记录。
+                    </p>
+                    <div class="d-grid gap-2">
+                        {{ render_button('结算列表', href=url_for('inventory.settlement_list'), color='success', icon='fas fa-list') }}
+                        {{ render_button('创建结算', href=url_for('inventory.create_settlement'), color='warning', icon='fas fa-plus', size='sm') }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 订货管理模块 -->
+        <div class="col-md-4 mb-4">
+            <div class="card module-card h-100">
+                <div class="card-body text-center">
+                    <div class="text-info module-icon">
+                        <i class="fas fa-shopping-cart"></i>
+                    </div>
+                    <h5 class="module-title">订货管理</h5>
+                    <p class="module-description">
+                        创建和管理采购订单，跟踪订单状态，处理订单交付，管理供应商关系。
+                    </p>
+                    <div class="d-grid gap-2">
+                        {{ render_button('订单列表', href=url_for('inventory.order_list'), color='info', icon='fas fa-list') }}
+                        {{ render_button('创建订单', href='#', color='primary', icon='fas fa-plus', size='sm') }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 快速操作 -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bolt me-2"></i>快速操作
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <h6>库存操作</h6>
+                            <div class="d-flex gap-2 flex-wrap">
+                                {{ render_button('快速出库', href='#', color='danger', icon='fas fa-arrow-down', size='sm') }}
+                                {{ render_button('库存调整', href='#', color='warning', icon='fas fa-adjust', size='sm') }}
+                                {{ render_button('低库存报告', href='#', color='info', icon='fas fa-chart-line', size='sm') }}
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <h6>结算与订单</h6>
+                            <div class="d-flex gap-2 flex-wrap">
+                                {{ render_button('批量结算', href='#', color='primary', icon='fas fa-calculator', size='sm') }}
+                                {{ render_button('待收货订单', href='#', color='warning', icon='fas fa-truck', size='sm') }}
+                                {{ render_button('导出报表', href='#', color='secondary', icon='fas fa-download', size='sm') }}
+                                {{ render_button('系统设置', href='#', color='dark', icon='fas fa-cog', size='sm') }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 加载统计数据
+    loadDashboardStats();
+    
+    // 绑定卡片点击事件
+    bindCardClickEvents();
+});
+
+function loadDashboardStats() {
+    // 这里可以通过AJAX加载实际的统计数据
+    // 暂时使用模拟数据
+    console.log('加载库存统计数据...');
+}
+
+function bindCardClickEvents() {
+    // 总库存项目卡片 - 跳转到库存列表
+    document.getElementById('totalStockCard').addEventListener('click', function() {
+        window.location.href = '{{ url_for("inventory.stock_list") }}';
+    });
+    
+    // 今日入库卡片 - 跳转到库存列表
+    document.getElementById('normalStockCard').addEventListener('click', function() {
+        window.location.href = '{{ url_for("inventory.stock_list") }}';
+    });
+    
+    // 低库存预警卡片 - 跳转到库存列表并筛选低库存
+    document.getElementById('lowStockCard').addEventListener('click', function() {
+        window.location.href = '{{ url_for("inventory.stock_list") }}?filter=low_stock';
+    });
+    
+    // 待处理结算卡片 - 跳转到结算列表
+    document.getElementById('zeroStockCard').addEventListener('click', function() {
+        window.location.href = '{{ url_for("inventory.settlement_list") }}';
+    });
+}
+</script>
+{% endblock %} 

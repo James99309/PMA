@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+{% from "macros/ui_helpers.html" import render_button %}
+
+{% block head %}
+{{ super() }}
+<style>
+.container.page-with-fixed-nav {
+    margin-top: 72px !important;
+}
+@media (max-width: 991.98px) {
+    .container.page-with-fixed-nav {
+        margin-top: 120px !important;
+    }
+}
+
+.order-status-draft { color: #6c757d; }
+.order-status-confirmed { color: #007bff; }
+.order-status-shipped { color: #ffc107; }
+.order-status-completed { color: #28a745; }
+.order-status-cancelled { color: #dc3545; }
+
+.order-type-purchase { color: #007bff; }
+.order-type-sale { color: #28a745; }
+
+.info-card {
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    color: white;
+    border: none;
+    border-radius: 8px;
+}
+
+.detail-card {
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.total-summary {
+    background: linear-gradient(135deg, #ffc107, #e0a800);
+    color: #212529;
+    border: none;
+    border-radius: 8px;
+    font-weight: bold;
+}
+
+.total-amount {
+    font-size: 1.5rem;
+    color: #dc3545;
+    font-weight: bold;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4 page-with-fixed-nav">
+    <!-- 页面标题 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="mb-0">
+                    <i class="fas fa-file-invoice me-2"></i>订单详情
+                </h2>
+                <div>
+                    {{ render_button('返回订单列表', href=url_for('inventory.order_list'), color='secondary', icon='fas fa-arrow-left') }}
+                    {% if order.status == 'draft' %}
+                    {{ render_button('编辑订单', href='#', color='warning', icon='fas fa-edit') }}
+                    {% endif %}
+                    {{ render_button('导出PDF', href='#', color='info', icon='fas fa-file-pdf') }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 订单基本信息 -->
+    <div class="card info-card mb-4">
+        <div class="card-body">
+            <h5 class="card-title text-white mb-3">
+                <i class="fas fa-info-circle me-2"></i>订单基本信息
+            </h5>
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label class="form-label text-white-50">订单号</label>
+                    <div class="text-white fw-bold">{{ order.order_number }}</div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label text-white-50">订单类型</label>
+                    <div>
+                        <span class="badge bg-light text-dark">
+                            {% if order.order_type == 'purchase' %}采购订单{% else %}销售订单{% endif %}
+                        </span>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label text-white-50">订单状态</label>
+                    <div>
+                        <span class="badge bg-light order-status-{{ order.status }}">
+                            {% if order.status == 'draft' %}草稿
+                            {% elif order.status == 'confirmed' %}已确认
+                            {% elif order.status == 'shipped' %}已发货
+                            {% elif order.status == 'completed' %}已完成
+                            {% elif order.status == 'cancelled' %}已取消
+                            {% else %}{{ order.status }}{% endif %}
+                        </span>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label text-white-50">目标公司</label>
+                    <div class="text-white fw-bold">{{ order.company.company_name if order.company else '-' }}</div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label class="form-label text-white-50">订单日期</label>
+                    <div class="text-white">{{ order.formatted_order_date }}</div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label text-white-50">预期到货时间</label>
+                    <div class="text-white">{{ order.formatted_expected_date or '-' }}</div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label text-white-50">创建人</label>
+                    <div class="text-white">{{ order.created_by.username if order.created_by else '-' }}</div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label text-white-50">创建时间</label>
+                    <div class="text-white">{{ order.created_at.strftime('%Y-%m-%d %H:%M') if order.created_at else '-' }}</div>
+                </div>
+            </div>
+            {% if order.payment_terms or order.delivery_address or order.description %}
+            <div class="row">
+                {% if order.payment_terms %}
+                <div class="col-md-4 mb-3">
+                    <label class="form-label text-white-50">付款条件</label>
+                    <div class="text-white">{{ order.payment_terms }}</div>
+                </div>
+                {% endif %}
+                {% if order.delivery_address %}
+                <div class="col-md-4 mb-3">
+                    <label class="form-label text-white-50">交付地址</label>
+                    <div class="text-white">{{ order.delivery_address }}</div>
+                </div>
+                {% endif %}
+                {% if order.description %}
+                <div class="col-md-4 mb-3">
+                    <label class="form-label text-white-50">订单说明</label>
+                    <div class="text-white">{{ order.description }}</div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 产品明细 -->
+    <div class="card detail-card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-list me-2"></i>产品明细
+                <span class="badge bg-secondary ms-2">共 {{ order.details|length }} 项</span>
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>序号</th>
+                            <th>产品名称</th>
+                            <th>产品型号</th>
+                            <th>品牌</th>
+                            <th>单位</th>
+                            <th>数量</th>
+                            <th>单价</th>
+                            <th>折扣率</th>
+                            <th>小计</th>
+                            <th>备注</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for detail in order.details %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ detail.product_name }}</td>
+                            <td>{{ detail.product_model or '-' }}</td>
+                            <td>{{ detail.brand or '-' }}</td>
+                            <td>{{ detail.unit or '-' }}</td>
+                            <td class="text-center">{{ detail.quantity }}</td>
+                            <td class="text-end">¥{{ "%.2f"|format(detail.unit_price or 0) }}</td>
+                            <td class="text-center">{{ "%.1f"|format((detail.discount or 1) * 100) }}%</td>
+                            <td class="text-end fw-bold">¥{{ "%.2f"|format(detail.total_price or 0) }}</td>
+                            <td>{{ detail.notes or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 订单总计 -->
+    <div class="card total-summary">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h5 class="mb-0">订单总计</h5>
+                    <div class="row mt-2">
+                        <div class="col-md-4">
+                            <small>总数量：<strong>{{ order.total_quantity or 0 }}</strong> 件</small>
+                        </div>
+                        <div class="col-md-4">
+                            <small>产品种类：<strong>{{ order.details|length }}</strong> 种</small>
+                        </div>
+                        <div class="col-md-4">
+                            <small>币种：<strong>{{ order.currency or 'CNY' }}</strong></small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="total-amount">
+                        ¥ {{ "%.2f"|format(order.total_amount or 0) }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 操作历史 -->
+    {% if order.status != 'draft' %}
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-history me-2"></i>操作历史
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="timeline-marker bg-primary"></div>
+                    <div class="timeline-content">
+                        <h6 class="timeline-title">订单创建</h6>
+                        <p class="timeline-text">
+                            {{ order.created_by.username if order.created_by else '系统' }} 创建了订单
+                        </p>
+                        <small class="text-muted">{{ order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else '-' }}</small>
+                    </div>
+                </div>
+                {% if order.approved_by %}
+                <div class="timeline-item">
+                    <div class="timeline-marker bg-success"></div>
+                    <div class="timeline-content">
+                        <h6 class="timeline-title">订单确认</h6>
+                        <p class="timeline-text">
+                            {{ order.approved_by.username }} 确认了订单
+                        </p>
+                        <small class="text-muted">{{ order.approved_at.strftime('%Y-%m-%d %H:%M:%S') if order.approved_at else '-' }}</small>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -22px;
+    top: 5px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px #dee2e6;
+}
+
+.timeline-content {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 3px solid #007bff;
+}
+
+.timeline-title {
+    margin-bottom: 5px;
+    color: #495057;
+}
+
+.timeline-text {
+    margin-bottom: 5px;
+    color: #6c757d;
+}
+</style>
+{% endblock %} 

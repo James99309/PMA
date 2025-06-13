@@ -23,7 +23,7 @@ def assign_user_default_permissions(user):
         logger.info(f"为用户 {user.username} (ID: {user.id}) 分配默认权限")
         
         # 定义模块列表
-        modules = ['customer', 'project', 'quotation', 'product', 'product_code', 'user', 'permission']
+        modules = ['customer', 'project', 'quotation', 'product', 'product_code', 'user', 'permission', 'inventory', 'settlement', 'order']
         
         # 删除该用户现有的所有权限（如果有）
         Permission.query.filter_by(user_id=user.id).delete()
@@ -85,10 +85,40 @@ def assign_user_default_permissions(user):
                     can_create = True
                     can_edit = True
                     can_delete = True
+                # 商务助理可以查看库存
+                if module in ['inventory', 'settlement', 'order']:
+                    can_view = True
             
             # 用户和权限模块默认只有管理员可以访问
             if module in ['user', 'permission'] and user.role != 'admin':
                 can_view = False
+            
+            # 库存管理模块权限设置
+            if module in ['inventory', 'settlement', 'order']:
+                if user.role == 'admin':
+                    # 管理员拥有所有库存管理权限
+                    can_view = True
+                    can_create = True
+                    can_edit = True
+                    can_delete = True
+                elif user.role in ['business_admin', 'ceo']:
+                    # 商务助理和CEO可以查看、创建、编辑
+                    can_view = True
+                    can_create = True
+                    can_edit = True
+                    can_delete = False
+                elif user.role in ['solution', 'service', 'sales']:
+                    # 解决方案、服务、销售可以查看
+                    can_view = True
+                    can_create = False
+                    can_edit = False
+                    can_delete = False
+                else:
+                    # 其他角色默认无库存管理权限
+                    can_view = False
+                    can_create = False
+                    can_edit = False
+                    can_delete = False
             
             # 创建权限记录
             permission = Permission(

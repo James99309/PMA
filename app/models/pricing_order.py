@@ -330,13 +330,34 @@ class SettlementOrderDetail(db.Model):
     # 关联批价单明细
     pricing_detail_id = Column(Integer, ForeignKey('pricing_order_details.id'), nullable=False, comment='关联批价单明细ID')
     
+    # 结算相关字段
+    settlement_company_id = Column(Integer, ForeignKey('companies.id'), nullable=True, comment='结算目标公司ID')
+    settlement_status = Column(String(20), default='pending', comment='结算状态: pending, completed')
+    settlement_date = Column(DateTime, nullable=True, comment='结算完成时间')
+    settlement_notes = Column(Text, nullable=True, comment='结算备注')
+    
     # 关系
     pricing_detail = relationship('PricingOrderDetail', backref='settlement_details')
+    settlement_company = relationship('Company', foreign_keys=[settlement_company_id], backref='settlement_details')
     
     def calculate_prices(self):
         """计算价格"""
         self.unit_price = self.market_price * self.discount_rate
         self.total_price = self.unit_price * self.quantity
+    
+    @property
+    def is_settled(self):
+        """是否已结算"""
+        return self.settlement_status == 'completed'
+    
+    @property
+    def settlement_status_label(self):
+        """结算状态标签"""
+        status_map = {
+            'pending': {'zh': '待结算', 'color': '#ffc107'},
+            'completed': {'zh': '已结算', 'color': '#28a745'},
+        }
+        return status_map.get(self.settlement_status, {'zh': '未知', 'color': '#6c757d'})
 
 
 class PricingOrderApprovalRecord(db.Model):

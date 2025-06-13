@@ -219,12 +219,24 @@ class PricingOrderService:
             # 确定审批流程类型
             flow_type = PricingOrderService.determine_approval_flow_type(project)
             
+            # 自动获取项目中的经销商ID
+            project_dealer_id = None
+            if not dealer_id and project.dealer:
+                # 根据项目中的经销商名称查找对应的公司ID
+                from app.models.customer import Company
+                dealer_company = Company.query.filter(
+                    Company.company_name == project.dealer,
+                    Company.company_type.in_(['经销商', 'dealer'])
+                ).first()
+                if dealer_company:
+                    project_dealer_id = dealer_company.id
+            
             # 创建批价单
             pricing_order = PricingOrder(
                 project_id=project_id,
                 quotation_id=quotation_id,
                 distributor_id=distributor_id,
-                dealer_id=dealer_id or getattr(project, 'dealer_id', None),  # 安全地获取经销商ID
+                dealer_id=dealer_id or project_dealer_id,  # 使用传入的经销商ID或项目中的经销商ID
                 approval_flow_type=flow_type,
                 created_by=current_user_id
             )

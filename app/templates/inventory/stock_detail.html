@@ -1,0 +1,384 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button %}
+
+{% block title %}库存详情{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+    .container.page-with-fixed-nav {
+        margin-top: 72px !important;
+    }
+    @media (max-width: 991.98px) {
+        .container.page-with-fixed-nav {
+            margin-top: 120px !important;
+        }
+    }
+
+    .detail-card {
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        border: none;
+    }
+
+    .info-section {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+
+    .stock-quantity {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #28a745;
+    }
+
+    .stock-status-normal { color: #28a745; }
+    .stock-status-low { color: #ffc107; }
+    .stock-status-out { color: #dc3545; }
+    .stock-status-over { color: #17a2b8; }
+
+    .transaction-item {
+        border-left: 4px solid #dee2e6;
+        padding-left: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .transaction-in { border-left-color: #28a745; }
+    .transaction-out { border-left-color: #dc3545; }
+    .transaction-settlement { border-left-color: #ffc107; }
+    .transaction-adjustment { border-left-color: #17a2b8; }
+
+    /* 产品图片样式 */
+    .product-image-container {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        text-align: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .product-image {
+        max-width: 100%;
+        max-height: 300px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .no-image-placeholder {
+        width: 200px;
+        height: 200px;
+        background: #e9ecef;
+        border: 2px dashed #ced4da;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+        color: #6c757d;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4 page-with-fixed-nav">
+    <!-- 页面标题 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="mb-0">
+                    <i class="fas fa-cube me-2"></i>库存详情
+                </h2>
+                <div>
+                    {{ render_button('返回库存列表', href=url_for('inventory.stock_list'), color='secondary', icon='fas fa-arrow-left') }}
+                    {{ render_button('库存操作', href='#', color='primary', icon='fas fa-edit', attrs='onclick="showStockAction({}, \'{}\')"'.format(inventory.id, inventory.product.product_name)) }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- 库存基本信息 -->
+        <div class="col-lg-8">
+            <div class="card detail-card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>基本信息
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- 产品图片区域 -->
+                    <div class="product-image-container">
+                        {% if inventory.product and inventory.product.image_path %}
+                            <img src="{{ url_for('static', filename='uploads/products/' + inventory.product.image_path) }}" 
+                                 alt="{{ inventory.product.product_name }}" 
+                                 class="product-image">
+                            <p class="text-muted mt-2 mb-0">{{ inventory.product.product_name }}</p>
+                        {% else %}
+                            <div class="no-image-placeholder">
+                                <div>
+                                    <i class="fas fa-image fa-3x mb-2"></i>
+                                    <p class="mb-0">暂无产品图片</p>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="info-section">
+                                <h6>公司信息</h6>
+                                <p><strong>公司名称：</strong>{{ inventory.company.company_name }}</p>
+                                <p><strong>公司编码：</strong>{{ inventory.company.company_code or '-' }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-section">
+                                <h6>产品信息</h6>
+                                <p><strong>产品名称：</strong>{{ inventory.product.product_name }}</p>
+                                <p><strong>产品编码：</strong>{{ inventory.product.product_code or '-' }}</p>
+                                <p><strong>产品MN：</strong>{{ inventory.product.product_mn or '-' }}</p>
+                                <p><strong>型号规格：</strong>{{ inventory.product.model or '-' }}</p>
+                                <p><strong>品牌：</strong>{{ inventory.product.brand or '-' }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {% if inventory.product and inventory.product.specification %}
+                    <div class="info-section">
+                        <h6>规格说明</h6>
+                        <p>{{ inventory.product.specification }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="info-section">
+                        <h6>库存详情</h6>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <p><strong>存储位置：</strong>{{ inventory.location or '-' }}</p>
+                            </div>
+                            <div class="col-md-3">
+                                <p><strong>单位：</strong>{{ inventory.unit or inventory.product.unit or '-' }}</p>
+                            </div>
+                            <div class="col-md-3">
+                                <p><strong>最低库存：</strong>{{ inventory.min_stock }}</p>
+                            </div>
+                            <div class="col-md-3">
+                                <p><strong>最高库存：</strong>{{ inventory.max_stock if inventory.max_stock > 0 else '-' }}</p>
+                            </div>
+                        </div>
+                        {% if inventory.notes %}
+                        <p><strong>备注：</strong>{{ inventory.notes }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- 库存变动记录 -->
+            <div class="card detail-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history me-2"></i>库存变动记录
+                        <span class="badge bg-secondary ms-2">最近20条</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if transactions %}
+                        {% for transaction in transactions %}
+                        <div class="transaction-item transaction-{{ transaction.transaction_type }}">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="mb-1">
+                                        {% if transaction.transaction_type == 'in' %}
+                                            <i class="fas fa-arrow-up text-success me-1"></i>入库
+                                        {% elif transaction.transaction_type == 'out' %}
+                                            <i class="fas fa-arrow-down text-danger me-1"></i>出库
+                                        {% elif transaction.transaction_type == 'settlement' %}
+                                            <i class="fas fa-calculator text-warning me-1"></i>结算出库
+                                        {% else %}
+                                            <i class="fas fa-adjust text-info me-1"></i>库存调整
+                                        {% endif %}
+                                    </h6>
+                                    <p class="mb-1">
+                                        <strong>数量变化：</strong>
+                                        <span class="{% if transaction.quantity > 0 %}text-success{% else %}text-danger{% endif %}">
+                                            {% if transaction.quantity > 0 %}+{% endif %}{{ transaction.quantity }}
+                                        </span>
+                                        （{{ transaction.quantity_before }} → {{ transaction.quantity_after }}）
+                                    </p>
+                                    {% if transaction.description %}
+                                    <p class="mb-1 text-muted">{{ transaction.description }}</p>
+                                    {% endif %}
+                                    {% if transaction.reference_type and transaction.reference_type != 'manual' %}
+                                    <p class="mb-1">
+                                        <small class="text-muted">
+                                            关联单据：{{ transaction.reference_type }}
+                                            {% if transaction.reference_id %} (ID: {{ transaction.reference_id }}){% endif %}
+                                        </small>
+                                    </p>
+                                    {% endif %}
+                                </div>
+                                <div class="text-end">
+                                    <small class="text-muted">
+                                        {{ transaction.transaction_date.strftime('%Y-%m-%d %H:%M') }}
+                                    </small>
+                                    {% if transaction.created_by %}
+                                    <br>
+                                    <small class="text-muted">
+                                        操作人：{{ transaction.created_by.username }}
+                                    </small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-clock fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">暂无变动记录</h5>
+                            <p class="text-muted">该库存项目还没有任何变动记录</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 库存状态侧边栏 -->
+        <div class="col-lg-4">
+            <div class="card detail-card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>库存状态
+                    </h5>
+                </div>
+                <div class="card-body text-center">
+                    <div class="stock-quantity 
+                        {% if inventory.quantity == 0 %}stock-status-out
+                        {% elif inventory.quantity <= inventory.min_stock %}stock-status-low
+                        {% elif inventory.max_stock > 0 and inventory.quantity >= inventory.max_stock %}stock-status-over
+                        {% else %}stock-status-normal{% endif %}">
+                        {{ inventory.quantity }}
+                    </div>
+                    <p class="text-muted mb-3">{{ inventory.unit or inventory.product.unit or '件' }}</p>
+                    
+                    <div class="mb-3">
+                        {% if inventory.quantity == 0 %}
+                            <span class="badge bg-danger fs-6">零库存</span>
+                        {% elif inventory.quantity <= inventory.min_stock %}
+                            <span class="badge bg-warning fs-6">低库存预警</span>
+                        {% elif inventory.max_stock > 0 and inventory.quantity >= inventory.max_stock %}
+                            <span class="badge bg-info fs-6">库存充足</span>
+                        {% else %}
+                            <span class="badge bg-success fs-6">库存正常</span>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="text-start">
+                        <p class="mb-1"><strong>最低库存：</strong>{{ inventory.min_stock }}</p>
+                        <p class="mb-1"><strong>最高库存：</strong>{{ inventory.max_stock if inventory.max_stock > 0 else '未设置' }}</p>
+                        <p class="mb-0"><strong>更新时间：</strong>{{ inventory.updated_at.strftime('%Y-%m-%d %H:%M') if inventory.updated_at else '-' }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 快速操作 -->
+            <div class="card detail-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bolt me-2"></i>快速操作
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        {{ render_button('入库', href='#', color='success', icon='fas fa-arrow-up', attrs='onclick="showStockAction({}, \'{}\', \'in\')"'.format(inventory.id, inventory.product.product_name)) }}
+                        {{ render_button('出库', href='#', color='danger', icon='fas fa-arrow-down', attrs='onclick="showStockAction({}, \'{}\', \'out\')"'.format(inventory.id, inventory.product.product_name)) }}
+                        {{ render_button('库存调整', href='#', color='warning', icon='fas fa-adjust', attrs='onclick="showStockAction({}, \'{}\', \'adjustment\')"'.format(inventory.id, inventory.product.product_name)) }}
+                        {{ render_button('查看关联结算', href='#', color='info', icon='fas fa-calculator') }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 库存操作模态框 -->
+<div class="modal fade" id="stockActionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">库存操作</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="stockActionForm">
+                    <div class="mb-3">
+                        <label for="actionType" class="form-label">操作类型</label>
+                        <select class="form-select" id="actionType" name="action_type" required>
+                            <option value="">请选择操作类型</option>
+                            <option value="in">入库</option>
+                            <option value="out">出库</option>
+                            <option value="adjustment">库存调整</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="quantity" class="form-label">数量</label>
+                        <input type="number" class="form-control" id="quantity" name="quantity" min="1" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">说明</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitStockAction()">确认操作</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+let currentInventoryId = {{ inventory.id }};
+
+function showStockAction(inventoryId, productName, defaultType = '') {
+    currentInventoryId = inventoryId;
+    document.querySelector('#stockActionModal .modal-title').textContent = `库存操作 - ${productName}`;
+    
+    // 重置表单
+    document.getElementById('stockActionForm').reset();
+    
+    // 设置默认操作类型
+    if (defaultType) {
+        document.getElementById('actionType').value = defaultType;
+    }
+    
+    // 显示模态框
+    const modal = new bootstrap.Modal(document.getElementById('stockActionModal'));
+    modal.show();
+}
+
+function submitStockAction() {
+    const form = document.getElementById('stockActionForm');
+    const formData = new FormData(form);
+    
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+    
+    // 这里可以添加AJAX提交逻辑
+    console.log('提交库存操作', Object.fromEntries(formData));
+    
+    // 暂时只是关闭模态框和显示消息
+    const modal = bootstrap.Modal.getInstance(document.getElementById('stockActionModal'));
+    modal.hide();
+    
+    alert('库存操作功能待实现');
+}
+</script>
+{% endblock %} 

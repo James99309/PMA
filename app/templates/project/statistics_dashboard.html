@@ -761,16 +761,16 @@ function filterValidProjects() {
         
         // 更新URL参数
         updateURLParams({});
-        return;
-    }
-    
+            return;
+        }
+        
     console.log("应用有效项目筛选");
     
     // 清除所有其他卡片的激活状态
     clearAllCardActiveStates();
     
     // 激活有效项目卡片
-    card.classList.add('active-filter');
+        card.classList.add('active-filter');
     
     // 统计过滤前的项目数量 - 使用多种选择器确保兼容性
     const allRows1 = document.querySelectorAll('.table tbody tr');
@@ -850,7 +850,7 @@ function clearAllCardActiveStates() {
     
     allCards.forEach(cardId => {
         const card = document.getElementById(cardId);
-        if (card) {
+    if (card) {
             card.classList.remove('active-filter');
             card.classList.remove('stage-card-selected');
         }
@@ -861,7 +861,7 @@ function clearAllCardActiveStates() {
  * 更新URL参数但不刷新页面
  */
 function updateURLParams(params) {
-    const currentUrl = new URL(window.location.href);
+        const currentUrl = new URL(window.location.href);
     const urlParams = new URLSearchParams(currentUrl.search);
     
     // 清除所有过滤参数，避免冲突
@@ -984,16 +984,16 @@ function filterPausedProjects() {
                 filter_stage_not: 'lost,paused,signed'
             });
         }
-        return;
-    }
-    
+            return;
+        }
+        
     console.log("应用搁置项目筛选");
     
     // 清除所有卡片状态（包括有效项目卡片）
     clearAllCardActiveStates();
     
     // 激活当前卡片，使用stage-card-selected类显示竖线
-    card.classList.add('active-filter');
+        card.classList.add('active-filter');
     card.classList.add('stage-card-selected');
     
     // 使用客户端过滤显示搁置阶段项目
@@ -1068,11 +1068,11 @@ function filterProjectsByStage(stage, cardId) {
     if (!card) return;
     
     // 添加动画效果
-    card.classList.add('pulse-effect');
-    setTimeout(() => {
-        card.classList.remove('pulse-effect');
-    }, 300);
-    
+        card.classList.add('pulse-effect');
+        setTimeout(() => {
+            card.classList.remove('pulse-effect');
+        }, 300);
+        
     // 检查当前是否已经应用了该阶段过滤
     const isCurrentlyFiltered = card.classList.contains('active-filter');
     
@@ -1099,9 +1099,9 @@ function filterProjectsByStage(stage, cardId) {
                 filter_stage_not: 'lost,paused,signed'
             });
         }
-        return;
-    }
-    
+            return;
+        }
+        
     console.log(`应用${stage}阶段筛选`);
     
     // 清除所有卡片的激活状态（包括有效项目卡片）
@@ -1109,7 +1109,7 @@ function filterProjectsByStage(stage, cardId) {
     
     // 添加当前卡片的选中状态
     card.classList.add('stage-card-selected');
-    card.classList.add('active-filter');
+        card.classList.add('active-filter');
     
     // 应用阶段过滤
     clientSideFilter({
@@ -1478,7 +1478,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // 确保清除任何可能的客户端过滤
             clearClientSideFilter();
         }
-    } else {
+        } else {
         // 如果有过滤参数，则需要根据实际显示的项目数量更新统计
         console.log('页面初始加载有过滤参数，计算过滤后的统计');
         setTimeout(() => {
@@ -1577,15 +1577,15 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 检查招标中卡片
     if (params.has('filter_current_stage')) {
-        checkCardActiveState('tenderingProjectsCard', ['filter_current_stage'], ['tendering']);
-        
-        // 检查中标卡片
-        checkCardActiveState('wonProjectsCard', ['filter_current_stage'], ['awarded']);
+    checkCardActiveState('tenderingProjectsCard', ['filter_current_stage'], ['tendering']);
+    
+    // 检查中标卡片
+    checkCardActiveState('wonProjectsCard', ['filter_current_stage'], ['awarded']);
     }
     
     // 检查业务推进卡片
     if (params.has('filter_updated_this_month')) {
-        checkCardActiveState('updatedProjectsCard', ['filter_updated_this_month'], ['1']);
+    checkCardActiveState('updatedProjectsCard', ['filter_updated_this_month'], ['1']);
     }
     
     console.log('第二个DOMContentLoaded - 卡片状态检查完成');

@@ -139,25 +139,29 @@ def edit_pricing_order(order_id):
         can_edit_settlement = PricingOrderService.can_edit_settlement_details(pricing_order, current_user)
         can_view_settlement = PricingOrderService.can_view_settlement_tab(current_user)
         
-        # 获取客户数据（分销商和经销商）
-        distributors = Company.query.filter_by(company_type='分销商').all()
-        dealers = Company.query.filter_by(company_type='经销商').all()
+        # 获取客户数据（分销商和经销商）- 应用数据所有权过滤
+        from app.utils.access_control import get_viewable_data
+        
+        # 获取用户有权限查看的经销商类型公司（分销商下拉框也显示经销商类型的公司）
+        dealers = get_viewable_data(Company, current_user, [Company.company_type.in_(['经销商', 'dealer'])]).all()
+        
+        # 分销商下拉框显示的也是经销商类型的公司（因为系统中没有单独的分销商类型）
+        distributors = dealers
         
         # 获取项目关联的经销商客户
         project_dealers = []
         if pricing_order.project:
             # 根据项目中的经销商字段查找对应的公司
             if pricing_order.project.dealer:
-                dealer_company = Company.query.filter_by(
-                    company_name=pricing_order.project.dealer,
-                    company_type='经销商'
-                ).first()
+                dealer_company = get_viewable_data(Company, current_user, [
+                    Company.company_name == pricing_order.project.dealer,
+                    Company.company_type.in_(['经销商', 'dealer'])
+                ]).first()
                 if dealer_company:
                     project_dealers.append(dealer_company)
             
-            # 也可以查找其他可能的经销商
-            all_dealers = Company.query.filter_by(company_type='经销商').all()
-            for dealer in all_dealers:
+            # 添加其他有权限查看的经销商
+            for dealer in dealers:
                 if dealer not in project_dealers:
                     project_dealers.append(dealer)
         

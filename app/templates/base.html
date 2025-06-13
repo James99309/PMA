@@ -361,6 +361,11 @@
                         </ul>
                     </li>
                     {% endif %}
+                    {% if has_permission('inventory', 'view') and current_user.role == 'admin' %}
+                    <li class="nav-item">
+                        <a class="nav-link text-sm py-2 {{ 'active' if request.endpoint.startswith('inventory.') else '' }}" href="{{ url_for('inventory.index') }}">库存管理</a>
+                    </li>
+                    {% endif %}
                     {% if current_user.is_authenticated and current_user.has_permission('user', 'view') %}
                     <li class="nav-item d-lg-none">
                         <details>

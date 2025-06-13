@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button %}
+
+{% block title %}添加库存{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+    .container.page-with-fixed-nav {
+        margin-top: 72px !important;
+    }
+    @media (max-width: 991.98px) {
+        .container.page-with-fixed-nav {
+            margin-top: 120px !important;
+        }
+    }
+
+    .form-card {
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        border: none;
+    }
+
+    .form-section {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 2rem;
+    }
+
+    .required {
+        color: #dc3545;
+    }
+
+    .product-info {
+        background: #e3f2fd;
+        padding: 1rem;
+        border-radius: 4px;
+        margin-top: 1rem;
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4 page-with-fixed-nav">
+    <!-- 页面标题 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="mb-0">
+                    <i class="fas fa-plus-circle me-2"></i>添加库存
+                </h2>
+                <div>
+                    {{ render_button('返回库存列表', href=url_for('inventory.stock_list'), color='secondary', icon='fas fa-arrow-left') }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加库存表单 -->
+    <div class="row justify-content-center">
+        <div class="col-lg-8 col-md-10">
+            <div class="card form-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-warehouse me-2"></i>库存入库信息
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('inventory.add_stock') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        
+                        <!-- 基本信息 -->
+                        <div class="form-section">
+                            <h6 class="mb-3">
+                                <i class="fas fa-info-circle me-2"></i>基本信息
+                            </h6>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="company_id" class="form-label">
+                                        公司 <span class="required">*</span>
+                                    </label>
+                                    <select class="form-select" id="company_id" name="company_id" required>
+                                        <option value="">请选择公司</option>
+                                        {% for company in companies %}
+                                        <option value="{{ company.id }}">{{ company.company_name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <label for="product_id" class="form-label">
+                                        产品 <span class="required">*</span>
+                                    </label>
+                                    <select class="form-select" id="product_id" name="product_id" required>
+                                        <option value="">请选择产品</option>
+                                        {% for product in products %}
+                                        <option value="{{ product.id }}" 
+                                                data-name="{{ product.product_name }}"
+                                                data-model="{{ product.model or '' }}"
+                                                data-brand="{{ product.brand or '' }}"
+                                                data-unit="{{ product.unit or '' }}">
+                                            {{ product.product_name }}
+                                            {% if product.model %} - {{ product.model }}{% endif %}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 产品信息显示 -->
+                        <div id="product-info" class="product-info">
+                            <h6><i class="fas fa-box me-2"></i>产品详情</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>产品名称：</strong><span id="info-name">-</span></p>
+                                    <p><strong>型号规格：</strong><span id="info-model">-</span></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>品牌：</strong><span id="info-brand">-</span></p>
+                                    <p><strong>单位：</strong><span id="info-unit">-</span></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 入库信息 -->
+                        <div class="form-section">
+                            <h6 class="mb-3">
+                                <i class="fas fa-arrow-up me-2"></i>入库信息
+                            </h6>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="quantity" class="form-label">
+                                        入库数量 <span class="required">*</span>
+                                    </label>
+                                    <input type="number" class="form-control" id="quantity" name="quantity" 
+                                           min="1" step="1" required placeholder="请输入入库数量">
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <label for="location" class="form-label">存储位置</label>
+                                    <input type="text" class="form-control" id="location" name="location" 
+                                           placeholder="请输入存储位置（可选）">
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="description" class="form-label">入库说明</label>
+                                <textarea class="form-control" id="description" name="description" 
+                                          rows="3" placeholder="请输入入库说明（可选）"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- 操作按钮 -->
+                        <div class="d-flex justify-content-end gap-2">
+                            {{ render_button('取消', href=url_for('inventory.stock_list'), color='secondary', icon='fas fa-times') }}
+                            {{ render_button('确认入库', type='submit', color='success', icon='fas fa-check') }}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const productSelect = document.getElementById('product_id');
+    const productInfo = document.getElementById('product-info');
+    const quantityInput = document.getElementById('quantity');
+    
+    // 产品选择变化时显示产品信息
+    productSelect.addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        
+        if (this.value) {
+            // 显示产品信息
+            document.getElementById('info-name').textContent = selectedOption.dataset.name || '-';
+            document.getElementById('info-model').textContent = selectedOption.dataset.model || '-';
+            document.getElementById('info-brand').textContent = selectedOption.dataset.brand || '-';
+            document.getElementById('info-unit').textContent = selectedOption.dataset.unit || '-';
+            
+            productInfo.style.display = 'block';
+            quantityInput.focus();
+        } else {
+            productInfo.style.display = 'none';
+        }
+    });
+    
+    // 表单验证
+    const form = document.querySelector('form');
+    form.addEventListener('submit', function(e) {
+        const companyId = document.getElementById('company_id').value;
+        const productId = document.getElementById('product_id').value;
+        const quantity = document.getElementById('quantity').value;
+        
+        if (!companyId) {
+            e.preventDefault();
+            alert('请选择公司');
+            return;
+        }
+        
+        if (!productId) {
+            e.preventDefault();
+            alert('请选择产品');
+            return;
+        }
+        
+        if (!quantity || quantity <= 0) {
+            e.preventDefault();
+            alert('请输入有效的入库数量');
+            return;
+        }
+        
+        // 确认提交
+        if (!confirm(`确认要为 ${document.getElementById('company_id').options[document.getElementById('company_id').selectedIndex].text} 的 ${document.getElementById('product_id').options[document.getElementById('product_id').selectedIndex].text} 入库 ${quantity} 件吗？`)) {
+            e.preventDefault();
+        }
+    });
+});
+</script>
+{% endblock %} 

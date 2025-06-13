@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button %}
+
+{% block title %}结算详情{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+    .container.page-with-fixed-nav {
+        margin-top: 72px !important;
+    }
+    @media (max-width: 991.98px) {
+        .container.page-with-fixed-nav {
+            margin-top: 120px !important;
+        }
+    }
+
+    .detail-card {
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        border: none;
+    }
+
+    .info-section {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+
+    .status-badge {
+        font-size: 1rem;
+        padding: 0.5rem 1rem;
+    }
+
+    .amount-display {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #28a745;
+    }
+
+    .table-responsive {
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4 page-with-fixed-nav">
+    <!-- 页面标题 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="mb-0">
+                    <i class="fas fa-file-invoice me-2"></i>结算详情
+                </h2>
+                <div>
+                    {{ render_button('返回结算列表', href=url_for('inventory.settlement_list'), color='secondary', icon='fas fa-arrow-left') }}
+                    {% if settlement_order.status == 'approved' %}
+                        {{ render_button('执行结算', href='#', color='success', icon='fas fa-check-circle', attrs='onclick="executeSettlement({})"'.format(settlement_order.id)) }}
+                    {% endif %}
+                    {% if settlement_order.status in ['draft', 'pending'] %}
+                        {{ render_button('编辑结算单', href='#', color='primary', icon='fas fa-edit') }}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- 结算单基本信息 -->
+        <div class="col-lg-8">
+            <div class="card detail-card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>结算单信息
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="info-section">
+                                <h6>基本信息</h6>
+                                <p><strong>结算单号：</strong>{{ settlement_order.order_number }}</p>
+                                <p><strong>创建时间：</strong>{{ settlement_order.created_at.strftime('%Y-%m-%d %H:%M') if settlement_order.created_at else '-' }}</p>
+                                <p><strong>创建人：</strong>{{ settlement_order.creator.username if settlement_order.creator else '-' }}</p>
+                                {% if settlement_order.approved_by %}
+                                <p><strong>批准人：</strong>{{ settlement_order.approver.username }}</p>
+                                <p><strong>批准时间：</strong>{{ settlement_order.approved_at.strftime('%Y-%m-%d %H:%M') if settlement_order.approved_at else '-' }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-section">
+                                <h6>关联信息</h6>
+                                <p><strong>分销商：</strong>{{ settlement_order.distributor.company_name if settlement_order.distributor else '无分销商' }}</p>
+                                {% if settlement_order.dealer %}
+                                <p><strong>经销商：</strong>{{ settlement_order.dealer.company_name }}</p>
+                                {% endif %}
+                                {% if settlement_order.project %}
+                                <p><strong>关联项目：</strong>
+                                    <a href="{{ url_for('project.view_project', project_id=settlement_order.project.id) }}" class="text-decoration-none">
+                                        {{ settlement_order.project.project_name }}
+                                    </a>
+                                </p>
+                                {% endif %}
+                                {% if settlement_order.quotation %}
+                                <p><strong>关联报价单：</strong>{{ settlement_order.quotation.quotation_number }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 结算明细 -->
+            <div class="card detail-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list me-2"></i>结算明细
+                        <span class="badge bg-secondary ms-2">共 {{ settlement_order.details|length }} 项</span>
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>产品名称</th>
+                                    <th>型号</th>
+                                    <th>品牌</th>
+                                    <th>产品MN</th>
+                                    <th>数量</th>
+                                    <th>单位</th>
+                                    <th>市场价</th>
+                                    <th>结算价</th>
+                                    <th>折扣率</th>
+                                    <th>小计</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if settlement_order.details %}
+                                    {% for detail in settlement_order.details %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ detail.product_name }}</strong>
+                                            {% if detail.product_desc %}
+                                            <br><small class="text-muted">{{ detail.product_desc }}</small>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ detail.product_model or '-' }}</td>
+                                        <td>{{ detail.brand or '-' }}</td>
+                                        <td>{{ detail.product_mn or '-' }}</td>
+                                        <td>
+                                            <span class="fw-bold">{{ detail.quantity }}</span>
+                                        </td>
+                                        <td>{{ detail.unit or '-' }}</td>
+                                        <td>¥{{ "%.2f"|format(detail.market_price) }}</td>
+                                        <td>¥{{ "%.2f"|format(detail.unit_price) }}</td>
+                                        <td>{{ "%.1f"|format(detail.discount_rate * 100) }}%</td>
+                                        <td>
+                                            <span class="text-success fw-bold">
+                                                ¥{{ "%.2f"|format(detail.total_price) }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="10" class="text-center py-4">
+                                            <div class="text-muted">
+                                                <i class="fas fa-inbox fa-3x mb-3"></i>
+                                                <h5>暂无结算明细</h5>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 结算状态侧边栏 -->
+        <div class="col-lg-4">
+            <div class="card detail-card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>结算状态
+                    </h5>
+                </div>
+                <div class="card-body text-center">
+                    <div class="amount-display">
+                        ¥{{ settlement_order.formatted_total_amount }}
+                    </div>
+                    <p class="text-muted mb-3">结算总金额</p>
+                    
+                    <div class="mb-3">
+                        {% if settlement_order.status == 'draft' %}
+                            <span class="badge bg-secondary status-badge">草稿</span>
+                        {% elif settlement_order.status == 'pending' %}
+                            <span class="badge bg-warning status-badge">审批中</span>
+                        {% elif settlement_order.status == 'approved' %}
+                            <span class="badge bg-success status-badge">已批准</span>
+                        {% elif settlement_order.status == 'rejected' %}
+                            <span class="badge bg-danger status-badge">已拒绝</span>
+                        {% else %}
+                            <span class="badge bg-light text-dark status-badge">{{ settlement_order.status }}</span>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="text-start">
+                        <p class="mb-1"><strong>产品项数：</strong>{{ settlement_order.details|length }}</p>
+                        <p class="mb-1"><strong>总折扣率：</strong>{{ "%.1f"|format(settlement_order.discount_percentage) }}%</p>
+                        <p class="mb-0"><strong>更新时间：</strong>{{ settlement_order.updated_at.strftime('%Y-%m-%d %H:%M') if settlement_order.updated_at else '-' }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 库存状态检查 -->
+            <div class="card detail-card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-warehouse me-2"></i>库存状态
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="inventoryStatus">
+                        <p class="text-muted">正在检查库存状态...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 快速操作 -->
+            <div class="card detail-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bolt me-2"></i>快速操作
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        {% if settlement_order.status == 'approved' %}
+                            {{ render_button('执行结算', href='#', color='success', icon='fas fa-check-circle', attrs='onclick="executeSettlement({})"'.format(settlement_order.id)) }}
+                            {{ render_button('检查库存', href='#', color='info', icon='fas fa-search', attrs='onclick="checkInventory()"') }}
+                        {% endif %}
+                        {% if settlement_order.project %}
+                            {{ render_button('查看项目', href=url_for('project.view_project', project_id=settlement_order.project.id), color='primary', icon='fas fa-project-diagram') }}
+                        {% endif %}
+                        {{ render_button('导出结算单', href='#', color='secondary', icon='fas fa-download') }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 执行结算确认模态框 -->
+<div class="modal fade" id="executeSettlementModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">执行结算确认</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>注意：</strong>执行结算将会从库存中扣减相应的产品数量，此操作不可撤销！
+                </div>
+                <p>确定要执行此结算单的库存扣减操作吗？</p>
+                <div id="settlementInfo">
+                    <p><strong>结算单号：</strong>{{ settlement_order.order_number }}</p>
+                    <p><strong>分销商：</strong>{{ settlement_order.distributor.company_name if settlement_order.distributor else '无分销商' }}</p>
+                    <p><strong>产品项数：</strong>{{ settlement_order.details|length }}</p>
+                    <p><strong>结算金额：</strong>¥{{ settlement_order.formatted_total_amount }}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-success" onclick="confirmExecuteSettlement()">
+                    <i class="fas fa-check me-1"></i>确认执行
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+let currentSettlementId = {{ settlement_order.id }};
+
+function executeSettlement(settlementId) {
+    currentSettlementId = settlementId;
+    
+    // 显示模态框
+    const modal = new bootstrap.Modal(document.getElementById('executeSettlementModal'));
+    modal.show();
+}
+
+function confirmExecuteSettlement() {
+    if (!currentSettlementId) return;
+    
+    // 发送执行结算请求
+    fetch(`/inventory/settlement/${currentSettlementId}/execute`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.getAttribute('content')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('结算执行成功！库存已更新。');
+            window.location.reload();
+        } else {
+            alert('结算执行失败：' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('执行结算失败:', error);
+        alert('执行结算失败，请稍后重试。');
+    })
+    .finally(() => {
+        // 关闭模态框
+        bootstrap.Modal.getInstance(document.getElementById('executeSettlementModal')).hide();
+    });
+}
+
+function checkInventory() {
+    // 检查库存状态
+    document.getElementById('inventoryStatus').innerHTML = '<p class="text-muted">正在检查库存...</p>';
+    
+    // 这里可以添加检查库存的逻辑
+    setTimeout(() => {
+        document.getElementById('inventoryStatus').innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                库存检查功能待实现
+            </div>
+        `;
+    }, 1000);
+}
+
+// 页面加载时检查库存状态
+document.addEventListener('DOMContentLoaded', function() {
+    checkInventory();
+});
+</script>
+{% endblock %} 

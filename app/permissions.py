@@ -45,6 +45,24 @@ class Permissions:
     
     # 系统管理相关权限
     ADMIN = 'admin'
+    
+    # 库存管理相关权限
+    INVENTORY_VIEW = 'inventory_view'
+    INVENTORY_CREATE = 'inventory_create'
+    INVENTORY_EDIT = 'inventory_edit'
+    INVENTORY_DELETE = 'inventory_delete'
+    
+    # 结算单相关权限
+    SETTLEMENT_VIEW = 'settlement_view'
+    SETTLEMENT_CREATE = 'settlement_create'
+    SETTLEMENT_EDIT = 'settlement_edit'
+    SETTLEMENT_DELETE = 'settlement_delete'
+    
+    # 订单相关权限
+    ORDER_VIEW = 'order_view'
+    ORDER_CREATE = 'order_create'
+    ORDER_EDIT = 'order_edit'
+    ORDER_DELETE = 'order_delete'
 
 def check_permission(permission):
     """

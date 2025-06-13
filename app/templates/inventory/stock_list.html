@@ -1,0 +1,507 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button %}
+
+{% block title %}库存列表{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+    /* 库存列表页面主容器顶部留白，避免被fixed导航遮挡 */
+    .container.page-with-fixed-nav {
+        margin-top: 72px !important;
+    }
+    @media (max-width: 991.98px) {
+        .container.page-with-fixed-nav {
+            margin-top: 120px !important;
+        }
+    }
+
+    .stock-status-normal { color: #28a745; }
+    .stock-status-low { color: #ffc107; }
+    .stock-status-out { color: #dc3545; }
+    .stock-status-over { color: #17a2b8; }
+
+    .stock-quantity {
+        font-weight: 600;
+        color: #000 !important; /* 统一黑色 */
+    }
+
+    .table-responsive {
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        overflow-x: auto; /* 允许左右滚动 */
+        width: 100%;
+    }
+
+    .search-box {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+
+    /* 调整表格样式 */
+    .table {
+        font-size: 0.85rem; /* 字体缩小2号 */
+        white-space: nowrap; /* 防止换行 */
+        min-width: 1200px; /* 确保有足够宽度 */
+    }
+
+    .table th,
+    .table td {
+        padding: 0.75rem; /* 调整间距 */
+        vertical-align: middle;
+    }
+
+    /* 各字段宽度分配 */
+    .table th:nth-child(1), .table td:nth-child(1) { min-width: 150px; } /* 公司 */
+    .table th:nth-child(2), .table td:nth-child(2) { min-width: 200px; } /* 产品名称 */
+    .table th:nth-child(3), .table td:nth-child(3) { min-width: 120px; } /* 产品型号 */
+    .table th:nth-child(4), .table td:nth-child(4) { min-width: 100px; } /* 当前库存 */
+    .table th:nth-child(5), .table td:nth-child(5) { min-width: 100px; } /* 最低库存 */
+    .table th:nth-child(6), .table td:nth-child(6) { min-width: 100px; } /* 状态 */
+    .table th:nth-child(7), .table td:nth-child(7) { min-width: 150px; } /* 规格说明 */
+    .table th:nth-child(8), .table td:nth-child(8) { min-width: 100px; } /* 品牌 */
+    .table th:nth-child(9), .table td:nth-child(9) { min-width: 80px; } /* 单位 */
+    .table th:nth-child(10), .table td:nth-child(10) { min-width: 120px; } /* 产品MN */
+    .table th:nth-child(11), .table td:nth-child(11) { min-width: 140px; } /* 最后更新 */
+
+    /* 产品名称链接样式 */
+    .product-name-link {
+        color: #0d6efd;
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .product-name-link:hover {
+        color: #0a58ca;
+        text-decoration: underline;
+    }
+
+    /* 规格字段样式 - 限制显示长度并支持悬停显示完整内容 */
+    .spec-text {
+        max-width: 150px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: inline-block;
+        cursor: help;
+    }
+
+    /* 悬停提示样式 */
+    .spec-text[title]:hover {
+        position: relative;
+    }
+
+    /* 自定义tooltip样式 */
+    .custom-tooltip {
+        position: relative;
+        display: inline-block;
+    }
+
+    .custom-tooltip .tooltip-text {
+        visibility: hidden;
+        width: 300px;
+        background-color: #333;
+        color: #fff;
+        text-align: left;
+        border-radius: 6px;
+        padding: 8px 12px;
+        position: absolute;
+        z-index: 1000;
+        bottom: 125%;
+        left: 50%;
+        margin-left: -150px;
+        opacity: 0;
+        transition: opacity 0.3s;
+        font-size: 0.875rem;
+        line-height: 1.4;
+        word-wrap: break-word;
+        white-space: normal;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .custom-tooltip .tooltip-text::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: #333 transparent transparent transparent;
+    }
+
+    .custom-tooltip:hover .tooltip-text {
+        visibility: visible;
+        opacity: 1;
+    }
+
+    /* 智能徽章样式 */
+    .badge-circle {
+        border-radius: 50% !important;
+        width: 2rem;
+        height: 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .badge-pill {
+        border-radius: 1rem !important;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    /* 卡片悬停效果 */
+    .card:hover {
+        transform: translateY(-2px);
+        transition: all 0.3s ease;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    }
+
+    /* 选中状态的卡片 */
+    .card.selected {
+        border: 2px solid var(--bs-primary) !important;
+        background-color: var(--bs-primary-bg-subtle) !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4 page-with-fixed-nav">
+    <div class="row">
+        <div class="col">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h1 class="h3 mb-0">库存管理</h1>
+                <div class="d-flex gap-2">
+                    {{ render_button('返回库存首页', url_for('inventory.index'), color='secondary', icon='fas fa-home', size='sm') }}
+                    {{ render_button('批量添加库存', url_for('inventory.add_inventory'), color='primary', icon='fas fa-plus', size='sm') }}
+                </div>
+            </div>
+
+            <!-- 库存状态统计卡片 - 采用项目管理风格 -->
+            <div class="d-flex flex-wrap gap-3 mb-4" style="justify-content: space-between;">
+                <!-- 总库存项目卡片 -->
+                <div style="flex: 1; min-width: 200px;">
+                    <div class="card border-0 shadow-sm h-100 bg-light" id="totalStockCard" style="cursor:pointer;" onclick="filterStockByStatus('all')">
+                        <div class="card-body">
+                            <h6 class="card-title text-primary">
+                                <i class="fas fa-boxes me-1"></i> 总库存项目
+                            </h6>
+                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                <div>
+                                    <span class="fs-5 fw-bold" id="totalCount">{{ stats.total }}</span>
+                                    <span class="text-muted ms-1">项</span>
+                                </div>
+                <div>
+                                    <span class="badge {% if stats.total < 100 %}badge-circle{% else %}badge-pill{% endif %} bg-primary">{{ stats.total }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+                </div>
+                
+                <!-- 正常库存卡片 -->
+                <div style="flex: 1; min-width: 200px;">
+                    <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10" id="normalStockCard" style="cursor:pointer;" onclick="filterStockByStatus('normal')">
+                        <div class="card-body">
+                            <h6 class="card-title text-success">
+                                <i class="fas fa-check-circle me-1"></i> 正常库存
+                            </h6>
+                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                <div>
+                                    <span class="fs-5 fw-bold" id="normalCount">{{ stats.normal }}</span>
+                                    <span class="text-muted ms-1">项</span>
+                </div>
+                                <div>
+                                    <span class="badge {% if stats.normal < 100 %}badge-circle{% else %}badge-pill{% endif %} bg-success">{{ stats.normal }}</span>
+                </div>
+                </div>
+            </div>
+    </div>
+    </div>
+
+                <!-- 低库存预警卡片 -->
+                <div style="flex: 1; min-width: 200px;">
+                    <div class="card border-0 shadow-sm h-100 bg-warning bg-opacity-10" id="lowStockCard" style="cursor:pointer;" onclick="filterStockByStatus('low')">
+                        <div class="card-body">
+                            <h6 class="card-title text-warning">
+                                <i class="fas fa-exclamation-triangle me-1"></i> 低库存预警
+                            </h6>
+                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                <div>
+                                    <span class="fs-5 fw-bold" id="lowStockCount">{{ stats.low }}</span>
+                                    <span class="text-muted ms-1">项</span>
+                                </div>
+                                <div>
+                                    <span class="badge {% if stats.low < 100 %}badge-circle{% else %}badge-pill{% endif %} bg-warning">{{ stats.low }}</span>
+                                </div>
+                </div>
+            </div>
+        </div>
+                </div>
+                
+                <!-- 零库存卡片 -->
+                <div style="flex: 1; min-width: 200px;">
+                    <div class="card border-0 shadow-sm h-100 bg-danger bg-opacity-10" id="zeroStockCard" style="cursor:pointer;" onclick="filterStockByStatus('zero')">
+                        <div class="card-body">
+                            <h6 class="card-title text-danger">
+                                <i class="fas fa-times-circle me-1"></i> 零库存
+                            </h6>
+                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                <div>
+                                    <span class="fs-5 fw-bold" id="zeroCount">{{ stats.zero }}</span>
+                                    <span class="text-muted ms-1">项</span>
+                                </div>
+                                <div>
+                                    <span class="badge {% if stats.zero < 100 %}badge-circle{% else %}badge-pill{% endif %} bg-danger">{{ stats.zero }}</span>
+                                </div>
+                </div>
+            </div>
+        </div>
+                </div>
+            </div>
+
+            <!-- 筛选和搜索区域 -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="search" class="form-label">搜索</label>
+                            <input type="text" class="form-control" id="search" name="search" 
+                                   placeholder="搜索产品名称或公司名称" value="{{ search }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="company_filter" class="form-label">公司筛选</label>
+                            <select class="form-select" id="company_filter" name="company_filter">
+                                <option value="">全部公司</option>
+                                {% for company in companies_with_stock %}
+                                    <option value="{{ company.id }}" 
+                                            {% if selected_company_id == company.id|string %}selected{% endif %}>
+                                        {{ company.company_name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button type="button" class="btn btn-primary me-2" onclick="applyFilters()">
+                                <i class="fas fa-search"></i> 筛选
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="clearFilters()">
+                                <i class="fas fa-times"></i> 清除
+                            </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 库存列表表格 -->
+    <div class="card">
+                <div class="card-body">
+            <div class="table-responsive">
+                        <table class="table table-striped table-hover" id="inventoryTable">
+                            <thead class="table-dark">
+                        <tr>
+                                    <th>公司</th>
+                            <th>产品名称</th>
+                                    <th>型号</th>
+                                    <th>当前库存</th>
+                                    <th>最低库存</th>
+                            <th>状态</th>
+                                    <th>规格</th>
+                            <th>品牌</th>
+                                    <th>单位</th>
+                                    <th>MN号</th>
+                                    <th>更新时间</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                            {% for inventory in inventories %}
+                                <tr data-status="{% if inventory.quantity == 0 %}zero{% elif inventory.quantity <= inventory.min_stock %}low{% else %}normal{% endif %}">
+                                    <td>{{ inventory.company.company_name if inventory.company else '-' }}</td>
+                                <td>
+                                        <a href="{{ url_for('inventory.stock_detail', id=inventory.id) }}" 
+                                           class="product-name-link" title="点击查看库存详情">
+                                            {{ inventory.product.product_name if inventory.product else '-' }}
+                                    </a>
+                                </td>
+                                    <td>{{ inventory.product.model if inventory.product else '-' }}</td>
+                                <td>
+                                        <span class="fw-bold stock-quantity">{{ inventory.quantity }}</span>
+                                </td>
+                                    <td>{{ inventory.min_stock }}</td>
+                                <td>
+                                    {% if inventory.quantity == 0 %}
+                                        <span class="badge bg-danger">零库存</span>
+                                    {% elif inventory.quantity <= inventory.min_stock %}
+                                        <span class="badge bg-warning">低库存</span>
+                                    {% else %}
+                                        <span class="badge bg-success">正常</span>
+                                    {% endif %}
+                                </td>
+                                    <td>
+                                        {% set spec_text = inventory.product.specification if inventory.product else '-' %}
+                                        {% if spec_text|length > 20 %}
+                                            <div class="custom-tooltip">
+                                                <span class="spec-text">{{ spec_text[:20] }}...</span>
+                                                <span class="tooltip-text">{{ spec_text }}</span>
+                                            </div>
+                                        {% else %}
+                                            {{ spec_text }}
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ inventory.product.brand if inventory.product else '-' }}</td>
+                                    <td>{{ inventory.product.unit if inventory.product else '-' }}</td>
+                                    <td>{{ inventory.product.product_mn if inventory.product else '-' }}</td>
+                                <td>{{ inventory.updated_at.strftime('%Y-%m-%d %H:%M') if inventory.updated_at else '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
+
+<!-- 库存操作模态框 -->
+<div class="modal fade" id="stockActionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">库存操作</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="stockActionForm">
+                    <div class="mb-3">
+                        <label for="actionType" class="form-label">操作类型</label>
+                        <select class="form-select" id="actionType" name="action_type" required>
+                            <option value="">请选择操作类型</option>
+                            <option value="in">入库</option>
+                            <option value="out">出库</option>
+                            <option value="adjustment">库存调整</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="quantity" class="form-label">数量</label>
+                        <input type="number" class="form-control" id="quantity" name="quantity" min="1" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">说明</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitStockAction()">确认操作</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 当前选中的状态
+let currentStatus = 'all';
+
+// 状态过滤功能
+function filterStockByStatus(status) {
+    currentStatus = status;
+    
+    // 移除所有卡片的选中状态
+    document.querySelectorAll('.card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    
+    // 为当前选中的卡片添加选中状态
+    const targetCard = document.getElementById(getCardId(status));
+    if (targetCard) {
+        targetCard.classList.add('selected');
+    }
+    
+    // 过滤表格行
+    const tableRows = document.querySelectorAll('#inventoryTable tbody tr');
+    let visibleCount = 0;
+    
+    tableRows.forEach(row => {
+        const rowStatus = row.getAttribute('data-status');
+        
+        if (status === 'all' || rowStatus === status) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+    
+    // 更新表格显示状态
+    const tbody = document.querySelector('#inventoryTable tbody');
+    if (visibleCount === 0) {
+        if (!document.querySelector('.no-data-row')) {
+            const noDataRow = document.createElement('tr');
+            noDataRow.className = 'no-data-row';
+            noDataRow.innerHTML = `
+                <td colspan="11" class="text-center py-4 text-muted">
+                    <i class="fas fa-box-open fa-2x mb-2"></i><br>
+                    暂无符合条件的库存数据
+                </td>
+            `;
+            tbody.appendChild(noDataRow);
+        }
+    } else {
+        const noDataRow = document.querySelector('.no-data-row');
+        if (noDataRow) {
+            noDataRow.remove();
+        }
+    }
+}
+
+// 获取卡片ID
+function getCardId(status) {
+    const cardMap = {
+        'all': 'totalStockCard',
+        'normal': 'normalStockCard',
+        'low': 'lowStockCard',
+        'zero': 'zeroStockCard'
+    };
+    return cardMap[status];
+}
+
+// 应用筛选
+function applyFilters() {
+    const search = document.getElementById('search').value;
+    const companyId = document.getElementById('company_filter').value;
+    
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    if (companyId) params.append('company_id', companyId);
+    
+    window.location.href = `{{ url_for('inventory.stock_list') }}?${params.toString()}`;
+}
+
+// 清除筛选
+function clearFilters() {
+    window.location.href = `{{ url_for('inventory.stock_list') }}`;
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 初始化第一个卡片为选中状态
+    filterStockByStatus('all');
+    
+    // 绑定搜索框回车事件
+    document.getElementById('search').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            applyFilters();
+}
+    });
+});
+</script>
+
+{% endblock %} 
