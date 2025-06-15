@@ -115,16 +115,19 @@ class PurchaseOrder(db.Model):
     id = Column(Integer, primary_key=True)
     order_number = Column(String(50), unique=True, nullable=False)  # 订单号
     company_id = Column(Integer, ForeignKey('companies.id'), nullable=False)  # 供应商/客户公司
-    order_type = Column(String(20), default='purchase')  # 订单类型：purchase 采购, sale 销售
+    order_type = Column(String(20), default='purchase')  # 订单类型：purchase 采购, sale 销售 [已废弃，不再使用]
     order_date = Column(DateTime, default=func.now())  # 订单日期
     expected_date = Column(DateTime, nullable=True)  # 预期交付日期
-    status = Column(String(20), default='draft')  # 状态：draft, confirmed, shipped, completed, cancelled
+    status = Column(String(20), default='draft')  # 状态：draft 草稿, pending 审批中, approved 审批通过, rejected 审批拒绝, confirmed 已确认, shipped 已发货, completed 已完成, cancelled 已取消
     total_amount = Column(db.Numeric(15, 2), default=0)  # 订单总金额
     total_quantity = Column(Integer, default=0)  # 订单总数量
     currency = Column(String(10), default='CNY')  # 币种
     payment_terms = Column(String(100), nullable=True)  # 付款条件
     delivery_address = Column(Text, nullable=True)  # 交付地址
     description = Column(Text, nullable=True)  # 订单说明
+    
+    # 注意：订单审批使用通用审批系统，不在此表中存储审批状态
+    
     created_by_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     approved_by_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     approved_at = Column(DateTime, nullable=True)

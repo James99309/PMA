@@ -226,6 +226,156 @@ def get_recent_work_records():
             'error': str(e)
         }), 500
 
+@main.route('/test')
+def test_page():
+    """测试页面 - 用于调试页面显示问题"""
+    return '''
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PMA系统测试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            color: #16a0bf;
+            margin-bottom: 30px;
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .test-item {
+            margin: 15px 0;
+            padding: 10px;
+            border-left: 4px solid #16a0bf;
+            background-color: #f8f9fa;
+        }
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #16a0bf;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin: 5px;
+        }
+        .btn:hover {
+            background-color: #0e7c8f;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 PMA系统测试页面</h1>
+            <p>验证系统是否正常运行</p>
+        </div>
+
+        <div class="status success">
+            ✅ 如果你能看到这个页面，说明系统基本功能正常
+        </div>
+
+        <div class="status info">
+            📋 系统信息：
+            <ul>
+                <li>运行端口: 6000</li>
+                <li>数据库: 本地PostgreSQL</li>
+                <li>环境: local</li>
+                <li>版本: 1.0.1</li>
+            </ul>
+        </div>
+
+        <div class="test-item">
+            <h3>🔍 测试项目</h3>
+            <p><strong>1. 静态文件访问测试</strong></p>
+            <p>CSS文件: <span id="css-status">检测中...</span></p>
+            <p>Logo图片: <span id="img-status">检测中...</span></p>
+            
+            <p><strong>2. 页面跳转测试</strong></p>
+            <a href="/auth/login" class="btn">访问登录页面</a>
+            <a href="/backup/" class="btn">访问备份管理</a>
+            <a href="/" class="btn">访问首页</a>
+        </div>
+
+        <div class="test-item">
+            <h3>💡 如果登录页面显示空白</h3>
+            <p>可能的原因和解决方案：</p>
+            <ul>
+                <li>浏览器缓存问题 - 尝试强制刷新 (Ctrl+F5 或 Cmd+Shift+R)</li>
+                <li>外部CDN资源加载失败 - 检查网络连接</li>
+                <li>JavaScript错误 - 打开浏览器开发者工具查看控制台</li>
+                <li>CSS样式冲突 - 尝试禁用浏览器扩展</li>
+            </ul>
+        </div>
+
+        <div class="test-item">
+            <h3>🛠️ 调试步骤</h3>
+            <ol>
+                <li>打开浏览器开发者工具 (F12)</li>
+                <li>查看Console标签页是否有错误信息</li>
+                <li>查看Network标签页检查资源加载情况</li>
+                <li>尝试在隐私模式/无痕模式下访问</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        // 测试静态文件访问
+        function testStaticFiles() {
+            // 测试CSS文件
+            fetch('/static/css/style.css')
+                .then(response => {
+                    document.getElementById('css-status').innerHTML = 
+                        response.ok ? '✅ 正常' : '❌ 失败';
+                })
+                .catch(() => {
+                    document.getElementById('css-status').innerHTML = '❌ 失败';
+                });
+
+            // 测试图片文件
+            const img = new Image();
+            img.onload = () => {
+                document.getElementById('img-status').innerHTML = '✅ 正常';
+            };
+            img.onerror = () => {
+                document.getElementById('img-status').innerHTML = '❌ 失败';
+            };
+            img.src = '/static/img/logo.png';
+        }
+
+        // 页面加载完成后执行测试
+        document.addEventListener('DOMContentLoaded', testStaticFiles);
+    </script>
+</body>
+</html>
+    '''
+
 @main.route('/api/available_accounts')
 @login_required  
 def get_available_accounts():

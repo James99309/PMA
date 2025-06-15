@@ -70,6 +70,15 @@ def center():
             page=page,
             per_page=per_page
         )
+    elif tab == 'order':
+        # 订单审批 - 显示所有和当前用户相关的订单审批
+        from app.helpers.approval_helpers import get_user_order_approvals
+        approvals = get_user_order_approvals(
+            user_id=current_user.id,
+            status_filter=status,
+            page=page,
+            per_page=per_page
+        )
     elif tab == 'all' and current_user.role == 'admin':
         # 全部审批（仅admin可见）
         status_param = None

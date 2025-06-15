@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button %}
 
 {% block head %}
 {{ super() }}
@@ -225,7 +226,7 @@
 
     .scroll-controls:hover {
         opacity: 1;
-        }
+    }
 
     .scroll-controls button {
         width: 40px;
@@ -313,12 +314,10 @@
                 <div class="col-md-12 mb-3">
                     <div class="input-group">
                         <input type="text" class="form-control" id="search" placeholder="输入关键词搜索产品名称、MN号、型号、品牌、类别等">
-                        <button id="apply-filter" class="btn btn-primary">
-                            <i class="fas fa-search"></i> 搜索
-                        </button>
-                        <button id="reset-filter" class="btn btn-secondary">
-                            <i class="fas fa-undo"></i> 重置
-                        </button>
+                        <div class="input-group-append">
+                                                    {{ render_button('搜索', type='button', color='primary', icon='fas fa-search', attrs='id="apply-filter"') }}
+                        {{ render_button('重置', type='button', color='secondary', icon='fas fa-undo', attrs='id="reset-filter"') }}
+                        </div>
                     </div>
                     <small class="text-muted mt-1">支持搜索产品名称、MN号、型号、品牌、产品类型、产品类别等字段</small>
                 </div>
@@ -334,9 +333,7 @@
             </div>
             <div class="d-flex align-items-center gap-3">
                 {% if current_user.role in ['admin', 'product_manager'] %}
-                <a href="{{ url_for('product_route.create_product_page') }}" class="btn btn-primary btn-sm">
-                    <i class="fas fa-plus"></i> 新增产品
-                </a>
+                {{ render_button('新增产品', href=url_for('product_route.create_product_page'), color='primary', icon='fas fa-plus') }}
                 {% endif %}
                 <div id="loading-indicator" class="spinner-border spinner-border-sm text-primary d-none" role="status">
                     <span class="visually-hidden">加载中...</span>
@@ -405,12 +402,8 @@
             </div>
             <!-- 滚动控制按钮 -->
             <div class="scroll-controls">
-                <button type="button" class="btn btn-sm btn-light scroll-top" title="滚动到顶部">
-                    <i class="fas fa-chevron-up"></i>
-                </button>
-                <button type="button" class="btn btn-sm btn-light scroll-bottom" title="滚动到底部">
-                    <i class="fas fa-chevron-down"></i>
-                </button>
+                {{ render_button('', type='button', size='sm', color='light', extra_class='scroll-top', icon='fas fa-chevron-up', attrs='title="滚动到顶部"') }}
+                {{ render_button('', type='button', size='sm', color='light', extra_class='scroll-bottom', icon='fas fa-chevron-down', attrs='title="滚动到底部"') }}
             </div>
         </div>
     </div>

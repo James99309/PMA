@@ -23,6 +23,35 @@
 
     .order-type-purchase { color: #007bff; }
     .order-type-sale { color: #28a745; }
+    
+    /* 表格左右滚动样式 */
+    .table-scroll {
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+    
+    .table-scroll table {
+        min-width: 1200px;
+    }
+    
+    .table-scroll th,
+    .table-scroll td {
+        white-space: nowrap;
+    }
+    
+    /* 批量操作样式 */
+    .batch-actions {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+        display: none;
+    }
+    
+    .batch-actions.show {
+        display: block;
+    }
 </style>
 {% endblock %}
 
@@ -36,7 +65,6 @@
                     <i class="fas fa-shopping-cart me-2"></i>订单列表
                 </h2>
                 <div>
-                    {{ render_button('返回库存首页', href=url_for('inventory.index'), color='secondary', icon='fas fa-arrow-left') }}
                     {{ render_button('创建订单', href=url_for('inventory.create_order'), color='success', icon='fas fa-plus') }}
                     {{ render_button('导出订单', href='#', color='info', icon='fas fa-download') }}
                 </div>
@@ -49,20 +77,12 @@
         <div class="card-body">
             <form method="GET" action="{{ url_for('inventory.order_list') }}">
                 <div class="row">
-                    <div class="col-md-3 mb-3">
+                    <div class="col-md-6 mb-3">
                         <label for="search" class="form-label">搜索</label>
                         <input type="text" class="form-control" id="search" name="search" 
                                placeholder="订单号或公司名称" value="{{ search }}">
                     </div>
-                    <div class="col-md-2 mb-3">
-                        <label for="order_type" class="form-label">订单类型</label>
-                        <select class="form-select" id="order_type" name="order_type">
-                            <option value="">全部类型</option>
-                            <option value="purchase" {% if order_type == 'purchase' %}selected{% endif %}>采购订单</option>
-                            <option value="sale" {% if order_type == 'sale' %}selected{% endif %}>销售订单</option>
-                        </select>
-                    </div>
-                    <div class="col-md-2 mb-3">
+                    <div class="col-md-4 mb-3">
                         <label for="company_id" class="form-label">公司</label>
                         <select class="form-select" id="company_id" name="company_id">
                             <option value="">全部公司</option>
@@ -73,17 +93,6 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-3 mb-3">
-                        <label for="status" class="form-label">状态</label>
-                        <select class="form-select" id="status" name="status">
-                            <option value="">全部状态</option>
-                            <option value="draft" {% if status == 'draft' %}selected{% endif %}>草稿</option>
-                            <option value="confirmed" {% if status == 'confirmed' %}selected{% endif %}>已确认</option>
-                            <option value="shipped" {% if status == 'shipped' %}selected{% endif %}>已发货</option>
-                            <option value="completed" {% if status == 'completed' %}selected{% endif %}>已完成</option>
-                            <option value="cancelled" {% if status == 'cancelled' %}selected{% endif %}>已取消</option>
-                        </select>
-                    </div>
                     <div class="col-md-2 mb-3 d-flex align-items-end">
                         {{ render_button('搜索', type='submit', color='primary', icon='fas fa-search') }}
                     </div>
@@ -92,54 +101,14 @@
         </div>
     </div>
 
-    <!-- 订单统计 -->
-    <div class="row mb-4">
-        <div class="col-md-2 mb-3">
-            <div class="card bg-secondary text-white">
-                <div class="card-body text-center">
-                    <h6 class="card-title">草稿</h6>
-                    <h4 class="mb-0">{{ stats.draft }}</h4>
-                </div>
+    <!-- 批量操作区域 -->
+    <div class="batch-actions" id="batchActions">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <span class="text-muted">已选择 <span id="selectedCount">0</span> 项</span>
             </div>
-        </div>
-        <div class="col-md-2 mb-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body text-center">
-                    <h6 class="card-title">已确认</h6>
-                    <h4 class="mb-0">{{ stats.confirmed }}</h4>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-2 mb-3">
-            <div class="card bg-warning text-white">
-                <div class="card-body text-center">
-                    <h6 class="card-title">已发货</h6>
-                    <h4 class="mb-0">{{ stats.shipped }}</h4>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-2 mb-3">
-            <div class="card bg-success text-white">
-                <div class="card-body text-center">
-                    <h6 class="card-title">已完成</h6>
-                    <h4 class="mb-0">{{ stats.completed }}</h4>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-2 mb-3">
-            <div class="card bg-info text-white">
-                <div class="card-body text-center">
-                    <h6 class="card-title">采购订单</h6>
-                    <h4 class="mb-0">{{ stats.purchase }}</h4>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-2 mb-3">
-            <div class="card bg-dark text-white">
-                <div class="card-body text-center">
-                    <h6 class="card-title">销售订单</h6>
-                    <h4 class="mb-0">{{ stats.sale }}</h4>
-                </div>
+            <div>
+                {{ render_button('批量删除', type='button', color='danger', size='sm', icon='fas fa-trash', onclick='batchDelete()') }}
             </div>
         </div>
     </div>
@@ -153,12 +122,14 @@
             </h5>
         </div>
         <div class="card-body p-0">
-            <div class="table-responsive">
+            <div class="table-scroll">
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
+                            <th style="width: 50px;">
+                                <input type="checkbox" class="form-check-input" id="selectAll" onchange="toggleSelectAll()">
+                            </th>
                             <th>订单号</th>
-                            <th>类型</th>
                             <th>公司</th>
                             <th>订单日期</th>
                             <th>预期日期</th>
@@ -166,7 +137,6 @@
                             <th>总金额</th>
                             <th>状态</th>
                             <th>创建人</th>
-                            <th>操作</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -174,14 +144,13 @@
                             {% for order in orders.items %}
                             <tr>
                                 <td>
+                                    <input type="checkbox" class="form-check-input order-checkbox" 
+                                           value="{{ order.id }}" onchange="updateBatchActions()">
+                                </td>
+                                <td>
                                     <a href="{{ url_for('inventory.order_detail', id=order.id) }}" class="text-decoration-none">
                                         {{ order.order_number }}
                                     </a>
-                                </td>
-                                <td>
-                                    <span class="badge order-type-{{ order.order_type }}">
-                                        {% if order.order_type == 'purchase' %}采购订单{% else %}销售订单{% endif %}
-                                    </span>
                                 </td>
                                 <td>{{ order.company.company_name if order.company else '-' }}</td>
                                 <td>{{ order.formatted_order_date }}</td>
@@ -198,28 +167,12 @@
                                         {% else %}{{ order.status }}{% endif %}
                                     </span>
                                 </td>
-                                <td>{{ order.created_by.username if order.created_by else '-' }}</td>
-                                <td>
-                                    <div class="btn-group btn-group-sm">
-                                        <a href="{{ url_for('inventory.order_detail', id=order.id) }}" 
-                                           class="btn btn-outline-primary" title="查看详情">
-                                            <i class="fas fa-eye"></i>
-                                        </a>
-                                        {% if order.status == 'draft' %}
-                                        <a href="#" class="btn btn-outline-warning" title="编辑订单">
-                                            <i class="fas fa-edit"></i>
-                                        </a>
-                                        {% endif %}
-                                        <a href="#" class="btn btn-outline-info" title="导出PDF">
-                                            <i class="fas fa-file-pdf"></i>
-                                        </a>
-                                    </div>
-                                </td>
+                                <td>{{ order.created_by.real_name if order.created_by and order.created_by.real_name else (order.created_by.username if order.created_by else '-') }}</td>
                             </tr>
                             {% endfor %}
                         {% else %}
                         <tr>
-                            <td colspan="10" class="text-center py-4">
+                            <td colspan="9" class="text-center py-4">
                                 <div class="text-muted">
                                     <i class="fas fa-shopping-cart fa-3x mb-3"></i>
                                     <h5>暂无订单记录</h5>
@@ -241,7 +194,7 @@
                 <ul class="pagination justify-content-center mb-0">
                     {% if orders.has_prev %}
                     <li class="page-item">
-                        <a class="page-link" href="{{ url_for('inventory.order_list', page=orders.prev_num, search=search, order_type=order_type, company_id=company_id, status=status) }}">
+                        <a class="page-link" href="{{ url_for('inventory.order_list', page=orders.prev_num, search=search, company_id=company_id) }}">
                             <i class="fas fa-chevron-left"></i>
                         </a>
                     </li>
@@ -251,7 +204,7 @@
                         {% if page_num %}
                             {% if page_num != orders.page %}
                             <li class="page-item">
-                                <a class="page-link" href="{{ url_for('inventory.order_list', page=page_num, search=search, order_type=order_type, company_id=company_id, status=status) }}">
+                                <a class="page-link" href="{{ url_for('inventory.order_list', page=page_num, search=search, company_id=company_id) }}">
                                     {{ page_num }}
                                 </a>
                             </li>
@@ -269,7 +222,7 @@
                     
                     {% if orders.has_next %}
                     <li class="page-item">
-                        <a class="page-link" href="{{ url_for('inventory.order_list', page=orders.next_num, search=search, order_type=order_type, company_id=company_id, status=status) }}">
+                        <a class="page-link" href="{{ url_for('inventory.order_list', page=orders.next_num, search=search, company_id=company_id) }}">
                             <i class="fas fa-chevron-right"></i>
                         </a>
                     </li>
@@ -280,4 +233,168 @@
         {% endif %}
     </div>
 </div>
+
+<!-- 删除确认模态框 -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">确认删除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>确定要删除订单 <strong id="deleteOrderNumber"></strong> 吗？</p>
+                <p class="text-danger">此操作不可撤销！</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="confirmDelete">确认删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 批量删除确认模态框 -->
+<div class="modal fade" id="batchDeleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">确认批量删除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>确定要删除选中的 <strong id="batchDeleteCount"></strong> 个订单吗？</p>
+                <p class="text-danger">此操作不可撤销！</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="confirmBatchDelete">确认删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 全选/取消全选
+function toggleSelectAll() {
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.order-checkbox');
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAll.checked;
+    });
+    
+    updateBatchActions();
+}
+
+// 更新批量操作区域
+function updateBatchActions() {
+    const checkboxes = document.querySelectorAll('.order-checkbox:checked');
+    const batchActions = document.getElementById('batchActions');
+    const selectedCount = document.getElementById('selectedCount');
+    const selectAll = document.getElementById('selectAll');
+    
+    selectedCount.textContent = checkboxes.length;
+    
+    if (checkboxes.length > 0) {
+        batchActions.classList.add('show');
+    } else {
+        batchActions.classList.remove('show');
+    }
+    
+    // 更新全选状态
+    const allCheckboxes = document.querySelectorAll('.order-checkbox');
+    selectAll.checked = checkboxes.length === allCheckboxes.length;
+    selectAll.indeterminate = checkboxes.length > 0 && checkboxes.length < allCheckboxes.length;
+}
+
+// 清除选择
+function clearSelection() {
+    const checkboxes = document.querySelectorAll('.order-checkbox');
+    const selectAll = document.getElementById('selectAll');
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    selectAll.checked = false;
+    selectAll.indeterminate = false;
+    
+    updateBatchActions();
+}
+
+// 单个删除
+function deleteOrder(orderId, orderNumber) {
+    document.getElementById('deleteOrderNumber').textContent = orderNumber;
+    
+    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    modal.show();
+    
+    document.getElementById('confirmDelete').onclick = function() {
+        fetch(`/inventory/orders/${orderId}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('删除失败：' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('删除失败：' + error.message);
+        });
+        
+        modal.hide();
+    };
+}
+
+// 批量删除
+function batchDelete() {
+    const checkboxes = document.querySelectorAll('.order-checkbox:checked');
+    const count = checkboxes.length;
+    
+    if (count === 0) {
+        alert('请先选择要删除的订单');
+        return;
+    }
+    
+    document.getElementById('batchDeleteCount').textContent = count;
+    
+    const modal = new bootstrap.Modal(document.getElementById('batchDeleteModal'));
+    modal.show();
+    
+    document.getElementById('confirmBatchDelete').onclick = function() {
+        const orderIds = Array.from(checkboxes).map(cb => cb.value);
+        
+        fetch('/inventory/orders/batch_delete', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                order_ids: orderIds
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('批量删除失败：' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('批量删除失败：' + error.message);
+        });
+        
+        modal.hide();
+    };
+}
+</script>
 {% endblock %} 

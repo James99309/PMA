@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>采购订单 - {{ order.order_number }}</title>
+</head>
+<body>
+    <!-- 公司信息头部 -->
+    <div class="document-header">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+            <div style="flex: 1;">
+                <h1 style="font-size: 20px; font-weight: bold; color: #0066cc; margin: 0;">和源通信（上海）股份有限公司</h1>
+                <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                    <div>武威路88号19楼6楼</div>
+                    <div>普陀区 上海市</div>
+                    <div>中国 (200335)</div>
+                    <div>021-62596028</div>
+                    <div>www.evertac.net</div>
+                </div>
+            </div>
+            <div style="text-align: right;">
+                <h1 style="font-size: 24px; font-weight: bold; color: #0066cc; margin: 0;">采购订单</h1>
+            </div>
+        </div>
+    </div>
+
+    <!-- 基本信息 -->
+    <div class="order-info">
+        <table class="info-table">
+            <tr>
+                <td class="info-label">订单编号</td>
+                <td class="info-value">{{ order.order_number }}</td>
+                <td class="info-label">订单状态</td>
+                <td class="info-value">
+                    {% if order.status == 'draft' %}草稿
+                    {% elif order.status == 'confirmed' %}已确认
+                    {% elif order.status == 'processing' %}处理中
+                    {% elif order.status == 'completed' %}已完成
+                    {% elif order.status == 'cancelled' %}已取消
+                    {% else %}{{ order.status }}
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td class="info-label">供应商</td>
+                <td class="info-value">{{ order.company.company_name if order.company else '-' }}</td>
+                <td class="info-label">货币类型</td>
+                <td class="info-value">{{ order.currency or 'CNY' }}</td>
+            </tr>
+            <tr>
+                <td class="info-label">订单日期</td>
+                <td class="info-value">{{ order.order_date.strftime('%Y年%m月%d日') if order.order_date else '-' }}</td>
+                <td class="info-label">创建人</td>
+                <td class="info-value">{{ order.created_by.real_name or order.created_by.username if order.created_by else '-' }}</td>
+            </tr>
+            {% if order.payment_terms %}
+            <tr>
+                <td class="info-label">付款条件</td>
+                <td class="info-value" colspan="3">{{ order.payment_terms }}</td>
+            </tr>
+            {% endif %}
+            {% if order.delivery_address %}
+            <tr>
+                <td class="info-label">交付地址</td>
+                <td class="info-value" colspan="3">{{ order.delivery_address }}</td>
+            </tr>
+            {% endif %}
+            {% if order.description %}
+            <tr>
+                <td class="info-label">订单说明</td>
+                <td class="info-value" colspan="3">{{ order.description }}</td>
+            </tr>
+            {% endif %}
+        </table>
+    </div>
+
+    <!-- 产品明细 -->
+    <div class="section-title">产品明细</div>
+    <table class="details-table">
+        <thead>
+            <tr>
+                <th style="width: 5%;">序号</th>
+                <th style="width: 20%;">产品名称</th>
+                <th style="width: 15%;">产品型号</th>
+                <th style="width: 10%;">品牌</th>
+                <th style="width: 8%;">单位</th>
+                <th style="width: 8%;">数量</th>
+                <th style="width: 10%;">单价</th>
+                <th style="width: 8%;">折扣率</th>
+                <th style="width: 10%;">小计</th>
+                <th style="width: 15%;">备注</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for detail in order.details %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td class="text-left">{{ detail.product_name or '-' }}</td>
+                <td class="text-left">{{ detail.product_model or '-' }}</td>
+                <td class="text-left">{{ detail.brand or '-' }}</td>
+                <td>{{ detail.unit or '-' }}</td>
+                <td>{{ detail.quantity or 0 }}</td>
+                <td class="text-right">{{ '{:,.2f}'.format(detail.unit_price) if detail.unit_price else '0.00' }}</td>
+                <td class="text-center">{{ '{:.1f}%'.format((detail.discount or 1) * 100) }}</td>
+                <td class="text-right">{{ '{:,.2f}'.format(detail.total_price) if detail.total_price else '0.00' }}</td>
+                <td class="text-left">{{ detail.notes or '-' }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="10" style="text-align: center; color: #666;">暂无产品明细</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- 总价 -->
+    <div class="summary-section">
+        <div class="total-amount">
+            订单总额：¥{{ '{:,.2f}'.format(order.total_amount) if order.total_amount else '0.00' }}
+        </div>
+        <div style="margin-top: 10px; font-size: 12px; color: #666;">
+            <div>总数量：{{ order.total_quantity or 0 }} 件</div>
+            <div>产品种类：{{ order.details|length }} 种</div>
+        </div>
+    </div>
+
+    <!-- 页脚信息 -->
+    <div style="margin-top: 40px; font-size: 10px; color: #666; text-align: center;">
+        <div>生成时间：{{ generated_at.strftime('%Y年%m月%d日 %H:%M:%S') }}</div>
+        <div style="margin-top: 5px;">此采购订单由系统自动生成</div>
+    </div>
+</body>
+</html> 

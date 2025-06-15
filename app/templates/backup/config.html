@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}备份配置管理{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-cog"></i> 备份配置管理
+                    </h3>
+                </div>
+                <div class="card-body">
+                    {% if config %}
+                        <div class="alert alert-info">
+                            <h5><i class="fas fa-info-circle"></i> 当前配置</h5>
+                            <p>备份功能已启用，当前配置如下：</p>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>备份状态</label>
+                                    <div class="form-control-plaintext">
+                                        {% if config.backup_enabled %}
+                                            <span class="badge badge-success">已启用</span>
+                                        {% else %}
+                                            <span class="badge badge-danger">已禁用</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>备份计划</label>
+                                    <div class="form-control-plaintext">{{ config.backup_schedule or '未设置' }}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>保留天数</label>
+                                    <div class="form-control-plaintext">{{ config.retention_days or '未设置' }} 天</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>备份位置</label>
+                                    <div class="form-control-plaintext">{{ config.backup_location or '未设置' }}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>云存储</label>
+                                    <div class="form-control-plaintext">
+                                        {% if config.cloud_storage %}
+                                            <span class="badge badge-info">已配置</span>
+                                        {% else %}
+                                            <span class="badge badge-secondary">未配置</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <h5><i class="fas fa-exclamation-triangle"></i> 备份服务未配置</h5>
+                            <p>数据库备份功能当前未配置。请联系系统管理员进行配置。</p>
+                        </div>
+                    {% endif %}
+
+                    <div class="mt-4">
+                        <a href="{{ url_for('backup.index') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> 返回备份管理
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

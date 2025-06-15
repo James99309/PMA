@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button %}
 
 {% block title %}角色管理 - 项目管理系统{% endblock %}
 
@@ -25,9 +26,7 @@
         <div class="col-12">
             <div class="card shadow-sm">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <button class="btn btn-primary" id="addRoleBtn">
-                        <i class="fas fa-plus me-1"></i> 新增角色
-                    </button>
+                    {{ render_button('新增角色', type='button', color='primary', icon='fas fa-plus', attrs='id="addRoleBtn"') }}
                 </div>
                 <div class="card-body">
                     <!-- 新增/编辑表单 -->
@@ -45,8 +44,8 @@
                                 <small class="form-text text-muted">显示给用户的角色名称</small>
                             </div>
                             <div class="col-md-4 d-flex align-items-end">
-                                <button type="submit" class="btn btn-success me-2" id="saveRoleBtn">保存</button>
-                                <button type="button" class="btn btn-secondary" id="cancelRoleBtn">取消</button>
+                                {{ render_button('保存', type='submit', color='success', extra_class='me-2', attrs='id="saveRoleBtn"') }}
+                                {{ render_button('取消', type='button', color='secondary', attrs='id="cancelRoleBtn"') }}
                             </div>
                         </div>
                     </form>

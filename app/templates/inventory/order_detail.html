@@ -3,6 +3,7 @@
 
 {% block head %}
 {{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
 <style>
 .container.page-with-fixed-nav {
     margin-top: 72px !important;
@@ -47,6 +48,87 @@
     color: #dc3545;
     font-weight: bold;
 }
+
+/* 总计区域样式 */
+.order-summary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.summary-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.summary-item:last-child {
+    margin-bottom: 0;
+    font-size: 1.2em;
+    font-weight: bold;
+    border-top: 1px solid rgba(255,255,255,0.3);
+    padding-top: 10px;
+}
+
+.summary-label {
+    font-weight: 500;
+}
+
+.summary-value {
+    font-family: 'Roboto Mono', monospace;
+    font-weight: bold;
+}
+
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -22px;
+    top: 5px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px #dee2e6;
+}
+
+.timeline-content {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 3px solid #007bff;
+}
+
+.timeline-title {
+    margin-bottom: 5px;
+    color: #495057;
+}
+
+.timeline-text {
+    margin-bottom: 5px;
+    color: #6c757d;
+}
 </style>
 {% endblock %}
 
@@ -62,9 +144,14 @@
                 <div>
                     {{ render_button('返回订单列表', href=url_for('inventory.order_list'), color='secondary', icon='fas fa-arrow-left') }}
                     {% if order.status == 'draft' %}
-                    {{ render_button('编辑订单', href='#', color='warning', icon='fas fa-edit') }}
+                    {{ render_button('编辑订单', href=url_for('inventory.edit_order', id=order.id), color='warning', icon='fas fa-edit') }}
                     {% endif %}
-                    {{ render_button('导出PDF', href='#', color='info', icon='fas fa-file-pdf') }}
+                    {% if order.status == 'approved' %}
+                    {{ render_button('导出PDF', href=url_for('inventory.export_order_pdf', id=order.id), color='info', icon='fas fa-file-pdf') }}
+                    {% endif %}
+                    {% if order.status in ['draft', 'rejected'] %}
+                    {{ render_button('删除订单', href='#', color='danger', icon='fas fa-trash', onclick='deleteOrder()') }}
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -77,32 +164,35 @@
                 <i class="fas fa-info-circle me-2"></i>订单基本信息
             </h5>
             <div class="row">
-                <div class="col-md-3 mb-3">
+                <div class="col-md-4 mb-3">
                     <label class="form-label text-white-50">订单号</label>
                     <div class="text-white fw-bold">{{ order.order_number }}</div>
                 </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label text-white-50">订单类型</label>
-                    <div>
-                        <span class="badge bg-light text-dark">
-                            {% if order.order_type == 'purchase' %}采购订单{% else %}销售订单{% endif %}
-                        </span>
-                    </div>
-                </div>
-                <div class="col-md-3 mb-3">
+                <div class="col-md-4 mb-3">
                     <label class="form-label text-white-50">订单状态</label>
                     <div>
-                        <span class="badge bg-light order-status-{{ order.status }}">
-                            {% if order.status == 'draft' %}草稿
-                            {% elif order.status == 'confirmed' %}已确认
-                            {% elif order.status == 'shipped' %}已发货
-                            {% elif order.status == 'completed' %}已完成
-                            {% elif order.status == 'cancelled' %}已取消
-                            {% else %}{{ order.status }}{% endif %}
-                        </span>
+                        {% if order.status == 'draft' %}
+                        <span class="badge rounded-pill bg-secondary">草稿</span>
+                        {% elif order.status == 'pending' %}
+                        <span class="badge rounded-pill bg-warning text-dark">审批中</span>
+                        {% elif order.status == 'approved' %}
+                        <span class="badge rounded-pill bg-success">审批通过</span>
+                        {% elif order.status == 'rejected' %}
+                        <span class="badge rounded-pill bg-danger">审批拒绝</span>
+                        {% elif order.status == 'confirmed' %}
+                        <span class="badge rounded-pill bg-primary">已确认</span>
+                        {% elif order.status == 'shipped' %}
+                        <span class="badge rounded-pill bg-info">已发货</span>
+                        {% elif order.status == 'completed' %}
+                        <span class="badge rounded-pill bg-success">已完成</span>
+                        {% elif order.status == 'cancelled' %}
+                        <span class="badge rounded-pill bg-dark">已取消</span>
+                        {% else %}
+                        <span class="badge rounded-pill bg-light text-dark">{{ order.status }}</span>
+                        {% endif %}
                     </div>
                 </div>
-                <div class="col-md-3 mb-3">
+                <div class="col-md-4 mb-3">
                     <label class="form-label text-white-50">目标公司</label>
                     <div class="text-white fw-bold">{{ order.company.company_name if order.company else '-' }}</div>
                 </div>
@@ -118,7 +208,7 @@
                 </div>
                 <div class="col-md-3 mb-3">
                     <label class="form-label text-white-50">创建人</label>
-                    <div class="text-white">{{ order.created_by.username if order.created_by else '-' }}</div>
+                    <div class="text-white">{{ order.created_by.real_name if order.created_by and order.created_by.real_name else (order.created_by.username if order.created_by else '-') }}</div>
                 </div>
                 <div class="col-md-3 mb-3">
                     <label class="form-label text-white-50">创建时间</label>
@@ -197,117 +287,150 @@
     </div>
 
     <!-- 订单总计 -->
-    <div class="card total-summary">
-        <div class="card-body">
-            <div class="row align-items-center">
-                <div class="col-md-8">
-                    <h5 class="mb-0">订单总计</h5>
-                    <div class="row mt-2">
-                        <div class="col-md-4">
-                            <small>总数量：<strong>{{ order.total_quantity or 0 }}</strong> 件</small>
-                        </div>
-                        <div class="col-md-4">
-                            <small>产品种类：<strong>{{ order.details|length }}</strong> 种</small>
-                        </div>
-                        <div class="col-md-4">
-                            <small>币种：<strong>{{ order.currency or 'CNY' }}</strong></small>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4 text-end">
-                    <div class="total-amount">
-                        ¥ {{ "%.2f"|format(order.total_amount or 0) }}
-                    </div>
-                </div>
-            </div>
+    <div class="order-summary">
+        <div class="summary-item">
+            <span class="summary-label">总数量：</span>
+            <span class="summary-value">{{ order.total_quantity or 0 }}</span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">产品种类：</span>
+            <span class="summary-value">{{ order.details|length }}</span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">订单总额：</span>
+            <span class="summary-value">¥ {{ "%.2f"|format(order.total_amount or 0) }}</span>
         </div>
     </div>
 
-    <!-- 操作历史 -->
-    {% if order.status != 'draft' %}
+    <!-- 审批模块 - 使用与项目审批完全相同的实现 -->
+    {% set approval_instance = get_object_approval_instance('purchase_order', order.id) %}
+    {% if not approval_instance and order.status == 'draft' %}
+    <!-- 提交审批表单 -->
     <div class="card mt-4">
         <div class="card-header">
             <h5 class="mb-0">
-                <i class="fas fa-history me-2"></i>操作历史
+                <i class="fas fa-clipboard-check me-2"></i>审批流程
             </h5>
         </div>
         <div class="card-body">
-            <div class="timeline">
-                <div class="timeline-item">
-                    <div class="timeline-marker bg-primary"></div>
-                    <div class="timeline-content">
-                        <h6 class="timeline-title">订单创建</h6>
-                        <p class="timeline-text">
-                            {{ order.created_by.username if order.created_by else '系统' }} 创建了订单
-                        </p>
-                        <small class="text-muted">{{ order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else '-' }}</small>
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                该订单尚未提交审批，请选择审批流程模板并提交审批。
+            </div>
+            
+            {% set available_templates = get_available_templates('purchase_order', order.id) %}
+            {% if available_templates %}
+            <form method="POST" action="{{ url_for('inventory.submit_order_approval', id=order.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="row">
+                <div class="col-md-8">
+                        <label for="template_id" class="form-label">选择审批流程模板</label>
+                        <select class="form-select" id="template_id" name="template_id" required>
+                            <option value="">请选择审批流程模板</option>
+                            {% for template in available_templates %}
+                            <option value="{{ template.id }}">{{ template.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane me-2"></i>提交审批
+                        </button>
                     </div>
                 </div>
-                {% if order.approved_by %}
-                <div class="timeline-item">
-                    <div class="timeline-marker bg-success"></div>
-                    <div class="timeline-content">
-                        <h6 class="timeline-title">订单确认</h6>
-                        <p class="timeline-text">
-                            {{ order.approved_by.username }} 确认了订单
-                        </p>
-                        <small class="text-muted">{{ order.approved_at.strftime('%Y-%m-%d %H:%M:%S') if order.approved_at else '-' }}</small>
-                    </div>
-                </div>
+            </form>
+            {% else %}
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                暂无可用的审批流程模板，请联系管理员配置订单审批流程。
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% elif order.status != 'draft' and not approval_instance %}
+    <!-- 其他状态但无审批实例 -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-clipboard-check me-2"></i>审批流程
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-secondary">
+                <i class="fas fa-info-circle me-2"></i>
+                当前订单状态：
+                {% if order.status == 'approved' %}
+                <span class="badge bg-success ms-2">审批已通过</span>
+                {% elif order.status == 'rejected' %}
+                <span class="badge bg-danger ms-2">审批已拒绝</span>
+                {% elif order.status == 'confirmed' %}
+                <span class="badge bg-primary ms-2">已确认</span>
+                {% elif order.status == 'shipped' %}
+                <span class="badge bg-info ms-2">已发货</span>
+                {% elif order.status == 'completed' %}
+                <span class="badge bg-success ms-2">已完成</span>
+                {% elif order.status == 'cancelled' %}
+                <span class="badge bg-dark ms-2">已取消</span>
                 {% endif %}
             </div>
         </div>
     </div>
+    {% else %}
+    <!-- 显示审批流程 - 使用与项目审批完全相同的宏 -->
+    {% from 'macros/approval_macros.html' import render_approval_section %}
+    {{ render_approval_section('purchase_order', order.id, approval_instance, current_user) }}
     {% endif %}
+
+
 </div>
 
-<style>
-.timeline {
-    position: relative;
-    padding-left: 30px;
-}
+<!-- 删除确认模态框 -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">确认删除订单</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>确定要删除订单 <strong>{{ order.order_number }}</strong> 吗？</p>
+                <p class="text-danger">此操作不可撤销！删除后将无法恢复订单数据。</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="confirmDelete">确认删除</button>
+            </div>
+        </div>
+    </div>
+</div>
 
-.timeline::before {
-    content: '';
-    position: absolute;
-    left: 15px;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: #dee2e6;
+<script>
+function deleteOrder() {
+    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    modal.show();
+    
+    document.getElementById('confirmDelete').onclick = function() {
+        fetch(`/inventory/orders/{{ order.id }}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = '{{ url_for("inventory.order_list") }}';
+            } else {
+                alert('删除失败：' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('删除失败：' + error.message);
+        });
+        
+        modal.hide();
+    };
 }
-
-.timeline-item {
-    position: relative;
-    margin-bottom: 20px;
-}
-
-.timeline-marker {
-    position: absolute;
-    left: -22px;
-    top: 5px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    border: 2px solid #fff;
-    box-shadow: 0 0 0 2px #dee2e6;
-}
-
-.timeline-content {
-    background: #f8f9fa;
-    padding: 15px;
-    border-radius: 8px;
-    border-left: 3px solid #007bff;
-}
-
-.timeline-title {
-    margin-bottom: 5px;
-    color: #495057;
-}
-
-.timeline-text {
-    margin-bottom: 5px;
-    color: #6c757d;
-}
-</style>
+</script>
 {% endblock %} 

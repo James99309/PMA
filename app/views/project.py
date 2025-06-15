@@ -4,7 +4,7 @@ from flask_login import login_required, current_user
 from app import db, csrf
 from app.models.project import Project
 from app.models.customer import Company, Contact
-from app.decorators import permission_required
+from app.decorators import permission_required, permission_required_with_approval_context
 from app.utils.access_control import get_viewable_data, can_edit_data, get_accessible_data, can_change_project_owner, can_view_project
 import logging
 import re
@@ -230,7 +230,7 @@ def list_projects():
     return render_template('project/list.html', projects=projects, search_term=search, Quotation=Quotation, filter_params=filter_params, keep_panel=keep_panel)
 
 @project.route('/view/<int:project_id>')
-@permission_required('project', 'view')
+@permission_required_with_approval_context('project', 'view')
 def view_project(project_id):
     project = Project.query.get_or_404(project_id)
     

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button %}
 
 {% block title %}用户详情 - 项目管理系统{% endblock %}
 
@@ -29,15 +30,22 @@
   {% set _ = module_name_map.update({m.id: m.name}) %}
   {% set _ = module_desc_map.update({m.id: m.description}) %}
 {% endfor %}
+
+<!-- 页面标题区域，与菜单保持距离 -->
+<div class="row page-title-container">
+    <div class="col-12">
+        <h1 class="page-title">用户详情：{{ user.real_name }}</h1>
+    </div>
+</div>
+
 <div class="row mb-4">
     <div class="col-md-12 d-flex align-items-center">
-        <h2 class="me-3">用户详情：{{ user.real_name }}</h2>
         <!-- 选项卡标题右侧按钮区 -->
         <div class="ms-auto d-flex align-items-center" id="tabEditBtns">
-            <a id="editBaseBtn" href="{{ url_for('user.edit_user', user_id=user.id) }}" class="btn btn-sm btn-outline-primary d-none ms-2">编辑</a>
-            <a id="editPermBtn" href="{{ url_for('user.manage_permissions', user_id=user.id) }}" class="btn btn-sm btn-outline-primary d-none ms-2">编辑权限</a>
-            <a id="editAffBtn" href="{{ url_for('user.manage_user_affiliations', user_id=user.id) }}" class="btn btn-sm btn-outline-primary d-none ms-2">编辑归属</a>
-            <a href="{{ url_for('user.list_users') }}" class="btn btn-sm btn-secondary ms-2">返回</a>
+            {{ render_button('编辑', href=url_for('user.edit_user', user_id=user.id), color='outline-primary', size='sm', extra_class='d-none ms-2', attrs='id="editBaseBtn"') }}
+            {{ render_button('编辑权限', href=url_for('user.manage_permissions', user_id=user.id), color='outline-primary', size='sm', extra_class='d-none ms-2', attrs='id="editPermBtn"') }}
+            {{ render_button('编辑归属', href=url_for('user.manage_user_affiliations', user_id=user.id), color='outline-primary', size='sm', extra_class='d-none ms-2', attrs='id="editAffBtn"') }}
+            {{ render_button('返回', href=url_for('user.list_users'), color='secondary', size='sm', extra_class='ms-2') }}
         </div>
     </div>
 </div>
@@ -142,9 +150,7 @@
             <dd class="col-sm-9">
                 <form method="post" action="{{ url_for('user.send_invitation', user_id=user.id) }}" style="display:inline;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-primary btn-sm">
-                        <i class="fas fa-envelope me-1"></i> 发送邀请邮件
-                    </button>
+                    {{ render_button('发送邀请邮件', type='submit', color='primary', size='sm', icon='fas fa-envelope') }}
                     <small class="text-muted ms-2">向用户发送账户激活邮件</small>
                 </form>
             </dd>

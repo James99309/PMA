@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_button %}
 
-{% block title %}结算单列表{% endblock %}
+{% block title %}结算单{% endblock %}
 
 {% block head %}
 {{ super() }}
@@ -47,11 +47,6 @@
     #allSettlementsCard.active-filter {
         background-color: #e6f0f5 !important;
         border-left: 4px solid #0d6efd !important;
-    }
-
-    #fullySettledCard.active-filter {
-        background-color: #e6f5ec !important;
-        border-left: 4px solid #198754 !important;
     }
 
     #partiallySettledCard.active-filter {
@@ -186,10 +181,10 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
                 <h2 class="mb-0">
-                    <i class="fas fa-file-invoice-dollar me-2"></i>结算单列表
+                    <i class="fas fa-file-invoice-dollar me-2"></i>结算单
                 </h2>
                 <div>
-                    {{ render_button('返回库存首页', href=url_for('inventory.index'), color='secondary', icon='fas fa-arrow-left') }}
+                    {{ render_button('结算明细记录', href=url_for('inventory.settlement_list'), color='info', icon='fas fa-list-alt') }}
                     {{ render_button('创建结算单', href=url_for('inventory.create_settlement'), color='primary', icon='fas fa-plus') }}
                 </div>
             </div>
@@ -218,24 +213,7 @@
                 </div>
             </div>
 
-            <!-- 完全结算 -->
-            <div class="card bg-success bg-opacity-10" id="fullySettledCard" onclick="filterSettlements('fully_settled')">
-                <div class="card-body">
-                    <h6 class="card-title text-success">
-                        <i class="fas fa-check-circle me-1"></i> 完全结算
-                    </h6>
-                    <div class="d-flex justify-content-between align-items-center mt-2">
-                        <div>
-                            <span class="fs-5" id="fullySettledCount">{{ fully_settled_count }}</span>
-                            <span class="text-muted ms-1">单</span>
-                        </div>
-                        <div>
-                            <span class="fs-5" id="fullySettledAmount">{{ "%.2f"|format(fully_settled_amount) }}</span>
-                            <span class="text-muted ms-1">万元</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
+
 
             <!-- 部分结算 -->
             <div class="card bg-warning bg-opacity-10" id="partiallySettledCard" onclick="filterSettlements('partially_settled')">
@@ -331,10 +309,7 @@
                                 </td>
                                 <td>{{ order.created_at.strftime('%Y-%m-%d %H:%M') if order.created_at else '-' }}</td>
                                 <td>
-                                    <a href="{{ url_for('inventory.settlement_process', order_number=order.order_number) }}" 
-                                       class="btn btn-sm btn-primary">
-                                        <i class="fas fa-cogs me-1"></i>处理
-                                    </a>
+                                    <!-- 处理按键已移除 -->
                                 </td>
                             </tr>
                             {% endfor %}
@@ -397,9 +372,6 @@ function filterSettlements(filterType) {
             case 'all':
                 shouldShow = true;
                 break;
-            case 'fully_settled':
-                shouldShow = status === 'fully_settled';
-                break;
             case 'partially_settled':
                 shouldShow = status === 'partially_settled';
                 break;
@@ -415,7 +387,6 @@ function filterSettlements(filterType) {
 function getCardId(filterType) {
     const cardMap = {
         'all': 'allSettlementsCard',
-        'fully_settled': 'fullySettledCard',
         'partially_settled': 'partiallySettledCard',
         'pending': 'pendingSettlementCard'
     };
@@ -425,7 +396,6 @@ function getCardId(filterType) {
 function getBadgeText(filterType) {
     const textMap = {
         'all': '全部结算单',
-        'fully_settled': '完全结算',
         'partially_settled': '部分结算',
         'pending': '待结算'
     };

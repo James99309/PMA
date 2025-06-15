@@ -150,7 +150,8 @@
       {% set approval_tabs = [
         {'key': 'created', 'label': '我发起的', 'icon': 'fas fa-file-export'},
         {'key': 'pending', 'label': '待我审批的', 'icon': 'fas fa-hourglass-half'},
-        {'key': 'pricing_order', 'label': '批价单审批', 'icon': 'fas fa-file-invoice-dollar'}
+        {'key': 'pricing_order', 'label': '批价单审批', 'icon': 'fas fa-file-invoice-dollar'},
+        {'key': 'order', 'label': '订单审批', 'icon': 'fas fa-shopping-cart'}
       ] %}
       {% if current_user.role == 'admin' %}
         {% set _ = approval_tabs.append({'key': 'all', 'label': '全部审批', 'icon': 'fas fa-list'}) %}
@@ -172,6 +173,8 @@
           <i class="fas fa-hourglass-half me-2"></i> 待我审批的
         {% elif current_tab == 'pricing_order' %}
           <i class="fas fa-file-invoice-dollar me-2"></i> 批价单审批
+        {% elif current_tab == 'order' %}
+          <i class="fas fa-shopping-cart me-2"></i> 订单审批
         {% elif current_tab == 'all' %}
           <i class="fas fa-list me-2"></i> 全部审批记录
         {% endif %}

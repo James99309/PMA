@@ -199,25 +199,25 @@ def generate_settlement_number():
     return f'SET{date_str}{seq:03d}'
 
 def generate_order_number():
-    """生成订单号"""
+    """生成订单号 - 格式：PUO年份月份-XXX"""
     now = datetime.now()
-    date_str = now.strftime('%Y%m%d')
+    year_month = now.strftime('%Y%m')
     
-    # 查找当天最大的订单号
+    # 查找当月最大的订单号
     latest = PurchaseOrder.query.filter(
-        PurchaseOrder.order_number.like(f'PO{date_str}%')
+        PurchaseOrder.order_number.like(f'PUO{year_month}-%')
     ).order_by(PurchaseOrder.order_number.desc()).first()
     
     if latest:
         # 提取序号并加1
         try:
-            seq = int(latest.order_number[-3:]) + 1
+            seq = int(latest.order_number.split('-')[-1]) + 1
         except:
             seq = 1
     else:
         seq = 1
     
-    return f'PO{date_str}{seq:03d}'
+    return f'PUO{year_month}-{seq:03d}'
 
 def get_inventory_status(company_id, product_id):
     """获取库存状态"""

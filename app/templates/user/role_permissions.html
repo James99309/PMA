@@ -712,18 +712,32 @@
                 const moduleId = row.dataset.module;
                 if (!moduleId) return;
                 
-                const viewCheckbox = document.getElementById(`view_${moduleId}`);
-                const createCheckbox = document.getElementById(`create_${moduleId}`);
-                const editCheckbox = document.getElementById(`edit_${moduleId}`);
-                const deleteCheckbox = document.getElementById(`delete_${moduleId}`);
-                
-                permissions.push({
-                    module: moduleId,
-                    can_view: viewCheckbox ? viewCheckbox.checked : false,
-                    can_create: createCheckbox ? createCheckbox.checked : false,
-                    can_edit: editCheckbox ? editCheckbox.checked : false,
-                    can_delete: deleteCheckbox ? deleteCheckbox.checked : false
-                });
+                // 检查是否为开关式权限模块
+                const switchInput = document.getElementById(`switch_${moduleId}`);
+                if (switchInput) {
+                    // 开关式权限：将开关状态保存为create权限
+                    permissions.push({
+                        module: moduleId,
+                        can_view: false,
+                        can_create: switchInput.checked,
+                        can_edit: false,
+                        can_delete: false
+                    });
+                } else {
+                    // 普通权限：收集所有四个权限复选框的状态
+                    const viewCheckbox = document.getElementById(`view_${moduleId}`);
+                    const createCheckbox = document.getElementById(`create_${moduleId}`);
+                    const editCheckbox = document.getElementById(`edit_${moduleId}`);
+                    const deleteCheckbox = document.getElementById(`delete_${moduleId}`);
+                    
+                    permissions.push({
+                        module: moduleId,
+                        can_view: viewCheckbox ? viewCheckbox.checked : false,
+                        can_create: createCheckbox ? createCheckbox.checked : false,
+                        can_edit: editCheckbox ? editCheckbox.checked : false,
+                        can_delete: deleteCheckbox ? deleteCheckbox.checked : false
+                    });
+                }
             });
             
             // 准备请求数据

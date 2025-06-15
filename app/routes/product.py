@@ -321,7 +321,7 @@ def get_products():
             'pages': pagination.pages
         }
         
-        # 创建用户ID到用户名的映射
+        # 创建用户ID到用户真实姓名的映射
         from app.models.user import User
         user_map = {}
         # 收集所有产品的所有者ID
@@ -330,7 +330,8 @@ def get_products():
         if owner_ids:
             users = User.query.filter(User.id.in_(set(owner_ids))).all()
             for user in users:
-                user_map[user.id] = user.username
+                # 优先使用真实姓名，如果没有则使用用户名
+                user_map[user.id] = user.real_name if user.real_name else user.username
         
         for p in pagination.items:
             try:
@@ -1045,7 +1046,8 @@ def get_product(id):
             from app.models.user import User
             owner = User.query.get(product.owner_id)
             if owner:
-                owner_name = owner.username
+                # 优先使用真实姓名，如果没有则使用用户名
+                owner_name = owner.real_name if owner.real_name else owner.username
         
         # 小数类型转换为浮点数
         def decimal_to_float(obj):

@@ -194,6 +194,34 @@ class PDFGenerator:
             logger.error(f"生成报价单PDF失败: {str(e)}")
             raise
     
+    def generate_order_pdf(self, order):
+        """生成订单PDF"""
+        try:
+            # 渲染HTML模板
+            html_content = render_template(
+                'pdf/order_template.html',
+                order=order,
+                generated_at=datetime.now()
+            )
+            
+            # 生成PDF文件名：订单编号 & 供应商名称
+            company_name = order.company.company_name if order.company else "未知供应商"
+            # 清理文件名中的特殊字符
+            safe_company_name = "".join(c for c in company_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+            filename = f"{order.order_number} & {safe_company_name}.pdf"
+            
+            # 生成PDF
+            pdf_content = self._generate_pdf_from_html(html_content, filename)
+            
+            return {
+                'content': pdf_content,
+                'filename': filename
+            }
+            
+        except Exception as e:
+            logger.error(f"生成订单PDF失败: {str(e)}")
+            raise
+    
     def _generate_pdf_from_html(self, html_content, filename):
         """从HTML内容生成PDF文件"""
         try:
@@ -395,4 +423,9 @@ def generate_settlement_order_pdf(pricing_order):
 def generate_quotation_pdf(quotation):
     """生成报价单PDF的便捷函数"""
     result = pdf_generator.generate_quotation_pdf(quotation)
+    return result['content']
+
+def generate_order_pdf(order):
+    """生成订单PDF的便捷函数"""
+    result = pdf_generator.generate_order_pdf(order)
     return result['content'] 

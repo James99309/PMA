@@ -137,3 +137,14 @@ migrate_data_to_render.py
 !migrations/
 !templates/
 !static/ 
+# 云端数据库安全锁定文件
+.cloud_db_locked
+.env.local
+config_security_lock.py
+start_local_secure.sh
+
+# 临时数据库脚本
+*_restore_*.py
+*_backup_*.py
+analyze_*.py
+supplement_*.py

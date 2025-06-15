@@ -115,6 +115,7 @@ input[type="number"].discount-rate {
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     max-height: 400px;
     overflow: hidden;
+    min-width: 800px; /* 确保菜单有足够宽度 */
 }
 
 .product-menu-content {
@@ -126,6 +127,7 @@ input[type="number"].discount-rate {
     flex: 1;
     border-right: 1px solid #eee;
     overflow-y: auto;
+    min-width: 200px; /* 每列最小宽度，确保12个中文字符宽度 */
 }
 
 .menu-column:last-child {
@@ -137,6 +139,12 @@ input[type="number"].discount-rate {
     cursor: pointer;
     border-bottom: 1px solid #f5f5f5;
     font-size: 14px;
+    white-space: normal; /* 允许换行 */
+    word-wrap: break-word; /* 长文本换行 */
+    line-height: 1.4;
+    min-height: 36px; /* 最小高度确保一致性 */
+    display: flex;
+    align-items: center;
 }
 
 .menu-item:hover {
@@ -230,16 +238,102 @@ input[type="number"].form-control {
     font-size: 0.875rem;
 }
 
-/* 产品名称列宽度调整 */
+/* 产品名称列宽度调整 - 放宽以确保内容正常展示 */
 .table th.name-column,
 .table td.name-column {
-    min-width: 180px;
+    min-width: 250px !important;
+    width: 250px !important;
 }
 
-/* 产品型号列宽度调整 */
+/* 产品型号列宽度调整 - 放宽以确保内容正常展示 */
 .table th.model-column,
 .table td.model-column {
-    min-width: 150px;
+    min-width: 200px !important;
+    width: 200px !important;
+}
+
+/* 产品规格列宽度调整 */
+.table th.desc-column,
+.table td.desc-column {
+    min-width: 200px;
+    width: 200px;
+}
+
+/* 价格相关列宽度调整 */
+.table th.price-column,
+.table td.price-column {
+    min-width: 120px;
+    width: 120px;
+    text-align: right;
+}
+
+/* MN列宽度调整 */
+.table th.mn-column,
+.table td.mn-column {
+    min-width: 130px;
+    width: 130px;
+}
+
+/* 品牌列宽度调整 */
+.table th:nth-child(4),
+.table td:nth-child(4) {
+    min-width: 100px;
+    width: 100px;
+}
+
+/* 单位列宽度调整 */
+.table th:nth-child(5),
+.table td:nth-child(5) {
+    min-width: 80px;
+    width: 80px;
+}
+
+/* 折扣率列宽度调整 */
+.table th:nth-child(7),
+.table td:nth-child(7) {
+    min-width: 100px;
+    width: 100px;
+}
+
+/* 数量列宽度调整 */
+.table th:nth-child(9),
+.table td:nth-child(9) {
+    min-width: 80px;
+    width: 80px;
+}
+
+/* 备注列宽度调整 */
+.table th:nth-child(12),
+.table td:nth-child(12) {
+    min-width: 120px;
+    width: 120px;
+}
+
+/* 操作列宽度调整 */
+.table th.action-column,
+.table td.action-column {
+    min-width: 80px;
+    width: 80px;
+    text-align: center;
+}
+
+/* 确保表格输入框填满单元格 */
+.table input.form-control {
+    width: 100%;
+    border: 1px solid #dee2e6;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* 数字输入框右对齐 */
+.table input[type="number"] {
+    text-align: right;
+}
+
+/* 折扣率输入框样式 */
+.discount-rate {
+    text-align: right !important;
+    padding-right: 8px !important;
 }
 
 /* 公司选择器样式 */
@@ -321,6 +415,219 @@ input[type="number"].form-control {
     width: 1rem;
     height: 1rem;
 }
+
+/* PC端日期选择器增强样式 - 输入框保持正常，但日历界面放大 */
+@media (min-width: 768px) {
+    /* 输入框保持正常大小，只增强日历图标 */
+    .date-picker-enhanced::-webkit-calendar-picker-indicator {
+        width: 20px !important;
+        height: 20px !important;
+        cursor: pointer;
+        filter: invert(0.5);
+    }
+    
+    /* 放大日期选择器弹出的日历界面 */
+    .date-picker-enhanced::-webkit-calendar-picker-indicator:hover {
+        transform: scale(1.1);
+        transition: transform 0.2s ease;
+    }
+}
+
+/* 全局日期选择器弹出界面样式增强 */
+@media (min-width: 768px) {
+    /* 通过CSS变量来影响日期选择器的显示 */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+        background-size: 18px 18px;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    
+    /* 当日期选择器获得焦点时，增加视觉反馈 */
+    input[type="date"]:focus::-webkit-calendar-picker-indicator {
+        filter: invert(0.3);
+        transform: scale(1.05);
+    }
+}
+
+/* 日期选择器激活状态样式 */
+.date-picker-active {
+    border-color: #0C7CD0 !important;
+    box-shadow: 0 0 0 0.2rem rgba(12, 124, 208, 0.25) !important;
+    transform: scale(1.02);
+    transition: all 0.2s ease;
+}
+
+/* 使用CSS变量来尝试影响日期选择器弹出界面 */
+:root {
+    --date-picker-scale: 1;
+}
+
+/* 针对支持的浏览器，尝试放大日期选择器弹出界面 */
+@media (min-width: 768px) {
+    /* 当日期选择器处于活动状态时的样式 */
+    .date-picker-enhanced.date-picker-active {
+        position: relative;
+        z-index: 1050;
+    }
+    
+    /* 尝试通过伪元素来提示用户日期选择器已增强 */
+    .date-picker-enhanced:focus::after {
+        content: "📅 点击选择日期";
+        position: absolute;
+        top: -25px;
+        left: 0;
+        font-size: 12px;
+        color: #0C7CD0;
+        background: white;
+        padding: 2px 6px;
+        border-radius: 4px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        white-space: nowrap;
+        z-index: 1000;
+        pointer-events: none;
+    }
+    
+    /* 为日期输入框添加更好的视觉反馈 */
+    .date-picker-enhanced:hover {
+        border-color: #0C7CD0;
+        transition: border-color 0.2s ease;
+    }
+    
+    /* 增强日期选择器图标的可见性 */
+    .date-picker-enhanced::-webkit-calendar-picker-indicator {
+        opacity: 0.8;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    
+    .date-picker-enhanced:hover::-webkit-calendar-picker-indicator {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+}
+
+/* jQuery UI Datepicker 增强样式 - PC端放大日历界面 */
+@media (min-width: 768px) {
+    .enhanced-datepicker {
+        transform: scale(1.3) !important;
+        transform-origin: top left !important;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
+        border-radius: 8px !important;
+        border: 2px solid #0C7CD0 !important;
+        background: white !important;
+        z-index: 9999 !important;
+    }
+    
+    .enhanced-datepicker .ui-datepicker-header {
+        background: linear-gradient(135deg, #0C7CD0, #0056b3) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 6px 6px 0 0 !important;
+        padding: 8px !important;
+    }
+    
+    .enhanced-datepicker .ui-datepicker-title {
+        color: white !important;
+        font-weight: 600 !important;
+        font-size: 14px !important;
+    }
+    
+    .enhanced-datepicker .ui-datepicker-prev,
+    .enhanced-datepicker .ui-datepicker-next {
+        background: rgba(255, 255, 255, 0.2) !important;
+        border: 1px solid rgba(255, 255, 255, 0.3) !important;
+        border-radius: 4px !important;
+    }
+    
+    .enhanced-datepicker .ui-datepicker-prev:hover,
+    .enhanced-datepicker .ui-datepicker-next:hover {
+        background: rgba(255, 255, 255, 0.3) !important;
+    }
+    
+    .enhanced-datepicker .ui-datepicker-calendar {
+        border-collapse: separate !important;
+        border-spacing: 2px !important;
+        margin: 8px !important;
+    }
+    
+    .enhanced-datepicker .ui-datepicker-calendar td {
+        padding: 2px !important;
+    }
+    
+    .enhanced-datepicker .ui-datepicker-calendar td a {
+        display: block !important;
+        padding: 8px !important;
+        text-align: center !important;
+        border-radius: 6px !important;
+        border: 1px solid transparent !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        transition: all 0.2s ease !important;
+    }
+    
+    .enhanced-datepicker .ui-datepicker-calendar td a:hover {
+        background: #e3f2fd !important;
+        border-color: #0C7CD0 !important;
+        color: #0C7CD0 !important;
+    }
+    
+    .enhanced-datepicker .ui-datepicker-calendar td.ui-datepicker-today a {
+        background: #fff3cd !important;
+        border-color: #ffc107 !important;
+        color: #856404 !important;
+    }
+    
+    .enhanced-datepicker .ui-datepicker-calendar td.ui-datepicker-current-day a,
+    .enhanced-datepicker .ui-datepicker-calendar td a.ui-state-active {
+        background: #0C7CD0 !important;
+        border-color: #0C7CD0 !important;
+        color: white !important;
+    }
+    
+    .enhanced-datepicker .ui-datepicker-buttonpane {
+        background: #f8f9fa !important;
+        border-top: 1px solid #dee2e6 !important;
+        padding: 8px !important;
+        border-radius: 0 0 6px 6px !important;
+    }
+    
+    .enhanced-datepicker .ui-datepicker-buttonpane button {
+        background: #0C7CD0 !important;
+        color: white !important;
+        border: none !important;
+        padding: 6px 12px !important;
+        border-radius: 4px !important;
+        font-size: 12px !important;
+        margin: 0 4px !important;
+        cursor: pointer !important;
+    }
+    
+    .enhanced-datepicker .ui-datepicker-buttonpane button:hover {
+        background: #0056b3 !important;
+    }
+}
+
+/* 日期选择器图标样式 */
+.date-picker-icon {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6c757d;
+    cursor: pointer;
+    font-size: 16px;
+    transition: color 0.2s ease;
+    pointer-events: auto;
+    z-index: 10;
+}
+
+.date-picker-icon:hover {
+    color: #0C7CD0;
+}
+
+/* 调整包含日期选择器的容器 */
+.col-md-4:has(.date-picker-enhanced) {
+    position: relative;
+}
 </style>
 {% endblock %}
 
@@ -341,6 +648,7 @@ input[type="number"].form-control {
     </div>
 
     <form id="orderForm" method="POST" action="{{ url_for('inventory.create_order') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <!-- 订单基本信息 -->
         <div class="card order-info-card mb-4">
             <div class="card-body">
@@ -348,7 +656,7 @@ input[type="number"].form-control {
                     <i class="fas fa-info-circle me-2"></i>订单基本信息
                 </h5>
                 <div class="row">
-                    <div class="col-md-3 mb-3">
+                    <div class="col-md-4 mb-3">
                         <label for="company_id" class="form-label text-white">订单目标公司 *</label>
                         <select class="form-select" id="company_id" name="company_id" required>
                             <option value="">请选择公司</option>
@@ -357,14 +665,7 @@ input[type="number"].form-control {
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-2 mb-3">
-                        <label for="order_type" class="form-label text-white">订单类型</label>
-                        <select class="form-select" id="order_type" name="order_type">
-                            <option value="purchase">采购订单</option>
-                            <option value="sale">销售订单</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3 mb-3">
+                    <div class="col-md-4 mb-3">
                         <label for="expected_date" class="form-label text-white">预期到货时间</label>
                         <input type="date" class="form-control" id="expected_date" name="expected_date">
                     </div>
@@ -392,9 +693,7 @@ input[type="number"].form-control {
                 <h5 class="mb-0">
                     <i class="fas fa-list me-2"></i>产品明细
                 </h5>
-                <button type="button" class="btn btn-success btn-sm" id="addProductBtn">
-                    <i class="fas fa-plus me-1"></i>添加产品
-                </button>
+                {{ render_button('添加产品', type='button', color='success', size='sm', icon='fas fa-plus', attrs='id="addProductBtn"') }}
             </div>
             <div class="card-body p-0">
                 <div class="table-container">
@@ -403,7 +702,7 @@ input[type="number"].form-control {
                             <thead>
                                 <tr>
                                     <th class="name-column">产品名称</th>
-                                    <th style="min-width: 130px;">产品型号</th>
+                                    <th class="model-column">产品型号</th>
                                     <th class="desc-column">产品规格</th>
                                     <th style="min-width: 90px;">品牌</th>
                                     <th style="min-width: 70px;">单位</th>
@@ -412,7 +711,7 @@ input[type="number"].form-control {
                                     <th class="price-column">单价</th>
                                     <th style="min-width: 70px;">数量</th>
                                     <th class="price-column">小计</th>
-                                    <th style="min-width: 130px;">MN</th>
+                                    <th class="mn-column">MN</th>
                                     <th>备注</th>
                                     <th class="action-column" style="min-width: 50px;">操作</th>
                                 </tr>
@@ -427,16 +726,16 @@ input[type="number"].form-control {
         </div>
 
         <!-- 订单总计 -->
-        <div class="card total-summary">
+        <div class="card mb-4" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);">
             <div class="card-body">
                 <div class="row align-items-center">
                     <div class="col-md-8">
-                        <h5 class="mb-0">订单总计</h5>
-                        <small>总数量：<span id="totalQuantity">0</span> 件</small>
+                        <h5 class="mb-0 text-white">订单总计</h5>
+                        <small class="text-white">总数量：<span id="totalQuantity">0</span> 件</small>
                     </div>
                     <div class="col-md-4 text-end">
-                        <div class="total-amount">
-                            ¥ <span id="totalAmount">0.00</span>
+                        <div class="total-amount text-white">
+                            <h4 class="mb-0">¥ <span id="totalAmount">0.00</span></h4>
                         </div>
                     </div>
                 </div>
@@ -446,12 +745,7 @@ input[type="number"].form-control {
         <!-- 操作按钮 -->
         <div class="row mt-4 mb-5">
             <div class="col-12 text-center">
-                <button type="button" class="btn btn-secondary me-2" onclick="window.history.back()">
-                    <i class="fas fa-times me-1"></i>取消
-                </button>
-                <button type="submit" class="btn btn-primary" id="submitBtn">
-                    <i class="fas fa-save me-1"></i>创建订单
-                </button>
+                {{ render_button('创建订单', type='submit', color='primary', icon='fas fa-save', attrs='id="submitBtn"') }}
             </div>
         </div>
     </form>
@@ -460,7 +754,6 @@ input[type="number"].form-control {
 {% endblock %}
 
 {% block scripts %}
-<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
 <script>
 $(document).ready(function() {
     console.log('创建订单页面JavaScript已加载');
@@ -477,9 +770,40 @@ $(document).ready(function() {
         updateGrandTotal();
     });
     
-    // 数量、折扣率变化时重新计算
-    $(document).on('input', '.quantity, .discount-rate', function() {
+    // 数量、折扣率、单价变化时重新计算
+    $(document).on('input', '.quantity, .discount-rate, .discounted-price', function() {
         const $row = $(this).closest('tr');
+        console.log('输入事件触发，字段类型:', $(this).attr('class'), '值:', $(this).val());
+        
+        // 如果是单价变化，重新计算折扣率
+        if ($(this).hasClass('discounted-price')) {
+            const marketPrice = parseFloat($row.find('.product-price').data('raw-value')) || 0;
+            const unitPrice = parseFloat($(this).val()) || 0;
+            
+            console.log('单价变化事件 - 市场价:', marketPrice, '输入单价:', unitPrice);
+            
+            if (marketPrice > 0) {
+                const discountRate = (unitPrice / marketPrice * 100).toFixed(1);
+                $row.find('.discount-rate').val(discountRate);
+                console.log('更新折扣率为:', discountRate);
+            }
+            
+            // 更新data属性
+            $row.find('.discounted-price').data('raw-value', unitPrice);
+            
+            // 计算小计
+            const quantity = parseInt($row.find('.quantity').val()) || 1;
+            const subtotal = unitPrice * quantity;
+            $row.find('.subtotal')
+                .val(formatNumber(subtotal))
+                .data('raw-value', subtotal);
+            
+            updateGrandTotal();
+            return;
+        }
+        
+        // 如果是折扣率或数量变化，重新计算单价和小计
+        console.log('触发calculateRowTotal');
         calculateRowTotal($row);
     });
     
@@ -556,7 +880,7 @@ $(document).ready(function() {
                     </div>
                 </td>
                 <td>
-                    <input type="text" class="form-control discounted-price" name="unit_price[]" readonly>
+                    <input type="number" class="form-control discounted-price" name="unit_price[]" step="0.01" min="0" required>
                 </td>
                 <td>
                     <input type="number" class="form-control quantity" name="quantity[]" value="1" min="1" required>
@@ -790,51 +1114,90 @@ $(document).ready(function() {
         
         // 设置市场价格
         let price = parseFloat(product.retail_price) || 0;
-        $row.find('.product-price')
-            .val(formatNumber(price))
-            .data('raw-value', price);
+        console.log('原始市场价格:', product.retail_price, '解析后:', price);
         
-        // 设置初始折扣率为100%
-        $row.find('.discount-rate').val('100.0');
+        // 设置市场价格字段
+        $row.find('.product-price').val(price);
+        $row.find('.product-price').data('raw-value', price);
         
-        // 设置初始折扣后单价等于市场价格
-        $row.find('.discounted-price')
-            .val(formatNumber(price))
-            .data('raw-value', price);
+        // 设置单价字段（初始折扣率100%）
+        const $unitPriceField = $row.find('.discounted-price');
+        console.log('设置单价字段: 原始价格=', price);
         
-        // 设置初始数量为1
-        $row.find('.quantity').val('1');
+        // 关键修复：对于number类型的input，直接设置数值，不要格式化
+        if ($unitPriceField.length > 0) {
+            const field = $unitPriceField[0];
+            console.log('字段类型:', field.type);
+            
+            // 直接设置数值，不格式化
+            console.log('设置前的值:', field.value);
+            field.value = price; // 直接设置数值，不是格式化字符串
+            console.log('设置后的值:', field.value);
+            
+            // 同时设置data属性用于计算
+            $unitPriceField.data('raw-value', price);
+            
+            console.log('单价字段设置成功:', price);
+        }
         
-        // 计算并设置小计
-        let subtotal = price * 1; // 初始折扣率100%，数量1
-        $row.find('.subtotal')
-            .val(formatNumber(subtotal))
-            .data('raw-value', subtotal);
-        
-        // 更新总计
-        updateGrandTotal();
-    }
-    
-    // 计算行小计
-    function calculateRowTotal($row) {
-        const marketPrice = parseFloat($row.find('.product-price').data('raw-value')) || 0;
-        const discountRate = parseFloat($row.find('.discount-rate').val()) || 100;
-        const quantity = parseInt($row.find('.quantity').val()) || 1;
-        
-        // 计算折扣后单价
-        const discountedPrice = marketPrice * (discountRate / 100);
-        $row.find('.discounted-price')
-            .val(formatNumber(discountedPrice))
-            .data('raw-value', discountedPrice);
+        // 设置数量为1
+        $row.find('.quantity').val(1);
         
         // 计算小计
-        const subtotal = discountedPrice * quantity;
-        $row.find('.subtotal')
-            .val(formatNumber(subtotal))
-            .data('raw-value', subtotal);
+        calculateRowTotal($row);
         
-        // 更新总计
+        console.log('设置完成 - 单价:', price, '小计:', $row.find('.subtotal').val());
+    }
+    
+    // 计算行价格（采用报价单的逻辑）
+    function calculateRowTotal($row, eventSource) {
+        try {
+            console.log('计算行价格');
+            
+            // 获取市场价格和其他值
+            var marketPriceStr = $row.find('.product-price').val() || '0';
+            var marketPrice = parseFloat(marketPriceStr.replace(/,/g, '')) || 0;
+            
+            var discountStr = $row.find('.discount-rate').val() || '100';
+            var discount = parseFloat(discountStr.replace(/,/g, '')) || 100;
+            
+            var quantityStr = $row.find('.quantity').val() || '0';
+            var quantity = parseFloat(quantityStr.replace(/,/g, '')) || 0;
+            
+            // 检查事件来源
+            var fromDiscountRate = false;
+            if (eventSource) {
+                fromDiscountRate = $(eventSource).hasClass('discount-rate');
+            }
+            
+            // 获取当前的折后价
+            var discountedPriceStr = $row.find('.discounted-price').val() || '0';
+            var currentDiscountedPrice = parseFloat(discountedPriceStr.replace(/,/g, '')) || 0;
+            
+            // 计算单价 (折后价)
+            var unitPrice = marketPrice * (discount / 100);
+            
+            // 如果价格变更是从折扣率变更触发的，或者单价为0，才更新单价
+            if (fromDiscountRate || currentDiscountedPrice <= 0) {
+                $row.find('.discounted-price').val(formatNumber(unitPrice.toFixed(2)));
+                $row.find('.discounted-price').data('raw-value', unitPrice);
+            } else {
+                // 否则使用输入的折后价
+                unitPrice = currentDiscountedPrice;
+            }
+            
+            // 计算小计
+            var subtotal = unitPrice * quantity;
+            $row.find('.subtotal').val(formatNumber(subtotal.toFixed(2)));
+            $row.find('.subtotal').data('raw-value', subtotal);
+        
+            // 调用总计更新函数
         updateGrandTotal();
+            
+            console.log('行价格计算完成: 市场价=', marketPrice, '折扣=', discount, '单价=', unitPrice, '数量=', quantity, '小计=', subtotal);
+        } catch (error) {
+            console.error('计算行价格时出错:', error);
+        }
     }
     
     // 更新总计

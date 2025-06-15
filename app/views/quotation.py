@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlalchemy import or_, func
 from app import db
 from flask_login import login_required, current_user
-from app.decorators import permission_required  # 添加权限装饰器导入
+from app.decorators import permission_required, permission_required_with_approval_context  # 添加权限装饰器导入
 from app.utils.access_control import get_viewable_data, can_edit_data, can_view_project, can_change_quotation_owner
 import logging
 from decimal import Decimal
@@ -1468,7 +1468,7 @@ def get_product_specs():
 
 @quotation.route('/<int:id>/detail')
 @login_required
-@permission_required('quotation', 'view')
+@permission_required_with_approval_context('quotation', 'view')
 def view_quotation(id):
     try:
         quotation = Quotation.query.get_or_404(id)

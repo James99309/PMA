@@ -2,7 +2,7 @@ from flask import current_app
 from app.utils.access_control import (
     can_view_company, can_edit_company_info, can_edit_company_sharing,
     can_delete_company, can_view_contact, can_edit_contact, can_delete_contact,
-    can_view_project
+    can_view_project, can_view_in_approval_context, has_approval_view_permission
 )
 from app.helpers.approval_helpers import (
     check_template_in_use,
@@ -42,7 +42,9 @@ def inject_permission_functions():
         'can_view_contact': can_view_contact,
         'can_edit_contact': can_edit_contact, 
         'can_delete_contact': can_delete_contact,
-        'can_view_project': can_view_project
+        'can_view_project': can_view_project,
+        'can_view_in_approval_context': can_view_in_approval_context,
+        'has_approval_view_permission': has_approval_view_permission
     }
 
 def inject_approval_functions():

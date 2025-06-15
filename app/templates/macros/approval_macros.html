@@ -89,6 +89,10 @@
             <th width="200">批价单编号</th>
             <th width="200">流程名称</th>
             <th width="180">关联项目</th>
+          {% elif mode == 'order' %}
+            <th width="200">订单编号</th>
+            <th width="200">流程名称</th>
+            <th width="180">供应商/客户</th>
           {% else %}
             <th width="200">审批编号</th>
             <th width="200">流程名称</th>
@@ -123,6 +127,15 @@
                     {% else %}
                       <span class="badge rounded-pill bg-secondary">无编号</span>
                     {% endif %}
+                  {% elif item.object_type == 'purchase_order' %}
+                    {# 订单显示订单编号 #}
+                    {% if item.order is defined and item.order %}
+                      <span class="badge rounded-pill bg-primary">{{ item.order.order_number }}</span>
+                    {% elif item.business_object_name %}
+                      <span class="badge rounded-pill bg-primary">{{ item.business_object_name }}</span>
+                    {% else %}
+                      <span class="badge rounded-pill bg-secondary">无编号</span>
+                    {% endif %}
                   {% else %}
                     {# 其他类型显示审批编号 #}
                     <span class="badge rounded-pill" style="background-color: #ff8c00; color: white; font-weight: 500;">APV-{{ '%04d' % (item.id|int if item.id is not string else 0) }}</span>
@@ -131,12 +144,7 @@
                 <div class="d-md-none small text-muted">
                   {{ get_object_type_display(item.object_type) }} · {{ format_datetime(item.started_at) }}
                 </div>
-                {# 调试信息 - 仅在开发环境显示 #}
-                {% if config.DEBUG %}
-                <div class="small text-muted">
-                  <small>URL: {{ business_url }}</small>
-                </div>
-                {% endif %}
+
               </td>
               <td>
                 {% if item.process %}
@@ -204,6 +212,15 @@
                     {% endif %}
                   {% else %}
                     <span class="badge bg-secondary">无关联</span>
+                  {% endif %}
+                {% elif item.object_type == 'purchase_order' %}
+                  {# 订单审核 - 显示供应商/客户公司 #}
+                  {% if item.order is defined and item.order and item.order.company %}
+                    <span class="badge bg-info rounded-pill">{{ item.order.company.company_name[:15] }}{% if item.order.company.company_name|length > 15 %}...{% endif %}</span>
+                  {% elif item.business_object and item.business_object.company %}
+                    <span class="badge bg-info rounded-pill">{{ item.business_object.company.company_name[:15] }}{% if item.business_object.company.company_name|length > 15 %}...{% endif %}</span>
+                  {% else %}
+                    <span class="badge bg-secondary">无关联公司</span>
                   {% endif %}
                 {% else %}
                   <span class="badge bg-secondary">{{ get_object_type_display(item.object_type) }}</span>
@@ -391,6 +408,7 @@
             <option value="quotation" {% if object_type == 'quotation' %}selected{% endif %}>报价单</option>
             <option value="customer" {% if object_type == 'customer' %}selected{% endif %}>客户</option>
             <option value="pricing_order" {% if object_type == 'pricing_order' %}selected{% endif %}>批价单</option>
+            <option value="purchase_order" {% if object_type == 'purchase_order' %}selected{% endif %}>订单</option>
           </select>
         </div>
       </div>
@@ -405,6 +423,23 @@
               <option value="pending" {{ 'selected' if status == 'pending' else '' }}>审批中</option>
               <option value="approved" {{ 'selected' if status == 'approved' else '' }}>已通过</option>
               <option value="rejected" {{ 'selected' if status == 'rejected' else '' }}>已拒绝</option>
+            </select>
+          </div>
+        </div>
+      {% elif current_tab == 'order' %}
+        <div class="col-md-4 col-sm-6">
+          <div class="form-group">
+            <label for="status" class="form-label">订单状态</label>
+            <select class="form-select" id="status" name="status">
+              <option value="">全部</option>
+              <option value="draft" {{ 'selected' if status == 'draft' else '' }}>草稿</option>
+              <option value="pending" {{ 'selected' if status == 'pending' else '' }}>审批中</option>
+              <option value="approved" {{ 'selected' if status == 'approved' else '' }}>已通过</option>
+              <option value="rejected" {{ 'selected' if status == 'rejected' else '' }}>已拒绝</option>
+              <option value="confirmed" {{ 'selected' if status == 'confirmed' else '' }}>已确认</option>
+              <option value="shipped" {{ 'selected' if status == 'shipped' else '' }}>已发货</option>
+              <option value="completed" {{ 'selected' if status == 'completed' else '' }}>已完成</option>
+              <option value="cancelled" {{ 'selected' if status == 'cancelled' else '' }}>已取消</option>
             </select>
           </div>
         </div>
@@ -1015,7 +1050,7 @@
                         <div class="card-body">
                             <div class="approval-workflow">
                                 <div class="timeline">
-                                    {% set workflow_steps = get_workflow_steps(approval_instance) if get_workflow_steps is defined else [] %}
+                                    {% set workflow_steps = get_workflow_steps(approval_instance) %}
                                     {% for step in workflow_steps %}
                                         <div class="timeline-item">
                                             <div class="timeline-marker 

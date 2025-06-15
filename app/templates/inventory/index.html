@@ -231,41 +231,7 @@
                     </p>
                     <div class="d-grid gap-2">
                         {{ render_button('订单列表', href=url_for('inventory.order_list'), color='info', icon='fas fa-list') }}
-                        {{ render_button('创建订单', href='#', color='primary', icon='fas fa-plus', size='sm') }}
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 快速操作 -->
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="fas fa-bolt me-2"></i>快速操作
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <h6>库存操作</h6>
-                            <div class="d-flex gap-2 flex-wrap">
-                                {{ render_button('快速出库', href='#', color='danger', icon='fas fa-arrow-down', size='sm') }}
-                                {{ render_button('库存调整', href='#', color='warning', icon='fas fa-adjust', size='sm') }}
-                                {{ render_button('低库存报告', href='#', color='info', icon='fas fa-chart-line', size='sm') }}
-                            </div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <h6>结算与订单</h6>
-                            <div class="d-flex gap-2 flex-wrap">
-                                {{ render_button('批量结算', href='#', color='primary', icon='fas fa-calculator', size='sm') }}
-                                {{ render_button('待收货订单', href='#', color='warning', icon='fas fa-truck', size='sm') }}
-                                {{ render_button('导出报表', href='#', color='secondary', icon='fas fa-download', size='sm') }}
-                                {{ render_button('系统设置', href='#', color='dark', icon='fas fa-cog', size='sm') }}
-                            </div>
-                        </div>
+                        {{ render_button('创建订单', href=url_for('inventory.create_order'), color='primary', icon='fas fa-plus', size='sm') }}
                     </div>
                 </div>
             </div>

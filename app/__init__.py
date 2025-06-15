@@ -288,6 +288,10 @@ def create_app(config_class=Config):
     from app.views.version_management import version_management_bp
     app.register_blueprint(version_management_bp)
     
+    # 注册备份管理蓝图
+    from app.routes.backup_routes import backup_bp
+    app.register_blueprint(backup_bp)
+    
     # 添加版本信息API路由
     @app.route('/api/version', methods=['GET'])
     def get_app_version():
@@ -637,6 +641,7 @@ def create_app(config_class=Config):
         check_template_in_use,
         get_rejected_approval_history,
         get_template_steps,
+        get_workflow_steps,
         get_pending_approval_count
     )
     app.jinja_env.globals['get_available_templates'] = get_available_templates
@@ -647,6 +652,7 @@ def create_app(config_class=Config):
     app.jinja_env.globals['check_template_in_use'] = check_template_in_use
     app.jinja_env.globals['get_rejected_approval_history'] = get_rejected_approval_history
     app.jinja_env.globals['get_template_steps'] = get_template_steps
+    app.jinja_env.globals['get_workflow_steps'] = get_workflow_steps
     app.jinja_env.globals['get_pending_approval_count'] = get_pending_approval_count
     
     # 添加权限检查和业务对象获取函数
@@ -695,7 +701,7 @@ def create_app(config_class=Config):
             for t in templates:
                 current_app.logger.info(f"模板: {t.id} - {t.name} (活跃: {t.is_active})")
 
-    # 初始化系统设置
+            # 初始化系统设置
     with app.app_context():
         try:
             from app.models.settings import initialize_default_settings
@@ -703,6 +709,14 @@ def create_app(config_class=Config):
             app.logger.info("系统默认设置初始化完成")
         except Exception as e:
             app.logger.error(f"初始化系统设置时出错: {str(e)}")
+            
+        # 初始化备份服务
+        try:
+            from app.services.database_backup import init_backup_service
+            backup_service = init_backup_service(app)
+            app.logger.info("数据库备份服务初始化完成")
+        except Exception as e:
+            app.logger.error(f"初始化数据库备份服务时出错: {str(e)}")
     
     # 注册上下文处理器
     from app.utils.access_control import register_context_processors

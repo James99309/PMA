@@ -97,6 +97,41 @@ def get_viewable_data(model_class, user, special_filters=None):
     if model_class.__name__ == 'Product':
         return model_class.query.filter(*special_filters)
     
+    # 订单数据访问控制
+    if model_class.__name__ == 'PurchaseOrder':
+        # 统一处理角色字符串，去除空格
+        user_role = user.role.strip() if user.role else ''
+        
+        # 财务总监、产品经理、解决方案经理可以查看所有订单（只读权限）
+        if user_role in ['finance_director', 'finace_director', 'product_manager', 'product', 'solution_manager', 'solution']:
+            return model_class.query.filter(*special_filters if special_filters else [])
+        
+        # 销售总监：可以查看自己创建的订单 + 归属关系中的订单
+        if user_role == 'sales_director':
+            # 获取通过归属关系可以查看的用户ID列表
+            viewable_user_ids = [user.id]
+            affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+            for affiliation in affiliations:
+                viewable_user_ids.append(affiliation.owner_id)
+            
+            return model_class.query.filter(
+                model_class.created_by_id.in_(viewable_user_ids),
+                *special_filters
+            )
+        
+        # 默认订单权限逻辑：自己创建的订单 + 归属关系授权的订单
+        viewable_user_ids = [user.id]
+        
+        # 获取通过归属关系可以查看的数据
+        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+        for affiliation in affiliations:
+            viewable_user_ids.append(affiliation.owner_id)
+        
+        return model_class.query.filter(
+            model_class.created_by_id.in_(viewable_user_ids),
+            *special_filters
+        )
+    
     # 处理特殊角色权限 - Project模型
     if model_class.__name__ == 'Project':
         # 统一处理角色字符串，去除空格
@@ -841,3 +876,132 @@ def can_start_approval(model_obj, user):
     
     # 其他类型的对象，默认只有拥有者可以发起审批
     return model_obj.owner_id == user.id
+
+def can_view_in_approval_context(user, object_type, object_id):
+    """
+    检查用户是否可以在审批上下文中查看业务对象详情
+    
+    审批人在审批过程中有权查看审批对象的业务详情，即使他们平时没有查看权限
+    
+    参数:
+        user: 用户对象
+        object_type: 业务对象类型 ('project', 'quotation', 'customer', 'purchase_order')
+        object_id: 业务对象ID
+    
+    返回:
+        bool: 是否有权限查看
+    """
+    if not user or not user.is_authenticated:
+        return False
+    
+    # 管理员有全部权限
+    if user.role == 'admin':
+        return True
+    
+    # 首先检查是否是当前审批人
+    from app.models.approval import ApprovalInstance, ApprovalStep, ApprovalStatus
+    from app.models.pricing_order import PricingOrder, PricingOrderApprovalRecord
+    
+    # 检查通用审批系统
+    approval_instance = ApprovalInstance.query.filter_by(
+        object_type=object_type,
+        object_id=object_id,
+        status=ApprovalStatus.PENDING
+    ).first()
+    
+    if approval_instance:
+        # 获取当前步骤
+        current_step = ApprovalStep.query.filter_by(
+            process_id=approval_instance.process_id,
+            step_order=approval_instance.current_step
+        ).first()
+        
+        if current_step and current_step.approver_user_id == user.id:
+            return True
+    
+    # 检查批价单审批系统（特殊处理）
+    if object_type == 'pricing_order':
+        pricing_order = PricingOrder.query.get(object_id)
+        if pricing_order and pricing_order.status == 'pending':
+            current_approval_record = PricingOrderApprovalRecord.query.filter_by(
+                pricing_order_id=pricing_order.id,
+                step_order=pricing_order.current_approval_step,
+                approver_id=user.id
+            ).first()
+            if current_approval_record:
+                return True
+    
+    # 检查订单审批系统
+    if object_type == 'purchase_order':
+        from app.models.inventory import PurchaseOrder
+        purchase_order = PurchaseOrder.query.get(object_id)
+        if purchase_order:
+            # 查询订单的审批实例
+            order_approval_instance = ApprovalInstance.query.filter_by(
+                object_type='purchase_order',
+                object_id=purchase_order.id,
+                status=ApprovalStatus.PENDING
+            ).first()
+            
+            if order_approval_instance:
+                current_step = ApprovalStep.query.filter_by(
+                    process_id=order_approval_instance.process_id,
+                    step_order=order_approval_instance.current_step
+                ).first()
+                
+                if current_step and current_step.approver_user_id == user.id:
+                    return True
+    
+    # 如果不是审批人，则检查常规权限
+    # 这里可以调用现有的权限检查函数
+    return False
+
+
+def has_approval_view_permission(user, object_type, object_id):
+    """
+    检查用户是否有权限查看业务对象（包括审批上下文）
+    
+    这是一个综合权限检查函数，会先检查审批权限，再检查常规权限
+    
+    参数:
+        user: 用户对象
+        object_type: 业务对象类型
+        object_id: 业务对象ID
+    
+    返回:
+        bool: 是否有权限查看
+    """
+    # 首先检查审批上下文权限
+    if can_view_in_approval_context(user, object_type, object_id):
+        return True
+    
+    # 然后检查常规权限
+    if object_type == 'project':
+        from app.models.project import Project
+        project = Project.query.get(object_id)
+        if project:
+            return can_view_project(user, project)
+    
+    elif object_type == 'quotation':
+        from app.models.quotation import Quotation
+        quotation = Quotation.query.get(object_id)
+        if quotation:
+            # 这里需要实现报价单的权限检查逻辑
+            # 可以参考现有的报价单权限检查
+            return True  # 临时返回True，需要根据实际情况实现
+    
+    elif object_type == 'customer':
+        from app.models.customer import Company
+        company = Company.query.get(object_id)
+        if company:
+            return can_view_company(user, company)
+    
+    elif object_type == 'purchase_order':
+        from app.models.inventory import PurchaseOrder
+        order = PurchaseOrder.query.get(object_id)
+        if order:
+            # 这里需要实现订单的权限检查逻辑
+            # 可以参考现有的订单权限检查
+            return True  # 临时返回True，需要根据实际情况实现
+    
+    return False

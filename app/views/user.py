@@ -32,9 +32,7 @@ def get_auth_headers():
 @login_required
 @permission_required('user', 'view')
 def list_users():
-    """用户列表页面（带分页、搜索、角色、状态过滤）"""
-    page = request.args.get('page', 1, type=int)
-    per_page = 20
+    """用户列表页面（显示所有用户，支持搜索、角色、状态过滤）"""
     search = request.args.get('search', '')
     role = request.args.get('role', '')
     status = request.args.get('status', '')
@@ -54,25 +52,23 @@ def list_users():
         is_active = True if status == 'active' else False
         query = query.filter(User.is_active == is_active)
 
-    # 按更新时间倒序排序
+    # 按更新时间倒序排序，获取所有用户
     try:
-        pagination = query.order_by(User.updated_at.desc().nullslast(), User.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
+        users = query.order_by(User.updated_at.desc().nullslast(), User.id.desc()).all()
     except Exception as e:
         logger.warning(f"使用updated_at排序失败: {str(e)}, 尝试使用id排序")
         try:
             # 回滚失败的事务
             db.session.rollback()
-            pagination = query.order_by(User.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
+            users = query.order_by(User.id.desc()).all()
         except Exception as e2:
             logger.error(f"用户列表查询失败: {str(e2)}")
             # 回滚失败的事务
             db.session.rollback()
-            # 创建一个空的分页对象
-            from flask_sqlalchemy import Pagination
-            pagination = Pagination(query=query, page=page, per_page=per_page, total=0, items=[])
+            users = []
 
     users_data = []
-    for user in pagination.items:
+    for user in users:
         d = user.to_dict()
         users_data.append({
             'id': d['id'],
@@ -87,6 +83,7 @@ def list_users():
             'updated_at': d.get('updated_at'),
             'created_at': d.get('created_at'),
         })
+    
     # 批量获取企业名称和角色字典映射
     company_dict = {d.key: d.value for d in Dictionary.query.filter_by(type='company').all()}
     role_dict = {d.key: d.value for d in Dictionary.query.filter_by(type='role').all()}
@@ -94,8 +91,7 @@ def list_users():
     return render_template(
         'user/list.html',
         users=users_data,
-        total=pagination.total,
-        pagination=pagination,
+        total=len(users_data),
         company_dict=company_dict,
         role_dict=role_dict
     )
@@ -823,6 +819,9 @@ def get_default_modules():
         {"id": "quotation", "name": "报价管理", "description": "管理产品报价"},
         {"id": "product", "name": "产品管理", "description": "管理产品信息和价格"},
         {"id": "product_code", "name": "产品编码", "description": "管理产品编码系统"},
+        {"id": "inventory", "name": "库存管理", "description": "管理库存信息和出入库"},
+        {"id": "settlement", "name": "结算管理", "description": "管理结算单和结算记录"},
+        {"id": "order", "name": "订单管理", "description": "管理采购订单和销售订单"},
         {"id": "user", "name": "用户管理", "description": "管理系统用户"},
         {"id": "permission", "name": "权限管理", "description": "管理用户权限"},
         {"id": "project_rating", "name": "项目评分🌟", "description": "设置项目五星评分", "type": "switch"}

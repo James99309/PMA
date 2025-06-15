@@ -3,7 +3,7 @@
 {% block title %}仪表盘 - 项目管理系统{% endblock %}
 
 {% block content %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_button %}
 
 {# 角色名称映射 #}
 {% set role_names = {
@@ -33,7 +33,7 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">最近项目</h5>
-                <a href="{{ url_for('project.list_projects') }}" class="btn btn-sm btn-outline-primary">查看全部</a>
+                {{ render_button('查看全部', href=url_for('project.list_projects'), size='sm', color='outline-primary') }}
             </div>
             <div class="card-body">
                 <ul class="list-group list-group-flush">
@@ -42,14 +42,14 @@
                         <li class="list-group-item">
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
-                                    <div class="fw-bold" style="font-size: 0.75rem;">
+                                    <div class="fw-bold" style="font-size: 0.875rem;">
                                         <a href="{{ url_for('project.view_project', project_id=project.id) }}" class="text-decoration-none text-primary">{{ project.project_name }}</a>
                                     </div>
                                     <div class="mt-2">
-                                        <span style="background: #f5f5f5; color: #3098af; border-radius: 8px; padding: 2px 8px; font-weight: 600; font-size: 0.65rem; display: inline-block;">{{ render_project_type(project.project_type) }}</span>
+                                        <span style="background: #f5f5f5; color: #3098af; border-radius: 8px; padding: 2px 8px; font-weight: 600; font-size: 0.75rem; display: inline-block;">{{ render_project_type(project.project_type) }}</span>
                                     </div>
                                 </div>
-                                <div class="text-end" style="color: #888; font-size: 0.65rem; min-width: 90px;">
+                                <div class="text-end" style="color: #888; font-size: 0.75rem; min-width: 90px;">
                                     <div>{{ project.updated_at.strftime('%Y-%m-%d') if project.updated_at else '' }}</div>
                                     <div>{{ render_owner(project.owner) }}</div>
                                 </div>
@@ -70,7 +70,7 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">最近报价</h5>
-                <a href="{{ url_for('quotation.list_quotations') }}" class="btn btn-sm btn-outline-primary">查看全部</a>
+                {{ render_button('查看全部', href=url_for('quotation.list_quotations'), size='sm', color='outline-primary') }}
             </div>
             <div class="card-body">
                 <ul class="list-group list-group-flush">
@@ -79,14 +79,14 @@
                         <li class="list-group-item">
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
-                                    <div class="fw-bold" style="font-size: 0.75rem;">
+                                    <div class="fw-bold" style="font-size: 0.875rem;">
                                         {{ quotation.project.project_name if quotation.project else '无项目' }}
                                     </div>
                                     <div class="mt-2">
-                                        <a href="{{ url_for('quotation.view_quotation', id=quotation.id) }}" style="background: #f5f5f5; color: #3098af; border-radius: 8px; padding: 2px 8px; font-weight: 600; font-size: 0.65rem; text-decoration: none; display: inline-block;">{{ quotation.quotation_number }}</a>
+                                        <a href="{{ url_for('quotation.view_quotation', id=quotation.id) }}" style="background: #f5f5f5; color: #3098af; border-radius: 8px; padding: 2px 8px; font-weight: 600; font-size: 0.75rem; text-decoration: none; display: inline-block;">{{ quotation.quotation_number }}</a>
                                     </div>
                                 </div>
-                                <div class="text-end" style="color: #888; font-size: 0.65rem; min-width: 90px;">
+                                <div class="text-end" style="color: #888; font-size: 0.75rem; min-width: 90px;">
                                     <div>{{ quotation.updated_at.strftime('%Y-%m-%d') if quotation.updated_at else '' }}</div>
                                     <div>{{ render_owner(quotation.owner) }}</div>
                                 </div>
@@ -107,7 +107,7 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">最近客户</h5>
-                <a href="{{ url_for('customer.list_companies') }}" class="btn btn-sm btn-outline-primary">查看全部</a>
+                {{ render_button('查看全部', href=url_for('customer.list_companies'), size='sm', color='outline-primary') }}
             </div>
             <div class="card-body">
                 <ul class="list-group list-group-flush">
@@ -116,14 +116,14 @@
                         <li class="list-group-item">
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
-                                    <div class="fw-bold" style="font-size: 0.75rem;">
+                                    <div class="fw-bold" style="font-size: 0.875rem;">
                                         <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="text-decoration-none text-primary">{{ company.company_name }}</a>
                                     </div>
                                     <div class="mt-2">
-                                        <span style="background: #f5f5f5; color: #3098af; border-radius: 8px; padding: 2px 8px; font-weight: 600; font-size: 0.65rem; display: inline-block;">{{ company.company_type|company_type_label if company.company_type else '未分类' }}</span>
+                                        <span style="background: #f5f5f5; color: #3098af; border-radius: 8px; padding: 2px 8px; font-weight: 600; font-size: 0.75rem; display: inline-block;">{{ company.company_type|company_type_label if company.company_type else '未分类' }}</span>
                                     </div>
                                 </div>
-                                <div class="text-end" style="color: #888; font-size: 0.65rem; min-width: 90px;">
+                                <div class="text-end" style="color: #888; font-size: 0.75rem; min-width: 90px;">
                                     <div>{{ company.updated_at.strftime('%Y-%m-%d') if company.updated_at else '' }}</div>
                                     <div>{{ render_owner(company.owner) }}</div>
                                 </div>
@@ -494,7 +494,12 @@ function renderTableRecords(records) {
                 ${record.owner_badge_html || '<span class="badge bg-secondary">无</span>'}
             </td>
             <td style="white-space: nowrap; font-size: 0.9rem;">
-                <span>${record.customer_name || '-'}</span>
+                ${record.customer_name && record.customer_id ? 
+                    `<a href="/customer/${record.customer_id}/view" class="text-decoration-none text-primary">
+                        ${record.customer_name}
+                    </a>` : 
+                    '<span class="text-muted">-</span>'
+                }
             </td>
             <td style="white-space: nowrap; font-size: 0.9rem;">
                 <span>${record.contact_name || '-'}</span>
@@ -649,7 +654,14 @@ function createMobileCard(record) {
             </div>
             <div class="col-6">
                 <div class="small text-muted" style="font-size: 0.8rem;">客户</div>
-                <div style="font-size: 0.9rem;">${record.customer_name || '-'}</div>
+                <div style="font-size: 0.9rem;">
+                    ${record.customer_name && record.customer_id ? 
+                        `<a href="/customer/${record.customer_id}/view" class="text-decoration-none text-primary">
+                            ${record.customer_name}
+                        </a>` : 
+                        '<span class="text-muted">-</span>'
+                    }
+                </div>
             </div>
         </div>
         

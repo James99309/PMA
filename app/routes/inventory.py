@@ -1,15 +1,17 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file
 from flask_login import login_required, current_user
 from app import db
 from app.models.inventory import Inventory, InventoryTransaction, Settlement, SettlementDetail, PurchaseOrder, PurchaseOrderDetail
 from app.models.customer import Company
 from app.models.product import Product
 from app.utils.inventory_helpers import update_inventory, process_settlement, generate_order_number, get_inventory_status, calculate_order_totals
-from app.decorators import permission_required
+from app.decorators import permission_required, permission_required_with_approval_context
 from datetime import datetime, date
 import logging
 from app.models.pricing_order import SettlementOrder, SettlementOrderDetail
 from sqlalchemy import select
+import io
+from app.helpers.approval_helpers import get_object_approval_instance, get_available_templates
 
 logger = logging.getLogger(__name__)
 
@@ -413,6 +415,7 @@ def settlement_list():
 
 @inventory.route('/settlement_orders')
 @login_required
+@permission_required('settlement', 'view')
 def settlement_order_list():
     """结算单列表"""
     try:
@@ -513,14 +516,14 @@ def settlement_process(order_number):
 
 @inventory.route('/settlement/create', methods=['GET', 'POST'])
 @login_required
-# @permission_required('inventory', 'create')  # 临时注释掉权限检查
+@permission_required('settlement', 'create')
 def create_settlement():
     """创建结算 - 重定向到结算单列表"""
     return redirect(url_for('inventory.settlement_order_list'))
 
 @inventory.route('/settlement/<int:id>')
 @login_required
-@permission_required('inventory', 'view')
+@permission_required('settlement', 'view')
 def settlement_detail(id):
     """结算详情"""
     settlement_order = SettlementOrder.query.get_or_404(id)
@@ -528,7 +531,7 @@ def settlement_detail(id):
 
 @inventory.route('/inventory_settlement/<int:id>')
 @login_required
-# @permission_required('inventory', 'view')  # 临时注释掉权限检查
+@permission_required('settlement', 'view')
 def inventory_settlement_detail(id):
     """库存结算详情"""
     settlement = Settlement.query.get_or_404(id)
@@ -536,7 +539,7 @@ def inventory_settlement_detail(id):
 
 @inventory.route('/settlement/<int:id>/execute', methods=['POST'])
 @login_required
-@permission_required('inventory', 'create')
+@permission_required('settlement', 'create')
 def execute_settlement(id):
     """执行结算 - 将结算单与库存进行关联并扣减库存"""
     try:
@@ -602,7 +605,7 @@ def execute_settlement(id):
 
 @inventory.route('/api/settlement/<int:id>')
 @login_required
-@permission_required('inventory', 'view')
+@permission_required('settlement', 'view')
 def get_settlement_info(id):
     """获取结算单详情API"""
     try:
@@ -680,13 +683,12 @@ def get_company_inventory_details(company_id):
 
 @inventory.route('/orders')
 @login_required
+@permission_required('order', 'view')
 def order_list():
     """订单列表"""
     # 获取搜索和筛选参数
     search = request.args.get('search', '')
-    order_type = request.args.get('order_type', '')
     company_id = request.args.get('company_id', '')
-    status = request.args.get('status', '')
     page = request.args.get('page', 1, type=int)
     per_page = 20
     
@@ -703,52 +705,33 @@ def order_list():
         )
     
     # 筛选条件
-    if order_type:
-        query = query.filter(PurchaseOrder.order_type == order_type)
-    
     if company_id:
         query = query.filter(PurchaseOrder.company_id == company_id)
-    
-    if status:
-        query = query.filter(PurchaseOrder.status == status)
     
     # 排序和分页
     orders = query.order_by(PurchaseOrder.created_at.desc()).paginate(
         page=page, per_page=per_page, error_out=False
     )
     
-    # 获取统计数据
-    stats = {
-        'draft': PurchaseOrder.query.filter_by(status='draft').count(),
-        'confirmed': PurchaseOrder.query.filter_by(status='confirmed').count(),
-        'shipped': PurchaseOrder.query.filter_by(status='shipped').count(),
-        'completed': PurchaseOrder.query.filter_by(status='completed').count(),
-        'purchase': PurchaseOrder.query.filter_by(order_type='purchase').count(),
-        'sale': PurchaseOrder.query.filter_by(order_type='sale').count(),
-    }
-    
-    # 获取公司列表用于筛选
-    companies = Company.query.order_by(Company.company_name).all()
+    # 获取有订单记录的公司列表用于筛选
+    company_ids_with_orders = db.session.query(PurchaseOrder.company_id).distinct().subquery()
+    companies = Company.query.filter(Company.id.in_(company_ids_with_orders)).order_by(Company.company_name).all()
     
     return render_template('inventory/order_list.html', 
                          orders=orders, 
-                         stats=stats,
                          companies=companies,
                          search=search,
-                         order_type=order_type,
-                         company_id=company_id,
-                         status=status)
+                         company_id=company_id)
 
 @inventory.route('/orders/create', methods=['GET', 'POST'])
 @login_required
-@permission_required('inventory', 'create')
+@permission_required('order', 'create')
 def create_order():
     """创建订单"""
     if request.method == 'POST':
         try:
             # 获取基本信息
             company_id = request.form.get('company_id')
-            order_type = request.form.get('order_type', 'purchase')
             expected_date = request.form.get('expected_date')
             payment_terms = request.form.get('payment_terms', '')
             delivery_address = request.form.get('delivery_address', '')
@@ -766,11 +749,11 @@ def create_order():
             # 生成订单号
             order_number = generate_order_number()
             
-            # 创建订单
+            # 创建订单（默认为采购订单）
             order = PurchaseOrder(
                 order_number=order_number,
                 company_id=company_id,
-                order_type=order_type,
+                order_type='purchase',  # 默认为采购订单
                 expected_date=expected_date_obj,
                 payment_terms=payment_terms,
                 delivery_address=delivery_address,
@@ -862,18 +845,282 @@ def create_order():
             logger.error(f"创建订单失败：{str(e)}")
             flash(f'操作失败：{str(e)}', 'danger')
     
-    # 获取公司列表
-    companies = Company.query.order_by(Company.company_name).all()
+    # 获取公司列表 - 只显示经销商类型的公司（company_type='dealer'）
+    companies = Company.query.filter(Company.company_type == 'dealer').order_by(Company.company_name).all()
     
     return render_template('inventory/create_order.html', companies=companies)
 
 @inventory.route('/orders/<int:id>')
 @login_required
-@permission_required('inventory', 'view')
+@permission_required_with_approval_context('order', 'view')
 def order_detail(id):
     """订单详情"""
-    order = PurchaseOrder.query.get_or_404(id)
-    return render_template('inventory/order_detail.html', order=order)
+    # 使用数据访问控制获取订单
+    from app.utils.access_control import get_viewable_data
+    viewable_orders = get_viewable_data(PurchaseOrder, current_user)
+    order = viewable_orders.filter(PurchaseOrder.id == id).first_or_404()
+    
+    # 导入审批相关函数
+    from app.helpers.approval_helpers import get_object_approval_instance, get_available_templates
+    
+    return render_template('inventory/order_detail.html', 
+                         order=order,
+                         get_object_approval_instance=get_object_approval_instance,
+                         get_available_templates=get_available_templates)
+
+@inventory.route('/orders/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+@permission_required('order', 'edit')
+def edit_order(id):
+    """编辑订单"""
+    # 使用数据访问控制获取订单
+    from app.utils.access_control import get_viewable_data
+    viewable_orders = get_viewable_data(PurchaseOrder, current_user)
+    order = viewable_orders.filter(PurchaseOrder.id == id).first_or_404()
+    
+    # 只有草稿状态的订单才能编辑
+    if order.status != 'draft':
+        flash('只有草稿状态的订单才能编辑', 'warning')
+        return redirect(url_for('inventory.order_detail', id=id))
+    
+    if request.method == 'POST':
+        try:
+            # 更新订单基本信息
+            order.company_id = request.form.get('company_id')
+            order.order_date = datetime.strptime(request.form.get('order_date'), '%Y-%m-%d').date()
+            
+            expected_date_str = request.form.get('expected_date')
+            if expected_date_str:
+                order.expected_date = datetime.strptime(expected_date_str, '%Y-%m-%d').date()
+            else:
+                order.expected_date = None
+                
+            order.payment_terms = request.form.get('payment_terms', '').strip()
+            order.delivery_address = request.form.get('delivery_address', '').strip()
+            order.description = request.form.get('description', '').strip()
+            order.currency = request.form.get('currency', 'CNY')
+            
+            # 删除原有的订单明细
+            PurchaseOrderDetail.query.filter_by(order_id=order.id).delete()
+            
+            # 重新处理订单明细
+            order_details = []
+            total_quantity = 0
+            total_amount = 0
+            
+            # 获取产品明细数据
+            product_ids = request.form.getlist('product_id[]')
+            quantities = request.form.getlist('quantity[]')
+            unit_prices = request.form.getlist('unit_price[]')
+            discounts = request.form.getlist('discount[]')
+            notes_list = request.form.getlist('notes[]')
+            
+            for i in range(len(product_ids)):
+                try:
+                    product_id = int(product_ids[i]) if product_ids[i] else None
+                    quantity = int(quantities[i]) if quantities[i] else 0
+                    unit_price = float(unit_prices[i]) if unit_prices[i] else 0
+                    discount = float(discounts[i]) if discounts[i] else 100
+                    notes = notes_list[i] if i < len(notes_list) else ''
+                    
+                    if product_id and quantity > 0 and unit_price > 0:
+                        product = Product.query.get(product_id)
+                        if product:
+                            discount_decimal = discount / 100
+                            calculated_total = quantity * unit_price * discount_decimal
+                            
+                            detail = PurchaseOrderDetail(
+                                order_id=order.id,
+                                product_id=product_id,
+                                product_name=product.product_name,
+                                product_model=product.product_model or '',
+                                product_desc=product.specification or '',
+                                brand=product.brand or '',
+                                quantity=quantity,
+                                unit=product.unit or '',
+                                unit_price=unit_price,
+                                discount=discount_decimal,
+                                total_price=calculated_total,
+                                notes=notes
+                            )
+                            order_details.append(detail)
+                            total_quantity += quantity
+                            total_amount += calculated_total
+                except (ValueError, TypeError):
+                    continue
+            
+            if not order_details:
+                flash('请至少添加一个有效的产品', 'danger')
+                return redirect(url_for('inventory.edit_order', id=id))
+            
+            # 添加订单明细
+            for detail in order_details:
+                db.session.add(detail)
+            
+            # 更新订单总计
+            order.total_quantity = total_quantity
+            order.total_amount = total_amount
+            
+            db.session.commit()
+            
+            flash('订单更新成功', 'success')
+            return redirect(url_for('inventory.order_detail', id=id))
+        
+        except Exception as e:
+            db.session.rollback()
+            flash(f'更新订单失败：{str(e)}', 'danger')
+    
+    # 获取公司列表
+    companies = Company.query.all()
+    
+    return render_template('inventory/edit_order.html', 
+                         order=order, 
+                         companies=companies)
+
+@inventory.route('/orders/<int:id>/export_pdf')
+@login_required
+@permission_required('order', 'view')
+def export_order_pdf(id):
+    """导出订单PDF"""
+    try:
+        # 使用数据访问控制获取订单
+        from app.utils.access_control import get_viewable_data
+        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
+        order = viewable_orders.filter(PurchaseOrder.id == id).first_or_404()
+        
+        from app.services.pdf_generator import PDFGenerator
+        
+        # 生成PDF
+        pdf_generator = PDFGenerator()
+        pdf_result = pdf_generator.generate_order_pdf(order)
+        pdf_content = pdf_result['content']
+        filename = pdf_result['filename']
+        
+        # 返回PDF文件
+        from flask import make_response
+        from urllib.parse import quote
+        response = make_response(pdf_content)
+        response.headers['Content-Type'] = 'application/pdf'
+        # 使用URL编码处理中文文件名
+        encoded_filename = quote(filename.encode('utf-8'))
+        response.headers['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{encoded_filename}'
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"导出订单PDF失败: {str(e)}")
+        flash(f'导出PDF失败：{str(e)}', 'danger')
+        return redirect(url_for('inventory.order_detail', id=id))
+
+@inventory.route('/orders/<int:id>/submit_approval', methods=['POST'])
+@login_required
+@permission_required('order', 'edit')
+def submit_order_approval(id):
+    """提交订单审批"""
+    try:
+        # 使用数据访问控制获取订单
+        from app.utils.access_control import get_viewable_data
+        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
+        order = viewable_orders.filter(PurchaseOrder.id == id).first_or_404()
+        
+        # 检查订单状态
+        if order.status != 'draft':
+            flash('只有草稿状态的订单才能提交审批', 'warning')
+            return redirect(url_for('inventory.order_detail', id=id))
+        
+        # 获取表单数据
+        template_id = request.form.get('template_id', type=int)
+        if not template_id:
+            flash('请选择审批流程模板', 'danger')
+            return redirect(url_for('inventory.order_detail', id=id))
+        
+        from app.helpers.approval_helpers import start_approval_process
+        
+        # 发起审批流程
+        instance = start_approval_process(
+            object_type='purchase_order',
+            object_id=id,
+            template_id=template_id,
+            user_id=current_user.id
+        )
+        
+        if instance:
+            # 更新订单状态为审批中
+            order.status = 'pending'
+            db.session.commit()
+            
+            flash('订单审批已提交', 'success')
+        else:
+            flash('提交审批失败', 'danger')
+            
+        return redirect(url_for('inventory.order_detail', id=id))
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"提交订单审批失败: {str(e)}")
+        flash(f'提交审批失败：{str(e)}', 'danger')
+        return redirect(url_for('inventory.order_detail', id=id))
+
+@inventory.route('/orders/<int:id>/delete', methods=['POST'])
+@login_required
+@permission_required('order', 'delete')
+def delete_order(id):
+    """删除单个订单"""
+    try:
+        # 使用数据访问控制获取订单
+        from app.utils.access_control import get_viewable_data
+        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
+        order = viewable_orders.filter(PurchaseOrder.id == id).first_or_404()
+        order_number = order.order_number
+        
+        # 删除订单明细
+        PurchaseOrderDetail.query.filter_by(order_id=id).delete()
+        
+        # 删除订单
+        db.session.delete(order)
+        db.session.commit()
+        
+        logger.info(f"订单删除成功：{order_number}")
+        return jsonify({'success': True, 'message': f'订单 {order_number} 删除成功'})
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"删除订单失败：{str(e)}")
+        return jsonify({'success': False, 'message': f'删除失败：{str(e)}'})
+
+@inventory.route('/orders/batch_delete', methods=['POST'])
+@login_required
+@permission_required('order', 'delete')
+def batch_delete_orders():
+    """批量删除订单"""
+    try:
+        data = request.get_json()
+        order_ids = data.get('order_ids', [])
+        
+        if not order_ids:
+            return jsonify({'success': False, 'message': '未选择要删除的订单'})
+        
+        # 使用数据访问控制获取要删除的订单
+        from app.utils.access_control import get_viewable_data
+        viewable_orders = get_viewable_data(PurchaseOrder, current_user)
+        orders = viewable_orders.filter(PurchaseOrder.id.in_(order_ids)).all()
+        order_numbers = [order.order_number for order in orders]
+        
+        # 删除订单明细
+        PurchaseOrderDetail.query.filter(PurchaseOrderDetail.order_id.in_(order_ids)).delete(synchronize_session=False)
+        
+        # 删除订单
+        PurchaseOrder.query.filter(PurchaseOrder.id.in_(order_ids)).delete(synchronize_session=False)
+        
+        db.session.commit()
+        
+        logger.info(f"批量删除订单成功：{', '.join(order_numbers)}")
+        return jsonify({'success': True, 'message': f'成功删除 {len(orders)} 个订单'})
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"批量删除订单失败：{str(e)}")
+        return jsonify({'success': False, 'message': f'批量删除失败：{str(e)}'})
 
 # AJAX API接口
 @inventory.route('/api/company_inventory/<int:company_id>')
@@ -922,7 +1169,7 @@ def get_product_info(product_id):
 
 @inventory.route('/api/settle_product', methods=['POST'])
 @login_required
-@permission_required('inventory', 'create')
+@permission_required('settlement', 'create')
 def settle_product():
     """将结算单明细中的产品结算到指定公司的库存"""
     try:
@@ -1063,7 +1310,7 @@ def settle_product():
 
 @inventory.route('/api/settlement_order/<int:settlement_order_id>')
 @login_required
-@permission_required('inventory', 'view')
+@permission_required('settlement', 'view')
 def get_settlement_order_detail(settlement_order_id):
     """获取结算单详情（用于模态框显示）"""
     try:
@@ -1365,7 +1612,7 @@ def settle_single_product(detail_id):
 
 @inventory.route('/api/settle_product_to_company', methods=['POST'])
 @login_required
-@permission_required('inventory', 'create')
+@permission_required('settlement', 'create')
 def settle_product_to_company():
     """将结算单明细中的产品结算到指定公司（新版本，支持MN号精确匹配和记录结算目标公司）"""
     try:

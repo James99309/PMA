@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-PMA项目管理系统 - 云端运行脚本
+PMA项目管理系统 - 本地运行脚本
 """
 
 import os
@@ -25,38 +25,36 @@ def main():
         parser.add_argument('--port', type=int, help='指定运行端口')
         args = parser.parse_args()
         
-        # 设置环境变量
-        os.environ.setdefault('FLASK_ENV', 'production')
+        # 强制使用本地数据库配置
+        os.environ['FLASK_ENV'] = 'local'
+        # 清除可能影响本地配置的环境变量
+        if 'DATABASE_URL' in os.environ:
+            del os.environ['DATABASE_URL']
+        logger.info("🔧 配置为使用本地数据库")
         
-        # 创建应用实例
-        app = create_app()
+        # 导入本地配置
+        from config import LocalConfig
+        app = create_app(LocalConfig)
         
-        # 获取端口（优先使用命令行参数，然后是环境变量，最后是默认值）
+        # 获取端口（优先使用命令行参数，然后使用默认值）
         if args.port:
             port = args.port
         else:
-            try:
-                port_env = os.environ.get('PORT', '10000')
-                # 如果环境变量是'$PORT'这种无效格式，使用默认值
-                if port_env.startswith('$') or not port_env.isdigit():
-                    port = 10000
-                else:
-                    port = int(port_env)
-            except (ValueError, TypeError):
-                port = 10000  # 默认端口
+            port = 5000  # 默认端口5000
         
         logger.info(f"PMA系统启动中...")
-        logger.info(f"环境: {os.environ.get('FLASK_ENV', 'production')}")
+        logger.info(f"环境: {os.environ.get('FLASK_ENV', 'local')}")
         logger.info(f"端口: {port}")
         logger.info(f"版本: {app.config.get('APP_VERSION', '1.2.1')}")
         logger.info(f"访问地址: http://localhost:{port}")
         logger.info(f"本地网络地址: http://0.0.0.0:{port}")
+        logger.info(f"💾 数据库: 本地PostgreSQL")
         
         # 启动应用
         app.run(
             host='0.0.0.0',
             port=port,
-            debug=False,
+            debug=True,
             threaded=True
         )
         

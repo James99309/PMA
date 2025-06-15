@@ -156,7 +156,7 @@
   {% endif %}
 {% endmacro %}
 
-{% macro render_button(text, href=None, color="primary", size="md", icon=None, rounded="pill", extra_class="", type="a", attrs=None) %}
+{% macro render_button(text, href=None, color="primary", size="md", icon=None, rounded="pill", extra_class="", type="a", attrs=None, onclick=None) %}
   {%- set inline_style = "" %}
   {%- if size == "sm" %}
     {%- set font_size = "text-sm" %}
@@ -186,6 +186,9 @@
   {%- elif color == "danger" %}
     {%- set btn_class = "btn text-white me-2" %}
     {%- set inline_style = "background-color: #dc3545;" %}
+  {%- elif color == "success" %}
+    {%- set btn_class = "btn text-white me-2" %}
+    {%- set inline_style = "background-color: #198754;" %}
   {%- else %}
     {%- set btn_class = "btn bg-light text-dark me-2" %}
   {%- endif %}
@@ -193,7 +196,8 @@
   {%- if rounded %} {%- set btn_class = btn_class + " rounded-" + rounded %} {%- endif %}
   {%- if extra_class %} {%- set btn_class = btn_class + " " + extra_class %} {%- endif %}
   {% if type == "a" %}
-    <a href="{{ href or '#' }}" class="{{ btn_class }}" style="{{ inline_style }}" {{ attrs|safe }}>
+    <a href="{{ href or '#' }}" class="{{ btn_class }}" style="{{ inline_style }}" 
+       {% if onclick %}onclick="{{ onclick }}"{% endif %} {{ attrs|safe }}>
       {%- if icon %}<i class="{{ icon }} me-1"></i>{% endif -%}
       {%- if icon %}
         <span class="d-none d-md-inline">{{ text }}</span>
@@ -202,7 +206,8 @@
       {%- endif %}
     </a>
   {% elif type == "button" %}
-    <button type="button" class="{{ btn_class }}" style="{{ inline_style }}" {{ attrs|safe }}>
+    <button type="button" class="{{ btn_class }}" style="{{ inline_style }}" 
+            {% if onclick %}onclick="{{ onclick }}"{% endif %} {{ attrs|safe }}>
       {%- if icon %}<i class="{{ icon }} me-1"></i>{% endif -%}
       {%- if icon %}
         <span class="d-none d-md-inline">{{ text }}</span>
@@ -211,7 +216,8 @@
       {%- endif %}
     </button>
   {% elif type == "submit" %}
-    <button type="submit" class="{{ btn_class }}" style="{{ inline_style }}" {{ attrs|safe }}>
+    <button type="submit" class="{{ btn_class }}" style="{{ inline_style }}" 
+            {% if onclick %}onclick="{{ onclick }}"{% endif %} {{ attrs|safe }}>
       {%- if icon %}<i class="{{ icon }} me-1"></i>{% endif -%}
       {%- if icon %}
         <span class="d-none d-md-inline">{{ text }}</span>
