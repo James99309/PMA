@@ -17,7 +17,6 @@ import tempfile
 import gzip
 import shutil
 import threading
-from config import CLOUD_DB_URL
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -36,15 +35,9 @@ class DatabaseBackupService:
         # 确保备份目录存在
         os.makedirs(self.backup_location, exist_ok=True)
         
-        # 根据环境判断使用哪个数据库URL
-        from config import LOCAL_DB_URL, CLOUD_DB_URL
-        import os as env_os
-        
-        # 如果是本地环境，使用本地数据库URL
-        if env_os.environ.get('FLASK_ENV') == 'local':
-            self.db_config = self._parse_database_url(LOCAL_DB_URL)
-        else:
-            self.db_config = self._parse_database_url(CLOUD_DB_URL)
+        # 动态获取数据库URL
+        from config import DATABASE_URL
+        self.db_config = self._parse_database_url(DATABASE_URL)
         
     def _parse_database_url(self, database_url):
         """解析数据库URL"""
