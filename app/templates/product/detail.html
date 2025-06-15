@@ -165,8 +165,8 @@
                     <h2>{{ product.product_name }}</h2>
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <span class="badge-type {% if product.type == '项目产品' %}badge-project{% elif product.type == '渠道产品' %}badge-channel{% else %}badge-third-party{% endif %}">
-                                {{ product.type or '未分类' }}
+                            <span class="badge-type {% if product.type == '项目产品' or product.type == 'project' %}badge-project{% elif product.type == '渠道产品' or product.type == 'channel' %}badge-channel{% else %}badge-third-party{% endif %}">
+                                {% if product.type == 'project' %}项目产品{% elif product.type == 'channel' %}渠道产品{% elif product.type == 'third-party' %}第三方产品{% else %}{{ product.type or '未分类' }}{% endif %}
                             </span>
                             <span class="ml-2">MN: {{ product.product_mn }}</span>
                         </div>

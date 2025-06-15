@@ -253,6 +253,40 @@
   {% endif %}
 {% endmacro %}
 
+{% macro render_product_type(type) %}
+  {% if type %}
+    {% set color = '#757575' %}  {# 默认灰色 - 第三方产品 #}
+    {% set display_type = type %}
+    
+    {# 中文类型映射 #}
+    {% if type == '项目产品' %}
+      {% set color = '#0D47A1' %}  {# 深蓝色 #}
+    {% elif type == '渠道产品' %}
+      {% set color = '#4FC3F7' %}  {# 湖蓝色 #}
+    {% elif type == '第三方产品' %}
+      {% set color = '#757575' %}  {# 灰色 #}
+    {# 英文类型映射 #}
+    {% elif type == 'project' %}
+      {% set color = '#0D47A1' %}  {# 深蓝色 #}
+      {% set display_type = '项目产品' %}
+    {% elif type == 'channel' %}
+      {% set color = '#4FC3F7' %}  {# 湖蓝色 #}
+      {% set display_type = '渠道产品' %}
+    {% elif type == 'third-party' %}
+      {% set color = '#757575' %}  {# 灰色 #}
+      {% set display_type = '第三方产品' %}
+    {% endif %}
+    
+    <span class="badge" style="background-color: {{ color }}; color: white; padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.75rem;">
+      {{ display_type }}
+    </span>
+  {% else %}
+    <span class="badge" style="background-color: #6c757d; color: white; padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.75rem;">
+      未分类
+    </span>
+  {% endif %}
+{% endmacro %}
+
 {% macro render_confirm_cancel(confirm_text='确认', cancel_text='取消', confirm_href='#', cancel_href='#', confirm_color='primary', cancel_color='secondary', confirm_first=True, size='md', confirm_type='a') %}
   <div class="d-flex gap-2">
     {% if confirm_first %}

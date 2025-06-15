@@ -834,16 +834,33 @@
         if (!type) return '-';
 
         let badgeClass = 'badge-type ';
+        let displayType = type;
 
+        // 中文类型映射
         if (type === '项目产品') {
             badgeClass += 'badge-project';
         } else if (type === '渠道产品') {
             badgeClass += 'badge-channel';
         } else if (type === '第三方产品') {
             badgeClass += 'badge-third-party';
+        } else if (type === 'project') {
+            // 英文类型映射 - project
+            badgeClass += 'badge-project';
+            displayType = '项目产品';
+        } else if (type === 'channel') {
+            // 英文类型映射 - channel
+            badgeClass += 'badge-channel';
+            displayType = '渠道产品';
+        } else if (type === 'third-party') {
+            // 英文类型映射 - third-party
+            badgeClass += 'badge-third-party';
+            displayType = '第三方产品';
+        } else {
+            // 默认样式
+            badgeClass += 'badge-third-party';
         }
 
-        return `<span class="${badgeClass}">${type}</span>`;
+        return `<span class="${badgeClass}">${displayType}</span>`;
     }
 
     // 根据产品状态获取带有样式的徽章
