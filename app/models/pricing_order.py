@@ -107,22 +107,36 @@ class PricingOrder(db.Model):
             
         return f"{prefix}-{new_num:03d}"
     
-    def calculate_pricing_totals(self):
-        """计算批价单总金额"""
+    def calculate_pricing_totals(self, recalculate_discount_rate=True):
+        """计算批价单总金额
+        
+        Args:
+            recalculate_discount_rate: 是否重新计算总折扣率，默认True
+                                     当用户手动设置总折扣率时应传入False
+        """
         total_amount = sum(detail.total_price for detail in self.pricing_details)
         total_market_amount = sum(detail.market_price * detail.quantity for detail in self.pricing_details)
         
         self.pricing_total_amount = total_amount
-        if total_market_amount > 0:
+        
+        # 只有在需要重新计算时才更新总折扣率
+        if recalculate_discount_rate and total_market_amount > 0:
             self.pricing_total_discount_rate = total_amount / total_market_amount
     
-    def calculate_settlement_totals(self):
-        """计算结算单总金额"""
+    def calculate_settlement_totals(self, recalculate_discount_rate=True):
+        """计算结算单总金额
+        
+        Args:
+            recalculate_discount_rate: 是否重新计算总折扣率，默认True
+                                     当用户手动设置总折扣率时应传入False
+        """
         total_amount = sum(detail.total_price for detail in self.settlement_details)
         total_market_amount = sum(detail.market_price * detail.quantity for detail in self.settlement_details)
         
         self.settlement_total_amount = total_amount
-        if total_market_amount > 0:
+        
+        # 只有在需要重新计算时才更新总折扣率
+        if recalculate_discount_rate and total_market_amount > 0:
             self.settlement_total_discount_rate = total_amount / total_market_amount
     
     @property

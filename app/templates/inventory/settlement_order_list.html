@@ -184,8 +184,12 @@
                     <i class="fas fa-file-invoice-dollar me-2"></i>结算单
                 </h2>
                 <div>
-                    {{ render_button('结算明细记录', href=url_for('inventory.settlement_list'), color='info', icon='fas fa-list-alt') }}
-                    {{ render_button('创建结算单', href=url_for('inventory.create_settlement'), color='primary', icon='fas fa-plus') }}
+                    {% if has_permission('settlement', 'view') %}
+                        {{ render_button('结算明细记录', href=url_for('inventory.settlement_list'), color='info', icon='fas fa-list-alt') }}
+                    {% endif %}
+                    {% if has_permission('settlement', 'create') %}
+                        {{ render_button('创建结算单', href=url_for('inventory.create_settlement'), color='primary', icon='fas fa-plus') }}
+                    {% endif %}
                 </div>
             </div>
         </div>

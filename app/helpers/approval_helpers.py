@@ -35,11 +35,20 @@ def get_user_created_approvals(user_id=None, object_type=None, status=None, page
     if user_id is None:
         user_id = current_user.id
     
+    # 获取当前查询用户的信息，检查是否为商务助理
+    from app.models.user import User
+    query_user = User.query.get(user_id)
+    if not query_user:
+        return None
+    
+    # "我发起的"页签：只查看自己发起的审批（保持原有功能）
+    user_ids_to_query = [user_id]
+    
     # 如果专门查询批价单，使用批价单的独立审批系统
     if object_type == 'pricing_order':
         from app.models.pricing_order import PricingOrder
         
-        query = PricingOrder.query.filter(PricingOrder.created_by == user_id)
+        query = PricingOrder.query.filter(PricingOrder.created_by.in_(user_ids_to_query))
         
         # 状态映射 - 修复状态筛选逻辑
         if status:
@@ -111,7 +120,7 @@ def get_user_created_approvals(user_id=None, object_type=None, status=None, page
         
     # 基础查询 - 通用审批系统
     query = ApprovalInstance.query.options(db.joinedload(ApprovalInstance.process)).filter(
-        ApprovalInstance.created_by == user_id
+        ApprovalInstance.created_by.in_(user_ids_to_query)
     )
     
     # 根据业务对象类型添加JOIN条件，确保业务对象存在
@@ -128,7 +137,8 @@ def get_user_created_approvals(user_id=None, object_type=None, status=None, page
             ApprovalInstance.object_type == 'customer'
         )
     else:
-        # 如果没有指定类型，使用复杂的联合查询确保所有业务对象都存在
+        # 如果没有指定类型，需要合并通用审批和批价单审批
+        # 先获取通用审批系统的数据
         project_subquery = db.session.query(ApprovalInstance.id).filter(
             ApprovalInstance.object_type == 'project'
         ).join(Project, ApprovalInstance.object_id == Project.id)
@@ -150,15 +160,615 @@ def get_user_created_approvals(user_id=None, object_type=None, status=None, page
             )
         )
     
+    # 状态过滤 - 需要处理字符串状态转换为枚举
     if status:
-        query = query.filter(ApprovalInstance.status == status)
+        if isinstance(status, str):
+            # 如果是字符串，尝试转换为枚举
+            try:
+                from app.models.approval import ApprovalStatus
+                if status.lower() == 'pending':
+                    query = query.filter(ApprovalInstance.status == ApprovalStatus.PENDING)
+                elif status.lower() == 'approved':
+                    query = query.filter(ApprovalInstance.status == ApprovalStatus.APPROVED)
+                elif status.lower() == 'rejected':
+                    query = query.filter(ApprovalInstance.status == ApprovalStatus.REJECTED)
+                # 如果不是有效的状态字符串，跳过过滤
+            except:
+                pass
+        else:
+            # 如果已经是枚举值，直接使用
+            query = query.filter(ApprovalInstance.status == status)
     
     # 按创建时间倒序排列
     query = query.order_by(ApprovalInstance.started_at.desc())
     
-    # 返回分页结果
+    # 如果没有指定object_type，需要合并批价单审批数据
+    if not object_type:
+        # 获取通用审批系统的分页结果
+        general_approvals = query.paginate(page=page, per_page=per_page, error_out=False)
+        
+        # 获取批价单审批数据
+        from app.models.pricing_order import PricingOrder
+        pricing_query = PricingOrder.query.filter(PricingOrder.created_by.in_(user_ids_to_query))
+        
+        # 状态过滤
+        if status:
+            if status == ApprovalStatus.PENDING:
+                pricing_query = pricing_query.filter(PricingOrder.status == 'pending')
+            elif status == ApprovalStatus.APPROVED:
+                pricing_query = pricing_query.filter(PricingOrder.status == 'approved')
+            elif status == ApprovalStatus.REJECTED:
+                pricing_query = pricing_query.filter(PricingOrder.status == 'rejected')
+            elif isinstance(status, str):
+                if status.lower() == 'draft':
+                    pricing_query = pricing_query.filter(PricingOrder.status == 'draft')
+                elif status.lower() == 'pending':
+                    pricing_query = pricing_query.filter(PricingOrder.status == 'pending')
+                elif status.lower() == 'approved':
+                    pricing_query = pricing_query.filter(PricingOrder.status == 'approved')
+                elif status.lower() == 'rejected':
+                    pricing_query = pricing_query.filter(PricingOrder.status == 'rejected')
+        
+        # 获取所有批价单，不分页
+        all_pricing_orders = pricing_query.order_by(PricingOrder.created_at.desc()).all()
+        
+        # 创建批价单包装器
+        class PricingOrderApprovalWrapper:
+            def __init__(self, pricing_order):
+                self.id = f"po_{pricing_order.id}"
+                self.object_id = pricing_order.id
+                self.object_type = 'pricing_order'
+                self.started_at = pricing_order.created_at
+                self.ended_at = pricing_order.approved_at if pricing_order.status == 'approved' else None
+                self.created_by = pricing_order.created_by
+                self.creator = pricing_order.creator
+                self.pricing_order = pricing_order
+                
+                # 状态映射
+                if pricing_order.status == 'pending':
+                    self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
+                elif pricing_order.status == 'approved':
+                    self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
+                elif pricing_order.status == 'rejected':
+                    self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
+                else:  # draft 或其他状态
+                    self.status = type('Status', (), {'name': 'DRAFT', 'value': 'draft'})()
+                
+                # 虚拟流程对象
+                flow_type_name = pricing_order.flow_type_label if hasattr(pricing_order, 'flow_type_label') else pricing_order.approval_flow_type
+                self.process = type('Process', (), {
+                    'name': f'批价单审批流程 - {flow_type_name}',
+                    'id': f'pricing_{pricing_order.approval_flow_type}'
+                })()
+        
+        # 包装批价单为审批实例
+        wrapped_pricing_orders = [PricingOrderApprovalWrapper(po) for po in all_pricing_orders]
+        
+        # 获取订单审批数据
+        from app.models.inventory import PurchaseOrder
+        order_query = PurchaseOrder.query.filter(PurchaseOrder.created_by_id.in_(user_ids_to_query))
+        
+        # 订单状态过滤
+        if status:
+            if status == ApprovalStatus.PENDING:
+                order_query = order_query.filter(PurchaseOrder.status == 'pending')
+            elif status == ApprovalStatus.APPROVED:
+                order_query = order_query.filter(PurchaseOrder.status == 'approved')
+            elif status == ApprovalStatus.REJECTED:
+                order_query = order_query.filter(PurchaseOrder.status == 'rejected')
+            elif isinstance(status, str):
+                if status.lower() == 'pending':
+                    order_query = order_query.filter(PurchaseOrder.status == 'pending')
+                elif status.lower() == 'approved':
+                    order_query = order_query.filter(PurchaseOrder.status == 'approved')
+                elif status.lower() == 'rejected':
+                    order_query = order_query.filter(PurchaseOrder.status == 'rejected')
+        
+        # 获取所有订单，不分页
+        all_orders = order_query.order_by(PurchaseOrder.created_at.desc()).all()
+        
+        # 创建订单包装器
+        class OrderApprovalWrapper:
+            def __init__(self, order):
+                self.id = f"order_{order.id}"
+                self.object_id = order.id
+                self.object_type = 'purchase_order'
+                self.started_at = order.created_at
+                self.ended_at = order.approved_at if order.status == 'approved' else None
+                self.created_by = order.created_by_id
+                self.creator = order.created_by
+                self.order = order
+                
+                # 状态映射
+                if order.status == 'pending':
+                    self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
+                elif order.status == 'approved':
+                    self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
+                elif order.status == 'rejected':
+                    self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
+                else:  # draft 或其他状态
+                    self.status = type('Status', (), {'name': 'DRAFT', 'value': order.status})()
+                
+                # 虚拟流程对象
+                self.process = type('Process', (), {
+                    'name': '订单审批流程',
+                    'id': 'purchase_order_approval'
+                })()
+        
+        # 包装订单为审批实例
+        wrapped_orders = [OrderApprovalWrapper(order) for order in all_orders]
+        
+        # 合并三种审批数据并按时间排序
+        all_approvals = list(general_approvals.items) + wrapped_pricing_orders + wrapped_orders
+        all_approvals.sort(key=lambda x: x.started_at, reverse=True)
+        
+        # 计算总数
+        total_count = general_approvals.total + len(wrapped_pricing_orders) + len(wrapped_orders)
+        
+        # 手动分页
+        start_idx = (page - 1) * per_page
+        end_idx = start_idx + per_page
+        paginated_items = all_approvals[start_idx:end_idx]
+        
+        # 创建自定义分页对象
+        class CombinedPagination:
+            def __init__(self, page, per_page, total, items):
+                self.page = page
+                self.per_page = per_page
+                self.total = total
+                self.items = items
+                self.pages = (total + per_page - 1) // per_page if per_page > 0 else 0
+                self.has_prev = page > 1
+                self.has_next = page < self.pages
+                self.prev_num = page - 1 if self.has_prev else None
+                self.next_num = page + 1 if self.has_next else None
+            
+            def iter_pages(self, left_edge=2, right_edge=2, left_current=2, right_current=3):
+                last = self.pages
+                for num in range(1, last + 1):
+                    if num <= left_edge or \
+                       (self.page - left_current - 1 < num < self.page + right_current) or \
+                       num > last - right_edge:
+                        yield num
+        
+        return CombinedPagination(page, per_page, total_count, paginated_items)
+    
+    # 返回通用审批系统的分页结果
     return query.paginate(page=page, per_page=per_page, error_out=False)
 
+
+def get_user_department_approvals(user_id=None, object_type=None, status=None, page=1, per_page=20):
+    """获取用户部门内所有审批列表 - 专门为商务助理等角色提供
+    
+    商务助理可以查看部门内（同公司）所有用户发起的审批流程
+    
+    Args:
+        user_id: 用户ID，默认为当前登录用户
+        object_type: 过滤特定类型的审批对象
+        status: 过滤特定状态
+        page: 页码
+        per_page: 每页数量
+        
+    Returns:
+        分页对象，包含部门内所有审批实例列表
+    """
+    if user_id is None:
+        user_id = current_user.id
+    
+    # 获取当前查询用户的信息，检查是否为商务助理
+    from app.models.user import User
+    query_user = User.query.get(user_id)
+    if not query_user:
+        return None
+    
+    # 只有商务助理等特定角色才能查看部门审批
+    if not (query_user.role and query_user.role.strip() == 'business_admin'):
+        # 非商务助理返回空结果 - 创建一个简单的空分页对象
+        class EmptyPagination:
+            def __init__(self):
+                self.page = page
+                self.per_page = per_page
+                self.total = 0
+                self.items = []
+                self.pages = 1
+                self.has_prev = False
+                self.has_next = False
+                self.prev_num = None
+                self.next_num = None
+            def iter_pages(self, left_edge=2, right_edge=2, left_current=2, right_current=3):
+                return []
+        return EmptyPagination()
+    
+    # 商务助理：查看同公司所有用户发起的审批
+    department_users = User.query.filter_by(company_name=query_user.company_name).all()
+    user_ids_to_query = [u.id for u in department_users]
+    
+    # 如果专门查询批价单，使用批价单的独立审批系统
+    if object_type == 'pricing_order':
+        from app.models.pricing_order import PricingOrder
+        
+        query = PricingOrder.query.filter(PricingOrder.created_by.in_(user_ids_to_query))
+        
+        # 状态映射 - 修复状态筛选逻辑
+        if status:
+            if status == ApprovalStatus.PENDING:
+                query = query.filter(PricingOrder.status == 'pending')
+            elif status == ApprovalStatus.APPROVED:
+                query = query.filter(PricingOrder.status == 'approved')
+            elif status == ApprovalStatus.REJECTED:
+                query = query.filter(PricingOrder.status == 'rejected')
+            # 如果传入的是字符串状态，直接匹配
+            elif isinstance(status, str):
+                if status.lower() == 'draft':
+                    query = query.filter(PricingOrder.status == 'draft')
+                elif status.lower() == 'pending':
+                    query = query.filter(PricingOrder.status == 'pending')
+                elif status.lower() == 'approved':
+                    query = query.filter(PricingOrder.status == 'approved')
+                elif status.lower() == 'rejected':
+                    query = query.filter(PricingOrder.status == 'rejected')
+        
+        # 按创建时间倒序排列
+        query = query.order_by(PricingOrder.created_at.desc())
+        
+        # 返回分页结果，需要包装成类似审批实例的格式
+        try:
+            pricing_orders = query.paginate(page=page, per_page=per_page, error_out=False)
+        except Exception as e:
+            # 如果分页出错，返回空结果
+            try:
+                from flask_sqlalchemy import Pagination
+            except ImportError:
+                from flask_sqlalchemy.pagination import Pagination
+            pricing_orders = Pagination(query=query, page=page, per_page=per_page, total=0, items=[])
+        
+        # 创建虚拟审批实例对象，用于在审批中心显示
+        class PricingOrderApprovalWrapper:
+            def __init__(self, pricing_order):
+                self.id = f"po_{pricing_order.id}"
+                self.object_id = pricing_order.id
+                self.object_type = 'pricing_order'
+                self.started_at = pricing_order.created_at
+                self.ended_at = pricing_order.approved_at if pricing_order.status == 'approved' else None
+                self.created_by = pricing_order.created_by
+                self.creator = pricing_order.creator
+                self.pricing_order = pricing_order
+                
+                # 状态映射 - 确保所有状态都有对应的显示
+                if pricing_order.status == 'pending':
+                    self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
+                elif pricing_order.status == 'approved':
+                    self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
+                elif pricing_order.status == 'rejected':
+                    self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
+                else:  # draft 或其他状态
+                    self.status = type('Status', (), {'name': 'DRAFT', 'value': 'draft'})()
+                
+                # 虚拟流程对象
+                flow_type_name = pricing_order.flow_type_label if hasattr(pricing_order, 'flow_type_label') else pricing_order.approval_flow_type
+                self.process = type('Process', (), {
+                    'name': f'批价单审批流程 - {flow_type_name}',
+                    'id': f'pricing_{pricing_order.approval_flow_type}'
+                })()
+        
+        # 包装分页对象
+        wrapped_items = [PricingOrderApprovalWrapper(po) for po in pricing_orders.items]
+        pricing_orders.items = wrapped_items
+        
+        return pricing_orders
+        
+    # 基础查询 - 通用审批系统
+    query = ApprovalInstance.query.options(db.joinedload(ApprovalInstance.process)).filter(
+        ApprovalInstance.created_by.in_(user_ids_to_query)
+    )
+    
+    # 根据业务对象类型添加JOIN条件，确保业务对象存在
+    if object_type == 'project':
+        query = query.join(Project, ApprovalInstance.object_id == Project.id).filter(
+            ApprovalInstance.object_type == 'project'
+        )
+    elif object_type == 'quotation':
+        query = query.join(Quotation, ApprovalInstance.object_id == Quotation.id).filter(
+            ApprovalInstance.object_type == 'quotation'
+        )
+    elif object_type == 'customer':
+        query = query.join(Company, ApprovalInstance.object_id == Company.id).filter(
+            ApprovalInstance.object_type == 'customer'
+        )
+    else:
+        # 如果没有指定类型，需要合并通用审批和批价单审批
+        # 先获取通用审批系统的数据
+        project_subquery = db.session.query(ApprovalInstance.id).filter(
+            ApprovalInstance.object_type == 'project'
+        ).join(Project, ApprovalInstance.object_id == Project.id)
+        
+        quotation_subquery = db.session.query(ApprovalInstance.id).filter(
+            ApprovalInstance.object_type == 'quotation'
+        ).join(Quotation, ApprovalInstance.object_id == Quotation.id)
+        
+        customer_subquery = db.session.query(ApprovalInstance.id).filter(
+            ApprovalInstance.object_type == 'customer'
+        ).join(Company, ApprovalInstance.object_id == Company.id)
+        
+        # 只查询存在于任一子查询中的审批实例
+        query = query.filter(
+            or_(
+                ApprovalInstance.id.in_(project_subquery),
+                ApprovalInstance.id.in_(quotation_subquery),
+                ApprovalInstance.id.in_(customer_subquery)
+            )
+        )
+    
+    # 状态过滤 - 需要处理字符串状态转换为枚举
+    if status:
+        if isinstance(status, str):
+            # 如果是字符串，尝试转换为枚举
+            try:
+                if status.lower() == 'pending':
+                    query = query.filter(ApprovalInstance.status == ApprovalStatus.PENDING)
+                elif status.lower() == 'approved':
+                    query = query.filter(ApprovalInstance.status == ApprovalStatus.APPROVED)
+                elif status.lower() == 'rejected':
+                    query = query.filter(ApprovalInstance.status == ApprovalStatus.REJECTED)
+                # 如果不是有效的状态字符串，跳过过滤
+            except:
+                pass
+        else:
+            # 如果已经是枚举值，直接使用
+            query = query.filter(ApprovalInstance.status == status)
+    
+    # 按创建时间倒序排列
+    query = query.order_by(ApprovalInstance.started_at.desc())
+    
+    # 如果没有指定object_type，需要合并批价单审批数据
+    if not object_type:
+        # 获取通用审批系统的分页结果
+        general_approvals = query.paginate(page=page, per_page=per_page, error_out=False)
+        
+        # 获取批价单审批数据
+        from app.models.pricing_order import PricingOrder
+        pricing_query = PricingOrder.query.filter(PricingOrder.created_by.in_(user_ids_to_query))
+        
+        # 状态过滤
+        if status:
+            if status == ApprovalStatus.PENDING:
+                pricing_query = pricing_query.filter(PricingOrder.status == 'pending')
+            elif status == ApprovalStatus.APPROVED:
+                pricing_query = pricing_query.filter(PricingOrder.status == 'approved')
+            elif status == ApprovalStatus.REJECTED:
+                pricing_query = pricing_query.filter(PricingOrder.status == 'rejected')
+            elif isinstance(status, str):
+                if status.lower() == 'draft':
+                    pricing_query = pricing_query.filter(PricingOrder.status == 'draft')
+                elif status.lower() == 'pending':
+                    pricing_query = pricing_query.filter(PricingOrder.status == 'pending')
+                elif status.lower() == 'approved':
+                    pricing_query = pricing_query.filter(PricingOrder.status == 'approved')
+                elif status.lower() == 'rejected':
+                    pricing_query = pricing_query.filter(PricingOrder.status == 'rejected')
+        
+        # 获取所有批价单，不分页
+        all_pricing_orders = pricing_query.order_by(PricingOrder.created_at.desc()).all()
+        
+        # 创建批价单包装器
+        class PricingOrderApprovalWrapper:
+            def __init__(self, pricing_order):
+                self.id = f"po_{pricing_order.id}"
+                self.object_id = pricing_order.id
+                self.object_type = 'pricing_order'
+                self.started_at = pricing_order.created_at
+                self.ended_at = pricing_order.approved_at if pricing_order.status == 'approved' else None
+                self.created_by = pricing_order.created_by
+                self.creator = pricing_order.creator
+                self.pricing_order = pricing_order
+                
+                # 状态映射
+                if pricing_order.status == 'pending':
+                    self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
+                elif pricing_order.status == 'approved':
+                    self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
+                elif pricing_order.status == 'rejected':
+                    self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
+                else:  # draft 或其他状态
+                    self.status = type('Status', (), {'name': 'DRAFT', 'value': 'draft'})()
+                
+                # 虚拟流程对象
+                flow_type_name = pricing_order.flow_type_label if hasattr(pricing_order, 'flow_type_label') else pricing_order.approval_flow_type
+                self.process = type('Process', (), {
+                    'name': f'批价单审批流程 - {flow_type_name}',
+                    'id': f'pricing_{pricing_order.approval_flow_type}'
+                })()
+        
+        # 包装批价单为审批实例
+        wrapped_pricing_orders = [PricingOrderApprovalWrapper(po) for po in all_pricing_orders]
+        
+        # 获取订单审批数据
+        from app.models.inventory import PurchaseOrder
+        order_query = PurchaseOrder.query.filter(PurchaseOrder.created_by_id.in_(user_ids_to_query))
+        
+        # 订单状态过滤
+        if status:
+            if status == ApprovalStatus.PENDING:
+                order_query = order_query.filter(PurchaseOrder.status == 'pending')
+            elif status == ApprovalStatus.APPROVED:
+                order_query = order_query.filter(PurchaseOrder.status == 'approved')
+            elif status == ApprovalStatus.REJECTED:
+                order_query = order_query.filter(PurchaseOrder.status == 'rejected')
+            elif isinstance(status, str):
+                if status.lower() == 'pending':
+                    order_query = order_query.filter(PurchaseOrder.status == 'pending')
+                elif status.lower() == 'approved':
+                    order_query = order_query.filter(PurchaseOrder.status == 'approved')
+                elif status.lower() == 'rejected':
+                    order_query = order_query.filter(PurchaseOrder.status == 'rejected')
+        
+        # 获取所有订单，不分页
+        all_orders = order_query.order_by(PurchaseOrder.created_at.desc()).all()
+        
+        # 创建订单包装器
+        class OrderApprovalWrapper:
+            def __init__(self, order):
+                self.id = f"order_{order.id}"
+                self.object_id = order.id
+                self.object_type = 'purchase_order'
+                self.started_at = order.created_at
+                self.ended_at = order.approved_at if order.status == 'approved' else None
+                self.created_by = order.created_by_id
+                self.creator = order.created_by
+                self.order = order
+                
+                # 状态映射
+                if order.status == 'pending':
+                    self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
+                elif order.status == 'approved':
+                    self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
+                elif order.status == 'rejected':
+                    self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
+                else:  # draft 或其他状态
+                    self.status = type('Status', (), {'name': 'DRAFT', 'value': 'draft'})()
+                
+                # 虚拟流程对象
+                self.process = type('Process', (), {
+                    'name': '订单审批流程',
+                    'id': 'purchase_order_approval'
+                })()
+        
+        # 包装订单为审批实例
+        wrapped_orders = [OrderApprovalWrapper(order) for order in all_orders]
+        
+        # 合并两种审批数据并按时间排序
+        all_approvals = list(general_approvals.items) + wrapped_pricing_orders + wrapped_orders
+        all_approvals.sort(key=lambda x: x.started_at, reverse=True)
+        
+        # 计算总数
+        total_count = general_approvals.total + len(wrapped_pricing_orders) + len(wrapped_orders)
+        
+        # 手动分页
+        start_index = (page - 1) * per_page
+        end_index = start_index + per_page
+        paginated_items = all_approvals[start_index:end_index]
+        
+        # 创建合并的分页对象
+        class CombinedPagination:
+            def __init__(self, page, per_page, total, items):
+                self.page = page
+                self.per_page = per_page
+                self.total = total
+                self.items = items
+                self.pages = (total + per_page - 1) // per_page if per_page > 0 else 1
+                self.has_prev = page > 1
+                self.has_next = page < self.pages
+                self.prev_num = page - 1 if self.has_prev else None
+                self.next_num = page + 1 if self.has_next else None
+            
+            def iter_pages(self, left_edge=2, right_edge=2, left_current=2, right_current=3):
+                last = self.pages
+                for num in range(1, last + 1):
+                    if num <= left_edge or \
+                       (self.page - left_current - 1 < num < self.page + right_current) or \
+                       num > last - right_edge:
+                        yield num
+        
+        return CombinedPagination(page, per_page, total_count, paginated_items)
+    
+    # 返回通用审批系统的分页结果
+    return query.paginate(page=page, per_page=per_page, error_out=False)
+
+
+def get_pending_approval_count(user_id=None):
+    """获取用户待审批的数量（不分页）
+    
+    Args:
+        user_id: 用户ID，默认为当前登录用户
+        
+    Returns:
+        待审批数量
+    """
+    if user_id is None:
+        user_id = current_user.id
+    
+    # 获取指定用户的信息
+    from app.models.user import User
+    target_user = User.query.get(user_id)
+    if not target_user:
+        return 0
+    
+    try:
+        # 查询审批实例表中的待审批记录
+        query = ApprovalInstance.query.filter(
+            ApprovalInstance.status == ApprovalStatus.PENDING
+        )
+        
+        # 获取用户待审批的实例ID列表
+        pending_instance_ids = []
+        for instance in query.all():
+            current_step = get_current_step_info(instance)
+            if current_step and current_step.approver_user_id == user_id:
+                pending_instance_ids.append(instance.id)
+        
+        # 查询批价单审批记录（待审批的记录action为None）
+        from app.models.pricing_order import PricingOrderApprovalRecord, PricingOrder
+        from app.models.project import Project
+        
+        pricing_order_query = PricingOrderApprovalRecord.query.join(
+            PricingOrder,
+            PricingOrderApprovalRecord.pricing_order_id == PricingOrder.id
+        ).filter(
+            PricingOrderApprovalRecord.approver_id == user_id,
+            PricingOrderApprovalRecord.action.is_(None),  # 待审批的记录
+            PricingOrder.status == 'pending'  # 只统计审批中的批价单
+        )
+        
+        # 添加基于用户角色的项目类型权限过滤
+        if target_user.role != 'admin':
+            user_role = target_user.role.strip() if target_user.role else ''
+            
+            # 添加项目关联
+            pricing_order_query = pricing_order_query.join(Project, PricingOrder.project_id == Project.id)
+            
+            # 根据角色过滤项目类型
+            if user_role == 'business_admin':
+                # 商务助理：只能看到销售重点、渠道跟进的批价单
+                pricing_order_query = pricing_order_query.filter(
+                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
+                )
+            elif user_role == 'sales_director':
+                # 营销总监：销售重点、渠道跟进
+                pricing_order_query = pricing_order_query.filter(
+                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
+                )
+            elif user_role == 'channel_manager':
+                # 渠道经理：渠道跟进、销售机会（需要有经销商）、销售重点（需要有经销商）
+                pricing_order_query = pricing_order_query.filter(
+                    or_(
+                        Project.project_type.in_(['渠道跟进', 'channel_follow']),
+                        and_(
+                            Project.project_type.in_(['销售重点', 'sales_key', '销售机会', 'sales_opportunity']),
+                            PricingOrder.dealer_id.isnot(None)
+                        )
+                    )
+                )
+            elif user_role in ['service', 'service_manager']:
+                # 服务经理：销售机会
+                pricing_order_query = pricing_order_query.filter(
+                    Project.project_type.in_(['销售机会', 'sales_opportunity'])
+                )
+            elif user_role == 'finance_director':
+                # 财务总监：所有类型
+                pass  # 不添加额外过滤
+        
+        pricing_order_count = pricing_order_query.count()
+        
+        # 查询订单审批记录（这里需要根据实际的订单审批逻辑来实现）
+        # 暂时返回0，因为订单审批可能使用不同的表结构
+        order_approval_count = 0
+        
+        total_count = len(pending_instance_ids) + pricing_order_count + order_approval_count
+        return total_count
+        
+    except Exception as e:
+        print(f"获取待审批数量失败：{str(e)}")
+        return 0
 
 def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=20):
     """获取待用户审批的列表 - 改进版，包含批价单审批，只返回关联业务对象存在的审批
@@ -175,6 +785,17 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
     if user_id is None:
         user_id = current_user.id
     
+    # 获取指定用户的信息
+    from app.models.user import User
+    target_user = User.query.get(user_id)
+    if not target_user:
+        # 如果用户不存在，返回空结果
+        try:
+            from flask_sqlalchemy import Pagination
+        except ImportError:
+            from flask_sqlalchemy.pagination import Pagination
+        return Pagination(None, page=page, per_page=per_page, total=0, items=[])
+    
     # 如果专门查询批价单，使用批价单的独立审批系统
     if object_type == 'pricing_order':
         from app.models.pricing_order import PricingOrder, PricingOrderApprovalRecord
@@ -190,6 +811,44 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
             PricingOrderApprovalRecord.approver_id == user_id,
             PricingOrder.status == 'pending'
         )
+        
+        # 添加基于用户角色的项目类型权限过滤
+        if target_user.role != 'admin':
+            user_role = target_user.role.strip() if target_user.role else ''
+            
+            # 添加项目关联
+            query = query.join(Project, PricingOrder.project_id == Project.id)
+            
+            # 根据角色过滤项目类型
+            if user_role == 'business_admin':
+                # 商务助理：只能看到销售重点、渠道跟进的批价单
+                query = query.filter(
+                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
+                )
+            elif user_role == 'sales_director':
+                # 营销总监：销售重点、渠道跟进
+                query = query.filter(
+                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
+                )
+            elif user_role == 'channel_manager':
+                # 渠道经理：渠道跟进、销售机会（需要有经销商）、销售重点（需要有经销商）
+                query = query.filter(
+                    or_(
+                        Project.project_type.in_(['渠道跟进', 'channel_follow']),
+                        and_(
+                            Project.project_type.in_(['销售重点', 'sales_key', '销售机会', 'sales_opportunity']),
+                            PricingOrder.dealer_id.isnot(None)
+                        )
+                    )
+                )
+            elif user_role in ['service', 'service_manager']:
+                # 服务经理：销售机会
+                query = query.filter(
+                    Project.project_type.in_(['销售机会', 'sales_opportunity'])
+                )
+            elif user_role == 'finance_director':
+                # 财务总监：所有类型
+                pass  # 不添加额外过滤
         
         # 按创建时间倒序排列
         query = query.order_by(PricingOrder.created_at.desc())
@@ -257,6 +916,35 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
         query = query.join(Project, ApprovalInstance.object_id == Project.id).filter(
             ApprovalInstance.object_type == 'project'
         )
+        
+        # 添加基于用户角色的项目类型权限过滤
+        if target_user.role != 'admin':
+            user_role = target_user.role.strip() if target_user.role else ''
+            
+            # 根据角色过滤项目类型
+            if user_role == 'business_admin':
+                # 商务助理：只能看到销售重点、渠道跟进的项目审批
+                query = query.filter(
+                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
+                )
+            elif user_role == 'sales_director':
+                # 营销总监：销售重点、渠道跟进
+                query = query.filter(
+                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
+                )
+            elif user_role == 'channel_manager':
+                # 渠道经理：渠道跟进、销售重点、销售机会
+                query = query.filter(
+                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow', '销售机会', 'sales_opportunity'])
+                )
+            elif user_role in ['service', 'service_manager']:
+                # 服务经理：销售机会
+                query = query.filter(
+                    Project.project_type.in_(['销售机会', 'sales_opportunity'])
+                )
+            elif user_role == 'finance_director':
+                # 财务总监：所有类型
+                pass  # 不添加额外过滤
     elif object_type == 'quotation':
         query = query.join(Quotation, ApprovalInstance.object_id == Quotation.id).filter(
             ApprovalInstance.object_type == 'quotation'
@@ -271,6 +959,35 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
         project_subquery = db.session.query(ApprovalInstance.id).filter(
             ApprovalInstance.object_type == 'project'
         ).join(Project, ApprovalInstance.object_id == Project.id)
+        
+        # 添加基于用户角色的项目类型权限过滤
+        if target_user.role != 'admin':
+            user_role = target_user.role.strip() if target_user.role else ''
+            
+            # 根据角色过滤项目类型
+            if user_role == 'business_admin':
+                # 商务助理：只能看到销售重点、渠道跟进的项目审批
+                project_subquery = project_subquery.filter(
+                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
+                )
+            elif user_role == 'sales_director':
+                # 营销总监：销售重点、渠道跟进
+                project_subquery = project_subquery.filter(
+                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
+                )
+            elif user_role == 'channel_manager':
+                # 渠道经理：渠道跟进、销售重点、销售机会
+                project_subquery = project_subquery.filter(
+                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow', '销售机会', 'sales_opportunity'])
+                )
+            elif user_role in ['service', 'service_manager']:
+                # 服务经理：销售机会
+                project_subquery = project_subquery.filter(
+                    Project.project_type.in_(['销售机会', 'sales_opportunity'])
+                )
+            elif user_role == 'finance_director':
+                # 财务总监：所有类型
+                pass  # 不添加额外过滤
         
         quotation_subquery = db.session.query(ApprovalInstance.id).filter(
             ApprovalInstance.object_type == 'quotation'
@@ -306,7 +1023,47 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
         ).filter(
             PricingOrderApprovalRecord.approver_id == user_id,
             PricingOrder.status == 'pending'
-        ).order_by(PricingOrder.created_at.desc())
+        )
+        
+        # 添加基于用户角色的项目类型权限过滤
+        if target_user.role != 'admin':
+            user_role = target_user.role.strip() if target_user.role else ''
+            
+            # 添加项目关联
+            po_query = po_query.join(Project, PricingOrder.project_id == Project.id)
+            
+            # 根据角色过滤项目类型
+            if user_role == 'business_admin':
+                # 商务助理：只能看到销售重点、渠道跟进的批价单
+                po_query = po_query.filter(
+                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
+                )
+            elif user_role == 'sales_director':
+                # 营销总监：销售重点、渠道跟进
+                po_query = po_query.filter(
+                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
+                )
+            elif user_role == 'channel_manager':
+                # 渠道经理：渠道跟进、销售机会（需要有经销商）、销售重点（需要有经销商）
+                po_query = po_query.filter(
+                    or_(
+                        Project.project_type.in_(['渠道跟进', 'channel_follow']),
+                        and_(
+                            Project.project_type.in_(['销售重点', 'sales_key', '销售机会', 'sales_opportunity']),
+                            PricingOrder.dealer_id.isnot(None)
+                        )
+                    )
+                )
+            elif user_role in ['service', 'service_manager']:
+                # 服务经理：销售机会
+                po_query = po_query.filter(
+                    Project.project_type.in_(['销售机会', 'sales_opportunity'])
+                )
+            elif user_role == 'finance_director':
+                # 财务总监：所有类型
+                pass  # 不添加额外过滤
+        
+        po_query = po_query.order_by(PricingOrder.created_at.desc())
         
         # 获取所有批价单（不分页，稍后合并时再分页）
         try:
@@ -809,6 +1566,17 @@ def get_approval_details(instance_id):
     Returns:
         审批实例对象，包含流程模板、当前步骤等完整信息
     """
+    # 检查是否为订单包装对象的字符串ID
+    if isinstance(instance_id, str) and instance_id.startswith('order_'):
+        # 订单包装对象，抛出404错误（订单审批详情需要通过订单详情页查看）
+        from flask import abort
+        abort(404)
+    
+    # 检查是否为合法的整数ID
+    if not isinstance(instance_id, int):
+        from flask import abort
+        abort(404)
+    
     return ApprovalInstance.query.filter_by(id=instance_id).first_or_404()
 
 
@@ -850,6 +1618,27 @@ def get_current_step_info(instance):
     Returns:
         当前步骤对象，如果没有则返回None
     """
+    # 处理订单包装对象的特殊情况
+    if hasattr(instance, 'id') and isinstance(instance.id, str) and instance.id.startswith('order_'):
+        # OrderApprovalWrapper对象，查找对应的审批实例
+        if hasattr(instance, 'order'):
+            order = instance.order
+            if order.status == 'pending':
+                # 查找对应的审批实例
+                approval_instance = ApprovalInstance.query.filter_by(
+                    object_type='purchase_order',
+                    object_id=order.id,
+                    status=ApprovalStatus.PENDING
+                ).first()
+                
+                if approval_instance:
+                    # 获取当前步骤
+                    return ApprovalStep.query.filter_by(
+                        process_id=approval_instance.process_id,
+                        step_order=approval_instance.current_step
+                    ).first()
+        return None
+    
     # 处理批价单的特殊情况
     if hasattr(instance, 'object_type') and instance.object_type == 'pricing_order':
         if hasattr(instance, 'pricing_order'):
@@ -892,6 +1681,13 @@ def get_last_approver(instance):
     Returns:
         最后一个审批人的用户对象，如果没有则返回None
     """
+    # 处理订单包装对象的特殊情况
+    if hasattr(instance, 'id') and isinstance(instance.id, str) and instance.id.startswith('order_'):
+        # OrderApprovalWrapper对象，暂时返回None（订单审批人从订单记录获取）
+        if hasattr(instance, 'order') and hasattr(instance.order, 'approved_by'):
+            return instance.order.approved_by
+        return None
+    
     # 处理批价单的特殊情况
     if hasattr(instance, 'object_type') and instance.object_type == 'pricing_order':
         if hasattr(instance, 'pricing_order'):
@@ -912,6 +1708,10 @@ def get_last_approver(instance):
     
     # 处理通用审批系统
     if not instance:
+        return None
+    
+    # 检查instance.id是否为合法的整数
+    if not isinstance(instance.id, int):
         return None
     
     # 获取最后一个审批记录
@@ -938,6 +1738,15 @@ def get_approval_records_by_instance(instance_id):
     Returns:
         审批记录列表，按时间倒序排序
     """
+    # 检查是否为订单包装对象的字符串ID
+    if isinstance(instance_id, str) and instance_id.startswith('order_'):
+        # 订单包装对象，返回空列表（订单审批记录在ApprovalRecord表中按真实实例ID存储）
+        return []
+    
+    # 检查是否为合法的整数ID
+    if not isinstance(instance_id, int):
+        return []
+    
     return ApprovalRecord.query.filter_by(
         instance_id=instance_id
     ).order_by(ApprovalRecord.timestamp.desc()).all()
@@ -956,7 +1765,24 @@ def can_user_approve(instance_id, user_id=None):
     if user_id is None:
         user_id = current_user.id
     
-    instance = ApprovalInstance.query.get(instance_id)
+    # 检查是否为订单包装对象的字符串ID
+    if isinstance(instance_id, str) and instance_id.startswith('order_'):
+        # 订单包装对象，需要查找真实的审批实例
+        try:
+            order_id = int(instance_id.replace('order_', ''))
+            instance = ApprovalInstance.query.filter_by(
+                object_type='purchase_order',
+                object_id=order_id,
+                status=ApprovalStatus.PENDING
+            ).first()
+        except ValueError:
+            return False
+    else:
+        # 检查是否为合法的整数ID
+        if not isinstance(instance_id, int):
+            return False
+        instance = ApprovalInstance.query.get(instance_id)
+    
     if not instance or instance.status != ApprovalStatus.PENDING:
         return False
     
@@ -1667,7 +2493,6 @@ def start_approval_process(object_type, object_id, template_id, user_id=None):
             return None
     
     if user_id is None:
-        from flask_login import current_user
         user_id = current_user.id
     
     try:
@@ -2617,11 +3442,31 @@ def get_user_pricing_order_approvals(user_id, status=None, page=1, per_page=20):
     from app.models.pricing_order import PricingOrder, PricingOrderApprovalRecord
     from sqlalchemy import or_, and_
     
+    # 获取用户信息，检查是否为商务助理
+    from app.models.user import User
+    target_user = User.query.get(user_id)
+    if not target_user:
+        # 如果用户不存在，返回空结果
+        try:
+            from flask_sqlalchemy import Pagination
+        except ImportError:
+            from flask_sqlalchemy.pagination import Pagination
+        return Pagination(None, page=page, per_page=per_page, total=0, items=[])
+    
+    # 确定查询范围：商务助理可以查看部门内（同公司）所有用户的批价单
+    if target_user.role and target_user.role.strip() == 'business_admin':
+        # 商务助理：查看同公司所有用户的批价单
+        department_users = User.query.filter_by(company_name=target_user.company_name).all()
+        user_ids_to_query = [u.id for u in department_users]
+    else:
+        # 其他用户：只查看与自己相关的批价单
+        user_ids_to_query = [user_id]
+    
     # 构建查询条件
     conditions = []
     
-    # 1. 用户创建的批价单
-    conditions.append(PricingOrder.created_by == user_id)
+    # 1. 用户或部门内用户创建的批价单
+    conditions.append(PricingOrder.created_by.in_(user_ids_to_query))
     
     # 2. 用户是审批人的批价单
     conditions.append(
@@ -2640,6 +3485,47 @@ def get_user_pricing_order_approvals(user_id, status=None, page=1, per_page=20):
     
     # 构建主查询
     query = PricingOrder.query.filter(or_(*conditions))
+    
+    # 添加基于用户角色的项目类型权限过滤
+    # 获取指定用户的信息
+    from app.models.user import User
+    target_user = User.query.get(user_id)
+    if target_user and target_user.role != 'admin':
+        user_role = target_user.role.strip() if target_user.role else ''
+        
+        # 添加项目关联
+        query = query.join(Project, PricingOrder.project_id == Project.id)
+        
+        # 根据角色过滤项目类型
+        if user_role == 'business_admin':
+            # 商务助理：只能看到销售重点、渠道跟进的批价单
+            query = query.filter(
+                Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
+            )
+        elif user_role == 'sales_director':
+            # 营销总监：销售重点、渠道跟进
+            query = query.filter(
+                Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
+            )
+        elif user_role == 'channel_manager':
+            # 渠道经理：渠道跟进、销售机会（需要有经销商）、销售重点（需要有经销商）
+            query = query.filter(
+                or_(
+                    Project.project_type.in_(['渠道跟进', 'channel_follow']),
+                    and_(
+                        Project.project_type.in_(['销售重点', 'sales_key', '销售机会', 'sales_opportunity']),
+                        PricingOrder.dealer_id.isnot(None)
+                    )
+                )
+            )
+        elif user_role in ['service', 'service_manager']:
+            # 服务经理：销售机会
+            query = query.filter(
+                Project.project_type.in_(['销售机会', 'sales_opportunity'])
+            )
+        elif user_role == 'finance_director':
+            # 财务总监：所有类型
+            pass  # 不添加额外过滤
     
     # 状态筛选
     if status:
@@ -2749,6 +3635,26 @@ def get_user_order_approvals(user_id, status_filter=None, page=1, per_page=20):
     from app.models.approval import ApprovalInstance
     from sqlalchemy import or_, and_
     
+    # 获取用户信息，检查是否为商务助理
+    from app.models.user import User
+    target_user = User.query.get(user_id)
+    if not target_user:
+        # 如果用户不存在，返回空结果
+        try:
+            from flask_sqlalchemy import Pagination
+        except ImportError:
+            from flask_sqlalchemy.pagination import Pagination
+        return Pagination(None, page=page, per_page=per_page, total=0, items=[])
+    
+    # 确定查询范围：商务助理可以查看部门内（同公司）所有用户的订单
+    if target_user.role and target_user.role.strip() == 'business_admin':
+        # 商务助理：查看同公司所有用户的订单
+        department_users = User.query.filter_by(company_name=target_user.company_name).all()
+        user_ids_to_query = [u.id for u in department_users]
+    else:
+        # 其他用户：只查看与自己相关的订单
+        user_ids_to_query = [user_id]
+    
     # 构建基础查询
     query = PurchaseOrder.query
     
@@ -2777,7 +3683,7 @@ def get_user_order_approvals(user_id, status_filter=None, page=1, per_page=20):
     
     # 组合查询条件
     conditions = [
-        PurchaseOrder.created_by_id == user_id,  # 用户创建的订单
+        PurchaseOrder.created_by_id.in_(user_ids_to_query),  # 用户或部门内用户创建的订单
         PurchaseOrder.id.in_(approval_subquery),  # 用户需要审批的订单
         PurchaseOrder.id.in_(current_approver_subquery)  # 用户是当前待审批人的订单
     ]
@@ -2866,3 +3772,288 @@ def get_user_order_approvals(user_id, status_filter=None, page=1, per_page=20):
     )
     
     return wrapped_pagination
+
+
+def rollback_order_approval(order_id, admin_user_id, reason=None):
+    """
+    管理员将已通过的订单审批退回到初始状态
+    
+    Args:
+        order_id: 订单ID
+        admin_user_id: 管理员用户ID
+        reason: 退回原因
+        
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    try:
+        from app.models.inventory import PurchaseOrder
+        from app.models.user import User
+        
+        # 验证管理员权限
+        admin_user = User.query.get(admin_user_id)
+        if not admin_user or admin_user.role != 'admin':
+            return False, "只有管理员可以执行退回操作"
+        
+        # 获取订单
+        order = PurchaseOrder.query.get(order_id)
+        if not order:
+            return False, "订单不存在"
+        
+        # 检查订单状态 - 只能退回已通过的订单
+        if order.status != 'approved':
+            return False, f"只能退回已通过的订单，当前状态：{order.status}"
+        
+        # 开始数据库事务
+        from app import db
+        
+        # 1. 查找并删除相关的审批实例
+        approval_instances = ApprovalInstance.query.filter_by(
+            object_type='purchase_order',
+            object_id=order_id
+        ).all()
+        
+        for instance in approval_instances:
+            # 删除审批记录
+            ApprovalRecord.query.filter_by(instance_id=instance.id).delete()
+            # 删除审批实例
+            db.session.delete(instance)
+        
+        # 2. 重置订单状态为草稿
+        order.status = 'draft'
+        order.approved_by_id = None
+        order.approved_at = None
+        
+        # 3. 记录操作日志（如果有审计系统）
+        current_app.logger.info(
+            f"管理员 {admin_user.username} (ID: {admin_user_id}) "
+            f"将订单 {order.order_number} (ID: {order_id}) 的审批状态退回到草稿状态。"
+            f"原因：{reason or '未提供'}"
+        )
+        
+        # 提交事务
+        db.session.commit()
+        
+        return True, "订单审批已成功退回到草稿状态"
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"订单审批退回失败: {str(e)}")
+        return False, f"退回失败：{str(e)}"
+
+
+def can_rollback_order_approval(order_id, user_id):
+    """
+    检查用户是否可以退回订单审批
+    
+    Args:
+        order_id: 订单ID
+        user_id: 用户ID
+        
+    Returns:
+        bool: 是否可以退回
+    """
+    try:
+        from app.models.inventory import PurchaseOrder
+        from app.models.user import User
+        
+        # 检查用户权限
+        user = User.query.get(user_id)
+        if not user or user.role != 'admin':
+            return False
+        
+        # 检查订单状态
+        order = PurchaseOrder.query.get(order_id)
+        if not order or order.status != 'approved':
+            return False
+        
+        return True
+        
+    except Exception:
+        return False
+
+
+def get_pending_created_count(user_id=None):
+    """获取用户发起的未结束流程数量（用于我发起的页签数字标记）
+    
+    Args:
+        user_id: 用户ID，默认为当前登录用户
+        
+    Returns:
+        未结束流程数量
+    """
+    if user_id is None:
+        user_id = current_user.id
+    
+    try:
+        # 统计通用审批系统中的未结束流程
+        general_pending = ApprovalInstance.query.filter(
+            ApprovalInstance.created_by == user_id,
+            ApprovalInstance.status.in_([ApprovalStatus.PENDING, ApprovalStatus.DRAFT])
+        ).count()
+        
+        # 统计批价单中的未结束流程
+        from app.models.pricing_order import PricingOrder
+        pricing_pending = PricingOrder.query.filter(
+            PricingOrder.created_by == user_id,
+            PricingOrder.status.in_(['draft', 'pending'])
+        ).count()
+        
+        # 统计订单中的未结束流程  
+        from app.models.inventory import PurchaseOrder
+        order_pending = PurchaseOrder.query.filter(
+            PurchaseOrder.created_by_id == user_id,
+            PurchaseOrder.status.in_(['draft', 'pending'])
+        ).count()
+        
+        return general_pending + pricing_pending + order_pending
+        
+    except Exception as e:
+        from app import current_app
+        current_app.logger.error(f"获取用户发起的未结束流程数量失败: {str(e)}")
+        return 0
+
+def check_step_discount_violations(pricing_order, step_order, user_id):
+    """
+    检查指定审批步骤中是否存在折扣权限违规
+    
+    Args:
+        pricing_order: 批价单对象
+        step_order: 审批步骤顺序
+        user_id: 用户ID
+        
+    Returns:
+        dict: {
+            'has_violation': bool,  # 是否存在违规
+            'violations': list,     # 违规详情列表
+            'user_limits': dict     # 用户权限限制
+        }
+    """
+    from app.models.user import User
+    from app.services.discount_permission_service import DiscountPermissionService
+    
+    try:
+        # 获取用户信息
+        user = User.query.get(user_id)
+        if not user:
+            return {'has_violation': False, 'violations': [], 'user_limits': {}}
+        
+        # 获取用户的折扣权限限制
+        user_limits = DiscountPermissionService.get_user_discount_limits(user)
+        
+        violations = []
+        
+        # 检查批价单明细的折扣率
+        if user_limits['pricing_discount_limit'] is not None:
+            for detail in pricing_order.pricing_details:
+                # 将折扣率转换为百分比进行比较
+                detail_discount_pct = detail.discount_rate * 100 if detail.discount_rate else 0
+                if detail_discount_pct < user_limits['pricing_discount_limit']:
+                    violations.append({
+                        'type': 'pricing_detail',
+                        'product_name': detail.product_name,
+                        'model': detail.product_model,
+                        'discount_rate': detail.discount_rate,
+                        'limit': user_limits['pricing_discount_limit'],
+                        'step_order': step_order
+                    })
+        
+        # 检查批价单总折扣率
+        if (user_limits['pricing_discount_limit'] is not None and 
+            pricing_order.pricing_discount_percentage and 
+            pricing_order.pricing_discount_percentage < user_limits['pricing_discount_limit']):
+            violations.append({
+                'type': 'pricing_total',
+                'discount_rate': pricing_order.pricing_discount_percentage,
+                'limit': user_limits['pricing_discount_limit'],
+                'step_order': step_order
+            })
+        
+        # 检查结算单明细的折扣率
+        if user_limits['settlement_discount_limit'] is not None:
+            for detail in pricing_order.settlement_details:
+                if detail.discount_rate and detail.discount_rate < user_limits['settlement_discount_limit']:
+                    violations.append({
+                        'type': 'settlement_detail',
+                        'product_name': detail.product_name,
+                        'model': detail.product_model,
+                        'discount_rate': detail.discount_rate,
+                        'limit': user_limits['settlement_discount_limit'],
+                        'step_order': step_order
+                    })
+        
+        # 检查结算单总折扣率
+        if (user_limits['settlement_discount_limit'] is not None and 
+            pricing_order.settlement_discount_percentage and 
+            pricing_order.settlement_discount_percentage < user_limits['settlement_discount_limit']):
+            violations.append({
+                'type': 'settlement_total',
+                'discount_rate': pricing_order.settlement_discount_percentage,
+                'limit': user_limits['settlement_discount_limit'],
+                'step_order': step_order
+            })
+        
+        return {
+            'has_violation': len(violations) > 0,
+            'violations': violations,
+            'user_limits': user_limits
+        }
+        
+    except Exception as e:
+        print(f"检查折扣权限违规失败: {str(e)}")
+        return {'has_violation': False, 'violations': [], 'user_limits': {}}
+
+
+def get_approval_step_discount_status(pricing_order):
+    """
+    获取批价单审批流程中各步骤的折扣权限状态
+    
+    注意：快速审批功能已取消，但保留权限提示徽章功能
+    当审批人超出权限范围时，在其所在的审批环节显示权限徽章
+    
+    Args:
+        pricing_order: 批价单对象
+        
+    Returns:
+        dict: 步骤顺序 -> 权限状态的映射
+    """
+    try:
+        step_statuses = {}
+        
+        # 检查流程发起人（创建者）的权限
+        if pricing_order.created_by:
+            creator_status = check_step_discount_violations(
+                pricing_order, 0, pricing_order.created_by
+            )
+            if creator_status['has_violation']:
+                from app.models.user import User
+                creator = User.query.get(pricing_order.created_by)
+                step_statuses[0] = {
+                    'has_violation': True,
+                    'violations': creator_status['violations'],
+                    'user_role': creator.role if creator else 'unknown',
+                    'user_name': creator.username if creator else '未知用户'
+                }
+        
+        # 检查已完成的审批记录（只检查已审批通过或提交的步骤）
+        for record in pricing_order.approval_records:
+            if record.action and record.approver_id:  # 只检查已审批的步骤
+                record_status = check_step_discount_violations(
+                    pricing_order, record.step_order, record.approver_id
+                )
+                if record_status['has_violation']:
+                    step_statuses[record.step_order] = {
+                        'has_violation': True,
+                        'violations': record_status['violations'],
+                        'user_role': record.approver_role,
+                        'user_name': record.approver.username if record.approver else '未知用户'
+                    }
+        
+        # 注意：不检查当前待审批步骤的权限，只在审批提交后才显示权限徽章
+        # 这样确保权限徽章只在审批人已经做出决策后才显示
+        
+        return step_statuses
+        
+    except Exception as e:
+        print(f"获取审批步骤权限状态失败: {str(e)}")
+        return {}

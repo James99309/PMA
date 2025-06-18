@@ -3,7 +3,7 @@
     <div class="card">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center">
-                <span><i class="fas fa-chart-bar me-1"></i> 项目统计总览</span>
+                <span><i class="fas fa-chart-bar me-1"></i> {{ _('项目统计总览') }}</span>
             </div>
             <!-- 删除时间周期切换按钮组 -->
         </div>
@@ -12,9 +12,9 @@
                 <!-- 加载中提示 -->
                 <div id="statisticsLoading" class="col-12 text-center py-3">
                     <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">加载中...</span>
+                        <span class="visually-hidden">{{ _('加载中') }}...</span>
                     </div>
-                    <p class="mt-2">正在加载统计数据...</p>
+                    <p class="mt-2">{{ _('正在加载统计数据') }}...</p>
                 </div>
                 
                 <!-- 统计内容容器 -->
@@ -26,10 +26,10 @@
                             <div class="card border-0 shadow-sm h-100 bg-light" id="validProjectsCard" style="cursor:pointer;" onclick="filterValidProjects()">
                                 <div class="card-body">
                                     <h6 class="card-title text-primary">
-                                        <i class="fas fa-project-diagram me-1"></i> 有效项目
+                                        <i class="fas fa-project-diagram me-1"></i> {{ _('有效项目') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
-                                           title="有效项目总数和总金额（排除签约、失败、搁置状态，包含所有授权状态）"></i>
+                                           title="{{ _('有效项目总数和总金额（排除签约、失败、搁置状态，包含所有授权状态）') }}"></i>
                                     </h6>
                                     <div class="d-flex justify-content-between align-items-center mt-3">
                                         <div>
@@ -50,7 +50,7 @@
                             <div class="card border-0 shadow-sm h-100 bg-info bg-opacity-10" id="updatedProjectsCard" style="cursor:pointer;" onclick="filterUpdatedProjects()">
                                 <div class="card-body">
                                     <h6 class="card-title text-info">
-                                        <i class="fas fa-chart-line me-1"></i> 业务推进
+                                        <i class="fas fa-chart-line me-1"></i> {{ _('业务推进') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="本月内项目状态有推进的统计"></i>
@@ -74,7 +74,7 @@
                             <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10" id="signedProjectsCard" style="cursor:pointer;" onclick="filterSignedProjects()">
                                 <div class="card-body">
                                     <h6 class="card-title text-success">
-                                        <i class="fas fa-file-signature me-1"></i> 签约
+                                        <i class="fas fa-file-signature me-1"></i> {{ _('签约') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="当前已签约的项目统计"></i>
@@ -98,7 +98,7 @@
                             <div class="card border-0 shadow-sm h-100 bg-danger bg-opacity-10" id="lostProjectsCard" style="cursor:pointer;" onclick="filterLostProjects()">
                                 <div class="card-body">
                                     <h6 class="card-title text-danger">
-                                        <i class="fas fa-times-circle me-1"></i> 失败
+                                        <i class="fas fa-times-circle me-1"></i> {{ _('失败') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="当前处于失败状态的项目统计"></i>
@@ -122,7 +122,7 @@
                             <div class="card border-0 shadow-sm h-100 bg-secondary bg-opacity-10" id="pausedProjectsCard" style="cursor:pointer;" onclick="filterPausedProjects()">
                                 <div class="card-body">
                                     <h6 class="card-title text-secondary">
-                                        <i class="fas fa-pause-circle me-1"></i> 搁置
+                                        <i class="fas fa-pause-circle me-1"></i> {{ _('搁置') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="当前处于搁置状态的项目统计"></i>
@@ -149,7 +149,7 @@
                             <div class="card border-0 shadow-sm h-100 bg-primary bg-opacity-10" id="discoverProjectsCard" style="cursor:pointer;" onclick="filterDiscoverProjects()">
                                 <div class="card-body">
                                     <h6 class="card-title text-primary">
-                                        <i class="fas fa-search me-1"></i> 发现
+                                        <i class="fas fa-search me-1"></i> {{ _('发现') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="当前处于发现阶段的项目统计"></i>
@@ -173,7 +173,7 @@
                             <div class="card border-0 shadow-sm h-100 bg-info bg-opacity-10" id="embedProjectsCard" style="cursor:pointer;" onclick="filterEmbedProjects()">
                                 <div class="card-body">
                                     <h6 class="card-title text-info">
-                                        <i class="fas fa-seedling me-1"></i> 植入
+                                        <i class="fas fa-seedling me-1"></i> {{ _('植入') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="当前处于植入阶段的项目统计"></i>
@@ -197,7 +197,7 @@
                             <div class="card border-0 shadow-sm h-100 bg-warning bg-opacity-10" id="preTenderProjectsCard" style="cursor:pointer;" onclick="filterPreTenderProjects()">
                                 <div class="card-body">
                                     <h6 class="card-title text-warning">
-                                        <i class="fas fa-clock me-1"></i> 招标前
+                                        <i class="fas fa-clock me-1"></i> {{ _('招标前') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="当前处于招标前阶段的项目统计"></i>
@@ -221,7 +221,7 @@
                             <div class="card border-0 shadow-sm h-100 bg-warning bg-opacity-10" id="tenderingProjectsCard" style="cursor:pointer;" onclick="filterTenderingProjects()">
                                 <div class="card-body">
                                     <h6 class="card-title text-warning">
-                                        <i class="fas fa-file-contract me-1"></i> 招标中
+                                        <i class="fas fa-file-contract me-1"></i> {{ _('招标中') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="当前处于招标阶段的项目统计"></i>
@@ -245,7 +245,7 @@
                             <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10" id="wonProjectsCard" style="cursor:pointer;" onclick="filterWonProjects()">
                                 <div class="card-body">
                                     <h6 class="card-title text-success">
-                                        <i class="fas fa-award me-1"></i> 中标
+                                        <i class="fas fa-award me-1"></i> {{ _('中标') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="当前中标阶段的项目统计"></i>
@@ -269,7 +269,7 @@
                             <div class="card border-0 shadow-sm h-100 bg-secondary bg-opacity-10" id="quotedProjectsCard" style="cursor:pointer;" onclick="filterQuotedProjects()">
                                 <div class="card-body">
                                     <h6 class="card-title text-secondary">
-                                        <i class="fas fa-file-invoice-dollar me-1"></i> 批价
+                                        <i class="fas fa-file-invoice-dollar me-1"></i> {{ _('批价') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="当前批价阶段的项目统计"></i>
@@ -295,7 +295,7 @@
                         <div class="col-md-5">
                             <div class="card border-0 shadow-sm mb-3">
                                 <div class="card-body">
-                                    <h6 class="card-title text-primary mb-3">阶段分布统计</h6>
+                                    <h6 class="card-title text-primary mb-3">{{ _('阶段分布统计') }}</h6>
                                     <div id="stageDistributionChart" style="height: 350px; min-height: 250px;">
                                         <div class="text-center py-5">
                                             <div class="spinner-border text-primary" role="status">
@@ -318,7 +318,7 @@
                             <div class="card border-0 shadow-sm">
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 class="card-title text-primary mb-0">阶段趋势分析</h6>
+                                        <h6 class="card-title text-primary mb-0">{{ _('阶段趋势分析') }}</h6>
                                         <div>
                                             <div class="btn-group btn-group-sm" role="group">
                                                 <button type="button" class="btn btn-outline-primary trend-period-btn active" data-period="week">周趋势</button>

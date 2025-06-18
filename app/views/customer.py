@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import current_user, login_required
+from flask_babel import gettext as _, ngettext
 from app.models.customer import Company, Contact, COMPANY_TYPES
 from app.models.user import User
 from app import db
@@ -24,6 +25,7 @@ from app.utils.change_tracker import ChangeTracker
 # 添加审批相关函数导入
 from app.helpers.approval_helpers import get_object_approval_instance, get_available_templates
 from app.utils.access_control import can_start_approval
+from app.utils.country_names import get_country_names
 
 
 customer = Blueprint('customer', __name__)
@@ -90,10 +92,9 @@ def list_companies():
     for company in companies:
         company.contact_owner_ids = company_contact_owners.get(company.id, [])
     
-    # 国家代码到名称的映射
-    country_code_to_name = {
-        "CN": "中国", "US": "美国", "JP": "日本", "DE": "德国", "FR": "法国", "GB": "英国", "CA": "加拿大", "AU": "澳大利亚", "NZ": "新西兰", "IN": "印度", "RU": "俄罗斯", "BR": "巴西", "ZA": "南非", "SG": "新加坡", "MY": "马来西亚", "TH": "泰国", "ID": "印度尼西亚", "PH": "菲律宾", "VN": "越南", "KR": "韩国", "AE": "阿联酋", "SA": "沙特阿拉伯", "IT": "意大利", "ES": "西班牙", "NL": "荷兰", "CH": "瑞士", "SE": "瑞典", "NO": "挪威", "FI": "芬兰", "DK": "丹麦", "BE": "比利时"
-    }
+    # 获取国际化的国家名称映射
+    from app.utils.i18n import get_current_language
+    country_code_to_name = get_country_names(get_current_language())
     return render_template('customer/list.html', 
                           companies=companies, 
                           search_term=search, 
@@ -147,10 +148,8 @@ def search_companies():
     sort_field = request.args.get('sort', 'company_name')
     sort_order = request.args.get('order', 'asc')
     
-    # 国家代码到名称的映射
-    country_code_to_name = {
-        "CN": "中国", "US": "美国", "JP": "日本", "DE": "德国", "FR": "法国", "GB": "英国", "CA": "加拿大", "AU": "澳大利亚", "NZ": "新西兰", "IN": "印度", "RU": "俄罗斯", "BR": "巴西", "ZA": "南非", "SG": "新加坡", "MY": "马来西亚", "TH": "泰国", "ID": "印度尼西亚", "PH": "菲律宾", "VN": "越南", "KR": "韩国", "AE": "阿联酋", "SA": "沙特阿拉伯", "IT": "意大利", "ES": "西班牙", "NL": "荷兰", "CH": "瑞士", "SE": "瑞典", "NO": "挪威", "FI": "芬兰", "DK": "丹麦", "BE": "比利时"
-    }
+    # 获取国际化的国家名称映射
+    country_code_to_name = get_country_names(get_current_language())
     return render_template('customer/list.html', 
                           companies=companies, 
                           search_term=search, 
@@ -200,7 +199,7 @@ def view_company(company_id):
     
     # 检查当前用户是否有权限查看此企业
     if not can_view_company(current_user, company):
-        flash('您没有权限查看此客户信息', 'danger')
+        flash(_('您没有权限查看此客户信息'), 'danger')
         return redirect(url_for('customer.list_companies'))
     
     # 所有联系人
@@ -266,10 +265,9 @@ def view_company(company_id):
         )
     ).all()
     
-    # 国家代码到名称的映射
-    country_code_to_name = {
-        "CN": "中国", "US": "美国", "JP": "日本", "DE": "德国", "FR": "法国", "GB": "英国", "CA": "加拿大", "AU": "澳大利亚", "NZ": "新西兰", "IN": "印度", "RU": "俄罗斯", "BR": "巴西", "ZA": "南非", "SG": "新加坡", "MY": "马来西亚", "TH": "泰国", "ID": "印度尼西亚", "PH": "菲律宾", "VN": "越南", "KR": "韩国", "AE": "阿联酋", "SA": "沙特阿拉伯", "IT": "意大利", "ES": "西班牙", "NL": "荷兰", "CH": "瑞士", "SE": "瑞典", "NO": "挪威", "FI": "芬兰", "DK": "丹麦", "BE": "比利时"
-    }
+    # 获取国际化的国家名称映射
+    from app.utils.i18n import get_current_language
+    country_code_to_name = get_country_names(get_current_language())
     
     # 查询可选新拥有人
     if can_change_company_owner(current_user, company):
@@ -345,7 +343,7 @@ def add_company():
             # 通知新客户创建
             from app.services.event_dispatcher import notify_customer_created
             notify_customer_created(company, current_user)
-            flash('客户创建成功！', 'success')
+            flash(_('客户创建成功！'), 'success')
             return redirect(url_for('customer.list_companies'))
         except Exception as e:
             db.session.rollback()
@@ -364,7 +362,7 @@ def edit_company(company_id):
     
     # 检查编辑权限
     if not can_edit_company_info(current_user, company):
-        flash('您没有权限编辑此企业信息', 'danger')
+        flash(_('您没有权限编辑此企业信息'), 'danger')
         return redirect(url_for('customer.view_company', company_id=company_id))
 
     if request.method == 'POST':
@@ -391,7 +389,7 @@ def edit_company(company_id):
             
             # 更新客户活跃状态
             check_company_activity(company_id=company_id, days_threshold=1)
-            flash('客户信息已更新！', 'success')
+            flash(_('客户信息已更新！'), 'success')
             return redirect(url_for('customer.view_company', company_id=company.id))
         except Exception as e:
             db.session.rollback()
@@ -2131,3 +2129,33 @@ def delete_action_reply(reply_id):
     db.session.delete(reply)
     db.session.commit()
     return jsonify({'success': True})
+
+@customer.route('/i18n-demo')
+@login_required
+@permission_required('customer', 'view')
+def i18n_demo():
+    """国际化演示页面"""
+    from app.utils.i18n import get_current_language
+    from app.utils.country_names import get_country_names
+    
+    # 获取当前语言
+    current_language = get_current_language()
+    
+    # 获取国家名称映射
+    country_names = get_country_names()
+    
+    # 示例客户数据
+    sample_customer = {
+        'company_name': 'ABC科技有限公司',
+        'industry': 'technology',
+        'status': 'active',
+        'country': 'CN',
+        'created_at': datetime.now()
+    }
+    
+    return render_template('customer/i18n_demo.html', 
+                         current_language=current_language,
+                         country_names=country_names,
+                         sample_customer=sample_customer,
+                         INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
+                         STATUS_OPTIONS=STATUS_OPTIONS)

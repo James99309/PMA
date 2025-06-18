@@ -70,6 +70,11 @@ def list_users():
     users_data = []
     for user in users:
         d = user.to_dict()
+        # 检查用户是否为厂商用户
+        user_obj = User()
+        user_obj.company_name = d['company_name']
+        is_vendor = user_obj.is_vendor_user()
+        
         users_data.append({
             'id': d['id'],
             'is_active': d['is_active'],
@@ -82,18 +87,23 @@ def list_users():
             'role': d['role'],
             'updated_at': d.get('updated_at'),
             'created_at': d.get('created_at'),
+            'is_vendor': is_vendor,
         })
     
     # 批量获取企业名称和角色字典映射
     company_dict = {d.key: d.value for d in Dictionary.query.filter_by(type='company').all()}
     role_dict = {d.key: d.value for d in Dictionary.query.filter_by(type='role').all()}
+    
+    # 批量获取厂商字典信息
+    vendor_dict = {d.key: d.is_vendor for d in Dictionary.query.filter_by(type='company').all()}
 
     return render_template(
         'user/list.html',
         users=users_data,
         total=len(users_data),
         company_dict=company_dict,
-        role_dict=role_dict
+        role_dict=role_dict,
+        vendor_dict=vendor_dict
     )
 
 @user_bp.route('/create', methods=['GET', 'POST'])
@@ -723,7 +733,9 @@ def manage_role_permissions():
                     can_view=bool(perm.get('can_view', False)),
                     can_create=bool(perm.get('can_create', False)),
                     can_edit=bool(perm.get('can_edit', False)),
-                    can_delete=bool(perm.get('can_delete', False))
+                    can_delete=bool(perm.get('can_delete', False)),
+                    pricing_discount_limit=perm.get('pricing_discount_limit'),
+                    settlement_discount_limit=perm.get('settlement_discount_limit')
                 )
                 db.session.add(rp)
             db.session.commit()
@@ -822,6 +834,8 @@ def get_default_modules():
         {"id": "inventory", "name": "库存管理", "description": "管理库存信息和出入库"},
         {"id": "settlement", "name": "结算管理", "description": "管理结算单和结算记录"},
         {"id": "order", "name": "订单管理", "description": "管理采购订单和销售订单"},
+        {"id": "pricing_order", "name": "批价单管理", "description": "管理批价单的查看、创建、编辑权限", "supports_discount_limits": True},
+        {"id": "settlement_order", "name": "结算单管理", "description": "管理结算单的查看、创建、编辑权限", "supports_discount_limits": True},
         {"id": "user", "name": "用户管理", "description": "管理系统用户"},
         {"id": "permission", "name": "权限管理", "description": "管理用户权限"},
         {"id": "project_rating", "name": "项目评分🌟", "description": "设置项目五星评分", "type": "switch"}
@@ -835,6 +849,10 @@ def user_detail(user_id):
     if not user:
         flash('用户不存在或无权限查看', 'danger')
         return redirect(url_for('user.list_users'))
+    
+    # 检查用户是否为厂商用户
+    is_vendor = user.is_vendor_user()
+    
     personal_perms = list(user.permissions) if hasattr(user, 'permissions') else []
     permissions = []
     if personal_perms:
@@ -871,14 +889,25 @@ def user_detail(user_id):
                 'department': owner.department,
                 'is_department_manager': owner.is_department_manager
             })
-    ROLE_DICT = {d.key: d.value for d in Dictionary.query.filter_by(type='role').all()}
-    MODULES = get_default_modules()
     affiliations = {
-        'department': user.department or '未设置',
+        'department': user.department if hasattr(user, 'department') else '',
+        'role': user.role if hasattr(user, 'role') else '',
         'affiliation_users': affiliation_users,
         'affiliation_count': len(affiliation_users)
     }
-    return render_template('user/detail.html', user=user, permissions=permissions, affiliations=affiliations, role_dict=ROLE_DICT, modules=MODULES)
+    
+    role_dict = {d.key: d.value for d in Dictionary.query.filter_by(type='role').all()}
+    modules = get_default_modules()
+    
+    return render_template(
+        'user/detail.html',
+        user=user,
+        permissions=permissions,
+        affiliations=affiliations,
+        role_dict=role_dict,
+        modules=modules,
+        is_vendor=is_vendor
+    )
 
 @user_bp.route('/batch-delete', methods=['POST'])
 @login_required

@@ -177,13 +177,13 @@
                                     </li>
                                 </ul>
                             </div>
-                            {% if has_permission('quotation', 'edit') %}
+                            {% if can_edit_this_quotation %}
                                 {{ render_button('编辑', href=url_for('quotation.edit_quotation', id=quotation.id), color='warning', icon='fas fa-edit', size='sm') }}
                             {% endif %}
-                            {% if has_permission('quotation', 'edit') %}
+                            {% if can_edit_this_quotation %}
                                 {{ render_button('复制', color='info', icon='fas fa-copy', size='sm', type='button', attrs='onclick="copyQuotation(' ~ quotation.id ~ ')"') }}
                             {% endif %}
-                            {% if has_permission('quotation', 'delete') %}
+                            {% if can_delete_this_quotation %}
                                 {{ render_button('删除', color='danger', icon='fas fa-trash', size='sm', type='button', attrs='onclick="deleteQuotation(' ~ quotation.id ~ ')"') }}
                             {% endif %}
                         </div>
@@ -331,7 +331,7 @@
                                 <tr>
                                     <td colspan="{% if current_user.role in ['product_manager', 'product'] %}10{% else %}12{% endif %}" class="text-center text-muted">
                                         暂无产品明细
-                                        {% if has_permission('quotation', 'edit') and quotation.is_editable %}
+                                        {% if can_edit_this_quotation and quotation.is_editable %}
                                             <br><a href="{{ url_for('quotation.edit_quotation', id=quotation.id) }}" class="btn btn-link btn-sm">添加产品明细</a>
                                         {% endif %}
                                     </td>

@@ -178,7 +178,9 @@
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h1 class="h3 mb-0">库存管理</h1>
                 <div class="d-flex gap-2">
-                    {{ render_button('批量添加库存', url_for('inventory.add_inventory'), color='primary', icon='fas fa-plus', size='sm') }}
+                    {% if has_permission('inventory', 'create') %}
+                        {{ render_button('批量添加库存', url_for('inventory.add_inventory'), color='primary', icon='fas fa-plus', size='sm') }}
+                    {% endif %}
                 </div>
             </div>
 

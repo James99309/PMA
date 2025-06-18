@@ -30,6 +30,7 @@ class User(db.Model, UserMixin):
     wechat_nickname = db.Column(db.String(64))  # 微信昵称
     wechat_avatar = db.Column(db.String(256))  # 微信头像URL
     _is_active = db.Column(db.Boolean, default=False, name="is_active")  # 账号是否激活，使用不同名称避免与属性冲突
+    language_preference = db.Column(db.String(10), default='zh-CN')  # 语言偏好设置，默认简体中文
     created_at = db.Column(db.Float)
     updated_at = db.Column(db.Float, default=time.time, onupdate=time.time)
     last_login = db.Column(db.Float)  # 最后登录时间
@@ -247,6 +248,21 @@ class User(db.Model, UserMixin):
         
         # 去重并返回
         return list(set(viewable_ids))
+
+    def is_vendor_user(self):
+        """检查用户是否属于厂商企业"""
+        if not self.company_name:
+            return False
+        
+        from app.models.dictionary import Dictionary
+        company_dict = Dictionary.query.filter_by(
+            type='company',
+            value=self.company_name,
+            is_active=True,
+            is_vendor=True
+        ).first()
+        
+        return company_dict is not None
 
     def __repr__(self):
         return f'<User {self.username}>'

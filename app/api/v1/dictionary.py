@@ -74,40 +74,54 @@ def get_dictionaries(dict_type):
 @api_v1_bp.route('/dictionary/<string:dict_type>/add', methods=['POST'])
 @flexible_auth
 def add_dictionary(dict_type):
-    """添加新的字典项，自动分配key和排序，前端无需传递"""
+    """添加字典项到指定类型的字典
+    
+    Args:
+        dict_type: 字典类型，如 'role', 'region' 等
+        
+    Returns:
+        包含新创建的字典项的响应
+    """
     data = request.get_json()
-    value = data.get('value')
-    key = data.get('key')  # 前端可选传递key
-
+    
+    if not data or 'value' not in data:
+        return api_response(
+            success=False,
+            code=400,
+            message="请求数据无效，缺少必要字段"
+        )
+    
+    value = data.get('value', '').strip()
     if not value:
         return api_response(
             success=False,
             code=400,
-            message="显示文本必填"
+            message="值不能为空"
         )
 
-    # 自动生成英文key（优先用前端传递的key，否则用英文分词+下划线）
+    # 如果提供了key，则使用，否则根据value自动生成
+    key = data.get('key', '').strip()
     if not key:
-        # 用正则分词+下划线组合，保留字母和数字
-        # 例如：'客户销售' -> 'customer_sales', '渠道经理' -> 'channel_manager'
-        # 这里可根据实际业务自定义映射
-        value_map = {
-            '客户销售': 'customer_sales',
-            '渠道经理': 'channel_manager',
-            '营销总监': 'sales_director',
-            '服务': 'service',
-            '服务经理': 'service_manager',
-            '产品经理': 'product_manager',
-            '解决方案经理': 'solution_manager',
-            '普通用户': 'user',
-            '经销商': 'dealer',
-            '管理员': 'admin'
-        }
-        key = value_map.get(value)
+        if dict_type == 'role':
+            # 特定映射关系（针对角色）
+            value_map = {
+                '客户销售': 'customer_sales',
+                '渠道经理': 'channel_manager',
+                '营销总监': 'sales_director',
+                '服务': 'service',
+                '服务经理': 'service_manager',
+                '产品经理': 'product_manager',
+                '解决方案经理': 'solution_manager',
+                '普通用户': 'user',
+                '经销商': 'dealer',
+                '管理员': 'admin'
+            }
+            key = value_map.get(value)
         if not key:
             # 否则用英文分词+下划线（假设value已是英文或拼音）
             key = re.sub(r'[^a-zA-Z0-9]+', '_', value.strip().lower())
             key = re.sub(r'_+', '_', key).strip('_')
+    
     # 检查key是否已存在
     exists = Dictionary.query.filter_by(type=dict_type, key=key).first()
     if exists:
@@ -116,10 +130,12 @@ def add_dictionary(dict_type):
             code=409,
             message="该key已存在"
         )
+    
     # 自动分配排序
     max_order = db.session.query(func.max(Dictionary.sort_order)).filter(
         Dictionary.type == dict_type
     ).scalar() or 0
+    
     new_dict = Dictionary(
         type=dict_type,
         key=key,
@@ -127,6 +143,11 @@ def add_dictionary(dict_type):
         is_active=data.get('is_active', True),
         sort_order=max_order + 10
     )
+    
+    # 对企业字典处理厂商标记
+    if dict_type == 'company' and 'is_vendor' in data:
+        new_dict.is_vendor = data.get('is_vendor', False)
+    
     db.session.add(new_dict)
     try:
         db.session.commit()
@@ -147,7 +168,7 @@ def add_dictionary(dict_type):
 @api_v1_bp.route('/dictionary/<string:dict_type>/edit', methods=['POST'])
 @flexible_auth
 def edit_dictionary(dict_type):
-    """编辑字典项，只允许改value和is_active，禁止改key/sort_order"""
+    """编辑字典项，只允许改value、is_active和is_vendor，禁止改key/sort_order"""
     data = request.get_json()
     if not data or 'id' not in data:
         return api_response(
@@ -167,6 +188,10 @@ def edit_dictionary(dict_type):
         dict_item.value = data['value']
     if 'is_active' in data:
         dict_item.is_active = data['is_active']
+    # 对企业字典处理厂商标记
+    if dict_type == 'company' and 'is_vendor' in data:
+        dict_item.is_vendor = data.get('is_vendor', False)
+        
     try:
         db.session.commit()
         return api_response(

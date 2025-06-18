@@ -64,6 +64,24 @@ class Permissions:
     ORDER_EDIT = 'order_edit'
     ORDER_DELETE = 'order_delete'
 
+def is_admin_or_ceo(user=None):
+    """
+    检查用户是否是管理员或总经理，拥有最高权限
+    
+    参数:
+        user: 用户对象，如果为None则使用current_user
+    返回:
+        bool: 是否拥有管理员级别权限
+    """
+    if user is None:
+        user = current_user
+    
+    if not user or not user.is_authenticated:
+        return False
+    
+    user_role = getattr(user, 'role', '').strip().lower()
+    return user_role in ['admin', 'ceo']
+
 def check_permission(permission):
     """
     检查当前用户是否具有指定权限
@@ -74,8 +92,8 @@ def check_permission(permission):
     """
     if not current_user.is_authenticated:
         return False
-    # admin超级管理员特权
-    if getattr(current_user, 'role', None) == 'admin':
+    # admin和CEO超级管理员特权
+    if is_admin_or_ceo():
         return True
     # 拆分模块和操作
     parts = permission.split('_')
@@ -129,12 +147,13 @@ def permission_required(module, action):
 
 def admin_required(f):
     """
-    管理员权限检查装饰器
+    管理员权限检查装饰器（包括CEO）
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or current_user.role != 'admin':
-            logger.warning(f"非管理员用户 {getattr(current_user, 'username', '未登录')} 尝试访问管理员资源")
+        if not is_admin_or_ceo():
+            user_role = getattr(current_user, 'role', '未知') if current_user.is_authenticated else '未登录'
+            logger.warning(f"非管理员/CEO用户 {getattr(current_user, 'username', '未登录')} (角色: {user_role}) 尝试访问管理员资源")
             abort(403)
         return f(*args, **kwargs)
     return decorated_function

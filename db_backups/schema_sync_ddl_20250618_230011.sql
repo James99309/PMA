@@ -1,0 +1,122 @@
+-- 数据库结构同步DDL
+-- 生成时间: 2025-06-18 23:00:11.377978
+-- 注意: 请仔细审查后再执行
+
+ALTER TABLE dictionaries ADD COLUMN is_vendor boolean DEFAULT false;
+ALTER TABLE role_permissions ADD COLUMN pricing_discount_limit double precision(53);
+ALTER TABLE role_permissions ADD COLUMN settlement_discount_limit double precision(53);
+ALTER TABLE users ADD COLUMN language_preference character varying(10);
+-- 检查修改列: approval_process_template.required_fields
+-- 本地: ('required_fields', 'json', 'YES', "'[]'::jsonb", None, None, None)
+-- 云端: ('required_fields', 'json', 'YES', None, None, None, None)
+-- 检查修改列: approval_process_template.lock_object_on_start
+-- 本地: ('lock_object_on_start', 'boolean', 'YES', 'true', None, None, None)
+-- 云端: ('lock_object_on_start', 'boolean', 'YES', None, None, None, None)
+-- 检查修改列: approval_process_template.lock_reason
+-- 本地: ('lock_reason', 'character varying', 'YES', "'审批流程进行中，暂时锁定编辑'::character varying", 200, None, None)
+-- 云端: ('lock_reason', 'character varying', 'YES', None, 200, None, None)
+-- 检查修改列: approval_step.editable_fields
+-- 本地: ('editable_fields', 'json', 'YES', "'[]'::json", None, None, None)
+-- 云端: ('editable_fields', 'json', 'YES', None, None, None, None)
+-- 检查修改列: approval_step.cc_users
+-- 本地: ('cc_users', 'json', 'YES', "'[]'::json", None, None, None)
+-- 云端: ('cc_users', 'json', 'YES', None, None, None, None)
+-- 检查修改列: approval_step.cc_enabled
+-- 本地: ('cc_enabled', 'boolean', 'YES', 'false', None, None, None)
+-- 云端: ('cc_enabled', 'boolean', 'YES', None, None, None, None)
+-- 检查修改列: pricing_orders.is_direct_contract
+-- 本地: ('is_direct_contract', 'boolean', 'YES', 'false', None, None, None)
+-- 云端: ('is_direct_contract', 'boolean', 'YES', None, None, None, None)
+-- 检查修改列: pricing_orders.is_factory_pickup
+-- 本地: ('is_factory_pickup', 'boolean', 'YES', 'false', None, None, None)
+-- 云端: ('is_factory_pickup', 'boolean', 'YES', None, None, None, None)
+-- 检查修改列: project_scoring_config.score_value
+-- 本地: ('score_value', 'numeric', 'NO', '0.0', None, 3, 2)
+-- 云端: ('score_value', 'numeric', 'NO', None, None, 3, 2)
+-- 检查修改列: project_scoring_config.is_active
+-- 本地: ('is_active', 'boolean', 'YES', 'true', None, None, None)
+-- 云端: ('is_active', 'boolean', 'YES', None, None, None, None)
+-- 检查修改列: project_scoring_config.created_at
+-- 本地: ('created_at', 'timestamp without time zone', 'YES', 'CURRENT_TIMESTAMP', None, None, None)
+-- 云端: ('created_at', 'timestamp without time zone', 'YES', None, None, None, None)
+-- 检查修改列: project_scoring_config.updated_at
+-- 本地: ('updated_at', 'timestamp without time zone', 'YES', 'CURRENT_TIMESTAMP', None, None, None)
+-- 云端: ('updated_at', 'timestamp without time zone', 'YES', None, None, None, None)
+-- 检查修改列: project_scoring_records.score_value
+-- 本地: ('score_value', 'numeric', 'NO', '0.0', None, 3, 2)
+-- 云端: ('score_value', 'numeric', 'NO', None, None, 3, 2)
+-- 检查修改列: project_scoring_records.auto_calculated
+-- 本地: ('auto_calculated', 'boolean', 'YES', 'true', None, None, None)
+-- 云端: ('auto_calculated', 'boolean', 'YES', None, None, None, None)
+-- 检查修改列: project_scoring_records.created_at
+-- 本地: ('created_at', 'timestamp without time zone', 'YES', 'CURRENT_TIMESTAMP', None, None, None)
+-- 云端: ('created_at', 'timestamp without time zone', 'YES', None, None, None, None)
+-- 检查修改列: project_scoring_records.updated_at
+-- 本地: ('updated_at', 'timestamp without time zone', 'YES', 'CURRENT_TIMESTAMP', None, None, None)
+-- 云端: ('updated_at', 'timestamp without time zone', 'YES', None, None, None, None)
+-- 检查修改列: project_total_scores.information_score
+-- 本地: ('information_score', 'numeric', 'YES', '0.0', None, 3, 2)
+-- 云端: ('information_score', 'numeric', 'YES', None, None, 3, 2)
+-- 检查修改列: project_total_scores.quotation_score
+-- 本地: ('quotation_score', 'numeric', 'YES', '0.0', None, 3, 2)
+-- 云端: ('quotation_score', 'numeric', 'YES', None, None, 3, 2)
+-- 检查修改列: project_total_scores.stage_score
+-- 本地: ('stage_score', 'numeric', 'YES', '0.0', None, 3, 2)
+-- 云端: ('stage_score', 'numeric', 'YES', None, None, 3, 2)
+-- 检查修改列: project_total_scores.manual_score
+-- 本地: ('manual_score', 'numeric', 'YES', '0.0', None, 3, 2)
+-- 云端: ('manual_score', 'numeric', 'YES', None, None, 3, 2)
+-- 检查修改列: project_total_scores.total_score
+-- 本地: ('total_score', 'numeric', 'YES', '0.0', None, 3, 2)
+-- 云端: ('total_score', 'numeric', 'YES', None, None, 3, 2)
+-- 检查修改列: project_total_scores.star_rating
+-- 本地: ('star_rating', 'numeric', 'YES', '0', None, 2, 1)
+-- 云端: ('star_rating', 'numeric', 'YES', None, None, 2, 1)
+-- 检查修改列: project_total_scores.last_calculated
+-- 本地: ('last_calculated', 'timestamp without time zone', 'YES', 'CURRENT_TIMESTAMP', None, None, None)
+-- 云端: ('last_calculated', 'timestamp without time zone', 'YES', None, None, None, None)
+-- 检查修改列: project_total_scores.created_at
+-- 本地: ('created_at', 'timestamp without time zone', 'YES', 'CURRENT_TIMESTAMP', None, None, None)
+-- 云端: ('created_at', 'timestamp without time zone', 'YES', None, None, None, None)
+-- 检查修改列: project_total_scores.updated_at
+-- 本地: ('updated_at', 'timestamp without time zone', 'YES', 'CURRENT_TIMESTAMP', None, None, None)
+-- 云端: ('updated_at', 'timestamp without time zone', 'YES', None, None, None, None)
+-- 检查修改列: projects.updated_at
+-- 本地: ('updated_at', 'timestamp without time zone', 'YES', 'now()', None, None, None)
+-- 云端: ('updated_at', 'timestamp without time zone', 'YES', None, None, None, None)
+-- 检查修改列: projects.is_locked
+-- 本地: ('is_locked', 'boolean', 'NO', 'false', None, None, None)
+-- 云端: ('is_locked', 'boolean', 'NO', None, None, None, None)
+-- 检查修改列: projects.is_active
+-- 本地: ('is_active', 'boolean', 'NO', 'true', None, None, None)
+-- 云端: ('is_active', 'boolean', 'NO', None, None, None, None)
+-- 检查修改列: projects.last_activity_date
+-- 本地: ('last_activity_date', 'timestamp without time zone', 'YES', 'now()', None, None, None)
+-- 云端: ('last_activity_date', 'timestamp without time zone', 'YES', None, None, None, None)
+-- 检查修改列: quotation_details.implant_subtotal
+-- 本地: ('implant_subtotal', 'double precision', 'YES', '0.00', None, 53, None)
+-- 云端: ('implant_subtotal', 'double precision', 'YES', None, None, 53, None)
+-- 检查修改列: quotations.approval_status
+-- 本地: ('approval_status', 'character varying', 'YES', "'pending'::character varying", 50, None, None)
+-- 云端: ('approval_status', 'character varying', 'YES', None, 50, None, None)
+-- 检查修改列: quotations.approved_stages
+-- 本地: ('approved_stages', 'json', 'YES', "'[]'::json", None, None, None)
+-- 云端: ('approved_stages', 'json', 'YES', None, None, None, None)
+-- 检查修改列: quotations.approval_history
+-- 本地: ('approval_history', 'json', 'YES', "'[]'::json", None, None, None)
+-- 云端: ('approval_history', 'json', 'YES', None, None, None, None)
+-- 检查修改列: quotations.is_locked
+-- 本地: ('is_locked', 'boolean', 'YES', 'false', None, None, None)
+-- 云端: ('is_locked', 'boolean', 'YES', None, None, None, None)
+-- 检查修改列: quotations.confirmation_badge_status
+-- 本地: ('confirmation_badge_status', 'character varying', 'YES', "'none'::character varying", 20, None, None)
+-- 云端: ('confirmation_badge_status', 'character varying', 'YES', None, 20, None, None)
+-- 检查修改列: quotations.confirmation_badge_color
+-- 本地: ('confirmation_badge_color', 'character varying', 'YES', 'NULL::character varying', 20, None, None)
+-- 云端: ('confirmation_badge_color', 'character varying', 'YES', None, 20, None, None)
+-- 检查修改列: quotations.product_signature
+-- 本地: ('product_signature', 'character varying', 'YES', 'NULL::character varying', 64, None, None)
+-- 云端: ('product_signature', 'character varying', 'YES', None, 64, None, None)
+-- 检查修改列: quotations.implant_total_amount
+-- 本地: ('implant_total_amount', 'double precision', 'YES', '0.00', None, 53, None)
+-- 云端: ('implant_total_amount', 'double precision', 'YES', None, None, 53, None)

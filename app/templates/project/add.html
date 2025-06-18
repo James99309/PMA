@@ -19,41 +19,41 @@
 
 {% block content %}
 <div class="container mt-4 page-with-fixed-nav">
-    <h2 class="mb-4">添加项目</h2>
+    <h2 class="mb-4">{{ _('添加项目') }}</h2>
 
     <form method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <!-- 项目信息卡片 -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="card-title mb-0">项目信息</h5>
+                <h5 class="card-title mb-0">{{ _('项目信息') }}</h5>
             </div>
             <div class="card-body">
                 <div class="row mb-4">
                     <div class="col-md-6">
-                        <label for="project_name" class="form-label mb-2">项目名称</label>
+                        <label for="project_name" class="form-label mb-2">{{ _('项目名称') }}</label>
                         <input type="text" class="form-control" id="project_name" name="project_name" required>
                     </div>
                     <div class="col-md-6">
-                        <label for="report_time" class="form-label mb-2">报备日期</label>
+                        <label for="report_time" class="form-label mb-2">{{ _('报备日期') }}</label>
                         <input type="date" class="form-control" id="report_time" name="report_time" required value="{{ (request.form.report_time or (now().strftime('%Y-%m-%d'))) }}">
                     </div>
                 </div>
 
                 <div class="row mb-4">
                     <div class="col-md-6">
-                        <label for="report_source" class="form-label mb-2">报备来源</label>
+                        <label for="report_source" class="form-label mb-2">{{ _('报备来源') }}</label>
                         <select class="form-select" id="report_source" name="report_source">
-                            <option value="">请选择报备来源</option>
+                            <option value="">{{ _('请选择报备来源') }}</option>
                             {% for k, v in REPORT_SOURCE_OPTIONS %}
                             <option value="{{ k }}">{{ v }}</option>
                             {% endfor %}
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label for="project_type" class="form-label mb-2">项目类型</label>
+                        <label for="project_type" class="form-label mb-2">{{ _('项目类型') }}</label>
                         <select class="form-select" id="project_type" name="project_type">
-                            <option value="">-- 请选择项目类型 --</option>
+                            <option value="">-- {{ _('请选择项目类型') }} --</option>
                             {% for k, v in PROJECT_TYPE_OPTIONS %}
                             <option value="{{ k }}">{{ v }}</option>
                             {% endfor %}
@@ -63,16 +63,16 @@
 
                 <div class="row mb-4">
                     <div class="col-md-6">
-                        <label for="product_situation" class="form-label mb-2">品牌情况</label>
+                        <label for="product_situation" class="form-label mb-2">{{ _('品牌情况') }}</label>
                         <select class="form-select" id="product_situation" name="product_situation">
-                            <option value="">请选择品牌情况</option>
+                            <option value="">{{ _('请选择品牌情况') }}</option>
                             {% for k, v in PRODUCT_SITUATION_OPTIONS %}
                             <option value="{{ k }}">{{ v }}</option>
                             {% endfor %}
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label for="current_stage" class="form-label mb-2">当前阶段</label>
+                        <label for="current_stage" class="form-label mb-2">{{ _('当前阶段') }}</label>
                         <input type="text" class="form-control" id="current_stage_display" value="{{ project_stage_label('discover') }}" readonly>
                         <input type="hidden" name="current_stage" value="discover">
                     </div>
@@ -80,13 +80,13 @@
 
                 <div class="row mb-4">
                     <div class="col-md-6">
-                        <label for="quotation_customer" class="form-label mb-2">报价（元）</label>
+                        <label for="quotation_customer" class="form-label mb-2">{{ _('报价') }}（{{ _('元') }}）</label>
                         <input type="text" class="form-control" id="quotation_customer" name="quotation_customer"
-                            placeholder="不可编辑"
+                            placeholder="{{ _('不可编辑') }}"
                             disabled>
                     </div>
                     <div class="col-md-6">
-                        <label for="delivery_forecast" class="form-label mb-2">出货预测日期</label>
+                        <label for="delivery_forecast" class="form-label mb-2">{{ _('出货预测日期') }}</label>
                         <input type="date" class="form-control" id="delivery_forecast" name="delivery_forecast" value="">
                     </div>
                 </div>
@@ -94,9 +94,9 @@
                 <!-- 销售负责人字段 -->
                 <div class="row mb-4">
                     <div class="col-md-6">
-                        <label for="vendor_sales_manager_id" class="form-label mb-2">厂商销售负责人</label>
+                        <label for="vendor_sales_manager_id" class="form-label mb-2">{{ _('厂商销售负责人') }}</label>
                         <select class="form-select" id="vendor_sales_manager_id" name="vendor_sales_manager_id">
-                            <option value="">请选择厂商销售负责人</option>
+                            <option value="">{{ _('请选择厂商销售负责人') }}</option>
                             <!-- 这里将通过JavaScript动态加载厂商用户 -->
                         </select>
                     </div>
@@ -107,23 +107,23 @@
         <!-- 参与单位卡片 -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="card-title mb-0">参与单位</h5>
+                <h5 class="card-title mb-0">{{ _('参与单位') }}</h5>
             </div>
             <div class="card-body">
                 <div class="row mb-4">
                     <div class="col-md-6">
-                        <label for="end_user" class="form-label mb-2">直接用户</label>
+                        <label for="end_user" class="form-label mb-2">{{ _('直接用户') }}</label>
                         <select class="form-select" id="end_user" name="end_user">
-                            <option value="">请选择用户</option>
+                            <option value="">{{ _('请选择用户') }}</option>
                             {% for user in user %}
                             <option value="{{ user.company_name }}">{{ user.company_name }}</option>
                             {% endfor %}
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label for="design_issues" class="form-label mb-2">设计院及顾问</label>
+                        <label for="design_issues" class="form-label mb-2">{{ _('设计院及顾问') }}</label>
                         <select class="form-select" id="design_issues" name="design_issues">
-                            <option value="">请选择设计院及顾问</option>
+                            <option value="">{{ _('请选择设计院及顾问') }}</option>
                             {% for designer in designer %}
                             <option value="{{ designer.company_name }}">{{ designer.company_name }}</option>
                             {% endfor %}
@@ -133,18 +133,18 @@
 
                 <div class="row mb-4">
                     <div class="col-md-6">
-                        <label for="contractor" class="form-label mb-2">总承包单位</label>
+                        <label for="contractor" class="form-label mb-2">{{ _('总承包单位') }}</label>
                         <select class="form-select" id="contractor" name="contractor">
-                            <option value="">请选择总承包单位</option>
+                            <option value="">{{ _('请选择总承包单位') }}</option>
                             {% for contractor in contractor %}
                             <option value="{{ contractor.company_name }}">{{ contractor.company_name }}</option>
                             {% endfor %}
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label for="system_integrator" class="form-label mb-2">系统集成商</label>
+                        <label for="system_integrator" class="form-label mb-2">{{ _('系统集成商') }}</label>
                         <select class="form-select" id="system_integrator" name="system_integrator">
-                            <option value="">请选择系统集成商</option>
+                            <option value="">{{ _('请选择系统集成商') }}</option>
                             {% for integrator in integrator %}
                             <option value="{{ integrator.company_name }}">{{ integrator.company_name }}</option>
                             {% endfor %}
@@ -154,9 +154,9 @@
 
                 <div class="row">
                     <div class="col-md-6">
-                        <label for="dealer" class="form-label mb-2">经销商</label>
+                        <label for="dealer" class="form-label mb-2">{{ _('经销商') }}</label>
                         <select class="form-select" id="dealer" name="dealer">
-                            <option value="">请选择经销商</option>
+                            <option value="">{{ _('请选择经销商') }}</option>
                             {% for dealer in dealer %}
                             <option value="{{ dealer.company_name }}">{{ dealer.company_name }}</option>
                             {% endfor %}
@@ -169,17 +169,17 @@
         <!-- 阶段说明卡片 -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="card-title mb-0">阶段说明</h5>
+                <h5 class="card-title mb-0">{{ _('阶段说明') }}</h5>
             </div>
             <div class="card-body">
                 <div class="mb-4">
-                    <label for="stage_description" class="form-label mb-2">当前阶段情况说明</label>
+                    <label for="stage_description" class="form-label mb-2">{{ _('当前阶段情况说明') }}</label>
                     <textarea class="form-control" id="stage_description" name="stage_description" rows="3"></textarea>
                 </div>
 
                 <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                    {{ ui.render_button("保存", type="submit", color="primary", extra_class="me-md-2") }}
-                    {{ ui.render_button("取消", href=url_for('project.list_projects'), color="secondary") }}
+                    {{ ui.render_button(_("保存"), type="submit", color="primary", extra_class="me-md-2") }}
+                    {{ ui.render_button(_("取消"), href=url_for('project.list_projects'), color="secondary") }}
                 </div>
             </div>
         </div>

@@ -204,6 +204,9 @@ def get_analysis_data():
                 elif user_role in ['service', 'service_manager']:
                     # 服务经理：额外可以查看业务机会项目
                     permission_filters.append(Project.project_type == '业务机会')
+                elif user_role == 'business_admin':
+                    # 商务助理：额外可以查看销售重点、渠道跟进项目
+                    permission_filters.append(Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow']))
                 
                 # 应用权限过滤条件
                 if permission_filters:
@@ -383,8 +386,11 @@ def get_stage_statistics():
                     # 营销总监：额外可以查看销售重点和渠道跟进项目
                     permission_filters.append(Project.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进']))
                 elif user_role in ['service', 'service_manager']:
-                    # 服务人员：额外可以查看服务项目
-                    permission_filters.append(Project.project_type == 'service')
+                    # 服务经理：额外可以查看业务机会项目
+                    permission_filters.append(Project.project_type == '业务机会')
+                elif user_role == 'business_admin':
+                    # 商务助理：额外可以查看销售重点、渠道跟进项目
+                    permission_filters.append(Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow']))
                 
                 # 应用权限过滤条件
                 if permission_filters:
@@ -511,8 +517,11 @@ def get_monthly_increase(category=None, product_name=None, product_model=None):
                     # 营销总监：额外可以查看销售重点和渠道跟进项目
                     permission_filters.append(Project.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进']))
                 elif user_role in ['service', 'service_manager']:
-                    # 服务人员：额外可以查看服务项目
-                    permission_filters.append(Project.project_type == 'service')
+                    # 服务经理：额外可以查看业务机会项目
+                    permission_filters.append(Project.project_type == '业务机会')
+                elif user_role == 'business_admin':
+                    # 商务助理：额外可以查看销售重点、渠道跟进项目
+                    permission_filters.append(Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow']))
                 
                 # 应用权限过滤条件
                 if permission_filters:
@@ -631,6 +640,9 @@ def get_monthly_increase_data():
             elif user_role in ['service', 'service_manager']:
                 # 服务经理：额外可以查看业务机会项目
                 permission_filters.append(Project.project_type == '业务机会')
+            elif user_role == 'business_admin':
+                # 商务助理：额外可以查看销售重点、渠道跟进项目
+                permission_filters.append(Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow']))
             
             # 应用权限过滤（如果不是特殊角色）
             if user_role not in ['finance_director', 'finace_director', 'product_manager', 'product', 'solution_manager', 'solution']:

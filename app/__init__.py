@@ -2,7 +2,7 @@ import app.utils.update_active_status_fix
 from flask import Flask, session, redirect, url_for, request, current_app, flash
 from config import Config
 import logging
-from app.extensions import db, migrate, login_manager, jwt, csrf
+from app.extensions import db, migrate, login_manager, jwt, csrf, babel
 import os
 from flask_login import login_required, current_user, logout_user
 from app.models import User
@@ -103,12 +103,26 @@ def create_app(config_class=Config):
     # 初始化CSRF保护
     csrf.init_app(app)
     
+    # 配置Babel国际化
+    app.config['LANGUAGES'] = {'zh_CN': '简体中文', 'en': 'English'}
+    app.config['BABEL_DEFAULT_LOCALE'] = 'zh_CN'
+    app.config['BABEL_DEFAULT_TIMEZONE'] = 'Asia/Shanghai'
+    
+    # 初始化Babel国际化
+    from app.utils.i18n import get_current_language
+    babel.init_app(app, locale_selector=get_current_language)
+    
     # CSRF配置 - 排除API路由
     @csrf.exempt
     def csrf_exempt_api():
         # API路径豁免 - 修改为支持所有HTTP方法
         if request.path.startswith('/api/'):
             logger.debug(f'CSRF exempt API path: {request.path}, Method: {request.method}')
+            return True
+            
+        # 语言切换API路径豁免
+        if request.path.startswith('/language/'):
+            logger.debug(f'CSRF exempt Language API path: {request.path}, Method: {request.method}')
             return True
             
         # 审批API路径豁免
@@ -232,6 +246,9 @@ def create_app(config_class=Config):
     
     # 导入搜索API
     from app.api.v1.search import search_bp
+    
+    # 导入语言切换蓝图
+    from app.views.language import language_bp
 
     # 导入评分系统蓝图
     from app.views.scoring_config import scoring_config
@@ -273,6 +290,11 @@ def create_app(config_class=Config):
     app.register_blueprint(search_bp, url_prefix='/api/v1/search')
     csrf.exempt(search_bp)
     
+    # 注册语言切换蓝图
+    from app.views.language import language_bp
+    app.register_blueprint(language_bp)
+    csrf.exempt(language_bp)
+    
     # 注册管理员蓝图
     from app.views.admin import admin_bp
     app.register_blueprint(admin_bp)
@@ -291,6 +313,10 @@ def create_app(config_class=Config):
     # 注册备份管理蓝图
     from app.routes.backup_routes import backup_bp
     app.register_blueprint(backup_bp)
+    
+    # 注册测试功能蓝图
+    from app.routes.test_routes import test_bp
+    app.register_blueprint(test_bp, url_prefix='/test')
     
     # 添加版本信息API路由
     @app.route('/api/version', methods=['GET'])
@@ -357,7 +383,8 @@ def create_app(config_class=Config):
         excluded_paths = [
             '/auth/login', '/auth/logout', '/auth/register', 
             '/auth/forgot-password', '/auth/reset-password',
-            '/auth/activate', '/static', '/api/version'
+            '/auth/activate', '/static', '/api/version',
+            '/language/current', '/language/switch'
         ]
         
         # 检查当前路径是否需要登录
@@ -453,9 +480,10 @@ def create_app(config_class=Config):
                     print("[DEBUG][context_processor.has_permission] not authenticated, return False", file=sys.stderr)
                     return False
                     
-                # 管理员默认拥有所有权限
-                if current_user.role == 'admin':
-                    print("[DEBUG][context_processor.has_permission] admin, return True", file=sys.stderr)
+                # 管理员和CEO默认拥有所有权限
+                from app.permissions import is_admin_or_ceo
+                if is_admin_or_ceo():
+                    print(f"[DEBUG][context_processor.has_permission] admin/ceo ({current_user.role}), return True", file=sys.stderr)
                     return True
                     
                 # 获取角色权限
@@ -505,14 +533,23 @@ def create_app(config_class=Config):
                     print(f"[ERROR][context_processor.has_permission] Rollback failed: {str(rollback_error)}", file=sys.stderr)
                 
                 # 对于权限检查失败，默认返回False（安全策略）
-                # 但对于管理员，即使数据库出错也应该有权限
-                if hasattr(current_user, 'role') and current_user.role == 'admin':
-                    print("[DEBUG][context_processor.has_permission] Admin fallback, return True", file=sys.stderr)
+                # 但对于管理员和CEO，即使数据库出错也应该有权限
+                from app.permissions import is_admin_or_ceo
+                if is_admin_or_ceo():
+                    print(f"[DEBUG][context_processor.has_permission] Admin/CEO fallback ({current_user.role}), return True", file=sys.stderr)
                     return True
                 
                 return False
                 
-        return {'has_permission': has_permission}
+        # 添加管理员/CEO检查函数到模板上下文
+        def is_admin_or_ceo_template():
+            from app.permissions import is_admin_or_ceo
+            return is_admin_or_ceo()
+            
+        return {
+            'has_permission': has_permission,
+            'is_admin_or_ceo': is_admin_or_ceo_template
+        }
 
     # 添加公司编辑权限函数到模板上下文
     @app.context_processor

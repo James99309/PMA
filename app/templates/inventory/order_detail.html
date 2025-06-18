@@ -372,6 +372,16 @@
                 {% elif order.status == 'cancelled' %}
                 <span class="badge bg-dark ms-2">已取消</span>
                 {% endif %}
+                
+                <!-- 管理员退回按钮 - 只有管理员可以看到，且仅限于已通过的订单 -->
+                {% if current_user.role == 'admin' and order.status == 'approved' %}
+                <div class="mt-3">
+                    <button type="button" class="btn btn-warning btn-sm" onclick="showRollbackModal()">
+                        <i class="fas fa-undo me-2"></i>{{ _('退回审批') }}
+                    </button>
+                    <small class="text-muted ms-2">管理员权限：将已通过的订单退回到草稿状态</small>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -404,6 +414,50 @@
     </div>
 </div>
 
+<!-- 管理员退回确认模态框 -->
+{% if current_user.role == 'admin' and order.status == 'approved' %}
+<div class="modal fade" id="rollbackModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                    确认退回订单审批
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-shield-alt me-2"></i>
+                    <strong>管理员操作</strong>：您即将将已通过的订单审批退回到草稿状态
+                </div>
+                <p>确定要退回订单 <strong>{{ order.order_number }}</strong> 的审批吗？</p>
+                <p class="text-danger">
+                    <i class="fas fa-exclamation-circle me-1"></i>
+                    <strong>注意：</strong>此操作将：
+                </p>
+                <ul class="text-danger">
+                    <li>将订单状态重置为草稿</li>
+                    <li>清除所有审批记录（不留痕迹）</li>
+                    <li>需要重新提交审批</li>
+                </ul>
+                
+                <div class="mb-3">
+                    <label for="rollbackReason" class="form-label">退回原因（可选）：</label>
+                    <textarea class="form-control" id="rollbackReason" rows="3" placeholder="请说明退回原因..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-warning" onclick="confirmRollback()">
+                    <i class="fas fa-undo me-2"></i>确认退回
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <script>
 function deleteOrder() {
     const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
@@ -432,5 +486,65 @@ function deleteOrder() {
         modal.hide();
     };
 }
+
+// 管理员订单退回功能
+{% if current_user.role == 'admin' and order.status == 'approved' %}
+function showRollbackModal() {
+    const modal = new bootstrap.Modal(document.getElementById('rollbackModal'));
+    modal.show();
+}
+
+function confirmRollback() {
+    const reason = document.getElementById('rollbackReason').value;
+    const button = document.getElementById('confirmRollback');
+    const originalText = button.innerHTML;
+    
+    // 显示处理中状态
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>处理中...';
+    button.disabled = true;
+    
+    fetch('/approval/rollback-order/{{ order.id }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
+        },
+        body: JSON.stringify({
+            reason: reason
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 成功：刷新页面显示新状态
+            alert('成功：' + data.message);
+            window.location.reload();
+        } else {
+            alert('退回失败：' + data.message);
+            // 恢复按钮状态
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }
+    })
+    .catch(error => {
+        alert('退回失败：' + error.message);
+        // 恢复按钮状态
+        button.innerHTML = originalText;
+        button.disabled = false;
+    });
+    
+    // 关闭模态框
+    const modal = bootstrap.Modal.getInstance(document.getElementById('rollbackModal'));
+    modal.hide();
+}
+
+// 绑定确认按钮事件
+document.addEventListener('DOMContentLoaded', function() {
+    const confirmBtn = document.getElementById('confirmRollback');
+    if (confirmBtn) {
+        confirmBtn.onclick = confirmRollback;
+    }
+});
+{% endif %}
 </script>
 {% endblock %} 

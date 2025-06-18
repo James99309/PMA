@@ -117,7 +117,7 @@
             color: #333;
         }
         .main-nav {
-            background: #16a0bf;
+            background: #000;
             margin-bottom: 20px;
             border-bottom: none;
         }
@@ -275,21 +275,98 @@
     {% block head %}{% endblock %}
 </head>
 <body>
-    <!-- 固定顶部主导航，含logo、系统名、菜单、账户 -->
-    <nav class="main-nav navbar navbar-expand-lg navbar-dark" style="background-color: #16a0bf; z-index: 1040; position: fixed; top: 0; width: 100%;">
-        <div class="container d-flex align-items-center justify-content-between flex-wrap">
-            <div class="d-flex align-items-center logo-title-wrap w-100 w-lg-auto py-2 py-lg-0" style="min-height: 44px;">
-                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" class="main-logo" style="max-height: 48px; width: auto; margin-right: 8px; object-fit: contain;">
-                <span class="logo-title text-truncate" style="font-size: 2rem; font-weight: bold; color: #fff; white-space: nowrap; overflow: visible; max-width: none;">业务机会管理系统</span>
-                <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="切换导航" style="border: none; box-shadow: none;">
+    <!-- 双层导航栏：上排为logo和系统名称，下排为菜单 -->
+    <div class="header-wrapper" style="background-color: #000; z-index: 1040; position: fixed; top: 0; width: 100%;">
+        <!-- 上排：Logo + 系统名称 + 语言切换 + 账户头像 -->
+        <div class="top-header" style="background-color: #000; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+            <div class="container d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center">
+                    <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" class="main-logo" style="max-height: 32px; width: auto; margin-right: 12px; object-fit: contain;">
+                    <span class="system-title" style="font-size: 1.3rem; font-weight: 500; color: #fff;">PMA {{ _('业务机会管理系统') }}</span>
+                </div>
+                
+                {% if current_user.is_authenticated or session.get('user_id') %}
+                <!-- 桌面端语言切换和账户头像 -->
+                <div class="d-none d-lg-flex align-items-center">
+                    <!-- 语言切换器 - 字体比菜单小2号 -->
+                    <div class="dropdown me-3">
+                        <button class="btn btn-link text-white p-1" type="button" id="mainLanguageDropdown" data-bs-toggle="dropdown" aria-expanded="false" title="切换语言" style="font-size: 0.8rem;">
+                            <i class="fas fa-globe" style="font-size: 0.8rem;"></i>
+                            <span class="ms-1" id="mainCurrentLanguage" style="font-size: 0.8rem;">简体中文</span>
+                            <i class="fas fa-caret-down ms-1" style="font-size: 0.7rem;"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="mainLanguageDropdown" style="font-size: 0.8rem;">
+                            <li>
+                                <a class="dropdown-item main-language-option" href="#" data-lang="zh_CN" style="font-size: 0.8rem;">
+                                    <i class="fas fa-check me-2" style="visibility: hidden;" id="main-check-zh_CN"></i>
+                                    简体中文
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item main-language-option" href="#" data-lang="en" style="font-size: 0.8rem;">
+                                    <i class="fas fa-check me-2" style="visibility: hidden;" id="main-check-en"></i>
+                                    English
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <!-- 用户账户头像 -->
+                    <div class="dropdown">
+                        <div class="user-avatar-capsule position-relative" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <div class="d-flex align-items-center">
+                                <span class="avatar-initial">{{ (current_user.username or session.get('username', 'U'))[0]|upper }}</span>
+                                <span class="user-name">{{current_user.username or session.get('username','用户')}}</span>
+                                <i class="fas fa-caret-down dropdown-arrow"></i>
+                            </div>
+                            {% set pending_count = get_pending_approval_count() %}
+                            {% if pending_count > 0 %}
+                            <span class="notification-badge">{{ pending_count }}</span>
+                            {% endif %}
+                        </div>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('user.profile') }}">
+                                    <i class="fas fa-user-cog me-2"></i> {{ _('个人设置') }}
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('notification.center') }}">
+                                    <i class="fas fa-bell me-2"></i> {{ _('通知中心') }}
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('approval.center') }}">
+                                    <i class="fas fa-clipboard-check me-2"></i> {{ _('审批中心') }}
+                                    {% if pending_count > 0 %}
+                                    <span class="badge bg-danger ms-1">{{ pending_count }}</span>
+                                    {% endif %}
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('auth.logout') }}">
+                                    <i class="fas fa-sign-out-alt me-2"></i> {{ _('退出登录') }}
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- 下排：菜单导航 -->
+        <nav class="main-nav navbar navbar-expand-lg navbar-dark" style="background-color: #000; padding: 0;">
+            <div class="container">
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="切换导航" style="border: none; box-shadow: none;">
                     <span class="navbar-toggler-icon"></span>
                 </button>
-            </div>
             <div class="collapse navbar-collapse" id="mainNavbar">
                 <ul class="navbar-nav main-menu-list" style="width: 220px; max-width: 90vw;">
                     {% if current_user.is_authenticated or session.get('user_id') %}
                     <li class="nav-item">
-                        <a class="nav-link text-sm py-2 {{ 'active' if request.endpoint.startswith('main.') else '' }}" href="{{ url_for('main.index') }}">仪表盘</a>
+                        <a class="nav-link text-sm py-2 {{ 'active' if request.endpoint.startswith('main.') else '' }}" href="{{ url_for('main.index') }}">{{ _('仪表盘') }}</a>
                     </li>
                     
                     <!-- 业务管理主菜单 -->
@@ -297,19 +374,19 @@
                     <li class="nav-item d-lg-none">
                         <details>
                             <summary class="nav-link text-sm py-2 mb-0 {{ 'active' if request.endpoint.startswith('customer.') or request.endpoint.startswith('project.') or request.endpoint.startswith('quotation.') or request.endpoint.startswith('product_analysis.') else '' }}" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
-                                <span>业务管理</span>
+                                <span>{{ _('业务管理') }}</span>
                                 <svg class="ms-1" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                             </summary>
                             <ul class="list-unstyled ps-3 mb-0">
                                 {% if has_permission('customer', 'view') %}
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('customer.list_companies') }}">客户管理</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('customer.list_companies') }}">{{ _('客户管理') }}</a></li>
                                 {% endif %}
                                 {% if has_permission('project', 'view') %}
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('project.list_projects') }}">项目管理</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('project.list_projects') }}">{{ _('项目管理') }}</a></li>
                                 {% endif %}
                                 {% if has_permission('quotation', 'view') %}
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('quotation.list_quotations') }}">报价单管理</a></li>
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('product_analysis.analysis') }}">植入产品分析</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('quotation.list_quotations') }}">{{ _('报价单管理') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('product_analysis.analysis') }}">{{ _('植入产品分析') }}</a></li>
                                 {% endif %}
                             </ul>
                         </details>
@@ -317,18 +394,18 @@
                     <li class="nav-item dropdown d-none d-lg-block">
                         <a class="nav-link dropdown-toggle text-sm py-2 {{ 'active' if request.endpoint.startswith('customer.') or request.endpoint.startswith('project.') or request.endpoint.startswith('quotation.') or request.endpoint.startswith('product_analysis.') else '' }}"
                            href="#" id="businessDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            业务管理
+                            {{ _('业务管理') }}
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="businessDropdown">
                             {% if has_permission('customer', 'view') %}
-                            <li><a class="dropdown-item" href="{{ url_for('customer.list_companies') }}">客户管理</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('customer.list_companies') }}">{{ _('客户管理') }}</a></li>
                             {% endif %}
                             {% if has_permission('project', 'view') %}
-                            <li><a class="dropdown-item" href="{{ url_for('project.list_projects') }}">项目管理</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('project.list_projects') }}">{{ _('项目管理') }}</a></li>
                             {% endif %}
                             {% if has_permission('quotation', 'view') %}
-                            <li><a class="dropdown-item" href="{{ url_for('quotation.list_quotations') }}">报价单管理</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('product_analysis.analysis') }}">植入产品分析</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('quotation.list_quotations') }}">{{ _('报价单管理') }}</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('product_analysis.analysis') }}">{{ _('植入产品分析') }}</a></li>
                             {% endif %}
                         </ul>
                     </li>
@@ -339,20 +416,20 @@
                     <li class="nav-item d-lg-none">
                         <details>
                             <summary class="nav-link text-sm py-2 mb-0 {{ 'active' if request.endpoint.startswith('product_route.') or request.endpoint.startswith('product_code.') or request.endpoint.startswith('product_management.') else '' }}" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
-                                <span>产品管理</span>
+                                <span>{{ _('产品管理') }}</span>
                                 <svg class="ms-1" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                             </summary>
                             <ul class="list-unstyled ps-3 mb-0">
                                 {% if has_permission('product', 'view') %}
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('product_route.product_list') }}">产品库</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('product_route.product_list') }}">{{ _('产品库') }}</a></li>
                                 {% endif %}
                                 {% if has_permission('product_code', 'view') %}
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('product_management.index') }}">研发产品库</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('product_management.index') }}">{{ _('研发产品库') }}</a></li>
                                 {% endif %}
                                 {% if current_user.role == 'admin' %}
                                 <li><hr class="dropdown-divider my-1"></li>
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('product_code.categories') }}">产品分类</a></li>
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('product_code.origin_fields') }}">销售地区</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('product_code.categories') }}">{{ _('产品分类') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('product_code.origin_fields') }}">{{ _('销售地区') }}</a></li>
                                 {% endif %}
                             </ul>
                         </details>
@@ -360,19 +437,19 @@
                     <li class="nav-item dropdown d-none d-lg-block">
                         <a class="nav-link dropdown-toggle text-sm py-2 {{ 'active' if request.endpoint.startswith('product_route.') or request.endpoint.startswith('product_code.') or request.endpoint.startswith('product_management.') else '' }}"
                            href="#" id="productDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            产品管理
+                            {{ _('产品管理') }}
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="productDropdown">
                             {% if has_permission('product', 'view') %}
-                            <li><a class="dropdown-item" href="{{ url_for('product_route.product_list') }}">产品库</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('product_route.product_list') }}">{{ _('产品库') }}</a></li>
                             {% endif %}
                             {% if has_permission('product_code', 'view') %}
-                            <li><a class="dropdown-item" href="{{ url_for('product_management.index') }}">研发产品库</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('product_management.index') }}">{{ _('研发产品库') }}</a></li>
                             {% endif %}
                             {% if current_user.role == 'admin' %}
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('product_code.categories') }}">产品分类</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('product_code.origin_fields') }}">销售地区</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('product_code.categories') }}">{{ _('产品分类') }}</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('product_code.origin_fields') }}">{{ _('销售地区') }}</a></li>
                             {% endif %}
                         </ul>
                     </li>
@@ -381,19 +458,19 @@
                     <li class="nav-item d-lg-none">
                         <details>
                             <summary class="nav-link text-sm py-2 mb-0 {{ 'active' if request.endpoint.startswith('inventory.') else '' }}" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
-                                <span>订单结算</span>
+                                <span>{{ _('订单结算') }}</span>
                                 <svg class="ms-1" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                             </summary>
                             <ul class="list-unstyled ps-3 mb-0">
                                 {% if has_permission('order', 'view') %}
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('inventory.order_list') }}">订单管理</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('inventory.order_list') }}">{{ _('订单管理') }}</a></li>
                                 {% endif %}
                                 {% if has_permission('settlement', 'view') %}
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('inventory.settlement_order_list') }}">结算管理</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('inventory.settlement_order_list') }}">{{ _('结算管理') }}</a></li>
                                 {% endif %}
                                 {% if has_permission('inventory', 'view') %}
                                 <li><hr class="dropdown-divider my-1"></li>
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('inventory.stock_list') }}">库存管理</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('inventory.stock_list') }}">{{ _('库存管理') }}</a></li>
                                 {% endif %}
                             </ul>
                         </details>
@@ -403,18 +480,18 @@
                     <li class="nav-item dropdown d-none d-lg-block">
                         <a class="nav-link dropdown-toggle text-sm py-2 {{ 'active' if request.endpoint.startswith('inventory.') else '' }}"
                            href="#" id="inventoryDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            订单结算
+                            {{ _('订单结算') }}
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="inventoryDropdown">
                             {% if has_permission('order', 'view') %}
-                            <li><a class="dropdown-item" href="{{ url_for('inventory.order_list') }}">订单管理</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('inventory.order_list') }}">{{ _('订单管理') }}</a></li>
                             {% endif %}
                             {% if has_permission('settlement', 'view') %}
-                            <li><a class="dropdown-item" href="{{ url_for('inventory.settlement_order_list') }}">结算管理</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('inventory.settlement_order_list') }}">{{ _('结算管理') }}</a></li>
                             {% endif %}
                             {% if has_permission('inventory', 'view') %}
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('inventory.stock_list') }}">库存管理</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('inventory.stock_list') }}">{{ _('库存管理') }}</a></li>
                             {% endif %}
                         </ul>
                     </li>
@@ -423,22 +500,22 @@
                     <li class="nav-item d-lg-none">
                         <details>
                             <summary class="nav-link text-sm py-2 mb-0 {{ 'active' if request.endpoint and request.endpoint.startswith('user.') else '' }}" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
-                                <span>账户管理</span>
+                                <span>{{ _('账户管理') }}</span>
                                 <svg class="ms-1" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                             </summary>
                             <ul class="list-unstyled ps-3 mb-0">
-                                <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.list_users' else '' }}" href="{{ url_for('user.list_users') }}">账户列表</a></li>
-                                <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.manage_role_permissions' else '' }}" href="{{ url_for('user.manage_role_permissions') }}">权限管理</a></li>
+                                <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.list_users' else '' }}" href="{{ url_for('user.list_users') }}">{{ _('账户列表') }}</a></li>
+                                <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.manage_role_permissions' else '' }}" href="{{ url_for('user.manage_role_permissions') }}">{{ _('权限管理') }}</a></li>
                                 <li><hr class="dropdown-divider my-1"></li>
                                 <li><details>
                                     <summary class="nav-link text-sm py-2" style="display:flex;align-items:center;justify-content:space-between;">
-                                        <span>字典管理</span>
+                                        <span>{{ _('字典管理') }}</span>
                                         <svg class="ms-1" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                     </summary>
                                     <ul class="list-unstyled ps-3 mb-0">
-                                        <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.manage_roles' else '' }}" href="{{ url_for('user.manage_roles') }}">角色字典</a></li>
-                                        <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.manage_companies' else '' }}" href="{{ url_for('user.manage_companies') }}">企业字典</a></li>
-                                        <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.manage_departments' else '' }}" href="{{ url_for('user.manage_departments') }}">部门字典</a></li>
+                                        <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.manage_roles' else '' }}" href="{{ url_for('user.manage_roles') }}">{{ _('角色字典') }}</a></li>
+                                        <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.manage_companies' else '' }}" href="{{ url_for('user.manage_companies') }}">{{ _('企业字典') }}</a></li>
+                                        <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.manage_departments' else '' }}" href="{{ url_for('user.manage_departments') }}">{{ _('部门字典') }}</a></li>
                                     </ul>
                                 </details></li>
                             </ul>
@@ -449,38 +526,38 @@
                     <li class="nav-item dropdown d-none d-lg-block">
                         <a class="nav-link dropdown-toggle text-sm py-2 {{ 'active' if request.endpoint and request.endpoint.startswith('user.') else '' }}"
                            href="#" id="userManagementDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            账户管理
+                            {{ _('账户管理') }}
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="userManagementDropdown">
                             <li>
                                 <a class="dropdown-item {{ 'active' if request.endpoint == 'user.list_users' else '' }}"
                                    href="{{ url_for('user.list_users') }}">
-                                   账户列表
+                                   {{ _('账户列表') }}
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {{ 'active' if request.endpoint == 'user.manage_role_permissions' else '' }}"
                                    href="{{ url_for('user.manage_role_permissions') }}">
-                                   权限管理
+                                   {{ _('权限管理') }}
                                 </a>
                             </li>
                             <li class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ 'active' if request.endpoint == 'user.manage_roles' else '' }}"
                                    href="{{ url_for('user.manage_roles') }}">
-                                   角色字典
+                                   {{ _('角色字典') }}
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {{ 'active' if request.endpoint == 'user.manage_companies' else '' }}"
                                    href="{{ url_for('user.manage_companies') }}">
-                                   企业字典
+                                   {{ _('企业字典') }}
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {{ 'active' if request.endpoint == 'user.manage_departments' else '' }}"
                                    href="{{ url_for('user.manage_departments') }}">
-                                   部门字典
+                                   {{ _('部门字典') }}
                                 </a>
                             </li>
                         </ul>
@@ -490,55 +567,55 @@
                     <li class="nav-item d-lg-none">
                         <details>
                             <summary class="nav-link text-sm py-2 mb-0 {{ 'active' if request.endpoint and (request.endpoint.startswith('admin.') or request.endpoint.startswith('version_management.') or request.endpoint.startswith('approval_config.') or request.endpoint.startswith('notification.') or request.endpoint.startswith('change_history.') or request.endpoint.startswith('backup.')) else '' }}" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
-                                <span>系统管理</span>
+                                <span>{{ _('系统管理') }}</span>
                                 <svg class="ms-1" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                             </summary>
                             <ul class="list-unstyled ps-3 mb-0">
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('admin.system_settings') }}">系统参数设置</a></li>
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('version_management.index') }}">版本管理</a></li>
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('approval_config.template_list') }}">审批流程配置</a></li>
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('notification.center') }}">通知中心</a></li>
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('change_history.index') }}">历史记录</a></li>
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('backup.index') }}">数据库备份</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('admin.system_settings') }}">{{ _('系统参数设置') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('version_management.index') }}">{{ _('版本管理') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('approval_config.template_list') }}">{{ _('审批流程配置') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('notification.center') }}">{{ _('通知中心') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('change_history.index') }}">{{ _('历史记录') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('backup.index') }}">{{ _('数据库备份') }}</a></li>
                             </ul>
                         </details>
                     </li>
                     <li class="nav-item dropdown d-none d-lg-block">
                         <a class="nav-link dropdown-toggle text-sm py-2 {{ 'active' if request.endpoint and (request.endpoint.startswith('admin.') or request.endpoint.startswith('version_management.') or request.endpoint.startswith('approval_config.') or request.endpoint.startswith('notification.') or request.endpoint.startswith('change_history.') or request.endpoint.startswith('backup.')) else '' }}"
                            href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            系统管理
+                            {{ _('系统管理') }}
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="adminDropdown">
                             <li>
                                 <a class="dropdown-item" href="{{ url_for('admin.system_settings') }}">
-                                    系统参数设置
+                                    {{ _('系统参数设置') }}
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {{ 'active' if request.endpoint and request.endpoint.startswith('version_management.') else '' }}"
                                    href="{{ url_for('version_management.index') }}">
-                                   版本管理
+                                   {{ _('版本管理') }}
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {{ 'active' if request.endpoint and request.endpoint.startswith('approval_config.') else '' }}"
                                    href="{{ url_for('approval_config.template_list') }}">
-                                   审批流程配置
+                                   {{ _('审批流程配置') }}
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {{ 'active' if request.endpoint and request.endpoint.startswith('notification.') else '' }}" href="{{ url_for('notification.center') }}">
-                                    通知中心
+                                    {{ _('通知中心') }}
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {{ 'active' if request.endpoint and request.endpoint.startswith('change_history.') else '' }}" href="{{ url_for('change_history.index') }}">
-                                    历史记录
+                                    {{ _('历史记录') }}
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item {{ 'active' if request.endpoint and request.endpoint.startswith('backup.') else '' }}" href="{{ url_for('backup.index') }}">
-                                    数据库备份
+                                    {{ _('数据库备份') }}
                                 </a>
                             </li>
                         </ul>
@@ -546,90 +623,71 @@
                     {% endif %}
                     {% endif %}
                 </ul>
-                <!-- PC端账户logo和退出 -->
+                
+                <!-- 移动端用户账户和语言切换 - 移到菜单最后 -->
                 {% if current_user.is_authenticated or session.get('user_id') %}
-                <div class="d-none d-lg-flex align-items-center ms-auto">
-                  <div class="dropdown">
-                    <div class="user-avatar-capsule position-relative" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                      <div class="d-flex align-items-center">
-                        <span class="avatar-initial">{{ (current_user.username or session.get('username', 'U'))[0]|upper }}</span>
-                        <span class="user-name">{{current_user.username or session.get('username','用户')}}</span>
-                        <i class="fas fa-caret-down dropdown-arrow"></i>
-                      </div>
-                      {% set pending_count = get_pending_approval_count() %}
-                      {% if pending_count > 0 %}
-                      <span class="notification-badge">{{ pending_count }}</span>
-                      {% endif %}
+                <div class="d-lg-none border-top border-light-subtle mt-2 pt-2">
+                    <!-- 移动端语言切换 -->
+                    <div class="px-3 pb-2">
+                        <div class="dropdown">
+                            <button class="btn btn-link text-white p-0 w-100 text-start" type="button" id="mobileLanguageDropdown" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 0.9rem;">
+                                <i class="fas fa-globe me-2"></i>
+                                <span id="mobileCurrentLanguage">简体中文</span>
+                                <i class="fas fa-caret-down float-end mt-1"></i>
+                            </button>
+                            <ul class="dropdown-menu w-100" aria-labelledby="mobileLanguageDropdown">
+                                <li>
+                                    <a class="dropdown-item mobile-language-option" href="#" data-lang="zh_CN">
+                                        <i class="fas fa-check me-2" style="visibility: hidden;" id="mobile-check-zh_CN"></i>
+                                        简体中文
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item mobile-language-option" href="#" data-lang="en">
+                                        <i class="fas fa-check me-2" style="visibility: hidden;" id="mobile-check-en"></i>
+                                        English
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
                     </div>
-                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
-                      <li>
-                        <a class="dropdown-item" href="{{ url_for('user.profile') }}">
-                          <i class="fas fa-user-cog me-2"></i> 个人设置
-                        </a>
-                      </li>
-                      <li>
-                        <a class="dropdown-item" href="{{ url_for('notification.center') }}">
-                          <i class="fas fa-bell me-2"></i> 通知中心
-                        </a>
-                      </li>
-                      <li>
-                        <a class="dropdown-item" href="{{ url_for('approval.center') }}">
-                          <i class="fas fa-tasks me-2"></i> 审批中心
-                          {% set pending_count = get_pending_approval_count() %}
-                          {% if pending_count > 0 %}
-                          <span class="badge rounded-pill bg-danger ms-1">{{ pending_count }}</span>
-                          {% endif %}
-                        </a>
-                      </li>
-                      <li>
-                        <a class="dropdown-item" href="{{ url_for('change_history.index') }}">
-                          <i class="fas fa-history me-2"></i> 历史记录
-                        </a>
-                      </li>
-                      <li><hr class="dropdown-divider"></li>
-                      <li>
-                        <a class="dropdown-item" href="{{ url_for('auth.logout') }}">
-                          <i class="fas fa-sign-out-alt me-2"></i> 退出系统
-                        </a>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-                <!-- 移动端账户logo和退出 -->
-                <div class="d-lg-none border-top border-light-subtle mt-2 pt-2 pb-1 px-2 user-info-mobile text-white text-sm" style="font-size: 0.95rem;">
-                  <div class="d-flex align-items-center justify-content-between px-2 py-2">
-                    <div class="user-avatar-capsule-mobile">
-                      <span class="avatar-initial-mobile">{{ (current_user.username or session.get('username', 'U'))[0]|upper }}</span>
-                      <span class="user-name-mobile">{{current_user.username or session.get('username','用户')}}</span>
+                    
+                    <!-- 移动端账户头像和功能 -->
+                    <div class="border-top border-light-subtle pt-2 pb-1 px-2 user-info-mobile text-white" style="font-size: 0.95rem;">
+                        <div class="d-flex align-items-center justify-content-between px-2 py-2">
+                            <div class="user-avatar-capsule-mobile">
+                                <span class="avatar-initial-mobile">{{ (current_user.username or session.get('username', 'U'))[0]|upper }}</span>
+                                <span class="user-name-mobile">{{current_user.username or session.get('username', _('用户'))}}</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <a href="{{ url_for('user.profile') }}" class="text-white me-3" title="{{ _('个人设置') }}">
+                                    <i class="fas fa-user-cog"></i>
+                                </a>
+                                <a href="{{ url_for('notification.center') }}" class="text-white me-3 position-relative" title="{{ _('通知中心') }}">
+                                    <i class="fas fa-bell"></i>
+                                </a>
+                                <a href="{{ url_for('approval.center') }}" class="text-white me-3 position-relative" title="{{ _('审批中心') }}">
+                                    <i class="fas fa-tasks"></i>
+                                    {% set pending_count = get_pending_approval_count() %}
+                                    {% if pending_count > 0 %}
+                                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem; transform: translate(-50%, -50%);">
+                                        {{ pending_count }}
+                                        <span class="visually-hidden">{{ _('未处理审批') }}</span>
+                                    </span>
+                                    {% endif %}
+                                </a>
+                                <a href="{{ url_for('change_history.index') }}" class="text-white me-3" title="{{ _('历史记录') }}">
+                                    <i class="fas fa-history"></i>
+                                </a>
+                                <a href="{{ url_for('auth.logout') }}" class="text-white text-decoration-none" title="{{ _('退出登录') }}"><i class="fas fa-sign-out-alt"></i></a>
+                            </div>
+                        </div>
                     </div>
-                    <div class="d-flex align-items-center">
-                      <a href="{{ url_for('user.profile') }}" class="text-white me-3" title="个人设置">
-                        <i class="fas fa-user-cog"></i>
-                      </a>
-                      <a href="{{ url_for('notification.center') }}" class="text-white me-3 position-relative" title="通知中心">
-                        <i class="fas fa-bell"></i>
-                      </a>
-                      <a href="{{ url_for('approval.center') }}" class="text-white me-3 position-relative" title="审批中心">
-                        <i class="fas fa-tasks"></i>
-                        {% set pending_count = get_pending_approval_count() %}
-                        {% if pending_count > 0 %}
-                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem; transform: translate(-50%, -50%);">
-                          {{ pending_count }}
-                          <span class="visually-hidden">未处理审批</span>
-                        </span>
-                        {% endif %}
-                      </a>
-                      <a href="{{ url_for('change_history.index') }}" class="text-white me-3" title="历史记录">
-                        <i class="fas fa-history"></i>
-                      </a>
-                      <a href="{{ url_for('auth.logout') }}" class="text-white text-decoration-none text-sm"><i class="fas fa-sign-out-alt"></i></a>
-                    </div>
-                  </div>
                 </div>
                 {% endif %}
             </div>
-        </div>
-    </nav>
+        </nav>
+    </div>
     <style>
     .navbar-dark .navbar-toggler {
         border-color: transparent;
@@ -672,10 +730,38 @@
             background: none !important;
         }
     }
-    /* 主内容区顶部padding，避免菜单遮挡 */
-    body { padding-top: 80px !important; }
-    @media (max-width: 991.98px) { body { padding-top: 120px !important; } }
+    /* 主内容区顶部padding，避免菜单遮挡 - 双层导航栏需要更多空间 */
+    body { padding-top: 110px !important; }
+    @media (max-width: 991.98px) { body { padding-top: 140px !important; } }
     .main-nav.fixed-top { box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    
+    /* 系统标题响应式样式 */
+    .logo-title-wrap {
+        flex: 1;
+        min-width: 0;
+        max-width: calc(100vw - 120px);
+    }
+    
+    .logo-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 100%;
+    }
+    
+    @media (max-width: 768px) {
+        .logo-title {
+            font-size: 1.1rem !important;
+            max-width: calc(100vw - 160px);
+        }
+    }
+    
+    @media (max-width: 576px) {
+        .logo-title {
+            font-size: 1rem !important;
+            max-width: calc(100vw - 140px);
+        }
+    }
     
     /* 胶囊型用户头像样式 */
     .user-avatar-capsule {
@@ -719,28 +805,25 @@
     
     .user-avatar-capsule .dropdown-arrow {
         color: #fff;
-        font-size: 0.8rem;
-        opacity: 0.8;
-        transition: transform 0.2s ease;
+        font-size: 0.7rem;
     }
     
-    .user-avatar-capsule[aria-expanded="true"] .dropdown-arrow {
-        transform: rotate(180deg);
-    }
-    
-    .user-avatar-capsule .notification-badge {
+    /* 通知徽章 */
+    .notification-badge {
         position: absolute;
-        top: -4px;
-        right: -4px;
+        top: -2px;
+        right: -2px;
         background: #dc3545;
         color: white;
-        border-radius: 10px;
-        padding: 2px 6px;
+        border-radius: 50%;
+        width: 18px;
+        height: 18px;
         font-size: 0.65rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         font-weight: 600;
-        min-width: 18px;
-        text-align: center;
-        border: 2px solid #16a0bf;
+        border: 2px solid #000;
     }
     
     /* 移动端胶囊型头像样式 */
@@ -766,11 +849,34 @@
         color: #fff;
     }
     
-    .user-avatar-capsule-mobile .user-name-mobile {
-        color: #fff;
-        font-size: 0.85rem;
-        font-weight: 500;
-    }
+            .user-avatar-capsule-mobile .user-name-mobile {
+            color: #fff;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        
+        /* 语言切换子菜单样式 */
+        .dropdown-submenu {
+            position: relative;
+        }
+        
+        .dropdown-submenu .dropdown-menu {
+            position: absolute;
+            top: 0;
+            left: 100%;
+            margin-top: -1px;
+            display: none;
+        }
+        
+        .dropdown-submenu:hover .dropdown-menu {
+            display: block;
+        }
+        
+        .dropdown-submenu .dropdown-toggle::after {
+            transform: rotate(-90deg);
+            float: right;
+            margin-top: 8px;
+        }
     </style>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -787,11 +893,6 @@
     {% endwith %}
 
     <main class="container mb-5">
-        <style>
-        body { padding-top: 90px !important; }
-        @media (max-width: 991.98px) { body { padding-top: 120px !important; } }
-        .main-nav.fixed-top { box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
-        </style>
         {% block content %}{% endblock %}
     </main>
 
@@ -855,6 +956,12 @@
                 options.headers['X-CSRFToken'] = csrfToken;
                 return fetch(url, options);
             };
+            
+            // 语言切换功能
+            initLanguageSwitcher();
+            
+            // 移动端菜单自动收缩功能
+            initMobileMenuCollapse();
         });
 
         // 表头下拉筛选交互脚本
@@ -871,6 +978,170 @@
                 const label = item.querySelector('label');
                 const text = label.textContent.toLowerCase();
                 item.style.display = text.includes(value) ? '' : 'none';
+            });
+        }
+        
+        // 语言切换功能
+        function initLanguageSwitcher() {
+            // 获取当前语言并显示选中状态
+            fetch('/language/current')
+                .then(response => response.json())
+                .then(data => {
+                    const currentLang = data.language;
+                    
+                    // 更新桌面端语言切换器显示
+                    const mainCurrentLanguage = document.getElementById('mainCurrentLanguage');
+                    if (mainCurrentLanguage) {
+                        if (currentLang === 'en') {
+                            mainCurrentLanguage.textContent = 'English';
+                        } else {
+                            mainCurrentLanguage.textContent = '简体中文';
+                        }
+                    }
+                    
+                    // 更新移动端语言切换器显示
+                    const mobileCurrentLanguage = document.getElementById('mobileCurrentLanguage');
+                    if (mobileCurrentLanguage) {
+                        if (currentLang === 'en') {
+                            mobileCurrentLanguage.textContent = 'English';
+                        } else {
+                            mobileCurrentLanguage.textContent = '简体中文';
+                        }
+                    }
+                    
+                    // 更新桌面端选中状态图标
+                    document.querySelectorAll('.main-language-option i').forEach(icon => {
+                        icon.style.visibility = 'hidden';
+                    });
+                    const mainCheckIcon = document.getElementById(`main-check-${currentLang}`);
+                    if (mainCheckIcon) {
+                        mainCheckIcon.style.visibility = 'visible';
+                    }
+                    
+                    // 更新移动端选中状态图标
+                    document.querySelectorAll('.mobile-language-option i').forEach(icon => {
+                        icon.style.visibility = 'hidden';
+                    });
+                    const mobileCheckIcon = document.getElementById(`mobile-check-${currentLang}`);
+                    if (mobileCheckIcon) {
+                        mobileCheckIcon.style.visibility = 'visible';
+                    }
+                    
+                    // 更新用户菜单中的选中状态图标（如果存在）
+                    const checkIcon = document.getElementById(`check-${currentLang}`);
+                    if (checkIcon) {
+                        checkIcon.style.visibility = 'visible';
+                    }
+                })
+                .catch(error => console.error('获取当前语言失败:', error));
+            
+            // 绑定桌面端语言切换事件
+            document.querySelectorAll('.main-language-option').forEach(option => {
+                option.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const selectedLang = this.getAttribute('data-lang');
+                    switchLanguage(selectedLang);
+                });
+            });
+            
+            // 绑定移动端语言切换事件
+            document.querySelectorAll('.mobile-language-option').forEach(option => {
+                option.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const selectedLang = this.getAttribute('data-lang');
+                    switchLanguage(selectedLang);
+                });
+            });
+            
+            // 绑定用户菜单语言切换事件（如果存在）
+            document.querySelectorAll('.language-option').forEach(option => {
+                option.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const selectedLang = this.getAttribute('data-lang');
+                    switchLanguage(selectedLang);
+                });
+            });
+        }
+        
+        // 移动端菜单自动收缩功能
+        function initMobileMenuCollapse() {
+            // 获取所有移动端的details元素（下拉菜单）
+            const mobileMenus = document.querySelectorAll('.d-lg-none details');
+            
+            mobileMenus.forEach(menu => {
+                menu.addEventListener('toggle', function() {
+                    if (this.open) {
+                        // 如果当前菜单被打开，关闭其他所有菜单
+                        mobileMenus.forEach(otherMenu => {
+                            if (otherMenu !== this && otherMenu.open) {
+                                otherMenu.open = false;
+                            }
+                        });
+                    }
+                });
+            });
+            
+            // 点击菜单项后自动关闭移动端菜单
+            const mobileNavLinks = document.querySelectorAll('.d-lg-none .nav-link:not(summary)');
+            const navbarToggler = document.querySelector('.navbar-toggler');
+            const mainNavbar = document.getElementById('mainNavbar');
+            
+            mobileNavLinks.forEach(link => {
+                // 排除有下拉菜单的链接
+                if (!link.closest('details') || link.tagName.toLowerCase() !== 'summary') {
+                    link.addEventListener('click', function(e) {
+                        // 如果是普通链接（不是JavaScript链接），关闭移动端菜单
+                        if (this.href && !this.href.includes('javascript:') && !this.href.includes('#')) {
+                            setTimeout(() => {
+                                if (mainNavbar && mainNavbar.classList.contains('show')) {
+                                    // 触发collapse关闭
+                                    const bsCollapse = bootstrap.Collapse.getInstance(mainNavbar);
+                                    if (bsCollapse) {
+                                        bsCollapse.hide();
+                                    } else {
+                                        mainNavbar.classList.remove('show');
+                                    }
+                                }
+                            }, 100);
+                        }
+                    });
+                }
+            });
+        }
+        
+        // 统一的语言切换函数
+        function switchLanguage(selectedLang) {
+            // 获取CSRF令牌
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
+                              document.querySelector('input[name="csrf_token"]')?.value;
+            
+            if (!csrfToken) {
+                console.error('未找到CSRF令牌');
+                alert('语言切换失败：安全令牌未找到');
+                return;
+            }
+            
+            // 发送语言切换请求
+            fetch('/language/switch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ language: selectedLang })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 刷新页面以应用新语言
+                    window.location.reload();
+                } else {
+                    alert(data.message || '语言切换失败');
+                }
+            })
+            .catch(error => {
+                console.error('语言切换失败:', error);
+                alert('语言切换失败，请稍后重试');
             });
         }
     </script>

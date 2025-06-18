@@ -185,7 +185,14 @@
                             <td style="white-space:nowrap;">{{ user.real_name }}</td>
                             <td style="white-space:nowrap;"><a href="{{ url_for('user.user_detail', user_id=user.id) }}">{{ user.username }}</a></td>
                             <td style="white-space:nowrap;">{{ user.email }}</td>
-                            <td style="white-space:nowrap;">{{ company_dict.get(user.company_name, user.company_name or '-') }}</td>
+                            <td style="white-space:nowrap;">
+                                {{ company_dict.get(user.company_name, user.company_name or '-') }}
+                                {% if user.is_vendor %}
+                                <span class="badge bg-primary ms-1" title="厂商企业账户">
+                                    <i class="fas fa-industry"></i> 厂商
+                                </span>
+                                {% endif %}
+                            </td>
                             <td style="white-space:nowrap;">{{ user.department|default('-') }}</td>
                             <td style="white-space:nowrap;">
                                 {% if user.is_department_manager %}

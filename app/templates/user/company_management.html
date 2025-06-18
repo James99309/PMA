@@ -33,15 +33,25 @@
                 <form id="companyDictionaryForm" class="mb-4 d-none">
                     <input type="hidden" id="companyId" name="id" value="">
                     <div class="row g-3">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label for="companyKeyInput" class="form-label">Key（英文标识）<span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="companyKeyInput" name="key" required placeholder="如：acme_corp">
                             <small class="form-text text-muted">使用英文和下划线，如：acme_corp</small>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label for="companyValueInput" class="form-label">显示文本<span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="companyValueInput" name="value" required placeholder="如：ACME公司">
                             <small class="form-text text-muted">显示给用户的企业名称</small>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">厂商标记</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="companyVendorInput" name="is_vendor">
+                                <label class="form-check-label" for="companyVendorInput">
+                                    是厂商
+                                </label>
+                            </div>
+                            <small class="form-text text-muted">厂商账户可查看经销商信息</small>
                         </div>
                         <div class="col-md-4 d-flex align-items-end">
                             {{ render_button('保存', type='submit', color='success', extra_class='me-2', attrs='id="saveCompanyBtn"') }}
@@ -55,11 +65,12 @@
                     <table class="table table-bordered table-hover" id="companyTable">
                         <thead class="table-light">
                             <tr>
-                                <th width="8%">ID</th>
-                                <th width="25%">Key（英文标识）</th>
-                                <th width="25%">显示文本</th>
-                                <th width="12%">状态</th>
-                                <th width="30%">操作</th>
+                                <th width="6%">ID</th>
+                                <th width="20%">Key（英文标识）</th>
+                                <th width="20%">显示文本</th>
+                                <th width="10%">状态</th>
+                                <th width="10%">厂商</th>
+                                <th width="34%">操作</th>
                             </tr>
                         </thead>
                         <tbody id="companyTableBody">
@@ -67,7 +78,14 @@
                             <tr>
                                 <td>{{ company.id }}</td>
                                 <td><code>{{ company.key }}</code></td>
-                                <td>{{ company.value }}</td>
+                                <td>
+                                    {{ company.value }}
+                                    {% if company.is_vendor %}
+                                    <span class="badge bg-primary ms-1" title="厂商企业">
+                                        <i class="fas fa-industry"></i> 厂商
+                                    </span>
+                                    {% endif %}
+                                </td>
                                 <td>
                                     {% if company.is_active %}
                                     <span class="badge bg-success">启用</span>
@@ -76,7 +94,18 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <button class="btn btn-sm btn-info me-1 edit-company-btn" data-id="{{ company.id }}" data-key="{{ company.key }}" data-value="{{ company.value }}">
+                                    {% if company.is_vendor %}
+                                    <span class="badge bg-primary">是</span>
+                                    {% else %}
+                                    <span class="badge bg-light text-dark">否</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-info me-1 edit-company-btn" 
+                                            data-id="{{ company.id }}" 
+                                            data-key="{{ company.key }}" 
+                                            data-value="{{ company.value }}"
+                                            data-vendor="{{ company.is_vendor|default(false)|tojson }}">
                                         <i class="fas fa-edit"></i> 编辑
                                     </button>
                                     <button class="btn btn-sm btn-warning me-1 toggle-company-btn" data-id="{{ company.id }}" data-status="{{ company.is_active }}">
@@ -149,12 +178,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const companyId = this.getAttribute('data-id');
             const companyKey = this.getAttribute('data-key');
             const companyValue = this.getAttribute('data-value');
+            const companyVendor = this.getAttribute('data-vendor');
             
             // 填充表单
             companyIdInput.value = companyId;
             companyKeyInput.value = companyKey;
             companyKeyInput.readOnly = true; // 编辑时不允许修改key
             companyValueInput.value = companyValue;
+            document.getElementById('companyVendorInput').checked = companyVendor === 'true';
             
             // 显示表单
             companyForm.classList.remove('d-none');
@@ -196,7 +227,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const formData = {
             id: companyIdInput.value,
             key: companyKeyInput.value,
-            value: companyValueInput.value
+            value: companyValueInput.value,
+            is_vendor: document.getElementById('companyVendorInput').checked
         };
         
         // 发送请求到后端

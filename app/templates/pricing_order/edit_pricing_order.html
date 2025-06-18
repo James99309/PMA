@@ -7,6 +7,33 @@
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <!-- 引入审批时间线样式 -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
+
+<!-- 折扣权限检查样式 -->
+<style>
+.discount-warning {
+    background-color: #dc3545 !important;
+    color: white !important;
+    border-color: #dc3545 !important;
+}
+
+.discount-warning:focus {
+    background-color: #dc3545 !important;
+    color: white !important;
+    border-color: #dc3545 !important;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
+}
+
+.discount-info {
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+
+.discount-limit-info {
+    color: #6c757d;
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+}
+</style>
 {% endblock %}
 
 {% block content %}
@@ -29,11 +56,43 @@
                         {% endif %}
                     </div>
                 </div>
-                {% if pricing_order.created_by == current_user.id and pricing_order.status == 'draft' %}
-                <div>
-                    {{ render_button('删除批价单', color='danger', icon='fas fa-trash', type='button', attrs='data-bs-toggle="modal" data-bs-target="#deletePricingOrderModal"') }}
+                <div class="d-flex gap-2">
+                    {% if pricing_order.created_by == current_user.id and pricing_order.status == 'draft' %}
+                        {{ render_button('删除批价单', color='danger', icon='fas fa-trash', type='button', attrs='data-bs-toggle="modal" data-bs-target="#deletePricingOrderModal"') }}
+                    {% endif %}
+                    
+                    <!-- PDF导出按钮 - 仅在审批通过后且有权限时显示 -->
+                    {% if pricing_order.status == 'approved' %}
+                        {% set can_export_pricing = (current_user.role in ['admin', 'business_admin', 'finance_director']) or (pricing_order.created_by == current_user.id) or (pricing_order.project and pricing_order.project.vendor_sales_manager_id == current_user.id) %}
+                        {% set can_export_settlement = current_user.role in ['admin', 'business_admin', 'finance_director'] %}
+                        
+                        {% if can_export_pricing or can_export_settlement %}
+                        <div class="dropdown">
+                            {{ render_button('PDF导出', color='outline-primary', icon='fas fa-file-pdf', type='button', size='sm', extra_class='dropdown-toggle', attrs='data-bs-toggle="dropdown" aria-expanded="false"') }}
+                            <ul class="dropdown-menu">
+                                {% if can_export_pricing %}
+                                <li>
+                                    <a class="dropdown-item" 
+                                       href="{{ url_for('pricing_order.export_pdf', order_id=pricing_order.id, pdf_type='pricing') }}" 
+                                       target="_blank">
+                                        <i class="fas fa-file-pdf text-primary me-2"></i>批价单PDF
+                                    </a>
+                                </li>
+                                {% endif %}
+                                {% if can_export_settlement %}
+                                <li>
+                                    <a class="dropdown-item" 
+                                       href="{{ url_for('pricing_order.export_pdf', order_id=pricing_order.id, pdf_type='settlement') }}" 
+                                       target="_blank">
+                                        <i class="fas fa-file-pdf text-success me-2"></i>结算单PDF
+                                    </a>
+                                </li>
+                                {% endif %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                    {% endif %}
                 </div>
-                {% endif %}
             </div>
         </div>
     </div>
@@ -180,7 +239,7 @@
                                         <th class="price-column">单价</th>
                                         <th style="min-width: 70px;">数量</th>
                                         <th class="price-column">小计</th>
-                                        <th style="min-width: 130px;">MN</th>
+                                        <th class="mn-column">MN</th>
                                     {% if can_edit_pricing %}
                                         <th class="action-column" style="min-width: 50px;">操作</th>
                                     {% endif %}
@@ -224,9 +283,7 @@
                                             <input type="text" class="form-control product-brand" 
                                                    value="{{ detail.brand or '' }}" readonly>
                                             {% else %}
-                                        <span class="badge badge-{% if detail.brand == '和源通信' %}primary{% else %}secondary{% endif %}">
-                                            {{ detail.brand or '-' }}
-                                        </span>
+                                        {{ detail.brand or '-' }}
                                             {% endif %}
                                     </td>
                                     <td>
@@ -410,9 +467,7 @@
                                         <input type="text" class="mobile-card-input product-brand" 
                                                value="{{ detail.brand or '' }}" readonly>
                                         {% else %}
-                                        <span class="mobile-badge {% if detail.brand == '和源通信' %}badge-brand{% endif %}">
-                                            {{ detail.brand or '-' }}
-                                        </span>
+                                        {{ detail.brand or '-' }}
                                         {% endif %}
                                     </div>
                                 </div>
@@ -594,7 +649,7 @@
                                         <th class="price-column">单价</th>
                                         <th style="min-width: 70px;">数量</th>
                                         <th class="price-column">小计</th>
-                                        <th style="min-width: 130px;">MN</th>
+                                        <th class="mn-column">MN</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -634,9 +689,7 @@
                                             <input type="text" class="form-control product-brand" 
                                                    value="{{ detail.brand or '' }}" readonly>
                                             {% else %}
-                                        <span class="badge badge-{% if detail.brand == '和源通信' %}primary{% else %}secondary{% endif %}">
-                                            {{ detail.brand or '-' }}
-                                        </span>
+                                        {{ detail.brand or '-' }}
                                             {% endif %}
                                     </td>
                                     <td>
@@ -739,9 +792,7 @@
                                         <input type="text" class="mobile-card-input product-brand" 
                                                value="{{ detail.brand or '' }}" readonly>
                                         {% else %}
-                                        <span class="mobile-badge {% if detail.brand == '和源通信' %}badge-brand{% endif %}">
-                                            {{ detail.brand or '-' }}
-                                        </span>
+                                        {{ detail.brand or '-' }}
                                         {% endif %}
                                     </div>
                                 </div>
@@ -932,22 +983,52 @@
             <div class="approval-workflow">
                 <div class="timeline">
                     {% set visible_records = pricing_order.approval_records|selectattr('action', '!=', 'recall')|list|sort(attribute='step_order') %}
+                    
+                    <!-- 流程发起节点（第0步） -->
+                    <div class="timeline-item">
+                        <div class="timeline-marker bg-info"></div>
+                        <div class="timeline-content">
+                            <div class="d-flex justify-content-between">
+                                <h6 class="timeline-title">
+                                    流程发起
+                                    {% if step_discount_statuses.get(0, {}).get('has_violation', False) %}
+                                        <span class="badge bg-danger ms-2" title="发起人权限不足，存在折扣超出">
+                                            <i class="fas fa-exclamation-triangle"></i> 权限超出
+                                        </span>
+                                    {% endif %}
+                                </h6>
+                                <span class="badge bg-info">已发起</span>
+                            </div>
+                            <p class="standard-font mb-1">
+                                发起人: <strong>{{ pricing_order.creator.real_name or pricing_order.creator.username }}</strong>
+                            </p>
+                            <p class="text-muted standard-font">
+                                发起时间: {{ format_datetime(pricing_order.created_at) }}
+                            </p>
+                            {% if step_discount_statuses.get(0, {}).get('has_violation', False) %}
+                                <div class="mt-2 p-2 bg-danger-light rounded">
+                                    <small class="text-danger">
+                                        <i class="fas fa-exclamation-triangle me-1"></i>
+                                        发起人设置的折扣率低于其权限下限，需要审批人关注
+                                    </small>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
                     {% for record in visible_records %}
                         <div class="timeline-item">
-                            <div class="timeline-marker 
-                                {% if record.action == 'approve' %}
-                                    bg-success
-                                {% elif record.action == 'reject' %}
-                                    bg-danger
-                                {% elif record.step_order == pricing_order.current_approval_step and pricing_order.status == 'pending' %}
-                                    bg-warning
-                                {% else %}
-                                    bg-secondary
-                                {% endif %}
-                            "></div>
+                            <div class="timeline-marker{% if record.action == 'approve' %} bg-success{% elif record.action == 'reject' %} bg-danger{% elif record.step_order == pricing_order.current_approval_step and pricing_order.status == 'pending' %} bg-warning{% else %} bg-secondary{% endif %}"></div>
                             <div class="timeline-content">
                                 <div class="d-flex justify-content-between">
-                                    <h6 class="timeline-title">步骤 {{ record.step_order }}: {{ record.step_name }}</h6>
+                                    <h6 class="timeline-title">
+                                        步骤 {{ record.step_order }}: {{ record.step_name }}
+                                        {% if step_discount_statuses.get(record.step_order, {}).get('has_violation', False) %}
+                                            <span class="badge bg-danger ms-2" title="审批人权限不足，存在折扣超出">
+                                                <i class="fas fa-exclamation-triangle"></i> 权限超出
+                                            </span>
+                                        {% endif %}
+                                    </h6>
                                     {% if record.step_order == pricing_order.current_approval_step and pricing_order.status == 'pending' %}
                                         <span class="badge bg-warning">当前步骤</span>
                                     {% elif record.action == 'approve' %}
@@ -1061,7 +1142,38 @@
                         {{ render_button('召回批价单', type='button', color='warning', icon='fas fa-undo', attrs='id="recallPricingOrderBtn" data-bs-toggle="modal" data-bs-target="#recallPricingOrderModal"') }}
                     </div>
                 </div>
+                {% elif pricing_order.status == 'rejected' %}
+                <!-- 被拒绝状态：显示重新发起审批按钮 -->
+                <div class="submit-approval-section">
+                    <div class="alert alert-danger">
+                        <i class="fas fa-times-circle"></i>
+                        批价单审批已被拒绝，您可以修改后重新发起审批。
+                    </div>
+                    <div class="action-buttons">
+                        {{ render_button('保存批价单', type='button', color='primary', icon='fas fa-save', attrs='id="savePricingOrderBtn"') }}
+                        {{ render_button('重新发起审批', type='button', color='info', icon='fas fa-redo', attrs='id="resubmitApprovalBtn"') }}
+                    </div>
+                </div>
                 {% endif %}
+            {% endif %}
+            
+
+            
+            <!-- 管理员退回按钮 - 只有管理员或CEO可以看到，且仅限于已通过的批价单 -->
+            {% if is_admin_or_ceo and pricing_order.status == 'approved' %}
+            <div class="submit-approval-section">
+                <div class="alert alert-secondary">
+                    <i class="fas fa-shield-alt me-2"></i>
+                    <strong>管理员操作区域</strong>
+                    <br>当前批价单已通过审批，您可以将其退回到草稿状态重新审批。
+                </div>
+                <div class="action-buttons">
+                    <button type="button" class="btn btn-warning" onclick="showAdminRollbackModal()">
+                        <i class="fas fa-undo me-2"></i>退回审批
+                    </button>
+                    <small class="text-muted ms-2">管理员权限：将已通过的批价单退回到草稿状态（清除所有审批记录）</small>
+                </div>
+            </div>
             {% endif %}
         </div>
     </div>
@@ -1124,6 +1236,51 @@
     </div>
 </div>
 
+<!-- 管理员退回确认模态框 -->
+{% if is_admin_or_ceo and pricing_order.status == 'approved' %}
+<div class="modal fade" id="adminRollbackModal" tabindex="-1" aria-labelledby="adminRollbackModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="adminRollbackModalLabel">
+                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                    确认退回批价单审批
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-shield-alt me-2"></i>
+                    <strong>管理员操作</strong>：您即将将已通过的批价单审批退回到草稿状态
+                </div>
+                <p>确定要退回批价单 <strong>{{ pricing_order.order_number }}</strong> 的审批吗？</p>
+                <p class="text-danger">
+                    <i class="fas fa-exclamation-circle me-1"></i>
+                    <strong>注意：</strong>此操作将：
+                </p>
+                <ul class="text-danger">
+                    <li>将批价单状态重置为草稿</li>
+                    <li>清除所有审批记录（不留痕迹）</li>
+                    <li>解锁相关的项目和报价单</li>
+                    <li>需要重新提交审批</li>
+                </ul>
+                
+                <div class="mb-3">
+                    <label for="adminRollbackReason" class="form-label">退回原因（可选）：</label>
+                    <textarea class="form-control" id="adminRollbackReason" rows="3" placeholder="请说明退回原因..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-warning" onclick="confirmAdminRollback()">
+                    <i class="fas fa-undo me-2"></i>确认退回
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- 审批确认模态框 -->
 <div class="modal fade" id="approvalModal" tabindex="-1" aria-labelledby="approvalModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -1176,13 +1333,9 @@
     padding: 0.4rem 0.5rem;
 }
 
-/* 固定操作列样式 */
+/* 操作列样式 - 取消固定，允许和其他列一起滚动 */
 .action-column,
 .table td:last-child {
-    position: sticky;
-    right: 0;
-    background-color: #fff;
-    z-index: 1;
     width: 60px;
     min-width: 60px;
     text-align: center;
@@ -1191,6 +1344,12 @@
 
 .action-column {
     background-color: #f8f9fa;
+}
+
+/* MN列样式，确保有足够的宽度 */
+.mn-column {
+    min-width: 130px;
+    max-width: 160px;
 }
 
 /* 输入框样式优化 */
@@ -1730,6 +1889,7 @@ input[type="number"].discount-rate {
 <script>
 // 设置全局变量
 const PRICING_ORDER_ID = "{{ pricing_order.id }}";
+const PRICING_ORDER_STATUS = "{{ pricing_order.status }}";
 
 // 更新基本信息（前端缓存）
 function updateBasicInfo(field, value) {
@@ -2130,14 +2290,17 @@ function updateTotalDiscount(tabType, value) {
         }
     });
     
-    // 重新计算并更新总金额
-    updateTableTotals();
+    // 重新计算并更新总金额（用户调整总折扣率时需要重新计算）
+    updateTableTotals(true);
+    
+    // 🔥 关键修复：完全移除自动保存逻辑，只做前端计算，不自动保存到数据库
+    console.log(`总折扣率 ${value}% 已在前端计算完成，不自动保存到数据库。需要手动保存或审批通过时保存。`);
     
     console.log(`总折扣率已更新为 ${value}%，所有明细已重新计算`);
 }
 
 // 计算并更新总折扣率（基于明细折扣率的加权平均）
-function calculateAndUpdateTotalDiscountRate(tabType) {
+function calculateAndUpdateTotalDiscountRate(tabType, shouldUpdateDisplay = true) {
     const tableId = tabType === 'pricing' ? '#pricingTable' : '#settlementTable';
     const totalDiscountInputId = tabType === 'pricing' ? '#pricingTotalDiscount' : '#settlementTotalDiscount';
     
@@ -2172,10 +2335,19 @@ function calculateAndUpdateTotalDiscountRate(tabType) {
         averageDiscountRate = (totalDiscountedValue / totalMarketValue) * 100;
     }
     
-    // 更新总折扣率输入框（保留一位小数）
-    $(totalDiscountInputId).val(averageDiscountRate.toFixed(1));
-    
-    console.log(`${tabType}表格总折扣率已更新为: ${averageDiscountRate.toFixed(1)}% (基于${validRowCount}行数据)`);
+    // 只在需要更新显示时才更新（用户编辑时）
+    if (shouldUpdateDisplay) {
+        $(totalDiscountInputId).val(averageDiscountRate.toFixed(1));
+        console.log(`${tabType}表格总折扣率已更新为: ${averageDiscountRate.toFixed(1)}% (基于${validRowCount}行数据)`);
+        
+        // 更新后检查总折扣率权限
+        const totalDiscountInput = document.querySelector(totalDiscountInputId);
+        if (totalDiscountInput && typeof checkDiscountPermission === 'function') {
+            checkDiscountPermission(totalDiscountInput);
+        }
+    } else {
+        console.log(`${tabType}表格总折扣率计算完成但未更新显示: ${averageDiscountRate.toFixed(1)}% (保持数据库值)`);
+    }
     
     return averageDiscountRate;
 }
@@ -2312,8 +2484,8 @@ function calculateRowValues(row, triggerType) {
         row.find('td:nth-child(8)').text('¥' + subtotal.toLocaleString('zh-CN', {minimumFractionDigits: 2}));
     }
     
-    // 重新计算总额
-    updateTableTotals();
+    // 重新计算总额（用户编辑时需要重新计算）
+    updateTableTotals(true);
     
     // 添加调试信息
     console.log(`计算更新 - 类型: ${triggerType}, 数量: ${quantity}, 单价: ${unitPrice}, 小计: ${subtotal}`);
@@ -2421,9 +2593,17 @@ function initializeExistingRows() {
 }
 
 // 更新表格总额 (总价 = 所有行小计之和)
-function updateTableTotals() {
+function updateTableTotals(forceRecalculate = false) {
     try {
-        console.log('更新表格总额');
+        console.log('更新表格总额, 强制重新计算:', forceRecalculate);
+        
+        // 如果不是强制重新计算，则跳过（保持数据库中的值）
+        if (!forceRecalculate) {
+            console.log('跳过总金额重新计算，保持数据库中的值');
+            // 仍然更新分销利润，因为它基于显示的总金额
+            updateDistributionProfit();
+            return;
+        }
         
         // 计算批价单总额
         let pricingTotal = 0;
@@ -2602,9 +2782,12 @@ $(document).ready(function() {
         // 重新计算小计和总价
         calculateSubtotal($row);
         
-        // 根据明细折扣率重新计算总折扣率
+        // 用户编辑时需要重新计算总金额
+        updateTableTotals(true);
+        
+        // 根据明细折扣率重新计算总折扣率（用户编辑时才更新显示）
         const tabType = $row.closest('#pricingTable').length > 0 ? 'pricing' : 'settlement';
-        calculateAndUpdateTotalDiscountRate(tabType);
+        calculateAndUpdateTotalDiscountRate(tabType, true);
         
         console.log('=== 折扣率变更调试结束 ===');
     });
@@ -2638,9 +2821,12 @@ $(document).ready(function() {
                 // 重新计算小计和总价
                 calculateSubtotal($row);
                 
-                // 根据明细折扣率重新计算总折扣率
+                // 用户编辑时需要重新计算总金额
+                updateTableTotals(true);
+                
+                // 根据明细折扣率重新计算总折扣率（用户编辑时才更新显示）
                 const tabType = $row.closest('#pricingTable').length > 0 ? 'pricing' : 'settlement';
-                calculateAndUpdateTotalDiscountRate(tabType);
+                calculateAndUpdateTotalDiscountRate(tabType, true);
             }
         }
     });
@@ -2668,6 +2854,9 @@ $(document).ready(function() {
         console.log('数量变化: 数量=', quantity);
         // 重新计算小计和总价
         calculateSubtotal($row);
+        
+        // 用户编辑时需要重新计算总金额
+        updateTableTotals(true);
     });
     
     // 删除产品按钮事件
@@ -2679,7 +2868,7 @@ $(document).ready(function() {
             // 如果没有detailId，说明是新添加的行，直接删除
             if ($('#pricingTable tbody tr').length > 1 || $('#settlementTable tbody tr').length > 1) {
                 $(this).closest('tr').remove();
-                updateTableTotals();
+                updateTableTotals(true); // 删除行后需要重新计算
             }
         }
     });
@@ -2693,6 +2882,11 @@ $(document).ready(function() {
 
     $('#submitApprovalBtn').on('click', function() {
         submitForApproval();
+    });
+    
+    // 绑定重新发起审批按钮
+    $('#resubmitApprovalBtn').on('click', function() {
+        resubmitForApproval();
     });
 
     // 页面加载时初始化已有行的数据
@@ -3290,8 +3484,8 @@ function calculateMobileRowValues($element, triggerType) {
         }
     }
     
-    // 更新总额显示
-    updateTableTotals();
+    // 更新总额显示（用户编辑时需要重新计算）
+    updateTableTotals(true);
     
     console.log(`移动端计算完成 - 类型: ${triggerType}, 数量: ${quantity}, 单价: ${unitPrice.toFixed(2)}, 小计: ${subtotal.toFixed(2)}`);
 }
@@ -3336,10 +3530,20 @@ function confirmApproval() {
     // 同步审批意见回主表单
     document.getElementById('approvalComment').value = comment;
     
+    // 🔥 关键修复：如果是通过审批，需要传递当前的结算单数据确保用户修改的折扣率被保存
     const data = {
         action: currentApprovalAction,
         comment: comment
     };
+    
+    // 如果是通过审批，收集当前的数据（特别是结算单数据）
+    if (currentApprovalAction === 'approve') {
+        console.log('审批通过，收集当前结算单数据...');
+        data.basic_info = window.pricingOrderCache || {};
+        data.pricing_details = collectPricingDetails();
+        data.settlement_details = collectSettlementDetails();
+        console.log('审批时传递的数据:', data);
+    }
     
     // 显示处理中状态
     const confirmBtn = document.getElementById('confirmApprovalBtn');
@@ -3617,6 +3821,71 @@ function submitForApproval() {
     });
 }
 
+// 重新发起审批函数
+function resubmitForApproval() {
+    // 验证渠道信息
+    const validationResult = validateChannelInfo();
+    if (!validationResult.valid) {
+        showChannelValidationAlert(validationResult);
+        return;
+    }
+    
+    if (!confirm('确定要重新发起审批吗？这将清除之前的审批记录并开始新的审批流程。')) {
+        return;
+    }
+    
+    console.log('开始重新发起审批...');
+    
+    // 收集所有数据
+    const submitData = {
+        basic_info: window.pricingOrderCache || {},
+        pricing_details: collectPricingDetails()
+    };
+    
+    console.log('重新提交数据:', submitData);
+    
+    // 简单验证
+    if (submitData.pricing_details.length === 0) {
+        showAlert('error', '请至少添加一个产品明细');
+        return;
+    }
+    
+    // 显示提交中状态
+    const $submitBtn = $('#resubmitApprovalBtn');
+    const originalText = $submitBtn.html();
+    $submitBtn.html('<i class="fas fa-spinner fa-spin"></i> 重新提交中...').prop('disabled', true);
+    
+    fetch(`/pricing_order/${PRICING_ORDER_ID}/save_and_submit`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(submitData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', '批价单已重新提交审批！');
+            // 清空缓存
+            window.pricingOrderCache = {};
+            // 延迟跳转到审批中心
+            setTimeout(() => {
+                window.location.href = '/approval/center?tab=created&object_type=pricing_order';
+            }, 1500);
+        } else {
+            showAlert('error', data.message || '重新提交审批失败');
+            // 恢复按钮状态
+            $submitBtn.html(originalText).prop('disabled', false);
+        }
+    })
+    .catch(error => {
+        console.error('重新提交审批错误:', error);
+        showAlert('error', '重新提交审批失败，请稍后重试');
+        // 恢复按钮状态
+        $submitBtn.html(originalText).prop('disabled', false);
+    });
+}
+
 // 召回批价单函数
 function confirmRecallPricingOrder() {
     const reason = document.getElementById('recallReason').value;
@@ -3692,6 +3961,62 @@ function confirmDeletePricingOrder() {
         showAlert('error', '删除失败，请稍后重试');
     });
 }
+
+// 管理员退回批价单功能
+{% if is_admin_or_ceo and pricing_order.status == 'approved' %}
+function showAdminRollbackModal() {
+    const modal = new bootstrap.Modal(document.getElementById('adminRollbackModal'));
+    modal.show();
+}
+
+function confirmAdminRollback() {
+    const reason = document.getElementById('adminRollbackReason').value;
+    const button = document.querySelector('#adminRollbackModal .btn-warning');
+    const originalText = button.innerHTML;
+    
+    // 显示处理中状态
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>处理中...';
+    button.disabled = true;
+    
+    fetch(`/pricing_order/${PRICING_ORDER_ID}/admin_rollback`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            reason: reason
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 关闭模态框
+            const modal = bootstrap.Modal.getInstance(document.getElementById('adminRollbackModal'));
+            modal.hide();
+            
+            // 显示成功消息
+            showAlert('success', '批价单审批已成功退回！');
+            
+            // 延迟刷新页面显示新状态
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+        } else {
+            showAlert('error', '退回失败: ' + (data.message || '未知错误'));
+            // 恢复按钮状态
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error('退回失败:', error);
+        showAlert('error', '退回失败，请稍后重试');
+        // 恢复按钮状态
+        button.innerHTML = originalText;
+        button.disabled = false;
+    });
+}
+{% endif %}
 </script>
 
 <!-- 初始化数据 -->
@@ -3701,6 +4026,17 @@ window.pricingOrderCache = {
     distributor_id: null,
     dealer_id: null
 };
+
+// 折扣权限配置
+window.discountLimits = {
+    pricing_discount_limit: {{ discount_limits.pricing_discount_limit|default('null') }},
+    settlement_discount_limit: {{ discount_limits.settlement_discount_limit|default('null') }}
+};
+
+// 调试信息
+console.log('设置window.discountLimits:', window.discountLimits);
+console.log('模板discount_limits变量是否存在:', '{% if discount_limits %}true{% else %}false{% endif %}');
+console.log('模板中的原始discount_limits:', '{{ discount_limits }}');
 
 // 初始化Bootstrap页签切换
 document.addEventListener('DOMContentLoaded', function() {
@@ -3718,10 +4054,23 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初始化开关状态
     initializeSwitches();
     
-    // 初始化分销利润计算
+    // 初始化已有行的数据（重要：确保data-raw-value正确设置）
+    initializeExistingRows();
+    
+    // 页面加载时重新计算总折扣率（基于明细数据），但不重新计算总金额
+    calculateAndUpdateTotalDiscountRate('pricing', true);
+    calculateAndUpdateTotalDiscountRate('settlement', true);
+    
+    // 页面加载时不重新计算总金额，直接使用数据库中的值
+    // updateTableTotals(); // 注释掉这行，避免页面加载时重新计算总金额
+    
+    // 初始化分销利润计算（基于数据库中的总金额）
     updateDistributionProfit();
     
-    console.log('页签初始化完成');
+    // 初始化折扣权限检查
+    initializeDiscountPermissionCheck();
+    
+    console.log('页签初始化完成，总折扣率已重新计算，总金额使用数据库值');
 });
 
 // 移动端卡片展开/收起功能
@@ -3744,5 +4093,98 @@ function toggleMobileDetails(button) {
 }
 
 // 移动端事件绑定已整合到主$(document).ready函数中
+
+// 折扣权限检查函数
+function initializeDiscountPermissionCheck() {
+    // 为所有折扣率输入框添加事件监听
+    const discountInputs = document.querySelectorAll('input.discount-rate, input[id$="TotalDiscount"]');
+    
+    discountInputs.forEach(input => {
+        // 为每个输入框添加输入事件
+        input.addEventListener('input', function() {
+            checkDiscountPermissionWithLinkage(this);
+        });
+        
+        // 页面加载时检查一次
+        checkDiscountPermission(input);
+    });
+}
+
+// 带联动检查的折扣权限检查函数
+function checkDiscountPermissionWithLinkage(inputElement) {
+    // 先检查当前输入框
+    checkDiscountPermission(inputElement);
+    
+    // 判断是明细折扣率还是总折扣率
+    const isTotalDiscountInput = inputElement.id && inputElement.id.includes('TotalDiscount');
+    
+    if (isTotalDiscountInput) {
+        // 总折扣率变化，检查所有明细折扣率
+        const orderType = inputElement.id.includes('pricing') ? 'pricing' : 'settlement';
+        const tableId = orderType === 'pricing' ? '#pricingTable' : '#settlementTable';
+        
+        // 检查当前页签的所有明细折扣率
+        document.querySelectorAll(`${tableId} input.discount-rate`).forEach(detailInput => {
+            checkDiscountPermission(detailInput);
+        });
+        
+        console.log(`总折扣率变化，已联动检查${orderType}表格所有明细折扣率权限`);
+    } else {
+        // 明细折扣率变化，重新计算并检查总折扣率
+        const orderType = inputElement.closest('#pricing-content') ? 'pricing' : 'settlement';
+        
+        // 延迟一点执行，确保总折扣率已经重新计算
+        setTimeout(() => {
+            const totalDiscountInputId = orderType === 'pricing' ? '#pricingTotalDiscount' : '#settlementTotalDiscount';
+            const totalDiscountInput = document.querySelector(totalDiscountInputId);
+            
+            if (totalDiscountInput) {
+                checkDiscountPermission(totalDiscountInput);
+                console.log(`明细折扣率变化，已联动检查${orderType}总折扣率权限`);
+            }
+        }, 100);
+    }
+}
+
+// 检查单个输入框的折扣权限
+function checkDiscountPermission(inputElement) {
+    if (!inputElement || !window.discountLimits) return;
+    
+    const discountRate = parseFloat(inputElement.value);
+    if (isNaN(discountRate) || discountRate === '') {
+        // 清除警告样式
+        inputElement.classList.remove('discount-warning');
+        return;
+    }
+    
+    // 判断是批价单还是结算单
+    const orderType = inputElement.closest('#pricing-content') ? 'pricing' : 'settlement';
+    const limit = orderType === 'pricing' ? 
+        window.discountLimits.pricing_discount_limit : 
+        window.discountLimits.settlement_discount_limit;
+    
+    // 如果没有设置权限下限，则不检查
+    if (limit === null || limit === undefined) {
+        inputElement.classList.remove('discount-warning');
+        return;
+    }
+    
+    // 检查是否超出权限（折扣率低于下限）
+    if (discountRate < limit) {
+        // 超出权限，显示红色警告
+        inputElement.classList.add('discount-warning');
+    } else {
+        // 权限范围内，移除警告样式
+        inputElement.classList.remove('discount-warning');
+    }
+}
+
+// 批量检查所有折扣率（支持联动）
+function checkAllDiscountRates() {
+    const discountInputs = document.querySelectorAll('input.discount-rate, input[id$="TotalDiscount"]');
+    discountInputs.forEach(input => {
+        checkDiscountPermission(input);
+    });
+}
 </script>
 {% endblock %} 

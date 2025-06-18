@@ -1515,7 +1515,8 @@ def view_quotation(id):
         from app.models.user import User
         all_users = []
         if can_change_quotation_owner(current_user, quotation):
-            if current_user.role == 'admin':
+            from app.permissions import is_admin_or_ceo
+            if is_admin_or_ceo():
                 all_users = User.query.all()
             elif getattr(current_user, 'is_department_manager', False) or current_user.role == 'sales_director':
                 # 部门负责人只能在本部门进行转移
@@ -1534,7 +1535,7 @@ def view_quotation(id):
         from app.utils.user_helpers import generate_user_tree_data
         user_tree_data = None
         if has_change_owner_permission:
-            filter_by_dept = current_user.role != 'admin'
+            filter_by_dept = not is_admin_or_ceo()
             user_tree_data = generate_user_tree_data(filter_by_department=filter_by_dept)
         
         # 获取审批实例信息
@@ -1546,6 +1547,11 @@ def view_quotation(id):
             current_approval_step = get_current_step_info(approval_instance)
             can_current_user_approve = can_user_approve(approval_instance.id, current_user.id)
             
+        # 检查具体权限
+        can_edit_this_quotation = can_edit_data(quotation, current_user)
+        from app.utils.access_control import can_delete_quotation
+        can_delete_this_quotation = can_delete_quotation(current_user, quotation)
+        
         return render_template('quotation/detail.html', 
                              quotation=quotation, 
                              all_users=all_users, 
@@ -1553,7 +1559,9 @@ def view_quotation(id):
                              user_tree_data=user_tree_data,
                              approval_instance=approval_instance,
                              current_approval_step=current_approval_step,
-                             can_current_user_approve=can_current_user_approve)
+                             can_current_user_approve=can_current_user_approve,
+                             can_edit_this_quotation=can_edit_this_quotation,
+                             can_delete_this_quotation=can_delete_this_quotation)
     except Exception as e:
         flash(f'加载报价单详情失败：{str(e)}', 'danger')
         return redirect(url_for('quotation.list_quotations'))

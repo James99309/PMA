@@ -4,7 +4,7 @@
 {% from 'macros/approval_macros.html' import render_approval_timeline, render_approval_form, render_start_approval_button, render_approval_section %}
 {% from 'macros/ui_modals.html' import render_change_project_owner_modal %}
 
-{% block title %}项目详情{% endblock %}
+{% block title %}{{ _('项目详情') }}{% endblock %}
 
 {% block head %}
 <!-- 引入项目阶段进度条样式 -->
@@ -65,19 +65,19 @@
                             </div>
                             {% endif %}
                             <!-- 查看评分详情按钮 - 对所有用户开放 -->
-                            <button type="button" class="btn btn-link btn-sm p-0 ms-2" onclick="showScoringDetails()" title="查看评分详情">
+                            <button type="button" class="btn btn-link btn-sm p-0 ms-2" onclick="showScoringDetails()" title="{{ _('查看评分详情') }}">
                                 <i class="fas fa-info-circle text-muted"></i>
                             </button>
                         </div>
                     </div>
                 </div>
                 <div class="d-flex flex-wrap align-items-center gap-2 flex-shrink-0">
-                    {{ ui.render_button('返回列表', href=url_for('project.list_projects'), color='secondary') }}
+                    {{ ui.render_button(_('返回列表'), href=url_for('project.list_projects'), color='secondary') }}
                     {% if current_stage_key != 'signed' and current_user.has_permission('project', 'edit') and (current_user.role == 'admin' or current_user.id == project.owner_id) and (not project.is_locked or current_user.role == 'admin') %}
-                        {{ ui.render_button('编辑项目', href=url_for('project.edit_project', project_id=project.id), color='primary') }}
+                        {{ ui.render_button(_('编辑项目'), href=url_for('project.edit_project', project_id=project.id), color='primary') }}
                     {% endif %}
                     {% if current_stage_key != 'signed' and current_user.has_permission('project', 'delete') and (current_user.role == 'admin' or current_user.id == project.owner_id) and (not project.is_locked or current_user.role == 'admin') %}
-                        {{ ui.render_button('删除项目', type='button', color='danger', attrs='onclick="confirmDeleteProject(' ~ project.id ~ ')"') }}
+                        {{ ui.render_button(_('删除项目'), type='button', color='danger', attrs='onclick="confirmDeleteProject(' ~ project.id ~ ')"') }}
                     {% endif %}
                 </div>
             </div>
@@ -89,7 +89,7 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header bg-light">
-                    <h5 class="card-title mb-0">项目阶段跟踪</h5>
+                    <h5 class="card-title mb-0">{{ _('项目阶段跟踪') }}</h5>
                 </div>
                 <div class="card-body">
                     <div id="projectStageProgress"></div>
@@ -105,29 +105,29 @@
             <!-- 项目基本信息卡片 -->
             <div class="card mb-3">
                 <div class="card-header bg-light">
-                    <h5 class="card-title mb-0">项目基本信息</h5>
+                    <h5 class="card-title mb-0">{{ _('项目基本信息') }}</h5>
                 </div>
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-6">
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>项目名称：</strong></div>
+                                <div class="col-md-4"><strong>{{ _('项目名称') }}：</strong></div>
                                 <div class="col-md-8 text-break" style="word-wrap: break-word;">{{ project.project_name }}</div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>报备时间：</strong></div>
+                                <div class="col-md-4"><strong>{{ _('报备时间') }}：</strong></div>
                                 <div class="col-md-8">{{ render_date(project.report_time) }}</div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>报备来源：</strong></div>
-                                <div class="col-md-8">{% if project.report_source %}{{ project.report_source|report_source_label('zh') }}{% else %}无{% endif %}</div>
+                                <div class="col-md-4"><strong>{{ _('报备来源') }}：</strong></div>
+                                <div class="col-md-8">{% if project.report_source %}{{ project.report_source|report_source_label('zh') }}{% else %}{{ _('无') }}{% endif %}</div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>品牌情况：</strong></div>
-                                <div class="col-md-8">{% if project.product_situation %}{{ project.product_situation|product_situation_label('zh') }}{% else %}无{% endif %}</div>
+                                <div class="col-md-4"><strong>{{ _('品牌情况') }}：</strong></div>
+                                <div class="col-md-8">{% if project.product_situation %}{{ project.product_situation|product_situation_label('zh') }}{% else %}{{ _('无') }}{% endif %}</div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>当前阶段：</strong></div>
+                                <div class="col-md-4"><strong>{{ _('当前阶段') }}：</strong></div>
                                 <div class="col-md-8" id="currentStageText">
                                     {{ render_project_stage(project.current_stage|project_stage_label('zh')) }}
                                 </div>
@@ -238,13 +238,13 @@
             <!-- 相关单位卡片 -->
             <div class="card mb-3">
                 <div class="card-header bg-light">
-                    <h5 class="card-title mb-0">相关单位</h5>
+                    <h5 class="card-title mb-0">{{ _('相关单位') }}</h5>
                 </div>
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-6">
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>直接用户：</strong></div>
+                                <div class="col-md-4"><strong>{{ _('直接用户:') }}</strong></div>
                                 <div class="col-md-8">
                                     {% if project.end_user %}
                                         {% if related_companies.end_user %}
@@ -260,7 +260,7 @@
                                 </div>
                             </div>
                             <div class="row mb-2">
-                                <div class="col-md-4"><strong>设计院及顾问：</strong></div>
+                                <div class="col-md-4"><strong>{{ _('设计院及顾问:') }}</strong></div>
                                 <div class="col-md-8">
                                     {% if project.design_issues %}
                                         {% if related_companies.design_issues %}

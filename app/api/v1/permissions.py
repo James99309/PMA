@@ -272,7 +272,9 @@ def get_role_permissions(role):
                 'can_view': perm.can_view,
                 'can_create': perm.can_create,
                 'can_edit': perm.can_edit,
-                'can_delete': perm.can_delete
+                'can_delete': perm.can_delete,
+                'pricing_discount_limit': perm.pricing_discount_limit,
+                'settlement_discount_limit': perm.settlement_discount_limit
             })
         return api_response(
             success=True,

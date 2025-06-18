@@ -94,6 +94,22 @@ def login():
         assign_result = assign_user_default_permissions(user)
         logger.info(f"已为用户 {user.username} 分配默认权限: {'成功' if assign_result else '失败'}")
     
+    # 同步语言设置：优先使用用户偏好，其次使用cookie，最后默认中文
+    from flask import session
+    cookie_language = request.cookies.get('language')
+    user_language = user.language_preference
+    
+    # 如果用户没有语言偏好但cookie有语言设置，则同步到用户偏好
+    if not user_language and cookie_language and cookie_language in ['zh_CN', 'en']:
+        user.language_preference = cookie_language
+        user_language = cookie_language
+        logger.info(f"API登录 - 用户 {user.username} 同步cookie语言设置到用户偏好: {cookie_language}")
+    
+    # 设置session中的语言（优先使用用户偏好，其次cookie，最后默认中文）
+    final_language = user_language or cookie_language or 'zh_CN'
+    session['language'] = final_language
+    logger.info(f"API登录 - 用户 {user.username} 设置语言: {final_language}")
+    
     # 更新最后登录时间
     user.last_login = time.time()
     db.session.commit()

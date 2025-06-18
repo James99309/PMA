@@ -107,8 +107,9 @@ def get_recent_work_records():
         # 账户筛选逻辑
         if account_id:
             # 如果指定了account_id，检查权限后只显示该账户的记录
-            if current_user.role == 'admin':
-                # 管理员可以查看任何账户的记录
+            from app.permissions import is_admin_or_ceo
+            if is_admin_or_ceo():
+                # 管理员和CEO可以查看任何账户的记录
                 base_query = base_query.filter(Action.owner_id == account_id)
             elif current_user.role in ['sales_director', 'service_manager']:
                 # 总监级别只能查看下属的记录
@@ -135,8 +136,8 @@ def get_recent_work_records():
                 base_query = base_query.filter(Action.owner_id == current_user.id)
         else:
             # 如果没有指定account_id，按照原有权限逻辑显示
-            if current_user.role == 'admin':
-                # 管理员可以查看所有记录
+            if is_admin_or_ceo():
+                # 管理员和CEO可以查看所有记录
                 pass
             elif current_user.role in ['sales_director', 'service_manager']:
                 # 总监级别可以查看自己和下属的记录（如果是部门负责人）
@@ -385,8 +386,9 @@ def get_available_accounts():
     try:
         accounts = []
         
-        if current_user.role == 'admin':
-            # 管理员可以查看所有用户
+        from app.permissions import is_admin_or_ceo
+        if is_admin_or_ceo():
+            # 管理员和CEO可以查看所有用户
             all_users = User.query.filter(User.id != current_user.id).all()
             for user in all_users:
                 accounts.append({

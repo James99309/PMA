@@ -14,6 +14,7 @@ class Dictionary(db.Model):
     key = db.Column(db.String(50), nullable=False)   # 字典键，用于存储
     value = db.Column(db.String(100), nullable=False) # 字典值，用于显示
     is_active = db.Column(db.Boolean, default=True)   # 是否启用
+    is_vendor = db.Column(db.Boolean, default=False)  # 是否为厂商（仅对企业字典有效）
     sort_order = db.Column(db.Integer, default=0)     # 排序顺序
     created_at = db.Column(db.Float, default=time.time)
     updated_at = db.Column(db.Float, default=time.time, onupdate=time.time)
@@ -31,6 +32,7 @@ class Dictionary(db.Model):
             'key': self.key,
             'value': self.value,
             'is_active': self.is_active,
+            'is_vendor': self.is_vendor,
             'sort_order': self.sort_order,
             'created_at': self.created_at,
             'updated_at': self.updated_at

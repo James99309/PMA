@@ -192,8 +192,12 @@
                         管理产品库存，查看库存状态，处理入库出库操作，设置库存预警线。
                     </p>
                     <div class="d-grid gap-2">
-                        {{ render_button('查看库存', href=url_for('inventory.stock_list'), color='primary', icon='fas fa-list') }}
-                        {{ render_button('批量添加库存', href=url_for('inventory.add_inventory'), color='auxiliary', icon='fas fa-layer-group', size='sm') }}
+                        {% if has_permission('inventory', 'view') %}
+                            {{ render_button('查看库存', href=url_for('inventory.stock_list'), color='primary', icon='fas fa-list') }}
+                        {% endif %}
+                        {% if has_permission('inventory', 'create') %}
+                            {{ render_button('批量添加库存', href=url_for('inventory.add_inventory'), color='auxiliary', icon='fas fa-layer-group', size='sm') }}
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -211,8 +215,12 @@
                         处理库存结算，生成结算单据，跟踪结算状态，管理结算记录。
                     </p>
                     <div class="d-grid gap-2">
-                        {{ render_button('结算列表', href=url_for('inventory.settlement_list'), color='success', icon='fas fa-list') }}
-                        {{ render_button('创建结算', href=url_for('inventory.create_settlement'), color='warning', icon='fas fa-plus', size='sm') }}
+                        {% if has_permission('settlement', 'view') %}
+                            {{ render_button('结算列表', href=url_for('inventory.settlement_list'), color='success', icon='fas fa-list') }}
+                        {% endif %}
+                        {% if has_permission('settlement', 'create') %}
+                            {{ render_button('创建结算', href=url_for('inventory.create_settlement'), color='warning', icon='fas fa-plus', size='sm') }}
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -230,8 +238,12 @@
                         创建和管理采购订单，跟踪订单状态，处理订单交付，管理供应商关系。
                     </p>
                     <div class="d-grid gap-2">
-                        {{ render_button('订单列表', href=url_for('inventory.order_list'), color='info', icon='fas fa-list') }}
-                        {{ render_button('创建订单', href=url_for('inventory.create_order'), color='primary', icon='fas fa-plus', size='sm') }}
+                        {% if has_permission('order', 'view') %}
+                            {{ render_button('订单列表', href=url_for('inventory.order_list'), color='info', icon='fas fa-list') }}
+                        {% endif %}
+                        {% if has_permission('order', 'create') %}
+                            {{ render_button('创建订单', href=url_for('inventory.create_order'), color='primary', icon='fas fa-plus', size='sm') }}
+                        {% endif %}
                     </div>
                 </div>
             </div>

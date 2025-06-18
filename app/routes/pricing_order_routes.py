@@ -7,13 +7,47 @@ from app.models.quotation import Quotation
 from app.models.customer import Company
 from app.services.pricing_order_service import PricingOrderService
 from app.services.pdf_generator import PDFGenerator
+from app.services.discount_permission_service import DiscountPermissionService
 from app.permissions import check_permission
 import logging
 import os
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 pricing_order_bp = Blueprint('pricing_order', __name__)
+
+
+def check_pricing_edit_permission(pricing_order, current_user):
+    """
+    检查批价单编辑权限，支持审批上下文
+    
+    Returns:
+        tuple: (can_edit_pricing, can_edit_settlement, is_approval_context)
+    """
+    # 检查是否在审批上下文中
+    is_approval_context = False
+    current_approval_record = None
+    
+    if pricing_order.status == 'pending':
+        current_approval_record = PricingOrderApprovalRecord.query.filter_by(
+            pricing_order_id=pricing_order.id,
+            step_order=pricing_order.current_approval_step,
+            approver_id=current_user.id
+        ).first()
+        
+        if current_approval_record:
+            is_approval_context = True
+    
+    # 根据上下文选择权限检查方式
+    can_edit_pricing = PricingOrderService.can_edit_pricing_details(
+        pricing_order, current_user, is_approval_context=is_approval_context
+    )
+    can_edit_settlement = PricingOrderService.can_edit_settlement_details(
+        pricing_order, current_user, is_approval_context=is_approval_context
+    )
+    
+    return can_edit_pricing, can_edit_settlement, is_approval_context
 
 
 @pricing_order_bp.route('/project/<int:project_id>/start_pricing_process', methods=['POST'])
@@ -103,40 +137,13 @@ def edit_pricing_order(order_id):
     try:
         pricing_order = PricingOrder.query.get_or_404(order_id)
         
-        # 权限检查
-        has_permission = False
-        
-        # 检查是否为创建人
-        if pricing_order.created_by == current_user.id:
-            has_permission = True
-        
-        # 检查是否为项目的销售负责人
-        if (not has_permission and pricing_order.project and 
-            pricing_order.project.vendor_sales_manager_id == current_user.id):
-            has_permission = True
-        
-        # 检查是否为特定角色
-        if (not has_permission and 
-            current_user.role in ['admin', 'channel_manager', 'sales_director', 'service_manager']):
-            has_permission = True
-        
-        # 检查是否为当前审批人
-        if not has_permission and pricing_order.status == 'pending':
-            current_approval_record = PricingOrderApprovalRecord.query.filter_by(
-                pricing_order_id=pricing_order.id,
-                step_order=pricing_order.current_approval_step,
-                approver_id=current_user.id
-            ).first()
-            if current_approval_record:
-                has_permission = True
-        
-        if not has_permission:
+        # 权限检查 - 使用统一的权限管理
+        if not PricingOrderService.can_view_pricing_order(pricing_order, current_user):
             flash('您没有权限查看该批价单', 'danger')
             return redirect(url_for('project.list_projects'))
         
-        # 检查编辑权限
-        can_edit_pricing = PricingOrderService.can_edit_pricing_details(pricing_order, current_user)
-        can_edit_settlement = PricingOrderService.can_edit_settlement_details(pricing_order, current_user)
+        # 检查编辑权限 - 使用统一的权限检查函数
+        can_edit_pricing, can_edit_settlement, is_approval_context = check_pricing_edit_permission(pricing_order, current_user)
         can_view_settlement = PricingOrderService.can_view_settlement_tab(current_user)
         
         # 获取客户数据（分销商和经销商）- 应用数据所有权过滤
@@ -174,6 +181,13 @@ def edit_pricing_order(order_id):
                 approver_id=current_user.id
             ).first()
         
+        # 获取用户的折扣权限
+        discount_limits = DiscountPermissionService.get_user_discount_limits(current_user)
+        
+        # 获取审批步骤的折扣权限状态
+        from app.helpers.approval_helpers import get_approval_step_discount_status
+        step_discount_statuses = get_approval_step_discount_status(pricing_order)
+        
         return render_template('pricing_order/edit_pricing_order.html',
                              pricing_order=pricing_order,
                              can_edit_pricing=can_edit_pricing,
@@ -182,7 +196,9 @@ def edit_pricing_order(order_id):
                              distributors=distributors,
                              dealers=dealers,
                              project_dealers=project_dealers,
-                             current_approval_record=current_approval_record)
+                             current_approval_record=current_approval_record,
+                             discount_limits=discount_limits,
+                             step_discount_statuses=step_discount_statuses)
         
     except Exception as e:
         logger.error(f"访问批价单编辑页面失败: {str(e)}")
@@ -198,11 +214,11 @@ def update_basic_info(order_id):
         pricing_order = PricingOrder.query.get_or_404(order_id)
         logger.info(f"开始更新批价单{order_id}基本信息，当前用户: {current_user.id}, 创建者: {pricing_order.created_by}, 状态: {pricing_order.status}")
         
-        # 权限检查
-        can_edit = PricingOrderService.can_edit_pricing_details(pricing_order, current_user)
-        logger.info(f"权限检查结果: {can_edit}")
+        # 权限检查 - 使用统一的权限检查函数
+        can_edit_pricing, _, _ = check_pricing_edit_permission(pricing_order, current_user)
+        logger.info(f"权限检查结果: {can_edit_pricing}")
         
-        if not can_edit:
+        if not can_edit_pricing:
             logger.warning(f"用户{current_user.id}没有权限编辑批价单{order_id}")
             return jsonify({
                 'success': False,
@@ -293,8 +309,9 @@ def update_pricing_detail(order_id):
     try:
         pricing_order = PricingOrder.query.get_or_404(order_id)
         
-        # 权限检查
-        if not PricingOrderService.can_edit_pricing_details(pricing_order, current_user):
+        # 权限检查 - 使用统一的权限检查函数
+        can_edit_pricing, _, _ = check_pricing_edit_permission(pricing_order, current_user)
+        if not can_edit_pricing:
             return jsonify({
                 'success': False,
                 'message': '您没有权限编辑批价单明细'
@@ -345,69 +362,62 @@ def update_pricing_detail(order_id):
         })
 
 
-@pricing_order_bp.route('/<int:order_id>/update_settlement_detail', methods=['POST'])
+@pricing_order_bp.route('/<int:order_id>/update_total_discount', methods=['POST'])
 @login_required
-def update_settlement_detail(order_id):
-    """更新结算单明细"""
+def update_total_discount_rate(order_id):
+    """更新批价单或结算单的总折扣率"""
     try:
-        pricing_order = PricingOrder.query.get_or_404(order_id)
-        
-        # 权限检查
-        if not PricingOrderService.can_edit_settlement_details(pricing_order, current_user):
-            return jsonify({
-                'success': False,
-                'message': '您没有权限编辑结算单明细'
-            })
-        
         data = request.get_json()
-        detail_id = data.get('detail_id')
-        discount_rate = data.get('discount_rate')
-        unit_price = data.get('unit_price')
+        tab_type = data.get('tab_type', 'pricing')  # pricing 或 settlement
+        total_discount_rate = data.get('total_discount_rate')
         
-        success, error = PricingOrderService.update_settlement_detail(
-            order_id, detail_id, discount_rate=discount_rate, unit_price=unit_price
-        )
+        if total_discount_rate is None:
+            return jsonify({'success': False, 'message': '缺少折扣率参数'})
         
-        if not success:
-            return jsonify({
-                'success': False,
-                'message': error
-            })
+        # 转换为小数形式
+        discount_rate_decimal = float(total_discount_rate) / 100
         
-        # 重新获取更新后的数据
-        pricing_order = PricingOrder.query.get(order_id)
+        # 获取批价单
+        from app.utils.access_control import get_viewable_data
+        viewable_orders = get_viewable_data(PricingOrder, current_user)
+        pricing_order = viewable_orders.filter(PricingOrder.id == order_id).first_or_404()
         
-        # 获取更新后的明细数据
-        updated_detail = SettlementOrderDetail.query.get(detail_id)
+        # 检查编辑权限 - 使用统一的权限检查函数
+        can_edit_pricing, _, _ = check_pricing_edit_permission(pricing_order, current_user)
+        if not can_edit_pricing:
+            return jsonify({'success': False, 'message': '无权限编辑此批价单'})
+        
+        # 根据tab类型获取相应的明细列表
+        if tab_type == 'pricing':
+            details = pricing_order.pricing_details
+        else:  # settlement
+            details = pricing_order.settlement_details
+        
+        # 更新所有明细的折扣率和价格，但保持总折扣率逻辑
+        for detail in details:
+            if detail.market_price and detail.market_price > 0:
+                # 使用总折扣率更新明细的折扣率
+                detail.discount_rate = discount_rate_decimal
+                # 重新计算单价和总价
+                detail.unit_price = detail.market_price * discount_rate_decimal
+                detail.total_price = detail.unit_price * detail.quantity
+        
+        # 标记批价单已修改
+        pricing_order.updated_at = datetime.utcnow()
+        
+        # 保存到数据库
+        db.session.commit()
         
         return jsonify({
-            'success': True,
-            'message': '结算单明细更新成功',
-            'settlement_total_amount': pricing_order.formatted_settlement_total_amount,
-            'settlement_discount_percentage': pricing_order.settlement_discount_percentage,
-            'updated_detail': {
-                'id': updated_detail.id,
-                'discount_rate': updated_detail.discount_rate,
-                'unit_price': updated_detail.unit_price,
-                'total_price': updated_detail.total_price
-            } if updated_detail else None
+            'success': True, 
+            'message': f'总折扣率已更新为 {total_discount_rate}%',
+            'total_discount_rate': total_discount_rate
         })
         
     except Exception as e:
-        logger.error(f"更新结算单明细失败: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': f'更新失败: {str(e)}'
-        })
-
-
-# 注释掉总折扣率更新路由 - 现在使用纯前端计算
-# @pricing_order_bp.route('/<int:order_id>/update_total_discount', methods=['POST'])
-# @login_required
-# def update_total_discount(order_id):
-#     """更新总折扣率"""
-#     # 该功能已改为纯前端计算，不再需要后端处理
-#     pass
+        db.session.rollback()
+        print(f"更新总折扣率失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'更新失败: {str(e)}'})
 
 
 @pricing_order_bp.route('/<int:order_id>/submit', methods=['POST'])
@@ -467,9 +477,9 @@ def approve_pricing_order(order_id):
                 'message': '无效的审批动作'
             })
         
-        # 无论是通过还是拒绝，如果有前端数据，都先保存这些数据
-        if pricing_details or settlement_details or basic_info:
-            logger.info(f"审批前保存数据: 批价单明细{len(pricing_details)}条, 结算单明细{len(settlement_details)}条")
+        # 🔥 关键修复：只有在通过审批时才保存前端数据，拒绝时不保存
+        if action == 'approve' and (pricing_details or settlement_details or basic_info):
+            logger.info(f"审批通过，保存前端修改的数据: 批价单明细{len(pricing_details)}条, 结算单明细{len(settlement_details)}条")
             
             # 使用统一的审批数据保存方法
             success, error_message = PricingOrderService.save_approval_data(
@@ -485,7 +495,9 @@ def approve_pricing_order(order_id):
             
             # 提交保存的数据
             db.session.commit()
-            logger.info(f"审批前数据保存成功: {pricing_order.order_number}")
+            logger.info(f"审批通过，数据保存成功: {pricing_order.order_number}")
+        elif action == 'reject':
+            logger.info(f"审批拒绝，不保存前端修改的数据: {pricing_order.order_number}")
         
         # 获取当前审批步骤
         current_step = pricing_order.current_approval_step
@@ -521,34 +533,8 @@ def get_approval_flow(order_id):
     try:
         pricing_order = PricingOrder.query.get_or_404(order_id)
         
-        # 权限检查
-        has_permission = False
-        
-        # 检查是否为创建人
-        if pricing_order.created_by == current_user.id:
-            has_permission = True
-        
-        # 检查是否为项目的销售负责人
-        if (not has_permission and pricing_order.project and 
-            pricing_order.project.vendor_sales_manager_id == current_user.id):
-            has_permission = True
-        
-        # 检查是否为特定角色
-        if (not has_permission and 
-            current_user.role in ['admin', 'channel_manager', 'sales_director', 'service_manager']):
-            has_permission = True
-        
-        # 检查是否为当前审批人
-        if not has_permission and pricing_order.status == 'pending':
-            current_approval_record = PricingOrderApprovalRecord.query.filter_by(
-                pricing_order_id=pricing_order.id,
-                step_order=pricing_order.current_approval_step,
-                approver_id=current_user.id
-            ).first()
-            if current_approval_record:
-                has_permission = True
-        
-        if not has_permission:
+        # 权限检查 - 使用统一的权限管理
+        if not PricingOrderService.can_view_pricing_order(pricing_order, current_user):
             return jsonify({
                 'success': False,
                 'message': '您没有权限查看该批价单'
@@ -561,7 +547,7 @@ def get_approval_flow(order_id):
                 'step_order': record.step_order,
                 'step_name': record.step_name,
                 'approver_role': record.approver_role,
-                'approver_name': record.approver.username if record.approver else '未指定',
+                'approver_name': record.approver.real_name or record.approver.username if record.approver else '未指定',
                 'action': record.action,
                 'comment': record.comment,
                 'approved_at': record.approved_at.strftime('%Y-%m-%d %H:%M:%S') if record.approved_at else None,
@@ -598,16 +584,86 @@ def list_pricing_orders():
     # 构建查询
     query = PricingOrder.query
     
-    # 简单的权限过滤：只显示用户相关的批价单
-    if current_user.role != 'admin':
-        query = query.filter(
-            db.or_(
-                PricingOrder.created_by == current_user.id,
-                PricingOrder.approval_records.any(
-                    PricingOrderApprovalRecord.approver_id == current_user.id
+    # 权限过滤：根据新的权限规则过滤批价单
+    user_role = current_user.role.strip() if current_user.role else ''
+    
+    # 使用统一的管理员权限检查
+    from app.permissions import is_admin_or_ceo
+    if not is_admin_or_ceo():
+        # 根据角色和项目类型进行过滤
+        if user_role == 'sales_director':
+            # 营销总监：可以看到所有的销售重点和渠道跟进的业务的批价单
+            query = query.join(Project).filter(
+                db.or_(
+                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow']),
+                    PricingOrder.created_by == current_user.id,
+                    PricingOrder.approval_records.any(
+                        PricingOrderApprovalRecord.approver_id == current_user.id
+                    )
                 )
             )
-        )
+        elif user_role == 'channel_manager':
+            # 渠道经理：只能看到有经销商的渠道跟进和销售机会的批价单，不能看到销售重点
+            # 即使是审批人，也不能查看销售重点项目的批价单
+            query = query.join(Project).filter(
+                db.or_(
+                    db.and_(
+                        Project.project_type.in_(['渠道跟进', 'channel_follow', '销售机会', 'sales_opportunity']),
+                        PricingOrder.dealer_id.isnot(None)
+                    ),
+                    PricingOrder.created_by == current_user.id,
+                    # 作为审批人但只能查看非销售重点项目的批价单
+                    db.and_(
+                        PricingOrder.approval_records.any(
+                            PricingOrderApprovalRecord.approver_id == current_user.id
+                        ),
+                        Project.project_type.notin_(['销售重点', 'sales_focus'])
+                    )
+                )
+            )
+        elif user_role == 'service_manager':
+            # 服务经理：可以看到所有销售机会的批价单
+            query = query.join(Project).filter(
+                db.or_(
+                    Project.project_type.in_(['销售机会', 'sales_opportunity']),
+                    PricingOrder.created_by == current_user.id,
+                    PricingOrder.approval_records.any(
+                        PricingOrderApprovalRecord.approver_id == current_user.id
+                    )
+                )
+            )
+        elif user_role == 'business_admin':
+            # 商务助理：可以看到所有的销售重点，渠道跟进的业务的批价单
+            query = query.join(Project).filter(
+                db.or_(
+                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow']),
+                    PricingOrder.created_by == current_user.id,
+                    PricingOrder.approval_records.any(
+                        PricingOrderApprovalRecord.approver_id == current_user.id
+                    )
+                )
+            )
+        elif user_role == 'finance_director':
+            # 财务总监：可以看到所有的销售重点，渠道跟进和销售机会的业务的批价单
+            query = query.join(Project).filter(
+                db.or_(
+                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow', '销售机会', 'sales_opportunity']),
+                    PricingOrder.created_by == current_user.id,
+                    PricingOrder.approval_records.any(
+                        PricingOrderApprovalRecord.approver_id == current_user.id
+                    )
+                )
+            )
+        else:
+            # 其他用户：只能查看自己创建的或参与审批的批价单
+            query = query.filter(
+                db.or_(
+                    PricingOrder.created_by == current_user.id,
+                    PricingOrder.approval_records.any(
+                        PricingOrderApprovalRecord.approver_id == current_user.id
+                    )
+                )
+            )
     
     # 分页
     pagination = query.order_by(PricingOrder.created_at.desc()).paginate(
@@ -628,8 +684,9 @@ def add_product_to_pricing(order_id):
     try:
         pricing_order = PricingOrder.query.get_or_404(order_id)
         
-        # 权限检查
-        if not PricingOrderService.can_edit_pricing_details(pricing_order, current_user):
+        # 权限检查 - 使用统一的权限检查函数
+        can_edit_pricing, _, _ = check_pricing_edit_permission(pricing_order, current_user)
+        if not can_edit_pricing:
             return jsonify({
                 'success': False,
                 'message': '您没有权限编辑批价单明细'
@@ -684,9 +741,9 @@ def add_product_to_pricing(order_id):
         settlement_detail.calculate_prices()
         db.session.add(settlement_detail)
         
-        # 重新计算总额
-        pricing_order.calculate_pricing_totals()
-        pricing_order.calculate_settlement_totals()
+        # 重新计算总额和总折扣率（基于明细数据）
+        pricing_order.calculate_pricing_totals(recalculate_discount_rate=True)
+        pricing_order.calculate_settlement_totals(recalculate_discount_rate=True)
         
         db.session.commit()
         
@@ -711,8 +768,9 @@ def delete_product_from_pricing(order_id, detail_id):
     try:
         pricing_order = PricingOrder.query.get_or_404(order_id)
         
-        # 权限检查
-        if not PricingOrderService.can_edit_pricing_details(pricing_order, current_user):
+        # 权限检查 - 使用统一的权限检查函数
+        can_edit_pricing, _, _ = check_pricing_edit_permission(pricing_order, current_user)
+        if not can_edit_pricing:
             return jsonify({
                 'success': False,
                 'message': '您没有权限编辑批价单明细'
@@ -745,9 +803,9 @@ def delete_product_from_pricing(order_id, detail_id):
         # 删除批价单明细
         db.session.delete(pricing_detail)
         
-        # 重新计算总额
-        pricing_order.calculate_pricing_totals()
-        pricing_order.calculate_settlement_totals()
+        # 重新计算总额和总折扣率（基于明细数据）
+        pricing_order.calculate_pricing_totals(recalculate_discount_rate=True)
+        pricing_order.calculate_settlement_totals(recalculate_discount_rate=True)
         
         db.session.commit()
         
@@ -776,8 +834,9 @@ def save_pricing_details(order_id):
         project_stage_before = pricing_order.project.current_stage if pricing_order.project else None
         logger.info(f"保存批价单 {pricing_order.order_number} 明细前，项目阶段: {project_stage_before}")
         
-        # 权限检查
-        if not PricingOrderService.can_edit_pricing_details(pricing_order, current_user):
+        # 权限检查 - 使用统一的权限检查函数
+        can_edit_pricing, _, _ = check_pricing_edit_permission(pricing_order, current_user)
+        if not can_edit_pricing:
             return jsonify({
                 'success': False,
                 'message': '您没有权限编辑批价单明细'
@@ -847,9 +906,9 @@ def save_pricing_details(order_id):
             settlement_detail.calculate_prices()
             db.session.add(settlement_detail)
         
-        # 重新计算总额
-        pricing_order.calculate_pricing_totals()
-        pricing_order.calculate_settlement_totals()
+        # 重新计算总额和总折扣率（基于明细数据）
+        pricing_order.calculate_pricing_totals(recalculate_discount_rate=True)
+        pricing_order.calculate_settlement_totals(recalculate_discount_rate=True)
         
         db.session.commit()
         
@@ -885,8 +944,9 @@ def save_settlement_details(order_id):
         project_stage_before = pricing_order.project.current_stage if pricing_order.project else None
         logger.info(f"保存结算单 {pricing_order.order_number} 明细前，项目阶段: {project_stage_before}")
         
-        # 权限检查
-        if not PricingOrderService.can_edit_settlement_details(pricing_order, current_user):
+        # 权限检查 - 使用统一的权限检查函数
+        _, can_edit_settlement, _ = check_pricing_edit_permission(pricing_order, current_user)
+        if not can_edit_settlement:
             return jsonify({
                 'success': False,
                 'message': '您没有权限编辑结算单明细'
@@ -975,8 +1035,9 @@ def save_all_pricing_data(order_id):
         project_stage_before = pricing_order.project.current_stage if pricing_order.project else None
         logger.info(f"保存批价单 {pricing_order.order_number} 所有数据前，项目阶段: {project_stage_before}")
         
-        # 权限检查
-        if not PricingOrderService.can_edit_pricing_details(pricing_order, current_user):
+        # 权限检查 - 使用统一的权限检查函数
+        can_edit_pricing, _, _ = check_pricing_edit_permission(pricing_order, current_user)
+        if not can_edit_pricing:
             return jsonify({
                 'success': False,
                 'message': '您没有权限编辑该批价单'
@@ -1110,7 +1171,8 @@ def save_all_pricing_data(order_id):
                 db.session.add(settlement_detail)
         
         # 保存结算单明细（如果提供且有权限）
-        if settlement_details and PricingOrderService.can_edit_settlement_details(pricing_order, current_user):
+        _, can_edit_settlement, _ = check_pricing_edit_permission(pricing_order, current_user)
+        if settlement_details and can_edit_settlement:
             # 更新现有结算单明细
             for detail_data in settlement_details:
                 if not detail_data.get('id'):
@@ -1126,9 +1188,9 @@ def save_all_pricing_data(order_id):
                         settlement_detail.unit_price = float(detail_data['unit_price'])
                     settlement_detail.calculate_prices()
         
-        # 重新计算总额
-        pricing_order.calculate_pricing_totals()
-        pricing_order.calculate_settlement_totals()
+        # 重新计算总额和总折扣率（基于明细数据）
+        pricing_order.calculate_pricing_totals(recalculate_discount_rate=True)
+        pricing_order.calculate_settlement_totals(recalculate_discount_rate=True)
         
         db.session.commit()
         
@@ -1311,9 +1373,9 @@ def save_and_submit_pricing_order(order_id):
                 settlement_detail.total_price = settlement_unit_price * settlement_quantity
                 db.session.add(settlement_detail)
         
-        # 重新计算总额
-        pricing_order.calculate_pricing_totals()
-        pricing_order.calculate_settlement_totals()
+        # 重新计算总额和总折扣率（基于明细数据）
+        pricing_order.calculate_pricing_totals(recalculate_discount_rate=True)
+        pricing_order.calculate_settlement_totals(recalculate_discount_rate=True)
         
         # 提交审批
         success, error = PricingOrderService.submit_for_approval(order_id, current_user.id)
@@ -1445,34 +1507,8 @@ def export_pdf(order_id, pdf_type):
     try:
         pricing_order = PricingOrder.query.get_or_404(order_id)
         
-        # 权限检查
-        has_permission = False
-        
-        # 检查是否为创建人
-        if pricing_order.created_by == current_user.id:
-            has_permission = True
-        
-        # 检查是否为项目的销售负责人
-        if (not has_permission and pricing_order.project and 
-            pricing_order.project.vendor_sales_manager_id == current_user.id):
-            has_permission = True
-        
-        # 检查是否为特定角色
-        if (not has_permission and 
-            current_user.role in ['admin', 'channel_manager', 'sales_director', 'service_manager']):
-            has_permission = True
-        
-        # 检查是否为当前审批人
-        if not has_permission and pricing_order.status == 'pending':
-            current_approval_record = PricingOrderApprovalRecord.query.filter_by(
-                pricing_order_id=pricing_order.id,
-                step_order=pricing_order.current_approval_step,
-                approver_id=current_user.id
-            ).first()
-            if current_approval_record:
-                has_permission = True
-        
-        if not has_permission:
+        # 权限检查 - 使用统一的权限管理
+        if not PricingOrderService.can_export_pdf(pricing_order, current_user, pdf_type):
             flash('您没有权限导出该批价单', 'danger')
             return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
         
@@ -1525,4 +1561,53 @@ def export_pdf(order_id, pdf_type):
     except Exception as e:
         logger.error(f"导出PDF失败: {str(e)}")
         flash(f'导出PDF失败: {str(e)}', 'danger')
-        return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id)) 
+        return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
+
+
+@pricing_order_bp.route('/<int:order_id>/admin_rollback', methods=['POST'])
+@login_required
+def admin_rollback_pricing_order(order_id):
+    """管理员退回已通过的批价单"""
+    try:
+        from app.permissions import admin_required
+        from flask import abort
+        
+        # 检查管理员权限
+        if current_user.role != 'admin':
+            abort(403)
+        
+        # 检查是否可以退回
+        if not PricingOrderService.can_admin_rollback_pricing_order(order_id, current_user.id):
+            return jsonify({
+                'success': False,
+                'message': '权限不足或批价单状态不允许退回'
+            }), 403
+        
+        # 获取退回原因
+        data = request.get_json() or {}
+        reason = data.get('reason', '')
+        
+        # 执行退回操作
+        success, message = PricingOrderService.admin_rollback_pricing_order(
+            order_id, current_user.id, reason
+        )
+        
+        if not success:
+            return jsonify({
+                'success': False,
+                'message': message
+            }), 400
+        
+        logger.info(f"管理员 {current_user.username} 退回了批价单 {order_id}")
+        
+        return jsonify({
+            'success': True,
+            'message': message
+        })
+        
+    except Exception as e:
+        logger.error(f"管理员退回批价单失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'退回失败: {str(e)}'
+        }), 500 

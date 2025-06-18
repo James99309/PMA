@@ -18,7 +18,9 @@ from app.helpers.approval_helpers import (
     can_user_approve,
     get_template_details,
     get_object_type_display,
-    _get_field_display_name
+    _get_field_display_name,
+    rollback_order_approval,
+    can_rollback_order_approval
 )
 from app.models.approval import (
     ApprovalStatus, 
@@ -52,6 +54,14 @@ def center():
     status = request.args.get('status')
     tab = request.args.get('tab', 'created')  # 默认显示"我发起的"标签
     
+    # 获取待审批数量
+    from app.helpers.approval_helpers import get_pending_approval_count
+    pending_count = get_pending_approval_count(current_user.id)
+    
+    # 获取我发起的未结束流程数量
+    from app.helpers.approval_helpers import get_pending_created_count
+    created_pending_count = get_pending_created_count(current_user.id)
+    
     # 根据当前标签获取相应数据
     if tab == 'pending':
         # 待我审批的
@@ -76,6 +86,16 @@ def center():
         approvals = get_user_order_approvals(
             user_id=current_user.id,
             status_filter=status,
+            page=page,
+            per_page=per_page
+        )
+    elif tab == 'department':
+        # 部门审批 - 显示部门内所有用户发起的审批（仅商务助理可见）
+        from app.helpers.approval_helpers import get_user_department_approvals
+        approvals = get_user_department_approvals(
+            user_id=current_user.id,
+            object_type=object_type,
+            status=status,
             page=page,
             per_page=per_page
         )
@@ -121,7 +141,9 @@ def center():
         approvals=approvals,
         current_tab=tab,
         object_type=object_type,
-        status=status
+        status=status,
+        pending_count=pending_count,
+        created_pending_count=created_pending_count
     )
 
 
@@ -1126,4 +1148,43 @@ def recall_approval(instance_id):
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"召回审批失败: {str(e)}")
-        return jsonify({'success': False, 'message': f'召回失败: {str(e)}'}), 500 
+        return jsonify({'success': False, 'message': f'召回失败: {str(e)}'}), 500
+
+
+@approval_bp.route('/rollback-order/<int:order_id>', methods=['POST'])
+@login_required
+@admin_required
+def rollback_order(order_id):
+    """管理员退回已通过的订单审批"""
+    try:
+        # 检查权限
+        if not can_rollback_order_approval(order_id, current_user.id):
+            return jsonify({
+                'success': False,
+                'message': '权限不足或订单状态不允许退回'
+            })
+        
+        # 获取退回原因
+        data = request.get_json()
+        reason = data.get('reason', '') if data else ''
+        
+        # 执行退回操作
+        success, message = rollback_order_approval(order_id, current_user.id, reason)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': message
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': message
+            })
+            
+    except Exception as e:
+        current_app.logger.error(f"退回订单审批失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'退回失败：{str(e)}'
+        }) 

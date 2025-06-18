@@ -76,7 +76,15 @@
             <dt class="col-sm-3">真实姓名</dt><dd class="col-sm-9">{{ user.real_name }}</dd>
             <dt class="col-sm-3">邮箱</dt><dd class="col-sm-9">{{ user.email }}</dd>
             <dt class="col-sm-3">手机号</dt><dd class="col-sm-9">{{ user.phone }}</dd>
-            <dt class="col-sm-3">公司</dt><dd class="col-sm-9">{{ user.company_name }}</dd>
+            <dt class="col-sm-3">公司</dt>
+            <dd class="col-sm-9">
+                {{ user.company_name }}
+                {% if is_vendor %}
+                <span class="badge bg-primary ms-2" title="厂商企业账户">
+                    <i class="fas fa-industry"></i> 厂商
+                </span>
+                {% endif %}
+            </dd>
             <dt class="col-sm-3">部门</dt><dd class="col-sm-9">{{ user.department }}</dd>
             <dt class="col-sm-3">角色</dt><dd class="col-sm-9">{{ role_dict.get(user.role, user.role or '-') }}</dd>
             {% if user.role and user.role.strip() == 'admin' %}

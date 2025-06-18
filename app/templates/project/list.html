@@ -2,7 +2,7 @@
 {% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_authorization_code, render_datetime, render_project_stage, render_status_badge, render_project_rating, render_confirmation_badge %}
 {% import 'macros/ui_helpers.html' as ui %}
 
-{% block title %}项目管理{% endblock %}
+{% block title %}{{ _('项目管理') }}{% endblock %}
 
 {% block content %}
 <!--
@@ -56,10 +56,10 @@
 <div class="container-fluid mt-4">
     <div class="row page-title-container">
         <div class="col-6">
-            <h1 class="page-title">项目列表</h1>
+            <h1 class="page-title">{{ _('项目列表') }}</h1>
         </div>
         <div class="col-6 text-end">
-            {{ ui.render_button("显示统计总览", type="button", color="secondary", attrs='id="toggleStatisticsBtn"', size='sm') }}
+            {{ ui.render_button(_("显示统计总览"), type="button", color="secondary", attrs='id="toggleStatisticsBtn"', size='sm') }}
         </div>
     </div>
     <div class="row">
@@ -73,12 +73,12 @@
                 <div class="d-flex align-items-center gap-3">
                     <div class="dropdown account-selector">
                         <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="accountSelectorBtn" data-bs-toggle="dropdown" aria-expanded="false">
-                            全部账户
+                            {{ _('全部账户') }}
                         </button>
                         <ul class="dropdown-menu" id="accountSelectorMenu" aria-labelledby="accountSelectorBtn">
-                            <li><a class="dropdown-item active" href="#" data-account-id="all">全部账户</a></li>
+                            <li><a class="dropdown-item active" href="#" data-account-id="all">{{ _('全部账户') }}</a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-center"><div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">加载中...</span></div></a></li>
+                            <li><a class="dropdown-item text-center"><div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">{{ _('加载中...') }}</span></div></a></li>
                         </ul>
                     </div>
                 </div>
@@ -90,16 +90,20 @@ document.addEventListener('DOMContentLoaded', function () {
   const dashboardWrapper = document.getElementById('dashboardWrapper');
   const statisticsPanel = document.getElementById('projectStatisticsPanel');
 
+  // 定义翻译文本
+  const showText = "{{ _('显示项目总览') }}";
+  const hideText = "{{ _('隐藏项目总览') }}";
+
   if (toggleStatisticsBtn && dashboardWrapper) {
     // 确保初始状态：面板是隐藏的，按钮文本显示"显示统计总览"
-    toggleStatisticsBtn.innerHTML = '显示统计总览';
+    toggleStatisticsBtn.innerHTML = showText;
     dashboardWrapper.style.display = 'none';
 
     toggleStatisticsBtn.addEventListener('click', function () {
       if (dashboardWrapper.style.display === 'none') {
         // 显示面板
         dashboardWrapper.style.display = 'block';
-        toggleStatisticsBtn.innerHTML = '隐藏统计总览';
+        toggleStatisticsBtn.innerHTML = hideText;
         
         // 确保Bootstrap collapse也展开
         if (statisticsPanel && !statisticsPanel.classList.contains('show')) {
@@ -113,7 +117,7 @@ document.addEventListener('DOMContentLoaded', function () {
       } else {
         // 隐藏面板
         dashboardWrapper.style.display = 'none';
-        toggleStatisticsBtn.innerHTML = '显示统计总览';
+        toggleStatisticsBtn.innerHTML = showText;
         
         // 确保Bootstrap collapse也收起
         if (statisticsPanel && statisticsPanel.classList.contains('show')) {
@@ -136,7 +140,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div class="d-flex align-items-center">
                     <div class="input-group" style="max-width: 300px;">
-                        <input type="text" class="form-control" id="searchInput" placeholder="搜索项目名称..." value="{{ search_term }}">
+                        <input type="text" class="form-control" id="searchInput" placeholder="{{ _('搜索项目名称...') }}" value="{{ search_term }}">
                         <button class="btn btn-outline-secondary" type="button" id="searchButton">
                             <i class="fas fa-search"></i>
                         </button>
@@ -147,16 +151,16 @@ document.addEventListener('DOMContentLoaded', function () {
                                                    label_on='ON',
                                                    label_off='OFF',
                                                    attrs='id="showMyProjectsSwitch"') }}
-                        <span class="form-label mb-0 text-nowrap">只看自己</span>
+                        <span class="form-label mb-0 text-nowrap">{{ _('只看自己') }}</span>
                     </div>
                 </div>
                 <div class="d-none d-lg-block">
                     {% if current_user.role == 'admin' %}
-                        {{ ui.render_button("批量导入", type="button", color="info", icon="fas fa-file-import", attrs='id="importProjectsBtn"', extra_class="me-2") }}
+                        {{ ui.render_button(_("批量导入"), type="button", color="info", icon="fas fa-file-import", attrs='id="importProjectsBtn"', extra_class="me-2") }}
                     {% endif %}
-                    {{ ui.render_button("创建项目", href=url_for('project.add_project'), color="primary", attrs='', extra_class="me-2") }}
+                    {{ ui.render_button(_("创建项目"), href=url_for('project.add_project'), color="primary", attrs='', extra_class="me-2") }}
                     {% if has_permission('project', 'delete') %}
-                    {{ ui.render_button("批量删除", type="button", color="danger", icon="fas fa-trash", attrs='id="batchDeleteBtn" style="display: none;"') }}
+                    {{ ui.render_button(_("批量删除"), type="button", color="danger", icon="fas fa-trash", attrs='id="batchDeleteBtn" style="display: none;"') }}
                     {% endif %}
                 </div>
             </div>
@@ -170,11 +174,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     <ul class="list-group list-group-flush">
                         {% if current_user.role == 'admin' %}
                         <li class="list-group-item p-2">
-                            <a href="#" id="mobileImportBtn" class="text-info text-decoration-none"><i class="fas fa-file-import me-2"></i>批量导入</a>
+                            <a href="#" id="mobileImportBtn" class="text-info text-decoration-none"><i class="fas fa-file-import me-2"></i>{{ _('批量导入') }}</a>
                         </li>
                         {% endif %}
                         <li class="list-group-item p-2">
-                            <a href="{{ url_for('project.add_project') }}" class="text-primary text-decoration-none"><i class="fas fa-plus me-2"></i>创建项目</a>
+                            <a href="{{ url_for('project.add_project') }}" class="text-primary text-decoration-none"><i class="fas fa-plus me-2"></i>{{ _('创建项目') }}</a>
                         </li>
                     </ul>
                 </div>
@@ -209,16 +213,16 @@ document.addEventListener('DOMContentLoaded', function () {
             <!-- 移动端卡片视图 - 仅在小屏幕显示 -->
             <div class="d-block d-lg-none mb-4">
                 {% if not projects %}
-                <div class="alert alert-info text-center">暂无项目数据</div>
+                <div class="alert alert-info text-center">{{ _('暂无项目数据') }}</div>
                 {% endif %}
                 {% for project in projects %}
                 <div class="card mb-3 shadow-sm">
                     <div class="card-body p-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="badge bg-info">{{ project.authorization_code or '无编号' }}</span>
+                            <span class="badge bg-info">{{ project.authorization_code or _('无编号') }}</span>
                             <div>
                                 {{ render_status_badge('active' if project.is_active else 'inactive') }}
-                                {{ render_project_stage(project.current_stage|project_stage_label('zh')) if project.current_stage else render_project_stage('未设置') }}
+                                {{ render_project_stage(project.current_stage|project_stage_label('zh')) if project.current_stage else render_project_stage(_('未设置')) }}
                             </div>
                         </div>
                         <h5 class="card-title mb-2">
@@ -237,7 +241,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         </div>
                         {% if project.vendor_sales_manager_id %}
                         <div class="small mb-1">
-                            <i class="fas fa-user-tie text-secondary me-1"></i>厂商负责人: {{ render_owner(project.vendor_sales_manager) }}
+                            <i class="fas fa-user-tie text-secondary me-1"></i>{{ _('厂商负责人') }}: {{ render_owner(project.vendor_sales_manager) }}
                             <span class="d-none" data-vendor-sales-manager-id="{{ project.vendor_sales_manager_id }}"></span>
                         </div>
                         {% else %}
@@ -246,7 +250,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         {% if project.quotation_customer %}
                         <div class="small mb-1 d-flex align-items-center">
                             <span>
-                                <i class="fas fa-yen-sign text-secondary me-1"></i>报价: {{ '{:,.2f}'.format(project.quotation_customer) }}元
+                                <i class="fas fa-yen-sign text-secondary me-1"></i>{{ _('报价') }}: {{ '{:,.2f}'.format(project.quotation_customer) }}{{ _('元') }}
                             </span>
                             {% if project.quotations.count() > 0 %}
                             {% set latest_quotation = project.quotations.order_by(Quotation.created_at.desc()).first() %}
@@ -255,22 +259,22 @@ document.addEventListener('DOMContentLoaded', function () {
                         </div>
                         {% endif %}
                         <div class="small mb-1">
-                            <i class="fas fa-building text-secondary me-1"></i>直接用户: {{ project.end_user or '未设置' }}
+                            <i class="fas fa-building text-secondary me-1"></i>{{ _('直接用户') }}: {{ project.end_user or _('未设置') }}
                         </div>
                         <div class="small mb-1">
-                            <i class="fas fa-clock text-secondary me-1"></i>报备: {{ render_date(project.report_time) }}
+                            <i class="fas fa-clock text-secondary me-1"></i>{{ _('报备') }}: {{ render_date(project.report_time) }}
                             {% if project.report_source %} ({{ project.report_source }}){% endif %}
                         </div>
                         {% if project.delivery_forecast %}
                         <div class="small mb-1">
-                            <i class="fas fa-shipping-fast text-secondary me-1"></i>出货预测: {{ render_date(project.delivery_forecast) }}
+                            <i class="fas fa-shipping-fast text-secondary me-1"></i>{{ _('出货预测') }}: {{ render_date(project.delivery_forecast) }}
                         </div>
                         {% endif %}
                         <div class="small text-muted mt-2">
-                            <i class="fas fa-calendar-plus me-1"></i>创建: {{ render_datetime(project.created_at) }}
+                            <i class="fas fa-calendar-plus me-1"></i>{{ _('创建') }}: {{ render_datetime(project.created_at) }}
                         </div>
                         <div class="small text-muted mt-1">
-                            <i class="fas fa-calendar-check me-1"></i>更新: {{ render_datetime(project.updated_at) }}
+                            <i class="fas fa-calendar-check me-1"></i>{{ _('更新') }}: {{ render_datetime(project.updated_at) }}
                         </div>
                     </div>
                 </div>
@@ -292,7 +296,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                                 <th style="min-width: 100px;" data-sort="owner_id">
                                     <div class="th-content">
-                                        <span class="th-text">拥有者</span>
+                                        <span class="th-text">{{ _('拥有者') }}</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="owner_id"></i>
                                         </div>
@@ -300,7 +304,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 </th>
                                 <th style="min-width: 120px;" data-sort="vendor_sales_manager_id">
                                     <div class="th-content">
-                                        <span class="th-text">厂商负责人</span>
+                                        <span class="th-text">{{ _('厂商负责人') }}</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="vendor_sales_manager_id"></i>
                                         </div>
@@ -308,7 +312,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 </th>
                                 <th style="min-width: 120px;" data-sort="authorization_code">
                                     <div class="th-content">
-                                        <span class="th-text">授权编号</span>
+                                        <span class="th-text">{{ _('授权编号') }}</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="authorization_code"></i>
                                         </div>
@@ -316,7 +320,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 </th>
                                 <th style="min-width: 200px;" data-sort="project_name">
                                     <div class="th-content">
-                                        <span class="th-text">项目名称</span>
+                                        <span class="th-text">{{ _('项目名称') }}</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="project_name"></i>
                                         </div>
@@ -324,7 +328,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 </th>
                                 <th style="min-width: 80px;" data-sort="is_active">
                                     <div class="th-content">
-                                        <span class="th-text">活跃状态</span>
+                                        <span class="th-text">{{ _('活跃状态') }}</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="is_active"></i>
                                         </div>
@@ -332,7 +336,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 </th>
                                 <th style="min-width: 100px;" data-sort="current_stage">
                                     <div class="th-content">
-                                        <span class="th-text">当前阶段</span>
+                                        <span class="th-text">{{ _('当前阶段') }}</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="current_stage"></i>
                                         </div>
@@ -340,7 +344,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 </th>
                                 <th style="min-width: 100px;" data-sort="project_type">
                                     <div class="th-content">
-                                        <span class="th-text">项目类型</span>
+                                        <span class="th-text">{{ _('项目类型') }}</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="project_type"></i>
                                         </div>
@@ -348,7 +352,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 </th>
                                 <th style="min-width: 120px;" data-sort="quotation_customer">
                                     <div class="th-content">
-                                        <span class="th-text">报价（元）</span>
+                                        <span class="th-text">{{ _('报价') }}（{{ _('元') }}）</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="quotation_customer"></i>
                                         </div>
@@ -356,7 +360,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 </th>
                                 <th style="min-width: 100px;" data-sort="report_source">
                                     <div class="th-content">
-                                        <span class="th-text">报备来源</span>
+                                        <span class="th-text">{{ _('报备来源') }}</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="report_source"></i>
                                         </div>
@@ -364,7 +368,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 </th>
                                 <th style="min-width: 150px;" data-sort="end_user">
                                     <div class="th-content">
-                                        <span class="th-text">直接用户</span>
+                                        <span class="th-text">{{ _('直接用户') }}</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="end_user"></i>
                                         </div>
@@ -372,7 +376,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 </th>
                                 <th style="min-width: 150px;" data-sort="design_issues">
                                     <div class="th-content">
-                                        <span class="th-text">设计院及顾问</span>
+                                        <span class="th-text">{{ _('设计院及顾问') }}</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="design_issues"></i>
                                         </div>
@@ -380,7 +384,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 </th>
                                 <th style="min-width: 150px;" data-sort="contractor">
                                     <div class="th-content">
-                                        <span class="th-text">总承包单位</span>
+                                        <span class="th-text">{{ _('总承包单位') }}</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="contractor"></i>
                                         </div>
@@ -388,7 +392,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 </th>
                                 <th style="min-width: 150px;" data-sort="system_integrator">
                                     <div class="th-content">
-                                        <span class="th-text">系统集成商</span>
+                                        <span class="th-text">{{ _('系统集成商') }}</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="system_integrator"></i>
                                         </div>
@@ -396,7 +400,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 </th>
                                 <th style="min-width: 120px;" data-sort="delivery_forecast">
                                     <div class="th-content">
-                                        <span class="th-text">出货预期日期</span>
+                                        <span class="th-text">{{ _('出货预期日期') }}</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="delivery_forecast"></i>
                                         </div>
@@ -404,7 +408,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 </th>
                                 <th style="min-width: 120px;" data-sort="report_time">
                                     <div class="th-content">
-                                        <span class="th-text">报备日期</span>
+                                        <span class="th-text">{{ _('报备日期') }}</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="report_time"></i>
                                         </div>
@@ -412,7 +416,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 </th>
                                 <th style="min-width: 150px;" data-sort="updated_at">
                                     <div class="th-content">
-                                        <span class="th-text">更新时间</span>
+                                        <span class="th-text">{{ _('更新时间') }}</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="updated_at"></i>
                                         </div>
@@ -420,7 +424,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 </th>
                                 <th style="min-width: 150px;" data-sort="created_at">
                                     <div class="th-content">
-                                        <span class="th-text">创建日期</span>
+                                        <span class="th-text">{{ _('创建日期') }}</span>
                                         <div class="th-actions">
                                             <i class="fas fa-sort sort-icon" data-sort="created_at"></i>
                                         </div>
@@ -435,19 +439,19 @@ document.addEventListener('DOMContentLoaded', function () {
                                 </th>
                                 {% endif %}
 
-                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="owner_id" placeholder="筛选..."></th>
-                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="vendor_sales_manager_id" placeholder="筛选..."></th>
-                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="authorization_code" placeholder="筛选..."></th>
-                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="project_name" placeholder="筛选..."></th>
-                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="is_active" placeholder="筛选..."></th>
-                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="current_stage" placeholder="筛选..."></th>
-                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="project_type" placeholder="筛选..."></th>
-                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="quotation_customer" placeholder="筛选..."></th>
-                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="report_source" placeholder="筛选..."></th>
-                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="end_user" placeholder="筛选..."></th>
-                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="design_issues" placeholder="筛选..."></th>
-                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="contractor" placeholder="筛选..."></th>
-                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="system_integrator" placeholder="筛选..."></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="owner_id" placeholder="{{ _('筛选...') }}"></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="vendor_sales_manager_id" placeholder="{{ _('筛选...') }}"></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="authorization_code" placeholder="{{ _('筛选...') }}"></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="project_name" placeholder="{{ _('筛选...') }}"></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="is_active" placeholder="{{ _('筛选...') }}"></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="current_stage" placeholder="{{ _('筛选...') }}"></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="project_type" placeholder="{{ _('筛选...') }}"></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="quotation_customer" placeholder="{{ _('筛选...') }}"></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="report_source" placeholder="{{ _('筛选...') }}"></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="end_user" placeholder="{{ _('筛选...') }}"></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="design_issues" placeholder="{{ _('筛选...') }}"></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="contractor" placeholder="{{ _('筛选...') }}"></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="system_integrator" placeholder="{{ _('筛选...') }}"></th>
                                 <th><input type="date" class="form-control form-control-sm filter-input" data-field="delivery_forecast"></th>
                                 <th><input type="date" class="form-control form-control-sm filter-input" data-field="report_time"></th>
                                 <th><input type="date" class="form-control form-control-sm filter-input" data-field="updated_at"></th>
@@ -474,7 +478,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                         {{ render_owner(project.vendor_sales_manager) if project.vendor_sales_manager else '' }}
                                         <span class="d-none" data-vendor-sales-manager-id="{{ project.vendor_sales_manager_id }}"></span>
                                     {% else %}
-                                        <span class="badge bg-secondary">未设置</span>
+                                        <span class="badge bg-secondary">{{ _('未设置') }}</span>
                                         <span class="d-none" data-vendor-sales-manager-id=""></span>
                                     {% endif %}
                                 </td>
@@ -482,11 +486,11 @@ document.addEventListener('DOMContentLoaded', function () {
                                     {% if project.authorization_code %}
                                         {{ render_authorization_code(project.authorization_code, project.project_type) }}
                                     {% elif project.authorization_status == 'pending' %}
-                                        <span class="badge bg-warning">审批中</span>
+                                        <span class="badge bg-warning">{{ _('审批中') }}</span>
                                     {% elif project.authorization_status == 'rejected' %}
-                                        <span class="badge bg-danger">已驳回</span>
+                                        <span class="badge bg-danger">{{ _('已驳回') }}</span>
                                     {% else %}
-                                        <span class="badge bg-secondary">未申请</span>
+                                        <span class="badge bg-secondary">{{ _('未申请') }}</span>
                                     {% endif %}
                                 </td>
                                 <td>
@@ -496,13 +500,13 @@ document.addEventListener('DOMContentLoaded', function () {
                                     {{ render_project_rating(project.rating, style="list") }}
                                 </td>
                                 <td>{{ render_status_badge('active' if project.is_active else 'inactive') }}</td>
-                                <td>{{ render_project_stage(project.current_stage|project_stage_label('zh')) if project.current_stage else render_project_stage('未设置') }}</td>
+                                <td>{{ render_project_stage(project.current_stage|project_stage_label('zh')) if project.current_stage else render_project_stage(_('未设置')) }}</td>
                                 <td>{{ render_project_type(project.project_type) if project.project_type else '' }}</td>
                                 <td>
                                     {% if project.quotation_customer and project.quotations.count() > 0 %}
                                     <div class="d-flex align-items-center">
                                         <a href="{{ url_for('quotation.view_quotation', id=project.quotations.order_by(Quotation.created_at.desc()).first().id) }}"
-                                           class="quotation-link" title="查看报价单详情">
+                                           class="quotation-link" title="{{ _('查看报价单详情') }}">
                                             {{ '{:,.2f}'.format(project.quotation_customer) }}
                                         </a>
                                         {% set latest_quotation = project.quotations.order_by(Quotation.created_at.desc()).first() %}
@@ -533,10 +537,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
 <!-- 添加滚动控制按钮 -->
 <div class="scroll-controls">
-    <button type="button" class="btn btn-sm btn-light scroll-top" title="滚动到顶部">
+    <button type="button" class="btn btn-sm btn-light scroll-top" title="{{ _('滚动到顶部') }}">
         <i class="fas fa-chevron-up"></i>
     </button>
-    <button type="button" class="btn btn-sm btn-light scroll-bottom" title="滚动到底部">
+    <button type="button" class="btn btn-sm btn-light scroll-bottom" title="{{ _('滚动到底部') }}">
         <i class="fas fa-chevron-down"></i>
     </button>
 </div>

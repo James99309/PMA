@@ -33,14 +33,14 @@
 </div>
 
 <div class="container mt-4 page-with-fixed-nav">
-    <h2 class="mb-4">{% if project %}编辑项目{% else %}添加项目{% endif %}</h2>
+    <h2 class="mb-4">{% if project %}{{ _('编辑项目') }}{% else %}{{ _('添加项目') }}{% endif %}</h2>
 
     <!-- 授权编号提示框 -->
     {% if project %}
     <div class="alert alert-light mb-4">
         <div class="row align-items-center">
             <div class="col-auto">
-                <strong>授权编号：</strong>
+                <strong>{{ _('授权编号') }}：</strong>
             </div>
             <div class="col">
                 {% if project.authorization_code %}
@@ -58,7 +58,7 @@
         <!-- 项目信息卡片 -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="card-title mb-0">项目信息</h5>
+                <h5 class="card-title mb-0">{{ _('项目信息') }}</h5>
             </div>
             <div class="card-body">
                 <div class="row mb-4">

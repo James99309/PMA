@@ -1,0 +1,1770 @@
+# English translations for PMA.
+# Copyright (C) 2024 PMA
+# This file is distributed under the same license as the PMA project.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PMA 1.0\n"
+"Report-Msgid-Bugs-To: support@pma.com\n"
+"POT-Creation-Date: 2024-12-15 10:00+0800\n"
+"PO-Revision-Date: 2024-12-15 10:00+0800\n"
+"Last-Translator: PMA Team\n"
+"Language: en\n"
+"Language-Team: en <support@pma.com>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+# 客户模块翻译
+msgid "您没有权限查看此客户信息"
+msgstr "You do not have permission to view this customer information"
+
+msgid "客户创建成功！"
+msgstr "Customer created successfully!"
+
+msgid "您没有权限编辑此企业信息"
+msgstr "You do not have permission to edit this company information"
+
+msgid "客户信息已更新！"
+msgstr "Customer information has been updated!"
+
+# 语言切换相关
+msgid "语言参数缺失"
+msgstr "Language parameter is missing"
+
+msgid "不支持的语言"
+msgstr "Unsupported language"
+
+msgid "语言切换成功"
+msgstr "Language switched successfully"
+
+msgid "语言切换失败"
+msgstr "Language switch failed"
+
+msgid "服务器错误"
+msgstr "Server error"
+
+msgid "语言设置"
+msgstr "Language Settings"
+
+msgid "简体中文"
+msgstr "Simplified Chinese"
+
+msgid "English"
+msgstr "English"
+
+# 国际化演示页面翻译
+msgid "国际化演示"
+msgstr "Internationalization Demo"
+
+msgid "客户管理系统 - 国际化演示"
+msgstr "Customer Management System - I18n Demo"
+
+msgid "当前语言"
+msgstr "Current Language"
+
+msgid "客户基本信息"
+msgstr "Customer Basic Information"
+
+msgid "公司名称"
+msgstr "Company Name"
+
+msgid "行业"
+msgstr "Industry"
+
+msgid "状态"
+msgstr "Status"
+
+msgid "国家"
+msgstr "Country"
+
+msgid "创建时间"
+msgstr "Created Time"
+
+msgid "操作按钮示例"
+msgstr "Action Buttons Example"
+
+msgid "添加客户"
+msgstr "Add Customer"
+
+msgid "编辑客户"
+msgstr "Edit Customer"
+
+msgid "查看详情"
+msgstr "View Details"
+
+msgid "删除客户"
+msgstr "Delete Customer"
+
+msgid "导出数据"
+msgstr "Export Data"
+
+msgid "系统状态信息"
+msgstr "System Status Information"
+
+msgid "成功消息示例"
+msgstr "Success Message Examples"
+
+msgid "客户信息更新成功！"
+msgstr "Customer information updated successfully!"
+
+msgid "数据导出完成！"
+msgstr "Data export completed!"
+
+msgid "警告消息示例"
+msgstr "Warning Message Examples"
+
+msgid "该客户已存在，请检查"
+msgstr "This customer already exists, please check"
+
+msgid "支持的语言"
+msgstr "Supported Languages"
+
+msgid "语言切换说明"
+msgstr "Language Switching Instructions"
+
+msgid "您可以通过右上角的用户菜单中的"语言设置"来切换界面语言。"
+msgstr "You can switch the interface language through 'Language Settings' in the user menu at the top right corner."
+
+msgid "语言偏好会自动保存到您的账户中。"
+msgstr "Language preferences will be automatically saved to your account."
+
+msgid "返回客户列表"
+msgstr "Back to Customer List"
+
+# 行业选项翻译
+msgid "制造业"
+msgstr "Manufacturing"
+
+msgid "科技"
+msgstr "Technology"
+
+msgid "金融"
+msgstr "Finance"
+
+msgid "医疗"
+msgstr "Healthcare"
+
+msgid "教育"
+msgstr "Education"
+
+msgid "零售"
+msgstr "Retail"
+
+msgid "房地产"
+msgstr "Real Estate"
+
+msgid "能源"
+msgstr "Energy"
+
+msgid "交通运输"
+msgstr "Transportation"
+
+msgid "其他"
+msgstr "Other"
+
+# 状态选项翻译
+msgid "活跃"
+msgstr "Active"
+
+msgid "非活跃"
+msgstr "Inactive"
+
+msgid "潜在客户"
+msgstr "Potential"
+
+msgid "已关闭"
+msgstr "Closed"
+
+# 客户列表页面翻译
+msgid "客户管理"
+msgstr "Customer"
+
+msgid "客户列表"
+msgstr "Customer List"
+
+msgid "搜索企业名称..."
+msgstr "Search company name..."
+
+msgid "输入企业名称进行搜索，可查看所有企业的基本信息（含非自己的客户）"
+msgstr "Enter company name to search, view basic information of all companies (including non-own customers)"
+
+msgid "搜索联系人..."
+msgstr "Search contacts..."
+
+msgid "输入联系人姓名搜索，点击可跳转到相应企业"
+msgstr "Enter contact name to search, click to jump to corresponding company"
+
+msgid "添加企业"
+msgstr "Add Company"
+
+# 仪表盘翻译
+msgid "项目管理系统"
+msgstr "Project Management System"
+
+msgid "欢迎"
+msgstr "Welcome"
+
+msgid "访客"
+msgstr "Guest"
+
+msgid "最近项目"
+msgstr "Recent Projects"
+
+msgid "最近报价"
+msgstr "Recent Quotations"
+
+msgid "最近客户"
+msgstr "Recent Customers"
+
+msgid "您没有最近的项目"
+msgstr "You have no recent projects"
+
+msgid "您没有最近的报价"
+msgstr "You have no recent quotations"
+
+msgid "您没有最近的客户"
+msgstr "You have no recent customers"
+
+msgid "无项目"
+msgstr "No Project"
+
+msgid "未分类"
+msgstr "Uncategorized"
+
+msgid "快速操作"
+msgstr "Quick Actions"
+
+msgid "新建项目"
+msgstr "Create Project"
+
+msgid "新建报价"
+msgstr "Create Quotation"
+
+msgid "新建客户"
+msgstr "Create Customer"
+
+msgid "查看报表"
+msgstr "View Reports"
+
+msgid "最近工作记录"
+msgstr "Recent Work Records"
+
+msgid "全部账户"
+msgstr "All Accounts"
+
+msgid "正在加载工作记录..."
+msgstr "Loading work records..."
+
+msgid "行动日期"
+msgstr "Action Date"
+
+msgid "拥有人"
+msgstr "Owner"
+
+msgid "联系人"
+msgstr "Contact"
+
+msgid "关联项目"
+msgstr "Related Project"
+
+msgid "行动记录"
+msgstr "Action Record"
+
+msgid "回复状态"
+msgstr "Reply Status"
+
+msgid "最近记录"
+msgstr "Recent Records"
+
+msgid "今日记录"
+msgstr "Today's Records"
+
+msgid "暂无最近工作记录"
+msgstr "No recent work records"
+
+msgid "最近5天内没有工作记录"
+msgstr "No work records in the last 5 days"
+
+msgid "加载失败"
+msgstr "Loading Failed"
+
+msgid "无法加载工作记录，请稍后重试"
+msgstr "Unable to load work records, please try again later"
+
+msgid "重新加载"
+msgstr "Reload"
+
+msgid "显示最近5天的工作记录"
+msgstr "Show work records from the last 5 days"
+
+msgid "条记录"
+msgstr "records"
+
+msgid "系统信息"
+msgstr "System Information"
+
+msgid "当前用户"
+msgstr "Current User"
+
+msgid "系统版本"
+msgstr "System Version"
+
+msgid "上次登录"
+msgstr "Last Login"
+
+msgid "暂无记录"
+msgstr "No Records"
+
+msgid "帮助与支持"
+msgstr "Help & Support"
+
+msgid "如果您在使用过程中遇到任何问题，请联系系统管理员。"
+msgstr "If you encounter any issues while using the system, please contact the system administrator."
+
+msgid "邮箱"
+msgstr "Email"
+
+msgid "查看用户手册"
+msgstr "View User Manual"
+
+# 项目管理模块翻译
+msgid "项目列表"
+msgstr "Project List"
+
+msgid "显示统计总览"
+msgstr "Show Statistics Overview"
+
+msgid "搜索项目名称..."
+msgstr "Search project name..."
+
+msgid "只看自己"
+msgstr "My Projects Only"
+
+msgid "批量导入"
+msgstr "Batch Import"
+
+msgid "创建项目"
+msgstr "Create Project"
+
+msgid "批量删除"
+msgstr "Batch Delete"
+
+msgid "暂无项目数据"
+msgstr "No project data"
+
+msgid "无编号"
+msgstr "No Number"
+
+msgid "厂商负责人"
+msgstr "Vendor Manager"
+
+msgid "报价"
+msgstr "Quotation"
+
+msgid "元"
+msgstr "Yuan"
+
+msgid "直接用户"
+msgstr "End User"
+
+msgid "报备"
+msgstr "Report"
+
+msgid "出货预测"
+msgstr "Delivery Forecast"
+
+msgid "创建"
+msgstr "Created"
+
+msgid "更新"
+msgstr "Updated"
+
+msgid "授权编号"
+msgstr "Authorization Code"
+
+msgid "项目名称"
+msgstr "Project Name"
+
+msgid "活跃状态"
+msgstr "Active Status"
+
+msgid "当前阶段"
+msgstr "Current Stage"
+
+msgid "项目类型"
+msgstr "Project Type"
+
+msgid "报备来源"
+msgstr "Report Source"
+
+msgid "设计院及顾问"
+msgstr "Design Consultant"
+
+msgid "总承包单位"
+msgstr "Main Contractor"
+
+msgid "系统集成商"
+msgstr "System Integrator"
+
+msgid "出货预期日期"
+msgstr "Expected Delivery Date"
+
+msgid "报备日期"
+msgstr "Report Date"
+
+msgid "更新时间"
+msgstr "Update Time"
+
+msgid "创建日期"
+msgstr "Creation Date"
+
+msgid "筛选..."
+msgstr "Filter..."
+
+msgid "审批中"
+msgstr "Under Approval"
+
+msgid "已驳回"
+msgstr "Rejected"
+
+msgid "未申请"
+msgstr "Not Applied"
+
+msgid "查看报价单详情"
+msgstr "View Quotation Details"
+
+msgid "滚动到顶部"
+msgstr "Scroll to Top"
+
+msgid "滚动到底部"
+msgstr "Scroll to Bottom"
+
+# 项目添加页面翻译
+msgid "添加项目"
+msgstr "Add Project"
+
+msgid "项目信息"
+msgstr "Project Information"
+
+msgid "请选择报备来源"
+msgstr "Please select report source"
+
+msgid "请选择项目类型"
+msgstr "Please select project type"
+
+msgid "品牌情况"
+msgstr "Brand Situation"
+
+msgid "请选择品牌情况"
+msgstr "Please select brand situation"
+
+msgid "参与单位"
+msgstr "Participating Organizations"
+
+msgid "请选择用户"
+msgstr "Please select user"
+
+msgid "设计院及顾问"
+msgstr "Design Institute & Consultant"
+
+msgid "请选择设计院及顾问"
+msgstr "Please select design institute & consultant"
+
+msgid "请选择总承包单位"
+msgstr "Please select main contractor"
+
+msgid "请选择系统集成商"
+msgstr "Please select system integrator"
+
+msgid "经销商"
+msgstr "Dealer"
+
+msgid "请选择经销商"
+msgstr "Please select dealer"
+
+msgid "阶段说明"
+msgstr "Stage Description"
+
+msgid "当前阶段情况说明"
+msgstr "Current Stage Description"
+
+msgid "保存"
+msgstr "Save"
+
+msgid "取消"
+msgstr "Cancel"
+
+msgid "不可编辑"
+msgstr "Not Editable"
+
+msgid "出货预测日期"
+msgstr "Delivery Forecast Date"
+
+msgid "厂商销售负责人"
+msgstr "Vendor Sales Manager"
+
+msgid "请选择厂商销售负责人"
+msgstr "Please select vendor sales manager"
+
+# 报价单模块翻译
+msgid "报价管理"
+msgstr "Quotation Management"
+
+msgid "报价单列表"
+msgstr "Quotation List"
+
+msgid "搜索项目名称或授权编号..."
+msgstr "Search project name or authorization code..."
+
+msgid "清除搜索"
+msgstr "Clear Search"
+
+msgid "创建报价单"
+msgstr "Create Quotation"
+
+msgid "暂无报价单数据"
+msgstr "No quotation data"
+
+msgid "编辑报价单"
+msgstr "Edit Quotation"
+
+msgid "查看报价单"
+msgstr "View Quotation"
+
+msgid "删除报价单"
+msgstr "Delete Quotation"
+
+msgid "报价单详情"
+msgstr "Quotation Details"
+
+msgid "报价单号"
+msgstr "Quotation Number"
+
+msgid "报价金额"
+msgstr "Quotation Amount"
+
+msgid "报价日期"
+msgstr "Quotation Date"
+
+msgid "有效期"
+msgstr "Valid Until"
+
+msgid "备注"
+msgstr "Remarks"
+
+msgid "产品信息"
+msgstr "Product Information"
+
+msgid "产品名称"
+msgstr "Name"
+
+msgid "产品型号"
+msgstr "Model"
+
+msgid "数量"
+msgstr "Quantity"
+
+msgid "单价"
+msgstr "Unit Price"
+
+msgid "小计"
+msgstr "Subtotal"
+
+msgid "总计"
+msgstr "Total"
+
+msgid "税率"
+msgstr "Tax Rate"
+
+msgid "含税金额"
+msgstr "Tax Inclusive Amount"
+
+# 产品模块翻译
+msgid "产品列表"
+msgstr "Product List"
+
+msgid "产品详情"
+msgstr "Product Details"
+
+msgid "添加产品"
+msgstr "Add Product"
+
+msgid "编辑产品"
+msgstr "Edit"
+
+msgid "删除产品"
+msgstr "Delete"
+
+msgid "产品分类"
+msgstr "Category"
+
+msgid "产品描述"
+msgstr "Description"
+
+msgid "产品规格"
+msgstr "Specifications"
+
+msgid "产品图片"
+msgstr "Image"
+
+msgid "库存数量"
+msgstr "Stock Quantity"
+
+msgid "产品状态"
+msgstr "Status"
+
+msgid "在售"
+msgstr "Active"
+
+msgid "停售"
+msgstr "Inactive"
+
+msgid "暂无产品数据"
+msgstr "No product data"
+
+msgid "搜索产品..."
+msgstr "Search..."
+
+msgid "产品代码"
+msgstr "Product Code"
+
+msgid "标准价格"
+msgstr "Standard Price"
+
+msgid "最低价格"
+msgstr "Minimum Price"
+
+msgid "最高价格"
+msgstr "Maximum Price"
+
+msgid "供应商"
+msgstr "Supplier"
+
+msgid "制造商"
+msgstr "Manufacturer"
+
+msgid "产品重量"
+msgstr "Product Weight"
+
+msgid "产品尺寸"
+msgstr "Dimensions"
+
+msgid "保修期"
+msgstr "Warranty Period"
+
+msgid "技术参数"
+msgstr "Parameters"
+
+msgid "使用说明"
+msgstr "Usage Instructions"
+
+msgid "安装指南"
+msgstr "Installation Guide"
+
+msgid "维护保养"
+msgstr "Maintenance"
+
+msgid "产品库管理"
+msgstr "Product Management"
+
+msgid "输入关键词搜索产品名称、MN号、型号、品牌、类别等"
+msgstr "Enter keywords to search product name, MN number, model, brand, category, etc."
+
+msgid "搜索"
+msgstr "Search"
+
+msgid "重置"
+msgstr "Reset"
+
+msgid "支持搜索产品名称、MN号、型号、品牌、产品类型、产品类别等字段"
+msgstr "Supports searching product name, MN number, model, brand, product type, product category and other fields"
+
+msgid "新增产品"
+msgstr "Add"
+
+msgid "加载中..."
+msgstr "Loading..."
+
+msgid "共"
+msgstr "Total"
+
+msgid "条记录"
+msgstr "records"
+
+msgid "产品类型"
+msgstr "Type"
+
+msgid "产品类别"
+msgstr "Category"
+
+msgid "产品MN号"
+msgstr "MN"
+
+msgid "产品型号"
+msgstr "Model"
+
+msgid "规格说明"
+msgstr "Specifications"
+
+msgid "品牌"
+msgstr "Brand"
+
+msgid "单位"
+msgstr "Unit"
+
+msgid "市场价格"
+msgstr "Market Price"
+
+msgid "生产状态"
+msgstr "Status"
+
+msgid "数据所有者"
+msgstr "Owner"
+
+msgid "创建时间"
+msgstr "Created Time"
+
+msgid "操作"
+msgstr "Actions"
+
+msgid "加载更多数据..."
+msgstr "Loading more data..."
+
+msgid "全部数据已加载完成"
+msgstr "All data has been loaded"
+
+# 项目详情页翻译
+msgid "项目详情"
+msgstr "Project Details"
+
+msgid "查看评分详情"
+msgstr "View Rating Details"
+
+msgid "返回列表"
+msgstr "Back to List"
+
+msgid "编辑项目"
+msgstr "Edit"
+
+msgid "删除项目"
+msgstr "Delete"
+
+msgid "项目阶段跟踪"
+msgstr "Stage Tracking"
+
+msgid "项目基本信息"
+msgstr "Project Information"
+
+msgid "报备时间"
+msgstr "Report Time"
+
+msgid "无"
+msgstr "None"
+
+msgid "厂商销售负责人"
+msgstr "Vendor Sales"
+
+msgid "预计交付时间"
+msgstr "Expected Delivery Time"
+
+msgid "最后更新"
+msgstr "Last Updated"
+
+msgid "活跃状态"
+msgstr "Active Status"
+
+msgid "查看报价单详情"
+msgstr "Quotation Details"
+
+msgid "添加报价"
+msgstr "Add"
+
+msgid "修改"
+msgstr "Modify"
+
+msgid "相关项目"
+msgstr "Projects"
+
+msgid "项目编号"
+msgstr "Number"
+
+msgid "状态"
+msgstr "Status"
+
+msgid "负责人"
+msgstr "Manager"
+
+msgid "暂无相关项目"
+msgstr "No related projects"
+
+msgid "联系人"
+msgstr "Contacts"
+
+msgid "添加联系人"
+msgstr "Add"
+
+msgid "行动记录"
+msgstr "Action Records"
+
+msgid "添加行动记录"
+msgstr "Add Action"
+
+msgid "查看更多"
+msgstr "View More"
+
+msgid "审批流程"
+msgstr "Approval Process"
+
+msgid "申请授权编号"
+msgstr "Apply for Authorization Code"
+
+msgid "授权编号"
+msgstr "Authorization Code"
+
+msgid "审批状态"
+msgstr "Approval Status"
+
+msgid "申请人"
+msgstr "Applicant"
+
+msgid "申请时间"
+msgstr "Application Time"
+
+msgid "当前审批人"
+msgstr "Current Approver"
+
+msgid "处理时间"
+msgstr "Processing Time"
+
+msgid "处理意见"
+msgstr "Processing Comments"
+
+# 更多项目详情页字段翻译
+msgid "拥有人"
+msgstr "Owner"
+
+msgid "项目类型"
+msgstr "Type"
+
+msgid "创建时间"
+msgstr "Created Time"
+
+msgid "锁定状态"
+msgstr "Status"
+
+msgid "已锁定"
+msgstr "Locked"
+
+msgid "未锁定"
+msgstr "Unlocked"
+
+msgid "最后活动"
+msgstr "Last Activity"
+
+msgid "活跃"
+msgstr "Active"
+
+msgid "不活跃"
+msgstr "Inactive"
+
+msgid "阈值"
+msgstr "Threshold"
+
+msgid "天"
+msgstr "days"
+
+msgid "相关单位"
+msgstr "Organizations"
+
+msgid "直接用户"
+msgstr "End User"
+
+msgid "设计院及顾问"
+msgstr "Design & Consultant"
+
+msgid "经销商"
+msgstr "Dealer"
+
+msgid "总承包单位"
+msgstr "Main Contractor"
+
+msgid "系统集成商"
+msgstr "System Integrator"
+
+msgid "未设置"
+msgstr "Not Set"
+
+msgid "统计分析"
+msgstr "Analysis"
+
+msgid "项目概览"
+msgstr "Overview"
+
+msgid "阶段分析"
+msgstr "Stage Analysis"
+
+msgid "报价分析"
+msgstr "Quotation Analysis"
+
+msgid "时间分析"
+msgstr "Time Analysis"
+
+# 项目统计页面翻译
+msgid "项目统计总览"
+msgstr "Project Overview"
+
+msgid "加载中"
+msgstr "Loading"
+
+msgid "正在加载统计数据"
+msgstr "Loading data"
+
+msgid "有效项目"
+msgstr "Valid Projects"
+
+msgid "有效项目总数和总金额（排除签约、失败、搁置状态，包含所有授权状态）"
+msgstr "Total number and amount of valid projects (excluding signed, failed, and suspended status, including all authorization status)"
+
+msgid "项"
+msgstr "items"
+
+msgid "万元"
+msgstr "10K CNY"
+
+msgid "业务推进"
+msgstr "Business Progress"
+
+msgid "本月内项目状态有推进的统计"
+msgstr "Statistics of projects with status progress this month"
+
+msgid "签约"
+msgstr "Signed"
+
+msgid "当前已签约的项目统计"
+msgstr "Statistics of currently signed projects"
+
+msgid "失败"
+msgstr "Failed"
+
+msgid "当前处于失败状态的项目统计"
+msgstr "Statistics of projects currently in failed status"
+
+msgid "搁置"
+msgstr "Suspended"
+
+msgid "当前处于搁置状态的项目统计"
+msgstr "Statistics of projects currently in suspended status"
+
+msgid "发现"
+msgstr "Discovery"
+
+msgid "当前处于发现阶段的项目统计"
+msgstr "Statistics of projects currently in discovery stage"
+
+msgid "植入"
+msgstr "Implant"
+
+msgid "当前处于植入阶段的项目统计"
+msgstr "Statistics of projects currently in implementation stage"
+
+msgid "招标前"
+msgstr "Pre-tender"
+
+msgid "当前处于招标前阶段的项目统计"
+msgstr "Statistics of projects currently in pre-tender stage"
+
+msgid "招标中"
+msgstr "Tendering"
+
+msgid "中标"
+msgstr "Awarded"
+
+msgid "批价"
+msgstr "Pricing"
+
+# 更多翻译条目
+msgid "报价编号"
+msgstr "Quotation Number"
+
+msgid "关联项目"
+msgstr "Related Project"
+
+msgid "总价"
+msgstr "Total Price"
+
+msgid "项目阶段"
+msgstr "Project Stage"
+
+msgid "更新时间"
+msgstr "Update Time"
+
+msgid "创建时间"
+msgstr "Create Time"
+
+msgid "品牌情况"
+msgstr "Brand Situation"
+
+msgid "项目信息"
+msgstr "Project Information"
+
+msgid "参与单位"
+msgstr "Participating Organizations"
+
+# 联系人和行动记录翻译
+msgid "姓名"
+msgstr "Name"
+
+msgid "部门"
+msgstr "Department"
+
+msgid "职位"
+msgstr "Position"
+
+msgid "电话"
+msgstr "Phone"
+
+msgid "邮箱"
+msgstr "Email"
+
+msgid "主要联系人"
+msgstr "Primary Contact"
+
+msgid "备注"
+msgstr "Notes"
+
+msgid "项目行动记录"
+msgstr "Project Action Records"
+
+msgid "返回项目"
+msgstr "Back to Project"
+
+msgid "关联项目"
+msgstr "Related Project"
+
+msgid "相关企业"
+msgstr "Related Company"
+
+msgid "请选择企业（可选）"
+msgstr "Select company (optional)"
+
+msgid "请先选择联系人"
+msgstr "Select contact first"
+
+msgid "日期"
+msgstr "Date"
+
+msgid "沟通情况"
+msgstr "Communication"
+
+msgid "取消"
+msgstr "Cancel"
+
+msgid "保存"
+msgstr "Save"
+
+msgid "添加企业"
+msgstr "Add Company"
+
+msgid "导入数据"
+msgstr "Import Data"
+
+msgid "导入客户"
+msgstr "Import Customers"
+
+msgid "导入联系人"
+msgstr "Import Contacts"
+
+msgid "批量删除"
+msgstr "Batch Delete"
+
+msgid "客户负责人"
+msgstr "Customer Owner"
+
+msgid "企业名称"
+msgstr "Company Name"
+
+msgid "暂无可见企业数据。"
+msgstr "No visible company data."
+
+msgid "您可以点击右上角"添加企业"新建自己的客户。"
+msgstr "You can click 'Add Company' in the top right corner to create your own customers."
+
+msgid "已创建联系人"
+msgstr "Contact Created"
+
+msgid "暂无可见企业数据"
+msgstr "No visible company data"
+
+# 主菜单翻译
+msgid "业务机会管理系统"
+msgstr "Opportunity Management System"
+
+msgid "仪表盘"
+msgstr "Dashboard"
+
+msgid "业务管理"
+msgstr "Opportunity"
+
+msgid "项目管理"
+msgstr "Project"
+
+msgid "报价单管理"
+msgstr "Quotation"
+
+msgid "植入产品分析"
+msgstr "Product Analysis"
+
+msgid "产品管理"
+msgstr "Product"
+
+msgid "产品库"
+msgstr "Product Lib"
+
+msgid "研发产品库"
+msgstr "R&D Product"
+
+msgid "产品分类"
+msgstr "Category"
+
+msgid "销售地区"
+msgstr "Region"
+
+msgid "订单结算"
+msgstr "Order"
+
+msgid "订单管理"
+msgstr "Order"
+
+msgid "结算管理"
+msgstr "Settlement"
+
+msgid "库存管理"
+msgstr "Inventory"
+
+msgid "账户管理"
+msgstr "Account"
+
+msgid "账户列表"
+msgstr "Account"
+
+msgid "权限管理"
+msgstr "Permission"
+
+msgid "字典管理"
+msgstr "Role"
+
+msgid "角色字典"
+msgstr "Role"
+
+msgid "企业字典"
+msgstr "Company"
+
+msgid "部门字典"
+msgstr "Department"
+
+msgid "系统管理"
+msgstr "System"
+
+msgid "系统参数设置"
+msgstr "Parameter"
+
+msgid "版本管理"
+msgstr "Version"
+
+msgid "审批流程配置"
+msgstr "Workflow"
+
+msgid "通知中心"
+msgstr "Notification"
+
+msgid "历史记录"
+msgstr "History"
+
+msgid "数据库备份"
+msgstr "Backup"
+
+msgid "个人设置"
+msgstr "Personal Settings"
+
+msgid "审批中心"
+msgstr "Approval Center"
+
+msgid "退出系统"
+msgstr "Logout"
+
+msgid "用户"
+msgstr "User"
+
+msgid "未处理审批"
+msgstr "Pending Approvals"
+
+# 客户添加页面翻译
+msgid "添加客户"
+msgstr "Add Customer"
+
+msgid "添加企业"
+msgstr "Add Company"
+
+msgid "添加企业须知"
+msgstr "Company Addition Notice"
+
+msgid "系统会检查您输入的企业名称是否已经存在。如果企业已存在："
+msgstr "The system will check if the company name you entered already exists. If the company exists:"
+
+msgid "您可以看到已存在企业的名称作为参考"
+msgstr "You can see the names of existing companies for reference"
+
+msgid "系统不会允许您添加名称完全相同的企业（忽略大小写和空格）"
+msgstr "The system will not allow you to add companies with identical names (ignoring case and spaces)"
+
+msgid "如需修改已有企业信息，请联系管理员"
+msgstr "If you need to modify existing company information, please contact the administrator"
+
+msgid "企业名称"
+msgstr "Company Name"
+
+msgid "国家/地区"
+msgstr "Country/Region"
+
+msgid "请选择国家"
+msgstr "Please select country"
+
+msgid "省/州"
+msgstr "State/Province"
+
+msgid "请选择省/州"
+msgstr "Please select state/province"
+
+msgid "详细地址"
+msgstr "Detailed Address"
+
+msgid "行业"
+msgstr "Industry"
+
+msgid "请选择行业"
+msgstr "Please select industry"
+
+msgid "企业类型"
+msgstr "Company Type"
+
+msgid "请选择企业类型"
+msgstr "Please select company type"
+
+msgid "备注"
+msgstr "Notes"
+
+msgid "主要联系人信息"
+msgstr "Primary Contact Information"
+
+msgid "联系人姓名"
+msgstr "Contact Name"
+
+msgid "部门"
+msgstr "Department"
+
+msgid "职位"
+msgstr "Position"
+
+msgid "电话"
+msgstr "Phone"
+
+msgid "邮箱"
+msgstr "Email"
+
+msgid "保存"
+msgstr "Save"
+
+msgid "取消"
+msgstr "Cancel"
+
+msgid "客户名称已存在，无法保存，请更换名称或联系管理员"
+msgstr "Customer name already exists, cannot save, please change the name or contact administrator"
+
+msgid "相似企业（仅供参考）"
+msgstr "Similar Companies (Reference Only)"
+
+msgid "以上企业名称仅供参考，请确保输入的名称不与已有企业重复"
+msgstr "The above company names are for reference only, please ensure the entered name does not duplicate existing companies"
+
+msgid "搜索企业失败"
+msgstr "Failed to search companies"
+
+# 客户详情页面翻译
+msgid "客户详情"
+msgstr "Customer Details"
+
+msgid "编辑客户"
+msgstr "Edit Customer"
+
+msgid "删除客户"
+msgstr "Delete Customer"
+
+msgid "联系人列表"
+msgstr "Contact List"
+
+msgid "添加联系人"
+msgstr "Add Contact"
+
+msgid "项目列表"
+msgstr "Project List"
+
+msgid "创建项目"
+msgstr "Create Project"
+
+msgid "基本信息"
+msgstr "Basic Information"
+
+msgid "地址信息"
+msgstr "Address Information"
+
+msgid "其他信息"
+msgstr "Other Information"
+
+msgid "负责人"
+msgstr "Owner"
+
+msgid "创建时间"
+msgstr "Created Time"
+
+msgid "更新时间"
+msgstr "Updated Time"
+
+msgid "状态"
+msgstr "Status"
+
+msgid "操作"
+msgstr "Actions"
+
+msgid "编辑"
+msgstr "Edit"
+
+msgid "删除"
+msgstr "Delete"
+
+msgid "查看"
+msgstr "View"
+
+msgid "确认删除"
+msgstr "Confirm Delete"
+
+msgid "返回"
+msgstr "Back"
+
+msgid "未指定"
+msgstr "Not specified"
+
+msgid "企业代码"
+msgstr "Company Code"
+
+msgid "修改"
+msgstr "Modify"
+
+msgid "暂无备注"
+msgstr "No notes"
+
+# 客户详情页面附加内容翻译
+msgid "联系人"
+msgstr "Contacts"
+
+msgid "联系人列表"
+msgstr "Contact List"
+
+msgid "行动记录"
+msgstr "Action Records"
+
+msgid "项目列表"
+msgstr "Project List"
+
+msgid "相关项目"
+msgstr "Related Projects"
+
+msgid "无联系人"
+msgstr "No contacts"
+
+msgid "暂无行动记录"
+msgstr "No action records"
+
+msgid "暂无相关项目"
+msgstr "No related projects"
+
+msgid "添加行动记录"
+msgstr "Add Action Record"
+
+msgid "沟通内容"
+msgstr "Communication"
+
+msgid "日期"
+msgstr "Date"
+
+msgid "联系人姓名"
+msgstr "Contact Name"
+
+msgid "项目名称"
+msgstr "Project Name"
+
+msgid "项目类型"
+msgstr "Project Type"
+
+msgid "项目阶段"
+msgstr "Project Stage"
+
+msgid "最近跟进"
+msgstr "Last Follow-up"
+
+msgid "查看详情"
+msgstr "View Details"
+
+msgid "编辑联系人"
+msgstr "Edit Contact"
+
+msgid "删除联系人"
+msgstr "Delete Contact"
+
+msgid "主要联系人"
+msgstr "Primary Contact"
+
+msgid "普通联系人"
+msgstr "Regular Contact"
+
+msgid "记录时间"
+msgstr "Record Time"
+
+msgid "跟进人"
+msgstr "Follow-up By"
+
+msgid "通信记录"
+msgstr "Communication Record"
+
+msgid "客户共享设置"
+msgstr "Customer Sharing Settings"
+
+msgid "共享给以下用户"
+msgstr "Share with following users"
+
+msgid "共享联系人"
+msgstr "Share Contacts"
+
+msgid "同时共享该客户下的所有联系人"
+msgstr "Also share all contacts under this customer"
+
+msgid "保存设置"
+msgstr "Save Settings"
+
+msgid "修改拥有人"
+msgstr "Change Owner"
+
+msgid "选择新拥有人"
+msgstr "Select New Owner"
+
+msgid "确认修改"
+msgstr "Confirm Change"
+
+msgid "拥有人"
+msgstr "Owner"
+
+msgid "创建人"
+msgstr "Creator"
+
+msgid "暂无联系人数据"
+msgstr "No contact data"
+
+msgid "记录人"
+msgstr "Recorded by"
+
+msgid "姓名"
+msgstr "Name"
+
+msgid "展开"
+msgstr "Expand"
+
+msgid "回复"
+msgstr "Reply"
+
+msgid "输入回复内容..."
+msgstr "Enter reply content..."
+
+msgid "提交"
+msgstr "Submit"
+
+msgid "上一页"
+msgstr "Previous"
+
+msgid "下一页"
+msgstr "Next"
+
+msgid "添加记录"
+msgstr "Add Record"
+
+msgid "直接用户"
+msgstr "End User"
+
+msgid "未设置"
+msgstr "Not Set"
+
+msgid "报价"
+msgstr "Quote"
+
+msgid "报备"
+msgstr "Report"
+
+msgid "暂无关联项目"
+msgstr "No related projects"
+
+# 登录页面翻译
+msgid "欢迎登录销售项目管理系统"
+msgstr "Welcome to Sales Project Management System"
+
+msgid "用户名或邮箱"
+msgstr "Username or Email"
+
+msgid "请输入用户名或邮箱"
+msgstr "Please enter username or email"
+
+msgid "密码"
+msgstr "Password"
+
+msgid "请输入密码"
+msgstr "Please enter password"
+
+msgid "记住我"
+msgstr "Remember me"
+
+msgid "登录"
+msgstr "Login"
+
+msgid "忘记密码?"
+msgstr "Forgot password?"
+
+msgid "请输入用户名或邮箱"
+msgstr "Please enter username or email"
+
+msgid "请输入密码"
+msgstr "Please enter password"
+
+msgid "企业类型"
+msgstr "Company Type"
+
+msgid "区域"
+msgstr "Region"
+
+msgid "地址"
+msgstr "Address"
+
+msgid "备注"
+msgstr "Notes"
+
+msgid "更新时间"
+msgstr "Updated Time"
+
+msgid "创建时间"
+msgstr "Created Time"
+
+# 仪表盘和统计页面翻译
+msgid "显示项目总览"
+msgstr "Show Overview"
+
+msgid "隐藏项目总览"
+msgstr "Hide Overview"
+
+msgid "业务推进"
+msgstr "Business Progress"
+
+msgid "发现"
+msgstr "Discovery"
+
+msgid "植入"
+msgstr "Implant"
+
+msgid "招标前"
+msgstr "Pre-tender"
+
+msgid "招标中"
+msgstr "Tendering"
+
+msgid "中标"
+msgstr "Awarded"
+
+msgid "批价"
+msgstr "Pricing"
+
+msgid "签约"
+msgstr "Signed"
+
+msgid "失败"
+msgstr "Failed"
+
+msgid "搁置"
+msgstr "Paused"
+
+msgid "阶段分布统计"
+msgstr "Stage Distribution"
+
+msgid "阶段趋势分析"
+msgstr "Stage Trend Analysis"
+
+# 项目详情页面翻译
+msgid "项目编号"
+msgstr "Number"
+
+msgid "项目基本信息"
+msgstr "Project Information"
+
+msgid "厂商销售负责人"
+msgstr "Vendor Sales"
+
+msgid "相关单位"
+msgstr "Organizations"
+
+msgid "设计院及顾问"
+msgstr "Design & Consultant"
+
+msgid "总承包单位"
+msgstr "Main Contractor"
+
+msgid "系统集成商"
+msgstr "System Integrator"
+
+msgid "查看报价单详情"
+msgstr "Quotation Details"
+
+msgid "项目阶段跟踪"
+msgstr "Stage Tracking"
+
+msgid "统计分析"
+msgstr "Analysis"
+
+msgid "项目概览"
+msgstr "Overview"
+
+msgid "阶段分析"
+msgstr "Stage Analysis"
+
+msgid "锁定状态"
+msgstr "Status"
+
+msgid "查看更多"
+msgstr "View More"
+
+# 添加行动记录页面翻译
+msgid "项目行动记录"
+msgstr "Project Action Records"
+
+msgid "关联项目"
+msgstr "Related Project"
+
+msgid "相关企业"
+msgstr "Related Company"
+
+msgid "请选择企业（可选）"
+msgstr "Select company (optional)"
+
+msgid "请先选择联系人"
+msgstr "Select contact first"
+
+msgid "沟通情况"
+msgstr "Communication"
+
+msgid "取消"
+msgstr "Cancel"
+
+msgid "保存"
+msgstr "Save"
+
+msgid "项目信息"
+msgstr "Project Info"
+
+msgid "相关单位:"
+msgstr "Related Units:"
+
+msgid "直接用户:"
+msgstr "End User:"
+
+msgid "设计院:"
+msgstr "Design Institute:"
+
+msgid "总承包:"
+msgstr "Main Contractor:"
+
+msgid "系统集成:"
+msgstr "System Integration:"
+
+msgid "经销商:"
+msgstr "Dealer:"
+
+# 添加联系人页面翻译
+msgid "部门"
+msgstr "Department"
+
+msgid "职位"
+msgstr "Position"
+
+msgid "电话"
+msgstr "Phone"
+
+msgid "邮箱"
+msgstr "Email"
+
+msgid "权限控制"
+msgstr "Permission Control"
+
+msgid "启用联系人独立权限设置"
+msgstr "Enable independent permission settings"
+
+msgid "禁止共享该联系人"
+msgstr "Disable sharing for this contact"
+
+msgid "保存"
+msgstr "Save"
+
+msgid "返回客户详情"
+msgstr "Back to Customer"
+
+# 报价单相关翻译
+msgid "创建报价单"
+msgstr "Create Quotation"
+
+msgid "报价单详情"
+msgstr "Quotation Details"
+
+msgid "报价单编号"
+msgstr "Quotation Number"
+
+msgid "项目"
+msgstr "Projects"
+
+msgid "经销商"
+msgstr "Dealer"
+
+msgid "已锁定"
+msgstr "Locked"
+
+msgid "未锁定"
+msgstr "Unlocked"
+
+msgid "万元"
+msgstr "K CNY"
+
+msgid "项"
+msgstr "items"
+
+# JavaScript翻译
+msgid "加载中..."
+msgstr "Loading..."
+
+msgid "请先选择企业（可选）"
+msgstr "Please select a company (optional)"
+
+msgid "请选择联系人（可选）"
+msgstr "Please select a contact (optional)"
+
+msgid "该企业无联系人"
+msgstr "No contacts for this company"
+
+msgid "获取联系人失败"
+msgstr "Failed to fetch contacts"
+
+msgid "加载联系人失败"
+msgstr "Failed to load contacts" 

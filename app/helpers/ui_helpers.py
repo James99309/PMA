@@ -130,7 +130,7 @@ def render_standard_tabs(tabs, current_tab, base_url, extra_params=None):
     """渲染标准页签
     
     Args:
-        tabs: 页签列表，每个元素为字典 {'key': 'tab_key', 'label': '页签名称', 'icon': 'fas fa-icon'}
+        tabs: 页签列表，每个元素为字典 {'key': 'tab_key', 'label': '页签名称', 'icon': 'fas fa-icon', 'badge': 数字(可选)}
         current_tab: 当前激活的页签key
         base_url: 基础URL（不含参数）
         extra_params: 额外的URL参数字典
@@ -147,6 +147,7 @@ def render_standard_tabs(tabs, current_tab, base_url, extra_params=None):
         tab_key = tab['key']
         tab_label = tab['label']
         tab_icon = tab.get('icon', '')
+        tab_badge = tab.get('badge', None)
         
         # 构建URL参数
         url_params = {'tab': tab_key}
@@ -162,10 +163,15 @@ def render_standard_tabs(tabs, current_tab, base_url, extra_params=None):
         # 图标HTML
         icon_html = f'<i class="{tab_icon} me-1"></i>' if tab_icon else ''
         
+        # 徽章HTML - 只有当数字大于0时才显示
+        badge_html = ''
+        if tab_badge is not None and tab_badge > 0:
+            badge_html = f'<span class="badge bg-danger ms-1">{tab_badge}</span>'
+        
         tab_html += f'''
         <li class="nav-item">
             <a class="nav-link {active_class}" href="{full_url}" role="tab">
-                {icon_html}{tab_label}
+                {icon_html}{tab_label}{badge_html}
             </a>
         </li>
         '''

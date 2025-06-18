@@ -422,7 +422,8 @@ def view_project(project_id):
     # 查询可选新拥有人
     all_users = []
     if can_change_project_owner(current_user, project):
-        if current_user.role == 'admin':
+        from app.permissions import is_admin_or_ceo
+        if is_admin_or_ceo():
             all_users = User.query.all()
         elif getattr(current_user, 'is_department_manager', False) or current_user.role == 'sales_director':
             all_users = User.query.filter(
@@ -439,7 +440,7 @@ def view_project(project_id):
     from app.utils.user_helpers import generate_user_tree_data
     user_tree_data = None
     if has_change_owner_permission:
-        filter_by_dept = current_user.role != 'admin'
+        filter_by_dept = not is_admin_or_ceo()
         user_tree_data = generate_user_tree_data(filter_by_department=filter_by_dept)
 
     # 获取系统设置
@@ -456,13 +457,13 @@ def view_project(project_id):
         is_editable, lock_reason = is_project_editable(project_id, current_user.id)
         
         # 检查用户权限
-        if user_role == 'admin':
+        if is_admin_or_ceo():
             can_edit_stage = True
         elif project.owner_id == current_user.id:
-            can_edit_stage = True and (is_editable or user_role == 'admin')
+            can_edit_stage = True and (is_editable or is_admin_or_ceo())
         elif project.vendor_sales_manager_id == current_user.id:
             # 厂商负责人享有与拥有人同等的编辑权限
-            can_edit_stage = True and (is_editable or user_role == 'admin')
+            can_edit_stage = True and (is_editable or is_admin_or_ceo())
         else:
             # 对于非拥有者和非厂商负责人，需要检查是否在可查看用户列表中，但渠道经理等角色不能编辑其他人的项目
             allowed_user_ids = current_user.get_viewable_user_ids() if hasattr(current_user, 'get_viewable_user_ids') else [current_user.id]
@@ -1430,6 +1431,10 @@ def update_project_stage_business_logic(project_id, new_stage, current_user_id):
             # 检查批价单是否已审批通过
             if existing_pricing_order.status != 'approved':
                 return {'error': f'批价单 {existing_pricing_order.order_number} 尚未审批通过（当前状态：{existing_pricing_order.status_label["zh"]}），无法推进到签约阶段。请先完成批价单审批流程。'}
+            
+            # 检查项目是否有授权编号
+            if not project.authorization_code:
+                return {'error': f'批价单 {existing_pricing_order.order_number} 已审批通过，但项目缺少授权编号，无法推进到签约阶段。请先申请项目授权编号。'}
         
         # 更新项目阶段
         project.current_stage = new_stage
@@ -1514,12 +1519,13 @@ def update_project_stage():
         # 检查项目是否被锁定
         from app.helpers.project_helpers import is_project_editable
         is_editable, lock_reason = is_project_editable(project_id, current_user.id)
-        if not is_editable and current_user.role != 'admin':
+        from app.permissions import is_admin_or_ceo
+        if not is_editable and not is_admin_or_ceo():
             return jsonify({'success': False, 'message': f'项目已被锁定，无法推进阶段: {lock_reason}'}), 403
             
         # 检查权限
         allowed = False
-        if current_user.role == 'admin':
+        if is_admin_or_ceo():
             allowed = True
         elif project.owner_id == current_user.id:
             allowed = True
@@ -1531,7 +1537,7 @@ def update_project_stage():
             if project.owner_id in allowed_user_ids:
                 allowed = True
         # 签约阶段加固：非管理员禁止任何阶段变更
-        if project.current_stage == '签约' and current_user.role != 'admin':
+        if project.current_stage == '签约' and not is_admin_or_ceo():
             return jsonify({'success': False, 'message': '签约阶段仅管理员可变更项目阶段'}), 403
         if not allowed:
             return jsonify({'success': False, 'message': '您没有权限修改此项目'}), 403
@@ -1593,18 +1599,37 @@ def update_project_stage():
                     if existing_pricing_order:
                         # 已存在批价单，检查审批状态
                         if existing_pricing_order.status == 'approved':
-                            # 批价单已审批通过，可以推进到签约
-                            pricing_flow_info = {
-                                'has_quotation': True,
-                                'has_approval': True,
-                                'has_pricing_order': True,
-                                'quotation_number': latest_quotation.quotation_number,
-                                'pricing_order_number': existing_pricing_order.order_number,
-                                'pricing_order_status': existing_pricing_order.status,
-                                'message': f'批价单 {existing_pricing_order.order_number} 已审批通过，项目可以推进到签约阶段。',
-                                'action_required': 'view_pricing_order',
-                                'pricing_order_id': existing_pricing_order.id
-                            }
+                            # 检查项目是否有授权编号
+                            if not project.authorization_code:
+                                # 批价单已通过但项目无授权编号，阻止推进
+                                should_block_progress = True
+                                pricing_flow_info = {
+                                    'has_quotation': True,
+                                    'has_approval': True,
+                                    'has_pricing_order': True,
+                                    'has_authorization': False,
+                                    'quotation_number': latest_quotation.quotation_number,
+                                    'pricing_order_number': existing_pricing_order.order_number,
+                                    'pricing_order_status': existing_pricing_order.status,
+                                    'message': f'批价单 {existing_pricing_order.order_number} 已审批通过，但项目缺少授权编号，无法推进到签约阶段。请先申请项目授权编号。',
+                                    'action_required': 'apply_authorization',
+                                    'project_id': project.id
+                                }
+                            else:
+                                # 批价单已审批通过且有授权编号，可以推进到签约
+                                pricing_flow_info = {
+                                    'has_quotation': True,
+                                    'has_approval': True,
+                                    'has_pricing_order': True,
+                                    'has_authorization': True,
+                                    'quotation_number': latest_quotation.quotation_number,
+                                    'pricing_order_number': existing_pricing_order.order_number,
+                                    'pricing_order_status': existing_pricing_order.status,
+                                    'authorization_code': project.authorization_code,
+                                    'message': f'批价单 {existing_pricing_order.order_number} 已审批通过，项目授权编号 {project.authorization_code}，项目可以推进到签约阶段。',
+                                    'action_required': 'view_pricing_order',
+                                    'pricing_order_id': existing_pricing_order.id
+                                }
                         else:
                             # 批价单存在但未审批通过，阻止推进
                             should_block_progress = True
