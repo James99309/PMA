@@ -314,15 +314,16 @@ def create_app(config_class=Config):
     from app.routes.backup_routes import backup_bp
     app.register_blueprint(backup_bp)
     
-    # 注册测试功能蓝图
-    try:
-        from app.routes.test_routes import test_bp
-        app.register_blueprint(test_bp, url_prefix='/test')
-        logger.info("测试功能蓝图注册成功")
-    except ImportError as e:
-        logger.warning(f"测试功能蓝图导入失败: {e}")
-    except Exception as e:
-        logger.error(f"测试功能蓝图注册失败: {e}")
+    # 注册测试功能蓝图 - 暂时禁用以避免云端部署问题
+    # try:
+    #     from app.routes.test_routes import test_bp
+    #     app.register_blueprint(test_bp, url_prefix='/test')
+    #     logger.info("测试功能蓝图注册成功")
+    # except ImportError as e:
+    #     logger.warning(f"测试功能蓝图导入失败: {e}")
+    # except Exception as e:
+    #     logger.error(f"测试功能蓝图注册失败: {e}")
+    logger.info("测试功能蓝图已暂时禁用")
     
     # 添加版本信息API路由
     @app.route('/api/version', methods=['GET'])
