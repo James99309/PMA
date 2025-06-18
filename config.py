@@ -89,7 +89,12 @@ class Config:
         
         # 云端域名配置
         APP_DOMAIN = os.environ.get('APP_DOMAIN', 'https://your-app.onrender.com')
-        PORT = int(os.environ.get('PORT', 10000))
+        # 安全的PORT配置，处理Render平台的PORT环境变量
+        port_env = os.environ.get('PORT', '10000')
+        if port_env == '$PORT' or not port_env.isdigit():
+            PORT = 10000
+        else:
+            PORT = int(port_env)
         
     else:
         DEBUG = True
