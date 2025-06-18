@@ -95,6 +95,9 @@ def get_recent_work_records():
     支持权限过滤和账户筛选
     """
     try:
+        # 导入权限检查函数
+        from app.permissions import is_admin_or_ceo
+        
         # 获取参数
         account_id = request.args.get('account_id', type=int)
         
@@ -107,7 +110,6 @@ def get_recent_work_records():
         # 账户筛选逻辑
         if account_id:
             # 如果指定了account_id，检查权限后只显示该账户的记录
-            from app.permissions import is_admin_or_ceo
             if is_admin_or_ceo():
                 # 管理员和CEO可以查看任何账户的记录
                 base_query = base_query.filter(Action.owner_id == account_id)
