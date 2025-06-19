@@ -473,6 +473,18 @@ def view_project(project_id):
                 # 即使可以查看，也不能编辑其他人的项目（除非是管理员）
                 can_edit_stage = False
 
+    # 预先计算关系数据，避免模板中的错误
+    has_quotations = project.quotations.count() > 0
+    has_pricing_orders = False
+    pricing_orders_list = []
+    try:
+        from app.models.pricing_order import PricingOrder
+        pricing_orders_list = PricingOrder.query.filter_by(project_id=project.id).order_by(PricingOrder.created_at.desc()).all()
+        has_pricing_orders = len(pricing_orders_list) > 0
+    except Exception:
+        has_pricing_orders = False
+        pricing_orders_list = []
+
     return render_template("project/detail.html", 
                          project=project, 
                          Quotation=Quotation, 
@@ -485,6 +497,10 @@ def view_project(project_id):
                          user_tree_data=user_tree_data, 
                          settings=settings, 
                          can_edit_stage=can_edit_stage,
+                         # 预计算的关系数据
+                         has_quotations=has_quotations,
+                         has_pricing_orders=has_pricing_orders,
+                         pricing_orders_list=pricing_orders_list,
                          # 添加审批相关函数
                          get_object_approval_instance=get_object_approval_instance,
                          get_available_templates=get_available_templates,

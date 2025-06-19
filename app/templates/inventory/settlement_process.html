@@ -153,7 +153,7 @@
                     <h6>结算单信息</h6>
                     <p><strong>结算单号：</strong>{{ settlement_order.order_number }}</p>
                     <p><strong>关联项目：</strong>{{ settlement_order.project.project_name if settlement_order.project else '无项目' }}</p>
-                    <p><strong>结算公司：</strong>{{ settlement_order.distributor.company_name if settlement_order.distributor else '无公司' }}</p>
+                    <p><strong>结算公司：</strong>{{ settlement_order.dealer.company_name if settlement_order.dealer else '无公司' }}</p>
                 </div>
                 <div class="col-md-6">
                     <h6>统计信息</h6>

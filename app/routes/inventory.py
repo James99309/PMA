@@ -621,7 +621,7 @@ def get_settlement_info(id):
             'success': True,
             'settlement': {
                 'order_number': settlement_order.order_number,
-                'distributor_name': settlement_order.distributor.company_name if settlement_order.distributor else '无分销商',
+                'distributor_name': settlement_order.dealer.company_name if settlement_order.dealer else '无经销商',
                 'details_count': len(settlement_order.details),
                 'total_amount': settlement_order.formatted_total_amount,
                 'status': settlement_order.status
@@ -1344,7 +1344,7 @@ def get_settlement_order_detail(settlement_order_id):
                 <h6>结算单信息</h6>
                 <table class="table table-sm">
                     <tr><td><strong>结算单号：</strong></td><td>{settlement_order.order_number}</td></tr>
-                    <tr><td><strong>分销商：</strong></td><td>{settlement_order.distributor.company_name if settlement_order.distributor else '无分销商'}</td></tr>
+                    <tr><td><strong>经销商：</strong></td><td>{settlement_order.dealer.company_name if settlement_order.dealer else '无经销商'}</td></tr>
                     <tr><td><strong>关联项目：</strong></td><td>{settlement_order.project.project_name if settlement_order.project else '无关联项目'}</td></tr>
                     <tr><td><strong>状态：</strong></td><td>
                         <span class="badge {'bg-success' if settlement_order.status == 'approved' else 'bg-warning' if settlement_order.status == 'pending' else 'bg-secondary'}">
@@ -1446,7 +1446,7 @@ def settlement_detail_api(order_number):
                 <table class="table table-sm">
                     <tr><td>结算单号:</td><td>{settlement_order.order_number}</td></tr>
                     <tr><td>项目名称:</td><td>{settlement_order.project.project_name if settlement_order.project else '无项目'}</td></tr>
-                    <tr><td>结算公司:</td><td>{settlement_order.distributor.company_name if settlement_order.distributor else '无公司'}</td></tr>
+                    <tr><td>结算公司:</td><td>{settlement_order.dealer.company_name if settlement_order.dealer else '无公司'}</td></tr>
                     <tr><td>创建时间:</td><td>{settlement_order.created_at.strftime('%Y-%m-%d %H:%M') if settlement_order.created_at else '-'}</td></tr>
                 </table>
             </div>
@@ -1534,7 +1534,7 @@ def settle_single_product(detail_id):
             return jsonify({'success': False, 'message': '找不到对应的产品信息'})
         
         # 获取结算公司
-        settlement_company = detail.settlement_order.distributor
+        settlement_company = detail.settlement_order.dealer
         if not settlement_company:
             return jsonify({'success': False, 'message': '结算单没有指定结算公司'})
         

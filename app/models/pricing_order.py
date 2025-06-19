@@ -314,8 +314,8 @@ class PricingOrderDetail(db.Model):
     
     @property
     def is_deletable(self):
-        """是否可删除（和源通信品牌的产品不可删除）"""
-        return self.brand != '和源通信'
+        """是否可删除（允许删除所有品牌的产品）"""
+        return True
 
 
 class SettlementOrderDetail(db.Model):

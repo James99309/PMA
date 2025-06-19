@@ -598,8 +598,17 @@ class PricingOrderService:
             return False, f"提交失败: {str(e)}"
     
     @staticmethod
-    def approve_step(pricing_order_id, step_order, current_user_id, action, comment=None):
-        """审批步骤"""
+    def approve_step(pricing_order_id, step_order, current_user_id, action, comment=None, frontend_amounts=None):
+        """审批步骤
+        
+        Args:
+            pricing_order_id: 批价单ID
+            step_order: 审批步骤
+            current_user_id: 当前用户ID
+            action: 审批动作（approve/reject）
+            comment: 审批意见
+            frontend_amounts: 前端传递的金额数据，格式为 {'pricing_total': float, 'settlement_total': float}
+        """
         try:
             pricing_order = PricingOrder.query.get(pricing_order_id)
             if not pricing_order:
@@ -649,7 +658,29 @@ class PricingOrderService:
                     # 进入下一步
                     pricing_order.current_approval_step = step_order + 1
                 else:
-                    # 最后一步：完成审批
+                    # 最后一步：完成审批前需要进行金额校验
+                    # 如果有前端传递的金额数据，优先使用前端数据进行校验
+                    if frontend_amounts:
+                        pricing_total = frontend_amounts.get('pricing_total', 0)
+                        settlement_total = frontend_amounts.get('settlement_total', 0)
+                        
+                        # 使用前端最新金额进行校验
+                        if settlement_total < pricing_total:
+                            return False, f"审批失败：结算单总金额 ¥{settlement_total:,.2f} 小于批价单总金额 ¥{pricing_total:,.2f}，不能通过审批"
+                    else:
+                        # 回退到数据库金额校验（兼容性）
+                        from app.models.pricing_order import SettlementOrder
+                        settlement_order = SettlementOrder.query.filter_by(pricing_order_id=pricing_order_id).first()
+                        
+                        if settlement_order:
+                            # 重新计算最新的总金额
+                            settlement_order.calculate_totals()
+                            
+                            # 检查结算单总金额不能小于批价单总金额
+                            if settlement_order.total_amount < pricing_order.pricing_total_amount:
+                                return False, f"审批失败：结算单总金额 ¥{settlement_order.total_amount:,.2f} 小于批价单总金额 ¥{pricing_order.pricing_total_amount:,.2f}，不能通过审批"
+                    
+                    # 金额校验通过，继续完成审批
                     # 注意：不再重新计算总金额和总折扣率，保持前端传递的数据
                     # 前端数据已经在审批路由中保存，这里直接使用
                     
@@ -838,23 +869,19 @@ class PricingOrderService:
             current_user: 当前用户
             is_approval_context: 是否在审批上下文中（审批时允许更宽松的权限检查）
         """
-        # 在审批上下文中，允许审批人编辑批价单明细，即使状态即将改变
-        if not is_approval_context:
-            # 审批通过后不能编辑，包括管理员也不能编辑已审批通过的批价单
-            if pricing_order.status == 'approved':
-                return False
+        # 检查管理员权限
+        from app.permissions import is_admin_or_ceo
+        is_admin = is_admin_or_ceo()
+        
+        # 审批通过后不能编辑，包括管理员也不能编辑已审批通过的批价单
+        if pricing_order.status == 'approved':
+            return False
             
         if pricing_order.status in ['draft', 'rejected']:
             # 草稿状态或被拒绝状态：创建人可编辑
             return pricing_order.created_by == current_user.id
         elif pricing_order.status == 'pending':
-            # 审批中：发起人、厂商销售负责人和当前审批人可编辑
-            if pricing_order.created_by == current_user.id:
-                return True
-            if (pricing_order.project and 
-                pricing_order.project.vendor_sales_manager_id == current_user.id):
-                return True
-            
+            # 审批中：只有当前审批人可以编辑（包括管理员也必须是当前审批人）
             # 检查是否为当前审批步骤的审批人
             target_step = pricing_order.current_approval_step
             if is_approval_context and hasattr(pricing_order, '_original_approval_step'):
@@ -867,6 +894,9 @@ class PricingOrderService:
             ).first()
             if current_approval_record:
                 return True
+            
+            # 审批状态下，除当前审批人外，其他人都不能编辑（包括管理员）
+            return False
                 
         return False
     
@@ -879,56 +909,61 @@ class PricingOrderService:
             current_user: 当前用户
             is_approval_context: 是否在审批上下文中（审批时允许更宽松的权限检查）
         """
-        # 在审批上下文中，允许审批人编辑结算单明细，即使状态即将改变
-        if not is_approval_context:
-            # 只有审批中或被拒绝状态才能编辑，审批通过后不能编辑（包括管理员）
-            if pricing_order.status not in ['pending', 'rejected']:
-                return False
-        
-        # 只有特定角色可以查看和编辑结算单（添加商务助理权限）
-        allowed_roles = ['渠道经理', '营销总监', '服务经理', '财务经理', '商务助理', 'admin']
-        user_roles = [role.name for role in current_user.roles] if hasattr(current_user, 'roles') else []
+        # 只有审批中或被拒绝状态才能编辑，审批通过后不能编辑（包括管理员）
+        if pricing_order.status not in ['pending', 'rejected', 'draft']:
+            return False
         
         # 使用统一的管理员权限检查（状态检查已在前面完成）
         from app.permissions import is_admin_or_ceo
-        if is_admin_or_ceo():
-            return True
+        is_admin = is_admin_or_ceo()
         
-        for role in user_roles:
-            if role in allowed_roles:
+        # 草稿和被拒绝状态下的权限检查
+        if pricing_order.status in ['draft', 'rejected']:
+            # 管理员直接通过
+            if is_admin:
                 return True
+            
+            # 使用权限管理系统检查结算单权限（修正权限标识符）
+            from app.permissions import check_permission
+            if check_permission('settlement_edit'):
+                return True
+                
+            # 特殊角色权限：渠道经理、营销总监、服务经理可以编辑结算单
+            user_role = current_user.role.strip() if current_user.role else ''
+            if user_role in ['channel_manager', 'sales_director', 'service_manager', 'business_admin', 'finance_director']:
+                return True
+            
+            return False
         
-        # 检查是否为当前审批步骤的审批人（有权限的角色）
-        # 在审批上下文中，使用原始的审批步骤，而不是当前可能已经改变的步骤
-        target_step = pricing_order.current_approval_step
-        if is_approval_context and hasattr(pricing_order, '_original_approval_step'):
-            target_step = pricing_order._original_approval_step
-            
-        current_approval_record = PricingOrderApprovalRecord.query.filter_by(
-            pricing_order_id=pricing_order.id,
-            step_order=target_step,
-            approver_id=current_user.id
-        ).first()
-        if current_approval_record:
-            # 审批人需要有相应的角色权限才能编辑结算单（添加商务助理映射）
-            role_mapping = {
-                'channel_manager': '渠道经理',
-                'sales_director': '营销总监', 
-                'service_manager': '服务经理',
-                'finance_manager': '财务经理',
-                'business_admin': '商务助理',
-                'admin': 'admin'
-            }
-            
-            user_role = current_user.role.strip() if hasattr(current_user, 'role') else ''
-            if user_role in role_mapping:
-                mapped_role = role_mapping[user_role]
-                if mapped_role in allowed_roles:
+        elif pricing_order.status == 'pending':
+            # 审批中：只有当前审批人可以编辑（需要有相应角色权限）
+            # 检查是否为当前审批步骤的审批人（有权限的角色）
+            target_step = pricing_order.current_approval_step
+            if is_approval_context and hasattr(pricing_order, '_original_approval_step'):
+                target_step = pricing_order._original_approval_step
+                
+            current_approval_record = PricingOrderApprovalRecord.query.filter_by(
+                pricing_order_id=pricing_order.id,
+                step_order=target_step,
+                approver_id=current_user.id
+            ).first()
+            if current_approval_record:
+                # 检查是否是管理员或CEO（最高权限）
+                if is_admin:
                     return True
+                    
+                # 在审批上下文中，当前审批人自动获得编辑权限
+                # 特殊角色权限：渠道经理、营销总监、服务经理在审批时可以编辑结算单
+                user_role = current_user.role.strip() if current_user.role else ''
+                if user_role in ['channel_manager', 'sales_director', 'service_manager', 'business_admin', 'finance_director']:
+                    return True
+                    
+                # 使用权限管理系统检查结算单权限
+                from app.permissions import check_permission
+                return check_permission('settlement_edit')
             
-            # 直接检查中文角色名
-            if user_role in allowed_roles:
-                return True
+            # 审批状态下，除当前审批人外，其他人都不能编辑（包括管理员）
+            return False
         
         return False
     
@@ -1006,85 +1041,29 @@ class PricingOrderService:
             return False, f"召回失败: {str(e)}"
     
     @staticmethod
-    def admin_rollback_pricing_order(pricing_order_id, admin_user_id, reason=None):
-        """管理员将已通过的批价单退回到草稿状态（清除所有审批痕迹）"""
+    def can_admin_rollback_pricing_order(pricing_order_id, user_id):
+        """检查是否可以执行管理员退回操作"""
         try:
             from app.models.user import User
             
-            # 验证管理员权限
-            admin_user = User.query.get(admin_user_id)
-            if not admin_user or admin_user.role != 'admin':
-                return False, "只有管理员可以执行退回操作"
+            # 验证管理员或CEO权限
+            user = User.query.get(user_id)
+            if not user or user.role not in ['admin', 'ceo']:
+                return False, "只有管理员或CEO可以执行退回操作"
             
             # 获取批价单
             pricing_order = PricingOrder.query.get(pricing_order_id)
             if not pricing_order:
                 return False, "批价单不存在"
             
-            # 检查状态：只能退回已通过的批价单
+            # 检查状态：只能退回已通过的批价单，不能在审批过程中操作
             if pricing_order.status != 'approved':
                 return False, f"只能退回已通过的批价单，当前状态：{pricing_order.status}"
             
-            # 开始数据库事务
-            from app import db
-            from flask import current_app
-            
-            # 1. 删除所有审批记录（清除痕迹）
-            approval_records = PricingOrderApprovalRecord.query.filter_by(
-                pricing_order_id=pricing_order_id
-            ).all()
-            
-            for record in approval_records:
-                db.session.delete(record)
-            
-            # 2. 重置批价单状态为草稿
-            pricing_order.status = 'draft'
-            pricing_order.current_approval_step = 0
-            pricing_order.approved_at = None
-            pricing_order.final_approver_id = None
-            
-            # 3. 重置结算单审批状态（保留数据，仅重置状态）
-            PricingOrderService.reset_settlement_approval_status(pricing_order_id)
-            
-            # 4. 解锁相关对象
-            PricingOrderService.unlock_related_objects(pricing_order)
-            
-            # 4. 记录操作日志
-            current_app.logger.info(
-                f"管理员 {admin_user.username} (ID: {admin_user_id}) "
-                f"将批价单 {pricing_order.order_number} (ID: {pricing_order_id}) 的审批状态退回到草稿状态。"
-                f"原因：{reason or '未提供'}"
-            )
-            
-            # 提交事务
-            db.session.commit()
-            
-            return True, "批价单审批已成功退回到草稿状态，所有审批记录已清除"
+            return True, None
             
         except Exception as e:
-            db.session.rollback()
-            return False, f"退回失败: {str(e)}"
-    
-    @staticmethod
-    def can_admin_rollback_pricing_order(pricing_order_id, user_id):
-        """检查管理员是否可以退回批价单审批"""
-        try:
-            from app.models.user import User
-            
-            # 检查用户权限
-            user = User.query.get(user_id)
-            if not user or user.role != 'admin':
-                return False
-            
-            # 检查批价单状态
-            pricing_order = PricingOrder.query.get(pricing_order_id)
-            if not pricing_order or pricing_order.status != 'approved':
-                return False
-            
-            return True
-            
-        except Exception:
-            return False
+            return False, f"权限检查失败: {str(e)}"
     
     @staticmethod
     def can_view_settlement_tab(current_user):
@@ -1094,37 +1073,16 @@ class PricingOrderService:
         if is_admin_or_ceo():
             return True
             
-        allowed_roles = ['渠道经理', '营销总监', '服务经理', '财务经理', '商务助理', 'admin']
-        
-        # 检查用户角色
-        if hasattr(current_user, 'roles') and current_user.roles:
-            user_roles = [role.name for role in current_user.roles]
-            for role in user_roles:
-                if role in allowed_roles:
-                    return True
-        
-        # 如果用户没有roles属性，但role字段包含允许的角色
-        if hasattr(current_user, 'role') and current_user.role:
-            user_role = current_user.role.strip()
-            # 将英文角色映射到中文角色
-            role_mapping = {
-                'channel_manager': '渠道经理',
-                'sales_director': '营销总监', 
-                'service_manager': '服务经理',
-                'finance_manager': '财务经理',
-                'business_admin': '商务助理',
-                'admin': 'admin'
-            }
+        # 检查基础结算单查看权限（使用正确的权限标识符）
+        from app.permissions import check_permission
+        if check_permission('settlement_view'):
+            return True
             
-            if user_role in role_mapping:
-                mapped_role = role_mapping[user_role]
-                if mapped_role in allowed_roles:
-                    return True
+        # 特殊角色权限：渠道经理、营销总监、服务经理可以查看结算单
+        user_role = current_user.role.strip() if current_user.role else ''
+        if user_role in ['channel_manager', 'sales_director', 'service_manager', 'business_admin', 'finance_director']:
+            return True
             
-            # 直接检查中文角色名
-            if user_role in allowed_roles:
-                return True
-        
         return False
     
     @staticmethod
@@ -1378,4 +1336,146 @@ class PricingOrderService:
             
         except Exception as e:
             logger.error(f"审批数据保存失败: {str(e)}")
-            return False, f"保存数据失败: {str(e)}" 
+            return False, f"保存数据失败: {str(e)}"
+
+    @staticmethod
+    def can_edit_quantity(pricing_order, current_user, is_approval_context=False):
+        """检查是否可以编辑数量字段
+        
+        审批状态下，数量字段应该被锁定，不允许任何人编辑
+        """
+        # 审批通过后不能编辑
+        if pricing_order.status == 'approved':
+            return False
+            
+        if pricing_order.status in ['draft', 'rejected']:
+            # 草稿状态或被拒绝状态：创建人可编辑数量
+            return pricing_order.created_by == current_user.id
+        elif pricing_order.status == 'pending':
+            # 审批状态下，数量字段锁定，任何人都不能编辑
+            return False
+                
+        return False
+    
+    @staticmethod
+    def can_edit_discount_and_price(pricing_order, current_user, is_approval_context=False):
+        """检查是否可以编辑折扣率和单价字段
+        
+        审批状态下，只有当前审批人可以编辑折扣率和单价
+        """
+        # 审批通过后不能编辑
+        if pricing_order.status == 'approved':
+            return False
+            
+        if pricing_order.status in ['draft', 'rejected']:
+            # 草稿状态或被拒绝状态：创建人可编辑
+            return pricing_order.created_by == current_user.id
+        elif pricing_order.status == 'pending':
+            # 审批中：只有当前审批人可以编辑折扣率和单价
+            # 检查是否为当前审批步骤的审批人
+            target_step = pricing_order.current_approval_step
+            if is_approval_context and hasattr(pricing_order, '_original_approval_step'):
+                target_step = pricing_order._original_approval_step
+                
+            current_approval_record = PricingOrderApprovalRecord.query.filter_by(
+                pricing_order_id=pricing_order.id,
+                step_order=target_step,
+                approver_id=current_user.id
+            ).first()
+            if current_approval_record:
+                return True
+            
+            # 审批状态下，除当前审批人外，其他人都不能编辑
+            return False
+                
+        return False
+    
+    @staticmethod
+    def can_edit_basic_info(pricing_order, current_user, is_approval_context=False):
+        """检查是否可以编辑基本信息（分销商、经销商等）
+        
+        审批状态下，只有当前审批人可以编辑基本信息
+        """
+        # 审批通过后不能编辑
+        if pricing_order.status == 'approved':
+            return False
+            
+        if pricing_order.status in ['draft', 'rejected']:
+            # 草稿状态或被拒绝状态：创建人可编辑
+            return pricing_order.created_by == current_user.id
+        elif pricing_order.status == 'pending':
+            # 审批中：只有当前审批人可以编辑基本信息
+            # 检查是否为当前审批步骤的审批人
+            target_step = pricing_order.current_approval_step
+            if is_approval_context and hasattr(pricing_order, '_original_approval_step'):
+                target_step = pricing_order._original_approval_step
+                
+            current_approval_record = PricingOrderApprovalRecord.query.filter_by(
+                pricing_order_id=pricing_order.id,
+                step_order=target_step,
+                approver_id=current_user.id
+            ).first()
+            if current_approval_record:
+                return True
+            
+            # 审批状态下，除当前审批人外，其他人都不能编辑
+            return False
+                
+        return False
+    
+    @staticmethod
+    def admin_rollback_pricing_order(pricing_order_id, admin_user_id, reason=None):
+        """管理员将已通过的批价单退回到草稿状态（清除所有审批痕迹）"""
+        try:
+            from app.models.user import User
+            
+            # 先检查权限
+            can_rollback, error_msg = PricingOrderService.can_admin_rollback_pricing_order(
+                pricing_order_id, admin_user_id
+            )
+            if not can_rollback:
+                return False, error_msg
+            
+            # 获取用户和批价单
+            admin_user = User.query.get(admin_user_id)
+            pricing_order = PricingOrder.query.get(pricing_order_id)
+            
+            # 开始数据库事务
+            from app import db
+            from flask import current_app
+            
+            # 1. 删除所有审批记录（清除痕迹）
+            approval_records = PricingOrderApprovalRecord.query.filter_by(
+                pricing_order_id=pricing_order_id
+            ).all()
+            
+            for record in approval_records:
+                db.session.delete(record)
+            
+            # 2. 重置批价单状态为草稿
+            pricing_order.status = 'draft'
+            pricing_order.current_approval_step = 0
+            pricing_order.approved_at = None
+            pricing_order.final_approver_id = None
+            
+            # 3. 重置结算单审批状态（保留数据，仅重置状态）
+            PricingOrderService.reset_settlement_approval_status(pricing_order_id)
+            
+            # 4. 解锁相关对象
+            PricingOrderService.unlock_related_objects(pricing_order)
+            
+            # 5. 记录操作日志
+            current_app.logger.info(
+                f"管理员 {admin_user.username} (ID: {admin_user_id}) "
+                f"将批价单 {pricing_order.order_number} (ID: {pricing_order_id}) 的审批状态退回到草稿状态。"
+                f"原因：{reason or '未提供'}"
+            )
+            
+            # 提交事务
+            db.session.commit()
+            
+            return True, "批价单审批已成功退回到草稿状态，所有审批记录已清除"
+            
+        except Exception as e:
+            db.session.rollback()
+            return False, f"退回失败: {str(e)}" 

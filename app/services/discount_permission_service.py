@@ -11,16 +11,22 @@ class DiscountPermissionService:
     """折扣权限服务类"""
     
     @staticmethod
-    def get_user_discount_limits(user):
+    def get_user_discount_limits(user_or_id):
         """
         获取用户的折扣下限
         
         Args:
-            user: User对象
+            user_or_id: User对象或用户ID
             
         Returns:
             dict: 包含pricing_discount_limit和settlement_discount_limit的字典
         """
+        # 如果传入的是ID，先获取用户对象
+        if isinstance(user_or_id, int):
+            user = User.query.get(user_or_id)
+        else:
+            user = user_or_id
+            
         if not user:
             return {'pricing_discount_limit': None, 'settlement_discount_limit': None}
         

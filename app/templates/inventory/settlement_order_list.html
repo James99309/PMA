@@ -293,7 +293,7 @@
                                     </a>
                                 </td>
                                 <td>{{ order.project.project_name if order.project else '无项目' }}</td>
-                                <td>{{ order.distributor.company_name if order.distributor else '无公司' }}</td>
+                                <td>{{ order.dealer.company_name if order.dealer else '无公司' }}</td>
                                 <td class="number-cell">{{ order.details|length }}</td>
                                 <td class="number-cell">¥{{ order.formatted_total_amount }}</td>
                                 <td>

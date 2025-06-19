@@ -23,7 +23,8 @@ def check_pricing_edit_permission(pricing_order, current_user):
     检查批价单编辑权限，支持审批上下文
     
     Returns:
-        tuple: (can_edit_pricing, can_edit_settlement, is_approval_context)
+        tuple: (can_edit_pricing, can_edit_settlement, is_approval_context, 
+                can_edit_quantity, can_edit_discount_price, can_edit_basic_info)
     """
     # 检查是否在审批上下文中
     is_approval_context = False
@@ -47,7 +48,19 @@ def check_pricing_edit_permission(pricing_order, current_user):
         pricing_order, current_user, is_approval_context=is_approval_context
     )
     
-    return can_edit_pricing, can_edit_settlement, is_approval_context
+    # 细粒度权限检查
+    can_edit_quantity = PricingOrderService.can_edit_quantity(
+        pricing_order, current_user, is_approval_context=is_approval_context
+    )
+    can_edit_discount_price = PricingOrderService.can_edit_discount_and_price(
+        pricing_order, current_user, is_approval_context=is_approval_context
+    )
+    can_edit_basic_info = PricingOrderService.can_edit_basic_info(
+        pricing_order, current_user, is_approval_context=is_approval_context
+    )
+    
+    return (can_edit_pricing, can_edit_settlement, is_approval_context,
+            can_edit_quantity, can_edit_discount_price, can_edit_basic_info)
 
 
 @pricing_order_bp.route('/project/<int:project_id>/start_pricing_process', methods=['POST'])
@@ -57,7 +70,7 @@ def start_pricing_process(project_id):
     try:
         project = Project.query.get_or_404(project_id)
         
-        # 检查项目是否在批价或签约阶段
+        # 检查项目是否在批价或签约阶段（允许签约后再次创建批价单）
         if project.current_stage not in ['quoted', 'signed']:
             return jsonify({
                 'success': False,
@@ -92,13 +105,14 @@ def start_pricing_process(project_id):
                 'message': f'报价单 {quotation.quotation_number} 尚未完成审核，无法发起批价流程。请先完成报价单审批。'
             })
         
-        # 检查是否已存在批价单
+        # 检查是否已存在批价单（签约后的项目允许创建多个批价单）
         existing_pricing_order = PricingOrder.query.filter_by(
             project_id=project_id,
             quotation_id=quotation.id
         ).first()
         
-        if existing_pricing_order:
+        # 只有在非签约阶段且已存在批价单时才直接跳转到已有的批价单
+        if existing_pricing_order and project.current_stage != 'signed':
             return jsonify({
                 'success': True,
                 'redirect_url': url_for('pricing_order.edit_pricing_order', order_id=existing_pricing_order.id)
@@ -143,7 +157,8 @@ def edit_pricing_order(order_id):
             return redirect(url_for('project.list_projects'))
         
         # 检查编辑权限 - 使用统一的权限检查函数
-        can_edit_pricing, can_edit_settlement, is_approval_context = check_pricing_edit_permission(pricing_order, current_user)
+        (can_edit_pricing, can_edit_settlement, is_approval_context,
+         can_edit_quantity, can_edit_discount_price, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
         can_view_settlement = PricingOrderService.can_view_settlement_tab(current_user)
         
         # 获取客户数据（分销商和经销商）- 应用数据所有权过滤
@@ -193,6 +208,9 @@ def edit_pricing_order(order_id):
                              can_edit_pricing=can_edit_pricing,
                              can_edit_settlement=can_edit_settlement,
                              can_view_settlement=can_view_settlement,
+                             can_edit_quantity=can_edit_quantity,
+                             can_edit_discount_price=can_edit_discount_price,
+                             can_edit_basic_info=can_edit_basic_info,
                              distributors=distributors,
                              dealers=dealers,
                              project_dealers=project_dealers,
@@ -215,10 +233,10 @@ def update_basic_info(order_id):
         logger.info(f"开始更新批价单{order_id}基本信息，当前用户: {current_user.id}, 创建者: {pricing_order.created_by}, 状态: {pricing_order.status}")
         
         # 权限检查 - 使用统一的权限检查函数
-        can_edit_pricing, _, _ = check_pricing_edit_permission(pricing_order, current_user)
-        logger.info(f"权限检查结果: {can_edit_pricing}")
+        (_, _, _, _, _, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
+        logger.info(f"基本信息编辑权限检查结果: {can_edit_basic_info}")
         
-        if not can_edit_pricing:
+        if not can_edit_basic_info:
             logger.warning(f"用户{current_user.id}没有权限编辑批价单{order_id}")
             return jsonify({
                 'success': False,
@@ -502,8 +520,21 @@ def approve_pricing_order(order_id):
         # 获取当前审批步骤
         current_step = pricing_order.current_approval_step
         
+        # 准备前端金额数据（如果有的话）
+        frontend_amounts = None
+        if action == 'approve' and (pricing_details or settlement_details):
+            # 计算前端最新的总金额
+            pricing_total = sum(float(detail.get('total_price', 0)) for detail in pricing_details) if pricing_details else pricing_order.pricing_total_amount
+            settlement_total = sum(float(detail.get('total_price', 0)) for detail in settlement_details) if settlement_details else pricing_order.settlement_total_amount
+            
+            frontend_amounts = {
+                'pricing_total': pricing_total,
+                'settlement_total': settlement_total
+            }
+            logger.info(f"前端金额数据: 批价单总额={pricing_total}, 结算单总额={settlement_total}")
+        
         success, error = PricingOrderService.approve_step(
-            order_id, current_step, current_user.id, action, comment
+            order_id, current_step, current_user.id, action, comment, frontend_amounts
         )
         
         if not success:
@@ -786,13 +817,6 @@ def delete_product_from_pricing(order_id, detail_id):
                 'message': '产品明细不存在'
             })
         
-        # 检查是否可删除（和源通信品牌的产品不可删除）
-        if not pricing_detail.is_deletable:
-            return jsonify({
-                'success': False,
-                'message': '和源通信品牌的产品不可删除'
-            })
-        
         # 删除对应的结算单明细
         settlement_detail = SettlementOrderDetail.query.filter_by(
             pricing_detail_id=detail_id
@@ -820,6 +844,69 @@ def delete_product_from_pricing(order_id, detail_id):
         return jsonify({
             'success': False,
             'message': f'删除失败: {str(e)}'
+        })
+
+
+@pricing_order_bp.route('/<int:order_id>/batch_delete_products', methods=['DELETE'])
+@login_required
+def batch_delete_products_from_pricing(order_id):
+    """批量删除批价单产品明细"""
+    try:
+        pricing_order = PricingOrder.query.get_or_404(order_id)
+        
+        # 权限检查
+        can_edit_pricing, _, _ = check_pricing_edit_permission(pricing_order, current_user)
+        if not can_edit_pricing:
+            return jsonify({
+                'success': False,
+                'message': '您没有权限编辑批价单明细'
+            })
+        
+        data = request.get_json()
+        detail_ids = data.get('detail_ids', [])
+        
+        if not detail_ids:
+            return jsonify({
+                'success': False,
+                'message': '请选择要删除的产品明细'
+            })
+        
+        deleted_count = 0
+        for detail_id in detail_ids:
+            pricing_detail = PricingOrderDetail.query.filter_by(
+                pricing_order_id=order_id, id=detail_id
+            ).first()
+            
+            if pricing_detail:
+                # 删除对应的结算单明细
+                settlement_detail = SettlementOrderDetail.query.filter_by(
+                    pricing_detail_id=detail_id
+                ).first()
+                if settlement_detail:
+                    db.session.delete(settlement_detail)
+                
+                # 删除批价单明细
+                db.session.delete(pricing_detail)
+                deleted_count += 1
+        
+        # 重新计算总额和总折扣率
+        pricing_order.calculate_pricing_totals(recalculate_discount_rate=True)
+        pricing_order.calculate_settlement_totals(recalculate_discount_rate=True)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'成功删除 {deleted_count} 个产品',
+            'deleted_count': deleted_count
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"批量删除产品失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'批量删除失败: {str(e)}'
         })
 
 
@@ -1495,7 +1582,8 @@ def delete_pricing_order(order_id):
         
         return jsonify({
             'success': True,
-            'message': '批价单已成功删除'
+            'message': '批价单已成功删除',
+            'project_id': pricing_order.project_id
         })
         
     except Exception as e:
@@ -1576,11 +1664,11 @@ def export_pdf(order_id, pdf_type):
 def admin_rollback_pricing_order(order_id):
     """管理员退回已通过的批价单"""
     try:
-        from app.permissions import admin_required
+        from app.permissions import is_admin_or_ceo
         from flask import abort
         
-        # 检查管理员权限
-        if current_user.role != 'admin':
+        # 检查管理员或CEO权限
+        if not is_admin_or_ceo():
             abort(403)
         
         # 检查是否可以退回

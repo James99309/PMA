@@ -95,9 +95,9 @@
                         <div class="col-md-6">
                             <div class="info-section">
                                 <h6>关联信息</h6>
-                                <p><strong>分销商：</strong>{{ settlement_order.distributor.company_name if settlement_order.distributor else '无分销商' }}</p>
-                                {% if settlement_order.dealer %}
-                                <p><strong>经销商：</strong>{{ settlement_order.dealer.company_name }}</p>
+                                <p><strong>经销商：</strong>{{ settlement_order.dealer.company_name if settlement_order.dealer else '无经销商' }}</p>
+                                {% if settlement_order.distributor %}
+                                <p><strong>分销商：</strong>{{ settlement_order.distributor.company_name }}</p>
                                 {% endif %}
                                 {% if settlement_order.project %}
                                 <p><strong>关联项目：</strong>
@@ -274,7 +274,7 @@
                 <p>确定要执行此结算单的库存扣减操作吗？</p>
                 <div id="settlementInfo">
                     <p><strong>结算单号：</strong>{{ settlement_order.order_number }}</p>
-                    <p><strong>分销商：</strong>{{ settlement_order.distributor.company_name if settlement_order.distributor else '无分销商' }}</p>
+                    <p><strong>经销商：</strong>{{ settlement_order.dealer.company_name if settlement_order.dealer else '无经销商' }}</p>
                     <p><strong>产品项数：</strong>{{ settlement_order.details|length }}</p>
                     <p><strong>结算金额：</strong>¥{{ settlement_order.formatted_total_amount }}</p>
                 </div>
