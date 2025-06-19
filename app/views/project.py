@@ -232,6 +232,9 @@ def list_projects():
 @project.route('/view/<int:project_id>')
 @permission_required_with_approval_context('project', 'view')
 def view_project(project_id):
+    # 导入权限检查函数，确保在所有代码路径中都可用
+    from app.permissions import is_admin_or_ceo
+    
     project = Project.query.get_or_404(project_id)
     
     # 检查查看权限
@@ -422,7 +425,6 @@ def view_project(project_id):
     # 查询可选新拥有人
     all_users = []
     if can_change_project_owner(current_user, project):
-        from app.permissions import is_admin_or_ceo
         if is_admin_or_ceo():
             all_users = User.query.all()
         elif getattr(current_user, 'is_department_manager', False) or current_user.role == 'sales_director':
