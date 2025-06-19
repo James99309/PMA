@@ -1466,6 +1466,13 @@ def delete_pricing_order(order_id):
         for detail in settlement_details:
             db.session.delete(detail)
         
+        # 删除结算单主记录
+        settlement_orders = SettlementOrder.query.filter_by(
+            pricing_order_id=order_id
+        ).all()
+        for settlement_order in settlement_orders:
+            db.session.delete(settlement_order)
+        
         # 删除批价单明细
         pricing_details = PricingOrderDetail.query.filter_by(
             pricing_order_id=order_id

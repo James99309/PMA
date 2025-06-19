@@ -949,7 +949,7 @@ class PricingOrderService:
             # 重置结算单明细的结算状态
             settlement_details = SettlementOrderDetail.query.filter_by(pricing_order_id=pricing_order_id).all()
             for detail in settlement_details:
-                detail.settlement_status = 'pending'
+                detail.settlement_status = 'draft'
                 detail.settlement_date = None
                 detail.settlement_notes = None
                 

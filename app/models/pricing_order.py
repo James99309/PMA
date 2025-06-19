@@ -346,7 +346,7 @@ class SettlementOrderDetail(db.Model):
     
     # 结算相关字段
     settlement_company_id = Column(Integer, ForeignKey('companies.id'), nullable=True, comment='结算目标公司ID')
-    settlement_status = Column(String(20), default='pending', comment='结算状态: pending, completed')
+    settlement_status = Column(String(20), default='draft', comment='结算状态: draft, pending, settled')
     settlement_date = Column(DateTime, nullable=True, comment='结算完成时间')
     settlement_notes = Column(Text, nullable=True, comment='结算备注')
     
@@ -362,14 +362,15 @@ class SettlementOrderDetail(db.Model):
     @property
     def is_settled(self):
         """是否已结算"""
-        return self.settlement_status == 'completed'
+        return self.settlement_status == 'settled'
     
     @property
     def settlement_status_label(self):
         """结算状态标签"""
         status_map = {
+            'draft': {'zh': '草稿', 'color': '#6c757d'},
             'pending': {'zh': '待结算', 'color': '#ffc107'},
-            'completed': {'zh': '已结算', 'color': '#28a745'},
+            'settled': {'zh': '已结算', 'color': '#28a745'},
         }
         return status_map.get(self.settlement_status, {'zh': '未知', 'color': '#6c757d'})
 
