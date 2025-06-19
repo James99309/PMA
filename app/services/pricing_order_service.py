@@ -631,6 +631,10 @@ class PricingOrderService:
             if action == 'reject':
                 # 拒绝：结束审批流程
                 pricing_order.status = 'rejected'
+                
+                # 重置结算单审批状态（保留数据，仅重置状态）
+                PricingOrderService.reset_settlement_approval_status(pricing_order_id)
+                
                 PricingOrderService.unlock_related_objects(pricing_order)
                 
             elif action == 'approve':
@@ -929,6 +933,33 @@ class PricingOrderService:
         return False
     
     @staticmethod
+    def reset_settlement_approval_status(pricing_order_id):
+        """重置结算单审批状态（而不是删除数据）"""
+        try:
+            from app.models.pricing_order import SettlementOrder, SettlementOrderDetail
+            from app import db
+            
+            # 重置独立结算单状态为草稿
+            settlement_order = SettlementOrder.query.filter_by(pricing_order_id=pricing_order_id).first()
+            if settlement_order:
+                settlement_order.status = 'draft'
+                settlement_order.approved_by = None
+                settlement_order.approved_at = None
+            
+            # 重置结算单明细的结算状态
+            settlement_details = SettlementOrderDetail.query.filter_by(pricing_order_id=pricing_order_id).all()
+            for detail in settlement_details:
+                detail.settlement_status = 'pending'
+                detail.settlement_date = None
+                detail.settlement_notes = None
+                
+        except Exception as e:
+            # 记录错误但不阻断主流程
+            from flask import current_app
+            if current_app:
+                current_app.logger.warning(f"重置批价单 {pricing_order_id} 结算状态时出错: {str(e)}")
+
+    @staticmethod
     def recall_pricing_order(pricing_order_id, current_user_id, reason=None):
         """召回批价单"""
         try:
@@ -947,6 +978,9 @@ class PricingOrderService:
             # 更新批价单状态为草稿
             pricing_order.status = 'draft'
             pricing_order.current_approval_step = 0
+            
+            # 重置结算单审批状态（保留数据，仅重置状态）
+            PricingOrderService.reset_settlement_approval_status(pricing_order_id)
             
             # 解锁相关对象
             PricingOrderService.unlock_related_objects(pricing_order)
@@ -1009,7 +1043,10 @@ class PricingOrderService:
             pricing_order.approved_at = None
             pricing_order.final_approver_id = None
             
-            # 3. 解锁相关对象
+            # 3. 重置结算单审批状态（保留数据，仅重置状态）
+            PricingOrderService.reset_settlement_approval_status(pricing_order_id)
+            
+            # 4. 解锁相关对象
             PricingOrderService.unlock_related_objects(pricing_order)
             
             # 4. 记录操作日志

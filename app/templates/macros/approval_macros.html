@@ -154,7 +154,7 @@
                 {% endif %}
               </td>
               <td>
-                {# 关联业务徽章 - 统一使用项目编号 #}
+                {# 关联业务徽章 - 批价单和项目使用项目名称，报价单使用项目编号 #}
                 {% if item.object_type == 'quotation' %}
                   {# 报价单审核 - 显示关联项目编号 #}
                   {% if item.object_id %}
@@ -173,13 +173,13 @@
                     <span class="badge bg-secondary">无关联</span>
                   {% endif %}
                 {% elif item.object_type == 'project' %}
-                  {# 项目审核 - 显示项目编号 #}
+                  {# 项目审核 - 显示项目名称 #}
                   {% if item.object_id %}
                     {% set project = get_project_by_id(item.object_id) %}
-                    {% if project and project.authorization_code %}
-                      {{ render_authorization_code(project.authorization_code, project.project_type) }}
+                    {% if project and project.project_name %}
+                      <span class="badge bg-success rounded-pill" title="{{ project.project_name }}">{{ project.project_name[:20] }}{% if project.project_name|length > 20 %}...{% endif %}</span>
                     {% else %}
-                      <span class="badge bg-secondary">无编号</span>
+                      <span class="badge bg-secondary">无项目名称</span>
                     {% endif %}
                   {% else %}
                     <span class="badge bg-secondary">无关联</span>
@@ -197,15 +197,15 @@
                     <span class="badge bg-secondary">无关联</span>
                   {% endif %}
                 {% elif item.object_type == 'pricing_order' %}
-                  {# 批价单审核 - 显示关联项目编号 #}
+                  {# 批价单审核 - 显示关联项目名称 #}
                   {% if item.object_id %}
                     {% set pricing_order = get_pricing_order_by_id(item.object_id) %}
                     {% if pricing_order and pricing_order.project_id %}
                       {% set project = get_project_by_id(pricing_order.project_id) %}
-                      {% if project and project.authorization_code %}
-                        {{ render_authorization_code(project.authorization_code, project.project_type) }}
+                      {% if project and project.project_name %}
+                        <span class="badge bg-primary rounded-pill" title="{{ project.project_name }}">{{ project.project_name[:20] }}{% if project.project_name|length > 20 %}...{% endif %}</span>
                       {% else %}
-                        <span class="badge bg-secondary">无项目编号</span>
+                        <span class="badge bg-secondary">无项目名称</span>
                       {% endif %}
                     {% else %}
                       <span class="badge bg-secondary">无关联项目</span>
