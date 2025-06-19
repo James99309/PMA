@@ -256,9 +256,12 @@ def settlement_list():
         page = request.args.get('page', 1, type=int)
         per_page = 20
         
-        # 构建基础查询 - 获取所有结算单明细
-        from app.models.pricing_order import SettlementOrderDetail, SettlementOrder
-        query = db.session.query(SettlementOrderDetail).join(SettlementOrder)
+        # 构建基础查询 - 只获取已审批批价单的结算单明细
+        from app.models.pricing_order import SettlementOrderDetail, SettlementOrder, PricingOrder
+        query = db.session.query(SettlementOrderDetail).join(SettlementOrder).join(PricingOrder)
+        
+        # 关键过滤：只显示已审批批价单的结算明细
+        query = query.filter(PricingOrder.status == 'approved')
         
         # 搜索条件
         if search:
@@ -419,8 +422,11 @@ def settlement_list():
 def settlement_order_list():
     """结算单列表"""
     try:
-        # 获取所有结算单
-        settlement_orders = SettlementOrder.query.order_by(SettlementOrder.created_at.desc()).all()
+        # 获取所有已审批批价单对应的结算单
+        from app.models.pricing_order import PricingOrder
+        settlement_orders = db.session.query(SettlementOrder).join(PricingOrder).filter(
+            PricingOrder.status == 'approved'
+        ).order_by(SettlementOrder.created_at.desc()).all()
         
         # 初始化统计变量
         completed_count = 0
