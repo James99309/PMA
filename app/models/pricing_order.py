@@ -77,8 +77,8 @@ class PricingOrder(db.Model):
     approver = relationship('User', foreign_keys=[approved_by], backref='approved_pricing_orders')
     
     # 明细和审批记录关系
-    pricing_details = relationship('PricingOrderDetail', backref='pricing_order', cascade='all, delete-orphan')
-    settlement_details = relationship('SettlementOrderDetail', backref='pricing_order', cascade='all, delete-orphan')
+    pricing_details = relationship('PricingOrderDetail', backref='pricing_order', cascade='all, delete-orphan', order_by='PricingOrderDetail.id')
+    settlement_details = relationship('SettlementOrderDetail', backref='pricing_order', cascade='all, delete-orphan', order_by='SettlementOrderDetail.id')
     approval_records = relationship('PricingOrderApprovalRecord', backref='pricing_order', cascade='all, delete-orphan')
     # 结算单关系（一对一或一对多关系）
     settlement_orders = relationship('SettlementOrder', backref='pricing_order_ref', cascade='all, delete-orphan')
@@ -224,7 +224,7 @@ class SettlementOrder(db.Model):
     approver = relationship('User', foreign_keys=[approved_by], backref='approved_settlement_orders')
     
     # 明细关系
-    details = relationship('SettlementOrderDetail', backref='settlement_order', cascade='all, delete-orphan')
+    details = relationship('SettlementOrderDetail', backref='settlement_order', cascade='all, delete-orphan', order_by='SettlementOrderDetail.id')
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
