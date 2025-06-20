@@ -379,7 +379,7 @@
             <!-- 总计行 -->
             <tr class="total-row">
                 <td colspan="7" class="text-right">总计</td>
-                <td class="text-right">{{ "{:,.2f}".format(pricing_order.pricing_details|sum(attribute='market_price')|default(0) * pricing_order.pricing_details|sum(attribute='quantity')|default(0)) }}</td>
+                <td></td>
                 <td></td>
                 <td></td>
                 <td class="text-right">{{ "{:,.2f}".format(pricing_order.pricing_total_amount or 0) }}</td>

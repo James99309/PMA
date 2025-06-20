@@ -3076,8 +3076,7 @@ $(document).ready(function() {
     // 初始化产品自动完成功能
     initializeProductAutocomplete();
     
-    // 🔥 初始化调试面板
-    initDebugPanel();
+
     
     // 调试：显示绑定成功信息
     console.log('批价单事件绑定完成 - 使用改进的联动逻辑');
@@ -3597,7 +3596,7 @@ function calculateSubtotal($row) {
         const $priceInput = $row.find('.discounted-price');
         const $subtotalInput = $row.find('.subtotal');
         
-        debugLog('小计计算开始', {
+        console.log('小计计算开始', {
             '行信息': {
                 '行索引': $row.index(),
                 '产品名称': $row.find('.product-name').val(),
@@ -3624,7 +3623,7 @@ function calculateSubtotal($row) {
             var displayValue = $row.find('.discounted-price').val().replace(/[^\d.]/g, '');
             unitPrice = parseFloat(displayValue) || 0;
             console.log('从显示值解析单价:', displayValue, '解析后:', unitPrice);
-            debugLog('单价解析', {
+            console.log('单价解析', {
                 '原始显示值': $row.find('.discounted-price').val(),
                 '清理后': displayValue,
                 '解析后': unitPrice
@@ -3640,7 +3639,7 @@ function calculateSubtotal($row) {
         console.log('小计计算: ' + quantity + ' * ' + unitPrice + ' = ' + subtotal);
         
         // 🔥 新增计算验证
-                 debugLog('小计计算验证', {
+                 console.log('小计计算验证', {
              '计算公式': quantity + ' × ' + unitPrice + ' = ' + subtotal,
              '数量是否有效': !isNaN(quantity) && quantity > 0,
              '单价是否有效': !isNaN(unitPrice) && unitPrice >= 0,
@@ -3659,7 +3658,7 @@ function calculateSubtotal($row) {
         console.log('小计已更新: data-raw-value=' + subtotal + ', 显示值=' + formattedSubtotal);
         
         // 🔥 验证更新结果
-        debugLog('小计更新验证', {
+        console.log('小计更新验证', {
             '格式化后': formattedSubtotal,
             '更新后显示值': $row.find('.subtotal').val(),
             '更新后data-raw-value': $row.find('.subtotal').data('raw-value'),
@@ -3673,7 +3672,7 @@ function calculateSubtotal($row) {
         return subtotal;
     } catch (e) {
         console.error('计算小计时出错:', e);
-        debugLog('小计计算异常', {
+        console.log('小计计算异常', {
             '错误信息': e.message,
             '错误堆栈': e.stack
         });
@@ -3681,102 +3680,9 @@ function calculateSubtotal($row) {
     }
 }
 
-// 🔥 新增调试日志函数
-function debugLog(title, data) {
-    const timestamp = new Date().toLocaleTimeString();
-    console.log(`[${timestamp}] ${title}:`, data);
-    
-    // 添加到调试面板
-    if (window.debugPanel) {
-        const logEntry = document.createElement('div');
-        logEntry.className = 'debug-entry';
-                 logEntry.innerHTML = 
-             '<div class="debug-time">' + timestamp + '</div>' +
-             '<div class="debug-title">' + title + '</div>' +
-             '<div class="debug-data">' + JSON.stringify(data, null, 2) + '</div>';
-        window.debugPanel.appendChild(logEntry);
-        
-        // 保持最新的50条记录
-        const entries = window.debugPanel.querySelectorAll('.debug-entry');
-        if (entries.length > 50) {
-            entries[0].remove();
-        }
-        
-        // 滚动到底部
-        window.debugPanel.scrollTop = window.debugPanel.scrollHeight;
-    }
-}
 
-// 🔥 新增页面加载时的调试面板初始化
-function initDebugPanel() {
-    // 创建调试面板
-    const debugPanel = document.createElement('div');
-    debugPanel.id = 'debugPanel';
-         debugPanel.style.cssText = 
-         'position: fixed;' +
-         'top: 10px;' +
-         'right: 10px;' +
-         'width: 400px;' +
-         'height: 300px;' +
-         'background: rgba(0, 0, 0, 0.9);' +
-         'color: #00ff00;' +
-         'font-family: monospace;' +
-         'font-size: 10px;' +
-         'padding: 10px;' +
-         'border-radius: 5px;' +
-         'z-index: 9999;' +
-         'overflow-y: auto;' +
-         'display: none;';
-    
-    // 添加调试面板样式
-    const debugStyle = document.createElement('style');
-    debugStyle.textContent = `
-        .debug-entry {
-            margin-bottom: 5px;
-            padding: 3px;
-            border-left: 2px solid #00ff00;
-            padding-left: 5px;
-        }
-        .debug-time {
-            color: #ffff00;
-            font-size: 8px;
-        }
-        .debug-title {
-            color: #00ffff;
-            font-weight: bold;
-        }
-        .debug-data {
-            color: #ffffff;
-            white-space: pre-wrap;
-            font-size: 9px;
-        }
-    `;
-    document.head.appendChild(debugStyle);
-    
-    document.body.appendChild(debugPanel);
-    window.debugPanel = debugPanel;
-    
-    // 添加切换按钮
-    const toggleButton = document.createElement('button');
-    toggleButton.textContent = '调试';
-         toggleButton.style.cssText = 
-         'position: fixed;' +
-         'top: 10px;' +
-         'right: 420px;' +
-         'z-index: 10000;' +
-         'background: #007bff;' +
-         'color: white;' +
-         'border: none;' +
-         'padding: 5px 10px;' +
-         'border-radius: 3px;' +
-         'cursor: pointer;';
-    toggleButton.onclick = function() {
-        debugPanel.style.display = debugPanel.style.display === 'none' ? 'block' : 'none';
-    };
-    document.body.appendChild(toggleButton);
-    
-    debugLog('调试面板初始化', { '状态': '成功' });
-}
+
+
 
 // 点击其他地方关闭产品选择菜单
 $(document).on('click', function(e) {
@@ -4529,6 +4435,15 @@ function confirmAdminRollback() {
         button.innerHTML = originalText;
         button.disabled = false;
     });
+}
+{% else %}
+// 非管理员用户，不显示退回功能
+function showAdminRollbackModal() {
+    console.warn('权限不足：只有管理员可以退回批价单');
+}
+
+function confirmAdminRollback() {
+    console.warn('权限不足：只有管理员可以退回批价单');
 }
 {% endif %}
 
