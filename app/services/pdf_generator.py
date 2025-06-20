@@ -41,59 +41,110 @@ class PDFGenerator:
                     # 黑体
                     '/System/Library/Fonts/STHeiti Light.ttc',
                     '/System/Library/Fonts/STHeiti Medium.ttc',
-                    # 苹方字体 - 使用实际路径
-                    '/System/Library/PrivateFrameworks/FontServices.framework/Versions/A/Resources/Reserved/PingFangUI.ttc',
+                    # 苹方字体 - 检查多个可能的路径
+                    '/System/Library/Fonts/PingFang.ttc',
+                    '/Library/Fonts/PingFang SC.ttc',
                     # 英文字体
                     '/System/Library/Fonts/Helvetica.ttc',
                     '/System/Library/Fonts/Times.ttc',
+                    '/System/Library/Fonts/Arial.ttf',
                 ]
                 
+                available_fonts = []
                 for font_path in macos_fonts:
                     if os.path.exists(font_path):
-                        logger.info(f"找到字体: {font_path}")
+                        logger.info(f"✅ macOS找到字体: {font_path}")
+                        available_fonts.append(font_path)
                     else:
-                        logger.warning(f"字体文件不存在: {font_path}")
+                        logger.warning(f"❌ macOS字体文件不存在: {font_path}")
+                
+                if available_fonts:
+                    logger.info(f"macOS系统共找到 {len(available_fonts)} 个可用字体")
+                else:
+                    logger.error("⚠️ macOS系统未找到任何可用的中文字体！")
             
             # Windows 字体配置
             elif platform.system() == 'Windows':
                 windows_fonts = [
-                    'C:/Windows/Fonts/msyh.ttc',      # 微软雅黑
-                    'C:/Windows/Fonts/DengXian.ttf',   # 等线
-                    'C:/Windows/Fonts/simsun.ttc',     # 宋体
-                    'C:/Windows/Fonts/simhei.ttf',     # 黑体
-                    'C:/Windows/Fonts/arial.ttf',      # Arial
+                    # 微软雅黑 - 最佳中文字体
+                    'C:/Windows/Fonts/msyh.ttc',
+                    'C:/Windows/Fonts/msyhbd.ttc',     # 微软雅黑粗体
+                    'C:/Windows/Fonts/msyhl.ttc',      # 微软雅黑细体
+                    # 等线 - Windows 10默认字体
+                    'C:/Windows/Fonts/DengXian.ttf',
+                    'C:/Windows/Fonts/DengXianBold.ttf',
+                    'C:/Windows/Fonts/DengXianLight.ttf',
+                    # 宋体 - 传统中文字体
+                    'C:/Windows/Fonts/simsun.ttc',
+                    'C:/Windows/Fonts/NSimSun.ttf',
+                    # 黑体
+                    'C:/Windows/Fonts/simhei.ttf',
+                    # 英文字体
+                    'C:/Windows/Fonts/arial.ttf',
+                    'C:/Windows/Fonts/arialbd.ttf',    # Arial Bold
                 ]
                 
+                available_fonts = []
                 for font_path in windows_fonts:
                     if os.path.exists(font_path):
-                        logger.info(f"找到字体: {font_path}")
+                        logger.info(f"✅ Windows找到字体: {font_path}")
+                        available_fonts.append(font_path)
                     else:
-                        logger.warning(f"字体文件不存在: {font_path}")
+                        logger.warning(f"❌ Windows字体文件不存在: {font_path}")
+                
+                if available_fonts:
+                    logger.info(f"Windows系统共找到 {len(available_fonts)} 个可用字体")
+                else:
+                    logger.error("⚠️ Windows系统未找到任何可用的中文字体！")
             
             # Linux 字体配置
             else:
                 linux_fonts = [
                     '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
                     '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                    '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
                 ]
                 
+                available_fonts = []
                 for font_path in linux_fonts:
                     if os.path.exists(font_path):
-                        logger.info(f"找到字体: {font_path}")
+                        logger.info(f"✅ Linux找到字体: {font_path}")
+                        available_fonts.append(font_path)
                     else:
-                        logger.warning(f"字体文件不存在: {font_path}")
+                        logger.warning(f"❌ Linux字体文件不存在: {font_path}")
+                
+                if available_fonts:
+                    logger.info(f"Linux系统共找到 {len(available_fonts)} 个可用字体")
+                else:
+                    logger.error("⚠️ Linux系统未找到任何可用的中文字体！")
                         
         except Exception as e:
             logger.error(f"字体配置失败: {str(e)}")
+    
+    def _get_system_font_family(self):
+        """获取当前系统的字体族配置"""
+        system = platform.system()
+        
+        if system == "Darwin":  # macOS
+            # 使用实际存在的字体名称，优先使用宋体
+            return '"Songti TC", "Songti SC", "STSong", "STHeiti Light", "STHeiti", "Helvetica", "Arial", sans-serif'
+        elif system == "Windows":  # Windows
+            return '"Microsoft YaHei", "微软雅黑", "DengXian", "等线", "SimSun", "宋体", "Arial", sans-serif'
+        else:  # Linux
+            return '"Noto Sans CJK SC", "DejaVu Sans", "Liberation Sans", "Arial", sans-serif'
         
     def generate_pricing_order_pdf(self, pricing_order):
         """生成批价单PDF"""
         try:
+            # 获取当前系统的字体配置
+            font_family = self._get_system_font_family()
+            
             # 渲染HTML模板
             html_content = render_template(
                 'pdf/pricing_order_template.html',
                 pricing_order=pricing_order,
-                generated_at=datetime.now()
+                generated_at=datetime.now(),
+                font_family=font_family
             )
             
             # 生成PDF文件名：批价单编号 & 项目名称
@@ -139,12 +190,16 @@ class PDFGenerator:
                 db.session.commit()
                 logger.info(f"为批价单 {pricing_order.order_number} 创建了结算单 {settlement_order.order_number}")
             
+            # 获取当前系统的字体配置
+            font_family = self._get_system_font_family()
+            
             # 渲染HTML模板
             html_content = render_template(
                 'pdf/settlement_order_template.html',
                 pricing_order=pricing_order,
                 settlement_order=settlement_order,
-                generated_at=datetime.now()
+                generated_at=datetime.now(),
+                font_family=font_family
             )
             
             # 生成PDF文件名：结算单编号 & 项目名称
@@ -169,11 +224,15 @@ class PDFGenerator:
     def generate_quotation_pdf(self, quotation):
         """生成报价单PDF"""
         try:
+            # 获取当前系统的字体配置
+            font_family = self._get_system_font_family()
+            
             # 渲染HTML模板
             html_content = render_template(
                 'pdf/quotation_template.html',
                 quotation=quotation,
-                generated_at=datetime.now()
+                generated_at=datetime.now(),
+                font_family=font_family
             )
             
             # 生成PDF文件名：报价单编号 & 项目名称
@@ -197,11 +256,15 @@ class PDFGenerator:
     def generate_order_pdf(self, order):
         """生成订单PDF"""
         try:
+            # 获取当前系统的字体配置
+            font_family = self._get_system_font_family()
+            
             # 渲染HTML模板
             html_content = render_template(
                 'pdf/order_template.html',
                 order=order,
-                generated_at=datetime.now()
+                generated_at=datetime.now(),
+                font_family=font_family
             )
             
             # 生成PDF文件名：订单编号 & 供应商名称
@@ -250,7 +313,7 @@ class PDFGenerator:
         
         # 根据操作系统选择字体
         if system == "Darwin":  # macOS
-            font_family = '"Songti SC", "STHeiti Light", "PingFang SC", "Helvetica", "Arial", sans-serif'
+            font_family = '"Songti TC", "Songti SC", "STSong", "STHeiti Light", "STHeiti", "Helvetica", "Arial", sans-serif'
         elif system == "Windows":  # Windows
             font_family = '"Microsoft YaHei", "微软雅黑", "DengXian", "等线", "SimSun", "宋体", "Arial", sans-serif'
         else:  # Linux

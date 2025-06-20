@@ -2301,8 +2301,17 @@ function updateTotalDiscount(tabType, value) {
         }
     });
     
-    // 重新计算并更新总金额（用户调整总折扣率时需要重新计算）
-    updateTableTotals(true);
+    // 🔥 关键修复：只重新计算当前调整的表格，不影响其他表格
+    if (tabType === 'pricing') {
+        // 只重新计算批价单总金额
+        updatePricingTableTotal();
+    } else {
+        // 只重新计算结算单总金额
+        updateSettlementTableTotal();
+    }
+    
+    // 更新分销利润和利润率
+    updateDistributionProfit();
     
     // 🔥 关键修复：完全移除自动保存逻辑，只做前端计算，不自动保存到数据库
     console.log(`总折扣率 ${value}% 已在前端计算完成，不自动保存到数据库。需要手动保存或审批通过时保存。`);
@@ -2616,6 +2625,96 @@ function initializeExistingRows() {
     }
 }
 
+// 更新批价单表格总额
+function updatePricingTableTotal() {
+    try {
+        console.log('更新批价单表格总额');
+        
+        let pricingTotal = 0;
+        let pricingRowCount = 0;
+        $('#pricingTable tbody tr').each(function() {
+            var $row = $(this);
+            var productName = $row.find('.product-name').val();
+            
+            // 只计算有产品名称的行
+            if (productName && productName.trim()) {
+                var subtotalValue = $row.find('.subtotal').data('raw-value');
+                if (subtotalValue && !isNaN(subtotalValue)) {
+                    pricingTotal += subtotalValue;
+                    pricingRowCount++;
+                } else {
+                    // 如果没有data值，尝试从显示值解析
+                    var displayValue = $row.find('.subtotal').val();
+                    if (displayValue) {
+                        var parsed = parseFloat(displayValue.replace(/[^\d.]/g, ''));
+                        if (!isNaN(parsed)) {
+                            pricingTotal += parsed;
+                            pricingRowCount++;
+                            // 保存解析出的原始值
+                            $row.find('.subtotal').data('raw-value', parsed);
+                        }
+                    }
+                }
+            }
+        });
+        
+        // 更新批价单总额显示
+        $('#pricingTotalAmount').text('¥' + formatNumber(pricingTotal));
+        console.log('批价单总额:', pricingTotal, '有效行数:', pricingRowCount);
+        
+    } catch (e) {
+        console.error('更新批价单表格总额时出错:', e);
+    }
+}
+
+// 更新结算单表格总额
+function updateSettlementTableTotal() {
+    try {
+        console.log('更新结算单表格总额');
+        
+        // 检查结算单表格是否存在
+        if ($('#settlementTable tbody tr').length === 0) {
+            console.log('结算单表格不存在，跳过计算');
+            return;
+        }
+        
+        let settlementTotal = 0;
+        let settlementRowCount = 0;
+        $('#settlementTable tbody tr').each(function() {
+            var $row = $(this);
+            var productName = $row.find('.product-name').val();
+            
+            // 只计算有产品名称的行
+            if (productName && productName.trim()) {
+                var subtotalValue = $row.find('.subtotal').data('raw-value');
+                if (subtotalValue && !isNaN(subtotalValue)) {
+                    settlementTotal += subtotalValue;
+                    settlementRowCount++;
+                } else {
+                    // 如果没有data值，尝试从显示值解析
+                    var displayValue = $row.find('.subtotal').val();
+                    if (displayValue) {
+                        var parsed = parseFloat(displayValue.replace(/[^\d.]/g, ''));
+                        if (!isNaN(parsed)) {
+                            settlementTotal += parsed;
+                            settlementRowCount++;
+                            // 保存解析出的原始值
+                            $row.find('.subtotal').data('raw-value', parsed);
+                        }
+                    }
+                }
+            }
+        });
+        
+        // 更新结算单总额显示
+        $('#settlementTotalAmount').text('¥' + formatNumber(settlementTotal));
+        console.log('结算单总额:', settlementTotal, '有效行数:', settlementRowCount);
+        
+    } catch (e) {
+        console.error('更新结算单表格总额时出错:', e);
+    }
+}
+
 // 更新表格总额 (总价 = 所有行小计之和)
 function updateTableTotals(forceRecalculate = false) {
     try {
@@ -2806,11 +2905,18 @@ $(document).ready(function() {
         // 重新计算小计和总价
         calculateSubtotal($row);
         
-        // 用户编辑时需要重新计算总金额
-        updateTableTotals(true);
+        // 🔥 关键修复：根据表格类型只更新对应的总额
+        const tabType = $row.closest('#pricingTable').length > 0 ? 'pricing' : 'settlement';
+        if (tabType === 'pricing') {
+            updatePricingTableTotal();
+        } else {
+            updateSettlementTableTotal();
+        }
+        
+        // 更新分销利润和利润率
+        updateDistributionProfit();
         
         // 根据明细折扣率重新计算总折扣率（用户编辑时才更新显示）
-        const tabType = $row.closest('#pricingTable').length > 0 ? 'pricing' : 'settlement';
         calculateAndUpdateTotalDiscountRate(tabType, true);
         
         console.log('=== 折扣率变更调试结束 ===');
@@ -2845,11 +2951,18 @@ $(document).ready(function() {
                 // 重新计算小计和总价
                 calculateSubtotal($row);
                 
-                // 用户编辑时需要重新计算总金额
-                updateTableTotals(true);
+                // 🔥 关键修复：根据表格类型只更新对应的总额
+                const tabType = $row.closest('#pricingTable').length > 0 ? 'pricing' : 'settlement';
+                if (tabType === 'pricing') {
+                    updatePricingTableTotal();
+                } else {
+                    updateSettlementTableTotal();
+                }
+                
+                // 更新分销利润和利润率
+                updateDistributionProfit();
                 
                 // 根据明细折扣率重新计算总折扣率（用户编辑时才更新显示）
-                const tabType = $row.closest('#pricingTable').length > 0 ? 'pricing' : 'settlement';
                 calculateAndUpdateTotalDiscountRate(tabType, true);
             }
         }

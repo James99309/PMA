@@ -463,11 +463,10 @@ class PricingOrderService:
             
             settlement_detail.calculate_prices()
             
-            # 重新计算总额
-            pricing_order = PricingOrder.query.get(pricing_order_id)
-            pricing_order.calculate_settlement_totals()
+            # 🔥 关键修复：只更新结算单相关数据，不影响批价单数据
+            # 不调用 pricing_order.calculate_settlement_totals() 来避免影响批价单
             
-            # 更新结算单总额
+            # 只更新独立的结算单总额
             settlement_order = SettlementOrder.query.filter_by(pricing_order_id=pricing_order_id).first()
             if settlement_order:
                 settlement_order.calculate_totals()
@@ -503,18 +502,19 @@ class PricingOrderService:
                 
                 pricing_order.pricing_total_discount_rate = total_discount_rate
                 pricing_order.calculate_pricing_totals()
-                pricing_order.calculate_settlement_totals()
+                # 🔥 关键修复：批价单更新时不再自动更新结算单总额
+                # 移除 pricing_order.calculate_settlement_totals() 调用
                 
             else:  # settlement
-                # 更新结算单所有明细的折扣率
+                # 🔥 关键修复：结算单折扣率更新完全独立，不影响批价单数据
                 for detail in pricing_order.settlement_details:
                     detail.discount_rate = total_discount_rate
                     detail.calculate_prices()
                 
-                pricing_order.settlement_total_discount_rate = total_discount_rate
-                pricing_order.calculate_settlement_totals()
+                # 只更新结算单相关数据，不触及批价单的任何字段
+                # 不调用 pricing_order.calculate_settlement_totals() 避免影响批价单
             
-            # 更新结算单总额
+            # 🔥 关键修复：使用独立的结算单对象更新结算单总额
             settlement_order = SettlementOrder.query.filter_by(pricing_order_id=pricing_order_id).first()
             if settlement_order:
                 settlement_order.calculate_totals()
