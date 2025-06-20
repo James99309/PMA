@@ -756,6 +756,7 @@
                                                    value="{{ detail.quantity }}" min="1" step="1" required>
                                             {% else %}
                                             {{ detail.quantity }}
+                                            <input type="hidden" class="quantity" value="{{ detail.quantity }}">
                                             {% endif %}
                                         </td>
                                         <td>
@@ -4238,7 +4239,7 @@ function collectSettlementDetails() {
         
         const id = $row.data('id');
         
-        // 获取当前行的实际计算值
+                // 获取当前行的实际计算值
         const marketPrice = parseFloat($row.find('.product-price').data('raw-value')) || parseFloat($row.find('.product-price').val().replace(/[^\\d.]/g, '')) || 0;
         const unitPrice = parseFloat($row.find('.discounted-price').data('raw-value')) || parseFloat($row.find('.discounted-price').val().replace(/[^\\d.]/g, '')) || 0;
         const quantity = parseInt($row.find('.quantity').val()) || 1;

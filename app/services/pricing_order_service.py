@@ -1256,9 +1256,13 @@ class PricingOrderService:
                                 logger.info(f"更新批价单明细 {detail.id}: 单价从 {old_unit_price:.2f} 更新为 {detail.unit_price:.2f}")
                             
                             if 'quantity' in detail_data:
-                                old_quantity = detail.quantity
-                                detail.quantity = int(detail_data['quantity'])
-                                logger.info(f"更新批价单明细 {detail.id}: 数量从 {old_quantity} 更新为 {detail.quantity}")
+                                # 🔥 关键修复：审批状态下严禁修改数量
+                                if pricing_order.status == 'pending':
+                                    logger.warning(f"审批状态下拒绝修改数量：产品={product_name}, 当前数量={detail.quantity}, 尝试修改为={detail_data['quantity']}")
+                                else:
+                                    old_quantity = detail.quantity
+                                    detail.quantity = int(detail_data['quantity'])
+                                    logger.info(f"更新批价单明细 {detail.id}: 数量从 {old_quantity} 更新为 {detail.quantity}")
                             
                             # 重新计算价格确保一致性
                             detail.calculate_prices()
@@ -1303,9 +1307,13 @@ class PricingOrderService:
                                 logger.info(f"更新结算单明细 {detail.id}: 单价从 {old_unit_price:.2f} 更新为 {detail.unit_price:.2f}")
                             
                             if 'quantity' in detail_data:
-                                old_quantity = detail.quantity
-                                detail.quantity = int(detail_data['quantity'])
-                                logger.info(f"更新结算单明细 {detail.id}: 数量从 {old_quantity} 更新为 {detail.quantity}")
+                                # 🔥 关键修复：审批状态下严禁修改数量
+                                if pricing_order.status == 'pending':
+                                    logger.warning(f"审批状态下拒绝修改数量：产品={product_name}, 当前数量={detail.quantity}, 尝试修改为={detail_data['quantity']}")
+                                else:
+                                    old_quantity = detail.quantity
+                                    detail.quantity = int(detail_data['quantity'])
+                                    logger.info(f"更新结算单明细 {detail.id}: 数量从 {old_quantity} 更新为 {detail.quantity}")
                             
                             # 重新计算价格确保一致性
                             detail.calculate_prices()
