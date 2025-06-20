@@ -347,7 +347,19 @@ class PricingOrderService:
     @staticmethod
     def copy_quotation_details_to_pricing(quotation, pricing_order):
         """从报价单复制产品明细到批价单"""
-        for qd in quotation.details:
+        from app.models.product import Product
+        from app.models.quotation import QuotationDetail
+        from sqlalchemy import case
+        
+        # 使用与报价单详情页面相同的排序逻辑
+        # 优先显示产品库中的产品（按Product.id排序），然后显示不在产品库中的产品（按QuotationDetail.id排序）
+        sorted_details = db.session.query(QuotationDetail)\
+            .outerjoin(Product, Product.product_name == QuotationDetail.product_name)\
+            .filter(QuotationDetail.quotation_id == quotation.id)\
+            .order_by(case((Product.id.is_(None), 1), else_=0), Product.id.asc(), QuotationDetail.id.asc())\
+            .all()
+        
+        for qd in sorted_details:
             # 创建批价单明细
             pricing_detail = PricingOrderDetail(
                 pricing_order_id=pricing_order.id,
