@@ -27,112 +27,104 @@ class PDFGenerator:
         
         # 配置字体
         self.font_config = FontConfiguration()
-        # 添加中文字体路径
-        self._configure_fonts()
+        # 检查内嵌字体是否可用
+        self.embedded_fonts_available = self._check_embedded_fonts()
         
-    def _configure_fonts(self):
-        """配置字体"""
+    def _check_embedded_fonts(self):
+        """检查项目内嵌字体是否可用"""
         try:
-            # macOS 字体配置
-            if platform.system() == 'Darwin':
-                macos_fonts = [
-                    # 宋体 - 主要中文字体
-                    '/System/Library/Fonts/Supplemental/Songti.ttc',
-                    # 黑体
-                    '/System/Library/Fonts/STHeiti Light.ttc',
-                    '/System/Library/Fonts/STHeiti Medium.ttc',
-                    # 苹方字体 - 检查多个可能的路径
-                    '/System/Library/Fonts/PingFang.ttc',
-                    '/Library/Fonts/PingFang SC.ttc',
-                    # 英文字体
-                    '/System/Library/Fonts/Helvetica.ttc',
-                    '/System/Library/Fonts/Times.ttc',
-                    '/System/Library/Fonts/Arial.ttf',
-                ]
-                
-                available_fonts = []
-                for font_path in macos_fonts:
-                    if os.path.exists(font_path):
-                        logger.info(f"✅ macOS找到字体: {font_path}")
-                        available_fonts.append(font_path)
-                    else:
-                        logger.warning(f"❌ macOS字体文件不存在: {font_path}")
-                
-                if available_fonts:
-                    logger.info(f"macOS系统共找到 {len(available_fonts)} 个可用字体")
-                else:
-                    logger.error("⚠️ macOS系统未找到任何可用的中文字体！")
+            project_fonts_dir = os.path.join(os.path.dirname(__file__), '..', 'static', 'fonts')
+            embedded_fonts = [
+                'NotoSansCJK-Regular.ttc',  # 主要中文字体
+                'SourceHanSansCN-Regular.otf',  # 备用中文字体
+            ]
             
-            # Windows 字体配置
-            elif platform.system() == 'Windows':
-                windows_fonts = [
-                    # 微软雅黑 - 最佳中文字体
-                    'C:/Windows/Fonts/msyh.ttc',
-                    'C:/Windows/Fonts/msyhbd.ttc',     # 微软雅黑粗体
-                    'C:/Windows/Fonts/msyhl.ttc',      # 微软雅黑细体
-                    # 等线 - Windows 10默认字体
-                    'C:/Windows/Fonts/DengXian.ttf',
-                    'C:/Windows/Fonts/DengXianBold.ttf',
-                    'C:/Windows/Fonts/DengXianLight.ttf',
-                    # 宋体 - 传统中文字体
-                    'C:/Windows/Fonts/simsun.ttc',
-                    'C:/Windows/Fonts/NSimSun.ttf',
-                    # 黑体
-                    'C:/Windows/Fonts/simhei.ttf',
-                    # 英文字体
-                    'C:/Windows/Fonts/arial.ttf',
-                    'C:/Windows/Fonts/arialbd.ttf',    # Arial Bold
-                ]
-                
-                available_fonts = []
-                for font_path in windows_fonts:
-                    if os.path.exists(font_path):
-                        logger.info(f"✅ Windows找到字体: {font_path}")
-                        available_fonts.append(font_path)
-                    else:
-                        logger.warning(f"❌ Windows字体文件不存在: {font_path}")
-                
-                if available_fonts:
-                    logger.info(f"Windows系统共找到 {len(available_fonts)} 个可用字体")
-                else:
-                    logger.error("⚠️ Windows系统未找到任何可用的中文字体！")
+            available_fonts = []
+            for font_file in embedded_fonts:
+                font_path = os.path.join(project_fonts_dir, font_file)
+                if os.path.exists(font_path):
+                    available_fonts.append({
+                        'file': font_file,
+                        'path': font_path,
+                        'size': os.path.getsize(font_path)
+                    })
+                    logger.info(f"✅ 找到项目字体: {font_file} ({os.path.getsize(font_path):,} 字节)")
             
-            # Linux 字体配置
+            if available_fonts:
+                logger.info(f"🎯 项目内嵌字体配置完成，共 {len(available_fonts)} 个字体文件")
+                return available_fonts
             else:
-                linux_fonts = [
-                    '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
-                    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-                    '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
-                ]
+                logger.warning("⚠️ 未找到项目内嵌字体，将使用系统字体")
+                return []
                 
-                available_fonts = []
-                for font_path in linux_fonts:
-                    if os.path.exists(font_path):
-                        logger.info(f"✅ Linux找到字体: {font_path}")
-                        available_fonts.append(font_path)
-                    else:
-                        logger.warning(f"❌ Linux字体文件不存在: {font_path}")
-                
-                if available_fonts:
-                    logger.info(f"Linux系统共找到 {len(available_fonts)} 个可用字体")
-                else:
-                    logger.error("⚠️ Linux系统未找到任何可用的中文字体！")
-                        
         except Exception as e:
-            logger.error(f"字体配置失败: {str(e)}")
+            logger.error(f"💥 检查内嵌字体失败: {e}")
+            return []
     
-    def _get_system_font_family(self):
-        """获取当前系统的字体族配置"""
-        system = platform.system()
+    def _get_font_face_css(self):
+        """生成字体CSS规则"""
+        if not self.embedded_fonts_available:
+            return ""
         
+        font_css_rules = []
+        
+        for font_info in self.embedded_fonts_available:
+            font_path = font_info['path']
+            font_file = font_info['file']
+            
+            # 根据字体文件生成字体族名称
+            if 'Noto' in font_file:
+                font_family_name = 'Noto Sans CJK SC'
+            elif 'SourceHan' in font_file:
+                font_family_name = 'Source Han Sans CN'
+            else:
+                font_family_name = 'Custom Font'
+            
+            # 生成@font-face规则
+            font_rule = f'''
+            @font-face {{
+                font-family: "{font_family_name}";
+                src: url("file://{font_path}") format("truetype");
+                font-weight: normal;
+                font-style: normal;
+            }}'''
+            
+            font_css_rules.append(font_rule)
+            logger.debug(f"📝 生成字体CSS规则: {font_family_name}")
+        
+        return '\n'.join(font_css_rules)
+        
+    def _get_system_font_family(self):
+        """获取优化的字体族配置"""
+        # 如果有内嵌字体，优先使用
+        if self.embedded_fonts_available:
+            embedded_families = []
+            for font_info in self.embedded_fonts_available:
+                font_file = font_info['file']
+                if 'Noto' in font_file:
+                    embedded_families.append('"Noto Sans CJK SC"')
+                elif 'SourceHan' in font_file:
+                    embedded_families.append('"Source Han Sans CN"')
+            
+            # 项目字体 + 系统字体回退
+            font_families = embedded_families + [
+                '"Songti TC"', '"Songti SC"', '"STSong"',
+                '"Microsoft YaHei"', '"微软雅黑"', '"DengXian"', '"等线"',
+                '"DejaVu Sans"', '"Liberation Sans"',
+                '"Arial"', '"Helvetica"', 'sans-serif'
+            ]
+            
+            return ', '.join(font_families)
+        
+        # 原有的系统字体配置（回退）
+        system = platform.system()
         if system == "Darwin":  # macOS
-            # 使用实际存在的字体名称，优先使用宋体
             return '"Songti TC", "Songti SC", "STSong", "STHeiti Light", "STHeiti", "Helvetica", "Arial", sans-serif'
         elif system == "Windows":  # Windows
             return '"Microsoft YaHei", "微软雅黑", "DengXian", "等线", "SimSun", "宋体", "Arial", sans-serif'
         else:  # Linux
             return '"Noto Sans CJK SC", "DejaVu Sans", "Liberation Sans", "Arial", sans-serif'
-        
+    
     def generate_pricing_order_pdf(self, pricing_order):
         """生成批价单PDF"""
         try:
@@ -288,12 +280,16 @@ class PDFGenerator:
     def _generate_pdf_from_html(self, html_content, filename):
         """从HTML内容生成PDF文件"""
         try:
-            # 添加CSS样式来确保字体正确显示
-            css_content = self._get_pdf_css()
+            # 获取字体CSS和PDF样式
+            font_css = self._get_font_face_css()
+            pdf_css = self._get_pdf_css()
+            
+            # 合并CSS
+            combined_css = font_css + "\n" + pdf_css
             
             # 生成PDF内容
             html_doc = HTML(string=html_content, base_url=current_app.static_folder if current_app else None)
-            css_doc = CSS(string=css_content)
+            css_doc = CSS(string=combined_css, font_config=self.font_config)
             
             # 直接生成PDF字节内容，使用字体配置
             pdf_content = html_doc.write_pdf(
