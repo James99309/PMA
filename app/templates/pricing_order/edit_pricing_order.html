@@ -353,9 +353,15 @@
                                         <td>
                                     {% if can_edit_quantity %}
                                             <input type="number" class="form-control quantity" 
-                                                   value="{{ detail.quantity }}" min="1" step="1" required>
+                                                   value="{{ detail.quantity }}" min="1" step="1" required 
+                                                   data-raw-value="{{ detail.quantity }}">
                                             {% else %}
-                                            {{ detail.quantity }}
+                                            <!-- 隐藏的输入框保留数量值供JavaScript使用 -->
+                                            <input type="hidden" class="quantity" 
+                                                   value="{{ detail.quantity }}" 
+                                                   data-raw-value="{{ detail.quantity }}">
+                                            <!-- 显示数量文本 -->
+                                            <span class="quantity-display">{{ detail.quantity }}</span>
                                             {% endif %}
                                         </td>
                                         <td>
@@ -2263,26 +2269,56 @@ function updateTotalDiscount(tabType, value) {
         
         // 只处理有产品名称的行
         if (productName && productName.trim()) {
-            // 获取市场价
-            const marketPrice = parseFloat($row.find('.product-price').data('raw-value')) || 0;
-            const quantity = parseInt($row.find('.quantity').val()) || 1;
+            // 🔥 修复：获取市场价，支持从显示值解析
+            const $marketPriceInput = $row.find('.product-price');
+            let marketPrice = parseFloat($marketPriceInput.data('raw-value')) || 0;
+            
+            // 如果没有data-raw-value，尝试从显示值解析
+            if (marketPrice === 0) {
+                const displayPrice = $marketPriceInput.val() || $marketPriceInput.text();
+                if (displayPrice) {
+                    const cleanPrice = displayPrice.replace(/[^\d.]/g, '');
+                    marketPrice = parseFloat(cleanPrice) || 0;
+                    if (marketPrice > 0) {
+                        $marketPriceInput.data('raw-value', marketPrice);
+                    }
+                }
+            }
+            
+            // 🔥 修复：使用正确的数量获取方法，支持审批状态
+            const quantity = getQuantityValue($row);
+            
+            console.log(`=== 行计算开始 ===`);
+            console.log(`产品: ${productName}`);
+            console.log(`市场价: ${marketPrice}`);
+            console.log(`数量: ${quantity}`);
+            console.log(`折扣率: ${discountRate * 100}%`);
             
             // 计算新的单价和小计
             const newUnitPrice = marketPrice * discountRate;
             const newSubtotal = newUnitPrice * quantity;
             
+            console.log(`计算单价: ${marketPrice} × ${discountRate} = ${newUnitPrice}`);
+            console.log(`计算小计: ${newUnitPrice} × ${quantity} = ${newSubtotal}`);
+            
             // 更新折扣率显示（保留一位小数）
             $row.find('.discount-rate').val((discountRate * 100).toFixed(1));
             
             // 更新单价显示
+            const formattedUnitPrice = formatNumber(newUnitPrice);
             $row.find('.discounted-price')
-                .val(newUnitPrice.toFixed(2))
+                .val(formattedUnitPrice)
                 .data('raw-value', newUnitPrice);
             
             // 更新小计显示
+            const formattedSubtotal = formatNumber(newSubtotal);
             $row.find('.subtotal')
-                .val(newSubtotal.toFixed(2))
+                .val(formattedSubtotal)
                 .data('raw-value', newSubtotal);
+            
+            console.log(`单价显示: ${formattedUnitPrice}`);
+            console.log(`小计显示: ${formattedSubtotal}`);
+            console.log(`=== 行计算结束 ===`);
             
             // 同步到移动端卡片
             const detailId = $row.data('detail-id');
@@ -2291,21 +2327,21 @@ function updateTotalDiscount(tabType, value) {
                 if ($mobileCard.length) {
                     $mobileCard.find('.discount-rate').val((discountRate * 100).toFixed(1));
                     $mobileCard.find('.discounted-price')
-                        .val(newUnitPrice.toFixed(2))
+                        .val(formattedUnitPrice)
                         .data('raw-value', newUnitPrice);
                     $mobileCard.find('.subtotal')
-                        .val(newSubtotal.toFixed(2))
+                        .val(formattedSubtotal)
                         .data('raw-value', newSubtotal);
                 }
             }
         }
     });
     
-    // 🔥 关键修复：只重新计算当前调整的表格，不影响其他表格
+    // 🔥 关键修复：只重新计算当前调整的表格，绝不影响其他表格
     if (tabType === 'pricing') {
         // 只重新计算批价单总金额
         updatePricingTableTotal();
-    } else {
+    } else if (tabType === 'settlement') {
         // 只重新计算结算单总金额
         updateSettlementTableTotal();
     }
@@ -2329,6 +2365,90 @@ function updateTotalDiscount(tabType, value) {
     }
 }
 
+// 🔥 新增：只更新批价单表格总额
+function updatePricingTableTotal() {
+    try {
+        console.log('更新批价单表格总额');
+        
+        let pricingTotal = 0;
+        let pricingRowCount = 0;
+        $('#pricingTable tbody tr').each(function() {
+            const $row = $(this);
+            const productName = $row.find('.product-name').val();
+            
+            // 只计算有产品名称的行
+            if (productName && productName.trim()) {
+                const subtotalValue = $row.find('.subtotal').data('raw-value');
+                if (subtotalValue && !isNaN(subtotalValue)) {
+                    pricingTotal += subtotalValue;
+                    pricingRowCount++;
+                } else {
+                    // 如果没有data值，尝试从显示值解析
+                    const displayValue = $row.find('.subtotal').val();
+                    if (displayValue) {
+                        const parsed = parseFloat(displayValue.replace(/[^\d.]/g, ''));
+                        if (!isNaN(parsed)) {
+                            pricingTotal += parsed;
+                            pricingRowCount++;
+                            // 保存解析出的原始值
+                            $row.find('.subtotal').data('raw-value', parsed);
+                        }
+                    }
+                }
+            }
+        });
+        
+        // 更新批价单总额显示
+        $('#pricingTotalAmount').text('¥' + formatNumber(pricingTotal));
+        console.log('批价单总额已更新:', pricingTotal, '有效行数:', pricingRowCount);
+        
+    } catch (e) {
+        console.error('更新批价单表格总额时出错:', e);
+    }
+}
+
+// 🔥 新增：只更新结算单表格总额
+function updateSettlementTableTotal() {
+    try {
+        console.log('更新结算单表格总额');
+        
+        let settlementTotal = 0;
+        let settlementRowCount = 0;
+        $('#settlementTable tbody tr').each(function() {
+            const $row = $(this);
+            const productName = $row.find('.product-name').val();
+            
+            // 只计算有产品名称的行
+            if (productName && productName.trim()) {
+                const subtotalValue = $row.find('.subtotal').data('raw-value');
+                if (subtotalValue && !isNaN(subtotalValue)) {
+                    settlementTotal += subtotalValue;
+                    settlementRowCount++;
+                } else {
+                    // 如果没有data值，尝试从显示值解析
+                    const displayValue = $row.find('.subtotal').val();
+                    if (displayValue) {
+                        const parsed = parseFloat(displayValue.replace(/[^\d.]/g, ''));
+                        if (!isNaN(parsed)) {
+                            settlementTotal += parsed;
+                            settlementRowCount++;
+                            // 保存解析出的原始值
+                            $row.find('.subtotal').data('raw-value', parsed);
+                        }
+                    }
+                }
+            }
+        });
+        
+        // 更新结算单总额显示
+        $('#settlementTotalAmount').text('¥' + formatNumber(settlementTotal));
+        console.log('结算单总额已更新:', settlementTotal, '有效行数:', settlementRowCount);
+        
+    } catch (e) {
+        console.error('更新结算单表格总额时出错:', e);
+    }
+}
+
 // 计算并更新总折扣率（基于明细折扣率的加权平均）
 function calculateAndUpdateTotalDiscountRate(tabType, shouldUpdateDisplay = true) {
     const tableId = tabType === 'pricing' ? '#pricingTable' : '#settlementTable';
@@ -2345,7 +2465,7 @@ function calculateAndUpdateTotalDiscountRate(tabType, shouldUpdateDisplay = true
         
         if (productName && productName.trim()) {
             const marketPrice = parseFloat($row.find('.product-price').data('raw-value')) || 0;
-            const quantity = parseInt($row.find('.quantity').val()) || 1;
+            const quantity = getQuantityValue($row); // 🔥 使用统一函数
             const discountRate = parseFloat($row.find('.discount-rate').val()) || 0;
             
             if (marketPrice > 0) {
@@ -2536,6 +2656,11 @@ function initializeExistingRows() {
             var productName = $row.find('.product-name').val();
             
             if (productName && productName.trim()) {
+                // 🔥 确保数量字段有正确的data-raw-value
+                var $quantityInput = $row.find('.quantity');
+                var quantityValue = parseInt($quantityInput.val()) || 1;
+                $quantityInput.data('raw-value', quantityValue);
+
                 // 确保市场价格有正确的data-raw-value
                 var $priceInput = $row.find('.product-price');
                 var priceValue = $priceInput.data('raw-value');
@@ -2571,6 +2696,7 @@ function initializeExistingRows() {
                 
                 console.log('已有行初始化:', {
                     产品: productName,
+                    数量: quantityValue,
                     市场价: priceValue,
                     单价: unitPriceValue,
                     小计: subtotalValue
@@ -2584,6 +2710,11 @@ function initializeExistingRows() {
             var productName = $row.find('.product-name').val();
             
             if (productName && productName.trim()) {
+                // 🔥 确保数量字段有正确的data-raw-value
+                var $quantityInput = $row.find('.quantity');
+                var quantityValue = parseInt($quantityInput.val()) || 1;
+                $quantityInput.data('raw-value', quantityValue);
+
                 // 确保市场价格有正确的data-raw-value
                 var $priceInput = $row.find('.product-price');
                 var priceValue = $priceInput.data('raw-value');
@@ -2622,96 +2753,6 @@ function initializeExistingRows() {
         console.log('已有行数据初始化完成');
     } catch (e) {
         console.error('初始化已有行数据时出错:', e);
-    }
-}
-
-// 更新批价单表格总额
-function updatePricingTableTotal() {
-    try {
-        console.log('更新批价单表格总额');
-        
-        let pricingTotal = 0;
-        let pricingRowCount = 0;
-        $('#pricingTable tbody tr').each(function() {
-            var $row = $(this);
-            var productName = $row.find('.product-name').val();
-            
-            // 只计算有产品名称的行
-            if (productName && productName.trim()) {
-                var subtotalValue = $row.find('.subtotal').data('raw-value');
-                if (subtotalValue && !isNaN(subtotalValue)) {
-                    pricingTotal += subtotalValue;
-                    pricingRowCount++;
-                } else {
-                    // 如果没有data值，尝试从显示值解析
-                    var displayValue = $row.find('.subtotal').val();
-                    if (displayValue) {
-                        var parsed = parseFloat(displayValue.replace(/[^\d.]/g, ''));
-                        if (!isNaN(parsed)) {
-                            pricingTotal += parsed;
-                            pricingRowCount++;
-                            // 保存解析出的原始值
-                            $row.find('.subtotal').data('raw-value', parsed);
-                        }
-                    }
-                }
-            }
-        });
-        
-        // 更新批价单总额显示
-        $('#pricingTotalAmount').text('¥' + formatNumber(pricingTotal));
-        console.log('批价单总额:', pricingTotal, '有效行数:', pricingRowCount);
-        
-    } catch (e) {
-        console.error('更新批价单表格总额时出错:', e);
-    }
-}
-
-// 更新结算单表格总额
-function updateSettlementTableTotal() {
-    try {
-        console.log('更新结算单表格总额');
-        
-        // 检查结算单表格是否存在
-        if ($('#settlementTable tbody tr').length === 0) {
-            console.log('结算单表格不存在，跳过计算');
-            return;
-        }
-        
-        let settlementTotal = 0;
-        let settlementRowCount = 0;
-        $('#settlementTable tbody tr').each(function() {
-            var $row = $(this);
-            var productName = $row.find('.product-name').val();
-            
-            // 只计算有产品名称的行
-            if (productName && productName.trim()) {
-                var subtotalValue = $row.find('.subtotal').data('raw-value');
-                if (subtotalValue && !isNaN(subtotalValue)) {
-                    settlementTotal += subtotalValue;
-                    settlementRowCount++;
-                } else {
-                    // 如果没有data值，尝试从显示值解析
-                    var displayValue = $row.find('.subtotal').val();
-                    if (displayValue) {
-                        var parsed = parseFloat(displayValue.replace(/[^\d.]/g, ''));
-                        if (!isNaN(parsed)) {
-                            settlementTotal += parsed;
-                            settlementRowCount++;
-                            // 保存解析出的原始值
-                            $row.find('.subtotal').data('raw-value', parsed);
-                        }
-                    }
-                }
-            }
-        });
-        
-        // 更新结算单总额显示
-        $('#settlementTotalAmount').text('¥' + formatNumber(settlementTotal));
-        console.log('结算单总额:', settlementTotal, '有效行数:', settlementRowCount);
-        
-    } catch (e) {
-        console.error('更新结算单表格总额时出错:', e);
     }
 }
 
@@ -2905,16 +2946,13 @@ $(document).ready(function() {
         // 重新计算小计和总价
         calculateSubtotal($row);
         
-        // 🔥 关键修复：根据表格类型只更新对应的总额
+        // 🔥 修复：只更新当前表格的总金额，不影响其他表格
         const tabType = $row.closest('#pricingTable').length > 0 ? 'pricing' : 'settlement';
         if (tabType === 'pricing') {
             updatePricingTableTotal();
-        } else {
+        } else if (tabType === 'settlement') {
             updateSettlementTableTotal();
         }
-        
-        // 更新分销利润和利润率
-        updateDistributionProfit();
         
         // 根据明细折扣率重新计算总折扣率（用户编辑时才更新显示）
         calculateAndUpdateTotalDiscountRate(tabType, true);
@@ -2951,16 +2989,13 @@ $(document).ready(function() {
                 // 重新计算小计和总价
                 calculateSubtotal($row);
                 
-                // 🔥 关键修复：根据表格类型只更新对应的总额
+                // 🔥 修复：只更新当前表格的总金额，不影响其他表格
                 const tabType = $row.closest('#pricingTable').length > 0 ? 'pricing' : 'settlement';
                 if (tabType === 'pricing') {
                     updatePricingTableTotal();
-                } else {
+                } else if (tabType === 'settlement') {
                     updateSettlementTableTotal();
                 }
-                
-                // 更新分销利润和利润率
-                updateDistributionProfit();
                 
                 // 根据明细折扣率重新计算总折扣率（用户编辑时才更新显示）
                 calculateAndUpdateTotalDiscountRate(tabType, true);
@@ -2977,23 +3012,28 @@ $(document).ready(function() {
         }
     });
 
-    // 监听数量变更事件 (小计 = 数量 * 单价)
+    // 监听数量变更事件 (小计 = 数量 * 单价) - 🔥 优化同步逻辑
     $('#pricingTable, #settlementTable').on('input change', '.quantity', function() {
         var $row = $(this).closest('tr');
-        var quantity = parseInt($(this).val());
-        
-        // 验证数量输入
+        var $input = $(this);
+        var inputValue = $input.val().trim();
+        var quantity = parseInt(inputValue, 10);
+        // 只在明确无效时才回退为1
         if (isNaN(quantity) || quantity < 1) {
             quantity = 1;
-            $(this).val('1');
         }
-        
-        console.log('数量变化: 数量=', quantity);
+        // 始终同步data-raw-value
+        $input.data('raw-value', quantity);
+        $input.val(quantity); // 保证输入框显示的也是有效值
         // 重新计算小计和总价
         calculateSubtotal($row);
-        
-        // 用户编辑时需要重新计算总金额
-        updateTableTotals(true);
+        // 🔥 修复：只更新当前表格的总金额，不影响其他表格
+        const tabType = $row.closest('#pricingTable').length > 0 ? 'pricing' : 'settlement';
+        if (tabType === 'pricing') {
+            updatePricingTableTotal();
+        } else if (tabType === 'settlement') {
+            updateSettlementTableTotal();
+        }
     });
     
     // 删除产品按钮事件
@@ -3035,6 +3075,9 @@ $(document).ready(function() {
     // 初始化产品自动完成功能
     initializeProductAutocomplete();
     
+    // 🔥 初始化调试面板
+    initDebugPanel();
+    
     // 调试：显示绑定成功信息
     console.log('批价单事件绑定完成 - 使用改进的联动逻辑');
 
@@ -3053,24 +3096,28 @@ $(document).ready(function() {
     // 初始化前端缓存
     window.pricingOrderCache = {};
     
-    // 移动端数量输入框事件绑定 - 使用PC端逻辑
+    // 移动端数量输入框事件绑定 - 🔥 优化同步逻辑
     $(document).on('input change', '.mobile-card-input.quantity', function() {
         const $input = $(this);
         const $card = $input.closest('.mobile-product-card');
         const detailId = $card.data('detail-id');
-        const newQuantity = parseInt($input.val()) || 1;
-        
+        let inputValue = $input.val().trim();
+        let quantity = parseInt(inputValue, 10);
+        if (isNaN(quantity) || quantity < 1) {
+            quantity = 1;
+        }
+        $input.data('raw-value', quantity);
+        $input.val(quantity);
         // 同步到桌面端表格
         if (detailId) {
             const $desktopRow = $(`#pricingTable tr[data-detail-id="${detailId}"], #settlementTable tr[data-detail-id="${detailId}"]`);
             if ($desktopRow.length) {
-                $desktopRow.find('.quantity').val(newQuantity);
+                $desktopRow.find('.quantity').val(quantity).data('raw-value', quantity);
+                calculateSubtotal($desktopRow);
             }
         }
-        
         // 实时计算（前端计算，不调用数据库）
         calculateMobileRowValues($card, 'quantity');
-        
         // 重新计算总折扣率
         const currentTab = $('.nav-tabs .nav-link.active').attr('id');
         const tabType = currentTab === 'pricing-tab' ? 'pricing' : 'settlement';
@@ -3477,10 +3524,66 @@ function formatNumber(number) {
     }
 }
 
+// 🔥 优化后的数量获取函数 - 支持审批状态下的文本显示
+function getQuantityValue($row) {
+    try {
+        // 首先尝试从隐藏的input获取（审批状态下的隐藏字段）
+        const $hiddenQuantity = $row.find('input.quantity[type="hidden"]');
+        if ($hiddenQuantity.length > 0) {
+            let quantity = parseInt($hiddenQuantity.val(), 10);
+            if (!isNaN(quantity) && quantity >= 1) {
+                return quantity;
+            }
+        }
+        
+        // 然后尝试从可见的input获取（可编辑状态）
+        const $quantityInput = $row.find('input.quantity:not([type="hidden"])');
+        if ($quantityInput.length > 0) {
+            let quantity = parseInt($quantityInput.val(), 10);
+            if (!isNaN(quantity) && quantity >= 1) {
+                $quantityInput.data('raw-value', quantity);
+                return quantity;
+            }
+        }
+        
+        // 最后尝试从显示文本获取（审批状态下的纯文本显示）
+        const $quantityDisplay = $row.find('.quantity-display');
+        if ($quantityDisplay.length > 0) {
+            let displayText = $quantityDisplay.text().trim();
+            let numberMatch = displayText.match(/\d+/);
+            if (numberMatch) {
+                let quantity = parseInt(numberMatch[0], 10);
+                if (!isNaN(quantity) && quantity >= 1) {
+                    return quantity;
+                }
+            }
+        }
+        
+        // 从包含数量的td单元格获取（回退方案）
+        const $cells = $row.find('td');
+        for (let i = 0; i < $cells.length; i++) {
+            const cellText = $cells.eq(i).text().trim();
+            // 查找只包含数字的单元格（可能是数量）
+            if (/^\d+$/.test(cellText)) {
+                let quantity = parseInt(cellText, 10);
+                if (quantity >= 1) {
+                    return quantity;
+                }
+            }
+        }
+        
+        console.warn('无法获取有效数量，使用默认值1');
+        return 1; // 默认值
+    } catch (e) {
+        console.error('获取数量值时出错:', e);
+        return 1;
+    }
+}
+
 // 计算小计 (小计 = 数量 * 单价)
 function calculateSubtotal($row) {
     try {
-        var quantity = parseInt($row.find('.quantity').val()) || 1;
+        var quantity = getQuantityValue($row); // 🔥 使用统一函数
         var unitPrice = parseFloat($row.find('.discounted-price').data('raw-value')) || 0;
         
         console.log('=== 小计计算调试 ===');
@@ -3488,11 +3591,43 @@ function calculateSubtotal($row) {
         console.log('单价 data-raw-value:', $row.find('.discounted-price').data('raw-value'), '解析后:', unitPrice);
         console.log('单价显示值:', $row.find('.discounted-price').val());
         
+        // 🔥 新增详细调试信息
+        const $quantityInput = $row.find('.quantity');
+        const $priceInput = $row.find('.discounted-price');
+        const $subtotalInput = $row.find('.subtotal');
+        
+        debugLog('小计计算开始', {
+            '行信息': {
+                '行索引': $row.index(),
+                '产品名称': $row.find('.product-name').val(),
+                '表格类型': $row.closest('#pricingTable').length > 0 ? '批价单' : '结算单'
+            },
+            '数量字段': {
+                '显示值': $quantityInput.val(),
+                'data-raw-value': $quantityInput.data('raw-value'),
+                '解析后数量': quantity
+            },
+            '单价字段': {
+                '显示值': $priceInput.val(),
+                'data-raw-value': $priceInput.data('raw-value'),
+                '解析后单价': unitPrice
+            },
+            '小计字段': {
+                '当前显示值': $subtotalInput.val(),
+                '当前data-raw-value': $subtotalInput.data('raw-value')
+            }
+        });
+        
         // 如果没有原始值，尝试从显示值解析
         if (unitPrice === 0) {
             var displayValue = $row.find('.discounted-price').val().replace(/[^\d.]/g, '');
             unitPrice = parseFloat(displayValue) || 0;
             console.log('从显示值解析单价:', displayValue, '解析后:', unitPrice);
+            debugLog('单价解析', {
+                '原始显示值': $row.find('.discounted-price').val(),
+                '清理后': displayValue,
+                '解析后': unitPrice
+            });
             if (unitPrice > 0) {
                 $row.find('.discounted-price').data('raw-value', unitPrice);
                 console.log('已更新单价 data-raw-value:', unitPrice);
@@ -3503,6 +3638,16 @@ function calculateSubtotal($row) {
         var subtotal = quantity * unitPrice;
         console.log('小计计算: ' + quantity + ' * ' + unitPrice + ' = ' + subtotal);
         
+        // 🔥 新增计算验证
+                 debugLog('小计计算验证', {
+             '计算公式': quantity + ' × ' + unitPrice + ' = ' + subtotal,
+             '数量是否有效': !isNaN(quantity) && quantity > 0,
+             '单价是否有效': !isNaN(unitPrice) && unitPrice >= 0,
+             '小计是否有效': !isNaN(subtotal) && subtotal >= 0,
+             '计算前小计值': $subtotalInput.val(),
+             '计算后小计值': subtotal
+         });
+        
         // 更新小计显示
         var formattedSubtotal = formatNumber(subtotal);
         $row.find('.subtotal')
@@ -3512,6 +3657,14 @@ function calculateSubtotal($row) {
         
         console.log('小计已更新: data-raw-value=' + subtotal + ', 显示值=' + formattedSubtotal);
         
+        // 🔥 验证更新结果
+        debugLog('小计更新验证', {
+            '格式化后': formattedSubtotal,
+            '更新后显示值': $row.find('.subtotal').val(),
+            '更新后data-raw-value': $row.find('.subtotal').data('raw-value'),
+            '更新后title': $row.find('.subtotal').attr('title')
+        });
+        
         // 立即更新总计
         updateTableTotals();
         
@@ -3519,8 +3672,109 @@ function calculateSubtotal($row) {
         return subtotal;
     } catch (e) {
         console.error('计算小计时出错:', e);
+        debugLog('小计计算异常', {
+            '错误信息': e.message,
+            '错误堆栈': e.stack
+        });
         return 0;
     }
+}
+
+// 🔥 新增调试日志函数
+function debugLog(title, data) {
+    const timestamp = new Date().toLocaleTimeString();
+    console.log(`[${timestamp}] ${title}:`, data);
+    
+    // 添加到调试面板
+    if (window.debugPanel) {
+        const logEntry = document.createElement('div');
+        logEntry.className = 'debug-entry';
+                 logEntry.innerHTML = 
+             '<div class="debug-time">' + timestamp + '</div>' +
+             '<div class="debug-title">' + title + '</div>' +
+             '<div class="debug-data">' + JSON.stringify(data, null, 2) + '</div>';
+        window.debugPanel.appendChild(logEntry);
+        
+        // 保持最新的50条记录
+        const entries = window.debugPanel.querySelectorAll('.debug-entry');
+        if (entries.length > 50) {
+            entries[0].remove();
+        }
+        
+        // 滚动到底部
+        window.debugPanel.scrollTop = window.debugPanel.scrollHeight;
+    }
+}
+
+// 🔥 新增页面加载时的调试面板初始化
+function initDebugPanel() {
+    // 创建调试面板
+    const debugPanel = document.createElement('div');
+    debugPanel.id = 'debugPanel';
+         debugPanel.style.cssText = 
+         'position: fixed;' +
+         'top: 10px;' +
+         'right: 10px;' +
+         'width: 400px;' +
+         'height: 300px;' +
+         'background: rgba(0, 0, 0, 0.9);' +
+         'color: #00ff00;' +
+         'font-family: monospace;' +
+         'font-size: 10px;' +
+         'padding: 10px;' +
+         'border-radius: 5px;' +
+         'z-index: 9999;' +
+         'overflow-y: auto;' +
+         'display: none;';
+    
+    // 添加调试面板样式
+    const debugStyle = document.createElement('style');
+    debugStyle.textContent = `
+        .debug-entry {
+            margin-bottom: 5px;
+            padding: 3px;
+            border-left: 2px solid #00ff00;
+            padding-left: 5px;
+        }
+        .debug-time {
+            color: #ffff00;
+            font-size: 8px;
+        }
+        .debug-title {
+            color: #00ffff;
+            font-weight: bold;
+        }
+        .debug-data {
+            color: #ffffff;
+            white-space: pre-wrap;
+            font-size: 9px;
+        }
+    `;
+    document.head.appendChild(debugStyle);
+    
+    document.body.appendChild(debugPanel);
+    window.debugPanel = debugPanel;
+    
+    // 添加切换按钮
+    const toggleButton = document.createElement('button');
+    toggleButton.textContent = '调试';
+         toggleButton.style.cssText = 
+         'position: fixed;' +
+         'top: 10px;' +
+         'right: 420px;' +
+         'z-index: 10000;' +
+         'background: #007bff;' +
+         'color: white;' +
+         'border: none;' +
+         'padding: 5px 10px;' +
+         'border-radius: 3px;' +
+         'cursor: pointer;';
+    toggleButton.onclick = function() {
+        debugPanel.style.display = debugPanel.style.display === 'none' ? 'block' : 'none';
+    };
+    document.body.appendChild(toggleButton);
+    
+    debugLog('调试面板初始化', { '状态': '成功' });
 }
 
 // 点击其他地方关闭产品选择菜单

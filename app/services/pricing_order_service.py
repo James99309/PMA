@@ -444,7 +444,7 @@ class PricingOrderService:
     
     @staticmethod
     def update_settlement_detail(pricing_order_id, detail_id, discount_rate=None, unit_price=None):
-        """更新结算单明细"""
+        """更新结算单明细 - 只影响结算单，不影响批价单"""
         try:
             settlement_detail = SettlementOrderDetail.query.filter_by(
                 pricing_order_id=pricing_order_id, id=detail_id
@@ -463,10 +463,11 @@ class PricingOrderService:
             
             settlement_detail.calculate_prices()
             
-            # 🔥 关键修复：只更新结算单相关数据，不影响批价单数据
-            # 不调用 pricing_order.calculate_settlement_totals() 来避免影响批价单
+            # 🔥 关键修复：只重新计算结算单总额，不影响批价单
+            pricing_order = PricingOrder.query.get(pricing_order_id)
+            pricing_order.calculate_settlement_totals()
             
-            # 只更新独立的结算单总额
+            # 更新结算单总额
             settlement_order = SettlementOrder.query.filter_by(pricing_order_id=pricing_order_id).first()
             if settlement_order:
                 settlement_order.calculate_totals()
@@ -502,19 +503,20 @@ class PricingOrderService:
                 
                 pricing_order.pricing_total_discount_rate = total_discount_rate
                 pricing_order.calculate_pricing_totals()
-                # 🔥 关键修复：批价单更新时不再自动更新结算单总额
-                # 移除 pricing_order.calculate_settlement_totals() 调用
+                pricing_order.calculate_settlement_totals()
                 
             else:  # settlement
-                # 🔥 关键修复：结算单折扣率更新完全独立，不影响批价单数据
+                # 🔥 关键修复：更新结算单时不影响批价单
+                # 只更新结算单所有明细的折扣率，不同步到批价单
                 for detail in pricing_order.settlement_details:
                     detail.discount_rate = total_discount_rate
                     detail.calculate_prices()
                 
-                # 只更新结算单相关数据，不触及批价单的任何字段
-                # 不调用 pricing_order.calculate_settlement_totals() 避免影响批价单
+                pricing_order.settlement_total_discount_rate = total_discount_rate
+                # 🔥 关键修复：只重新计算结算单总额，不计算批价单总额
+                pricing_order.calculate_settlement_totals()
             
-            # 🔥 关键修复：使用独立的结算单对象更新结算单总额
+            # 更新结算单总额
             settlement_order = SettlementOrder.query.filter_by(pricing_order_id=pricing_order_id).first()
             if settlement_order:
                 settlement_order.calculate_totals()

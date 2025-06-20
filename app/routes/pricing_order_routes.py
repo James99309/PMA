@@ -382,68 +382,53 @@ def update_pricing_detail(order_id):
 
 @pricing_order_bp.route('/<int:order_id>/update_settlement_detail', methods=['POST'])
 @login_required
-def update_settlement_detail_route(order_id):
+def update_settlement_detail(order_id):
     """更新结算单明细"""
     try:
+        pricing_order = PricingOrder.query.get_or_404(order_id)
+        
+        # 权限检查 - 使用统一的权限检查函数
+        can_edit_settlement = PricingOrderService.can_edit_settlement_details(
+            pricing_order, current_user, is_approval_context=True
+        )
+        if not can_edit_settlement:
+            return jsonify({
+                'success': False,
+                'message': '您没有权限编辑结算单明细'
+            })
+        
         data = request.get_json()
         detail_id = data.get('detail_id')
+        discount_rate = data.get('discount_rate')
+        unit_price = data.get('unit_price')
         
-        if not detail_id:
-            return jsonify({'success': False, 'message': '缺少明细ID'})
-        
-        # 获取批价单
-        from app.utils.access_control import get_viewable_data
-        viewable_orders = get_viewable_data(PricingOrder, current_user)
-        pricing_order = viewable_orders.filter(PricingOrder.id == order_id).first_or_404()
-        
-        # 检查编辑权限
-        _, can_edit_settlement, _ = check_pricing_edit_permission(pricing_order, current_user)
-        if not can_edit_settlement:
-            return jsonify({'success': False, 'message': '无权限编辑结算单明细'})
-        
-        # 提取更新参数
-        discount_rate = None
-        unit_price = None
-        
-        if 'discount_rate' in data:
-            discount_rate = float(data['discount_rate']) / 100  # 转换为小数形式
-        if 'unit_price' in data:
-            unit_price = float(data['unit_price'])
-        
-        # 调用服务层更新明细
         success, error = PricingOrderService.update_settlement_detail(
             order_id, detail_id, discount_rate=discount_rate, unit_price=unit_price
         )
         
         if not success:
-            return jsonify({'success': False, 'message': error})
+            return jsonify({
+                'success': False,
+                'message': error
+            })
         
-        # 获取更新后的明细信息
-        settlement_detail = SettlementOrderDetail.query.filter_by(
-            pricing_order_id=order_id, id=detail_id
-        ).first()
+        # 重新获取更新后的数据
+        pricing_order = PricingOrder.query.get(order_id)
         
-        if not settlement_detail:
-            return jsonify({'success': False, 'message': '明细不存在'})
-        
-        # 重新计算结算单总金额（不影响批价单）
-        settlement_total_amount = sum(detail.total_price for detail in pricing_order.settlement_details)
-        settlement_total_market_amount = sum(detail.market_price * detail.quantity for detail in pricing_order.settlement_details)
-        settlement_discount_percentage = 0
-        if settlement_total_market_amount > 0:
-            settlement_discount_percentage = (settlement_total_amount / settlement_total_market_amount) * 100
+        # 获取更新后的明细数据
+        updated_detail = SettlementOrderDetail.query.get(detail_id)
         
         return jsonify({
             'success': True,
             'message': '结算单明细更新成功',
-            'settlement_total_amount': f"{settlement_total_amount:,.2f}",
-            'settlement_discount_percentage': round(settlement_discount_percentage, 2),
+            'settlement_total_amount': pricing_order.formatted_settlement_total_amount,
+            'settlement_discount_percentage': pricing_order.settlement_discount_percentage,
             'updated_detail': {
-                'id': settlement_detail.id,
-                'discount_rate': settlement_detail.discount_rate,
-                'unit_price': settlement_detail.unit_price,
-                'total_price': settlement_detail.total_price
-            }
+                'id': updated_detail.id,
+                'discount_rate': updated_detail.discount_rate,
+                'unit_price': updated_detail.unit_price,
+                'total_price': updated_detail.total_price
+            } if updated_detail else None
         })
         
     except Exception as e:
@@ -479,13 +464,26 @@ def update_total_discount_rate(order_id):
         if not can_edit_pricing:
             return jsonify({'success': False, 'message': '无权限编辑此批价单'})
         
-        # 🔥 关键修复：使用服务层方法确保数据隔离
-        success, error = PricingOrderService.update_total_discount_rate(
-            order_id, tab_type, discount_rate_decimal
-        )
+        # 根据tab类型获取相应的明细列表
+        if tab_type == 'pricing':
+            details = pricing_order.pricing_details
+        else:  # settlement
+            details = pricing_order.settlement_details
         
-        if not success:
-            return jsonify({'success': False, 'message': error})
+        # 更新所有明细的折扣率和价格，但保持总折扣率逻辑
+        for detail in details:
+            if detail.market_price and detail.market_price > 0:
+                # 使用总折扣率更新明细的折扣率
+                detail.discount_rate = discount_rate_decimal
+                # 重新计算单价和总价
+                detail.unit_price = detail.market_price * discount_rate_decimal
+                detail.total_price = detail.unit_price * detail.quantity
+        
+        # 标记批价单已修改
+        pricing_order.updated_at = datetime.utcnow()
+        
+        # 保存到数据库
+        db.session.commit()
         
         return jsonify({
             'success': True, 
