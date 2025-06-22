@@ -348,6 +348,7 @@ def get_products():
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
                     'currency': p.currency if hasattr(p, 'currency') else 'CNY',  # 添加货币字段
                     'status': p.status,
+                    'is_vendor_product': p.is_vendor_product if hasattr(p, 'is_vendor_product') else False,  # 添加厂商产品标记
                     'created_at': p.created_at.strftime('%Y-%m-%d %H:%M:%S') if p.created_at else None,
                     'updated_at': p.updated_at.strftime('%Y-%m-%d %H:%M:%S') if p.updated_at else None,
                     'owner_id': p.owner_id,  # 添加所有者ID
@@ -714,6 +715,9 @@ def create_product():
             product_data['status'] = 'discontinued'
             logger.debug(f'创建产品，默认设置为已停产状态: {product_data["product_name"]}')
         
+        # 获取厂商产品标记
+        is_vendor_product = request.form.get('is_vendor_product') == 'on'
+        
         # 创建新产品
         new_product = Product(
             type=product_data['type'],
@@ -727,6 +731,7 @@ def create_product():
             retail_price=product_data['retail_price'],
             currency=product_data['currency'],
             status=product_data['status'],
+            is_vendor_product=is_vendor_product,
             owner_id=current_user.id
         )
         
@@ -994,6 +999,13 @@ def update_product(id):
             product.currency = product_data['currency']
             data_changed = True
         
+        # 获取厂商产品标记并更新
+        is_vendor_product = request.form.get('is_vendor_product') == 'on'
+        if product.is_vendor_product != is_vendor_product:
+            product.is_vendor_product = is_vendor_product
+            data_changed = True
+            logger.debug(f'厂商产品标记从 {product.is_vendor_product} 更新为 {is_vendor_product}')
+        
         # 更新生产状态 - 只有当用户有权限且状态有变化时才更新
         if product.status != product_data['status']:
             product.status = product_data['status']
@@ -1078,7 +1090,9 @@ def get_product(id):
             'brand': product.brand,
             'unit': product.unit,
             'retail_price': decimal_to_float(product.retail_price) if product.retail_price else 0,
+            'currency': product.currency if hasattr(product, 'currency') else 'CNY',
             'status': product.status,
+            'is_vendor_product': product.is_vendor_product if hasattr(product, 'is_vendor_product') else False,
             'created_at': product.created_at.strftime('%Y-%m-%d %H:%M:%S') if product.created_at else None,
             'updated_at': product.updated_at.strftime('%Y-%m-%d %H:%M:%S') if product.updated_at else None,
             'owner_id': product.owner_id,

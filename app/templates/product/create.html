@@ -389,6 +389,21 @@
                         <div class="invalid-feedback">请选择或输入品牌</div>
                     </div>
 
+                    <!-- 厂商产品标记 -->
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">产品标记</label>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="is_vendor_product" name="is_vendor_product" {% if product and product.is_vendor_product %}checked{% endif %}>
+                            <label for="is_vendor_product" class="form-check-label">
+                                <span class="badge bg-primary rounded-pill me-2" style="font-size: 0.65rem;">厂商</span>
+                                厂商产品（计入植入合计）
+                            </label>
+                        </div>
+                        <div class="form-text text-muted">
+                            勾选此项表示该产品为厂商产品，在报价单中将计入植入合计统计
+                        </div>
+                    </div>
+
                     <!-- 单位 -->
                     <div class="col-md-6 mb-3">
                         <label for="unit" class="form-label">单位</label>

@@ -768,7 +768,10 @@
                 </td>
                 <td class="col-model" ${title(product.model)}>${escapeHtml(product.model || '')}</td>
                 <td class="col-spec" ${title(product.specification)}>${escapeHtml(product.specification || '')}</td>
-                <td class="col-brand" ${title(product.brand)}>${escapeHtml(product.brand || '')}</td>
+                <td class="col-brand" ${title(product.brand)}>
+                    ${escapeHtml(product.brand || '')}
+                    ${getVendorBadge(product.is_vendor_product)}
+                </td>
                 <td class="col-unit">${escapeHtml(product.unit || '')}</td>
                 <td class="col-price">${formatCurrency(product.retail_price, product.currency)}</td>
                 <td class="col-status">
@@ -808,6 +811,7 @@
                         </div>
                         <div class="small mb-1">
                             <i class="fas fa-industry text-secondary me-1"></i>品牌: ${escapeHtml(product.brand || '-')}
+                            ${getVendorBadge(product.is_vendor_product)}
                         </div>
                         <div class="small mb-1">
                             <i class="fas fa-balance-scale text-secondary me-1"></i>单位: ${escapeHtml(product.unit || '-')}
@@ -846,6 +850,11 @@
         
         const symbol = currencySymbols[currency] || currency;
         return `${symbol} ${parseFloat(amount).toFixed(2)}`;
+    }
+    
+    // 获取厂商产品徽章
+    function getVendorBadge(isVendorProduct) {
+        return isVendorProduct ? '<span class="badge bg-primary rounded-pill ms-1" title="厂商产品，计入植入合计" style="font-size: 0.5rem;">厂商</span>' : '';
     }
 
     // 根据产品类型获取带有样式的徽章

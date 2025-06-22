@@ -216,7 +216,12 @@
 
                                     <div class="product-property">
                                         <div class="property-label">品牌</div>
-                                        <div class="property-value">{{ product.brand or '无' }}</div>
+                                        <div class="property-value">
+                                            {{ product.brand or '无' }}
+                                            {% if product.is_vendor_product %}
+                                            <span class="badge bg-primary rounded-pill ms-2" title="厂商产品，计入植入合计" style="font-size: 0.65rem;">厂商</span>
+                                            {% endif %}
+                                        </div>
                                     </div>
 
                                     <div class="product-property">

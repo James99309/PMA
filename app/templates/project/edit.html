@@ -404,7 +404,7 @@ async function loadSalesManagers() {
         if (data.success && data.data) {
             // 按企业分组用户，并根据企业名称过滤
             data.data.forEach(company => {
-                const isVendorCompany = company.name === '和源通信（上海）股份有限公司';
+                const isVendorCompany = company.is_vendor === true;
                 
                 if (company.users && company.users.length > 0) {
                     if (isVendorCompany) {

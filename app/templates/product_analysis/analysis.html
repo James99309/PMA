@@ -969,11 +969,11 @@ function formatStage(stage) {
 }
 
 // 格式化拥有者显示（优先显示真实姓名）- 使用统一的账户徽章样式
-function formatOwner(ownerName, ownerRealName, companyName) {
+function formatOwner(ownerName, ownerRealName, companyName, isVendorUser = false) {
     const displayName = ownerRealName || ownerName || '未知';
     
     // 使用与项目列表一致的徽章样式
-    if (companyName === '和源通信（上海）股份有限公司') {
+    if (isVendorUser) {
         // 厂商账户使用胶囊造型徽章
         return `<span class="badge bg-primary rounded-pill">${displayName}</span>`;
     } else {

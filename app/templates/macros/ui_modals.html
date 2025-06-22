@@ -42,7 +42,7 @@
 {% set vendor_tree_data = [] %}
 {% if user_tree_data %}
   {% for company in user_tree_data %}
-    {% if company.label == '和源通信（上海）股份有限公司' %}
+    {% if company.is_vendor %}
       {% set _ = vendor_tree_data.append(company) %}
     {% endif %}
   {% endfor %}
@@ -82,7 +82,7 @@
               <select class="form-select" id="vendor_sales_manager_id" name="vendor_sales_manager_id">
                 <option value="">请选择厂商销售负责人</option>
                 {% for user in all_users %}
-                  {% if user.company_name == '和源通信（上海）股份有限公司' %}
+                  {% if user.is_vendor_user() %}
                     <option value="{{ user.id }}">
                       {{ user.real_name or user.username }}（{{ user.role }}）
                     </option>
@@ -156,7 +156,7 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('选中的企业:', selectedCompany);
     
     // 如果不是厂商企业，显示销售负责人选择框
-    const isVendorCompany = selectedCompany === '和源通信（上海）股份有限公司';
+            const isVendorCompany = selectedUserData && selectedUserData.is_vendor;
     
     if (isVendorCompany) {
       vendorContainer.style.display = 'none';

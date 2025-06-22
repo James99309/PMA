@@ -1020,17 +1020,17 @@ function renderAuthorizationCodeBadge(code, projectType) {
 }
 
 // 渲染负责人徽章（模拟宏函数）
-function renderOwnerBadge(ownerName, companyName = null) {
+function renderOwnerBadge(ownerName, companyName = null, isVendorUser = false) {
     if (!ownerName) {
         return '<span class="badge bg-secondary">未知</span>';
     }
     
-    // 如果是厂商账户（和源通信企业），使用胶囊造型徽章
-    if (companyName === '和源通信（上海）股份有限公司') {
+    // 如果是厂商账户，使用胶囊造型徽章
+    if (isVendorUser) {
         return `<span class="badge bg-primary rounded-pill">${ownerName}</span>`;
     } else {
         // 非厂商账户使用默认造型徽章
-    return `<span class="badge bg-secondary">${ownerName}</span>`;
+        return `<span class="badge bg-secondary">${ownerName}</span>`;
     }
 }
 

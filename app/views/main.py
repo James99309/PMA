@@ -186,7 +186,7 @@ def get_recent_work_records():
             # 使用render_owner宏生成拥有者徽章HTML
             if record.owner:
                 # 判断是否为厂商账户
-                if record.owner.company_name == '和源通信（上海）股份有限公司':
+                if record.owner.is_vendor_user():
                     # 厂商账户使用胶囊造型徽章
                     display_name = record.owner.real_name if record.owner.real_name else record.owner.username
                     owner_badge_html = f'<span class="badge bg-primary rounded-pill">{display_name}</span>'
