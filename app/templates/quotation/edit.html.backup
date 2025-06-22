@@ -420,7 +420,7 @@ input[type="number"].quantity {
                             <div class="col-md-3">
                                 <label for="currency" class="form-label">货币类型</label>
                                 <select class="form-select" id="currency" name="currency">
-                                    <option value="CNY" {% if quotation and quotation.currency == 'CNY' %}selected{% elif not quotation %}selected{% endif %}>人民币 (CNY)</option>
+                                    <option value="CNY" {% if not quotation or not quotation.currency or quotation.currency == 'CNY' %}selected{% endif %}>人民币 (CNY)</option>
                                     <option value="USD" {% if quotation and quotation.currency == 'USD' %}selected{% endif %}>美元 (USD)</option>
                                     <option value="SGD" {% if quotation and quotation.currency == 'SGD' %}selected{% endif %}>新加坡元 (SGD)</option>
                                     <option value="MYR" {% if quotation and quotation.currency == 'MYR' %}selected{% endif %}>马来西亚林吉特 (MYR)</option>
@@ -1021,7 +1021,6 @@ $(document).ready(function() {
             var formData = {
                 project_id: projectId, // 已确保是整数
                 total_amount: parseFloat($('#grandTotal').data('raw-value')) || 0,
-                currency: $('#currency').val() || 'CNY', // 添加货币字段
                 details: []
             };
             
@@ -2536,23 +2535,20 @@ $(document).ready(function() {
         window.currencySelector.initializeCurrencySelects();
     }
     
-    // 获取当前报价单的货币，确保正确显示
-    const currentCurrency = '{{ quotation.currency if quotation else "CNY" }}';
-    $('#currency').val(currentCurrency);
+    // 获取当前报价单的货币作为初始值
+    const currentCurrency = $('#currency').val() || 'CNY';
+    $('#currency').data('previous-currency', currentCurrency);
     
     // 监听货币变更
     $('#currency').on('change', function() {
         const newCurrency = $(this).val();
-        const oldCurrency = $(this).data('previous-currency') || currentCurrency;
+        const oldCurrency = $(this).data('previous-currency') || 'CNY';
         
         if (newCurrency !== oldCurrency) {
             convertProductPrices(oldCurrency, newCurrency);
             $(this).data('previous-currency', newCurrency);
         }
     });
-    
-    // 初始化前一个货币值
-    $('#currency').data('previous-currency', currentCurrency);
 });
 
 // 转换产品价格
@@ -2568,31 +2564,36 @@ async function convertProductPrices(fromCurrency, toCurrency) {
                 const $discountedInput = $row.find('.discounted-price');
                 
                 // 转换市场价格
-                const marketPrice = parseFloat($priceInput.val().replace(/,/g, '')) || 0;
-                if (marketPrice > 0) {
-                    const convertedMarketPrice = await window.currencySelector.convertAmount(
-                        marketPrice, fromCurrency, toCurrency
-                    );
-                    $priceInput.val(formatNumber(convertedMarketPrice));
-                    $priceInput.data('raw-value', convertedMarketPrice);
+                const marketPrice = parseFloat($priceInput.data('raw-value') || $priceInput.val().replace(/,/g, '')) || 0;
+                if (marketPrice > 0 && window.currencySelector) {
+                    try {
+                        const convertedMarketPrice = await window.currencySelector.convertAmount(
+                            marketPrice, fromCurrency, toCurrency
+                        );
+                        $priceInput.data('raw-value', convertedMarketPrice);
+                        $priceInput.val(formatNumber(convertedMarketPrice));
+                    } catch (error) {
+                        console.error('市场价格转换失败:', error);
+                    }
                 }
                 
                 // 转换折后价
-                const discountedPrice = parseFloat($discountedInput.val().replace(/,/g, '')) || 0;
-                if (discountedPrice > 0) {
-                    const convertedDiscountedPrice = await window.currencySelector.convertAmount(
-                        discountedPrice, fromCurrency, toCurrency
-                    );
-                    $discountedInput.val(formatNumber(convertedDiscountedPrice));
-                    $discountedInput.data('raw-value', convertedDiscountedPrice);
+                const discountedPrice = parseFloat($discountedInput.data('raw-value') || $discountedInput.val().replace(/,/g, '')) || 0;
+                if (discountedPrice > 0 && window.currencySelector) {
+                    try {
+                        const convertedDiscountedPrice = await window.currencySelector.convertAmount(
+                            discountedPrice, fromCurrency, toCurrency
+                        );
+                        $discountedInput.data('raw-value', convertedDiscountedPrice);
+                        $discountedInput.val(formatNumber(convertedDiscountedPrice));
+                    } catch (error) {
+                        console.error('折后价格转换失败:', error);
+                    }
                 }
                 
                 // 重新计算小计
                 updateRowSubtotal($row);
             }
-            
-            // 更新总计
-            updateGrandTotal();
             
             console.log(`价格已从${fromCurrency}转换为${toCurrency}`);
         } else {
@@ -2600,16 +2601,13 @@ async function convertProductPrices(fromCurrency, toCurrency) {
             $('#currency').val(fromCurrency);
         }
     } catch (error) {
-        console.error('转换价格失败:', error);
-        alert('价格转换失败，请重试');
+        console.error('货币转换过程出错:', error);
+        alert('货币转换失败，请重试');
+        // 恢复原来的货币选择
         $('#currency').val(fromCurrency);
     }
 }
 </script>
-
-<!-- 加载货币选择器 -->
-<script src="{{ url_for('static', filename='js/currency_selector.js') }}"></script>
-
 {% if preset_project_id %}
 <script>
 $(function() {
@@ -2630,8 +2628,7 @@ $(function() {
 });
 </script>
 {% endif %}
-
-<style>
+{% endblock %}
 /* 产品菜单统一样式（与create.html一致） */
 #product-menu-styles,
 .product-menu-container,
@@ -2660,6 +2657,15 @@ $(function() {
     font-style: italic;
     font-size: 0.75rem;
 }
-</style>
+{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
+<!-- 加载货币选择器样式 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='js/currency_selector.css') }}">
+{% endblock %}
+
+{% block extra_js %}
+<!-- 加载货币选择器组件 -->
+<script src="{{ url_for('static', filename='js/currency_selector.js') }}"></script>
 {% endblock %}

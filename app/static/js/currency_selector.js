@@ -35,6 +35,16 @@ class CurrencySelector {
     async loadExchangeRates(baseCurrency = 'CNY') {
         try {
             const response = await fetch(`/api/v1/exchange-rate/rates?base=${baseCurrency}`);
+            
+            // 检查响应状态
+            if (response.status === 302 || response.status === 401) {
+                console.warn('汇率API需要认证，使用默认汇率');
+                this.exchangeRates = this.getDefaultRates();
+                this.baseCurrency = baseCurrency;
+                this.lastUpdated = new Date();
+                return;
+            }
+            
             const result = await response.json();
             
             if (result.success) {
@@ -46,9 +56,11 @@ class CurrencySelector {
                 throw new Error(result.message || '获取汇率失败');
             }
         } catch (error) {
-            console.error('加载汇率失败:', error);
+            console.warn('加载汇率失败，使用默认汇率:', error);
             // 使用默认汇率
             this.exchangeRates = this.getDefaultRates();
+            this.baseCurrency = baseCurrency;
+            this.lastUpdated = new Date();
         }
     }
     
@@ -139,6 +151,12 @@ class CurrencySelector {
                 })
             });
             
+            // 检查响应状态
+            if (response.status === 302 || response.status === 401) {
+                console.warn('汇率转换API需要认证，使用本地转换');
+                return this.convertAmountLocally(amount, fromCurrency, toCurrency);
+            }
+            
             const result = await response.json();
             
             if (result.success) {
@@ -147,7 +165,7 @@ class CurrencySelector {
                 throw new Error(result.message || '货币转换失败');
             }
         } catch (error) {
-            console.error('货币转换失败:', error);
+            console.warn('货币转换API失败，使用本地转换:', error);
             // 使用本地汇率进行转换
             return this.convertAmountLocally(amount, fromCurrency, toCurrency);
         }

@@ -714,6 +714,10 @@ def edit_quotation(id):
                     quotation.project_stage = project.current_stage
                     quotation.project_type = project.project_type
                 
+                # 更新报价单货币
+                currency = request.form.get('currency', 'CNY')
+                quotation.currency = currency
+                
                 event.remove(QuotationDetail, 'after_delete', update_quotation_product_signature)
                 
                 try:
@@ -732,6 +736,9 @@ def edit_quotation(id):
                     market_prices = request.form.getlist('product_price[]')
                     quantities = request.form.getlist('quantity[]')
                     product_mns = request.form.getlist('product_mn[]')  # 添加MN号字段
+                    
+                    # 获取报价单货币，用于明细记录
+                    detail_currency = request.form.get('currency', 'CNY')
                     
                     # 验证是否有产品明细
                     if not product_names:
@@ -788,7 +795,8 @@ def edit_quotation(id):
                                 quantity=quantity,
                                 unit_price=discounted_price,
                                 total_price=subtotal,
-                                product_mn=product_mns[i] if i < len(product_mns) else ''  # 添加MN号
+                                product_mn=product_mns[i] if i < len(product_mns) else '',  # 添加MN号
+                                currency=detail_currency  # 添加货币字段
                             )
                             
                             # 计算植入小计
