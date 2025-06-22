@@ -420,7 +420,7 @@ input[type="number"].quantity {
                             <div class="col-md-3">
                                 <label for="currency" class="form-label">货币类型</label>
                                 <select class="form-select" id="currency" name="currency">
-                                    <option value="CNY" {% if quotation and quotation.currency == 'CNY' %}selected{% elif not quotation %}selected{% endif %}>人民币 (CNY)</option>
+                                    <option value="CNY" {% if not quotation or not quotation.currency or quotation.currency == 'CNY' %}selected{% endif %}>人民币 (CNY)</option>
                                     <option value="USD" {% if quotation and quotation.currency == 'USD' %}selected{% endif %}>美元 (USD)</option>
                                     <option value="SGD" {% if quotation and quotation.currency == 'SGD' %}selected{% endif %}>新加坡元 (SGD)</option>
                                     <option value="MYR" {% if quotation and quotation.currency == 'MYR' %}selected{% endif %}>马来西亚林吉特 (MYR)</option>
@@ -2527,6 +2527,86 @@ function updateRowSubtotal($row) {
     // 更新总计
     updateGrandTotal();
 }
+
+// 货币变更处理
+$(document).ready(function() {
+    // 初始化货币选择器
+    if (window.currencySelector) {
+        window.currencySelector.initializeCurrencySelects();
+    }
+    
+    // 获取当前报价单的货币作为初始值
+    const currentCurrency = $('#currency').val() || 'CNY';
+    $('#currency').data('previous-currency', currentCurrency);
+    
+    // 监听货币变更
+    $('#currency').on('change', function() {
+        const newCurrency = $(this).val();
+        const oldCurrency = $(this).data('previous-currency') || 'CNY';
+        
+        if (newCurrency !== oldCurrency) {
+            convertProductPrices(oldCurrency, newCurrency);
+            $(this).data('previous-currency', newCurrency);
+        }
+    });
+});
+
+// 转换产品价格
+async function convertProductPrices(fromCurrency, toCurrency) {
+    try {
+        // 显示转换提示
+        if (confirm(`是否要将所有价格从${fromCurrency}转换为${toCurrency}？`)) {
+            const rows = $('#productTable tbody tr');
+            
+            for (let i = 0; i < rows.length; i++) {
+                const $row = $(rows[i]);
+                const $priceInput = $row.find('.product-price');
+                const $discountedInput = $row.find('.discounted-price');
+                
+                // 转换市场价格
+                const marketPrice = parseFloat($priceInput.data('raw-value') || $priceInput.val().replace(/,/g, '')) || 0;
+                if (marketPrice > 0 && window.currencySelector) {
+                    try {
+                        const convertedMarketPrice = await window.currencySelector.convertAmount(
+                            marketPrice, fromCurrency, toCurrency
+                        );
+                        $priceInput.data('raw-value', convertedMarketPrice);
+                        $priceInput.val(formatNumber(convertedMarketPrice));
+                    } catch (error) {
+                        console.error('市场价格转换失败:', error);
+                    }
+                }
+                
+                // 转换折后价
+                const discountedPrice = parseFloat($discountedInput.data('raw-value') || $discountedInput.val().replace(/,/g, '')) || 0;
+                if (discountedPrice > 0 && window.currencySelector) {
+                    try {
+                        const convertedDiscountedPrice = await window.currencySelector.convertAmount(
+                            discountedPrice, fromCurrency, toCurrency
+                        );
+                        $discountedInput.data('raw-value', convertedDiscountedPrice);
+                        $discountedInput.val(formatNumber(convertedDiscountedPrice));
+                    } catch (error) {
+                        console.error('折后价格转换失败:', error);
+                    }
+                }
+                
+                // 重新计算小计
+                updateRowSubtotal($row);
+            }
+            
+            console.log(`价格已从${fromCurrency}转换为${toCurrency}`);
+        } else {
+            // 用户取消，恢复原来的货币选择
+            $('#currency').val(fromCurrency);
+        }
+    } catch (error) {
+        console.error('货币转换过程出错:', error);
+        alert('货币转换失败，请重试');
+        // 恢复原来的货币选择
+        $('#currency').val(fromCurrency);
+    }
+}
 </script>
 {% if preset_project_id %}
 <script>
@@ -2577,3 +2657,15 @@ $(function() {
     font-style: italic;
     font-size: 0.75rem;
 }
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
+<!-- 加载货币选择器样式 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='js/currency_selector.css') }}">
+{% endblock %}
+
+{% block extra_js %}
+<!-- 加载货币选择器组件 -->
+<script src="{{ url_for('static', filename='js/currency_selector.js') }}"></script>
+{% endblock %}
