@@ -187,6 +187,23 @@
   </span>
 {% endmacro %}
 
+{% macro render_product_status_badge(status) %}
+  {% set status_mapping = {
+    'active': {'zh': '生产中', 'en': 'Active', 'color': '#28a745'},
+    'discontinued': {'zh': '已停产', 'en': 'Discontinued', 'color': '#dc3545'},
+    'upcoming': {'zh': '待上市', 'en': 'Upcoming', 'color': '#ffc107'},
+    '生产中': {'zh': '生产中', 'en': 'Active', 'color': '#28a745'},
+    '已停产': {'zh': '已停产', 'en': 'Discontinued', 'color': '#dc3545'},
+    '待上市': {'zh': '待上市', 'en': 'Upcoming', 'color': '#ffc107'}
+  } %}
+  {% set status_config = status_mapping.get(status, {'zh': status, 'en': status, 'color': '#6c757d'}) %}
+  {% set color = status_config.color %}
+  {% set display_status = status_config.get(session.get('language', 'zh'), status) %}
+  <span class="badge" style="background-color: {{ color }}; color: white; padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.75rem;">
+    {{ display_status }}
+  </span>
+{% endmacro %}
+
 {% macro render_button(text, href=None, color="primary", size="md", icon=None, rounded="pill", extra_class="", type="a", attrs=None, onclick=None) %}
   {%- set inline_style = "" %}
   {%- if size == "sm" %}
@@ -289,24 +306,18 @@
     {% set color = '#757575' %}  {# 默认灰色 - 第三方产品 #}
     {% set display_type = type %}
     
-    {# 中文类型映射 #}
-    {% if type == '项目产品' %}
-      {% set color = '#0D47A1' %}  {# 深蓝色 #}
-    {% elif type == '渠道产品' %}
-      {% set color = '#4FC3F7' %}  {# 湖蓝色 #}
-    {% elif type == '第三方产品' %}
-      {% set color = '#757575' %}  {# 灰色 #}
-    {# 英文类型映射 #}
-    {% elif type == 'project' %}
-      {% set color = '#0D47A1' %}  {# 深蓝色 #}
-      {% set display_type = '项目产品' %}
-    {% elif type == 'channel' %}
-      {% set color = '#4FC3F7' %}  {# 湖蓝色 #}
-      {% set display_type = '渠道产品' %}
-    {% elif type == 'third-party' %}
-      {% set color = '#757575' %}  {# 灰色 #}
-      {% set display_type = '第三方产品' %}
-    {% endif %}
+    {# 产品类型映射 - 支持英文key和中文显示 #}
+    {% set type_mapping = {
+      'project': {'zh': '项目产品', 'en': 'Project', 'color': '#0D47A1'},
+      'channel': {'zh': '渠道产品', 'en': 'Channel', 'color': '#4FC3F7'},
+      'third_party': {'zh': '第三方产品', 'en': 'Third Party', 'color': '#757575'},
+      '项目产品': {'zh': '项目产品', 'en': 'Project', 'color': '#0D47A1'},
+      '渠道产品': {'zh': '渠道产品', 'en': 'Channel', 'color': '#4FC3F7'},
+      '第三方产品': {'zh': '第三方产品', 'en': 'Third Party', 'color': '#757575'}
+    } %}
+    {% set type_config = type_mapping.get(type, {'zh': type, 'en': type, 'color': '#6c757d'}) %}
+    {% set color = type_config.color %}
+    {% set display_type = type_config.get(session.get('language', 'zh'), type) %}
     
     <span class="badge" style="background-color: {{ color }}; color: white; padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.75rem;">
       {{ display_type }}

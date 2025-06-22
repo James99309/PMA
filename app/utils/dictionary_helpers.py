@@ -153,6 +153,30 @@ BRAND_STATUS_LABELS = {
 def brand_status_label(key, lang='zh'):
     return BRAND_STATUS_LABELS.get(key, {}).get(lang, key)
 
+# 产品类型映射
+PRODUCT_TYPE_LABELS = {
+    'third_party': {'zh': '第三方产品', 'en': 'Third Party'},
+    'channel': {'zh': '渠道产品', 'en': 'Channel'},
+    'project': {'zh': '项目产品', 'en': 'Project'}
+}
+
+def product_type_label(key, lang='zh'):
+    return PRODUCT_TYPE_LABELS.get(key, {}).get(lang, key)
+
+PRODUCT_TYPE_OPTIONS = [(k, v['zh']) for k, v in PRODUCT_TYPE_LABELS.items()]
+
+# 产品状态映射
+PRODUCT_STATUS_LABELS = {
+    'active': {'zh': '生产中', 'en': 'Active'},
+    'discontinued': {'zh': '已停产', 'en': 'Discontinued'},
+    'upcoming': {'zh': '待上市', 'en': 'Upcoming'}
+}
+
+def product_status_label(key, lang='zh'):
+    return PRODUCT_STATUS_LABELS.get(key, {}).get(lang, key)
+
+PRODUCT_STATUS_OPTIONS = [(k, v['zh']) for k, v in PRODUCT_STATUS_LABELS.items()]
+
 # 报备来源映射
 REPORTING_SOURCE_LABELS = {
     'channel': {'zh': '渠道报备', 'en': 'Channel'},

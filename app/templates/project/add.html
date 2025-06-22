@@ -278,9 +278,10 @@ async function loadSalesManagers() {
         vendorSelect.innerHTML = '<option value="">请选择厂商销售负责人</option>';
         
         if (data.success && data.data) {
-            // 按企业分组用户，并根据企业名称过滤
+            // 按企业分组用户，根据企业的厂商标识过滤
             data.data.forEach(company => {
-                const isVendorCompany = company.name === '和源通信（上海）股份有限公司';
+                // 使用is_vendor字段判断是否为厂商企业
+                const isVendorCompany = company.is_vendor === true;
                 
                 if (company.users && company.users.length > 0) {
                     if (isVendorCompany) {
@@ -299,11 +300,11 @@ async function loadSalesManagers() {
             });
         }
         
-        // 如果当前用户是和源通信企业的账户，自动选择当前用户作为厂商负责人
-        const currentUserCompany = '{{ current_user.company_name }}';
+        // 如果当前用户是厂商企业的账户，自动选择当前用户作为厂商负责人  
+        const currentUserIsVendor = {% if current_user.is_vendor_user() %}true{% else %}false{% endif %};
         const currentUserId = '{{ current_user.id }}';
         
-        if (currentUserCompany === '和源通信（上海）股份有限公司' && currentUserId) {
+        if (currentUserIsVendor && currentUserId) {
             vendorSelect.value = currentUserId;
         }
         

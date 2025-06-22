@@ -144,6 +144,7 @@ def get_hierarchical_users():
         if company_name not in companies:
             companies[company_name] = {
                 'name': company_name,
+                'is_vendor': user.is_vendor_user(),  # 添加厂商标识
                 'users': []
             }
         

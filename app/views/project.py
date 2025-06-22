@@ -552,7 +552,7 @@ def add_project():
             vendor_sales_manager_id = request.form.get('vendor_sales_manager_id')
             
             # 如果厂商销售负责人字段为空，默认将拥有人账户作为内容
-            if not vendor_sales_manager_id and current_user.company_name == '和源通信（上海）股份有限公司':
+            if not vendor_sales_manager_id and current_user.is_vendor_user():
                 vendor_sales_manager_id = current_user.id
             
             project = Project(
@@ -719,7 +719,7 @@ def edit_project(project_id):
             vendor_sales_manager_id = request.form.get('vendor_sales_manager_id')
             
             # 如果厂商销售负责人字段为空，默认将拥有人账户作为内容
-            if not vendor_sales_manager_id and project.owner and project.owner.company_name == '和源通信（上海）股份有限公司':
+            if not vendor_sales_manager_id and project.owner and project.owner.is_vendor_user():
                 vendor_sales_manager_id = project.owner_id
             
             if vendor_sales_manager_id:
@@ -1966,7 +1966,7 @@ def change_project_owner(project_id):
         return redirect(url_for('project.view_project', project_id=project_id))
     
     # 检查新拥有人是否是厂商企业账户
-    is_vendor_company = new_owner.company_name == '和源通信（上海）股份有限公司'
+    is_vendor_company = new_owner.is_vendor_user()
     
     # 如果新拥有人不是厂商企业账户，需要设置厂商销售负责人
     vendor_sales_manager_id = None
@@ -1982,7 +1982,7 @@ def change_project_owner(project_id):
             flash('厂商销售负责人不存在', 'danger')
             return redirect(url_for('project.view_project', project_id=project_id))
         
-        if vendor_sales_manager.company_name != '和源通信（上海）股份有限公司':
+        if not vendor_sales_manager.is_vendor_user():
             flash('厂商销售负责人必须是厂商企业账户', 'danger')
             return redirect(url_for('project.view_project', project_id=project_id))
     else:
@@ -2053,11 +2053,11 @@ def get_users_api():
         from app.models.user import User
         
         if user_type == 'vendor':
-            # 获取厂商用户（和源通信公司）
-            users = User.query.filter_by(company_name='和源通信（上海）股份有限公司').all()
+            # 获取厂商用户
+            users = [user for user in User.query.all() if user.is_vendor_user()]
         elif user_type == 'dealer':
-            # 获取代理商用户（非和源通信公司）
-            users = User.query.filter(User.company_name != '和源通信（上海）股份有限公司').all()
+            # 获取代理商用户（非厂商用户）
+            users = [user for user in User.query.all() if not user.is_vendor_user()]
         else:
             # 获取所有用户
             users = User.query.all()

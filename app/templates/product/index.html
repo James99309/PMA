@@ -424,6 +424,8 @@
     let pageSize = 50;
     let totalPages = 1;
     let sortBy = 'id';  // 默认按ID排序
+    // 获取当前语言设置
+    const currentLanguage = '{{ session.get("language", "zh") }}';
     let sortOrder = 'asc';  // 默认升序排序
     let allLoaded = false;
     let isLoading = false;
@@ -850,55 +852,38 @@
     function getProductTypeBadge(type) {
         if (!type) return '-';
 
-        let color = '#757575';  // 默认灰色
-        let displayType = type;
+                 // 产品类型映射
+        const typeMapping = {
+            'project': { zh: '项目产品', en: 'Project', color: '#0D47A1' },
+            'channel': { zh: '渠道产品', en: 'Channel', color: '#4FC3F7' },
+            'third_party': { zh: '第三方产品', en: 'Third Party', color: '#757575' },
+            '项目产品': { zh: '项目产品', en: 'Project', color: '#0D47A1' },
+            '渠道产品': { zh: '渠道产品', en: 'Channel', color: '#4FC3F7' },
+            '第三方产品': { zh: '第三方产品', en: 'Third Party', color: '#757575' }
+        };
 
-        // 中文类型映射
-        if (type === '项目产品') {
-            color = '#0D47A1';  // 深蓝色
-        } else if (type === '渠道产品') {
-            color = '#4FC3F7';  // 湖蓝色
-        } else if (type === '第三方产品') {
-            color = '#757575';  // 灰色
-        } else if (type === 'project') {
-            // 英文类型映射 - project
-            color = '#0D47A1';
-            displayType = '项目产品';
-        } else if (type === 'channel') {
-            // 英文类型映射 - channel
-            color = '#4FC3F7';
-            displayType = '渠道产品';
-        } else if (type === 'third-party') {
-            // 英文类型映射 - third-party
-            color = '#757575';
-            displayType = '第三方产品';
-        }
+        const typeConfig = typeMapping[type] || { zh: type, en: type, color: '#6c757d' };
+        const color = typeConfig.color;
+                 const displayType = typeConfig[currentLanguage] || typeConfig.zh;
 
         return `<span class="badge" style="padding: 0.25em 0.5em; border-radius: 50px; font-size: 0.65rem; color: white; font-weight: 500; display: inline-block; white-space: nowrap; border: 2px solid transparent; transition: all 0.2s ease; background: linear-gradient(135deg, ${color}, ${color}dd); box-shadow: 0 2px 4px ${color}4d; transform: translateY(0);">${displayType}</span>`;
     }
 
     // 根据产品状态获取带有样式的徽章
     function getStatusBadge(status, productId) {
-        let color = '#198754';  // 默认绿色
-        let statusText = '生产中';
+                 // 产品状态映射
+        const statusMapping = {
+            'active': { zh: '生产中', en: 'Active', color: '#28a745' },
+            'discontinued': { zh: '已停产', en: 'Discontinued', color: '#dc3545' },
+            'upcoming': { zh: '待上市', en: 'Upcoming', color: '#ffc107' },
+            '生产中': { zh: '生产中', en: 'Active', color: '#28a745' },
+            '已停产': { zh: '已停产', en: 'Discontinued', color: '#dc3545' },
+            '待上市': { zh: '待上市', en: 'Upcoming', color: '#ffc107' }
+        };
 
-        switch(status) {
-            case 'active':
-                color = '#198754';  // 绿色
-                statusText = '生产中';
-                break;
-            case 'discontinued':
-                color = '#dc3545';  // 红色
-                statusText = '已停产';
-                break;
-            case 'upcoming':
-                color = '#ffc107';  // 黄色
-                statusText = '待上市';
-                break;
-            default:
-                color = '#198754';
-                statusText = '生产中';
-        }
+        const statusConfig = statusMapping[status] || { zh: '生产中', en: 'Active', color: '#28a745' };
+        const color = statusConfig.color;
+                 const statusText = statusConfig[currentLanguage] || statusConfig.zh;
 
         return `<span class="badge" style="padding: 0.25em 0.5em; border-radius: 50px; font-size: 0.65rem; color: white; font-weight: 500; display: inline-block; white-space: nowrap; border: 2px solid transparent; transition: all 0.2s ease; background: linear-gradient(135deg, ${color}, ${color}dd); box-shadow: 0 2px 4px ${color}4d; transform: translateY(0);">${statusText}</span>`;
     }
