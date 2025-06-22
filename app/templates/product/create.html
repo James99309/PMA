@@ -399,9 +399,22 @@
                     </div>
 
                     <!-- 市场价格 -->
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
                         <label for="retail-price" class="form-label">市场价格</label>
                         <input type="number" class="form-control" id="retail-price" name="retail_price" placeholder="0.00" step="0.01" min="0" {% if product %}value="{{ product.retail_price }}"{% endif %}>
+                    </div>
+
+                    <!-- 货币类型 -->
+                    <div class="col-md-2 mb-3">
+                        <label for="currency" class="form-label">货币</label>
+                        <select class="form-select" id="currency" name="currency">
+                            <option value="CNY" {% if not product or product.currency == 'CNY' or not product.currency %}selected{% endif %}>人民币 (CNY)</option>
+                            <option value="USD" {% if product and product.currency == 'USD' %}selected{% endif %}>美元 (USD)</option>
+                            <option value="SGD" {% if product and product.currency == 'SGD' %}selected{% endif %}>新加坡元 (SGD)</option>
+                            <option value="MYR" {% if product and product.currency == 'MYR' %}selected{% endif %}>马来西亚林吉特 (MYR)</option>
+                            <option value="IDR" {% if product and product.currency == 'IDR' %}selected{% endif %}>印尼盾 (IDR)</option>
+                            <option value="THB" {% if product and product.currency == 'THB' %}selected{% endif %}>泰铢 (THB)</option>
+                        </select>
                     </div>
 
                     <!-- 生产状态 - 使用选择框 -->
@@ -438,6 +451,7 @@
 {% block scripts %}
 {{ super() }}
 <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+
 <script>
     // 全局变量
     let categories = [];
@@ -488,11 +502,11 @@
         // 加载单位数据
         loadUnits();
 
-        // 加载产品类型数据
-        loadTypes();
-
         // 加载品牌数据
         loadBrands();
+
+        // 设置产品类型（不需要API调用）
+        setProductType();
 
         // 绑定产品名称输入框事件
         const productNameInput = document.getElementById('product-name');
@@ -808,8 +822,8 @@
             });
     }
 
-    // 加载产品类型
-    function loadTypes() {
+    // 设置产品类型（不需要API调用）
+    function setProductType() {
         // 如果是编辑模式，设置产品类型选中状态
         const currentType = '{{ product.type if product else "" }}';
         if (currentType) {
@@ -821,8 +835,7 @@
                 }
             }
         }
-
-        checkApiLoaded();
+        // 产品类型不需要API调用，所以不调用checkApiLoaded()
     }
 
     // 加载产品品牌列表

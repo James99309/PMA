@@ -15,6 +15,7 @@ class DevProduct(db.Model):
     status = Column(String(50))
     unit = Column(String(20))
     retail_price = Column(Float)
+    currency = Column(String(10), default='CNY')  # 货币类型
     description = Column(Text)
     image_path = Column(String(255))
     pdf_path = Column(String(255))

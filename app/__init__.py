@@ -247,6 +247,9 @@ def create_app(config_class=Config):
     # 导入搜索API
     from app.api.v1.search import search_bp
     
+    # 导入汇率API
+    from app.api.v1.exchange_rate import exchange_rate_bp
+    
     # 导入语言切换蓝图
     from app.views.language import language_bp
 
@@ -289,6 +292,10 @@ def create_app(config_class=Config):
     # 注册搜索API蓝图
     app.register_blueprint(search_bp, url_prefix='/api/v1/search')
     csrf.exempt(search_bp)
+    
+    # 注册汇率API蓝图
+    app.register_blueprint(exchange_rate_bp)
+    csrf.exempt(exchange_rate_bp)
     
     # 注册语言切换蓝图
     from app.views.language import language_bp

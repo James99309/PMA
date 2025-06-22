@@ -116,77 +116,7 @@
         .logo strong {
             color: #333;
         }
-        .main-nav {
-            background: #000;
-            margin-bottom: 20px;
-            border-bottom: none;
-        }
-        .main-nav .nav-tabs {
-            border-bottom: none;
-        }
-        .main-nav .nav-link {
-            color: #fff !important;
-            font-weight: 500;
-            font-size: 14px;
-            padding: 0.7rem 1.1rem;
-            border-bottom: none;
-            background: transparent;
-            transition: color 0.2s;
-            white-space: nowrap;
-        }
-        .main-nav .nav-link.active, .main-nav .nav-link:focus {
-            color: var(--pa-blue) !important;
-            background: #fff;
-            border-radius: 6px 6px 0 0;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-        }
-        .main-nav .nav-link:not(.active):hover {
-            color: var(--pa-blue) !important;
-            background: transparent;
-        }
-        .main-nav .nav-link:not(.active) {
-            color: #fff !important;
-            background: transparent;
-        }
-        .main-nav .nav-item {
-            margin-bottom: 0;
-        }
-        .main-nav .user-dropdown-toggle, .main-nav .user-dropdown-menu {
-            background: transparent;
-        }
-        .main-nav .user-dropdown-menu {
-            min-width: 180px;
-        }
-        .main-nav .user-dropdown-item {
-            color: #333;
-        }
-        .main-nav .user-dropdown-item:hover {
-            background: #f5f5f5;
-        }
-        .main-nav .user-info {
-            color: #fff;
-            font-weight: 500;
-            font-size: 14px;
-            white-space: nowrap;
-        }
-        .main-nav .user-avatar {
-            background: #0b5ed7;
-            color: #fff;
-        }
-        .main-nav .user-dropdown-toggle {
-            min-width: 0;
-        }
-        .main-nav .user-dropdown {
-            margin-left: 1.5rem;
-        }
-        .main-nav .d-flex.align-items-center.ms-auto {
-            gap: 0.5rem;
-            flex-wrap: nowrap;
-        }
-        .main-nav .nav-link {
-            display: inline-block;
-            vertical-align: middle;
-        }
+        /* 主导航样式已移至style.css中统一管理 */
         .btn-primary {
             background-color: var(--pa-blue);
             border-color: var(--pa-blue);
@@ -276,9 +206,9 @@
 </head>
 <body>
     <!-- 双层导航栏：上排为logo和系统名称，下排为菜单 -->
-    <div class="header-wrapper" style="background-color: #000; z-index: 1040; position: fixed; top: 0; width: 100%;">
+    <div class="header-wrapper" style="background: linear-gradient(135deg, #000000, #1a1a1a); z-index: 1040; position: fixed; top: 0; width: 100%; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
         <!-- 上排：Logo + 系统名称 + 语言切换 + 账户头像 -->
-        <div class="top-header" style="background-color: #000; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+        <div class="top-header" style="background: transparent; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
             <div class="container d-flex align-items-center justify-content-between">
                 <div class="d-flex align-items-center">
                     <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" class="main-logo" style="max-height: 32px; width: auto; margin-right: 12px; object-fit: contain;">
@@ -357,7 +287,7 @@
         </div>
         
         <!-- 下排：菜单导航 -->
-        <nav class="main-nav navbar navbar-expand-lg navbar-dark" style="background-color: #000; padding: 0;">
+        <nav class="main-nav navbar navbar-expand-lg navbar-dark" style="background: transparent; padding: 0;">
             <div class="container">
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="切换导航" style="border: none; box-shadow: none;">
                     <span class="navbar-toggler-icon"></span>

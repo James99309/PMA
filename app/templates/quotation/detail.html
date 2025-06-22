@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_quotation_number, render_currency, render_project_stage, render_button, render_confirm_cancel, render_confirmation_badge %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_quotation_number, render_currency, render_currency_with_symbol, render_project_stage, render_button, render_confirm_cancel, render_confirmation_badge %}
 {% from 'macros/ui_modals.html' import render_change_owner_modal %}
 {% from 'macros/approval_macros.html' import render_start_approval_button, render_approval_section with context %}
 
@@ -216,11 +216,11 @@
                             <table class="table table-bordered">
                                 <tr>
                                     <th class="bg-light" style="width: 30%">报价总额</th>
-                                    <td>{{ render_currency(quotation.amount) }}</td>
+                                    <td>{{ render_currency_with_symbol(quotation.amount, quotation.currency) }}</td>
                                 </tr>
                                 <tr>
                                     <th class="bg-light">植入总额合计</th>
-                                    <td>{{ render_currency(quotation.implant_total_amount) }}</td>
+                                    <td>{{ render_currency_with_symbol(quotation.implant_total_amount, quotation.currency) }}</td>
                                 </tr>
                                 <tr>
                                     <th class="bg-light">负责人</th>
@@ -318,13 +318,13 @@
                                     </td>
                                     <td>{{ detail.brand or '-' }}</td>
                                     {% if current_user.role not in ['product_manager', 'product'] %}
-                                    <td class="text-right">{{ render_currency(detail.market_price) if detail.market_price else '-' }}</td>
+                                    <td class="text-right">{{ render_currency_with_symbol(detail.market_price, detail.currency or quotation.currency) if detail.market_price else '-' }}</td>
                                     <td class="text-center">{{ '%.1f%%'|format((detail.discount * 100) if detail.discount else 100) }}</td>
                                     {% endif %}
-                                    <td class="text-right">{{ render_currency(detail.unit_price) if detail.unit_price else '-' }}</td>
+                                    <td class="text-right">{{ render_currency_with_symbol(detail.unit_price, detail.currency or quotation.currency) if detail.unit_price else '-' }}</td>
                                     <td class="text-center">{{ detail.quantity or 0 }}</td>
                                     <td class="text-center">{{ detail.unit or '-' }}</td>
-                                    <td class="text-right">{{ render_currency(detail.total_price) if detail.total_price else '-' }}</td>
+                                    <td class="text-right">{{ render_currency_with_symbol(detail.total_price, detail.currency or quotation.currency) if detail.total_price else '-' }}</td>
                                     <td>{{ detail.product_mn or '-' }}</td>
                                 </tr>
                                 {% else %}
@@ -345,7 +345,7 @@
                                     {% else %}
                                     <td colspan="11" class="text-end fw-bold">总计金额：</td>
                                     {% endif %}
-                                    <td class="text-end fw-bold">{{ render_currency(quotation.amount) }}</td>
+                                    <td class="text-end fw-bold">{{ render_currency_with_symbol(quotation.amount, quotation.currency) }}</td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -421,7 +421,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function copyQuotation(id) {
     if (confirm('确定要复制这个报价单吗？')) {
-        fetch(`/quotation/quotation/${id}/copy`, {
+        fetch(`/quotation/${id}/copy`, {
             method: 'POST',
         })
         .then(response => response.json())
@@ -441,17 +441,27 @@ function copyQuotation(id) {
 
 function deleteQuotation(id) {
     if (confirm('确定要删除这个报价单吗？')) {
-        fetch(`/quotation/quotation/${id}/delete`, {
+        // 获取CSRF token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        
+        fetch(`/quotation/${id}/delete`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
             },
         }).then(response => {
             if (response.ok) {
                 window.location.href = "{{ url_for('quotation.list_quotations') }}";
             } else {
-                alert('删除失败，请重试');
+                response.text().then(text => {
+                    console.error('删除失败:', response.status, text);
+                    alert(`删除失败 (${response.status}): ${text || '请重试'}`);
+                });
             }
+        }).catch(error => {
+            console.error('删除请求出错:', error);
+            alert('删除请求出错，请重试');
         });
     }
 }
@@ -484,7 +494,7 @@ function initProductDetailConfirmationBadge() {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         
         // 发送请求切换确认状态
-        fetch(`/quotation/quotation/${quotationId}/toggle_product_detail_confirmation`, {
+        fetch(`/quotation/${quotationId}/toggle_product_detail_confirmation`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -513,7 +523,7 @@ function initProductDetailConfirmationBadge() {
 
 // 加载确认状态
 function loadConfirmationStatus(quotationId) {
-    fetch(`/quotation/quotation/${quotationId}/product_detail_confirmation_status`, {
+    fetch(`/quotation/${quotationId}/product_detail_confirmation_status`, {
         method: 'GET',
         headers: {
             'Content-Type': 'application/json'

@@ -33,7 +33,7 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">{{ _('最近项目') }}</h5>
-                {{ render_button(_('查看全部'), href=url_for('project.list_projects'), size='sm', color='outline-primary') }}
+                {{ render_button(_('查看全部'), href=url_for('project.list_projects'), size='sm', color='secondary') }}
             </div>
             <div class="card-body">
                 <ul class="list-group list-group-flush">
@@ -70,7 +70,7 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">{{ _('最近报价') }}</h5>
-                {{ render_button(_('查看全部'), href=url_for('quotation.list_quotations'), size='sm', color='outline-primary') }}
+                {{ render_button(_('查看全部'), href=url_for('quotation.list_quotations'), size='sm', color='secondary') }}
             </div>
             <div class="card-body">
                 <ul class="list-group list-group-flush">
@@ -107,7 +107,7 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">{{ _('最近客户') }}</h5>
-                {{ render_button(_('查看全部'), href=url_for('customer.list_companies'), size='sm', color='outline-primary') }}
+                {{ render_button(_('查看全部'), href=url_for('customer.list_companies'), size='sm', color='secondary') }}
             </div>
             <div class="card-body">
                 <ul class="list-group list-group-flush">
@@ -150,24 +150,16 @@
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-3 mb-3">
-                        <a href="{{ url_for('project.add_project') }}" class="btn btn-primary w-100">
-                            <i class="fas fa-plus-circle me-2"></i>{{ _('新建项目') }}
-                        </a>
+                        {{ render_button(_('新建项目'), href=url_for('project.add_project'), icon='fas fa-plus-circle', extra_class='w-100', size='md') }}
                     </div>
                     <div class="col-md-3 mb-3">
-                        <a href="{{ url_for('quotation.create_quotation') }}" class="btn btn-primary w-100">
-                            <i class="fas fa-file-invoice-dollar me-2"></i>{{ _('新建报价') }}
-                        </a>
+                        {{ render_button(_('新建报价'), href=url_for('quotation.create_quotation'), icon='fas fa-file-invoice-dollar', extra_class='w-100', size='md') }}
                     </div>
                     <div class="col-md-3 mb-3">
-                        <a href="{{ url_for('customer.add_company') }}" class="btn btn-primary w-100">
-                            <i class="fas fa-building me-2"></i>{{ _('新建客户') }}
-                        </a>
+                        {{ render_button(_('新建客户'), href=url_for('customer.add_company'), icon='fas fa-building', extra_class='w-100', size='md') }}
                     </div>
                     <div class="col-md-3 mb-3">
-                        <a href="#" class="btn btn-primary w-100 disabled" tabindex="-1" aria-disabled="true">
-                            <i class="fas fa-chart-line me-2"></i>{{ _('查看报表') }}
-                        </a>
+                        {{ render_button(_('查看报表'), href='#', icon='fas fa-chart-line', extra_class='w-100 disabled', size='md', attrs='tabindex="-1" aria-disabled="true"') }}
                     </div>
                 </div>
             </div>
@@ -264,9 +256,7 @@
                     <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
                     <h6 class="text-warning">{{ _('加载失败') }}</h6>
                     <p class="text-muted small">{{ _('无法加载工作记录，请稍后重试') }}</p>
-                    <button class="btn btn-sm btn-outline-primary" onclick="loadRecentRecords()">
-                        <i class="fas fa-redo"></i> {{ _('重新加载') }}
-                    </button>
+                    {{ render_button(_('重新加载'), type='button', icon='fas fa-redo', size='sm', color='secondary', onclick='loadRecentRecords()') }}
                 </div>
             </div>
             <div class="card-footer bg-light">
@@ -318,9 +308,7 @@
                 <ul>
                     <li>{{ _('邮箱') }}: james111@evertac.net</li>
                 </ul>
-                <a href="#" class="btn btn-outline-primary mt-2 disabled" tabindex="-1" aria-disabled="true">
-                    <i class="fas fa-book me-2"></i>{{ _('查看用户手册') }}
-                </a>
+                {{ render_button(_('查看用户手册'), href='#', icon='fas fa-book', extra_class='mt-2 disabled', color='secondary', attrs='tabindex="-1" aria-disabled="true"') }}
             </div>
         </div>
     </div>

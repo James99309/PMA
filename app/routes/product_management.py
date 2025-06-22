@@ -374,6 +374,7 @@ def save():
         description = request.form.get('description') or ""
         unit = request.form.get('unit') or ""
         retail_price = request.form.get('retail_price')
+        currency = request.form.get('currency', 'CNY')  # 获取货币类型，默认为人民币
         status = request.form.get('status', '研发中')
         no_update_mn = request.form.get('no_update_mn') == 'true'  # 检查是否不更新MN编码
         
@@ -463,6 +464,7 @@ def save():
             description=description,
             unit=unit,
             retail_price=retail_price if retail_price else None,
+            currency=currency,  # 添加货币字段
             status=status,
             mn_code=mn_code,  # 可能为None，表示不设置MN编码
             image_path=image_path,
@@ -719,6 +721,10 @@ def update_product(id):
         
         retail_price = request.form.get('retail_price', '')
         dev_product.retail_price = float(retail_price) if retail_price else None
+        
+        # 更新货币字段
+        currency = request.form.get('currency', 'CNY')
+        dev_product.currency = currency
         
         dev_product.status = request.form.get('status', '研发中')
         dev_product.updated_at = datetime.now()

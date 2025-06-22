@@ -1,5 +1,5 @@
 <!-- 项目统计总览面板 -->
-<div id="projectStatisticsPanel" class="project-statistics-panel collapse">
+<div id="projectStatisticsPanel" class="project-statistics-panel collapse show">
     <div class="card">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center">
@@ -20,25 +20,25 @@
                 <!-- 统计内容容器 -->
                 <div id="statisticsCards" class="col-12 d-none">
                     <!-- 第一行：核心选项卡 - 有效项目、业务推进、签约、失败、搁置 -->
-                    <div class="d-flex flex-wrap gap-3 mb-4" style="justify-content: space-between;">
+                    <div class="d-flex flex-wrap gap-2 mb-2" style="justify-content: space-between;">
                         <!-- 有效项目总览卡片 -->
-                        <div style="flex: 1; min-width: 200px;">
+                        <div style="flex: 1; min-width: 160px;">
                             <div class="card border-0 shadow-sm h-100 bg-light" id="validProjectsCard" style="cursor:pointer;" onclick="filterValidProjects()">
-                                <div class="card-body">
-                                    <h6 class="card-title text-primary">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-primary mb-1" style="font-size: 0.85rem;">
                                         <i class="fas fa-project-diagram me-1"></i> {{ _('有效项目') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="{{ _('有效项目总数和总金额（排除签约、失败、搁置状态，包含所有授权状态）') }}"></i>
                                     </h6>
-                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                    <div class="d-flex justify-content-between align-items-center">
                                         <div>
-                                            <span class="fs-5 fw-bold" id="validProjectsCount">0</span>
-                                            <span class="text-muted ms-1">项</span>
+                                            <span class="fs-6 fw-bold" id="validProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
                                         </div>
                                         <div>
-                                            <span class="fs-5 fw-bold" id="validProjectsAmount">0</span>
-                                            <span class="text-muted ms-1">万元</span>
+                                            <span class="fs-6 fw-bold" id="validProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
                                         </div>
                                     </div>
                                 </div>
@@ -46,23 +46,23 @@
                         </div>
                         
                         <!-- 业务推进卡片 -->
-                        <div style="flex: 1; min-width: 200px;">
+                        <div style="flex: 1; min-width: 160px;">
                             <div class="card border-0 shadow-sm h-100 bg-info bg-opacity-10" id="updatedProjectsCard" style="cursor:pointer;" onclick="filterUpdatedProjects()">
-                                <div class="card-body">
-                                    <h6 class="card-title text-info">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-info mb-1" style="font-size: 0.85rem;">
                                         <i class="fas fa-chart-line me-1"></i> {{ _('业务推进') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="本月内项目状态有推进的统计"></i>
                                     </h6>
-                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                    <div class="d-flex justify-content-between align-items-center">
                                         <div>
-                                            <span class="fs-5 fw-bold" id="updatedProjectsCount">0</span>
-                                            <span class="text-muted ms-1">项</span>
+                                            <span class="fs-6 fw-bold" id="updatedProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
                                         </div>
                                         <div>
-                                            <span class="fs-5 fw-bold" id="updatedProjectsAmount">0</span>
-                                            <span class="text-muted ms-1">万元</span>
+                                            <span class="fs-6 fw-bold" id="updatedProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
                                         </div>
                                     </div>
                                 </div>
@@ -70,23 +70,23 @@
                         </div>
                         
                         <!-- 签约项目卡片 -->
-                        <div style="flex: 1; min-width: 200px;">
+                        <div style="flex: 1; min-width: 160px;">
                             <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10" id="signedProjectsCard" style="cursor:pointer;" onclick="filterSignedProjects()">
-                                <div class="card-body">
-                                    <h6 class="card-title text-success">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-success mb-1" style="font-size: 0.85rem;">
                                         <i class="fas fa-file-signature me-1"></i> {{ _('签约') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="当前已签约的项目统计"></i>
                                     </h6>
-                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                    <div class="d-flex justify-content-between align-items-center">
                                         <div>
-                                            <span class="fs-5 fw-bold" id="signedProjectsCount">0</span>
-                                            <span class="text-muted ms-1">项</span>
+                                            <span class="fs-6 fw-bold" id="signedProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
                                         </div>
                                         <div>
-                                            <span class="fs-5 fw-bold" id="signedProjectsAmount">0</span>
-                                            <span class="text-muted ms-1">万元</span>
+                                            <span class="fs-6 fw-bold" id="signedProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
                                         </div>
                                     </div>
                                 </div>
@@ -94,23 +94,23 @@
                         </div>
                         
                         <!-- 失败阶段卡片 -->
-                        <div style="flex: 1; min-width: 200px;">
+                        <div style="flex: 1; min-width: 160px;">
                             <div class="card border-0 shadow-sm h-100 bg-danger bg-opacity-10" id="lostProjectsCard" style="cursor:pointer;" onclick="filterLostProjects()">
-                                <div class="card-body">
-                                    <h6 class="card-title text-danger">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-danger mb-1" style="font-size: 0.85rem;">
                                         <i class="fas fa-times-circle me-1"></i> {{ _('失败') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="当前处于失败状态的项目统计"></i>
                                     </h6>
-                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                    <div class="d-flex justify-content-between align-items-center">
                                         <div>
-                                            <span class="fs-5 fw-bold" id="lostProjectsCount">0</span>
-                                            <span class="text-muted ms-1">项</span>
+                                            <span class="fs-6 fw-bold" id="lostProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
                                         </div>
                                         <div>
-                                            <span class="fs-5 fw-bold" id="lostProjectsAmount">0</span>
-                                            <span class="text-muted ms-1">万元</span>
+                                            <span class="fs-6 fw-bold" id="lostProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
                                         </div>
                                     </div>
                                 </div>
@@ -118,23 +118,23 @@
                         </div>
                         
                         <!-- 搁置阶段卡片 -->
-                        <div style="flex: 1; min-width: 200px;">
+                        <div style="flex: 1; min-width: 160px;">
                             <div class="card border-0 shadow-sm h-100 bg-secondary bg-opacity-10" id="pausedProjectsCard" style="cursor:pointer;" onclick="filterPausedProjects()">
-                                <div class="card-body">
-                                    <h6 class="card-title text-secondary">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-secondary mb-1" style="font-size: 0.85rem;">
                                         <i class="fas fa-pause-circle me-1"></i> {{ _('搁置') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="当前处于搁置状态的项目统计"></i>
                                     </h6>
-                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                    <div class="d-flex justify-content-between align-items-center">
                                         <div>
-                                            <span class="fs-5 fw-bold" id="pausedProjectsCount">0</span>
-                                            <span class="text-muted ms-1">项</span>
+                                            <span class="fs-6 fw-bold" id="pausedProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
                                         </div>
                                         <div>
-                                            <span class="fs-5 fw-bold" id="pausedProjectsAmount">0</span>
-                                            <span class="text-muted ms-1">万元</span>
+                                            <span class="fs-6 fw-bold" id="pausedProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
                                         </div>
                                     </div>
                                 </div>
@@ -143,25 +143,25 @@
                     </div>
                     
                     <!-- 第二行：阶段流程选项卡 - 发现、植入、招标前、招标中、中标、批价 -->
-                    <div class="d-flex flex-wrap gap-3 mb-4" style="justify-content: space-between;">
+                    <div class="d-flex flex-wrap gap-2 mb-3" style="justify-content: space-between;">
                         <!-- 发现阶段卡片 -->
-                        <div style="flex: 1; min-width: 200px;">
+                        <div style="flex: 1; min-width: 160px;">
                             <div class="card border-0 shadow-sm h-100 bg-primary bg-opacity-10" id="discoverProjectsCard" style="cursor:pointer;" onclick="filterDiscoverProjects()">
-                                <div class="card-body">
-                                    <h6 class="card-title text-primary">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-primary mb-1" style="font-size: 0.85rem;">
                                         <i class="fas fa-search me-1"></i> {{ _('发现') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="当前处于发现阶段的项目统计"></i>
                                     </h6>
-                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                    <div class="d-flex justify-content-between align-items-center">
                                         <div>
-                                            <span class="fs-5 fw-bold" id="discoverProjectsCount">0</span>
-                                            <span class="text-muted ms-1">项</span>
+                                            <span class="fs-6 fw-bold" id="discoverProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
                                         </div>
                                         <div>
-                                            <span class="fs-5 fw-bold" id="discoverProjectsAmount">0</span>
-                                            <span class="text-muted ms-1">万元</span>
+                                            <span class="fs-6 fw-bold" id="discoverProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
                                         </div>
                                     </div>
                                 </div>
@@ -169,23 +169,23 @@
                         </div>
                         
                         <!-- 植入阶段卡片 -->
-                        <div style="flex: 1; min-width: 200px;">
+                        <div style="flex: 1; min-width: 160px;">
                             <div class="card border-0 shadow-sm h-100 bg-info bg-opacity-10" id="embedProjectsCard" style="cursor:pointer;" onclick="filterEmbedProjects()">
-                                <div class="card-body">
-                                    <h6 class="card-title text-info">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-info mb-1" style="font-size: 0.85rem;">
                                         <i class="fas fa-seedling me-1"></i> {{ _('植入') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="当前处于植入阶段的项目统计"></i>
                                     </h6>
-                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                    <div class="d-flex justify-content-between align-items-center">
                                         <div>
-                                            <span class="fs-5 fw-bold" id="embedProjectsCount">0</span>
-                                            <span class="text-muted ms-1">项</span>
+                                            <span class="fs-6 fw-bold" id="embedProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
                                         </div>
                                         <div>
-                                            <span class="fs-5 fw-bold" id="embedProjectsAmount">0</span>
-                                            <span class="text-muted ms-1">万元</span>
+                                            <span class="fs-6 fw-bold" id="embedProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
                                         </div>
                                     </div>
                                 </div>
@@ -193,23 +193,23 @@
                         </div>
                         
                         <!-- 招标前阶段卡片 -->
-                        <div style="flex: 1; min-width: 200px;">
+                        <div style="flex: 1; min-width: 160px;">
                             <div class="card border-0 shadow-sm h-100 bg-warning bg-opacity-10" id="preTenderProjectsCard" style="cursor:pointer;" onclick="filterPreTenderProjects()">
-                                <div class="card-body">
-                                    <h6 class="card-title text-warning">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-warning mb-1" style="font-size: 0.85rem;">
                                         <i class="fas fa-clock me-1"></i> {{ _('招标前') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="当前处于招标前阶段的项目统计"></i>
                                     </h6>
-                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                    <div class="d-flex justify-content-between align-items-center">
                                         <div>
-                                            <span class="fs-5 fw-bold" id="preTenderProjectsCount">0</span>
-                                            <span class="text-muted ms-1">项</span>
+                                            <span class="fs-6 fw-bold" id="preTenderProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
                                         </div>
                                         <div>
-                                            <span class="fs-5 fw-bold" id="preTenderProjectsAmount">0</span>
-                                            <span class="text-muted ms-1">万元</span>
+                                            <span class="fs-6 fw-bold" id="preTenderProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
                                         </div>
                                     </div>
                                 </div>
@@ -217,23 +217,23 @@
                         </div>
                         
                         <!-- 招标中项目卡片 -->
-                        <div style="flex: 1; min-width: 200px;">
+                        <div style="flex: 1; min-width: 160px;">
                             <div class="card border-0 shadow-sm h-100 bg-warning bg-opacity-10" id="tenderingProjectsCard" style="cursor:pointer;" onclick="filterTenderingProjects()">
-                                <div class="card-body">
-                                    <h6 class="card-title text-warning">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-warning mb-1" style="font-size: 0.85rem;">
                                         <i class="fas fa-file-contract me-1"></i> {{ _('招标中') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="当前处于招标阶段的项目统计"></i>
                                     </h6>
-                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                    <div class="d-flex justify-content-between align-items-center">
                                         <div>
-                                            <span class="fs-5 fw-bold" id="tenderingProjectsCount">0</span>
-                                            <span class="text-muted ms-1">项</span>
+                                            <span class="fs-6 fw-bold" id="tenderingProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
                                         </div>
                                         <div>
-                                            <span class="fs-5 fw-bold" id="tenderingProjectsAmount">0</span>
-                                            <span class="text-muted ms-1">万元</span>
+                                            <span class="fs-6 fw-bold" id="tenderingProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
                                         </div>
                                     </div>
                                 </div>
@@ -241,23 +241,23 @@
                         </div>
                         
                         <!-- 中标项目卡片 -->
-                        <div style="flex: 1; min-width: 200px;">
+                        <div style="flex: 1; min-width: 160px;">
                             <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10" id="wonProjectsCard" style="cursor:pointer;" onclick="filterWonProjects()">
-                                <div class="card-body">
-                                    <h6 class="card-title text-success">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-success mb-1" style="font-size: 0.85rem;">
                                         <i class="fas fa-award me-1"></i> {{ _('中标') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="当前中标阶段的项目统计"></i>
                                     </h6>
-                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                    <div class="d-flex justify-content-between align-items-center">
                                         <div>
-                                            <span class="fs-5 fw-bold" id="wonProjectsCount">0</span>
-                                            <span class="text-muted ms-1">项</span>
+                                            <span class="fs-6 fw-bold" id="wonProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
                                         </div>
                                         <div>
-                                            <span class="fs-5 fw-bold" id="wonProjectsAmount">0</span>
-                                            <span class="text-muted ms-1">万元</span>
+                                            <span class="fs-6 fw-bold" id="wonProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
                                         </div>
                                     </div>
                                 </div>
@@ -265,23 +265,23 @@
                         </div>
                         
                         <!-- 批价项目卡片 -->
-                        <div style="flex: 1; min-width: 200px;">
+                        <div style="flex: 1; min-width: 160px;">
                             <div class="card border-0 shadow-sm h-100 bg-secondary bg-opacity-10" id="quotedProjectsCard" style="cursor:pointer;" onclick="filterQuotedProjects()">
-                                <div class="card-body">
-                                    <h6 class="card-title text-secondary">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-secondary mb-1" style="font-size: 0.85rem;">
                                         <i class="fas fa-file-invoice-dollar me-1"></i> {{ _('批价') }}
                                         <i class="fas fa-info-circle text-muted ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="当前批价阶段的项目统计"></i>
                                     </h6>
-                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                    <div class="d-flex justify-content-between align-items-center">
                                         <div>
-                                            <span class="fs-5 fw-bold" id="quotedProjectsCount">0</span>
-                                            <span class="text-muted ms-1">项</span>
+                                            <span class="fs-6 fw-bold" id="quotedProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
                                         </div>
                                         <div>
-                                            <span class="fs-5 fw-bold" id="quotedProjectsAmount">0</span>
-                                            <span class="text-muted ms-1">万元</span>
+                                            <span class="fs-6 fw-bold" id="quotedProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
                                         </div>
                                     </div>
                                 </div>
@@ -293,21 +293,21 @@
                     <div class="row">
                         <!-- 左侧阶段分布区域 (40%) -->
                         <div class="col-md-5">
-                            <div class="card border-0 shadow-sm mb-3">
-                                <div class="card-body">
-                                    <h6 class="card-title text-primary mb-3">{{ _('阶段分布统计') }}</h6>
-                                    <div id="stageDistributionChart" style="height: 350px; min-height: 250px;">
-                                        <div class="text-center py-5">
-                                            <div class="spinner-border text-primary" role="status">
+                            <div class="card border-0 shadow-sm mb-2">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-primary mb-2" style="font-size: 0.9rem;">{{ _('阶段分布统计') }}</h6>
+                                    <div id="stageDistributionChart" style="height: 240px; min-height: 200px;">
+                                        <div class="text-center py-3">
+                                            <div class="spinner-border text-primary" role="status" style="width: 1.5rem; height: 1.5rem;">
                                                 <span class="visually-hidden">加载中...</span>
                                             </div>
-                                            <p class="mt-2">正在加载图表数据...</p>
+                                            <p class="mt-2 small">正在加载图表数据...</p>
                                         </div>
                                     </div>
                                     <!-- 切换器 -->
-                                    <div class="text-center mt-2">
-                                        <span class="chart-toggle-dot active" data-chart-type="count" title="项目数量分布"></span>
-                                        <span class="chart-toggle-dot" data-chart-type="amount" title="项目金额分布"></span>
+                                    <div class="text-center mt-1">
+                                        <span class="chart-toggle-dot active" data-chart-type="count" title="项目数量分布" style="width: 8px; height: 8px;"></span>
+                                        <span class="chart-toggle-dot" data-chart-type="amount" title="项目金额分布" style="width: 8px; height: 8px;"></span>
                                     </div>
                                 </div>
                             </div>
@@ -316,29 +316,29 @@
                         <!-- 右侧趋势区域 (60%) -->
                         <div class="col-md-7">
                             <div class="card border-0 shadow-sm">
-                                <div class="card-body">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 class="card-title text-primary mb-0">{{ _('阶段趋势分析') }}</h6>
+                                <div class="card-body py-2">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="card-title text-primary mb-0" style="font-size: 0.9rem;">{{ _('阶段趋势分析') }}</h6>
                                         <div>
                                             <div class="btn-group btn-group-sm" role="group">
-                                                <button type="button" class="btn btn-outline-primary trend-period-btn active" data-period="week">周趋势</button>
-                                                <button type="button" class="btn btn-outline-primary trend-period-btn" data-period="month">月趋势</button>
+                                                <button type="button" class="btn btn-outline-primary trend-period-btn active" data-period="week" style="font-size: 0.75rem; padding: 0.2rem 0.4rem;">周趋势</button>
+                                                <button type="button" class="btn btn-outline-primary trend-period-btn" data-period="month" style="font-size: 0.75rem; padding: 0.2rem 0.4rem;">月趋势</button>
                                             </div>
                                         </div>
                                     </div>
                                     
                                     <!-- 趋势图表容器 -->
-                                    <div id="stageTrendChart" style="height: 300px; min-height: 250px;">
-                                        <div class="text-center py-5">
-                                            <div class="spinner-border text-primary" role="status">
+                                    <div id="stageTrendChart" style="height: 220px; min-height: 180px;">
+                                        <div class="text-center py-3">
+                                            <div class="spinner-border text-primary" role="status" style="width: 1.5rem; height: 1.5rem;">
                                                 <span class="visually-hidden">加载中...</span>
                                             </div>
-                                            <p class="mt-2">正在加载趋势数据...</p>
+                                            <p class="mt-2 small">正在加载趋势数据...</p>
                                         </div>
                                     </div>
                                     
                                     <!-- 阶段切换器 -->
-                                    <div class="text-center mt-3">
+                                    <div class="text-center mt-2">
                                         <div id="stageTrendToggle" class="stage-toggle-container">
                                             <!-- 动态生成阶段切换点 -->
                                         </div>

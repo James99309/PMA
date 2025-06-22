@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel %}
+{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel, render_currency_with_symbol %}
 
 {% block title %}产品详情 - {{ product.product_name }}{% endblock %}
 
@@ -228,7 +228,7 @@
                                 <div class="col-md-6">
                                     <div class="product-property">
                                         <div class="property-label">市场价格</div>
-                                        <div class="product-price">¥ {{ '%.2f'|format(product.retail_price or 0) }}</div>
+                                        <div class="product-price">{{ render_currency_with_symbol(product.retail_price, product.currency) }}</div>
                                     </div>
 
                                     <div class="product-property">

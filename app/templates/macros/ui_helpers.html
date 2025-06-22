@@ -156,20 +156,51 @@
   {% endif %}
 {% endmacro %}
 
+{% macro render_currency_with_symbol(amount, currency='CNY') %}
+  {% if amount is not none %}
+    {% set currency_symbols = {
+      'CNY': '¥',
+      'USD': '$',
+      'SGD': 'S$',
+      'MYR': 'RM',
+      'IDR': 'Rp',
+      'THB': '฿'
+    } %}
+    {% set symbol = currency_symbols.get(currency, currency) %}
+    {{ symbol }} {{ '{:,.2f}'.format(amount) }}
+  {% else %}
+    -
+  {% endif %}
+{% endmacro %}
+
+{% macro render_dev_product_status_badge(status) %}
+  {% set status_map = {
+    '调研中': {'color': '#6c757d', 'text': '调研中'},
+    '立项中': {'color': '#17a2b8', 'text': '立项中'},
+    '研发中': {'color': '#ffc107', 'text': '研发中'},
+    '申请入库': {'color': '#fd7e14', 'text': '申请入库'},
+    '已入库': {'color': '#28a745', 'text': '已入库'}
+  } %}
+  {% set config = status_map.get(status, {'color': '#6c757d', 'text': status or '未知'}) %}
+  <span class="badge" style="background-color: {{ config.color }}; color: white; padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.75rem;">
+    {{ config.text }}
+  </span>
+{% endmacro %}
+
 {% macro render_button(text, href=None, color="primary", size="md", icon=None, rounded="pill", extra_class="", type="a", attrs=None, onclick=None) %}
   {%- set inline_style = "" %}
   {%- if size == "sm" %}
-    {%- set font_size = "text-sm" %}
-    {%- set padding = "py-2 px-3" %}
+    {%- set font_size = "text-xs" %}
+    {%- set padding = "py-1 px-2" %}
   {%- elif size == "lg" %}
-    {%- set font_size = "text-base" %}
-    {%- set padding = "py-3 px-5" %}
+    {%- set font_size = "text-sm" %}
+    {%- set padding = "py-2 px-4" %}
   {%- elif size == "xs" %}
     {%- set font_size = "text-xs" %}
     {%- set padding = "py-1 px-2" %}
   {%- else %}
-    {%- set font_size = "text-sm" %}
-    {%- set padding = "py-2 px-4" %}
+    {%- set font_size = "text-xs" %}
+    {%- set padding = "py-1 px-3" %}
   {%- endif %}
   {%- if color == "primary" %}
     {%- set btn_class = "btn text-white me-2" %}
@@ -971,14 +1002,14 @@
       {% set star_size = "fa-sm" if size == "small" else "fa-lg" if size == "large" else "" %}
       {% set badge_class = "badge bg-warning text-dark rounded-pill d-inline-flex align-items-center" %}
       {% if size == "small" %}
-        {% set badge_class = badge_class + " px-2 py-1" %}
+        {% set badge_style = "padding: 0.25em 0.5em; font-size: 0.7rem;" %}
       {% elif size == "large" %}
-        {% set badge_class = badge_class + " px-3 py-2" %}
+        {% set badge_style = "padding: 0.4em 0.75em; font-size: 0.85rem;" %}
       {% else %}
-        {% set badge_class = badge_class + " px-2 py-1" %}
+        {% set badge_style = "padding: 0.35em 0.65em; font-size: 0.75rem;" %}
       {% endif %}
       
-      <span class="{{ badge_class }}" title="{{ rating }}星评分">
+      <span class="{{ badge_class }}" style="{{ badge_style }}" title="{{ rating }}星评分">
         {% for i in range(1, 6) %}
           {% set star_value = i %}
           {% set rating_float = rating|float %}
@@ -995,7 +1026,7 @@
         {% endif %}
       </span>
     {% else %}
-      <span class="badge bg-light text-muted rounded-pill px-2 py-1" title="未评分">
+      <span class="badge bg-light text-muted rounded-pill" style="padding: 0.35em 0.65em; font-size: 0.75rem;" title="未评分">
         {% for i in range(1, 6) %}
           <i class="far fa-star fa-sm" style="color: #dee2e6;"></i>
         {% endfor %}
@@ -1475,5 +1506,32 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
     }
 }
 </script>
+{% endmacro %}
+
+{# 报告来源徽章 #}
+{% macro render_report_source_badge(source, lang='zh') %}
+  {% set color_map = {
+    'marketing': '#ff6b35',
+    'channel': '#5BC0DE',
+    'sales': '#0B6EFD'
+  } %}
+  
+  {% set label_map = {
+    'marketing': {'zh': '市场', 'en': 'Marketing'},
+    'channel': {'zh': '渠道', 'en': 'Channel'},
+    'sales': {'zh': '销售', 'en': 'Sales'}
+  } %}
+  
+  {% if source %}
+    {% set color = color_map.get(source, '#6c757d') %}
+    {% set label = label_map.get(source, {}).get(lang, source) %}
+    <span class="badge rounded-pill" style="background-color: {{ color }}; color: #fff; font-size: 0.75rem; padding: 0.35em 0.65em;">
+      {{ label }}
+    </span>
+  {% else %}
+    <span class="badge bg-secondary rounded-pill" style="font-size: 0.75rem; padding: 0.35em 0.65em;">
+      {% if lang == 'en' %}Unknown{% else %}未知{% endif %}
+    </span>
+  {% endif %}
 {% endmacro %}
 

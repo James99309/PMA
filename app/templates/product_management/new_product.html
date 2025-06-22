@@ -140,12 +140,20 @@
                                 </div>
 
                                 <div class="row mb-3">
-                                    <div class="col-md-6">
+                                    <div class="col-md-4">
                                         <label for="retail_price" class="form-label">市场价（预估）</label>
-                                        <div class="input-group">
-                                            <span class="input-group-text">¥</span>
-                                            <input type="number" class="form-control" id="retail_price" name="retail_price" step="0.01" min="0">
-                                        </div>
+                                        <input type="number" class="form-control" id="retail_price" name="retail_price" step="0.01" min="0">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label for="currency" class="form-label">货币</label>
+                                        <select class="form-select" id="currency" name="currency">
+                                            <option value="CNY" selected>人民币 (CNY)</option>
+                                            <option value="USD">美元 (USD)</option>
+                                            <option value="SGD">新加坡元 (SGD)</option>
+                                            <option value="MYR">马来西亚林吉特 (MYR)</option>
+                                            <option value="IDR">印尼盾 (IDR)</option>
+                                            <option value="THB">泰铢 (THB)</option>
+                                        </select>
                                     </div>
                                     <div class="col-md-6">
                                         <label for="product_image" class="form-label">产品图片</label>
@@ -225,6 +233,7 @@
 
 {% block scripts %}
 {{ super() }}
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // 获取表单元素

@@ -85,19 +85,31 @@
 
                         <div class="row mb-3">
                             <!-- 报价日期 -->
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label class="form-label">报价日期</label>
                                 <input type="text" class="form-control" value="{{ today_date }}" readonly>
                             </div>
                             <!-- 项目阶段 -->
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label for="project_stage" class="form-label">项目阶段</label>
-                <input type="text" class="form-control" id="project_stage" name="project_stage" readonly placeholder="选择项目后自动填充">
+                                <input type="text" class="form-control" id="project_stage" name="project_stage" readonly placeholder="选择项目后自动填充">
                             </div>
                             <!-- 项目类型 -->
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label for="project_type" class="form-label">项目类型</label>
-                <input type="text" class="form-control" id="project_type" name="project_type" readonly placeholder="选择项目后自动填充">
+                                <input type="text" class="form-control" id="project_type" name="project_type" readonly placeholder="选择项目后自动填充">
+                            </div>
+                            <!-- 货币类型 -->
+                            <div class="col-md-3">
+                                <label for="currency" class="form-label">货币类型</label>
+                                <select class="form-select" id="currency" name="currency">
+                                    <option value="CNY" selected>人民币 (CNY)</option>
+                                    <option value="USD">美元 (USD)</option>
+                                    <option value="SGD">新加坡元 (SGD)</option>
+                                    <option value="MYR">马来西亚林吉特 (MYR)</option>
+                                    <option value="IDR">印尼盾 (IDR)</option>
+                                    <option value="THB">泰铢 (THB)</option>
+                                </select>
                             </div>
                         </div>
 
@@ -1534,35 +1546,85 @@ function fillProductDetails($row, product) {
     console.log('MN值:', mnValue);
     $row.find('.product-mn').val(mnValue);
     
-    // 设置市场价格
+    // 如果是第一行产品且货币选择器还是默认值，则根据产品货币设置报价单货币
+    const isFirstRow = $row.is('#productTable tbody tr:first');
+    const currentCurrency = $('#currency').val();
+    const productCurrency = product.currency || 'CNY';
+    
+    if (isFirstRow && currentCurrency === 'CNY' && productCurrency !== 'CNY') {
+        $('#currency').val(productCurrency);
+        $('#currency').data('previous-currency', productCurrency);
+        console.log('根据产品货币设置报价单货币为:', productCurrency);
+    }
+    
+    // 设置市场价格（需要根据当前报价单货币转换）
     let price = parseFloat(product.retail_price) || 0;
-    $row.find('.product-price')
-        .val(formatNumber(price))
-        .data('raw-value', price);
+    const reportCurrency = $('#currency').val();
+    // 使用前面已声明的 productCurrency 变量
+    
+    // 如果产品货币与报价单货币不同，需要转换价格
+    if (price > 0 && productCurrency !== reportCurrency && window.currencySelector) {
+        // 异步转换价格
+        window.currencySelector.convertAmount(price, productCurrency, reportCurrency)
+            .then(convertedPrice => {
+                console.log(`产品价格从${productCurrency}转换为${reportCurrency}: ${price} -> ${convertedPrice}`);
+                $row.find('.product-price')
+                    .val(formatNumber(convertedPrice))
+                    .data('raw-value', convertedPrice);
+                
+                // 重新设置折后价和小计
+                $row.find('.discounted-price')
+                    .val(formatNumber(convertedPrice))
+                    .data('raw-value', convertedPrice);
+                
+                let subtotal = convertedPrice * 1;
+                $row.find('.subtotal')
+                    .val(formatNumber(subtotal))
+                    .data('raw-value', subtotal);
+                
+                // 更新总计
+                updateTotalAmount();
+            })
+            .catch(error => {
+                console.error('价格转换失败:', error);
+                // 转换失败时使用原价格
+                $row.find('.product-price')
+                    .val(formatNumber(price))
+                    .data('raw-value', price);
+            });
+    } else {
+        // 同货币或无需转换，直接使用原价格
+        $row.find('.product-price')
+            .val(formatNumber(price))
+            .data('raw-value', price);
+    }
     
     // 设置初始折扣率为100%
     $row.find('.discount-rate').val('100.0');
-    
-    // 设置初始折扣后单价等于市场价格
-    let $discountedInput = $row.find('.discounted-price');
-    $discountedInput
-        .val(formatNumber(price))
-        .data('raw-value', price);
     
     // 设置初始数量为1
     let $quantityInput = $row.find('.quantity');
     $quantityInput.val('1');
     
-    // 计算并设置小计
-    let subtotal = price * 1; // 初始折扣率100%，数量1
-    let formattedSubtotal = formatNumber(subtotal);
-    $row.find('.subtotal')
-        .val(formattedSubtotal)
-        .data('raw-value', subtotal)
-        .attr('title', formattedSubtotal);
-    
-    // 更新总计
+    // 如果不需要货币转换，设置初始折后价和小计
+    if (!(price > 0 && productCurrency !== reportCurrency && window.currencySelector)) {
+        // 设置初始折扣后单价等于市场价格
+        let $discountedInput = $row.find('.discounted-price');
+        $discountedInput
+            .val(formatNumber(price))
+            .data('raw-value', price);
+        
+        // 计算并设置小计
+        let subtotal = price * 1; // 初始折扣率100%，数量1
+        let formattedSubtotal = formatNumber(subtotal);
+        $row.find('.subtotal')
+            .val(formattedSubtotal)
+            .data('raw-value', subtotal)
+            .attr('title', formattedSubtotal);
+        
+        // 更新总计
         updateTotalAmount();
+    }
 }
 
 // 更新总计金额
@@ -1671,5 +1733,79 @@ function calculateRowPrices($row, eventSource) {
         console.error('计算行价格时出错:', error);
     }
 }
+
+// 货币变更处理
+$(document).ready(function() {
+    // 加载货币选择器
+    if (window.currencySelector) {
+        window.currencySelector.initializeCurrencySelects();
+    }
+    
+    // 监听货币变更
+    $('#currency').on('change', function() {
+        const newCurrency = $(this).val();
+        const oldCurrency = $(this).data('previous-currency') || 'CNY';
+        
+        if (newCurrency !== oldCurrency) {
+            convertProductPrices(oldCurrency, newCurrency);
+            $(this).data('previous-currency', newCurrency);
+        }
+    });
+    
+    // 初始化前一个货币值
+    $('#currency').data('previous-currency', $('#currency').val());
+});
+
+// 转换产品价格
+async function convertProductPrices(fromCurrency, toCurrency) {
+    try {
+        // 显示转换提示
+        if (confirm(`是否要将所有价格从${fromCurrency}转换为${toCurrency}？`)) {
+            const rows = $('#productTable tbody tr');
+            
+            for (let i = 0; i < rows.length; i++) {
+                const $row = $(rows[i]);
+                const $priceInput = $row.find('.product-price');
+                const $discountedInput = $row.find('.discounted-price');
+                
+                // 转换市场价格
+                const marketPrice = parseFloat($priceInput.val().replace(/,/g, '')) || 0;
+                if (marketPrice > 0) {
+                    const convertedMarketPrice = await window.currencySelector.convertAmount(
+                        marketPrice, fromCurrency, toCurrency
+                    );
+                    $priceInput.val(formatNumber(convertedMarketPrice));
+                }
+                
+                // 转换折后价
+                const discountedPrice = parseFloat($discountedInput.val().replace(/,/g, '')) || 0;
+                if (discountedPrice > 0) {
+                    const convertedDiscountedPrice = await window.currencySelector.convertAmount(
+                        discountedPrice, fromCurrency, toCurrency
+                    );
+                    $discountedInput.val(formatNumber(convertedDiscountedPrice));
+                }
+                
+                // 重新计算小计
+                calculateRowPrices($row);
+            }
+            
+            // 更新总计
+            updateTotalAmount();
+            
+            console.log(`价格已从${fromCurrency}转换为${toCurrency}`);
+        } else {
+            // 用户取消，恢复原来的货币选择
+            $('#currency').val(fromCurrency);
+        }
+    } catch (error) {
+        console.error('转换价格失败:', error);
+        alert('价格转换失败，请重试');
+        $('#currency').val(fromCurrency);
+    }
+}
 </script>
+
+<!-- 加载货币选择器 -->
+<script src="{{ url_for('static', filename='js/currency_selector.js') }}"></script>
 {% endblock %} 

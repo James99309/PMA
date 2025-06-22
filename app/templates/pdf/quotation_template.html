@@ -38,7 +38,15 @@
                 <td class="info-label">客户单位</td>
                 <td class="info-value">{{ quotation.project.end_user if quotation.project and quotation.project.end_user else '-' }}</td>
                 <td class="info-label">货币类型</td>
-                <td class="info-value">人民币（CNY）</td>
+                <td class="info-value">
+                    {% if quotation.currency == 'USD' %}美元（USD）
+                    {% elif quotation.currency == 'SGD' %}新加坡元（SGD）
+                    {% elif quotation.currency == 'MYR' %}马来西亚林吉特（MYR）
+                    {% elif quotation.currency == 'IDR' %}印尼盾（IDR）
+                    {% elif quotation.currency == 'THB' %}泰铢（THB）
+                    {% else %}人民币（CNY）
+                    {% endif %}
+                </td>
             </tr>
             <tr>
                 <td class="info-label">报价日期</td>

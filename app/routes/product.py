@@ -346,6 +346,7 @@ def get_products():
                     'brand': p.brand,
                     'unit': p.unit,
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
+                    'currency': p.currency if hasattr(p, 'currency') else 'CNY',  # 添加货币字段
                     'status': p.status,
                     'created_at': p.created_at.strftime('%Y-%m-%d %H:%M:%S') if p.created_at else None,
                     'updated_at': p.updated_at.strftime('%Y-%m-%d %H:%M:%S') if p.updated_at else None,
@@ -450,6 +451,7 @@ def get_products_by_category():
                     'brand': p.brand,
                     'unit': p.unit,
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
+                    'currency': p.currency if hasattr(p, 'currency') else 'CNY',  # 添加货币字段
                     'product_mn': p.product_mn
                 }
                 result.append(product_dict)
@@ -497,7 +499,8 @@ def get_products_by_name():
                     'specification': p.specification,
                     'brand': p.brand,
                     'unit': p.unit,
-                    'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0
+                    'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
+                    'currency': p.currency if hasattr(p, 'currency') else 'CNY'  # 添加货币字段
                 }
                 result.append(product_dict)
             except Exception as e:
@@ -670,7 +673,8 @@ def create_product():
             'brand': request.form.get('brand'),
             'unit': request.form.get('unit'),
             'status': request.form.get('status', 'active'),  # 默认为生产中
-            'retail_price': request.form.get('retail_price')
+            'retail_price': request.form.get('retail_price'),
+            'currency': request.form.get('currency', 'CNY')  # 默认为人民币
         }
         
         # 验证必填字段
@@ -721,6 +725,7 @@ def create_product():
             brand=product_data['brand'],
             unit=product_data['unit'],
             retail_price=product_data['retail_price'],
+            currency=product_data['currency'],
             status=product_data['status'],
             owner_id=current_user.id
         )
@@ -822,7 +827,8 @@ def update_product(id):
             'specification': request.form.get('specification'),
             'brand': request.form.get('brand'),
             'unit': request.form.get('unit'),
-            'retail_price': request.form.get('retail_price')
+            'retail_price': request.form.get('retail_price'),
+            'currency': request.form.get('currency', 'CNY')  # 默认为人民币
         }
         
         # 只有管理员能修改生产状态
@@ -981,6 +987,11 @@ def update_product(id):
         new_price = float(product_data['retail_price']) if product_data['retail_price'] else 0.0
         if abs(current_price - new_price) > 0.001:  # 使用小数点精度进行比较
             product.retail_price = product_data['retail_price']
+            data_changed = True
+        
+        # 更新货币类型
+        if product.currency != product_data['currency']:
+            product.currency = product_data['currency']
             data_changed = True
         
         # 更新生产状态 - 只有当用户有权限且状态有变化时才更新

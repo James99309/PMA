@@ -14,6 +14,7 @@ class Product(db.Model):
     brand = db.Column(db.String(50))  # 品牌
     unit = db.Column(db.String(20))  # 单位(Set)
     retail_price = db.Column(db.Numeric(10, 2))  # 市场单价
+    currency = db.Column(db.String(10), default='CNY')  # 货币类型
     status = db.Column(db.String(20), default='active')  # 产品状态：'active'(生产中), 'discontinued'(已停产), 'upcoming'(待上市)
     image_path = db.Column(db.String(255))  # 产品图片路径
     pdf_path = db.Column(db.String(255))  # 产品PDF文件路径

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_authorization_code, render_datetime, render_project_stage, render_status_badge, render_project_rating, render_confirmation_badge %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_authorization_code, render_datetime, render_project_stage, render_status_badge, render_project_rating, render_confirmation_badge, render_report_source_badge %}
 {% import 'macros/ui_helpers.html' as ui %}
 
 {% block title %}{{ _('项目管理') }}{% endblock %}
@@ -55,17 +55,14 @@
 -->
 <div class="container-fluid mt-4">
     <div class="row page-title-container">
-        <div class="col-6">
+        <div class="col-12">
             <h1 class="page-title">{{ _('项目列表') }}</h1>
-        </div>
-        <div class="col-6 text-end">
-            {{ ui.render_button(_("显示统计总览"), type="button", color="secondary", attrs='id="toggleStatisticsBtn"', size='sm') }}
         </div>
     </div>
     <div class="row">
         <div class="col">
             <!-- 搜索和添加按钮部分 -->
-            <div id="dashboardWrapper" style="display:none;">
+            <div id="dashboardWrapper" style="display:block;">
                 {% include 'project/statistics_dashboard.html' %}
             </div>
             <!-- 账户选择器 -->
@@ -82,60 +79,7 @@
                         </ul>
                     </div>
                 </div>
-                {# 统计总览按钮已移至标题区，此处删除避免重复 #}
-<script>
-// 统计总览显示/隐藏按钮逻辑
-document.addEventListener('DOMContentLoaded', function () {
-  const toggleStatisticsBtn = document.getElementById('toggleStatisticsBtn');
-  const dashboardWrapper = document.getElementById('dashboardWrapper');
-  const statisticsPanel = document.getElementById('projectStatisticsPanel');
-
-  // 定义翻译文本
-  const showText = "{{ _('显示项目总览') }}";
-  const hideText = "{{ _('隐藏项目总览') }}";
-
-  if (toggleStatisticsBtn && dashboardWrapper) {
-    // 确保初始状态：面板是隐藏的，按钮文本显示"显示统计总览"
-    toggleStatisticsBtn.innerHTML = showText;
-    dashboardWrapper.style.display = 'none';
-
-    toggleStatisticsBtn.addEventListener('click', function () {
-      if (dashboardWrapper.style.display === 'none') {
-        // 显示面板
-        dashboardWrapper.style.display = 'block';
-        toggleStatisticsBtn.innerHTML = hideText;
-        
-        // 确保Bootstrap collapse也展开
-        if (statisticsPanel && !statisticsPanel.classList.contains('show')) {
-          statisticsPanel.classList.add('show');
-        }
-        
-        // 启动自动切换（如果存在这个函数）
-        if (typeof startAutoSwitch === 'function' && !window.autoSwitchTimer) {
-          startAutoSwitch();
-        }
-      } else {
-        // 隐藏面板
-        dashboardWrapper.style.display = 'none';
-        toggleStatisticsBtn.innerHTML = showText;
-        
-        // 确保Bootstrap collapse也收起
-        if (statisticsPanel && statisticsPanel.classList.contains('show')) {
-          statisticsPanel.classList.remove('show');
-        }
-        
-        // 停止自动切换（如果存在这个定时器）
-        if (window.autoSwitchTimer) {
-          clearInterval(window.autoSwitchTimer);
-          window.autoSwitchTimer = null;
-        }
-      }
-    });
-  }
-
-  // 移除了筛选状态指示和返回按钮相关代码
-});
-</script>
+                {# 统计总览默认开启，移除显示隐藏按钮相关代码 #}
             </div>
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div class="d-flex align-items-center">
@@ -516,7 +460,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                     {{ '{:,.2f}'.format(project.quotation_customer) if project.quotation_customer else '' }}
                                     {% endif %}
                                 </td>
-                                <td>{{ project.report_source|report_source_label('zh') }}</td>
+                                <td>{{ render_report_source_badge(project.report_source) }}</td>
                                 <td>{{ project.end_user if project.end_user else '' }}</td>
                                 <td>{{ project.design_issues if project.design_issues else '' }}</td>
                                 <td>{{ project.contractor if project.contractor else '' }}</td>

@@ -110,12 +110,20 @@
                                         <label for="unit" class="form-label">单位</label>
                                         <input type="text" class="form-control" id="unit" name="unit" value="{{ dev_product.unit or '' }}">
                                     </div>
-                                    <div class="col-md-6">
+                                    <div class="col-md-4">
                                         <label for="retail_price" class="form-label">市场价（预估）</label>
-                                        <div class="input-group">
-                                            <span class="input-group-text">¥</span>
-                                            <input type="number" class="form-control" id="retail_price" name="retail_price" step="0.01" min="0" value="{{ dev_product.retail_price or '' }}">
-                                        </div>
+                                        <input type="number" class="form-control" id="retail_price" name="retail_price" step="0.01" min="0" value="{{ dev_product.retail_price or '' }}">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label for="currency" class="form-label">货币</label>
+                                        <select class="form-select" id="currency" name="currency">
+                                            <option value="CNY" {% if dev_product.currency == 'CNY' or not dev_product.currency %}selected{% endif %}>人民币 (CNY)</option>
+                                            <option value="USD" {% if dev_product.currency == 'USD' %}selected{% endif %}>美元 (USD)</option>
+                                            <option value="SGD" {% if dev_product.currency == 'SGD' %}selected{% endif %}>新加坡元 (SGD)</option>
+                                            <option value="MYR" {% if dev_product.currency == 'MYR' %}selected{% endif %}>马来西亚林吉特 (MYR)</option>
+                                            <option value="IDR" {% if dev_product.currency == 'IDR' %}selected{% endif %}>印尼盾 (IDR)</option>
+                                            <option value="THB" {% if dev_product.currency == 'THB' %}selected{% endif %}>泰铢 (THB)</option>
+                                        </select>
                                     </div>
                                 </div>
 
@@ -244,6 +252,7 @@
 
 {% block scripts %}
 {{ super() }}
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // 选项卡切换

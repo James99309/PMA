@@ -68,6 +68,9 @@ class PricingOrder(db.Model):
     created_at = Column(DateTime, default=datetime.now, comment='创建时间')
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')
     
+    # 货币字段
+    currency = Column(String(10), default='CNY', comment='货币类型')
+    
     # 关系定义
     project = relationship('Project', backref='pricing_orders')
     quotation = relationship('Quotation', backref='pricing_orders')
@@ -307,6 +310,9 @@ class PricingOrderDetail(db.Model):
     source_type = Column(String(32), default='quotation', comment='数据来源：quotation/manual')
     source_quotation_detail_id = Column(Integer, nullable=True, comment='来源报价单明细ID')
     
+    # 货币字段
+    currency = Column(String(10), default='CNY', comment='货币类型')
+    
     def calculate_prices(self):
         """计算价格"""
         self.unit_price = self.market_price * self.discount_rate
@@ -349,6 +355,9 @@ class SettlementOrderDetail(db.Model):
     settlement_status = Column(String(20), default='draft', comment='结算状态: draft, pending, settled')
     settlement_date = Column(DateTime, nullable=True, comment='结算完成时间')
     settlement_notes = Column(Text, nullable=True, comment='结算备注')
+    
+    # 货币字段
+    currency = Column(String(10), default='CNY', comment='货币类型')
     
     # 关系
     pricing_detail = relationship('PricingOrderDetail', backref='settlement_details')

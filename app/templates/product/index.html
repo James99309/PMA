@@ -768,7 +768,7 @@
                 <td class="col-spec" ${title(product.specification)}>${escapeHtml(product.specification || '')}</td>
                 <td class="col-brand" ${title(product.brand)}>${escapeHtml(product.brand || '')}</td>
                 <td class="col-unit">${escapeHtml(product.unit || '')}</td>
-                <td class="col-price">${product.retail_price ? product.retail_price.toFixed(2) : '0.00'}</td>
+                <td class="col-price">${formatCurrency(product.retail_price, product.currency)}</td>
                 <td class="col-status">
                     ${getStatusBadge(product.status, product.id)}
                 </td>
@@ -811,7 +811,7 @@
                             <i class="fas fa-balance-scale text-secondary me-1"></i>单位: ${escapeHtml(product.unit || '-')}
                         </div>
                         <div class="small mb-1">
-                            <i class="fas fa-yen-sign text-secondary me-1"></i>市场价: ${product.retail_price ? product.retail_price.toFixed(2) : '0.00'} 元
+                            <i class="fas fa-yen-sign text-secondary me-1"></i>市场价: ${formatCurrency(product.retail_price, product.currency)}
                         </div>
                         <div class="small mb-1">
                             <i class="fas fa-user text-secondary me-1"></i>数据所有者: ${escapeHtml(product.owner_name || '-')}
@@ -829,67 +829,78 @@
         });
     }
 
+    // 格式化货币显示
+    function formatCurrency(amount, currency = 'CNY') {
+        if (amount === null || amount === undefined) return '-';
+        
+        const currencySymbols = {
+            'CNY': '¥',
+            'USD': '$',
+            'SGD': 'S$',
+            'MYR': 'RM',
+            'IDR': 'Rp',
+            'THB': '฿'
+        };
+        
+        const symbol = currencySymbols[currency] || currency;
+        return `${symbol} ${parseFloat(amount).toFixed(2)}`;
+    }
+
     // 根据产品类型获取带有样式的徽章
     function getProductTypeBadge(type) {
         if (!type) return '-';
 
-        let badgeClass = 'badge-type ';
+        let color = '#757575';  // 默认灰色
         let displayType = type;
 
         // 中文类型映射
         if (type === '项目产品') {
-            badgeClass += 'badge-project';
+            color = '#0D47A1';  // 深蓝色
         } else if (type === '渠道产品') {
-            badgeClass += 'badge-channel';
+            color = '#4FC3F7';  // 湖蓝色
         } else if (type === '第三方产品') {
-            badgeClass += 'badge-third-party';
+            color = '#757575';  // 灰色
         } else if (type === 'project') {
             // 英文类型映射 - project
-            badgeClass += 'badge-project';
+            color = '#0D47A1';
             displayType = '项目产品';
         } else if (type === 'channel') {
             // 英文类型映射 - channel
-            badgeClass += 'badge-channel';
+            color = '#4FC3F7';
             displayType = '渠道产品';
         } else if (type === 'third-party') {
             // 英文类型映射 - third-party
-            badgeClass += 'badge-third-party';
+            color = '#757575';
             displayType = '第三方产品';
-        } else {
-            // 默认样式
-            badgeClass += 'badge-third-party';
         }
 
-        return `<span class="${badgeClass}">${displayType}</span>`;
+        return `<span class="badge" style="padding: 0.25em 0.5em; border-radius: 50px; font-size: 0.65rem; color: white; font-weight: 500; display: inline-block; white-space: nowrap; border: 2px solid transparent; transition: all 0.2s ease; background: linear-gradient(135deg, ${color}, ${color}dd); box-shadow: 0 2px 4px ${color}4d; transform: translateY(0);">${displayType}</span>`;
     }
 
     // 根据产品状态获取带有样式的徽章
     function getStatusBadge(status, productId) {
-        if (!status) return '<span class="badge badge-active">生产中</span>'; // 默认为生产中
-
-        let badgeClass = '';
-        let statusText = '';
+        let color = '#198754';  // 默认绿色
+        let statusText = '生产中';
 
         switch(status) {
             case 'active':
-                badgeClass = 'badge-active';
+                color = '#198754';  // 绿色
                 statusText = '生产中';
                 break;
             case 'discontinued':
-                badgeClass = 'badge-discontinued';
+                color = '#dc3545';  // 红色
                 statusText = '已停产';
                 break;
             case 'upcoming':
-                badgeClass = 'badge-upcoming';
+                color = '#ffc107';  // 黄色
                 statusText = '待上市';
                 break;
             default:
-                badgeClass = 'badge-active';
+                color = '#198754';
                 statusText = '生产中';
         }
 
-        // 不再添加可点击样式和状态切换功能
-        return `<span class="badge ${badgeClass}">${statusText}</span>`;
+        return `<span class="badge" style="padding: 0.25em 0.5em; border-radius: 50px; font-size: 0.65rem; color: white; font-weight: 500; display: inline-block; white-space: nowrap; border: 2px solid transparent; transition: all 0.2s ease; background: linear-gradient(135deg, ${color}, ${color}dd); box-shadow: 0 2px 4px ${color}4d; transform: translateY(0);">${statusText}</span>`;
     }
 
     // 设置表格滚动同步

@@ -402,19 +402,31 @@ input[type="number"].quantity {
 
                         <div class="row mb-3">
                             <!-- 日期显示 -->
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label class="form-label">报价日期</label>
                                 <input type="text" class="form-control" value="{{ today_date }}" readonly>
                             </div>
                             <!-- 项目阶段显示 -->
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label class="form-label">项目阶段</label>
                                 <input type="text" class="form-control" id="project_stage" value="{% if quotation and quotation.project %}{{ quotation.project.current_stage|project_stage_label('zh') }}{% elif selected_project %}{{ selected_project.current_stage|project_stage_label('zh') }}{% endif %}" readonly>
                             </div>
                             <!-- 项目分类显示 -->
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label class="form-label">项目类型</label>
                                 <input type="text" class="form-control" id="project_type" value="{% if quotation and quotation.project %}{{ quotation.project.project_type|default('') }}{% elif selected_project %}{{ selected_project.project_type|default('') }}{% else %}{% endif %}" readonly>
+                            </div>
+                            <!-- 货币类型 -->
+                            <div class="col-md-3">
+                                <label for="currency" class="form-label">货币类型</label>
+                                <select class="form-select" id="currency" name="currency">
+                                    <option value="CNY" {% if quotation and quotation.currency == 'CNY' %}selected{% elif not quotation %}selected{% endif %}>人民币 (CNY)</option>
+                                    <option value="USD" {% if quotation and quotation.currency == 'USD' %}selected{% endif %}>美元 (USD)</option>
+                                    <option value="SGD" {% if quotation and quotation.currency == 'SGD' %}selected{% endif %}>新加坡元 (SGD)</option>
+                                    <option value="MYR" {% if quotation and quotation.currency == 'MYR' %}selected{% endif %}>马来西亚林吉特 (MYR)</option>
+                                    <option value="IDR" {% if quotation and quotation.currency == 'IDR' %}selected{% endif %}>印尼盾 (IDR)</option>
+                                    <option value="THB" {% if quotation and quotation.currency == 'THB' %}selected{% endif %}>泰铢 (THB)</option>
+                                </select>
                             </div>
                         </div>
 

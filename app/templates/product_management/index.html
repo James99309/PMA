@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% from 'macros/ui_helpers.html' import render_button %}
+{% from 'macros/ui_helpers.html' import render_button, render_dev_product_status_badge %}
 
 {% block title %}研发产品库管理{% endblock %}
 
@@ -54,19 +54,7 @@
                                     </td>
                                     <td><code class="text-muted">{{ product.mn_code or '' }}</code></td>
                                     <td>
-                                        {% if product.status == '调研中' %}
-                                        <span class="badge bg-info">调研中</span>
-                                        {% elif product.status == '立项中' %}
-                                        <span class="badge bg-warning">立项中</span>
-                                        {% elif product.status == '研发中' %}
-                                        <span class="badge bg-primary">研发中</span>
-                                        {% elif product.status == '申请入库' %}
-                                        <span class="badge bg-secondary">申请入库</span>
-                                        {% elif product.status == '已入库' %}
-                                        <span class="badge bg-success">已入库</span>
-                                        {% else %}
-                                        <span class="badge bg-dark">{{ product.status }}</span>
-                                        {% endif %}
+                                        {{ render_dev_product_status_badge(product.status) }}
                                     </td>
                                     <td>
                                         {% set user = get_user_by_id(product.created_by) %}

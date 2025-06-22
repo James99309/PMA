@@ -87,6 +87,9 @@ class Quotation(db.Model):
     # 植入总额合计字段
     implant_total_amount = db.Column(db.Float, default=0.0)  # 植入总额合计
     
+    # 货币字段
+    currency = db.Column(db.String(10), default='CNY')  # 货币类型
+    
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo('Asia/Shanghai')))
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -381,6 +384,9 @@ class QuotationDetail(db.Model):
     
     # 植入小计字段
     implant_subtotal = db.Column(db.Float, default=0.0)  # 植入小计：当产品品牌是和源通信时，零售价格 * 产品数量的值
+    
+    # 货币字段
+    currency = db.Column(db.String(10), default='CNY')  # 货币类型
     
     # 产品明细确认字段 - 暂时注释掉数据库字段，使用会话存储
     # is_confirmed = db.Column(db.Boolean, default=False)  # 是否确认

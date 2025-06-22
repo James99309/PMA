@@ -238,6 +238,7 @@ def create_quotation():
                     amount=total_amount,
                     project_stage=data.get('project_stage', ''),
                     project_type=data.get('project_type', ''),
+                    currency=data.get('currency', 'CNY'),  # 添加货币字段
                     owner_id=current_user.id
                 )
                 db.session.add(quotation)
@@ -356,7 +357,8 @@ def create_quotation():
                             market_price=market_price,
                             unit_price=unit_price,
                             total_price=total_price,
-                            product_mn=detail.get('product_mn', '')
+                            product_mn=detail.get('product_mn', ''),
+                            currency=data.get('currency', 'CNY')  # 添加明细货币字段
                         )
                         current_app.logger.debug(f'创建第 {index+1} 行明细项')
                         quotation.details.append(new_detail)
@@ -454,6 +456,7 @@ def create_quotation():
                 quotation = Quotation(
                     project_id=request.form.get('project_id'),
                     contact_id=None,
+                    currency=request.form.get('currency', 'CNY'),  # 添加货币字段
                     owner_id=current_user.id  # 设置当前用户为所有者
                 )
                 db.session.add(quotation)
@@ -494,7 +497,8 @@ def create_quotation():
                         quantity=quantity,
                         unit_price=discounted_price,
                         total_price=subtotal,
-                        product_mn=product_mns[i] if i < len(product_mns) else ''  # 添加MN号
+                        product_mn=product_mns[i] if i < len(product_mns) else '',  # 添加MN号
+                        currency=request.form.get('currency', 'CNY')  # 添加明细货币字段
                     )
                     
                     # 计算植入小计
@@ -1757,9 +1761,10 @@ def save_quotation(id):
         
         # 更新报价单基本信息
         quotation.amount = total_amount
+        quotation.currency = data.get('currency', 'CNY')  # 添加货币字段更新
         # 手动更新时间戳，确保updated_at字段正确
         quotation.updated_at = datetime.utcnow()
-        current_app.logger.debug(f'更新报价单总金额: {total_amount}')
+        current_app.logger.debug(f'更新报价单总金额: {total_amount}, 货币: {quotation.currency}')
         
         # 临时禁用事件监听器，避免删除重建过程中触发不必要的签名变化
         event.remove(QuotationDetail, 'after_insert', update_quotation_product_signature)
@@ -1901,7 +1906,8 @@ def save_quotation(id):
                         market_price=market_price,
                         unit_price=unit_price,
                         total_price=total_price,
-                        product_mn=detail.get('product_mn', '')
+                        product_mn=detail.get('product_mn', ''),
+                        currency=data.get('currency', 'CNY')  # 添加明细货币字段
                     )
                     current_app.logger.debug(f'创建第 {index+1} 行明细项')
                     quotation.details.append(new_detail)
@@ -2129,7 +2135,7 @@ def can_view_quotation(user, quotation):
 #         can_view_quotation=can_view_quotation
 #     )
 
-@quotation.route('/quotation_detail/<int:detail_id>/toggle_confirmation', methods=['POST'])
+@quotation.route('/detail/<int:detail_id>/toggle_confirmation', methods=['POST'])
 @login_required
 def toggle_detail_confirmation(detail_id):
     """切换产品明细的确认状态 - 只有解决方案经理和admin可以操作"""
@@ -2182,7 +2188,7 @@ def toggle_detail_confirmation(detail_id):
             'message': f'操作失败：{str(e)}'
         }), 500
 
-@quotation.route('/quotation/<int:quotation_id>/toggle_product_detail_confirmation', methods=['POST'])
+@quotation.route('/<int:quotation_id>/toggle_product_detail_confirmation', methods=['POST'])
 @login_required
 def toggle_product_detail_confirmation(quotation_id):
     """切换报价单产品明细的整体确认状态 - 只有解决方案经理和admin可以操作"""
@@ -2242,7 +2248,7 @@ def toggle_product_detail_confirmation(quotation_id):
             'message': f'操作失败：{str(e)}'
         }), 500
 
-@quotation.route('/quotation/<int:quotation_id>/product_detail_confirmation_status', methods=['GET'])
+@quotation.route('/<int:quotation_id>/product_detail_confirmation_status', methods=['GET'])
 @login_required
 def get_product_detail_confirmation_status(quotation_id):
     """获取报价单产品明细的确认状态"""

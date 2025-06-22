@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_quotation_number, render_project_stage, render_project_rating, render_rating_input, render_confirmation_badge %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_currency_with_symbol, render_quotation_number, render_project_stage, render_project_rating, render_rating_input, render_confirmation_badge %}
 {% import 'macros/ui_helpers.html' as ui %}
 {% from 'macros/approval_macros.html' import render_approval_timeline, render_approval_form, render_start_approval_button, render_approval_section %}
 {% from 'macros/ui_modals.html' import render_change_project_owner_modal %}
@@ -142,7 +142,7 @@
         <div class="mb-2">
             <a href="{{ url_for('quotation.view_quotation', id=latest_quotation.id) }}"
                class="quotation-link" title="查看报价单详情">
-                {{ render_currency(project.quotation_customer) }}
+                {{ render_currency_with_symbol(project.quotation_customer, latest_quotation.currency if latest_quotation.currency else 'CNY') }}
             </a>
             {{ render_confirmation_badge(latest_quotation, "报价单产品明细已确认") }}
         </div>
