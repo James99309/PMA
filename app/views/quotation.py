@@ -576,13 +576,27 @@ def create_quotation():
     if preset_project_id:
         selected_project = Project.query.get(preset_project_id)
     
+    # 获取产品库中ID为1的产品的货币类型作为默认货币
+    from app.models.product import Product
+    default_currency = 'CNY'  # 默认为人民币
+    try:
+        reference_product = Product.query.get(1)
+        if reference_product and reference_product.currency:
+            default_currency = reference_product.currency
+            current_app.logger.debug(f"使用产品ID=1的货币类型作为默认值: {default_currency}")
+        else:
+            current_app.logger.debug("产品ID=1不存在或没有货币信息，使用默认货币CNY")
+    except Exception as e:
+        current_app.logger.warning(f"获取默认货币时出错: {str(e)}，使用默认货币CNY")
+    
     return render_template('quotation/create.html',
                          projects=projects,
                          today_date=datetime.now().strftime('%Y-%m-%d'),
                          quotation=quotation,
                          preset_project_id=preset_project_id,
                          selected_project=selected_project,
-                         return_to=return_to)
+                         return_to=return_to,
+                         default_currency=default_currency)
 
 @quotation.route('/get_project/<int:project_id>')
 def get_project(project_id):

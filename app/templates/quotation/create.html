@@ -103,12 +103,12 @@
                             <div class="col-md-3">
                                 <label for="currency" class="form-label">货币类型</label>
                                 <select class="form-select" id="currency" name="currency">
-                                    <option value="CNY" selected>人民币 (CNY)</option>
-                                    <option value="USD">美元 (USD)</option>
-                                    <option value="SGD">新加坡元 (SGD)</option>
-                                    <option value="MYR">马来西亚林吉特 (MYR)</option>
-                                    <option value="IDR">印尼盾 (IDR)</option>
-                                    <option value="THB">泰铢 (THB)</option>
+                                    <option value="CNY" {% if default_currency == 'CNY' %}selected{% endif %}>人民币 (CNY)</option>
+                                    <option value="USD" {% if default_currency == 'USD' %}selected{% endif %}>美元 (USD)</option>
+                                    <option value="SGD" {% if default_currency == 'SGD' %}selected{% endif %}>新加坡元 (SGD)</option>
+                                    <option value="MYR" {% if default_currency == 'MYR' %}selected{% endif %}>马来西亚林吉特 (MYR)</option>
+                                    <option value="IDR" {% if default_currency == 'IDR' %}selected{% endif %}>印尼盾 (IDR)</option>
+                                    <option value="THB" {% if default_currency == 'THB' %}selected{% endif %}>泰铢 (THB)</option>
                                 </select>
                             </div>
                         </div>
@@ -1752,8 +1752,9 @@ $(document).ready(function() {
         }
     });
     
-    // 初始化前一个货币值
-    $('#currency').data('previous-currency', $('#currency').val());
+    // 初始化前一个货币值，使用后端传来的默认货币
+    const defaultCurrency = '{{ default_currency|default("CNY") }}';
+    $('#currency').data('previous-currency', defaultCurrency);
 });
 
 // 转换产品价格
