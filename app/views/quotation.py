@@ -1348,10 +1348,11 @@ def get_products_by_category():
                     'brand': p.brand,
                     'unit': p.unit,
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
-                    'product_mn': p.product_mn
+                    'product_mn': p.product_mn,
+                    'currency': p.currency or 'CNY'  # 添加货币字段
                 }
                 result.append(product_dict)
-                logger.debug(f'成功处理产品: {p.product_name}, MN: {p.product_mn}')
+                logger.debug(f'成功处理产品: {p.product_name}, MN: {p.product_mn}, 货币: {p.currency}')
             except Exception as e:
                 logger.error(f'处理产品时出错: {p.id} - {str(e)}')
                 continue
@@ -1400,10 +1401,11 @@ def get_product_models():
                     'brand': p.brand,
                     'unit': p.unit,
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
-                    'product_mn': p.product_mn
+                    'product_mn': p.product_mn,
+                    'currency': p.currency or 'CNY'  # 添加货币字段
                 }
                 result.append(product_dict)
-                logger.debug(f'成功处理产品: {p.product_name}, 型号: {p.model}')
+                logger.debug(f'成功处理产品: {p.product_name}, 型号: {p.model}, 货币: {p.currency}')
             except Exception as e:
                 logger.error(f'处理产品时出错: {p.id} - {str(e)}')
                 continue
@@ -1467,6 +1469,7 @@ def get_product_specs():
                     'unit': p.unit,
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
                     'product_mn': p.product_mn,
+                    'currency': p.currency or 'CNY',  # 添加货币字段
                     'image_path': product_image  # 添加图片路径
                 }
                 result.append(product_dict)
