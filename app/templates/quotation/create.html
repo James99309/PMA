@@ -1546,21 +1546,14 @@ function fillProductDetails($row, product) {
     console.log('MN值:', mnValue);
     $row.find('.product-mn').val(mnValue);
     
-    // 如果是第一行产品且货币选择器还是默认值，则根据产品货币设置报价单货币
-    const isFirstRow = $row.is('#productTable tbody tr:first');
-    const currentCurrency = $('#currency').val();
+    // 获取产品和报价单的货币信息
     const productCurrency = product.currency || 'CNY';
-    
-    if (isFirstRow && currentCurrency === 'CNY' && productCurrency !== 'CNY') {
-        $('#currency').val(productCurrency);
-        $('#currency').data('previous-currency', productCurrency);
-        console.log('根据产品货币设置报价单货币为:', productCurrency);
-    }
-    
-    // 设置市场价格（需要根据当前报价单货币转换）
-    let price = parseFloat(product.retail_price) || 0;
     const reportCurrency = $('#currency').val();
-    // 使用前面已声明的 productCurrency 变量
+    
+    console.log(`产品货币: ${productCurrency}, 报价单货币: ${reportCurrency}`);
+    
+    // 设置市场价格
+    let price = parseFloat(product.retail_price) || 0;
     
     // 如果产品货币与报价单货币不同，需要转换价格
     if (price > 0 && productCurrency !== reportCurrency && window.currencySelector) {
