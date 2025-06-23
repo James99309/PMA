@@ -1934,6 +1934,10 @@ def save_quotation(id):
                         product_mn=detail.get('product_mn', ''),
                         currency=data.get('currency', 'CNY')  # 添加明细货币字段
                     )
+                    
+                    # 计算植入小计
+                    new_detail.calculate_prices()
+                    
                     current_app.logger.debug(f'创建第 {index+1} 行明细项')
                     quotation.details.append(new_detail)
                 except Exception as item_error:

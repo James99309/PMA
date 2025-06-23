@@ -167,9 +167,8 @@ class Quotation(db.Model):
         return '{:,.2f}'.format(self.implant_total_amount) if self.implant_total_amount else '0.00'
 
     def calculate_implant_total_amount(self):
-        """计算植入总额合计（按报价单货币统一显示）"""
+        """计算植入总额合计"""
         from app.models.product import Product
-        from app.utils.currency_converter import convert_currency
         
         total = 0.0
         for detail in self.details:
@@ -178,18 +177,10 @@ class Quotation(db.Model):
                 product = Product.query.filter_by(product_mn=detail.product_mn).first()
                 if product and product.is_vendor_product:
                     implant_amount = (detail.market_price or 0) * (detail.quantity or 0)
-                    # 如果产品明细货币与报价单货币不同，进行转换
-                    detail_currency = detail.currency or 'CNY'
-                    if detail_currency != self.currency:
-                        implant_amount = convert_currency(implant_amount, detail_currency, self.currency)
                     total += implant_amount
             # 兼容旧数据：品牌是和源通信的也计算
             elif detail.brand == '和源通信':
                 implant_amount = (detail.market_price or 0) * (detail.quantity or 0)
-                # 如果产品明细货币与报价单货币不同，进行转换
-                detail_currency = detail.currency or 'CNY'
-                if detail_currency != self.currency:
-                    implant_amount = convert_currency(implant_amount, detail_currency, self.currency)
                 total += implant_amount
         
         self.implant_total_amount = total
