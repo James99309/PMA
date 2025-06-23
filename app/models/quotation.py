@@ -167,24 +167,32 @@ class Quotation(db.Model):
         return '{:,.2f}'.format(self.implant_total_amount) if self.implant_total_amount else '0.00'
 
     def calculate_implant_total_amount(self):
-        """计算植入总额合计"""
-        from app.models.product import Product
+        """计算植入总额合计（按报价单货币统一显示）"""
+        from app.services.exchange_rate_service import exchange_rate_service
         
         total = 0.0
+        quotation_currency = self.currency or 'CNY'
+        
         for detail in self.details:
-            # 优先通过产品MN查找厂商标记
-            if detail.product_mn:
-                product = Product.query.filter_by(product_mn=detail.product_mn).first()
-                if product and product.is_vendor_product:
-                    implant_amount = (detail.market_price or 0) * (detail.quantity or 0)
-                    total += implant_amount
-            # 兼容旧数据：品牌是和源通信的也计算
-            elif detail.brand == '和源通信':
-                implant_amount = (detail.market_price or 0) * (detail.quantity or 0)
+            # 直接使用已经计算好的植入小计
+            if detail.implant_subtotal and detail.implant_subtotal > 0:
+                implant_amount = detail.implant_subtotal
+                detail_currency = detail.currency or 'CNY'
+                
+                # 如果明细货币与报价单货币不同，进行转换
+                if detail_currency != quotation_currency:
+                    try:
+                        implant_amount = exchange_rate_service.convert_amount(
+                            implant_amount, detail_currency, quotation_currency
+                        )
+                    except Exception as e:
+                        print(f"植入总额货币转换失败 {detail_currency} -> {quotation_currency}: {e}")
+                        # 转换失败时保持原值
+                
                 total += implant_amount
         
-        self.implant_total_amount = total
-        return total
+        self.implant_total_amount = round(total, 2)
+        return self.implant_total_amount
 
     def can_approve_for_stage(self, stage):
         """检查是否可以对指定阶段进行审核"""
@@ -411,22 +419,48 @@ class QuotationDetail(db.Model):
     # confirmer = db.relationship('User', foreign_keys=[confirmed_by], backref='confirmed_detail_items')
     
     def calculate_prices(self):
-        """计算单价、总价和植入小计"""
+        """计算单价、总价和植入小计（考虑货币换算）"""
         self.unit_price = self.market_price * self.discount
         self.total_price = self.unit_price * self.quantity
         
         # 计算植入小计：通过产品MN查找产品的厂商标记
         from app.models.product import Product
+        from app.services.exchange_rate_service import exchange_rate_service
+        
         self.implant_subtotal = 0.0
         
         if self.product_mn:
             product = Product.query.filter_by(product_mn=self.product_mn).first()
             if product and product.is_vendor_product:
-                self.implant_subtotal = (self.market_price or 0) * (self.quantity or 0)
+                # 优先使用产品库的零售价格计算植入小计
+                product_price = float(product.retail_price or 0)
+                product_currency = product.currency or 'CNY'
+                detail_currency = self.currency or 'CNY'
+                
+                if product_price > 0:
+                    # 如果产品库货币与明细货币不同，需要转换
+                    if product_currency != detail_currency:
+                        try:
+                            converted_price = exchange_rate_service.convert_amount(
+                                product_price, product_currency, detail_currency
+                            )
+                            implant_amount = converted_price * (self.quantity or 0)
+                        except Exception as e:
+                            print(f"植入小计货币转换失败 {product_currency} -> {detail_currency}: {e}")
+                            # 转换失败时使用明细的市场价
+                            implant_amount = (self.market_price or 0) * (self.quantity or 0)
+                    else:
+                        # 同货币，直接使用产品库价格
+                        implant_amount = product_price * (self.quantity or 0)
+                else:
+                    # 如果产品库没有零售价格，使用明细的市场价
+                    implant_amount = (self.market_price or 0) * (self.quantity or 0)
+                
+                self.implant_subtotal = round(implant_amount, 2)
         
         # 兼容旧数据：如果没有product_mn但品牌是和源通信，也计算植入小计
         elif self.brand == '和源通信':
-            self.implant_subtotal = (self.market_price or 0) * (self.quantity or 0)
+            self.implant_subtotal = round((self.market_price or 0) * (self.quantity or 0), 2)
 
     @property
     def formatted_implant_subtotal(self):
@@ -454,19 +488,7 @@ def update_quotation_product_signature(mapper, connection, target):
                         ),
                         '[]'::json
                     ) as mn_list,
-                    COALESCE(SUM(
-                        CASE 
-                        WHEN product_mn IS NOT NULL AND EXISTS (
-                            SELECT 1 FROM products p 
-                            WHERE p.product_mn = quotation_details.product_mn 
-                            AND p.is_vendor_product = true
-                        )
-                        THEN COALESCE(market_price, 0) * COALESCE(quantity, 0)
-                        WHEN product_mn IS NULL AND brand = '和源通信'
-                        THEN COALESCE(market_price, 0) * COALESCE(quantity, 0)
-                        ELSE 0 
-                        END
-                    ), 0) as implant_total
+                    COALESCE(SUM(implant_subtotal), 0) as implant_total
                 FROM quotation_details 
                 WHERE quotation_id = :quotation_id
             """), {"quotation_id": quotation_id})

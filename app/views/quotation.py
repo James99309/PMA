@@ -360,6 +360,10 @@ def create_quotation():
                             product_mn=detail.get('product_mn', ''),
                             currency=data.get('currency', 'CNY')  # 添加明细货币字段
                         )
+                        
+                        # 计算植入小计
+                        new_detail.calculate_prices()
+                        
                         current_app.logger.debug(f'创建第 {index+1} 行明细项')
                         quotation.details.append(new_detail)
                     except Exception as item_error:
@@ -368,6 +372,9 @@ def create_quotation():
                         detail_errors.append(error_msg)
                 
                 try:
+                    # 计算植入总额
+                    quotation.calculate_implant_total_amount()
+                    
                     current_app.logger.info('准备提交所有更改到数据库...')
                     db.session.commit()
                     current_app.logger.info('数据库更改提交成功')
@@ -508,6 +515,9 @@ def create_quotation():
                 
                 # 更新报价单总金额
                 quotation.amount = total_amount
+                
+                # 计算植入总额
+                quotation.calculate_implant_total_amount()
                 # 手动更新时间戳，确保updated_at字段正确
                 quotation.updated_at = datetime.utcnow()
                 db.session.commit()
@@ -808,6 +818,10 @@ def edit_quotation(id):
                     
                     # 更新报价单总金额
                     quotation.amount = total_amount
+                    
+                    # 计算植入总额
+                    quotation.calculate_implant_total_amount()
+                    
                     # 手动更新时间戳，确保updated_at字段正确
                     quotation.updated_at = datetime.utcnow()
                     
@@ -930,6 +944,9 @@ def copy_quotation(id):
         
         # 设置总金额
         new_quotation.amount = original_quotation.amount
+        
+        # 计算植入总额
+        new_quotation.calculate_implant_total_amount()
         
         db.session.add(new_quotation)
         db.session.commit()
@@ -1965,6 +1982,13 @@ def save_quotation(id):
                 
             except Exception as signature_error:
                 current_app.logger.error(f"处理产品签名和确认状态时出错: {str(signature_error)}")
+            
+            # 计算植入总额
+            try:
+                quotation.calculate_implant_total_amount()
+                current_app.logger.debug(f'计算植入总额完成: {quotation.implant_total_amount}')
+            except Exception as implant_error:
+                current_app.logger.error(f"计算植入总额失败: {str(implant_error)}")
             
             # 提交更改（在事件监听器被禁用的情况下）
             try:
