@@ -22,7 +22,7 @@ import os
 from flask_wtf.csrf import CSRFProtect
 from app.models.action import Action, ActionReply
 from app.models.projectpm_stage_history import ProjectStageHistory  # 导入阶段历史记录模型
-from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS
+from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS, INDUSTRY_OPTIONS
 from sqlalchemy import or_, func
 from app.utils.notification_helpers import trigger_event_notification
 from app.services.event_dispatcher import notify_project_created, notify_project_status_updated
@@ -832,7 +832,8 @@ def edit_project(project_id):
         companies=companies,
         PRODUCT_SITUATION_OPTIONS=PRODUCT_SITUATION_OPTIONS,
         REPORT_SOURCE_OPTIONS=REPORT_SOURCE_OPTIONS,
-        PROJECT_TYPE_OPTIONS=PROJECT_TYPE_OPTIONS
+        PROJECT_TYPE_OPTIONS=PROJECT_TYPE_OPTIONS,
+        INDUSTRY_OPTIONS=INDUSTRY_OPTIONS
     )
 
 @project.route('/delete/<int:project_id>', methods=['POST'])

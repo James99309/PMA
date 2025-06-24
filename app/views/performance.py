@@ -229,18 +229,24 @@ def index():
 def target_settings():
     """绩效目标设置页面"""
     try:
-        # 获取可管理的用户列表
-        if current_user.role == 'admin':
-            manageable_users = User.query.filter(User.is_active == True).all()
-        else:
-            # 非管理员只能设置自己的目标
-            manageable_users = [current_user]
+        # 获取可管理的用户列表 - 基于数据访问权限
+        accessible_users = get_accessible_users(current_user)
+        manageable_users = accessible_users
         
         selected_user_id = request.args.get('user_id', current_user.id, type=int)
         
-        # 检查权限
+        # 检查权限：只能查看有权限访问的用户
         if selected_user_id not in [u.id for u in manageable_users]:
             selected_user_id = current_user.id
+        
+        # 检查是否有编辑权限：
+        # 1. 管理员可以编辑所有人的目标
+        # 2. 具备用户管理模块编辑权限的可以编辑权限范围内用户的目标  
+        # 3. 个人用户只能查看自己的，不能编辑
+        can_edit_targets = (
+            current_user.role == 'admin' or 
+            (current_user.has_permission('user', 'edit') and selected_user_id in [u.id for u in accessible_users])
+        )
         
         selected_user = User.query.get(selected_user_id)
         current_year = datetime.now().year
@@ -269,7 +275,8 @@ def target_settings():
                              current_year=current_year,
                              current_month=current_month,
                              targets=targets,
-                             currency_options=currency_options)
+                             currency_options=currency_options,
+                             can_edit_targets=can_edit_targets)
     
     except Exception as e:
         flash(f'加载目标设置页面失败: {str(e)}', 'error')
@@ -286,9 +293,17 @@ def save_target():
         year = data.get('year')
         month = data.get('month')
         
-        # 权限检查
-        if current_user.role != 'admin' and user_id != current_user.id:
-            return jsonify({'success': False, 'message': '没有权限设置其他用户的目标'})
+        # 权限检查：只有管理员或具备用户管理编辑权限的用户可以设置目标
+        accessible_users = get_accessible_users(current_user)
+        accessible_user_ids = [u.id for u in accessible_users]
+        
+        can_edit = (
+            current_user.role == 'admin' or 
+            (current_user.has_permission('user', 'edit') and user_id in accessible_user_ids)
+        )
+        
+        if not can_edit:
+            return jsonify({'success': False, 'message': '没有权限设置绩效目标'})
         
         # 查找或创建目标记录
         target = PerformanceTarget.query.filter_by(

@@ -302,6 +302,14 @@
                                         </div>
                                     </div>
                                 </th>
+                                <th style="min-width: 100px;" data-sort="industry">
+                                    <div class="th-content">
+                                        <span class="th-text">{{ _('行业') }}</span>
+                                        <div class="th-actions">
+                                            <i class="fas fa-sort sort-icon" data-sort="industry"></i>
+                                        </div>
+                                    </div>
+                                </th>
                                 <th style="min-width: 100px;" data-sort="report_source">
                                     <div class="th-content">
                                         <span class="th-text">{{ _('报备来源') }}</span>
@@ -391,6 +399,7 @@
                                 <th><input type="text" class="form-control form-control-sm filter-input" data-field="current_stage" placeholder="{{ _('筛选...') }}"></th>
                                 <th><input type="text" class="form-control form-control-sm filter-input" data-field="project_type" placeholder="{{ _('筛选...') }}"></th>
                                 <th><input type="text" class="form-control form-control-sm filter-input" data-field="quotation_customer" placeholder="{{ _('筛选...') }}"></th>
+                                <th><input type="text" class="form-control form-control-sm filter-input" data-field="industry" placeholder="{{ _('筛选...') }}"></th>
                                 <th><input type="text" class="form-control form-control-sm filter-input" data-field="report_source" placeholder="{{ _('筛选...') }}"></th>
                                 <th><input type="text" class="form-control form-control-sm filter-input" data-field="end_user" placeholder="{{ _('筛选...') }}"></th>
                                 <th><input type="text" class="form-control form-control-sm filter-input" data-field="design_issues" placeholder="{{ _('筛选...') }}"></th>
@@ -458,6 +467,13 @@
                                     </div>
                                     {% else %}
                                     {{ '{:,.2f}'.format(project.quotation_customer) if project.quotation_customer else '' }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if project.industry %}
+                                        {{ project.industry|industry_label('zh') }}
+                                    {% else %}
+                                        <span class="text-muted">{{ _('未设置') }}</span>
                                     {% endif %}
                                 </td>
                                 <td>{{ render_report_source_badge(project.report_source) }}</td>

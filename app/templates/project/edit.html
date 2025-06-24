@@ -167,7 +167,7 @@
                     </div>
                 </div>
                 
-                <!-- 销售负责人字段 -->
+                <!-- 销售负责人和行业字段 -->
                 <div class="row mb-4">
                     <div class="col-md-6">
                         <label for="vendor_sales_manager_id" class="form-label mb-2">厂商销售负责人</label>
@@ -175,6 +175,15 @@
                                 data-current-value="{{ project.vendor_sales_manager_id if project else '' }}">
                             <option value="">请选择厂商销售负责人</option>
                             <!-- 这里将通过JavaScript动态加载厂商用户 -->
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="industry" class="form-label mb-2">{{ _('项目行业') }}</label>
+                        <select class="form-select" id="industry" name="industry">
+                            <option value="">{{ _('请选择项目行业') }}</option>
+                            {% for value, label in INDUSTRY_OPTIONS %}
+                            <option value="{{ value }}" {% if project and project.industry == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                 </div>
