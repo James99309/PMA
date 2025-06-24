@@ -127,6 +127,10 @@
                                 <div class="col-md-8">{% if project.product_situation %}{{ project.product_situation|product_situation_label('zh') }}{% else %}{{ _('无') }}{% endif %}</div>
                             </div>
                             <div class="row mb-2">
+                                <div class="col-md-4"><strong>{{ _('项目行业') }}：</strong></div>
+                                <div class="col-md-8">{{ project.industry_badge|safe }}</div>
+                            </div>
+                            <div class="row mb-2">
                                 <div class="col-md-4"><strong>{{ _('当前阶段') }}：</strong></div>
                                 <div class="col-md-8" id="currentStageText">
                                     {{ render_project_stage(project.current_stage|project_stage_label('zh')) }}

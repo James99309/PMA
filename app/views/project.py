@@ -571,6 +571,7 @@ def add_project():
                 authorization_code=authorization_code,
                 project_type=project_type,
                 quotation_customer=quotation_customer,
+                industry=request.form.get('industry'),  # 添加行业字段
                 owner_id=current_user.id,  # 设置当前用户为所有者
                 vendor_sales_manager_id=vendor_sales_manager_id  # 设置厂商销售负责人
             )
@@ -693,6 +694,7 @@ def edit_project(project_id):
             project.report_source = request.form.get('report_source')
             project.product_situation = request.form.get('product_situation')
             project.design_issues = request.form.get('design_issues')
+            project.industry = request.form.get('industry')  # 添加行业字段更新
             
             # 保存旧阶段用于后续比较
             old_stage = project.current_stage

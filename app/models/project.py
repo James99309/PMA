@@ -46,6 +46,9 @@ class Project(db.Model):
     # 项目评分字段 (1-5星)
     rating = Column(Integer, nullable=True)  # 项目评分，1-5星，NULL表示未评分
     
+    # 行业字段
+    industry = Column(String(50), nullable=True)  # 项目所属行业
+    
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, default=datetime.utcnow)
     
@@ -100,6 +103,49 @@ class Project(db.Model):
             else:
                 stars_html += '<i class="far fa-star text-muted"></i>'
         return stars_html
+
+    @property
+    def industry_badge(self):
+        """获取行业徽章HTML表示"""
+        if not self.industry:
+            return '<span class="badge bg-secondary">未分类</span>'
+        
+        # 行业颜色配置
+        industry_colors = {
+            'manufacturing': 'primary',      # 蓝色 - 制造业
+            'healthcare': 'success',         # 绿色 - 医疗健康
+            'education': 'info',             # 青色 - 教育
+            'finance': 'warning',            # 黄色 - 金融
+            'real_estate': 'danger',         # 红色 - 房地产
+            'retail': 'light',               # 浅色 - 零售
+            'transportation': 'dark',        # 深色 - 交通运输
+            'energy': 'success',             # 绿色 - 能源
+            'technology': 'primary',         # 蓝色 - 科技
+            'government': 'secondary',       # 灰色 - 政府
+            'hospitality': 'info',           # 青色 - 酒店服务
+            'agriculture': 'success'         # 绿色 - 农业
+        }
+        
+        # 行业名称映射
+        industry_names = {
+            'manufacturing': '制造业',
+            'healthcare': '医疗健康',
+            'education': '教育',
+            'finance': '金融',
+            'real_estate': '房地产',
+            'retail': '零售',
+            'transportation': '交通运输',
+            'energy': '能源',
+            'technology': '科技',
+            'government': '政府',
+            'hospitality': '酒店服务',
+            'agriculture': '农业'
+        }
+        
+        color = industry_colors.get(self.industry, 'secondary')
+        name = industry_names.get(self.industry, self.industry)
+        
+        return f'<span class="badge bg-{color}">{name}</span>'
 
     @staticmethod
     def generate_authorization_code(project_type):

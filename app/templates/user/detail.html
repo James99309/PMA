@@ -66,6 +66,9 @@
                 {% endif %}
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="performance-tab" data-bs-toggle="tab" data-bs-target="#performance" type="button" role="tab" aria-controls="performance" aria-selected="false">绩效设置</button>
+        </li>
     </ul>
 </div>
 <div class="tab-content" id="userDetailTabContent">
@@ -242,6 +245,61 @@
         <div class="text-muted mt-4">暂无数据归属关系。</div>
         {% endif %}
     </div>
+    
+    <!-- 绩效设置 -->
+    <div class="tab-pane fade" id="performance" role="tabpanel" aria-labelledby="performance-tab">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h5 class="mb-0">个人绩效管理</h5>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-chart-line me-2"></i>绩效统计
+                        </h6>
+                        <p class="card-text text-muted">查看用户的绩效统计数据和完成情况</p>
+                        <a href="{{ url_for('performance.index', user_id=user.id) }}" class="btn btn-primary btn-sm">
+                            <i class="fas fa-eye me-1"></i>查看绩效统计
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-target me-2"></i>绩效目标
+                        </h6>
+                        <p class="card-text text-muted">设置和管理用户的绩效目标</p>
+                        {% if current_user.role == 'admin' or current_user.id == user.id %}
+                        <a href="{{ url_for('performance.target_settings', user_id=user.id) }}" class="btn btn-success btn-sm">
+                            <i class="fas fa-cog me-1"></i>设置目标
+                        </a>
+                        {% else %}
+                        <span class="text-muted">仅管理员或本人可设置</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>绩效功能说明：</strong>
+                <ul class="mb-0 mt-2">
+                    <li>植入额：基于报价单明细中的产品数量 × 市场价格计算</li>
+                    <li>销售额：基于已审批通过的批价单总金额统计</li>
+                    <li>新增客户数：统计每月新增的客户记录数</li>
+                    <li>新增项目数：统计每月新增的项目记录数</li>
+                    <li>五星项目增量：统计五星项目的月度增量</li>
+                </ul>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -260,6 +318,7 @@
             if(tabId === 'base-tab') editBaseBtn.classList.remove('d-none');
             if(tabId === 'perm-tab') editPermBtn.classList.remove('d-none');
             if(tabId === 'aff-tab') editAffBtn.classList.remove('d-none');
+            // 绩效页签不需要编辑按钮
         }
         triggerTabList.forEach(function(triggerEl) {
             triggerEl.addEventListener('shown.bs.tab', function (event) {

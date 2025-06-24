@@ -51,6 +51,9 @@
                 {% endif %}
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="performance-tab" data-bs-toggle="tab" data-bs-target="#performance" type="button" role="tab" aria-controls="performance" aria-selected="false">绩效管理</button>
+        </li>
     </ul>
 </div>
 <div class="tab-content" id="userProfileTabContent">
@@ -242,6 +245,70 @@
         <div class="text-muted mt-4">暂无数据归属关系。</div>
         {% endif %}
     </div>
+    
+    <!-- 绩效管理 -->
+    <div class="tab-pane fade" id="performance" role="tabpanel" aria-labelledby="performance-tab">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h5 class="mb-0">个人绩效管理</h5>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-chart-line me-2"></i>我的绩效统计
+                        </h6>
+                        <p class="card-text text-muted">查看我的绩效数据和完成情况</p>
+                        <a href="{{ url_for('performance.index') }}" class="btn btn-primary btn-sm">
+                            <i class="fas fa-eye me-1"></i>查看绩效统计
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-target me-2"></i>绩效目标设置
+                        </h6>
+                        <p class="card-text text-muted">设置和管理我的绩效目标</p>
+                        <a href="{{ url_for('performance.target_settings') }}" class="btn btn-success btn-sm">
+                            <i class="fas fa-cog me-1"></i>设置目标
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>绩效指标说明：</strong>
+                <ul class="mb-0 mt-2">
+                    <li><strong>植入额：</strong>基于报价单明细中的产品数量 × 市场价格计算，按报价单创建日期统计</li>
+                    <li><strong>销售额：</strong>基于已审批通过的批价单总金额统计，按批价单审批日期统计</li>
+                    <li><strong>新增客户数：</strong>统计每月新增的客户记录数</li>
+                    <li><strong>新增项目数：</strong>统计每月新增的项目记录数</li>
+                    <li><strong>五星项目增量：</strong>统计五星项目的月度增量（相对于基线月的增长）</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>注意事项：</strong>
+                <ul class="mb-0 mt-2">
+                    <li>所有金额指标在数据库中以人民币（CNY）为基准存储</li>
+                    <li>可在目标设置中选择显示货币，系统会自动进行汇率转换</li>
+                    <li>五星项目增量从系统启用该功能的首月开始计算</li>
+                    <li>行业统计基于客户创建时选择的行业字段进行分类</li>
+                </ul>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -261,6 +328,8 @@
             activeTab = 'perm-tab';
         } else if (window.location.hash === '#aff') {
             activeTab = 'aff-tab';
+        } else if (window.location.hash === '#performance') {
+            activeTab = 'performance-tab';
         }
         var tab = document.getElementById(activeTab);
         if (tab) {

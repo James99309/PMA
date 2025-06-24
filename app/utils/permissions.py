@@ -296,4 +296,30 @@ def clear_user_permissions_cache(user_id=None):
         return True
     except Exception as e:
         logger.error(f"清除权限缓存失败: {str(e)}")
-        return False 
+        return False
+
+
+def get_accessible_users(current_user):
+    """
+    获取当前用户可访问的用户列表（用于绩效统计等功能）
+    
+    参数:
+        current_user: 当前登录用户
+        
+    返回:
+        list: 可访问的用户列表
+    """
+    try:
+        if not current_user or not current_user.is_authenticated:
+            return []
+        
+        # 管理员和CEO可以查看所有用户
+        if current_user.role in ['admin', 'ceo']:
+            return User.query.filter(User.is_active == True).all()
+        
+        # 其他角色只能查看自己的数据
+        return [current_user]
+        
+    except Exception as e:
+        logger.error(f"获取可访问用户列表失败: {str(e)}")
+        return [current_user] if current_user and current_user.is_authenticated else [] 

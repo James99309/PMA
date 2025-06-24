@@ -9,6 +9,7 @@ from app.models import User
 from app.routes.product import bp as product_bp
 from app.routes.product_code import product_code_bp
 from app.routes.product_management import product_management_bp
+from app.routes.performance import register_performance_routes
 from datetime import timedelta, datetime
 from app.utils import version_check
 import datetime
@@ -320,6 +321,9 @@ def create_app(config_class=Config):
     # 注册备份管理蓝图
     from app.routes.backup_routes import backup_bp
     app.register_blueprint(backup_bp)
+    
+    # 注册绩效管理蓝图
+    register_performance_routes(app)
     
     # 注册测试功能蓝图 - 暂时禁用以避免云端部署问题
     # try:
