@@ -772,6 +772,9 @@ def authorize(instance_id):
     prefix = PROJECT_TYPE_PREFIXES.get(project_type_zh, '')
     preview_code = f"{prefix}{year}{month}-001" if prefix else ''
     
+    # 为模板传递当前项目类型的中文显示名称
+    current_project_type_display = project_type_label(project.project_type) if project.project_type else project.project_type
+    
     return render_template('approval/authorization_step.html',
                           instance=instance,
                           project=project,
@@ -781,7 +784,8 @@ def authorize(instance_id):
                           year=year,
                           month=month,
                           prefix=prefix,
-                          preview_code=preview_code)
+                          preview_code=preview_code,
+                          current_project_type_display=current_project_type_display)
 
 
 @approval_bp.route('/quotation/<int:quotation_id>/approve', methods=['POST'])
@@ -1123,11 +1127,29 @@ def recall_approval(instance_id):
         instance.status = ApprovalStatus.REJECTED
         instance.ended_at = datetime.now()
         
+        # 获取当前步骤ID（用于记录是在哪个步骤被召回的）
+        current_step = get_current_step_info(instance)
+        current_step_id = current_step.id if current_step else None
+        
+        # 如果无法获取当前步骤ID，使用实例对应流程的第一个步骤
+        if not current_step_id:
+            from app.models.approval import ApprovalStep
+            first_step = ApprovalStep.query.filter_by(
+                process_id=instance.process_id,
+                step_order=1
+            ).first()
+            current_step_id = first_step.id if first_step else None
+        
+        # 如果仍然无法获取步骤ID，创建一个临时记录步骤
+        if not current_step_id:
+            current_app.logger.error(f"无法为召回操作找到合适的步骤ID，审批实例: {instance_id}")
+            return jsonify({'success': False, 'message': '召回失败：无法确定当前审批步骤'}), 500
+        
         # 添加召回记录
         from app.models.approval import ApprovalRecord
         recall_record = ApprovalRecord(
             instance_id=instance_id,
-            step_id=None,  # 召回不关联具体步骤
+            step_id=current_step_id,  # 使用当前步骤ID或第一个步骤ID
             approver_id=current_user.id,
             action='recall',
             comment=f"发起人召回审批流程。原因：{reason}" if reason else "发起人召回审批流程",
@@ -1135,6 +1157,16 @@ def recall_approval(instance_id):
         )
         
         db.session.add(recall_record)
+        
+        # 解锁对象（重要：召回后需要解锁对象，允许用户重新编辑）
+        if instance.object_type == 'project':
+            unlock_project(instance.object_id, current_user.id)
+            current_app.logger.info(f"召回审批后已解锁项目: {instance.object_id}")
+        elif instance.object_type == 'quotation':
+            from app.helpers.quotation_helpers import unlock_quotation
+            unlock_quotation(instance.object_id, current_user.id)
+            current_app.logger.info(f"召回审批后已解锁报价单: {instance.object_id}")
+        
         db.session.commit()
         
         # 记录日志

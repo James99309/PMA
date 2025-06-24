@@ -1,4 +1,4 @@
-{% from "macros/ui_helpers.html" import render_pagination with context %}
+{% from "macros/ui_helpers.html" import render_pagination, render_enable_disable_badge with context %}
 
 {# 审批流程模板列表 #}
 {% macro template_list_table(templates, current_url) %}
@@ -21,11 +21,7 @@
               <td>{{ template.name }}</td>
               <td>{{ get_object_type_display(template.object_type) }}</td>
               <td>
-                {% if template.is_active %}
-                  <span class="badge badge-success">启用</span>
-                {% else %}
-                  <span class="badge badge-danger">禁用</span>
-                {% endif %}
+                {{ render_enable_disable_badge(template.is_active) }}
               </td>
               <td>{{ template.creator.username }}</td>
               <td>{{ format_datetime(template.created_at) }}</td>
@@ -36,10 +32,24 @@
                 <a href="{{ url_for('approval_config.edit_template', template_id=template.id) }}" class="btn btn-sm btn-primary">
                   <i class="fas fa-edit"></i> 编辑
                 </a>
-                <button type="button" class="btn btn-sm btn-danger" 
-                        onclick="confirmDeleteTemplate('{{ template.id }}', '{{ template.name }}')">
-                  <i class="fas fa-trash"></i> 删除
-                </button>
+                {% set has_instances = check_template_has_instances(template.id) %}
+                {% if has_instances %}
+                  {# 已有审批流程的模板，显示禁用/启用按钮 #}
+                  <button type="button" class="btn btn-sm {% if template.is_active %}btn-warning{% else %}btn-success{% endif %}" 
+                          onclick="confirmToggleTemplate('{{ template.id }}', '{{ template.name }}', {{ template.is_active|tojson }})">
+                    {% if template.is_active %}
+                      <i class="fas fa-ban"></i> 禁用
+                    {% else %}
+                      <i class="fas fa-check"></i> 启用
+                    {% endif %}
+                  </button>
+                {% else %}
+                  {# 未使用的模板，显示删除按钮 #}
+                  <button type="button" class="btn btn-sm btn-danger" 
+                          onclick="confirmDeleteTemplate('{{ template.id }}', '{{ template.name }}')">
+                    <i class="fas fa-trash"></i> 删除
+                  </button>
+                {% endif %}
               </td>
             </tr>
           {% endfor %}
@@ -69,7 +79,7 @@
         </div>
         <div class="modal-body">
           确定要删除模板 "<span id="templateNameToDelete"></span>" 吗？
-          <p class="text-danger mt-2">注意：如果模板已关联审批实例，将会禁用而不是删除。</p>
+          <p class="text-danger mt-2">注意：删除后无法恢复。</p>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
@@ -82,12 +92,56 @@
     </div>
   </div>
   
+  {# 禁用/启用确认模态框 #}
+  <div class="modal fade" id="toggleTemplateModal" tabindex="-1" role="dialog" aria-labelledby="toggleTemplateModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="toggleTemplateModalLabel">确认操作</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          确定要<span id="toggleActionText"></span>模板 "<span id="templateNameToToggle"></span>" 吗？
+          <p class="text-warning mt-2" id="toggleWarningText"></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <form id="toggleTemplateForm" method="POST" action="">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="is_active" id="toggleIsActive" value="">
+            <button type="submit" class="btn btn-primary" id="toggleConfirmBtn">确认</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  
   <script>
     function confirmDeleteTemplate(templateId, templateName) {
       document.getElementById('templateNameToDelete').textContent = templateName;
       document.getElementById('deleteTemplateForm').action = "{{ url_for('approval_config.delete_template', template_id=0) }}".replace('0', templateId);
       var deleteModal = new bootstrap.Modal(document.getElementById('deleteTemplateModal'));
       deleteModal.show();
+    }
+    
+    function confirmToggleTemplate(templateId, templateName, isActive) {
+      document.getElementById('templateNameToToggle').textContent = templateName;
+      
+      if (isActive) {
+        document.getElementById('toggleActionText').textContent = '禁用';
+        document.getElementById('toggleWarningText').textContent = '禁用后该模板将不能用于新的审批实例，但不会影响现有的审批流程。';
+        document.getElementById('toggleIsActive').value = 'false';
+        document.getElementById('toggleConfirmBtn').className = 'btn btn-warning';
+      } else {
+        document.getElementById('toggleActionText').textContent = '启用';
+        document.getElementById('toggleWarningText').textContent = '启用后该模板将可以用于创建新的审批实例。';
+        document.getElementById('toggleIsActive').value = 'true';
+        document.getElementById('toggleConfirmBtn').className = 'btn btn-success';
+      }
+      
+      document.getElementById('toggleTemplateForm').action = "{{ url_for('approval_config.toggle_template', template_id=0) }}".replace('0', templateId);
+      var toggleModal = new bootstrap.Modal(document.getElementById('toggleTemplateModal'));
+      toggleModal.show();
     }
   </script>
 {% endmacro %}
@@ -114,7 +168,18 @@
                 {% endif %}
                 <div>
                   <div><strong>{{ step.step_order }}. {{ step.step_name }}</strong></div>
-                  <div class="text-muted">审批人: {{ step.approver.real_name or step.approver.username }}（{{ step.approver.username }}）- {{ get_role_display_name(step.approver.role) }}</div>
+                  <div class="text-muted">审批人: 
+                    {% if step.approver_user_id %}
+                      {{ step.approver.real_name or step.approver.username }}（{{ step.approver.username }}）- {{ get_role_display_name(step.approver.role) }}
+                    {% else %}
+                      <span class="text-info"><i class="fas fa-magic"></i> 自动选择</span>
+                      {% if step.action_type == 'authorization' %}
+                        <br><small class="text-muted">根据项目类型动态分配审批人</small>
+                      {% elif step.description %}
+                        <br><small class="text-muted">{{ step.description }}</small>
+                      {% endif %}
+                    {% endif %}
+                  </div>
                   <div class="text-muted">邮件通知: <span style="color: #000;">{% if step.send_email %}是{% else %}否{% endif %}</span></div>
                   {% if step.editable_fields and step.editable_fields|length > 0 %}
                   <div class="text-muted">可编辑字段: 
@@ -445,6 +510,44 @@
           editCcUsersSection.style.display = this.checked ? 'block' : 'none';
         });
       }
+
+      // 添加步骤动作类型变化事件处理
+      const actionTypeSelect = document.getElementById('action_type');
+      const approverSelect = document.getElementById('approver_id');
+      
+      if (actionTypeSelect && approverSelect) {
+        actionTypeSelect.addEventListener('change', function() {
+          if (this.value === 'authorization') {
+            // 选择授权编号动作时，清空并禁用审批人选择框
+            approverSelect.value = '';
+            approverSelect.disabled = true;
+            approverSelect.setAttribute('title', '授权编号动作将根据项目类型自动选择审批人');
+          } else {
+            // 选择其他动作时，重新启用审批人选择框
+            approverSelect.disabled = false;
+            approverSelect.removeAttribute('title');
+          }
+        });
+      }
+
+      // 编辑步骤动作类型变化事件处理
+      const editActionTypeSelect = document.getElementById('edit_action_type');
+      const editApproverSelect = document.getElementById('edit_approver_id');
+      
+      if (editActionTypeSelect && editApproverSelect) {
+        editActionTypeSelect.addEventListener('change', function() {
+          if (this.value === 'authorization') {
+            // 选择授权编号动作时，清空并禁用审批人选择框
+            editApproverSelect.value = '';
+            editApproverSelect.disabled = true;
+            editApproverSelect.setAttribute('title', '授权编号动作将根据项目类型自动选择审批人');
+          } else {
+            // 选择其他动作时，重新启用审批人选择框
+            editApproverSelect.disabled = false;
+            editApproverSelect.removeAttribute('title');
+          }
+        });
+      }
       
       // 编辑模态框事件处理
       var editStepModal = document.getElementById('editStepModal');
@@ -469,6 +572,16 @@
           modal.querySelector('#edit_approver_id').value = approverId || '';
           modal.querySelector('#edit_action_type').value = actionType || '';
           modal.querySelector('#edit_send_email').checked = (sendEmail === 'True');
+
+          // 处理动作类型对应的审批人状态
+          const editApproverSelect = modal.querySelector('#edit_approver_id');
+          if (actionType === 'authorization') {
+            editApproverSelect.disabled = true;
+            editApproverSelect.setAttribute('title', '授权编号动作将根据项目类型自动选择审批人');
+          } else {
+            editApproverSelect.disabled = false;
+            editApproverSelect.removeAttribute('title');
+          }
           
           // 处理可编辑字段
           let editableFieldsArray = [];

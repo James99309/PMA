@@ -692,6 +692,7 @@ def create_app(config_class=Config):
         get_current_step_info,
         get_object_type_display,
         check_template_in_use,
+        check_template_has_instances,
         get_rejected_approval_history,
         get_template_steps,
         get_workflow_steps,
@@ -703,6 +704,7 @@ def create_app(config_class=Config):
     app.jinja_env.globals['get_current_step_info'] = get_current_step_info
     app.jinja_env.globals['get_object_type_display'] = get_object_type_display
     app.jinja_env.globals['check_template_in_use'] = check_template_in_use
+    app.jinja_env.globals['check_template_has_instances'] = check_template_has_instances
     app.jinja_env.globals['get_rejected_approval_history'] = get_rejected_approval_history
     app.jinja_env.globals['get_template_steps'] = get_template_steps
     app.jinja_env.globals['get_workflow_steps'] = get_workflow_steps

@@ -84,14 +84,17 @@
                     </div>
                     <div class="col-md-6">
                         <label for="project_type" class="form-label mb-2">项目类型</label>
-                        <select class="form-select" id="project_type" name="project_type" {% if project and project.project_type %}disabled{% endif %}>
+                        <select class="form-select" id="project_type" name="project_type" {% if project and project.authorization_code %}disabled{% endif %}>
                             <option value="">-- 请选择项目类型 --</option>
                             {% for k, v in PROJECT_TYPE_OPTIONS %}
                             <option value="{{ k }}" {% if project and project.project_type == k %}selected{% endif %}>{{ v }}</option>
                             {% endfor %}
                         </select>
-                        {% if project %}
+                        {% if project and project.authorization_code %}
                         <input type="hidden" name="project_type" value="{{ project.project_type }}">
+                        <small class="text-muted">
+                            <i class="fas fa-lock me-1"></i>项目类型已锁定（已有授权编号：{{ project.authorization_code }}）
+                        </small>
                         {% endif %}
                     </div>
                 </div>

@@ -82,15 +82,27 @@
               <div class="col-md-6">
                 <div class="form-group">
                   <label for="project_type" class="form-label fw-bold">项目类型</label>
-                  <select class="form-select" id="project_type" name="project_type" required>
-                    <option value="">-- 请选择项目类型 --</option>
-                    {% for type_key, type_data in project_types.items() %}
-                      <option value="{{ type_key }}" {% if project.project_type == type_key %}selected{% endif %}>{{ type_data.zh }}</option>
-                    {% endfor %}
-                  </select>
-                  <div class="form-text text-info">
-                    <i class="fas fa-info-circle me-1"></i>项目类型将决定授权编号的前缀
-                  </div>
+                  {% if current_user.role == 'admin' %}
+                    <!-- Admin可以编辑项目类型 -->
+                    <select class="form-select" id="project_type" name="project_type" required>
+                      <option value="">-- 请选择项目类型 --</option>
+                      {% for type_key, type_data in project_types.items() %}
+                        <option value="{{ type_key }}" {% if project.project_type == type_key %}selected{% endif %}>{{ type_data.zh }}</option>
+                      {% endfor %}
+                    </select>
+                    <div class="form-text text-info">
+                      <i class="fas fa-info-circle me-1"></i>Admin角色可以修改项目类型，项目类型将决定授权编号的前缀
+                    </div>
+                                     {% else %}
+                     <!-- 非Admin用户显示默认项目类型且不能编辑 -->
+                     <input type="text" class="form-control bg-light" 
+                            value="{{ current_project_type_display }}" 
+                            readonly>
+                     <input type="hidden" name="project_type" value="{{ project.project_type }}">
+                     <div class="form-text text-muted">
+                       <i class="fas fa-lock me-1"></i>项目类型已根据项目信息自动设置，仅Admin角色可修改
+                     </div>
+                   {% endif %}
                 </div>
                 
                 <div class="mt-4">

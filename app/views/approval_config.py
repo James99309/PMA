@@ -194,24 +194,39 @@ def delete_template(template_id):
     result = delete_approval_template(template_id)
     
     if result['success']:
-        flash(result['message'], 'success')
+        flash('审批流程模板删除成功', 'success')
     else:
-        # 构建详细的错误信息
-        message = result['message']
+        # 如果是因为有关联实例而被禁用，显示详细信息
         if result['instances']:
-            message += f"\\n\\n关联的审批实例详情："
-            for instance in result['instances']:
-                creator_info = f"{instance['creator']}"
-                if instance['creator_real_name']:
-                    creator_info += f" ({instance['creator_real_name']})"
-                
-                message += f"\\n• 实例ID: {instance['id']}"
-                message += f"\\n  {instance['object_info']}"
-                message += f"\\n  状态: {instance['status']}"
-                message += f"\\n  发起人: {creator_info}"
-                message += f"\\n  开始时间: {instance['started_at']}"
+            flash(result['message'], 'warning')
+            current_app.logger.info(f"模板 {template_id} 因有关联实例被禁用，实例数量: {len(result['instances'])}")
+        else:
+            flash(result['message'], 'danger')
+    
+    return redirect(url_for('approval_config.template_list'))
+
+
+@approval_config_bp.route('/process/<int:template_id>/toggle', methods=['POST'])
+@login_required
+@admin_required
+def toggle_template(template_id):
+    """启用/禁用审批流程模板"""
+    template = ApprovalProcessTemplate.query.get_or_404(template_id)
+    
+    # 获取提交的状态值
+    is_active = request.form.get('is_active', 'true').lower() == 'true'
+    
+    try:
+        template.is_active = is_active
+        db.session.commit()
         
-        flash(message, 'warning')
+        action = '启用' if is_active else '禁用'
+        flash(f'审批流程模板"{template.name}"已{action}', 'success')
+        current_app.logger.info(f"用户 {current_user.username} {action}了审批模板 {template.name} (ID: {template_id})")
+    except Exception as e:
+        db.session.rollback()
+        flash(f'操作失败: {str(e)}', 'danger')
+        current_app.logger.error(f"启用/禁用审批模板失败: {str(e)}")
     
     return redirect(url_for('approval_config.template_list'))
 
@@ -232,8 +247,12 @@ def add_step():
     cc_users = request.form.getlist('cc_users')
     cc_enabled = request.form.get('cc_enabled') == 'on'
     
-    if not template_id or not step_name or not approver_id:
-        flash('模板ID、步骤名称和审批人不能为空', 'danger')
+    # 如果是授权编号动作，则不需要指定审批人，将使用动态分配
+    if action_type == 'authorization':
+        approver_id = None
+    
+    if not template_id or not step_name or (not approver_id and action_type != 'authorization'):
+        flash('模板ID、步骤名称不能为空，且非授权编号动作需要指定审批人', 'danger')
         return redirect(url_for('approval_config.template_detail', template_id=template_id))
     
     # 添加步骤
@@ -276,8 +295,12 @@ def edit_step(step_id):
     cc_users = request.form.getlist('cc_users')
     cc_enabled = request.form.get('cc_enabled') == 'on'
     
-    if not step_name or not approver_id:
-        flash('步骤名称和审批人不能为空', 'danger')
+    # 如果是授权编号动作，则不需要指定审批人，将使用动态分配
+    if action_type == 'authorization':
+        approver_id = None
+    
+    if not step_name or (not approver_id and action_type != 'authorization'):
+        flash('步骤名称不能为空，且非授权编号动作需要指定审批人', 'danger')
         return redirect(url_for('approval_config.template_detail', template_id=template_id))
     
     # 更新步骤
@@ -288,7 +311,8 @@ def edit_step(step_id):
         send_email=send_email,
         editable_fields=editable_fields,
         cc_users=[int(user_id) for user_id in cc_users if user_id.isdigit()],
-        cc_enabled=cc_enabled
+        cc_enabled=cc_enabled,
+        update_approver=True  # 明确指定要更新审批人
     )
     
     # 如果更新成功且设置了动作类型，更新动作类型

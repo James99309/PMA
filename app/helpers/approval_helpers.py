@@ -19,6 +19,118 @@ from app.models.project import Project
 from app.models.quotation import Quotation
 from app.models.customer import Company
 
+# 项目类型到角色的映射
+PROJECT_TYPE_ROLE_MAPPING = {
+    'channel_follow': 'channel_manager',  # 渠道跟进 -> 渠道经理
+    '渠道跟进': 'channel_manager',
+    'sales_focus': 'sales_director',      # 销售重点 -> 营销总监
+    '销售重点': 'sales_director',
+    'sales_key': 'sales_director',        # 销售重点 -> 营销总监
+    'business_opportunity': 'service_manager',  # 销售机会 -> 服务经理
+    '销售机会': 'service_manager',
+    'sales_opportunity': 'service_manager',     # 销售机会 -> 服务经理
+}
+
+def get_authorization_approver_by_project_type(project_type):
+    """根据项目类型获取授权审批人
+    
+    Args:
+        project_type: 项目类型
+        
+    Returns:
+        User对象或None
+    """
+    from app.models.user import User
+    
+    # 获取目标角色
+    target_role = PROJECT_TYPE_ROLE_MAPPING.get(project_type)
+    if not target_role:
+        # 如果没有找到对应角色，默认使用总经理
+        target_role = 'ceo'
+    
+    # 查找第一个具有该角色的用户
+    approver = User.query.filter_by(role=target_role).first()
+    
+    # 如果没找到对应角色的用户，使用总经理角色
+    if not approver:
+        approver = User.query.filter_by(role='ceo').first()
+    
+    # 如果还是没找到，使用admin
+    if not approver:
+        approver = User.query.filter_by(role='admin').first()
+    
+    return approver
+
+def create_or_get_unified_authorization_template():
+    """创建或获取统一的动态授权审批模板
+    
+    此模板名称固定，但审批人根据项目类型动态分配
+    
+    Returns:
+        ApprovalProcessTemplate对象或None
+    """
+    from app.models.approval import ApprovalProcessTemplate, ApprovalStep
+    from app.models.user import User
+    
+    # 使用固定的模板名称
+    template_name = "智能授权审批流程"
+    
+    # 查找已存在的统一模板
+    existing_template = ApprovalProcessTemplate.query.filter_by(
+        name=template_name,
+        object_type='project'
+    ).first()
+    
+    if existing_template:
+        # 如果模板存在但被禁用，重新激活它
+        if not existing_template.is_active:
+            existing_template.is_active = True
+            db.session.commit()
+            current_app.logger.info(f"重新激活统一授权审批模板: {template_name}")
+        
+        return existing_template
+    
+    try:
+        # 获取一个有效的用户ID作为创建者
+        admin_user = User.query.filter_by(role='admin').first()
+        ceo_user = User.query.filter_by(role='ceo').first()
+        creator_id = admin_user.id if admin_user else (ceo_user.id if ceo_user else 1)
+        
+        # 创建统一的审批流程模板
+        template = ApprovalProcessTemplate(
+            name=template_name,
+            object_type='project',
+            created_by=creator_id,
+            is_active=True,
+            lock_object_on_start=True,
+            lock_reason="项目授权编号审批锁定"
+        )
+        db.session.add(template)
+        db.session.flush()  # 获取模板ID
+        
+        # 创建智能步骤（审批人将在运行时动态分配）
+        # 不设置固定的审批人，使用特殊标记表示自动选择
+        step = ApprovalStep(
+            process_id=template.id,
+            step_name="智能授权审批",
+            step_order=1,
+            approver_user_id=None,  # 不设置固定审批人
+            approver_type='auto',   # 标记为自动选择类型
+            action_type='authorization',
+            send_email=True,
+            description="根据项目类型自动分配审批人：渠道跟进→渠道经理，销售重点→营销总监，销售机会→服务经理"
+        )
+        db.session.add(step)
+        db.session.commit()
+        
+        current_app.logger.info(f"创建统一的智能授权审批流程模板: {template.name}")
+        return template
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"创建统一授权审批流程失败: {str(e)}")
+        return None
+
 def get_user_created_approvals(user_id=None, object_type=None, status=None, page=1, per_page=20):
     """获取指定用户发起的审批列表 - 改进版，包含批价单审批，只返回关联业务对象存在的审批
     
@@ -1252,14 +1364,40 @@ def get_all_approvals(object_type=None, status=None, page=1, per_page=20):
         query = query.join(Project, ApprovalInstance.object_id == Project.id).filter(
             ApprovalInstance.object_type == 'project'
         )
+        
+        # 应用状态过滤器
+        if status:
+            query = query.filter(ApprovalInstance.status == status)
+        
+        # 按创建时间倒序排列并返回分页结果
+        query = query.order_by(ApprovalInstance.started_at.desc())
+        return query.paginate(page=page, per_page=per_page, error_out=False)
+        
     elif object_type == 'quotation':
         query = query.join(Quotation, ApprovalInstance.object_id == Quotation.id).filter(
             ApprovalInstance.object_type == 'quotation'
         )
+        
+        # 应用状态过滤器
+        if status:
+            query = query.filter(ApprovalInstance.status == status)
+        
+        # 按创建时间倒序排列并返回分页结果
+        query = query.order_by(ApprovalInstance.started_at.desc())
+        return query.paginate(page=page, per_page=per_page, error_out=False)
+        
     elif object_type == 'customer':
         query = query.join(Company, ApprovalInstance.object_id == Company.id).filter(
             ApprovalInstance.object_type == 'customer'
         )
+        
+        # 应用状态过滤器
+        if status:
+            query = query.filter(ApprovalInstance.status == status)
+        
+        # 按创建时间倒序排列并返回分页结果
+        query = query.order_by(ApprovalInstance.started_at.desc())
+        return query.paginate(page=page, per_page=per_page, error_out=False)
     else:
         # 如果没有指定类型，需要合并通用审批系统和批价单系统的数据
         # 先处理通用审批系统
@@ -1571,7 +1709,42 @@ def get_current_step_info(instance):
     if not instance or instance.status != ApprovalStatus.PENDING:
         return None
     
-    # 获取当前步骤
+    # 🔥 关键修复：优先使用模板快照中的步骤信息
+    if instance.template_snapshot and 'steps' in instance.template_snapshot:
+        # 从模板快照中获取当前步骤信息
+        steps_data = instance.template_snapshot['steps']
+        current_step_data = None
+        
+        for step_data in steps_data:
+            if step_data.get('step_order') == instance.current_step:
+                current_step_data = step_data
+                break
+        
+        if current_step_data:
+            # 创建虚拟步骤对象，包含快照中的正确信息
+            from app.models.user import User
+            approver = User.query.get(current_step_data.get('approver_user_id'))
+            
+            virtual_step = type('Step', (), {
+                'id': f"snapshot_step_{instance.id}_{current_step_data['step_order']}",
+                'step_name': current_step_data.get('step_name', '未知步骤'),
+                'step_order': current_step_data.get('step_order'),
+                'approver_user_id': current_step_data.get('approver_user_id'),
+                'approver': approver,
+                'action_type': current_step_data.get('action_type'),
+                'send_email': current_step_data.get('send_email', True),
+                'description': current_step_data.get('description', ''),
+                'process_id': instance.process_id,
+                # 添加额外的快照信息
+                'approver_username': current_step_data.get('approver_username'),
+                'approver_real_name': current_step_data.get('approver_real_name')
+            })()
+            
+            current_app.logger.info(f"使用模板快照获取步骤信息 - 审批实例 {instance.id}，步骤 {instance.current_step}，审批人: {current_step_data.get('approver_username')} (ID: {current_step_data.get('approver_user_id')})")
+            return virtual_step
+    
+    # 回退：如果没有快照或快照中没有步骤信息，使用数据库中的模板步骤（兼容旧数据）
+    current_app.logger.warning(f"模板快照不可用，回退到数据库模板 - 审批实例 {instance.id}")
     steps = ApprovalStep.query.filter_by(
         process_id=instance.process_id,
         step_order=instance.current_step
@@ -1975,17 +2148,18 @@ def add_approval_step(template_id, step_name, approver_id, send_email=True, edit
     return step
 
 
-def update_approval_step(step_id, step_name=None, approver_id=None, send_email=None, editable_fields=None, cc_users=None, cc_enabled=None):
+def update_approval_step(step_id, step_name=None, approver_id=None, send_email=None, editable_fields=None, cc_users=None, cc_enabled=None, update_approver=False):
     """更新审批步骤
     
     Args:
         step_id: 步骤ID
         step_name: 步骤名称
-        approver_id: 审批人ID
+        approver_id: 审批人ID（可以为None）
         send_email: 是否发送邮件通知
         editable_fields: 在此步骤可编辑的字段列表
         cc_users: 抄送用户ID列表
         cc_enabled: 是否启用抄送
+        update_approver: 是否更新审批人（用于区分None值和不更新）
         
     Returns:
         更新后的步骤对象，如果没有找到则返回None
@@ -1997,7 +2171,8 @@ def update_approval_step(step_id, step_name=None, approver_id=None, send_email=N
     if step_name is not None:
         step.step_name = step_name
         
-    if approver_id is not None:
+    # 只有在明确指定更新审批人时才更新，允许设置为None
+    if update_approver:
         step.approver_user_id = approver_id
         
     if send_email is not None:
@@ -2180,12 +2355,25 @@ def check_template_in_use(template_id, strict_mode=False):
         ).first() is not None
 
 
-def get_object_approval_instance(object_type, object_id):
+def check_template_has_instances(template_id):
+    """检查审批流程模板是否有任何相关联的审批实例（用于模板列表显示）
+    
+    Args:
+        template_id: 模板ID
+        
+    Returns:
+        布尔值，表示模板是否有任何关联的审批实例
+    """
+    return ApprovalInstance.query.filter_by(process_id=template_id).first() is not None
+
+
+def get_object_approval_instance(object_type, object_id, include_rejected=False):
     """获取业务对象的审批实例
     
     Args:
         object_type: 业务对象类型
         object_id: 业务对象ID
+        include_rejected: 是否包含被拒绝的实例
         
     Returns:
         对应的审批实例，如果没有则返回None
@@ -2210,8 +2398,67 @@ def get_object_approval_instance(object_type, object_id):
     if approved_instance:
         return approved_instance
     
+    # 如果需要包含被拒绝的实例，返回最新的被拒绝实例
+    if include_rejected:
+        rejected_instance = ApprovalInstance.query.filter_by(
+            object_type=object_type,
+            object_id=object_id,
+            status=ApprovalStatus.REJECTED
+        ).order_by(ApprovalInstance.started_at.desc()).first()
+        
+        if rejected_instance:
+            return rejected_instance
+    
     # 被拒绝或其他情况，允许重新发起审批
     return None
+
+
+def cleanup_duplicate_dynamic_templates():
+    """清理重复的动态审批模板
+    
+    只保留每种项目类型-角色组合的最新模板，将多余的模板标记为不活跃
+    """
+    try:
+        # 查找所有动态创建的模板
+        dynamic_templates = ApprovalProcessTemplate.query.filter(
+            ApprovalProcessTemplate.name.like('动态授权审批-%')
+        ).order_by(ApprovalProcessTemplate.created_at.desc()).all()
+        
+        # 按模板名称分组
+        template_groups = {}
+        for template in dynamic_templates:
+            if template.name not in template_groups:
+                template_groups[template.name] = []
+            template_groups[template.name].append(template)
+        
+        # 清理重复模板
+        cleaned_count = 0
+        for template_name, templates in template_groups.items():
+            if len(templates) > 1:
+                # 保留最新的（第一个），禁用其他的
+                latest_template = templates[0]
+                for duplicate_template in templates[1:]:
+                    # 检查是否有正在使用的实例
+                    has_pending_instances = ApprovalInstance.query.filter_by(
+                        process_id=duplicate_template.id,
+                        status=ApprovalStatus.PENDING
+                    ).first() is not None
+                    
+                    if not has_pending_instances:
+                        duplicate_template.is_active = False
+                        cleaned_count += 1
+                        current_app.logger.info(f"已禁用重复的动态模板: {duplicate_template.name} (ID: {duplicate_template.id})")
+        
+        if cleaned_count > 0:
+            db.session.commit()
+            current_app.logger.info(f"清理完成，共禁用 {cleaned_count} 个重复的动态模板")
+        
+        return cleaned_count
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"清理动态模板失败: {str(e)}")
+        return 0
 
 
 def get_available_templates(object_type, object_id=None):
@@ -2256,26 +2503,81 @@ def get_available_templates(object_type, object_id=None):
                         
                         if not has_auth_step:
                             filtered_templates.append(template)
+                            current_app.logger.info(f"保留非授权模板: {template.name} (ID: {template.id})")
                         else:
                             current_app.logger.info(f"过滤授权模板: {template.name} (ID: {template.id})")
                     
                     templates = filtered_templates
         
-        # 如果获取到了业务类型，进一步过滤模板
-        if business_type and templates:
-            # 检查模板名称是否包含业务类型关键词
-            filtered_templates = []
-            for template in templates:
-                # 审批模板名称中包含业务类型关键词
-                if business_type in template.name:
-                    filtered_templates.append(template)
-                # 或者检查模板id，可以添加特定规则
-            
-            # 如果过滤后没有模板，则返回原始列表
-            if filtered_templates:
-                templates = filtered_templates
+        # 注释掉按业务类型过滤模板的逻辑，保持所有可用模板对用户可见
+        # 智能路由将在审批发起时自动处理，用户界面不需要预先过滤
+        # if business_type and templates:
+        #     # 检查模板名称是否包含业务类型关键词
+        #     filtered_templates = []
+        #     for template in templates:
+        #         # 审批模板名称中包含业务类型关键词
+        #         if business_type in template.name:
+        #             filtered_templates.append(template)
+        #         # 或者检查模板id，可以添加特定规则
+        #     
+        #     # 如果过滤后没有模板，则返回原始列表
+        #     if filtered_templates:
+        #         templates = filtered_templates
     
     return templates
+
+
+def restart_rejected_approval(object_type, object_id, template_id, user_id=None):
+    """重新发起被拒绝的审批流程
+    
+    Args:
+        object_type: 业务对象类型
+        object_id: 业务对象ID  
+        template_id: 审批流程模板ID
+        user_id: 发起人ID，默认为当前登录用户
+        
+    Returns:
+        重新启动的审批实例对象，如果失败则返回None
+    """
+    # 🔥 关键修复：召回后重新发起时，完全按照新的项目状态重新创建审批实例
+    # 不再重用旧实例，避免审批人不更新的问题
+    
+    # 查找最新的被拒绝实例
+    rejected_instance = ApprovalInstance.query.filter_by(
+        object_type=object_type,
+        object_id=object_id,
+        status=ApprovalStatus.REJECTED
+    ).order_by(ApprovalInstance.started_at.desc()).first()
+    
+    if rejected_instance:
+        current_app.logger.info(f"发现被拒绝的审批实例 {rejected_instance.id}，将创建新实例而非重用")
+        
+        # 🔥 修复：删除旧的被拒绝实例，创建全新的实例
+        # 这样可以确保重新评估项目类型和审批人
+        try:
+            # 保留历史记录，但删除实例本身
+            old_instance_id = rejected_instance.id
+            db.session.delete(rejected_instance)
+            db.session.commit()
+            
+            current_app.logger.info(f"已删除旧的被拒绝实例 {old_instance_id}，将创建新实例")
+            
+            # 🔥 调用标准的发起流程函数，确保重新评估所有逻辑
+            new_instance = start_approval_process(object_type, object_id, template_id, user_id)
+            
+            if new_instance:
+                current_app.logger.info(f"成功创建新的审批实例 {new_instance.id} 替代被拒绝的实例 {old_instance_id}")
+                return new_instance
+            else:
+                current_app.logger.error(f"创建新审批实例失败，尝试恢复旧实例")
+                return None
+                
+        except Exception as e:
+            current_app.logger.error(f"重新发起被拒绝的审批失败: {str(e)}")
+            db.session.rollback()
+            return None
+    
+    return None
 
 
 def start_approval_process(object_type, object_id, template_id, user_id=None):
@@ -2293,8 +2595,23 @@ def start_approval_process(object_type, object_id, template_id, user_id=None):
     # 记录详细的诊断信息
     current_app.logger.info(f"开始发起审批流程: 对象类型={object_type}, 对象ID={object_id}, 模板ID={template_id}")
     
-    # 检查是否已存在进行中的审批实例
-    existing = get_object_approval_instance(object_type, object_id)
+    # 检查是否是项目授权申请，如果是则使用智能路由
+    if object_type == 'project':
+        project = Project.query.get(object_id)
+        if project:
+            # 检查是否是授权申请（通过模板名或其他标识）
+            template = ApprovalProcessTemplate.query.get(template_id)
+            if template and ('授权' in template.name or 'authorization' in template.name.lower() or '智能授权' in template.name):
+                # 使用统一的智能授权模板
+                unified_template = create_or_get_unified_authorization_template()
+                if unified_template:
+                    template_id = unified_template.id
+                    approver = get_authorization_approver_by_project_type(project.project_type)
+                    current_app.logger.info(f"项目 {object_id} 使用智能授权路由，项目类型: {project.project_type}, 将分配给: {approver.username if approver else '未知用户'}")
+    
+    # 检查是否已存在进行中的审批实例（不包括被拒绝的）
+    existing = get_object_approval_instance(object_type, object_id, include_rejected=False)
+    
     if existing:
         status_str = str(existing.status) if hasattr(existing, 'status') else '未知状态'
         current_app.logger.warning(
@@ -2304,6 +2621,24 @@ def start_approval_process(object_type, object_id, template_id, user_id=None):
         from flask import flash
         flash(f"发起审批失败，已存在审批流程 (状态: {status_str})", 'danger')
         return None
+    
+    # 检查是否有被拒绝的实例，如果有则删除后重新创建
+    rejected_instance = get_object_approval_instance(object_type, object_id, include_rejected=True)
+    if rejected_instance and rejected_instance.status == ApprovalStatus.REJECTED:
+        current_app.logger.info(f"发现被拒绝的审批实例，将删除并重新创建: 实例ID={rejected_instance.id}")
+        
+        # 🔥 修复：直接删除被拒绝的实例，确保重新创建
+        try:
+            old_instance_id = rejected_instance.id
+            db.session.delete(rejected_instance)
+            db.session.commit()
+            current_app.logger.info(f"已删除被拒绝的实例 {old_instance_id}，继续创建新实例")
+        except Exception as e:
+            current_app.logger.error(f"删除被拒绝实例失败: {str(e)}")
+            db.session.rollback()
+            from flask import flash
+            flash(f"无法删除旧的审批记录: {str(e)}", 'danger')
+            return None
     
     # 查询历史审批实例，以便在日志中记录
     history_instance = ApprovalInstance.query.filter_by(
@@ -2321,115 +2656,44 @@ def start_approval_process(object_type, object_id, template_id, user_id=None):
         from flask import flash
         flash("发起审批失败，审批模板不存在或已被删除", 'danger')
         return None
-        
+    
     if not template.is_active:
-        current_app.logger.warning(f"审批模板未启用: {template_id} ({template.name})")
+        current_app.logger.warning(f"审批模板已禁用: {template_id}")
         from flask import flash
-        flash(f"发起审批失败，审批模板 \"{template.name}\" 未启用", 'danger')
+        flash("发起审批失败，审批模板已被禁用", 'danger')
         return None
-    
-    # 检查模板是否有步骤
-    steps = ApprovalStep.query.filter_by(process_id=template_id).order_by(ApprovalStep.step_order.asc()).all()
-    if not steps:
-        current_app.logger.warning(f"审批模板没有配置审批步骤: {template_id} ({template.name})")
-        from flask import flash
-        flash(f"发起审批失败，审批模板 \"{template.name}\" 没有配置审批步骤", 'danger')
-        return None
-    
-    current_app.logger.info(f"审批模板 {template.name} (ID: {template_id}) 有 {len(steps)} 个步骤")
-    
-    # 检查必填字段
-    has_required_fields = hasattr(template, 'required_fields') and template.required_fields and len(template.required_fields) > 0
-    
-    if has_required_fields:
-        current_app.logger.info(f"审批模板 {template.name} 设置了以下必填字段: {template.required_fields}")
-        
-        # 根据业务对象类型获取对象
-        if object_type == 'project':
-            obj = Project.query.get(object_id)
-        elif object_type == 'quotation':
-            from app.models.quotation import Quotation
-            obj = Quotation.query.get(object_id)
-        elif object_type == 'customer':
-            from app.models.customer import Company
-            obj = Company.query.get(object_id)
-        else:
-            obj = None
-        
-        if not obj:
-            current_app.logger.warning(f"找不到业务对象: {object_type}:{object_id}")
-            return None
-        
-        # 检查每个必填字段
-        empty_fields = []
-        field_values = {}  # 记录字段值用于日志
-        
-        for field in template.required_fields:
-            if hasattr(obj, field):
-                field_value = getattr(obj, field)
-                # 记录字段值
-                if isinstance(field_value, (str, int, float, bool)) or field_value is None:
-                    field_values[field] = field_value
-                elif isinstance(field_value, list):
-                    field_values[field] = f"列表[长度={len(field_value)}]"
-                elif field_value:
-                    field_values[field] = f"对象类型: {type(field_value).__name__}"
-                else:
-                    field_values[field] = "空值"
-                
-                # 检查是否为空
-                if field_value is None or field_value == '' or (isinstance(field_value, list) and len(field_value) == 0):
-                    empty_fields.append(field)
-            else:
-                current_app.logger.warning(f"业务对象 {object_type} 没有字段 {field}")
-                field_values[field] = "字段不存在"
-                empty_fields.append(field)
-        
-                # 记录字段值日志
-        current_app.logger.info(f"业务对象 {object_type}:{object_id} 字段值: {field_values}")
-        
-        if empty_fields:
-            # 转换字段名为可读名称
-            readable_fields = []
-            for field in empty_fields:
-                readable_fields.append(_get_field_display_name(field))
-            
-            error_msg = f"发起审批失败: 以下字段必填但未填写: {', '.join(readable_fields)}"
-            current_app.logger.warning(error_msg)
-            from flask import flash
-            flash(error_msg, 'danger')
-            return None
     
     if user_id is None:
         user_id = current_user.id
     
     try:
-        # 获取模板和步骤信息用于创建快照
-        steps = ApprovalStep.query.filter_by(
-            process_id=template_id
-        ).order_by(ApprovalStep.step_order.asc()).all()
+        # 获取模板步骤
+        steps = ApprovalStep.query.filter_by(process_id=template_id).order_by(ApprovalStep.step_order).all()
+        if not steps:
+            current_app.logger.warning(f"审批模板没有配置步骤: {template_id}")
+            from flask import flash
+            flash("发起审批失败，审批模板未配置审批步骤", 'danger')
+            return None
         
-        # 创建模板快照
+        # 🔥 关键修复：创建模板快照，但不修改原模板
+        # 只在快照中进行动态调整，避免影响其他实例
         template_snapshot = {
             'template_id': template.id,
             'template_name': template.name,
             'object_type': template.object_type,
-            'required_fields': template.required_fields or [],
-            'lock_object_on_start': template.lock_object_on_start,
-            'lock_reason': template.lock_reason,
             'created_at': datetime.now().isoformat(),
             'steps': []
         }
         
-        # 保存步骤快照
+        # 复制所有步骤到快照中
         for step in steps:
             step_data = {
-                'id': step.id,
+                'step_id': step.id,
                 'step_order': step.step_order,
                 'step_name': step.step_name,
                 'approver_user_id': step.approver_user_id,
-                'approver_username': step.approver.username if step.approver else '',
-                'approver_real_name': step.approver.real_name if step.approver else '',
+                'approver_username': step.approver.username if step.approver else None,
+                'approver_real_name': step.approver.real_name if step.approver and step.approver.real_name else (step.approver.username if step.approver else None),
                 'send_email': step.send_email,
                 'action_type': step.action_type,
                 'action_params': step.action_params,
@@ -2438,6 +2702,46 @@ def start_approval_process(object_type, object_id, template_id, user_id=None):
                 'cc_enabled': step.cc_enabled
             }
             template_snapshot['steps'].append(step_data)
+        
+        # 🔥 关键修复：只在快照中进行动态调整，不修改数据库中的模板步骤
+        # 检查是否有授权编号动作的步骤或智能授权流程，动态调整审批人
+        if object_type == 'project':
+            project = Project.query.get(object_id)
+            if project:
+                approver = get_authorization_approver_by_project_type(project.project_type)
+                if approver:
+                    # 处理智能授权流程 - 只更新快照，不修改数据库
+                    if template.name == "智能授权审批流程":
+                        # 更新模板快照中的审批人信息（第一步）
+                        for step_data in template_snapshot['steps']:
+                            if step_data['step_order'] == 1:
+                                step_data['approver_user_id'] = approver.id
+                                step_data['approver_username'] = approver.username
+                                step_data['approver_real_name'] = approver.real_name or approver.username
+                                step_data['step_name'] = f"{approver.role.replace('_', '').title()}授权审批"
+                                current_app.logger.info(f"智能授权流程快照更新：项目类型 {project.project_type}，动态分配审批人：{approver.username} ({approver.role})")
+                                break
+                    
+                    # 处理任何模板中的授权编号动作步骤 - 只更新快照
+                    for step_data in template_snapshot['steps']:
+                        # 如果步骤的动作类型是授权编号，动态分配审批人
+                        if step_data.get('action_type') == 'authorization':
+                            # 更新模板快照中的审批人信息
+                            step_data['approver_user_id'] = approver.id
+                            step_data['approver_username'] = approver.username
+                            step_data['approver_real_name'] = approver.real_name or approver.username
+                            original_step_name = step_data['step_name']
+                            if '授权' not in original_step_name:
+                                step_data['step_name'] = f"{original_step_name} - {approver.role.replace('_', '').title()}授权"
+                            else:
+                                step_data['step_name'] = f"{approver.role.replace('_', '').title()}授权审批"
+                            
+                            current_app.logger.info(f"授权编号步骤快照更新：项目类型 {project.project_type}，步骤 {step_data['step_order']}，分配给：{approver.username} ({approver.role})")
+                else:
+                    current_app.logger.warning(f"无法为项目类型 {project.project_type} 找到合适的授权审批人")
+        
+        # 🔥 重要：不再提交模板步骤的更新，因为我们只修改快照
+        # db.session.commit()  # 删除这行，避免修改数据库中的模板
         
         # 创建审批实例
         instance = ApprovalInstance(

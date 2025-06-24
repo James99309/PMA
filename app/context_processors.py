@@ -6,6 +6,7 @@ from app.utils.access_control import (
 )
 from app.helpers.approval_helpers import (
     check_template_in_use,
+    check_template_has_instances,
     get_object_approval_instance,
     get_available_templates,
     can_user_approve,
@@ -53,6 +54,7 @@ def inject_approval_functions():
     """
     from app.helpers.approval_helpers import (
         check_template_in_use,
+        check_template_has_instances,
         get_object_approval_instance,
         get_available_templates,
         can_user_approve,
@@ -91,6 +93,7 @@ def inject_approval_functions():
     
     return {
         'check_template_in_use': check_template_in_use,
+        'check_template_has_instances': check_template_has_instances,
         'get_object_approval_instance': get_object_approval_instance,
         'get_available_templates': get_available_templates,
         'can_user_approve': can_user_approve,

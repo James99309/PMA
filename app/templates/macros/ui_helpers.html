@@ -293,6 +293,14 @@
   {% endif %}
 {% endmacro %}
 
+{% macro render_enable_disable_badge(is_enabled) %}
+  {% if is_enabled %}
+    <span class="badge bg-success">启用</span>
+  {% else %}
+    <span class="badge bg-danger">禁用</span>
+  {% endif %}
+{% endmacro %}
+
 {% macro render_company_code(code) %}
   {% if code %}
     <span class="badge rounded-pill" style="background-color: #5bc0de; color: white;">
