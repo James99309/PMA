@@ -685,7 +685,7 @@ def list_pricing_orders():
             # 营销总监：可以看到所有的销售重点和渠道跟进的业务的批价单
             query = query.join(Project).filter(
                 db.or_(
-                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow']),
+                    Project.project_type.in_(['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow']),
                     PricingOrder.created_by == current_user.id,
                     PricingOrder.approval_records.any(
                         PricingOrderApprovalRecord.approver_id == current_user.id
@@ -726,7 +726,7 @@ def list_pricing_orders():
             # 商务助理：可以看到所有的销售重点，渠道跟进的业务的批价单
             query = query.join(Project).filter(
                 db.or_(
-                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow']),
+                    Project.project_type.in_(['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow']),
                     PricingOrder.created_by == current_user.id,
                     PricingOrder.approval_records.any(
                         PricingOrderApprovalRecord.approver_id == current_user.id
@@ -737,7 +737,7 @@ def list_pricing_orders():
             # 财务总监：可以看到所有的销售重点，渠道跟进和销售机会的业务的批价单
             query = query.join(Project).filter(
                 db.or_(
-                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow', '销售机会', 'sales_opportunity']),
+                    Project.project_type.in_(['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow', '销售机会', 'sales_opportunity']),
                     PricingOrder.created_by == current_user.id,
                     PricingOrder.approval_records.any(
                         PricingOrderApprovalRecord.approver_id == current_user.id

@@ -846,9 +846,9 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
                     Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
                 )
             elif user_role == 'sales_director':
-                # 营销总监：销售重点、渠道跟进
+                # 营销总监：销售重点、渠道跟进 - 添加所有可能的项目类型值
                 query = query.filter(
-                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
+                    Project.project_type.in_(['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow'])
                 )
             elif user_role == 'channel_manager':
                 # 渠道经理：渠道跟进、销售机会（需要有经销商）、销售重点（需要有经销商）
@@ -948,9 +948,9 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
                     Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
                 )
             elif user_role == 'sales_director':
-                # 营销总监：销售重点、渠道跟进
+                # 营销总监：销售重点、渠道跟进 - 添加所有可能的项目类型值
                 query = query.filter(
-                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
+                    Project.project_type.in_(['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow'])
                 )
             elif user_role == 'channel_manager':
                 # 渠道经理：渠道跟进、销售重点、销售机会
@@ -991,9 +991,9 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
                     Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
                 )
             elif user_role == 'sales_director':
-                # 营销总监：销售重点、渠道跟进
+                # 营销总监：销售重点、渠道跟进 - 添加所有可能的项目类型值
                 project_subquery = project_subquery.filter(
-                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
+                    Project.project_type.in_(['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow'])
                 )
             elif user_role == 'channel_manager':
                 # 渠道经理：渠道跟进、销售重点、销售机会
@@ -1059,9 +1059,9 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
                     Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
                 )
             elif user_role == 'sales_director':
-                # 营销总监：销售重点、渠道跟进
+                # 营销总监：销售重点、渠道跟进 - 添加所有可能的项目类型值
                 po_query = po_query.filter(
-                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
+                    Project.project_type.in_(['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow'])
                 )
             elif user_role == 'channel_manager':
                 # 渠道经理：渠道跟进、销售机会（需要有经销商）、销售重点（需要有经销商）
@@ -3715,9 +3715,9 @@ def get_user_pricing_order_approvals(user_id, status=None, page=1, per_page=20):
                 Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
             )
         elif user_role == 'sales_director':
-            # 营销总监：销售重点、渠道跟进
+            # 营销总监：销售重点、渠道跟进 - 添加所有可能的项目类型值
             query = query.filter(
-                Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
+                Project.project_type.in_(['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow'])
             )
         elif user_role == 'channel_manager':
             # 渠道经理：渠道跟进、销售机会（需要有经销商）、销售重点（需要有经销商）

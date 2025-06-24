@@ -1144,7 +1144,7 @@ class PricingOrderService:
         
         # 营销总监：可以看到所有的销售重点和渠道跟进的业务
         if user_role == 'sales_director':
-            return project_type in ['销售重点', 'sales_key', '渠道跟进', 'channel_follow']
+            return project_type in ['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow']
         
         # 渠道经理：只能看到渠道跟进和销售机会的批价单，不能看到销售重点
         if user_role == 'channel_manager':
@@ -1159,11 +1159,11 @@ class PricingOrderService:
         
         # 商务助理：可以看到所有的销售重点，渠道跟进的业务
         if user_role == 'business_admin':
-            return project_type in ['销售重点', 'sales_key', '渠道跟进', 'channel_follow']
+            return project_type in ['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow']
         
         # 财务总监：可以看到所有的销售重点，渠道跟进和销售机会的业务
         if user_role == 'finance_director':
-            return project_type in ['销售重点', 'sales_key', '渠道跟进', 'channel_follow', '销售机会', 'sales_opportunity']
+            return project_type in ['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow', '销售机会', 'sales_opportunity']
         
         return False
 
