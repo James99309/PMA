@@ -18,13 +18,18 @@
 
 {% macro render_owner(owner) %}
   {% if owner %}
-    {% set display_name = owner.real_name if owner.real_name else owner.username %}
-    {% if owner.is_vendor_user() %}
-      {# 厂商账户使用胶囊造型徽章 #}
-      <span class="badge bg-primary rounded-pill">{{ display_name }}</span>
+    {# 安全检查：确保owner是用户对象而不是字符串 #}
+    {% if owner.__class__.__name__ == 'str' %}
+      <span class="badge bg-secondary">{{ owner }}</span>
     {% else %}
-      {# 非厂商账户使用默认造型徽章 #}
-      <span class="badge bg-secondary">{{ display_name }}</span>
+      {% set display_name = owner.real_name if owner.real_name else owner.username %}
+      {% if owner.is_vendor_user() %}
+        {# 厂商账户使用胶囊造型徽章 #}
+        <span class="badge bg-primary rounded-pill">{{ display_name }}</span>
+      {% else %}
+        {# 非厂商账户使用默认造型徽章 #}
+        <span class="badge bg-secondary">{{ display_name }}</span>
+      {% endif %}
     {% endif %}
   {% else %}
     <span class="badge bg-secondary">未知</span>

@@ -131,6 +131,11 @@ def create_app(config_class=Config):
             logger.debug(f'CSRF exempt Approval API path: {request.path}, Method: {request.method}')
             return True
             
+        # 审批操作路径豁免（包括审批通过/拒绝操作）
+        if request.path.startswith('/approval/approve/') or request.path.startswith('/approval/process/'):
+            logger.debug(f'CSRF exempt Approval Action path: {request.path}, Method: {request.method}')
+            return True
+            
         # 审批配置模块API路径豁免
         if request.path.startswith('/admin/approval/field-options/'):
             logger.debug(f'CSRF exempt Approval Config API path: {request.path}, Method: {request.method}')

@@ -15,7 +15,7 @@ except ImportError:
 import logging
 from flask_login import current_user
 from app import db
-from app.models.user import Affiliation
+from app.models.user import Affiliation, User
 from app.models.project import Project
 from app.models.customer import Company, Contact
 from app.models.quotation import Quotation
@@ -128,32 +128,6 @@ def get_viewable_data(model_class, user, special_filters=None):
         # 统一处理角色字符串，去除空格
         user_role = user.role.strip() if user.role else ''
         
-        # 厂商用户特殊处理：可以查看与经销商公司相关的项目
-        # 但销售经理角色不应该通过厂商身份获得过度权限
-        if user.is_vendor_user() and user_role not in ['sales', 'sales_manager']:
-            # 获取所有经销商公司的名称
-            from app.models.customer import Company
-            dealer_companies = Company.query.filter(
-                Company.company_type.in_(['经销商', 'dealer'])
-            ).all()
-            dealer_company_names = [c.company_name for c in dealer_companies]
-            
-            # 厂商用户可以查看：
-            # 1. 自己的项目
-            # 2. 自己作为厂商销售负责人的项目
-            # 3. 经销商相关的项目（经销商、最终用户、承建商、系统集成商字段包含经销商公司名称的项目）
-            return model_class.query.filter(
-                db.or_(
-                    model_class.owner_id == user.id,
-                    model_class.vendor_sales_manager_id == user.id,
-                    model_class.dealer.in_(dealer_company_names),
-                    model_class.end_user.in_(dealer_company_names),
-                    model_class.contractor.in_(dealer_company_names),
-                    model_class.system_integrator.in_(dealer_company_names)
-                ),
-                *special_filters
-            )
-        
         # 财务总监、解决方案经理、产品经理可以查看所有项目（只读权限）
         if user_role in ['finance_director', 'finace_director', 'solution_manager', 'product_manager', 'product']:
             return model_class.query.filter(*special_filters if special_filters else [])
@@ -185,6 +159,30 @@ def get_viewable_data(model_class, user, special_filters=None):
                 *special_filters
             )
             
+        # 客户销售角色：只能查看本部门用户创建的项目（服务部专用）
+        if user_role == 'customer_sales':
+            # 只能查看同部门用户创建的项目
+            viewable_user_ids = [user.id]  # 自己的项目
+            
+            # 添加同部门用户
+            if user.department and user.company_name:
+                dept_users = User.query.filter(
+                    User.department == user.department,
+                    User.company_name == user.company_name
+                ).all()
+                viewable_user_ids.extend([u.id for u in dept_users])
+            
+            # 去重
+            viewable_user_ids = list(set(viewable_user_ids))
+            
+            return model_class.query.filter(
+                db.or_(
+                    model_class.owner_id.in_(viewable_user_ids),
+                    model_class.vendor_sales_manager_id.in_(viewable_user_ids)  # 作为厂商销售负责人的项目
+                ),
+                *special_filters
+            )
+            
         # 服务经理：可以查看所有业务机会项目 + 自己的项目 + 自己作为销售负责人的项目
         if user_role in ['service', 'service_manager']:
             return model_class.query.filter(
@@ -196,13 +194,57 @@ def get_viewable_data(model_class, user, special_filters=None):
                 *special_filters
             )
             
-        # 商务助理：可以查看所有销售重点、渠道跟进项目 + 自己的项目 + 自己作为销售负责人的项目
+        # 商务助理：可以查看同部门用户的项目 + 归属关系授权的项目
         if user_role == 'business_admin':
+            viewable_user_ids = [user.id]  # 自己的项目
+            
+            # 1. 添加同部门用户
+            if user.department and user.company_name:
+                dept_users = User.query.filter(
+                    User.department == user.department,
+                    User.company_name == user.company_name
+                ).all()
+                viewable_user_ids.extend([u.id for u in dept_users])
+            
+            # 2. 添加归属关系授权的用户
+            affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+            for affiliation in affiliations:
+                viewable_user_ids.append(affiliation.owner_id)
+            
+            # 去重
+            viewable_user_ids = list(set(viewable_user_ids))
+            
+            # 查看这些用户拥有的项目或担任厂商销售的项目
+            return model_class.query.filter(
+                db.or_(
+                    model_class.owner_id.in_(viewable_user_ids),
+                    model_class.vendor_sales_manager_id.in_(viewable_user_ids)
+                ),
+                *special_filters if special_filters else []
+            )
+        
+        # 厂商用户特殊处理：可以查看与经销商公司相关的项目
+        # 但销售经理角色不应该通过厂商身份获得过度权限，商务助理等特定角色优先于厂商权限
+        if user.is_vendor_user() and user_role not in ['sales', 'sales_manager', 'business_admin', 'channel_manager', 'sales_director', 'service', 'service_manager']:
+            # 获取所有经销商公司的名称
+            from app.models.customer import Company
+            dealer_companies = Company.query.filter(
+                Company.company_type.in_(['经销商', 'dealer'])
+            ).all()
+            dealer_company_names = [c.company_name for c in dealer_companies]
+            
+            # 厂商用户可以查看：
+            # 1. 自己的项目
+            # 2. 自己作为厂商销售负责人的项目
+            # 3. 经销商相关的项目（经销商、最终用户、承建商、系统集成商字段包含经销商公司名称的项目）
             return model_class.query.filter(
                 db.or_(
                     model_class.owner_id == user.id,
-                    model_class.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow']),
-                    model_class.vendor_sales_manager_id == user.id
+                    model_class.vendor_sales_manager_id == user.id,
+                    model_class.dealer.in_(dealer_company_names),
+                    model_class.end_user.in_(dealer_company_names),
+                    model_class.contractor.in_(dealer_company_names),
+                    model_class.system_integrator.in_(dealer_company_names)
                 ),
                 *special_filters
             )
@@ -301,14 +343,37 @@ def get_viewable_data(model_class, user, special_filters=None):
                 business_quotations = model_class.query.filter(model_class.project_id.in_(business_opportunity_project_ids)).with_entities(model_class.id).all()
                 accessible_quotation_ids.update([q.id for q in business_quotations])
         
-        # 商务助理特殊处理：可以查看所有销售重点、渠道跟进项目的报价单
+        # 商务助理特殊处理：可以查看同部门用户和归属关系授权用户的项目报价单
         elif user_role == 'business_admin':
-            business_admin_projects = Project.query.filter(
-                Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
+            viewable_user_ids = [user.id]  # 自己的项目
+            
+            # 1. 添加同部门用户
+            if user.department and user.company_name:
+                dept_users = User.query.filter(
+                    User.department == user.department,
+                    User.company_name == user.company_name
+                ).all()
+                viewable_user_ids.extend([u.id for u in dept_users])
+            
+            # 2. 添加归属关系授权的用户
+            affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+            for affiliation in affiliations:
+                viewable_user_ids.append(affiliation.owner_id)
+            
+            # 去重
+            viewable_user_ids = list(set(viewable_user_ids))
+            
+            # 获取这些用户拥有的或担任厂商销售的项目
+            authorized_projects = Project.query.filter(
+                db.or_(
+                    Project.owner_id.in_(viewable_user_ids),
+                    Project.vendor_sales_manager_id.in_(viewable_user_ids)
+                )
             ).with_entities(Project.id).all()
-            if business_admin_projects:
-                business_admin_project_ids = [p.id for p in business_admin_projects]
-                business_admin_quotations = model_class.query.filter(model_class.project_id.in_(business_admin_project_ids)).with_entities(model_class.id).all()
+            
+            if authorized_projects:
+                authorized_project_ids = [p.id for p in authorized_projects]
+                business_admin_quotations = model_class.query.filter(model_class.project_id.in_(authorized_project_ids)).with_entities(model_class.id).all()
                 accessible_quotation_ids.update([q.id for q in business_admin_quotations])
         
         # 返回基于ID列表的查询
@@ -353,7 +418,53 @@ def get_viewable_data(model_class, user, special_filters=None):
                     *special_filters
                 )
         
-        # 厂商用户特殊处理：可以查看所有经销商类型的公司（优先处理）
+        # 商务助理：可以查看同部门用户和归属关系授权用户的客户信息（优先处理）
+        if user_role == 'business_admin':
+            viewable_user_ids = [user.id]  # 自己的客户
+            
+            # 1. 添加同部门用户
+            if user.department and user.company_name:
+                dept_users = User.query.filter(
+                    User.department == user.department,
+                    User.company_name == user.company_name
+                ).all()
+                viewable_user_ids.extend([u.id for u in dept_users])
+            
+            # 2. 添加归属关系授权的用户
+            affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+            for affiliation in affiliations:
+                viewable_user_ids.append(affiliation.owner_id)
+            
+            # 去重
+            viewable_user_ids = list(set(viewable_user_ids))
+            
+            return model_class.query.filter(
+                model_class.owner_id.in_(viewable_user_ids),
+                *special_filters
+            )
+            
+        # 客户销售角色：只能查看本部门用户创建的客户信息（服务部专用）- 优先处理避免被厂商权限覆盖
+        if user_role == 'customer_sales':
+            # 只能查看同部门用户创建的客户信息
+            viewable_user_ids = [user.id]  # 自己的客户
+            
+            # 添加同部门用户
+            if user.department and user.company_name:
+                dept_users = User.query.filter(
+                    User.department == user.department,
+                    User.company_name == user.company_name
+                ).all()
+                viewable_user_ids.extend([u.id for u in dept_users])
+            
+            # 去重
+            viewable_user_ids = list(set(viewable_user_ids))
+            
+            return model_class.query.filter(
+                model_class.owner_id.in_(viewable_user_ids),
+                *special_filters
+            )
+        
+        # 厂商用户特殊处理：可以查看所有经销商类型的公司（但商务助理权限优先）
         if user.is_vendor_user():
             if model_class.__name__ == 'Company':
                 # 厂商用户可以查看自己的客户 + 所有经销商类型的公司
@@ -395,13 +506,7 @@ def get_viewable_data(model_class, user, special_filters=None):
                 model_class.owner_id == user.id,
                 *special_filters
             )
-            
-        # 商务助理不能看到不属于她的客户信息
-        if user_role == 'business_admin':
-            return model_class.query.filter(
-                model_class.owner_id == user.id,
-                *special_filters
-            )
+
         # 服务经理只能查看自己的客户信息和授权的客户信息
         if user_role in ['service', 'service_manager']:
             # 获取通过归属关系可以查看的数据
@@ -637,6 +742,23 @@ def can_view_company(user, company):
         return True
     if user.id == company.owner_id:
         return True
+    
+    # 商务助理：可以查看同部门用户和归属关系授权用户的客户
+    user_role = user.role.strip() if user.role else ''
+    if user_role == 'business_admin':
+        # 检查是否是同部门用户的客户
+        if user.department and user.company_name:
+            company_owner = User.query.get(company.owner_id)
+            if (company_owner and 
+                company_owner.department == user.department and 
+                company_owner.company_name == user.company_name):
+                return True
+        
+        # 检查是否是归属关系授权的用户的客户
+        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+        if company.owner_id in [aff.owner_id for aff in affiliations]:
+            return True
+    
     # 判断是否通过共享获得权限
     if hasattr(company, 'shared_with_users') and company.shared_with_users:
         if user.id in company.shared_with_users:
@@ -684,24 +806,58 @@ def can_edit_company_info(user, company):
         return True
     if user.id == company.owner_id:
         return True
+    
+    # 商务助理：可以编辑同部门用户和归属关系授权用户的客户信息
+    user_role = user.role.strip() if user.role else ''
+    if user_role == 'business_admin':
+        # 检查是否是同部门用户的客户
+        if user.department and user.company_name:
+            company_owner = User.query.get(company.owner_id)
+            if (company_owner and 
+                company_owner.department == user.department and 
+                company_owner.company_name == user.company_name):
+                return True
+        
+        # 检查是否是归属关系授权的用户的客户
+        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+        if company.owner_id in [aff.owner_id for aff in affiliations]:
+            return True
+    
     return False
 
 def can_edit_company_sharing(user, company):
     """
     判断是否可以编辑客户共享设置
-    只允许：
+    允许：
     - 管理员
     - 拥有者
     - 通过Affiliation归属关系（viewer_id为当前用户，owner_id为客户owner）
+    - 商务助理：可以编辑同部门用户和归属关系授权用户的客户归属
     """
     if user.role == 'admin':
         return True
     if user.id == company.owner_id:
         return True
+    
     from app.models.user import Affiliation
     affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
     if company.owner_id in [aff.owner_id for aff in affiliations]:
         return True
+    
+    # 商务助理：可以编辑同部门用户和归属关系授权用户的客户归属
+    user_role = user.role.strip() if user.role else ''
+    if user_role == 'business_admin':
+        # 检查是否是同部门用户的客户
+        if user.department and user.company_name:
+            company_owner = User.query.get(company.owner_id)
+            if (company_owner and 
+                company_owner.department == user.department and 
+                company_owner.company_name == user.company_name):
+                return True
+        
+        # 归属关系授权的用户的客户（已在上面检查）
+        # 这里不需要重复检查
+    
     return False
 
 def can_delete_company(user, company):
@@ -718,6 +874,23 @@ def can_view_contact(user, contact):
         return True
     if user.id == contact.owner_id:
         return True
+    
+    # 商务助理：可以查看同部门用户和归属关系授权用户的联系人
+    user_role = user.role.strip() if user.role else ''
+    if user_role == 'business_admin':
+        # 检查是否是同部门用户的联系人
+        if user.department and user.company_name:
+            contact_owner = User.query.get(contact.owner_id)
+            if (contact_owner and 
+                contact_owner.department == user.department and 
+                contact_owner.company_name == user.company_name):
+                return True
+        
+        # 检查是否是归属关系授权的用户的联系人
+        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+        if contact.owner_id in [aff.owner_id for aff in affiliations]:
+            return True
+    
     # 判断是否有指定的联系人归属
     if hasattr(contact, 'assigned_to') and contact.assigned_to == user.id:
         return True
@@ -746,6 +919,28 @@ def can_edit_contact(user, contact):
     """
     检查用户是否有权限编辑指定的联系人
     """
+    if user.role == 'admin':
+        return True
+    if user.id == contact.owner_id:
+        return True
+    
+    # 商务助理：可以编辑同部门用户和归属关系授权用户的联系人
+    user_role = user.role.strip() if user.role else ''
+    if user_role == 'business_admin':
+        # 检查是否是同部门用户的联系人
+        if user.department and user.company_name:
+            contact_owner = User.query.get(contact.owner_id)
+            if (contact_owner and 
+                contact_owner.department == user.department and 
+                contact_owner.company_name == user.company_name):
+                return True
+        
+        # 检查是否是归属关系授权的用户的联系人
+        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+        if contact.owner_id in [aff.owner_id for aff in affiliations]:
+            return True
+    
+    # 其他情况使用查看权限逻辑
     return can_view_contact(user, contact)
 
 def can_delete_contact(user, contact):
@@ -783,6 +978,13 @@ def can_view_project(user, project):
     # 财务总监、解决方案经理、产品经理可以查看所有项目
     if user_role in ['finance_director', 'finace_director', 'solution_manager', 'solution', 'product_manager', 'product']:
         return True
+    
+    # 商务助理：可以查看销售重点、渠道跟进类型的项目
+    if user_role == 'business_admin':
+        # 检查是否为允许的项目类型
+        allowed_project_types = ['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow']
+        if project.project_type in allowed_project_types:
+            return True
     
     from app.models.user import Affiliation
     affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]

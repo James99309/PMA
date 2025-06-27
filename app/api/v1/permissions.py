@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # 权限管理相关路由
 @api_v1_bp.route('/users/<int:user_id>/permissions', methods=['GET'])
-@jwt_required_with_permission('permission', 'view')
+@jwt_required_with_permission('permission_management', 'view')
 def get_user_permissions(user_id):
     """
     获取用户权限（优先查个人权限，无则查角色模板）
@@ -52,7 +52,7 @@ def get_user_permissions(user_id):
     )
 
 @api_v1_bp.route('/users/<int:user_id>/permissions', methods=['PUT'])
-@jwt_required_with_permission('permission', 'edit')
+@jwt_required_with_permission('permission_management', 'edit')
 def update_user_permissions(user_id):
     """
     更新用户权限
@@ -368,8 +368,9 @@ def update_role_permissions():
         
         # 导入需要的模块和函数
         try:
-            from app.permissions import ROLE_PERMISSIONS
             from app.models.user import User, Permission
+            from app.models.role_permissions import RolePermission
+            from app.models.dictionary import Dictionary
             from app import db
         except ImportError as imp_err:
             logger.error(f"导入所需模块失败: {str(imp_err)}")
@@ -379,8 +380,9 @@ def update_role_permissions():
                 message="服务器配置错误"
             )
         
-        # 检查角色是否存在
-        if role not in ROLE_PERMISSIONS:
+        # 检查角色是否存在于字典中
+        role_dict = Dictionary.query.filter_by(type='role', key=role).first()
+        if not role_dict:
             logger.error(f"角色不存在: {role}")
             return api_response(
                 success=False,
@@ -388,81 +390,41 @@ def update_role_permissions():
                 message=f"角色'{role}'不存在"
             )
         
-        # 查找具有该角色的所有用户
+        # 更新角色权限模板（role_permissions表）
         try:
-            users = User.query.filter_by(role=role).all()
-            logger.info(f"找到 {len(users)} 个用户需要更新权限")
-        except Exception as db_err:
-            logger.error(f"查询用户数据库失败: {str(db_err)}")
-            return api_response(
-                success=False,
-                code=500,
-                message="数据库查询错误"
-            )
-        
-        # 如果没有用户，直接返回成功
-        if not users:
-            logger.info(f"没有找到角色为 '{role}' 的用户，无需更新")
-            return api_response(
-                success=True,
-                message=f"角色'{role}'没有关联用户，无需更新权限"
-            )
-        
-        # 更新每个用户的权限
-        updated_count = 0
-        error_count = 0
-        
-        # 使用事务包装所有更新操作
-        try:
-            for user in users:
-                try:
-                    # 删除该用户的所有现有权限
-                    Permission.query.filter_by(user_id=user.id).delete()
-                    
-                    # 添加新的权限
-                    for perm in permissions:
-                        # 确保perm是字典且包含module字段
-                        if not isinstance(perm, dict) or 'module' not in perm:
-                            continue
-                        
-                        module = perm.get('module')
-                        if not module:
-                            continue
-                        
-                        # 创建新的权限记录
-                        permission = Permission(
-                            user_id=user.id,
-                            module=module,
-                            can_view=bool(perm.get('can_view', False)),
-                            can_create=bool(perm.get('can_create', False)),
-                            can_edit=bool(perm.get('can_edit', False)),
-                            can_delete=bool(perm.get('can_delete', False))
-                        )
-                        db.session.add(permission)
-                    
-                    updated_count += 1
-                    logger.info(f"已更新用户 {user.username} (ID: {user.id}) 的权限")
-                except Exception as user_err:
-                    error_count += 1
-                    logger.error(f"更新用户 {user.username} (ID: {user.id}) 权限时出错: {str(user_err)}")
+            # 删除该角色的所有现有权限模板
+            RolePermission.query.filter_by(role=role).delete()
+            
+            # 添加新的权限模板
+            for perm in permissions:
+                # 确保perm是字典且包含module字段
+                if not isinstance(perm, dict) or 'module' not in perm:
+                    continue
+                
+                module = perm.get('module')
+                if not module:
+                    continue
+                
+                # 创建新的角色权限记录
+                role_permission = RolePermission(
+                    role=role,
+                    module=module,
+                    can_view=bool(perm.get('can_view', False)),
+                    can_create=bool(perm.get('can_create', False)),
+                    can_edit=bool(perm.get('can_edit', False)),
+                    can_delete=bool(perm.get('can_delete', False)),
+                    pricing_discount_limit=perm.get('pricing_discount_limit'),
+                    settlement_discount_limit=perm.get('settlement_discount_limit')
+                )
+                db.session.add(role_permission)
             
             # 提交所有更改
             db.session.commit()
-            logger.info(f"已成功提交 {updated_count} 个用户的权限更新")
-            
-            # 清除缓存
-            try:
-                # 简化缓存清除逻辑
-                from flask import session
-                if 'permissions' in session:
-                    del session['permissions']
-                logger.info("已清除会话中的权限缓存")
-            except Exception as cache_err:
-                logger.warning(f"清除权限缓存时出错: {str(cache_err)}")
+            logger.info(f"已成功更新角色 {role} 的权限模板")
             
             return api_response(
                 success=True,
-                message=f"角色权限更新成功，已更新 {updated_count} 个用户的权限"
+                message=f"角色'{role}'权限模板更新成功"
             )
             
         except Exception as tx_err:

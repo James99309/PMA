@@ -491,9 +491,18 @@ def get_user_department_approvals(user_id=None, object_type=None, status=None, p
                 return []
         return EmptyPagination()
     
-    # 商务助理：查看同公司所有用户发起的审批
-    department_users = User.query.filter_by(company_name=query_user.company_name).all()
+    # 商务助理：查看部门内所有用户发起的审批
+    # 如果有部门信息，按部门查询；否则按公司查询
+    if query_user.department:
+        department_users = User.query.filter_by(department=query_user.department).all()
+    elif query_user.company_name:
+        department_users = User.query.filter_by(company_name=query_user.company_name).all()
+    else:
+        # 如果既没有部门也没有公司信息，只能查看自己的
+        department_users = [query_user]
+    
     user_ids_to_query = [u.id for u in department_users]
+    current_app.logger.info(f"商务助理 {query_user.username} 可查看 {len(user_ids_to_query)} 个用户的审批 (部门: {query_user.department}, 公司: {query_user.company_name})")
     
     # 如果专门查询批价单，使用批价单的独立审批系统
     if object_type == 'pricing_order':
@@ -862,9 +871,9 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
                     )
                 )
             elif user_role in ['service', 'service_manager']:
-                # 服务经理：销售机会
+                # 服务经理：商务机会
                 query = query.filter(
-                    Project.project_type.in_(['销售机会', 'sales_opportunity'])
+                    Project.project_type.in_(['商务机会', 'business_opportunity'])
                 )
             elif user_role == 'finance_director':
                 # 财务总监：所有类型
@@ -920,16 +929,36 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
         return pricing_orders
     
     # 通用审批系统查询：找出当前用户是审批人且处于当前审批步骤的所有实例
-    query = ApprovalInstance.query.options(db.joinedload(ApprovalInstance.process)).join(
-        ApprovalStep, 
-        and_(
-            ApprovalStep.process_id == ApprovalInstance.process_id,
-            ApprovalStep.step_order == ApprovalInstance.current_step
-        )
-    ).filter(
-        ApprovalStep.approver_user_id == user_id,
+    # 需要考虑模板快照和当前模板两种情况
+    
+    # 先获取所有待审批的实例
+    base_instances = ApprovalInstance.query.filter(
         ApprovalInstance.status == ApprovalStatus.PENDING
-    )
+    ).all()
+    
+    # 筛选出当前用户是当前步骤审批人的实例
+    valid_instance_ids = []
+    for instance in base_instances:
+        current_step_info = instance.get_current_step_info()
+        if current_step_info:
+            # 处理快照数据（字典）
+            if isinstance(current_step_info, dict):
+                current_approver_id = current_step_info.get('approver_user_id')
+            # 处理模板步骤对象
+            else:
+                current_approver_id = current_step_info.approver_user_id
+            
+            if current_approver_id == user_id:
+                valid_instance_ids.append(instance.id)
+    
+    # 基于筛选出的实例ID构建查询
+    if valid_instance_ids:
+        query = ApprovalInstance.query.options(db.joinedload(ApprovalInstance.process)).filter(
+            ApprovalInstance.id.in_(valid_instance_ids)
+        )
+    else:
+        # 如果没有有效实例，返回空查询
+        query = ApprovalInstance.query.filter(ApprovalInstance.id.in_([]))
     
     # 根据业务对象类型添加JOIN条件，确保业务对象存在
     if object_type == 'project':
@@ -958,9 +987,9 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
                     Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow', '销售机会', 'sales_opportunity'])
                 )
             elif user_role in ['service', 'service_manager']:
-                # 服务经理：销售机会
+                # 服务经理：商务机会
                 query = query.filter(
-                    Project.project_type.in_(['销售机会', 'sales_opportunity'])
+                    Project.project_type.in_(['商务机会', 'business_opportunity'])
                 )
             elif user_role == 'finance_director':
                 # 财务总监：所有类型
@@ -1001,9 +1030,9 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
                     Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow', '销售机会', 'sales_opportunity'])
                 )
             elif user_role in ['service', 'service_manager']:
-                # 服务经理：销售机会
+                # 服务经理：商务机会
                 project_subquery = project_subquery.filter(
-                    Project.project_type.in_(['销售机会', 'sales_opportunity'])
+                    Project.project_type.in_(['商务机会', 'business_opportunity'])
                 )
             elif user_role == 'finance_director':
                 # 财务总监：所有类型
@@ -1075,9 +1104,9 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
                     )
                 )
             elif user_role in ['service', 'service_manager']:
-                # 服务经理：销售机会
+                # 服务经理：商务机会
                 po_query = po_query.filter(
-                    Project.project_type.in_(['销售机会', 'sales_opportunity'])
+                    Project.project_type.in_(['商务机会', 'business_opportunity'])
                 )
             elif user_role == 'finance_director':
                 # 财务总监：所有类型
@@ -1709,16 +1738,28 @@ def get_current_step_info(instance):
     if not instance or instance.status != ApprovalStatus.PENDING:
         return None
     
-    # 🔥 关键修复：优先使用模板快照中的步骤信息
-    if instance.template_snapshot and 'steps' in instance.template_snapshot:
-        # 从模板快照中获取当前步骤信息
-        steps_data = instance.template_snapshot['steps']
-        current_step_data = None
+    # 🔥 关键修复：优先使用模板快照中的步骤信息，并处理类型问题
+    if instance.template_snapshot:
+        # 处理template_snapshot可能是字符串的情况
+        snapshot_data = instance.template_snapshot
+        if isinstance(snapshot_data, str):
+            try:
+                import json
+                snapshot_data = json.loads(snapshot_data)
+                current_app.logger.warning(f"审批实例 {instance.id} 的template_snapshot是字符串，已转换为字典")
+            except (json.JSONDecodeError, TypeError) as e:
+                current_app.logger.error(f"审批实例 {instance.id} 的template_snapshot字符串解析失败: {e}")
+                snapshot_data = None
         
-        for step_data in steps_data:
-            if step_data.get('step_order') == instance.current_step:
-                current_step_data = step_data
-                break
+        if snapshot_data and isinstance(snapshot_data, dict) and 'steps' in snapshot_data:
+            # 从模板快照中获取当前步骤信息
+            steps_data = snapshot_data['steps']
+            current_step_data = None
+            
+            for step_data in steps_data:
+                if step_data.get('step_order') == instance.current_step:
+                    current_step_data = step_data
+                    break
         
         if current_step_data:
             # 创建虚拟步骤对象，包含快照中的正确信息
@@ -2916,10 +2957,18 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
             current_app.logger.error(f"无效的审批动作: {action}")
             return False
     
-    # 记录审批结果
+    # 记录审批结果 - 处理模板快照的step_id类型问题
+    # 对于模板快照，current_step.id可能是字符串，需要特殊处理
+    step_id_value = current_step.id
+    if isinstance(step_id_value, str) and step_id_value.startswith('snapshot_step_'):
+        # 模板快照情况：使用None作为step_id，因为step_id字段是整数外键
+        # 我们将在未来版本中考虑为快照记录添加专门的字段
+        step_id_value = None
+        current_app.logger.info(f"模板快照审批记录 - 实例 {instance_id}，步骤ID: {current_step.id}，使用NULL作为step_id")
+    
     record = ApprovalRecord(
         instance_id=instance_id,
-        step_id=current_step.id,
+        step_id=step_id_value,
         approver_id=user_id,
         action=action.value,
         comment=comment,
@@ -3084,10 +3133,18 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
             current_app.logger.error(f"无效的审批动作: {action}")
             return False
     
-    # 记录审批结果
+    # 记录审批结果 - 处理模板快照的step_id类型问题
+    # 对于模板快照，current_step.id可能是字符串，需要特殊处理
+    step_id_value = current_step.id
+    if isinstance(step_id_value, str) and step_id_value.startswith('snapshot_step_'):
+        # 模板快照情况：使用None作为step_id，因为step_id字段是整数外键
+        # 我们将在未来版本中考虑为快照记录添加专门的字段
+        step_id_value = None
+        current_app.logger.info(f"模板快照审批记录 - 实例 {instance_id}，步骤ID: {current_step.id}，使用NULL作为step_id")
+    
     record = ApprovalRecord(
         instance_id=instance_id,
-        step_id=current_step.id,
+        step_id=step_id_value,
         approver_id=user_id,
         action=action.value,
         comment=comment,
@@ -3310,16 +3367,27 @@ def get_pending_approval_count(user_id=None):
         user_id = current_user.id
     
     # 查询当前用户是审批人且处于当前审批步骤的所有实例数量（通用审批系统）
-    general_count = ApprovalInstance.query.join(
-        ApprovalStep, 
-        and_(
-            ApprovalStep.process_id == ApprovalInstance.process_id,
-            ApprovalStep.step_order == ApprovalInstance.current_step
-        )
-    ).filter(
-        ApprovalStep.approver_user_id == user_id,
+    # 需要考虑模板快照和当前模板两种情况
+    
+    # 先获取所有待审批的实例
+    base_instances = ApprovalInstance.query.filter(
         ApprovalInstance.status == ApprovalStatus.PENDING
-    ).count()
+    ).all()
+    
+    # 筛选出当前用户是当前步骤审批人的实例
+    general_count = 0
+    for instance in base_instances:
+        current_step_info = instance.get_current_step_info()
+        if current_step_info:
+            # 处理快照数据（字典）
+            if isinstance(current_step_info, dict):
+                current_approver_id = current_step_info.get('approver_user_id')
+            # 处理模板步骤对象
+            else:
+                current_approver_id = current_step_info.approver_user_id
+            
+            if current_approver_id == user_id:
+                general_count += 1
     
     # 查询批价单待审批数量
     pricing_order_count = 0
@@ -3731,9 +3799,9 @@ def get_user_pricing_order_approvals(user_id, status=None, page=1, per_page=20):
                 )
             )
         elif user_role in ['service', 'service_manager']:
-            # 服务经理：销售机会
+            # 服务经理：商务机会
             query = query.filter(
-                Project.project_type.in_(['销售机会', 'sales_opportunity'])
+                Project.project_type.in_(['商务机会', 'business_opportunity'])
             )
         elif user_role == 'finance_director':
             # 财务总监：所有类型

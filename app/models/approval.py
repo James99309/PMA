@@ -232,7 +232,7 @@ class ApprovalRecord(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     instance_id = db.Column(db.Integer, db.ForeignKey("approval_instance.id"), nullable=False, comment="审批流程实例")
-    step_id = db.Column(db.Integer, db.ForeignKey("approval_step.id"), nullable=False, comment="流程步骤ID")
+    step_id = db.Column(db.Integer, db.ForeignKey("approval_step.id"), nullable=True, comment="流程步骤ID（模板快照时可为NULL）")
     approver_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, comment="审批人ID")
     action = db.Column(db.String(50), nullable=False, comment="同意/拒绝")
     comment = db.Column(db.Text, comment="审批意见")

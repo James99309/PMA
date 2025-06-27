@@ -245,7 +245,7 @@ def target_settings():
         # 3. 个人用户只能查看自己的，不能编辑
         can_edit_targets = (
             current_user.role == 'admin' or 
-            (current_user.has_permission('user', 'edit') and selected_user_id in [u.id for u in accessible_users])
+            (current_user.has_permission('user_management', 'edit') and selected_user_id in [u.id for u in accessible_users])
         )
         
         selected_user = User.query.get(selected_user_id)
@@ -299,7 +299,7 @@ def save_target():
         
         can_edit = (
             current_user.role == 'admin' or 
-            (current_user.has_permission('user', 'edit') and user_id in accessible_user_ids)
+            (current_user.has_permission('user_management', 'edit') and user_id in accessible_user_ids)
         )
         
         if not can_edit:

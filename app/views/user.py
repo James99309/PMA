@@ -30,7 +30,7 @@ def get_auth_headers():
 
 @user_bp.route('/list')
 @login_required
-@permission_required('user', 'view')
+@permission_required('user_management', 'view')
 def list_users():
     """用户列表页面（显示所有用户，支持搜索、角色、状态过滤）"""
     search = request.args.get('search', '')
@@ -108,7 +108,7 @@ def list_users():
 
 @user_bp.route('/create', methods=['GET', 'POST'])
 @login_required
-@permission_required('user', 'create')
+@permission_required('user_management', 'create')
 def create_user():
     """创建新用户页面和处理"""
     if request.method == 'GET':
@@ -176,7 +176,7 @@ def create_user():
 
 @user_bp.route('/edit/<int:user_id>', methods=['GET', 'POST'])
 @login_required
-@permission_required('user', 'edit')
+@permission_required('user_management', 'edit')
 def edit_user(user_id):
     """编辑用户页面和处理"""
     # GET请求 - 显示编辑表单
@@ -300,7 +300,7 @@ def edit_user(user_id):
 
 @user_bp.route('/delete/<int:user_id>', methods=['POST'])
 @login_required
-@permission_required('user', 'delete')
+@permission_required('user_management', 'delete')
 def delete_user(user_id):
     """删除用户"""
     # 归属过滤，确保只能删除有权限的用户
@@ -571,7 +571,7 @@ def check_duplicates():
 @login_required
 def import_users():
     """批量导入用户"""
-    if not current_user.has_permission('user', 'create'):
+    if not current_user.has_permission('user_management', 'create'):
         flash('您没有批量导入用户的权限', 'danger')
         return redirect(url_for('user.list_users'))
         
@@ -709,7 +709,7 @@ def import_users():
 @login_required
 def manage_role_permissions():
     """角色权限设置页面（只操作role_permissions表）"""
-    if not current_user.has_permission('permission', 'view'):
+    if not current_user.has_permission('permission_management', 'view'):
         flash('您没有权限访问此页面', 'danger')
         return redirect(url_for('main.index'))
     if request.method == 'POST':
@@ -770,7 +770,7 @@ def manage_role_permissions():
 @login_required
 def manage_roles():
     """角色字典管理页面（管理dictionaries表中type=role的记录）"""
-    if not current_user.has_permission('permission', 'view'):
+    if not current_user.has_permission('dictionary_management', 'view'):
         flash('您没有权限访问此页面', 'danger')
         return redirect(url_for('main.index'))
     
@@ -789,7 +789,7 @@ def manage_roles():
 @login_required
 def manage_companies():
     """企业字典管理页面（管理dictionaries表中type=company的记录）"""
-    if not current_user.has_permission('permission', 'view'):
+    if not current_user.has_permission('dictionary_management', 'view'):
         flash('您没有权限访问此页面', 'danger')
         return redirect(url_for('main.index'))
     
@@ -808,7 +808,7 @@ def manage_companies():
 @login_required
 def manage_departments():
     """部门字典管理页面（管理dictionaries表中type=department的记录）"""
-    if not current_user.has_permission('permission', 'view'):
+    if not current_user.has_permission('dictionary_management', 'view'):
         flash('您没有权限访问此页面', 'danger')
         return redirect(url_for('main.index'))
     
@@ -836,8 +836,9 @@ def get_default_modules():
         {"id": "order", "name": "订单管理", "description": "管理采购订单和销售订单"},
         {"id": "pricing_order", "name": "批价单管理", "description": "管理批价单的查看、创建、编辑权限", "supports_discount_limits": True},
         {"id": "settlement_order", "name": "结算单管理", "description": "管理结算单的查看、创建、编辑权限", "supports_discount_limits": True},
-        {"id": "user", "name": "用户管理", "description": "管理系统用户"},
-        {"id": "permission", "name": "权限管理", "description": "管理用户权限"},
+        {"id": "user_management", "name": "账户列表", "description": "管理系统用户账户"},
+        {"id": "permission_management", "name": "权限管理", "description": "管理用户角色权限"},
+        {"id": "dictionary_management", "name": "字典管理", "description": "管理系统字典数据"},
         {"id": "project_rating", "name": "项目评分🌟", "description": "设置项目五星评分", "type": "switch"}
     ]
 
@@ -1164,7 +1165,7 @@ def get_selected_users_api(user_id):
     """获取用户已有的归属关系，用于前端显示"""
     try:
         # 权限检查
-        if current_user.role != 'admin' and current_user.id != user_id and not current_user.has_permission('user', 'view'):
+        if current_user.role != 'admin' and current_user.id != user_id and not current_user.has_permission('user_management', 'view'):
             return jsonify({
                 'success': False,
                 'message': '无权限访问此数据',
@@ -1207,7 +1208,7 @@ def save_affiliations_api(user_id):
     """保存用户归属关系，直接操作数据库"""
     try:
         # 权限检查
-        if current_user.role != 'admin' and current_user.id != user_id and not current_user.has_permission('user', 'edit'):
+        if current_user.role != 'admin' and current_user.id != user_id and not current_user.has_permission('user_management', 'edit'):
             return jsonify({
                 'success': False,
                 'message': '无权限操作此数据'

@@ -120,7 +120,7 @@
         </div>
         <div class="d-flex">
             <!-- 新增账户按钮 -->
-            {% if has_permission('user', 'create') %}
+                                    {% if has_permission('user_management', 'create') %}
             {{ render_button('新增账户', href=url_for('user.create_user'), color='primary', icon='fas fa-plus', extra_class='me-2') }}
             {% endif %}
             

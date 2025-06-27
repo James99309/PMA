@@ -114,7 +114,7 @@ def get_user_affiliations(user_id):
     
     # 检查权限：只有管理员或用户本人可以查看
     if current_user.role != 'admin' and current_user.id != user_id:
-        if not current_user.has_permission('user', 'view'):
+        if not current_user.has_permission('user_management', 'view'):
             logger.warning(f"用户 {current_user.username} 尝试访问用户 {target_user.username} 的数据归属但无权限")
             return api_response(
                 success=False,
@@ -248,7 +248,7 @@ def set_user_affiliations(user_id):
             )
             
         # 检查权限：只有管理员或有user edit权限的用户才能设置数据归属关系
-        if current_user.role != 'admin' and not current_user.has_permission('user', 'edit'):
+        if current_user.role != 'admin' and not current_user.has_permission('user_management', 'edit'):
             logger.warning(f"用户 {current_user.username} 尝试设置用户ID {user_id} 的数据归属但无权限")
             return api_response(
                 success=False,
@@ -439,7 +439,7 @@ def get_available_users_for_owner(user_id):
         
         logger.info(f"当前用户: {current_user.username}, 角色: {current_user.role}, 正在查询用户ID: {user_id} 的可用用户")
         
-        if current_user.role != 'admin' and not current_user.has_permission('user', 'view'):
+        if current_user.role != 'admin' and not current_user.has_permission('user_management', 'view'):
             logger.warning(f"用户 {current_user.username} 无权限访问此数据")
             return api_response(
                 success=False,
