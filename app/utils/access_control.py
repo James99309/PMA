@@ -204,7 +204,10 @@ def get_viewable_data(model_class, user, special_filters=None):
         # 基于四级权限系统的数据访问控制
         permission_level = user.get_permission_level('quotation')
         
-        if permission_level == 'company' and user.company_name:
+        if permission_level == 'system':
+            # 系统级权限：可以查看所有报价单
+            return model_class.query.filter(*special_filters if special_filters else [])
+        elif permission_level == 'company' and user.company_name:
             # 企业级权限：可以查看企业下所有报价单
             from app.models.user import User
             company_user_ids = [u.id for u in User.query.filter_by(company_name=user.company_name).all()]
