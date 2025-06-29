@@ -9,6 +9,10 @@ import string
 import hashlib
 import json
 
+def get_local_time():
+    """获取本地时间（北京时区）"""
+    return datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
+
 class QuotationApprovalStatus:
     """报价审核状态常量"""
     PENDING = "pending"  # 待审核
@@ -91,7 +95,7 @@ class Quotation(db.Model):
     currency = db.Column(db.String(10), default='CNY')  # 货币类型
     
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo('Asia/Shanghai')))
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=get_local_time)
     
     # 所有者字段（关联到用户表）
     owner_id = db.Column(db.Integer, db.ForeignKey('users.id'))

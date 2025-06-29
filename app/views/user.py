@@ -727,13 +727,28 @@ def manage_role_permissions():
             for perm in permissions:
                 if not isinstance(perm, dict) or 'module' not in perm or not perm['module']:
                     continue
+                # 获取权限状态
+                can_view = bool(perm.get('can_view', False))
+                can_create = bool(perm.get('can_create', False))
+                can_edit = bool(perm.get('can_edit', False))
+                can_delete = bool(perm.get('can_delete', False))
+                
+                # 检查是否有任何权限
+                has_any_permission = can_view or can_create or can_edit or can_delete
+                
+                # 如果没有任何权限，权限级别强制设置为personal
+                permission_level = perm.get('permission_level', 'personal')
+                if not has_any_permission:
+                    permission_level = 'personal'
+                
                 rp = RolePermission(
                     role=role,
                     module=perm['module'],
-                    can_view=bool(perm.get('can_view', False)),
-                    can_create=bool(perm.get('can_create', False)),
-                    can_edit=bool(perm.get('can_edit', False)),
-                    can_delete=bool(perm.get('can_delete', False)),
+                    can_view=can_view,
+                    can_create=can_create,
+                    can_edit=can_edit,
+                    can_delete=can_delete,
+                    permission_level=permission_level,
                     pricing_discount_limit=perm.get('pricing_discount_limit'),
                     settlement_discount_limit=perm.get('settlement_discount_limit')
                 )

@@ -841,43 +841,8 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
             PricingOrder.status == 'pending'
         )
         
-        # 添加基于用户角色的项目类型权限过滤
-        if target_user.role != 'admin':
-            user_role = target_user.role.strip() if target_user.role else ''
-            
-            # 添加项目关联
-            query = query.join(Project, PricingOrder.project_id == Project.id)
-            
-            # 根据角色过滤项目类型
-            if user_role == 'business_admin':
-                # 商务助理：只能看到销售重点、渠道跟进的批价单
-                query = query.filter(
-                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
-                )
-            elif user_role == 'sales_director':
-                # 营销总监：销售重点、渠道跟进 - 添加所有可能的项目类型值
-                query = query.filter(
-                    Project.project_type.in_(['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow'])
-                )
-            elif user_role == 'channel_manager':
-                # 渠道经理：渠道跟进、销售机会（需要有经销商）、销售重点（需要有经销商）
-                query = query.filter(
-                    or_(
-                        Project.project_type.in_(['渠道跟进', 'channel_follow']),
-                        and_(
-                            Project.project_type.in_(['销售重点', 'sales_key', '销售机会', 'sales_opportunity']),
-                            PricingOrder.dealer_id.isnot(None)
-                        )
-                    )
-                )
-            elif user_role in ['service', 'service_manager']:
-                # 服务经理：商务机会
-                query = query.filter(
-                    Project.project_type.in_(['商务机会', 'business_opportunity'])
-                )
-            elif user_role == 'finance_director':
-                # 财务总监：所有类型
-                pass  # 不添加额外过滤
+        # 基于部门权限控制，不再使用项目类型过滤
+        # 所有用户都可以看到其权限范围内的批价单审批，权限由access_control.py统一管理
         
         # 按创建时间倒序排列
         query = query.order_by(PricingOrder.created_at.desc())
@@ -966,34 +931,8 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
             ApprovalInstance.object_type == 'project'
         )
         
-        # 添加基于用户角色的项目类型权限过滤
-        if target_user.role != 'admin':
-            user_role = target_user.role.strip() if target_user.role else ''
-            
-            # 根据角色过滤项目类型
-            if user_role == 'business_admin':
-                # 商务助理：只能看到销售重点、渠道跟进的项目审批
-                query = query.filter(
-                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
-                )
-            elif user_role == 'sales_director':
-                # 营销总监：销售重点、渠道跟进 - 添加所有可能的项目类型值
-                query = query.filter(
-                    Project.project_type.in_(['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow'])
-                )
-            elif user_role == 'channel_manager':
-                # 渠道经理：渠道跟进、销售重点、销售机会
-                query = query.filter(
-                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow', '销售机会', 'sales_opportunity'])
-                )
-            elif user_role in ['service', 'service_manager']:
-                # 服务经理：商务机会
-                query = query.filter(
-                    Project.project_type.in_(['商务机会', 'business_opportunity'])
-                )
-            elif user_role == 'finance_director':
-                # 财务总监：所有类型
-                pass  # 不添加额外过滤
+        # 基于部门权限控制，不再使用项目类型过滤
+        # 所有用户都可以看到其权限范围内的项目审批，权限由access_control.py统一管理
     elif object_type == 'quotation':
         query = query.join(Quotation, ApprovalInstance.object_id == Quotation.id).filter(
             ApprovalInstance.object_type == 'quotation'
@@ -1009,34 +948,8 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
             ApprovalInstance.object_type == 'project'
         ).join(Project, ApprovalInstance.object_id == Project.id)
         
-        # 添加基于用户角色的项目类型权限过滤
-        if target_user.role != 'admin':
-            user_role = target_user.role.strip() if target_user.role else ''
-            
-            # 根据角色过滤项目类型
-            if user_role == 'business_admin':
-                # 商务助理：只能看到销售重点、渠道跟进的项目审批
-                project_subquery = project_subquery.filter(
-                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
-                )
-            elif user_role == 'sales_director':
-                # 营销总监：销售重点、渠道跟进 - 添加所有可能的项目类型值
-                project_subquery = project_subquery.filter(
-                    Project.project_type.in_(['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow'])
-                )
-            elif user_role == 'channel_manager':
-                # 渠道经理：渠道跟进、销售重点、销售机会
-                project_subquery = project_subquery.filter(
-                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow', '销售机会', 'sales_opportunity'])
-                )
-            elif user_role in ['service', 'service_manager']:
-                # 服务经理：商务机会
-                project_subquery = project_subquery.filter(
-                    Project.project_type.in_(['商务机会', 'business_opportunity'])
-                )
-            elif user_role == 'finance_director':
-                # 财务总监：所有类型
-                pass  # 不添加额外过滤
+        # 基于部门权限控制，不再使用项目类型过滤
+        # 所有用户都可以看到其权限范围内的项目审批，权限由access_control.py统一管理
         
         quotation_subquery = db.session.query(ApprovalInstance.id).filter(
             ApprovalInstance.object_type == 'quotation'
@@ -1074,43 +987,8 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
             PricingOrder.status == 'pending'
         )
         
-        # 添加基于用户角色的项目类型权限过滤
-        if target_user.role != 'admin':
-            user_role = target_user.role.strip() if target_user.role else ''
-            
-            # 添加项目关联
-            po_query = po_query.join(Project, PricingOrder.project_id == Project.id)
-            
-            # 根据角色过滤项目类型
-            if user_role == 'business_admin':
-                # 商务助理：只能看到销售重点、渠道跟进的批价单
-                po_query = po_query.filter(
-                    Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
-                )
-            elif user_role == 'sales_director':
-                # 营销总监：销售重点、渠道跟进 - 添加所有可能的项目类型值
-                po_query = po_query.filter(
-                    Project.project_type.in_(['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow'])
-                )
-            elif user_role == 'channel_manager':
-                # 渠道经理：渠道跟进、销售机会（需要有经销商）、销售重点（需要有经销商）
-                po_query = po_query.filter(
-                    or_(
-                        Project.project_type.in_(['渠道跟进', 'channel_follow']),
-                        and_(
-                            Project.project_type.in_(['销售重点', 'sales_key', '销售机会', 'sales_opportunity']),
-                            PricingOrder.dealer_id.isnot(None)
-                        )
-                    )
-                )
-            elif user_role in ['service', 'service_manager']:
-                # 服务经理：商务机会
-                po_query = po_query.filter(
-                    Project.project_type.in_(['商务机会', 'business_opportunity'])
-                )
-            elif user_role == 'finance_director':
-                # 财务总监：所有类型
-                pass  # 不添加额外过滤
+        # 基于部门权限控制，不再使用项目类型过滤
+        # 所有用户都可以看到其权限范围内的批价单审批，权限由access_control.py统一管理
         
         po_query = po_query.order_by(PricingOrder.created_at.desc())
         
@@ -1765,6 +1643,16 @@ def get_current_step_info(instance):
             # 创建虚拟步骤对象，包含快照中的正确信息
             from app.models.user import User
             approver = User.query.get(current_step_data.get('approver_user_id'))
+            
+            # 如果无法从数据库获取审批人，创建虚拟审批人对象
+            if not approver and current_step_data.get('approver_user_id'):
+                approver = type('VirtualUser', (), {
+                    'id': current_step_data.get('approver_user_id'),
+                    'username': current_step_data.get('approver_username', '未知用户'),
+                    'real_name': current_step_data.get('approver_real_name', ''),
+                    'role': current_step_data.get('approver_role', ''),
+                })()
+                current_app.logger.warning(f"审批人ID {current_step_data.get('approver_user_id')} 在数据库中不存在，创建虚拟审批人对象")
             
             virtual_step = type('Step', (), {
                 'id': f"snapshot_step_{instance.id}_{current_step_data['step_order']}",
@@ -3778,9 +3666,9 @@ def get_user_pricing_order_approvals(user_id, status=None, page=1, per_page=20):
         
         # 根据角色过滤项目类型
         if user_role == 'business_admin':
-            # 商务助理：只能看到销售重点、渠道跟进的批价单
+            # 商务助理：只能看到销售重点、渠道跟进的批价单（包含所有可能的项目类型值）
             query = query.filter(
-                Project.project_type.in_(['销售重点', 'sales_key', '渠道跟进', 'channel_follow'])
+                Project.project_type.in_(['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow', '业务机会', 'business_opportunity'])
             )
         elif user_role == 'sales_director':
             # 营销总监：销售重点、渠道跟进 - 添加所有可能的项目类型值

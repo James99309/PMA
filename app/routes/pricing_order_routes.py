@@ -118,12 +118,29 @@ def start_pricing_process(project_id):
                 'redirect_url': url_for('pricing_order.edit_pricing_order', order_id=existing_pricing_order.id)
             })
         
-        # 创建新的批价单
-        pricing_order, error = PricingOrderService.create_pricing_order(
-            project_id=project_id,
-            quotation_id=quotation.id,
-            current_user_id=current_user.id
-        )
+        # 创建新的批价单 - V2逻辑支持
+        if PricingOrderService.should_use_v2_flow():
+            # V2版本：只创建草稿，不生成审批流程
+            pricing_order, error = PricingOrderService.create_pricing_order(
+                project_id=project_id,
+                quotation_id=quotation.id,
+                current_user_id=current_user.id
+            )
+            # V2版本下，检查并规范化厂商直签状态
+            if pricing_order and not error:
+                normalized, message = PricingOrderService.normalize_direct_contract_status(pricing_order, current_user)
+                if not normalized:
+                    logger.warning(f"规范化厂商直签状态失败: {message}")
+                elif message:
+                    logger.info(f"厂商直签状态已规范化: {message}")
+                db.session.commit()
+        else:
+            # V1版本：使用原有逻辑
+            pricing_order, error = PricingOrderService.create_pricing_order(
+                project_id=project_id,
+                quotation_id=quotation.id,
+                current_user_id=current_user.id
+            )
         
         if error:
             return jsonify({
@@ -257,6 +274,22 @@ def update_basic_info(order_id):
         is_direct_contract = data.get('is_direct_contract', False)
         is_factory_pickup = data.get('is_factory_pickup', False)
         
+        # V2版本的厂商直签权限检查
+        if 'is_direct_contract' in data and PricingOrderService.should_use_v2_flow(pricing_order):
+            # 只有厂家账户可以设置厂商直签
+            if not current_user.is_vendor_user():
+                return jsonify({
+                    'success': False,
+                    'message': '只有厂家账户可以设置厂商直签状态'
+                }), 403
+            
+            # 审批中不可修改
+            if pricing_order.status in ['pending', 'approved']:
+                return jsonify({
+                    'success': False,
+                    'message': '审批过程中和审批通过后不可修改厂商直签状态'
+                }), 403
+        
         pricing_order.is_direct_contract = is_direct_contract
         pricing_order.is_factory_pickup = is_factory_pickup
         logger.info(f"设置厂商直签: {is_direct_contract}, 厂家提货: {is_factory_pickup}")
@@ -328,7 +361,8 @@ def update_pricing_detail(order_id):
         pricing_order = PricingOrder.query.get_or_404(order_id)
         
         # 权限检查 - 使用统一的权限检查函数
-        can_edit_pricing, _, _ = check_pricing_edit_permission(pricing_order, current_user)
+        (can_edit_pricing, can_edit_settlement, is_approval_context,
+         can_edit_quantity, can_edit_discount_price, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
         if not can_edit_pricing:
             return jsonify({
                 'success': False,
@@ -460,7 +494,8 @@ def update_total_discount_rate(order_id):
         pricing_order = viewable_orders.filter(PricingOrder.id == order_id).first_or_404()
         
         # 检查编辑权限 - 使用统一的权限检查函数
-        can_edit_pricing, _, _ = check_pricing_edit_permission(pricing_order, current_user)
+        (can_edit_pricing, can_edit_settlement, is_approval_context,
+         can_edit_quantity, can_edit_discount_price, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
         if not can_edit_pricing:
             return jsonify({'success': False, 'message': '无权限编辑此批价单'})
         
@@ -680,80 +715,16 @@ def list_pricing_orders():
     # 使用统一的管理员权限检查
     from app.permissions import is_admin_or_ceo
     if not is_admin_or_ceo():
-        # 根据角色和项目类型进行过滤
-        if user_role == 'sales_director':
-            # 营销总监：可以看到所有的销售重点和渠道跟进的业务的批价单
-            query = query.join(Project).filter(
-                db.or_(
-                    Project.project_type.in_(['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow']),
-                    PricingOrder.created_by == current_user.id,
-                    PricingOrder.approval_records.any(
-                        PricingOrderApprovalRecord.approver_id == current_user.id
-                    )
+        # 基于部门权限控制，不再使用项目类型过滤
+        # 所有用户都可以看到其权限范围内的批价单，权限由access_control.py统一管理
+        query = query.filter(
+            db.or_(
+                PricingOrder.created_by == current_user.id,
+                PricingOrder.approval_records.any(
+                    PricingOrderApprovalRecord.approver_id == current_user.id
                 )
             )
-        elif user_role == 'channel_manager':
-            # 渠道经理：只能看到有经销商的渠道跟进和销售机会的批价单，不能看到销售重点
-            # 即使是审批人，也不能查看销售重点项目的批价单
-            query = query.join(Project).filter(
-                db.or_(
-                    db.and_(
-                        Project.project_type.in_(['渠道跟进', 'channel_follow', '销售机会', 'sales_opportunity']),
-                        PricingOrder.dealer_id.isnot(None)
-                    ),
-                    PricingOrder.created_by == current_user.id,
-                    # 作为审批人但只能查看非销售重点项目的批价单
-                    db.and_(
-                        PricingOrder.approval_records.any(
-                            PricingOrderApprovalRecord.approver_id == current_user.id
-                        ),
-                        Project.project_type.notin_(['销售重点', 'sales_focus'])
-                    )
-                )
-            )
-        elif user_role == 'service_manager':
-            # 服务经理：可以看到所有销售机会的批价单
-            query = query.join(Project).filter(
-                db.or_(
-                    Project.project_type.in_(['销售机会', 'sales_opportunity']),
-                    PricingOrder.created_by == current_user.id,
-                    PricingOrder.approval_records.any(
-                        PricingOrderApprovalRecord.approver_id == current_user.id
-                    )
-                )
-            )
-        elif user_role == 'business_admin':
-            # 商务助理：可以看到所有的销售重点，渠道跟进的业务的批价单
-            query = query.join(Project).filter(
-                db.or_(
-                    Project.project_type.in_(['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow']),
-                    PricingOrder.created_by == current_user.id,
-                    PricingOrder.approval_records.any(
-                        PricingOrderApprovalRecord.approver_id == current_user.id
-                    )
-                )
-            )
-        elif user_role == 'finance_director':
-            # 财务总监：可以看到所有的销售重点，渠道跟进和销售机会的业务的批价单
-            query = query.join(Project).filter(
-                db.or_(
-                    Project.project_type.in_(['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow', '销售机会', 'sales_opportunity']),
-                    PricingOrder.created_by == current_user.id,
-                    PricingOrder.approval_records.any(
-                        PricingOrderApprovalRecord.approver_id == current_user.id
-                    )
-                )
-            )
-        else:
-            # 其他用户：只能查看自己创建的或参与审批的批价单
-            query = query.filter(
-                db.or_(
-                    PricingOrder.created_by == current_user.id,
-                    PricingOrder.approval_records.any(
-                        PricingOrderApprovalRecord.approver_id == current_user.id
-                    )
-                )
-            )
+        )
     
     # 分页
     pagination = query.order_by(PricingOrder.created_at.desc()).paginate(
@@ -775,7 +746,8 @@ def add_product_to_pricing(order_id):
         pricing_order = PricingOrder.query.get_or_404(order_id)
         
         # 权限检查 - 使用统一的权限检查函数
-        can_edit_pricing, _, _ = check_pricing_edit_permission(pricing_order, current_user)
+        (can_edit_pricing, can_edit_settlement, is_approval_context,
+         can_edit_quantity, can_edit_discount_price, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
         if not can_edit_pricing:
             return jsonify({
                 'success': False,
@@ -859,7 +831,8 @@ def delete_product_from_pricing(order_id, detail_id):
         pricing_order = PricingOrder.query.get_or_404(order_id)
         
         # 权限检查 - 使用统一的权限检查函数
-        can_edit_pricing, _, _ = check_pricing_edit_permission(pricing_order, current_user)
+        (can_edit_pricing, can_edit_settlement, is_approval_context,
+         can_edit_quantity, can_edit_discount_price, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
         if not can_edit_pricing:
             return jsonify({
                 'success': False,
@@ -914,7 +887,8 @@ def batch_delete_products_from_pricing(order_id):
         pricing_order = PricingOrder.query.get_or_404(order_id)
         
         # 权限检查
-        can_edit_pricing, _, _ = check_pricing_edit_permission(pricing_order, current_user)
+        (can_edit_pricing, can_edit_settlement, is_approval_context,
+         can_edit_quantity, can_edit_discount_price, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
         if not can_edit_pricing:
             return jsonify({
                 'success': False,
@@ -981,7 +955,8 @@ def save_pricing_details(order_id):
         logger.info(f"保存批价单 {pricing_order.order_number} 明细前，项目阶段: {project_stage_before}")
         
         # 权限检查 - 使用统一的权限检查函数
-        can_edit_pricing, _, _ = check_pricing_edit_permission(pricing_order, current_user)
+        (can_edit_pricing, can_edit_settlement, is_approval_context,
+         can_edit_quantity, can_edit_discount_price, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
         if not can_edit_pricing:
             return jsonify({
                 'success': False,
@@ -1091,7 +1066,8 @@ def save_settlement_details(order_id):
         logger.info(f"保存结算单 {pricing_order.order_number} 明细前，项目阶段: {project_stage_before}")
         
         # 权限检查 - 使用统一的权限检查函数
-        _, can_edit_settlement, _ = check_pricing_edit_permission(pricing_order, current_user)
+        (can_edit_pricing, can_edit_settlement, is_approval_context,
+         can_edit_quantity, can_edit_discount_price, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
         if not can_edit_settlement:
             return jsonify({
                 'success': False,
@@ -1182,7 +1158,8 @@ def save_all_pricing_data(order_id):
         logger.info(f"保存批价单 {pricing_order.order_number} 所有数据前，项目阶段: {project_stage_before}")
         
         # 权限检查 - 使用统一的权限检查函数
-        can_edit_pricing, _, _ = check_pricing_edit_permission(pricing_order, current_user)
+        (can_edit_pricing, can_edit_settlement, is_approval_context,
+         can_edit_quantity, can_edit_discount_price, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
         if not can_edit_pricing:
             return jsonify({
                 'success': False,
@@ -1317,7 +1294,7 @@ def save_all_pricing_data(order_id):
                 db.session.add(settlement_detail)
         
         # 保存结算单明细（如果提供且有权限）
-        _, can_edit_settlement, _ = check_pricing_edit_permission(pricing_order, current_user)
+        # can_edit_settlement 已经在上面获取了，直接使用
         if settlement_details and can_edit_settlement:
             # 更新现有结算单明细
             for detail_data in settlement_details:

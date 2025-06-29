@@ -1,7 +1,12 @@
 from app import db
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import random
 import string
+
+def get_local_time():
+    """获取本地时间（北京时区）"""
+    return datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
 
 def generate_company_code():
     # 生成格式：年份(2位) + 月份字母(1位) + 日期(2位) + 自然数(3位)
@@ -49,8 +54,8 @@ class Company(db.Model):
     industry = db.Column(db.String(50))  # 行业
     company_type = db.Column(db.String(20))  # 企业类型（用户/经销商/系统集成商/设计院及顾问/总承包单位）
     status = db.Column(db.String(20))  # 状态
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=get_local_time)
+    updated_at = db.Column(db.DateTime, default=get_local_time)
     notes = db.Column(db.Text)  # 备注
     is_deleted = db.Column(db.Boolean, default=False)  # 是否删除
     
@@ -84,8 +89,8 @@ class Contact(db.Model):
     phone = db.Column(db.String(20))  # 电话
     email = db.Column(db.String(100))  # 邮箱
     is_primary = db.Column(db.Boolean, default=False)  # 是否为主要联系人
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=get_local_time)
+    updated_at = db.Column(db.DateTime, default=get_local_time, onupdate=get_local_time)
     notes = db.Column(db.Text)  # 备注
     
     # 共享控制字段

@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
 from app.decorators import permission_required
+from app.permissions import has_permission
 from app.models.quotation import Quotation, QuotationDetail
 from app.models.project import Project
 from app.models.product import Product
@@ -15,6 +16,97 @@ from app.utils.dictionary_helpers import project_stage_label
 logger = logging.getLogger(__name__)
 
 product_analysis = Blueprint('product_analysis', __name__)
+
+def apply_permission_based_filters(query, current_user, quotation_alias=Quotation, project_alias=Project):
+    """
+    基于四级权限系统应用数据过滤
+    """
+    if has_permission('product', 'admin'):
+        return query
+    
+    # 检查用户是否有报价单查看权限
+    if not current_user.has_permission('quotation', 'view'):
+        # 如果没有权限，返回空查询
+        return query.filter(False)
+    
+    # 获取权限级别
+    permission_level = current_user.get_permission_level('quotation')
+    
+    if permission_level == 'system':
+        # 系统级权限：可以查看所有数据
+        return query
+    elif permission_level == 'company' and current_user.company_name:
+        # 企业级权限：可以查看企业下所有数据
+        company_user_ids = [u.id for u in User.query.filter_by(company_name=current_user.company_name).all()]
+        return query.filter(project_alias.owner_id.in_(company_user_ids))
+    elif permission_level == 'department' and current_user.department and current_user.company_name:
+        # 部门级权限：可以查看部门下所有数据
+        dept_user_ids = [u.id for u in User.query.filter(
+            User.department == current_user.department,
+            User.company_name == current_user.company_name
+        ).all()]
+        return query.filter(project_alias.owner_id.in_(dept_user_ids))
+    else:
+        # 个人级权限：应用传统的权限过滤逻辑
+        permission_filters = []
+        
+        # 1. 自己创建的报价单
+        permission_filters.append(quotation_alias.owner_id == current_user.id)
+        
+        # 2. 归属关系 - 使用子查询优化
+        affiliation_subquery = db.session.query(Affiliation.owner_id).filter(
+            Affiliation.viewer_id == current_user.id
+        ).subquery()
+        permission_filters.append(quotation_alias.owner_id.in_(affiliation_subquery))
+        
+        # 3. 销售负责人相关项目
+        permission_filters.append(project_alias.vendor_sales_manager_id == current_user.id)
+        
+        # 4. 其他角色特殊权限
+        user_role = current_user.role.strip() if current_user.role else ''
+        if user_role == 'channel_manager':
+            # 渠道经理：额外可以查看渠道跟进项目
+            permission_filters.append(project_alias.project_type == 'channel_follow')
+        elif user_role == 'sales_director':
+            # 营销总监：额外可以查看销售重点和渠道跟进项目
+            permission_filters.append(project_alias.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进']))
+        elif user_role in ['service', 'service_manager']:
+            # 服务经理：额外可以查看业务机会项目
+            permission_filters.append(project_alias.project_type == '业务机会')
+        elif user_role == 'business_admin':
+            # 商务助理：可以查看同部门用户和归属关系授权用户的项目
+            viewable_user_ids = [current_user.id]  # 自己的项目
+            
+            # 1. 添加同部门用户
+            if current_user.department and current_user.company_name:
+                dept_users = User.query.filter(
+                    User.department == current_user.department,
+                    User.company_name == current_user.company_name
+                ).all()
+                viewable_user_ids.extend([u.id for u in dept_users])
+            
+            # 2. 添加归属关系授权的用户
+            affiliations = Affiliation.query.filter_by(viewer_id=current_user.id).all()
+            for affiliation in affiliations:
+                viewable_user_ids.append(affiliation.owner_id)
+            
+            # 去重
+            viewable_user_ids = list(set(viewable_user_ids))
+            
+            # 添加权限过滤条件
+            permission_filters.append(
+                db.or_(
+                    project_alias.owner_id.in_(viewable_user_ids),
+                    project_alias.vendor_sales_manager_id.in_(viewable_user_ids)
+                )
+            )
+        
+        # 应用权限过滤条件
+        if permission_filters:
+            return query.filter(or_(*permission_filters))
+        else:
+            # 如果没有任何权限，返回空查询
+            return query.filter(False)
 
 # 阶段顺序定义 - 与项目管理模块保持一致
 STAGE_ORDER = [
@@ -167,74 +259,8 @@ def get_analysis_data():
             User, Quotation.owner_id == User.id
         )
         
-        # 性能优化：直接在查询中应用权限过滤，避免子查询
-        if current_user.role != 'admin':
-            # 构建权限过滤条件
-            permission_filters = []
-            
-            # 4. 角色特殊权限检查
-            user_role = current_user.role.strip() if current_user.role else ''
-            
-            # 财务总监、产品经理、解决方案经理可以查看所有
-            if user_role in ['finance_director', 'finace_director', 'product_manager', 'product', 'solution_manager', 'solution']:
-                # 不添加任何过滤条件，可以查看所有数据
-                pass
-            else:
-                # 对于其他角色，添加基础权限过滤条件
-                
-                # 1. 自己创建的报价单
-                permission_filters.append(Quotation.owner_id == current_user.id)
-                
-                # 2. 归属关系 - 使用子查询优化
-                affiliation_subquery = db.session.query(Affiliation.owner_id).filter(
-                    Affiliation.viewer_id == current_user.id
-                ).subquery()
-                permission_filters.append(Quotation.owner_id.in_(affiliation_subquery))
-                
-                # 3. 销售负责人相关项目 - 直接在主查询中处理
-                permission_filters.append(Project.vendor_sales_manager_id == current_user.id)
-                
-                # 4. 其他角色特殊权限
-                if user_role == 'channel_manager':
-                    # 渠道经理：额外可以查看渠道跟进项目
-                    permission_filters.append(Project.project_type == 'channel_follow')
-                elif user_role == 'sales_director':
-                    # 营销总监：额外可以查看销售重点和渠道跟进项目
-                    permission_filters.append(Project.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进']))
-                elif user_role in ['service', 'service_manager']:
-                    # 服务经理：额外可以查看业务机会项目
-                    permission_filters.append(Project.project_type == '业务机会')
-                elif user_role == 'business_admin':
-                    # 商务助理：可以查看同部门用户和归属关系授权用户的项目
-                    viewable_user_ids = [current_user.id]  # 自己的项目
-                    
-                    # 1. 添加同部门用户
-                    if current_user.department and current_user.company_name:
-                        dept_users = User.query.filter(
-                            User.department == current_user.department,
-                            User.company_name == current_user.company_name
-                        ).all()
-                        viewable_user_ids.extend([u.id for u in dept_users])
-                    
-                    # 2. 添加归属关系授权的用户
-                    affiliations = Affiliation.query.filter_by(viewer_id=current_user.id).all()
-                    for affiliation in affiliations:
-                        viewable_user_ids.append(affiliation.owner_id)
-                    
-                    # 去重
-                    viewable_user_ids = list(set(viewable_user_ids))
-                    
-                    # 添加权限过滤条件
-                    permission_filters.append(
-                        db.or_(
-                            Project.owner_id.in_(viewable_user_ids),
-                            Project.vendor_sales_manager_id.in_(viewable_user_ids)
-                        )
-                    )
-                
-                # 应用权限过滤条件
-                if permission_filters:
-                    query = query.filter(db.or_(*permission_filters))
+        # 应用基于权限系统的数据过滤
+        query = apply_permission_based_filters(query, current_user)
         
         # 应用筛选条件
         if category:
@@ -375,80 +401,8 @@ def get_stage_statistics():
             User, Quotation.owner_id == User.id
         )
         
-        # 应用权限过滤
-        if current_user.role != 'admin':
-            # 构建权限过滤条件
-            permission_filters = []
-            
-            # 4. 角色特殊权限检查
-            user_role = current_user.role.strip() if current_user.role else ''
-            
-            # 财务总监、产品经理、解决方案经理可以查看所有
-            if user_role in ['finance_director', 'finace_director', 'product_manager', 'product', 'solution_manager', 'solution']:
-                # 不添加任何过滤条件，可以查看所有数据
-                pass
-            else:
-                # 对于其他角色，添加基础权限过滤条件
-                
-                # 1. 自己创建的报价单
-                permission_filters.append(Quotation.owner_id == current_user.id)
-                
-                # 2. 归属关系 - 使用子查询优化
-                affiliation_subquery = db.session.query(Affiliation.owner_id).filter(
-                    Affiliation.viewer_id == current_user.id
-                ).subquery()
-                permission_filters.append(Quotation.owner_id.in_(affiliation_subquery))
-                
-                # 3. 销售负责人相关项目 - 直接在主查询中处理
-                permission_filters.append(Project.vendor_sales_manager_id == current_user.id)
-                
-                # 4. 其他角色特殊权限
-                if user_role == 'channel_manager':
-                    # 渠道经理：额外可以查看渠道跟进项目
-                    permission_filters.append(Project.project_type == 'channel_follow')
-                elif user_role == 'sales_director':
-                    # 营销总监：额外可以查看销售重点和渠道跟进项目
-                    permission_filters.append(Project.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进']))
-                elif user_role in ['service', 'service_manager']:
-                    # 服务经理：额外可以查看业务机会项目
-                    permission_filters.append(Project.project_type == '业务机会')
-                elif user_role == 'business_admin':
-                    # 商务助理：可以查看同部门用户和归属关系授权用户的项目
-                    viewable_user_ids = [current_user.id]  # 自己的项目
-                    
-                    # 1. 添加同部门用户
-                    if current_user.department and current_user.company_name:
-                        dept_users = User.query.filter(
-                            User.department == current_user.department,
-                            User.company_name == current_user.company_name
-                        ).all()
-                        viewable_user_ids.extend([u.id for u in dept_users])
-                    
-                    # 2. 添加归属关系授权的用户
-                    affiliations = Affiliation.query.filter_by(viewer_id=current_user.id).all()
-                    for affiliation in affiliations:
-                        viewable_user_ids.append(affiliation.owner_id)
-                    
-                    # 去重
-                    viewable_user_ids = list(set(viewable_user_ids))
-                    
-                    # 添加权限过滤条件
-                    permission_filters.append(
-                        db.or_(
-                            Project.owner_id.in_(viewable_user_ids),
-                            Project.vendor_sales_manager_id.in_(viewable_user_ids)
-                        )
-                    )
-                
-                # 应用权限过滤条件
-                if permission_filters:
-                    query = query.filter(or_(*permission_filters))
-                else:
-                    # 如果没有任何权限，返回空结果
-                    return jsonify({
-                        'success': True,
-                        'data': []
-                    })
+        # 应用基于权限系统的数据过滤
+        query = apply_permission_based_filters(query, current_user)
         
         # 应用筛选条件
         if category:
@@ -530,77 +484,8 @@ def get_monthly_increase(category=None, product_name=None, product_model=None):
             QuotationDetail.created_at >= current_month  # 修改：筛选本月新增的产品明细
         )
         
-        # 应用权限过滤
-        if current_user.role != 'admin':
-            # 构建权限过滤条件
-            permission_filters = []
-            
-            # 4. 角色特殊权限检查
-            user_role = current_user.role.strip() if current_user.role else ''
-            
-            # 财务总监、产品经理、解决方案经理可以查看所有
-            if user_role in ['finance_director', 'finace_director', 'product_manager', 'product', 'solution_manager', 'solution']:
-                # 不添加任何过滤条件，可以查看所有数据
-                pass
-            else:
-                # 对于其他角色，添加基础权限过滤条件
-                
-                # 1. 自己创建的报价单
-                permission_filters.append(Quotation.owner_id == current_user.id)
-                
-                # 2. 归属关系 - 使用子查询优化
-                affiliation_subquery = db.session.query(Affiliation.owner_id).filter(
-                    Affiliation.viewer_id == current_user.id
-                ).subquery()
-                permission_filters.append(Quotation.owner_id.in_(affiliation_subquery))
-                
-                # 3. 销售负责人相关项目 - 直接在主查询中处理
-                permission_filters.append(Project.vendor_sales_manager_id == current_user.id)
-                
-                # 4. 其他角色特殊权限
-                if user_role == 'channel_manager':
-                    # 渠道经理：额外可以查看渠道跟进项目
-                    permission_filters.append(Project.project_type == 'channel_follow')
-                elif user_role == 'sales_director':
-                    # 营销总监：额外可以查看销售重点和渠道跟进项目
-                    permission_filters.append(Project.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进']))
-                elif user_role in ['service', 'service_manager']:
-                    # 服务经理：额外可以查看业务机会项目
-                    permission_filters.append(Project.project_type == '业务机会')
-                elif user_role == 'business_admin':
-                    # 商务助理：可以查看同部门用户和归属关系授权用户的项目
-                    viewable_user_ids = [current_user.id]  # 自己的项目
-                    
-                    # 1. 添加同部门用户
-                    if current_user.department and current_user.company_name:
-                        dept_users = User.query.filter(
-                            User.department == current_user.department,
-                            User.company_name == current_user.company_name
-                        ).all()
-                        viewable_user_ids.extend([u.id for u in dept_users])
-                    
-                    # 2. 添加归属关系授权的用户
-                    affiliations = Affiliation.query.filter_by(viewer_id=current_user.id).all()
-                    for affiliation in affiliations:
-                        viewable_user_ids.append(affiliation.owner_id)
-                    
-                    # 去重
-                    viewable_user_ids = list(set(viewable_user_ids))
-                    
-                    # 添加权限过滤条件
-                    permission_filters.append(
-                        db.or_(
-                            Project.owner_id.in_(viewable_user_ids),
-                            Project.vendor_sales_manager_id.in_(viewable_user_ids)
-                        )
-                    )
-                
-                # 应用权限过滤条件
-                if permission_filters:
-                    query = query.filter(or_(*permission_filters))
-                else:
-                    # 如果没有任何权限，返回0
-                    return 0
+        # 应用基于权限系统的数据过滤
+        query = apply_permission_based_filters(query, current_user)
         
         # 应用筛选条件
         if category:
@@ -679,70 +564,8 @@ def get_monthly_increase_data():
             QuotationDetail.created_at >= current_month  # 只查询本月新增的产品明细
         )
         
-        # 应用权限过滤
-        if current_user.role != 'admin':
-            # 构建权限过滤条件
-            permission_filters = []
-            
-            # 1. 自己创建的报价单
-            permission_filters.append(Quotation.owner_id == current_user.id)
-            
-            # 2. 归属关系 - 使用子查询优化
-            affiliation_subquery = db.session.query(Affiliation.owner_id).filter(
-                Affiliation.viewer_id == current_user.id
-            ).subquery()
-            permission_filters.append(Quotation.owner_id.in_(affiliation_subquery))
-            
-            # 3. 销售负责人相关项目 - 直接在主查询中处理
-            permission_filters.append(Project.vendor_sales_manager_id == current_user.id)
-            
-            # 4. 角色特殊权限
-            user_role = current_user.role.strip() if current_user.role else ''
-            
-            # 财务总监、产品经理、解决方案经理可以查看所有
-            if user_role in ['finance_director', 'finace_director', 'product_manager', 'product', 'solution_manager', 'solution']:
-                # 不添加额外过滤条件，可以查看所有
-                pass
-            elif user_role == 'channel_manager':
-                # 渠道经理：额外可以查看渠道跟进项目
-                permission_filters.append(Project.project_type == 'channel_follow')
-            elif user_role == 'sales_director':
-                # 营销总监：额外可以查看销售重点和渠道跟进项目
-                permission_filters.append(Project.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进']))
-            elif user_role in ['service', 'service_manager']:
-                # 服务经理：额外可以查看业务机会项目
-                permission_filters.append(Project.project_type == '业务机会')
-            elif user_role == 'business_admin':
-                # 商务助理：可以查看同部门用户和归属关系授权用户的项目
-                viewable_user_ids = [current_user.id]  # 自己的项目
-                
-                # 1. 添加同部门用户
-                if current_user.department and current_user.company_name:
-                    dept_users = User.query.filter(
-                        User.department == current_user.department,
-                        User.company_name == current_user.company_name
-                    ).all()
-                    viewable_user_ids.extend([u.id for u in dept_users])
-                
-                # 2. 添加归属关系授权的用户
-                affiliations = Affiliation.query.filter_by(viewer_id=current_user.id).all()
-                for affiliation in affiliations:
-                    viewable_user_ids.append(affiliation.owner_id)
-                
-                # 去重
-                viewable_user_ids = list(set(viewable_user_ids))
-                
-                # 添加权限过滤条件
-                permission_filters.append(
-                    db.or_(
-                        Project.owner_id.in_(viewable_user_ids),
-                        Project.vendor_sales_manager_id.in_(viewable_user_ids)
-                    )
-                )
-            
-            # 应用权限过滤（如果不是特殊角色）
-            if user_role not in ['finance_director', 'finace_director', 'product_manager', 'product', 'solution_manager', 'solution', 'business_admin']:
-                query = query.filter(db.or_(*permission_filters))
+        # 应用基于权限系统的数据过滤
+        query = apply_permission_based_filters(query, current_user)
         
         # 应用筛选条件
         if category:

@@ -273,6 +273,8 @@ def get_role_permissions(role):
                 'can_create': perm.can_create,
                 'can_edit': perm.can_edit,
                 'can_delete': perm.can_delete,
+                'permission_level': perm.permission_level,
+                'permission_level_description': perm.permission_level_description,
                 'pricing_discount_limit': perm.pricing_discount_limit,
                 'settlement_discount_limit': perm.settlement_discount_limit
             })
@@ -405,14 +407,31 @@ def update_role_permissions():
                 if not module:
                     continue
                 
+                # 获取权限状态
+                can_view = bool(perm.get('can_view', False))
+                can_create = bool(perm.get('can_create', False))
+                can_edit = bool(perm.get('can_edit', False))
+                can_delete = bool(perm.get('can_delete', False))
+                
+                # 检查是否有任何权限
+                has_any_permission = can_view or can_create or can_edit or can_delete
+                
+                # 如果没有任何权限，权限级别强制设置为personal
+                permission_level = perm.get('permission_level', 'personal')
+                if not has_any_permission:
+                    permission_level = 'personal'
+                    logger.info(f"模块 {module} 没有任何权限，权限级别重置为 personal")
+                
                 # 创建新的角色权限记录
                 role_permission = RolePermission(
                     role=role,
                     module=module,
-                    can_view=bool(perm.get('can_view', False)),
-                    can_create=bool(perm.get('can_create', False)),
-                    can_edit=bool(perm.get('can_edit', False)),
-                    can_delete=bool(perm.get('can_delete', False)),
+                    can_view=can_view,
+                    can_create=can_create,
+                    can_edit=can_edit,
+                    can_delete=can_delete,
+                    permission_level=permission_level,
+                    permission_level_description=perm.get('permission_level_description'),
                     pricing_discount_limit=perm.get('pricing_discount_limit'),
                     settlement_discount_limit=perm.get('settlement_discount_limit')
                 )

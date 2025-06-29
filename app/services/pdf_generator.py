@@ -320,7 +320,7 @@ class PDFGenerator:
             size: A4;
             margin: 2cm 1.5cm;
             @top-center {{
-                content: "和源通信科技有限公司";
+                content: "";
                 font-size: 10px;
                 color: #666;
             }}

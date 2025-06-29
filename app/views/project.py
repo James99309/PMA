@@ -521,6 +521,9 @@ def add_project():
             if not request.form.get('current_stage'):
                 flash('当前阶段不能为空', 'danger')
                 return render_template('project/add.html', REPORT_SOURCE_OPTIONS=REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS=PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS=PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS=PROJECT_STAGE_LABELS, **get_company_data())
+            if not request.form.get('industry'):
+                flash('项目行业不能为空', 'danger')
+                return render_template('project/add.html', REPORT_SOURCE_OPTIONS=REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS=PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS=PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS=PROJECT_STAGE_LABELS, **get_company_data())
             
             # 解析日期
             report_time = None
@@ -679,6 +682,9 @@ def edit_project(project_id):
                 return render_template('project/edit.html', project=project, companies=get_company_data())
             if not request.form.get('current_stage'):
                 flash('当前阶段不能为空', 'danger')
+                return render_template('project/edit.html', project=project, companies=get_company_data())
+            if not request.form.get('industry'):
+                flash('项目行业不能为空', 'danger')
                 return render_template('project/edit.html', project=project, companies=get_company_data())
             # 解析日期
             if request.form.get('report_time'):

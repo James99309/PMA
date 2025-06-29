@@ -389,7 +389,7 @@
                         </ul>
                     </li>
                     {% endif %}
-                    {% if has_permission('inventory', 'view') and current_user.role == 'admin' %}
+                    {% if has_permission('inventory', 'admin') %}
                     <li class="nav-item d-lg-none">
                         <details>
                             <summary class="nav-link text-sm py-2 mb-0 {{ 'active' if request.endpoint.startswith('inventory.') else '' }}" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
@@ -510,7 +510,7 @@
                         </ul>
                     </li>
                     {% endif %}
-                    {% if current_user.role == 'admin' %}
+                    {% if has_permission('system_management', 'admin') %}
                     <li class="nav-item d-lg-none">
                         <details>
                             <summary class="nav-link text-sm py-2 mb-0 {{ 'active' if request.endpoint and (request.endpoint.startswith('admin.') or request.endpoint.startswith('version_management.') or request.endpoint.startswith('approval_config.') or request.endpoint.startswith('notification.') or request.endpoint.startswith('change_history.') or request.endpoint.startswith('backup.')) else '' }}" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">

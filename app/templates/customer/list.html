@@ -8,6 +8,18 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<style>
+/* 账户选择器相关CSS样式 */
+.account-selector .dropdown-toggle {
+    min-width: 120px;
+    text-align: left;
+}
+
+.account-selector .dropdown-menu {
+    max-height: 300px;
+    overflow-y: auto;
+}
+</style>
 {% endblock %}
 
 {% block content %}
@@ -58,7 +70,7 @@
                         </div>
                         <div class="col-md-4 text-end d-none d-lg-block">
                             {{ render_button(_('添加企业'), url_for('customer.add_company'), color='primary', extra_class='me-2') }}
-                            {% if current_user.role == 'admin' %}
+                            {% if has_permission('customer', 'import') %}
                             <div class="dropdown d-inline-block">
                                 {{ render_button(_('导入数据'), '#', color='auxiliary', extra_class='dropdown-toggle', attrs='id="importDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false"') }}
                                 <ul class="dropdown-menu" aria-labelledby="importDropdownBtn">
@@ -74,13 +86,42 @@
         </div>
     </div>
 
+    <!-- 账户选择器和只看自己开关 -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center gap-3">
+            <!-- 账户选择器 -->
+            <div class="dropdown account-selector">
+                <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="accountSelectorBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                    {{ _('全部账户') }}
+                </button>
+                <ul class="dropdown-menu" id="accountSelectorMenu" aria-labelledby="accountSelectorBtn">
+                    <li><a class="dropdown-item active" href="#" data-account-id="all">{{ _('全部账户') }}</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-center"><div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">{{ _('加载中...') }}</span></div></a></li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- 右侧只看自己开关 - 使用项目管理相同样式 -->
+        <div class="d-flex align-items-center">
+            <div class="d-inline-flex align-items-center gap-2 flex-nowrap">
+                {{ ui.render_toggle_switch('showMyCustomersSwitch',
+                                           checked=request.args.get('my_customers') == '1',
+                                           label_on='ON',
+                                           label_off='OFF',
+                                           attrs='id="showMyCustomersSwitch"') }}
+                <span class="form-label mb-0 text-nowrap">{{ _('只看自己') }}</span>
+            </div>
+        </div>
+    </div>
+
     <!-- 移动端+号浮动按钮，仅小屏幕显示 -->
     <div class="d-lg-none">
         {%- if has_permission('customer', 'create') %}
         {{ render_button(_('添加企业'), url_for('customer.add_company'), color='primary', icon='fas fa-plus', extra_class='rounded-circle shadow position-fixed', attrs='id="mobileFabBtn" style="right: 24px; bottom: 24px; width: 56px; height: 56px; z-index: 1050; font-size: 2rem; display: flex; align-items: center; justify-content: center;"') }}
         <div id="mobileFabMenu" class="card shadow position-fixed" style="right: 24px; bottom: 90px; min-width: 140px; z-index: 1051; display: none;">
             <ul class="list-group list-group-flush">
-                {%- if current_user.role == 'admin' %}
+                {%- if has_permission('customer', 'import') %}
                 <li class="list-group-item p-2">
                     {{ render_button(_('导入客户'), '#', color='auxiliary', icon='fas fa-file-import', extra_class='text-info text-decoration-none', attrs='id="mobileImportBtn"') }}
                 </li>
@@ -2586,4 +2627,7 @@ updateBatchDeleteButtonVisibility();
         animation: checkbox-pulse 1s cubic-bezier(0.66, 0, 0, 1);
     }
 </style>
+
+<!-- 引入客户账户选择器JavaScript -->
+<script src="{{ url_for('static', filename='js/customer_account_selector.js') }}"></script>
 {% endblock %}

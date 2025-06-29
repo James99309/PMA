@@ -3,6 +3,7 @@ from app.models.quotation import Quotation, QuotationDetail
 from app.models.project import Project
 from app.models.customer import Company, Contact
 from app.models.product import Product  # 添加产品模型导入
+from app.models.user import User  # 添加User模型导入
 from datetime import datetime
 from sqlalchemy import or_, func
 from app import db
@@ -615,11 +616,18 @@ def get_project(project_id):
         project = Project.query.get_or_404(project_id)
         logger.debug(f"项目信息: 阶段={project.current_stage}, 类型={project.project_type}")
         
+        # 导入翻译函数
+        from app.utils.dictionary_helpers import project_stage_label, project_type_label
+        
+        # 获取翻译后的阶段和类型
+        stage_display = project_stage_label(project.current_stage, 'zh') if project.current_stage else ''
+        type_display = project_type_label(project.project_type, 'zh') if project.project_type else project.project_type
+        
         # 设置缓存控制头
         response = jsonify({
             'success': True,
-            'current_stage': project.current_stage,
-            'project_type': project.project_type,
+            'current_stage': stage_display,  # 返回翻译后的阶段
+            'project_type': type_display,   # 返回翻译后的类型
             'project_name': project.project_name,
             'authorization_code': project.authorization_code
         })
@@ -1558,7 +1566,6 @@ def view_quotation(id):
         quotation.details = sorted_details
         
         # 查询可选新拥有人
-        from app.models.user import User
         all_users = []
         if can_change_quotation_owner(current_user, quotation):
             from app.permissions import is_admin_or_ceo
@@ -2151,9 +2158,19 @@ def can_view_quotation(user, quotation):
     # 统一处理角色字符串，去除空格
     user_role = user.role.strip() if user.role else ''
     
-    # 财务总监、解决方案经理、产品经理可以查看所有报价单
-    if user_role in ['finance_director', 'finace_director', 'solution_manager', 'solution', 'product_manager', 'product']:
+    # 财务总监可以查看所有报价单
+    if user_role in ['finance_director', 'finace_director']:
         return True
+    
+    # 产品经理、解决方案经理：基于权限系统 + 企业级权限
+    if user_role in ['product_manager', 'product', 'solution_manager', 'solution']:
+        if user.has_permission('quotation', 'view') and user.company_name:
+            # 检查报价单是否属于同企业
+            from app.models.project import Project
+            if hasattr(quotation, 'project') and quotation.project:
+                project_owner = User.query.get(quotation.project.owner_id)
+                return project_owner and project_owner.company_name == user.company_name
+        return False
     
     from app.models.user import Affiliation
     affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
@@ -2396,7 +2413,7 @@ def export_excel(quotation_id):
         
         # 生成Excel
         excel_generator = ExcelGenerator()
-        excel_content = excel_generator.generate_quotation_excel(quotation)
+        excel_content = excel_generator.generate_quotation_excel(quotation, current_user)
         
         # 设置文件名：报价单编号 & 项目名称
         project_name = quotation.project.project_name if quotation.project else "未知项目"
@@ -2410,6 +2427,16 @@ def export_excel(quotation_id):
         response = make_response(excel_content)
         response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         # 使用URL编码处理中文文件名
+        encoded_filename = quote(filename.encode('utf-8'))
+        response.headers['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{encoded_filename}'
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"导出报价单Excel失败: {str(e)}", exc_info=True)
+        flash(f'导出Excel失败：{str(e)}', 'danger')
+        return redirect(url_for('quotation.view_quotation', id=quotation_id))
+
         encoded_filename = quote(filename.encode('utf-8'))
         response.headers['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{encoded_filename}'
         

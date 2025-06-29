@@ -20,6 +20,25 @@ logger = logging.getLogger(__name__)
 
 api_bp = Blueprint('api', __name__)
 
+# 行业分类映射
+INDUSTRY_LABELS = {
+    'manufacturing': {'zh': '制造业', 'en': 'Manufacturing'},
+    'real_estate': {'zh': '商业地产', 'en': 'Real Estate'},
+    'energy': {'zh': '石油能源', 'en': 'Energy'},
+    'chemical': {'zh': '化工医药', 'en': 'Chemicals & Pharma'},
+    'health': {'zh': '医疗卫生', 'en': 'Healthcare'},
+    'transport': {'zh': '交通运输', 'en': 'Transportation'},
+    'government': {'zh': '政府机构', 'en': 'Government'},
+    'education': {'zh': '教育', 'en': 'Education'},
+    'other': {'zh': '其他选择', 'en': 'Other'}
+}
+
+def get_role_display_name(role_key):
+    """获取角色的中文显示名"""
+    from app.models.dictionary import Dictionary
+    role_dict = Dictionary.query.filter_by(type='role', key=role_key, is_active=True).first()
+    return role_dict.value if role_dict else role_key
+
 @api_bp.route('/companies/<string:company_type>', methods=['GET'])
 @login_required
 def get_companies_by_type(company_type):
@@ -1042,4 +1061,19 @@ def test_check_conflicts():
         return jsonify({
             'success': False,
             'message': f'测试API - 检查冲突失败: {str(e)}'
-        }), 500 
+        }), 500
+
+@api_bp.route('/vendor-company-name')
+@login_required
+def get_vendor_company_name():
+    """获取当前用户的企业名称"""
+    
+    # 获取当前用户的企业名称
+    user_company_name = current_user.company_name if current_user.company_name else '厂商企业'
+    
+    return jsonify({
+        'success': True,
+        'data': {
+            'company_name': user_company_name
+        }
+    }) 

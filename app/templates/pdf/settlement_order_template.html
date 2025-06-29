@@ -258,13 +258,33 @@
 </head>
 <body>
     <!-- 水印 -->
-    <div class="watermark">和源通信科技有限公司</div>
+    <div class="watermark">
+        {% if pricing_order.project and pricing_order.project.owner and pricing_order.project.owner.company_name %}
+            {{ pricing_order.project.owner.company_name }}
+        {% else %}
+            {{ current_user.company_name if current_user.company_name else '厂商企业' }}
+        {% endif %}
+    </div>
     
     <!-- 页面头部 -->
     <div class="page-header">
         <div class="company-info">
             <div class="project-title">{{ pricing_order.project.project_name if pricing_order.project else '未知项目' }}</div>
-            <div class="distributor-name">{{ pricing_order.distributor.company_name if pricing_order.distributor else '分销商信息缺失' }}</div>
+            <div class="distributor-name">{{ pricing_order.distributor.company_name if pricing_order.distributor else '' }}</div>
+            <div class="company-name">
+                {% if pricing_order.project and pricing_order.project.owner and pricing_order.project.owner.company_name %}
+                    {{ pricing_order.project.owner.company_name }}
+                {% else %}
+                    {{ current_user.company_name if current_user.company_name else '厂商企业' }}
+                {% endif %}
+            </div>
+            <div class="company-address">
+                <div>武威路88弄19号楼6楼</div>
+                <div>普陀区 上海市</div>
+                <div>中国 (200335)</div>
+                <div>021-62596028</div>
+                <div>www.evertac.net</div>
+            </div>
         </div>
         <div class="document-header">
             <div class="document-title">结算单</div>
@@ -367,7 +387,7 @@
                 <td class="text-left">{{ detail.product_name }}</td>
                 <td>{{ detail.product_model or '-' }}</td>
                 <td class="text-left">{{ detail.product_desc or '-' }}</td>
-                <td>{{ detail.brand or '和源通信' }}</td>
+                <td>{{ detail.brand or '-' }}</td>
                 <td>{{ detail.unit or '套' }}</td>
                 <td>{{ detail.quantity }}</td>
                 <td class="text-right">{{ "{:,.2f}".format(detail.market_price or 0) }}</td>

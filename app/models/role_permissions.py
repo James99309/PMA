@@ -14,6 +14,10 @@ class RolePermission(db.Model):
     pricing_discount_limit = db.Column(db.Float, nullable=True)  # 批价折扣下限（百分比形式，如40.5表示40.5%）
     settlement_discount_limit = db.Column(db.Float, nullable=True)  # 结算折扣下限（百分比形式）
     
+    # 四级权限控制字段
+    permission_level = db.Column(db.String(20), default='personal')  # 权限级别：system, company, department, personal
+    permission_level_description = db.Column(db.Text)  # 权限级别说明
+    
     __table_args__ = (db.UniqueConstraint('role', 'module', name='uix_role_module'),)
     
     def to_dict(self):
@@ -27,5 +31,7 @@ class RolePermission(db.Model):
             'can_edit': self.can_edit,
             'can_delete': self.can_delete,
             'pricing_discount_limit': self.pricing_discount_limit,
-            'settlement_discount_limit': self.settlement_discount_limit
+            'settlement_discount_limit': self.settlement_discount_limit,
+            'permission_level': self.permission_level,
+            'permission_level_description': self.permission_level_description
         } 

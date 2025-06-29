@@ -19,6 +19,21 @@ logger = logging.getLogger(__name__)
 class PricingOrderService:
     """批价单服务类"""
     
+    # 流程版本切换的时间节点
+    V2_CUTOFF_DATE = datetime(2025, 1, 1)
+    
+    @staticmethod
+    def should_use_v2_flow(pricing_order=None):
+        """判断是否应该使用V2流程"""
+        if pricing_order:
+            if pricing_order.created_at and pricing_order.created_at < PricingOrderService.V2_CUTOFF_DATE:
+                return False  # 使用旧逻辑
+            else:
+                return True  # 使用新逻辑
+        else:
+            # 新创建的批价单默认使用V2
+            return True
+    
     # 快速通过折扣率规则 - 已取消快速审批功能
     # FAST_APPROVAL_RULES = {
     #     '渠道经理': 40.5,
@@ -37,13 +52,220 @@ class PricingOrderService:
         # 支持中英文项目类型映射
         if project_type in ["渠道跟进", "channel_follow"]:
             return 'channel_follow'
-        elif project_type in ["销售机会", "sales_opportunity"]:
+        elif project_type in ["销售机会", "sales_opportunity", "业务机会", "business_opportunity"]:
             return 'sales_opportunity'
-        elif project_type in ["销售重点", "sales_key"]:
+        elif project_type in ["销售重点", "sales_key", "sales_focus"]:
             return 'sales_key'
         else:
             # 默认为销售重点类
             return 'sales_key'
+    
+    # V2 新方法：提交前验证
+    @staticmethod
+    def validate_before_submit_v2(pricing_order, current_user):
+        """提交前完整验证 - V2版本"""
+        errors = []
+        warnings = []
+        
+        # 1. 检查项目是否存在
+        project = pricing_order.project
+        if not project:
+            errors.append("批价单关联的项目不存在")
+            return False, errors, warnings
+        
+        # 2. 检查项目是否有厂家负责人（关键验证）
+        if not project.vendor_sales_manager_id:
+            errors.append("项目必须设置厂家负责人才能提交批价单。请先在项目页面设置厂家销售负责人。")
+            return False, errors, warnings
+        
+        # 3. 验证厂家负责人是否存在
+        vendor_sales_manager = project.vendor_sales_manager
+        if not vendor_sales_manager:
+            errors.append("项目设置的厂家销售负责人不存在，请重新设置")
+            return False, errors, warnings
+        
+        # 4. 检查厂商直签的有效性
+        if pricing_order.is_direct_contract and not current_user.is_vendor_user():
+            warnings.append("非厂家账户无法使用厂商直签功能，该选项将被忽略")
+        
+        # 5. 检查是否能找到必要的审批人角色
+        admin_id = PricingOrderService.get_role_user_id_v2('admin')
+        if not admin_id:
+            errors.append("系统缺少管理员角色，无法发起审批流程")
+            return False, errors, warnings
+        
+        # 6. 检查部门负责人（非致命错误，但需要警告）
+        dept_manager = PricingOrderService.get_department_manager(current_user.id)
+        if not dept_manager:
+            warnings.append("您没有设置部门负责人，部门审批环节将被跳过")
+        
+        # 7. 检查渠道经理（非致命错误）
+        channel_manager_id = PricingOrderService.get_role_user_id_v2('channel_manager')
+        if not channel_manager_id:
+            warnings.append("系统缺少渠道经理角色，渠道审批环节将被跳过")
+        
+        return True, errors, warnings
+    
+    @staticmethod
+    def get_department_manager(user_id):
+        """获取用户的部门负责人"""
+        try:
+            user = User.query.get(user_id)
+            if not user or not user.department or not user.company_name:
+                return None
+            
+            # 查找部门负责人
+            department_manager = User.query.filter_by(
+                department=user.department,
+                company_name=user.company_name,
+                is_department_manager=True
+            ).first()
+            
+            return department_manager
+        except Exception as e:
+            logger.error(f"获取部门负责人失败: {str(e)}")
+            return None
+    
+    @staticmethod
+    def get_role_user_id_v2(role_name):
+        """获取指定角色的用户ID - V2版本"""
+        try:
+            user = User.query.filter_by(role=role_name).first()
+            return user.id if user else None
+        except Exception as e:
+            logger.error(f"获取角色用户失败: {role_name}, {str(e)}")
+            return None
+    
+    @staticmethod
+    def normalize_direct_contract_status(pricing_order, current_user):
+        """规范化厂商直签状态（草稿阶段自动判断）"""
+        try:
+            # 如果当前用户不是厂家账户，强制将厂商直签设为False
+            if pricing_order.is_direct_contract and not current_user.is_vendor_user():
+                pricing_order.is_direct_contract = False
+                logger.info(f"非厂家账户 {current_user.username} 的厂商直签状态已自动设置为False")
+                return True, "非厂家账户无法使用厂商直签功能，已自动关闭"
+            
+            return True, None
+        except Exception as e:
+            logger.error(f"规范化厂商直签状态失败: {str(e)}")
+            return False, f"处理失败: {str(e)}"
+            
+    @staticmethod
+    def apply_direct_contract_to_pricing_order(pricing_order, current_user):
+        """处理厂商直签设置，保持经销商和分销商为空"""
+        try:
+            if pricing_order.is_direct_contract:
+                # 厂商直签时，保持经销商和分销商为空
+                pricing_order.dealer_id = None
+                pricing_order.distributor_id = None
+                logger.info("厂商直签开启，经销商和分销商保持为空")
+                return True, "厂商直签已启用，经销商和分销商设置为空"
+                        
+            return True, None
+        except Exception as e:
+            logger.error(f"应用厂商直签设置失败: {str(e)}")
+            return False, f"处理失败: {str(e)}"
+    
+    @staticmethod
+    def get_vendor_company_name():
+        """获取厂商企业名称（已废弃，保留向后兼容）"""
+        from app.models.dictionary import Dictionary
+        vendor_company = Dictionary.query.filter_by(
+            type='company',
+            is_vendor=True,
+            is_active=True
+        ).first()
+        return vendor_company.value if vendor_company else "和源通信（上海）股份有限公司"
+    
+    @staticmethod
+    def generate_approval_steps_v2(pricing_order, submitter_id):
+        """生成新版本的审批步骤 - V2版本"""
+        steps = []
+        project = pricing_order.project
+        submitter = User.query.get(submitter_id)
+        
+        if not project or not submitter:
+            logger.error("项目或提交人信息缺失")
+            return []
+        
+        vendor_sales_manager = project.vendor_sales_manager
+        is_direct_contract = pricing_order.is_direct_contract
+        
+        # 步骤计数器
+        step_order = 1
+        
+        # 第一步：如果发起人不是厂家销售负责人，需要先经过厂家负责人审批
+        if vendor_sales_manager and vendor_sales_manager.id != submitter_id:
+            steps.append({
+                'step_order': step_order,
+                'step_name': '厂家销售负责人审批',
+                'approver_role': '厂家销售负责人',
+                'approver_id': vendor_sales_manager.id
+            })
+            step_order += 1
+        
+        # 判断是否为厂家账户发起
+        is_vendor_submitter = submitter.is_vendor_user()
+        
+        # 如果非厂家账户发起，厂商直签开关无效
+        effective_direct_contract = is_direct_contract and is_vendor_submitter
+        
+        if effective_direct_contract:
+            # 厂商直签流程：部门负责人 → 管理员
+            dept_manager = PricingOrderService.get_department_manager(submitter_id)
+            if dept_manager:
+                steps.append({
+                    'step_order': step_order,
+                    'step_name': '部门负责人审批',
+                    'approver_role': '部门负责人',
+                    'approver_id': dept_manager.id
+                })
+                step_order += 1
+            else:
+                # 部门负责人缺失，跳到下一步
+                logger.warning(f"提交人 {submitter_id} 部门负责人缺失，跳过部门负责人审批")
+        else:
+            # 非厂商直签流程：渠道经理 → 部门负责人 → 管理员
+            channel_manager_id = PricingOrderService.get_role_user_id_v2('channel_manager')
+            if channel_manager_id:
+                steps.append({
+                    'step_order': step_order,
+                    'step_name': '渠道经理审批',
+                    'approver_role': '渠道经理',
+                    'approver_id': channel_manager_id
+                })
+                step_order += 1
+            else:
+                logger.warning("渠道经理角色缺失，跳过渠道经理审批")
+            
+            # 部门负责人审批
+            dept_manager = PricingOrderService.get_department_manager(submitter_id)
+            if dept_manager:
+                steps.append({
+                    'step_order': step_order,
+                    'step_name': '部门负责人审批',
+                    'approver_role': '部门负责人',
+                    'approver_id': dept_manager.id
+                })
+                step_order += 1
+            else:
+                logger.warning(f"提交人 {submitter_id} 部门负责人缺失，跳过部门负责人审批")
+        
+        # 最后一步：管理员审批
+        admin_id = PricingOrderService.get_role_user_id_v2('admin')
+        if admin_id:
+            steps.append({
+                'step_order': step_order,
+                'step_name': '管理员审批',
+                'approver_role': '管理员',
+                'approver_id': admin_id
+            })
+        else:
+            logger.error("管理员角色缺失，无法完成审批流程")
+            return []  # 无管理员则无法审批
+        
+        return steps
     
     @staticmethod
     def generate_approval_steps(flow_type, project, has_dealer=False):
@@ -542,18 +764,39 @@ class PricingOrderService:
     
     @staticmethod
     def submit_for_approval(pricing_order_id, current_user_id):
-        """提交审批"""
+        """提交审批 - 支持V1/V2版本"""
         try:
             pricing_order = PricingOrder.query.get(pricing_order_id)
             if not pricing_order:
                 return False, "批价单不存在"
-            
+
             if pricing_order.status not in ['draft', 'rejected']:
                 return False, "只有草稿状态或被拒绝的批价单可以提交审批"
+
+            current_user = User.query.get(current_user_id)
+            if not current_user:
+                return False, "当前用户不存在"
+
+            # 判断使用哪个版本的流程
+            use_v2 = PricingOrderService.should_use_v2_flow(pricing_order)
             
+            if use_v2:
+                return PricingOrderService._submit_for_approval_v2(pricing_order, current_user)
+            else:
+                return PricingOrderService._submit_for_approval_v1(pricing_order, current_user_id)
+                
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"提交审批失败: {str(e)}")
+            return False, f"提交失败: {str(e)}"
+    
+    @staticmethod
+    def _submit_for_approval_v1(pricing_order, current_user_id):
+        """提交审批 - V1版本（旧逻辑）"""
+        try:
             # 🔥 关键修复：清理旧的审批记录（召回后重新提交时）
             old_records = PricingOrderApprovalRecord.query.filter_by(
-                pricing_order_id=pricing_order_id
+                pricing_order_id=pricing_order.id
             ).all()
             for record in old_records:
                 db.session.delete(record)
@@ -578,7 +821,7 @@ class PricingOrderService:
             # 创建审批记录
             for step_data in approval_steps:
                 approval_record = PricingOrderApprovalRecord(
-                    pricing_order_id=pricing_order_id,
+                    pricing_order_id=pricing_order.id,
                     step_order=step_data['step_order'],
                     step_name=step_data['step_name'],
                     approver_role=step_data['approver_role'],
@@ -605,10 +848,89 @@ class PricingOrderService:
                 quotation.locked_at = datetime.now()
             
             db.session.commit()
+            logger.info(f"批价单 {pricing_order.order_number} 使用V1流程提交审批成功")
             return True, None
             
         except Exception as e:
             db.session.rollback()
+            logger.error(f"V1提交审批失败: {str(e)}")
+            return False, f"提交失败: {str(e)}"
+    
+    @staticmethod
+    def _submit_for_approval_v2(pricing_order, current_user):
+        """提交审批 - V2版本（新逻辑）"""
+        try:
+            # 规范化厂商直签状态
+            normalized, message = PricingOrderService.normalize_direct_contract_status(pricing_order, current_user)
+            if not normalized:
+                return False, message
+            
+            # 应用厂商直签设置（在提交时自动填入当前用户的企业名称）
+            applied, apply_message = PricingOrderService.apply_direct_contract_to_pricing_order(pricing_order, current_user)
+            if not applied:
+                return False, apply_message
+            
+            # 提交前完整验证
+            can_submit, errors, warnings = PricingOrderService.validate_before_submit_v2(pricing_order, current_user)
+            if not can_submit:
+                return False, "; ".join(errors)
+            
+            # 清理旧的审批记录
+            old_records = PricingOrderApprovalRecord.query.filter_by(
+                pricing_order_id=pricing_order.id
+            ).all()
+            for record in old_records:
+                db.session.delete(record)
+            
+            # 动态生成审批步骤
+            approval_steps = PricingOrderService.generate_approval_steps_v2(pricing_order, current_user.id)
+            
+            if not approval_steps:
+                return False, "无法生成审批流程，请检查项目信息和用户角色配置"
+            
+            # 创建审批记录
+            for step_data in approval_steps:
+                approval_record = PricingOrderApprovalRecord(
+                    pricing_order_id=pricing_order.id,
+                    step_order=step_data['step_order'],
+                    step_name=step_data['step_name'],
+                    approver_role=step_data['approver_role'],
+                    approver_id=step_data['approver_id']
+                )
+                db.session.add(approval_record)
+            
+            # 更新状态为审批中
+            pricing_order.status = 'pending'
+            pricing_order.current_approval_step = 1
+            
+            # 锁定项目和报价单
+            project = pricing_order.project
+            if project:
+                project.is_locked = True
+                project.locked_reason = "批价审批流程进行中"
+                project.locked_by = current_user.id
+                project.locked_at = datetime.now()
+            
+            quotation = pricing_order.quotation
+            if quotation:
+                quotation.is_locked = True
+                quotation.lock_reason = "批价审批流程进行中"
+                quotation.locked_by = current_user.id
+                quotation.locked_at = datetime.now()
+            
+            db.session.commit()
+            
+            # 构建返回消息
+            success_message = f"批价单提交审批成功，生成 {len(approval_steps)} 个审批步骤"
+            if warnings:
+                success_message += f"。注意：{'; '.join(warnings)}"
+            
+            logger.info(f"批价单 {pricing_order.order_number} 使用V2流程提交审批成功")
+            return True, success_message
+            
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"V2提交审批失败: {str(e)}")
             return False, f"提交失败: {str(e)}"
     
     @staticmethod
@@ -1146,24 +1468,21 @@ class PricingOrderService:
         if user_role == 'sales_director':
             return project_type in ['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow']
         
-        # 渠道经理：只能看到渠道跟进和销售机会的批价单，不能看到销售重点
+        # 渠道经理：可以看到其权限范围内的批价单
         if user_role == 'channel_manager':
-            if project_type in ['渠道跟进', 'channel_follow', '销售机会', 'sales_opportunity']:
-                # 检查是否有经销商
-                return bool(pricing_order.dealer_id)
-            return False
+            return True  # 权限控制交由access_control.py统一管理
         
-        # 服务经理：可以看到所有销售机会的批价单
+        # 服务经理：可以看到其权限范围内的所有批价单
         if user_role == 'service_manager':
-            return project_type in ['销售机会', 'sales_opportunity']
+            return True  # 权限控制交由access_control.py统一管理
         
-        # 商务助理：可以看到所有的销售重点，渠道跟进的业务
+        # 商务助理：可以看到其权限范围内的批价单
         if user_role == 'business_admin':
-            return project_type in ['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow']
+            return True  # 权限控制交由access_control.py统一管理
         
-        # 财务总监：可以看到所有的销售重点，渠道跟进和销售机会的业务
+        # 财务总监：可以看到其权限范围内的所有批价单
         if user_role == 'finance_director':
-            return project_type in ['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow', '销售机会', 'sales_opportunity']
+            return True  # 权限控制交由access_control.py统一管理
         
         return False
 
@@ -1501,3 +1820,348 @@ class PricingOrderService:
         except Exception as e:
             db.session.rollback()
             return False, f"退回失败: {str(e)}" 
+    
+    @staticmethod
+    def can_modify_direct_contract(pricing_order, current_user):
+        """检查是否可以修改厂商直签状态 - V2版本专用"""
+        # 只有厂家账户可以设置厂商直签状态
+        if not current_user.is_vendor_user():
+            return False, "只有厂家账户可以设置厂商直签状态"
+        
+        # 审批中和审批通过后都不可修改（修正：审批中不能修改）
+        if pricing_order.status in ['pending', 'approved']:
+            return False, "审批过程中和审批通过后不可修改厂商直签状态"
+        
+        return True, None
+        
+        # 商务助理和财务总监可以打印所有的批价单和结算单
+        if user_role in ['business_admin', 'finance_director']:
+            # 需要先检查是否有查看权限
+            if PricingOrderService.can_view_pricing_order(pricing_order, current_user):
+                return True
+        
+        # 其他角色只能导出批价单PDF，且需要有查看权限
+        if pdf_type == 'pricing':
+            return PricingOrderService.can_view_pricing_order(pricing_order, current_user)
+        
+        # 结算单PDF需要特殊权限（商务助理、财务总监、管理员）
+        if pdf_type == 'settlement':
+            if user_role in ['business_admin', 'finance_director', 'admin']:
+                return PricingOrderService.can_view_pricing_order(pricing_order, current_user)
+        
+        return False
+    
+    @staticmethod
+    def save_approval_data(pricing_order, pricing_details, settlement_details, basic_info, current_user, logger):
+        """
+        统一的审批数据保存方法
+        确保批价单和结算单数据保存逻辑一致
+        
+        Args:
+            pricing_order: 批价单对象
+            pricing_details: 批价单明细数据
+            settlement_details: 结算单明细数据
+            basic_info: 基本信息
+            current_user: 当前用户
+            logger: 日志对象
+            
+        Returns:
+            tuple: (success, error_message)
+        """
+        try:
+            # 在审批上下文中，保存原始审批步骤用于权限检查
+            pricing_order._original_approval_step = pricing_order.current_approval_step
+            
+            # 1. 保存基本信息
+            if basic_info:
+                pricing_order.is_direct_contract = basic_info.get('is_direct_contract', False)
+                pricing_order.is_factory_pickup = basic_info.get('is_factory_pickup', False)
+                if basic_info.get('distributor_id'):
+                    pricing_order.distributor_id = basic_info.get('distributor_id')
+                if basic_info.get('dealer_id'):
+                    pricing_order.dealer_id = basic_info.get('dealer_id')
+            
+            # 2. 保存批价单明细（关键修复）
+            if pricing_details:
+                # 在审批上下文中检查权限（允许更宽松的权限检查）
+                if not PricingOrderService.can_edit_pricing_details(pricing_order, current_user, is_approval_context=True):
+                    logger.warning(f"用户 {current_user.username} 没有批价单明细编辑权限")
+                else:
+                    from app.models.pricing_order import PricingOrderDetail
+                    logger.info(f"开始处理 {len(pricing_details)} 条批价单明细")
+                    
+                    for detail_data in pricing_details:
+                        # 🔥 关键修复：通过产品名称查找批价单明细，而不是依赖前端传递的ID
+                        product_name = detail_data.get('product_name', '').strip()
+                        if not product_name:
+                            logger.warning("跳过空产品名称的批价单明细")
+                            continue
+                        
+                        # 查找对应的批价单明细
+                        detail = PricingOrderDetail.query.filter_by(
+                            pricing_order_id=pricing_order.id,
+                            product_name=product_name
+                        ).first()
+                        
+                        if detail:
+                            logger.info(f"找到批价单明细: ID={detail.id}, 产品={product_name}")
+                            
+                            if 'discount_rate' in detail_data:
+                                # 前端传递的是百分比形式（如40.5），需要转换为小数形式（如0.405）
+                                discount_rate_percent = float(detail_data['discount_rate'])
+                                old_discount_rate = detail.discount_rate
+                                detail.discount_rate = discount_rate_percent / 100
+                                logger.info(f"更新批价单明细 {detail.id}: 折扣率从 {old_discount_rate:.3f} 更新为 {detail.discount_rate:.3f} (前端传递: {discount_rate_percent}%)")
+                            
+                            if 'unit_price' in detail_data:
+                                old_unit_price = detail.unit_price
+                                detail.unit_price = float(detail_data['unit_price'])
+                                logger.info(f"更新批价单明细 {detail.id}: 单价从 {old_unit_price:.2f} 更新为 {detail.unit_price:.2f}")
+                            
+                            if 'quantity' in detail_data:
+                                # 🔥 关键修复：审批状态下严禁修改数量
+                                if pricing_order.status == 'pending':
+                                    logger.warning(f"审批状态下拒绝修改数量：产品={product_name}, 当前数量={detail.quantity}, 尝试修改为={detail_data['quantity']}")
+                                else:
+                                    old_quantity = detail.quantity
+                                    detail.quantity = int(detail_data['quantity'])
+                                    logger.info(f"更新批价单明细 {detail.id}: 数量从 {old_quantity} 更新为 {detail.quantity}")
+                            
+                            # 重新计算价格确保一致性
+                            detail.calculate_prices()
+                            logger.info(f"批价单明细 {detail.id} 重新计算后总价: {detail.total_price:.2f}")
+                        else:
+                            logger.warning(f"未找到产品名称为 '{product_name}' 的批价单明细")
+            
+            # 3. 保存结算单明细（关键修复）
+            if settlement_details:
+                if not PricingOrderService.can_edit_settlement_details(pricing_order, current_user, is_approval_context=True):
+                    logger.warning(f"用户 {current_user.username} 没有结算单明细编辑权限")
+                else:
+                    from app.models.pricing_order import SettlementOrderDetail
+                    logger.info(f"开始处理 {len(settlement_details)} 条结算单明细")
+                    
+                    for detail_data in settlement_details:
+                        # 🔥 关键修复：通过产品名称查找结算单明细，而不是依赖前端传递的ID
+                        product_name = detail_data.get('product_name', '').strip()
+                        if not product_name:
+                            logger.warning("跳过空产品名称的结算单明细")
+                            continue
+                        
+                        # 查找对应的结算单明细
+                        detail = SettlementOrderDetail.query.filter_by(
+                            pricing_order_id=pricing_order.id,
+                            product_name=product_name
+                        ).first()
+                        
+                        if detail:
+                            logger.info(f"找到结算单明细: ID={detail.id}, 产品={product_name}")
+                            
+                            if 'discount_rate' in detail_data:
+                                # 前端传递的是百分比形式（如40.5），需要转换为小数形式（如0.405）
+                                discount_rate_percent = float(detail_data['discount_rate'])
+                                old_discount_rate = detail.discount_rate
+                                detail.discount_rate = discount_rate_percent / 100
+                                logger.info(f"更新结算单明细 {detail.id}: 折扣率从 {old_discount_rate:.3f} 更新为 {detail.discount_rate:.3f} (前端传递: {discount_rate_percent}%)")
+                            
+                            if 'unit_price' in detail_data:
+                                old_unit_price = detail.unit_price
+                                detail.unit_price = float(detail_data['unit_price'])
+                                logger.info(f"更新结算单明细 {detail.id}: 单价从 {old_unit_price:.2f} 更新为 {detail.unit_price:.2f}")
+                            
+                            if 'quantity' in detail_data:
+                                # 🔥 关键修复：审批状态下严禁修改数量
+                                if pricing_order.status == 'pending':
+                                    logger.warning(f"审批状态下拒绝修改数量：产品={product_name}, 当前数量={detail.quantity}, 尝试修改为={detail_data['quantity']}")
+                                else:
+                                    old_quantity = detail.quantity
+                                    detail.quantity = int(detail_data['quantity'])
+                                    logger.info(f"更新结算单明细 {detail.id}: 数量从 {old_quantity} 更新为 {detail.quantity}")
+                            
+                            # 重新计算价格确保一致性
+                            detail.calculate_prices()
+                            logger.info(f"结算单明细 {detail.id} 重新计算后总价: {detail.total_price:.2f}")
+                        else:
+                            logger.warning(f"未找到产品名称为 '{product_name}' 的结算单明细")
+            
+            # 4. 统一计算总金额和总折扣率
+            pricing_order.calculate_pricing_totals()
+            pricing_order.calculate_settlement_totals()
+            
+            # 5. 更新独立结算单模型（关键修复）
+            from app.models.pricing_order import SettlementOrder, SettlementOrderDetail
+            settlement_order = SettlementOrder.query.filter_by(pricing_order_id=pricing_order.id).first()
+            if settlement_order:
+                # 修复结算单明细关系（确保 settlement_order_id 字段正确）
+                settlement_details_by_po = SettlementOrderDetail.query.filter_by(pricing_order_id=pricing_order.id).all()
+                for detail in settlement_details_by_po:
+                    if detail.settlement_order_id != settlement_order.id:
+                        detail.settlement_order_id = settlement_order.id
+                        logger.info(f"修复结算单明细 {detail.id} 的关系: settlement_order_id = {settlement_order.id}")
+                
+                # 重新计算独立结算单的总金额
+                settlement_order.calculate_totals()
+                logger.info(f"更新独立结算单 {settlement_order.order_number}: 总金额 {settlement_order.total_amount:,.2f}, 折扣率 {settlement_order.discount_percentage:.1f}%")
+            else:
+                logger.warning(f"未找到批价单 {pricing_order.order_number} 对应的独立结算单")
+            
+            return True, None
+            
+        except Exception as e:
+            logger.error(f"审批数据保存失败: {str(e)}")
+            return False, f"保存数据失败: {str(e)}"
+
+    @staticmethod
+    def can_edit_quantity(pricing_order, current_user, is_approval_context=False):
+        """检查是否可以编辑数量字段
+        
+        审批状态下，数量字段应该被锁定，不允许任何人编辑
+        """
+        # 审批通过后不能编辑
+        if pricing_order.status == 'approved':
+            return False
+            
+        if pricing_order.status in ['draft', 'rejected']:
+            # 草稿状态或被拒绝状态：创建人可编辑数量
+            return pricing_order.created_by == current_user.id
+        elif pricing_order.status == 'pending':
+            # 审批状态下，数量字段锁定，任何人都不能编辑
+            return False
+                
+        return False
+    
+    @staticmethod
+    def can_edit_discount_and_price(pricing_order, current_user, is_approval_context=False):
+        """检查是否可以编辑折扣率和单价字段
+        
+        审批状态下，只有当前审批人可以编辑折扣率和单价
+        """
+        # 审批通过后不能编辑
+        if pricing_order.status == 'approved':
+            return False
+            
+        if pricing_order.status in ['draft', 'rejected']:
+            # 草稿状态或被拒绝状态：创建人可编辑
+            return pricing_order.created_by == current_user.id
+        elif pricing_order.status == 'pending':
+            # 审批中：只有当前审批人可以编辑折扣率和单价
+            # 检查是否为当前审批步骤的审批人
+            target_step = pricing_order.current_approval_step
+            if is_approval_context and hasattr(pricing_order, '_original_approval_step'):
+                target_step = pricing_order._original_approval_step
+                
+            current_approval_record = PricingOrderApprovalRecord.query.filter_by(
+                pricing_order_id=pricing_order.id,
+                step_order=target_step,
+                approver_id=current_user.id
+            ).first()
+            if current_approval_record:
+                return True
+            
+            # 审批状态下，除当前审批人外，其他人都不能编辑
+            return False
+                
+        return False
+    
+    @staticmethod
+    def can_edit_basic_info(pricing_order, current_user, is_approval_context=False):
+        """检查是否可以编辑基本信息（分销商、经销商等）
+        
+        审批状态下，只有当前审批人可以编辑基本信息
+        """
+        # 审批通过后不能编辑
+        if pricing_order.status == 'approved':
+            return False
+            
+        if pricing_order.status in ['draft', 'rejected']:
+            # 草稿状态或被拒绝状态：创建人可编辑
+            return pricing_order.created_by == current_user.id
+        elif pricing_order.status == 'pending':
+            # 审批中：只有当前审批人可以编辑基本信息
+            # 检查是否为当前审批步骤的审批人
+            target_step = pricing_order.current_approval_step
+            if is_approval_context and hasattr(pricing_order, '_original_approval_step'):
+                target_step = pricing_order._original_approval_step
+                
+            current_approval_record = PricingOrderApprovalRecord.query.filter_by(
+                pricing_order_id=pricing_order.id,
+                step_order=target_step,
+                approver_id=current_user.id
+            ).first()
+            if current_approval_record:
+                return True
+            
+            # 审批状态下，除当前审批人外，其他人都不能编辑
+            return False
+                
+        return False
+    
+    @staticmethod
+    def admin_rollback_pricing_order(pricing_order_id, admin_user_id, reason=None):
+        """管理员将已通过的批价单退回到草稿状态（清除所有审批痕迹）"""
+        try:
+            from app.models.user import User
+            
+            # 先检查权限
+            can_rollback, error_msg = PricingOrderService.can_admin_rollback_pricing_order(
+                pricing_order_id, admin_user_id
+            )
+            if not can_rollback:
+                return False, error_msg
+            
+            # 获取用户和批价单
+            admin_user = User.query.get(admin_user_id)
+            pricing_order = PricingOrder.query.get(pricing_order_id)
+            
+            # 开始数据库事务
+            from app import db
+            from flask import current_app
+            
+            # 1. 删除所有审批记录（清除痕迹）
+            approval_records = PricingOrderApprovalRecord.query.filter_by(
+                pricing_order_id=pricing_order_id
+            ).all()
+            
+            for record in approval_records:
+                db.session.delete(record)
+            
+            # 2. 重置批价单状态为草稿
+            pricing_order.status = 'draft'
+            pricing_order.current_approval_step = 0
+            pricing_order.approved_at = None
+            pricing_order.final_approver_id = None
+            
+            # 3. 重置结算单审批状态（保留数据，仅重置状态）
+            PricingOrderService.reset_settlement_approval_status(pricing_order_id)
+            
+            # 4. 解锁相关对象
+            PricingOrderService.unlock_related_objects(pricing_order)
+            
+            # 5. 记录操作日志
+            current_app.logger.info(
+                f"管理员 {admin_user.username} (ID: {admin_user_id}) "
+                f"将批价单 {pricing_order.order_number} (ID: {pricing_order_id}) 的审批状态退回到草稿状态。"
+                f"原因：{reason or '未提供'}"
+            )
+            
+            # 提交事务
+            db.session.commit()
+            
+            return True, "批价单审批已成功退回到草稿状态，所有审批记录已清除"
+            
+        except Exception as e:
+            db.session.rollback()
+            return False, f"退回失败: {str(e)}" 
+    
+    @staticmethod
+    def can_modify_direct_contract(pricing_order, current_user):
+        """检查是否可以修改厂商直签状态 - V2版本专用"""
+        # 只有厂家账户可以设置厂商直签状态
+        if not current_user.is_vendor_user():
+            return False, "只有厂家账户可以设置厂商直签状态"
+        
+        # 审批中和审批通过后都不可修改（修正：审批中不能修改）
+        if pricing_order.status in ['pending', 'approved']:
+            return False, "审批过程中和审批通过后不可修改厂商直签状态"
+        
+        return True, None

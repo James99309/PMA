@@ -233,6 +233,7 @@
                             <thead class="table-light">
                                 <tr>
                                     <th>模块</th>
+                                    <th class="text-center">权限级别</th>
                                     <th class="text-center">查看</th>
                                     <th class="text-center">创建</th>
                                     <th class="text-center">编辑</th>
@@ -605,6 +606,32 @@
                 `;
                 row.appendChild(moduleCell);
                 
+                // 权限级别列
+                const permissionLevel = modulePermission.permission_level || 'personal';
+                const levelCell = document.createElement('td');
+                levelCell.className = 'text-center';
+                
+                // 检查是否有任何权限
+                const hasAnyPermission = module.type === 'switch' 
+                    ? modulePermission.can_create === true
+                    : (modulePermission.can_view || modulePermission.can_create || modulePermission.can_edit || modulePermission.can_delete);
+                
+                if (hasAnyPermission) {
+                    levelCell.innerHTML = `
+                        <select class="form-select form-select-sm permission-level-select" 
+                            data-module="${module.id}" 
+                            disabled>
+                            <option value="personal" ${permissionLevel === 'personal' ? 'selected' : ''}>个人级</option>
+                            <option value="department" ${permissionLevel === 'department' ? 'selected' : ''}>部门级</option>
+                            <option value="company" ${permissionLevel === 'company' ? 'selected' : ''}>企业级</option>
+                            <option value="system" ${permissionLevel === 'system' ? 'selected' : ''}>系统级</option>
+                        </select>
+                    `;
+                } else {
+                    levelCell.innerHTML = `<span class="text-muted">-</span>`;
+                }
+                row.appendChild(levelCell);
+                
                 // 检查是否为开关式权限模块（如项目评分）
                 if (module.type === 'switch') {
                     // 开关式权限：只显示一个开关，跨越所有权限列
@@ -684,10 +711,11 @@
                 });
             });
             
-            // 为每个权限复选框添加事件监听，更新全选状态
+            // 为每个权限复选框添加事件监听，更新全选状态和权限级别显示
             document.querySelectorAll('.permission-checkbox').forEach(checkbox => {
                 checkbox.addEventListener('change', function() {
                     updateModuleSelectAllState(this.dataset.module);
+                    updatePermissionLevelVisibility(this.dataset.module);
                 });
             });
             
@@ -698,6 +726,7 @@
                     if (label) {
                         label.textContent = this.checked ? '已启用' : '已禁用';
                     }
+                    updatePermissionLevelVisibility(this.dataset.module);
                 });
             });
         }
@@ -723,6 +752,48 @@
                 // 如果所有权限都已选中，则全选复选框也选中
                 const allChecked = Array.from(checkboxes).every(checkbox => checkbox.checked);
                 selectAllCheckbox.checked = allChecked;
+            }
+        }
+
+        // 更新权限级别选择框的显示状态
+        function updatePermissionLevelVisibility(moduleId) {
+            if (!moduleId) return;
+            
+            const checkboxes = document.querySelectorAll(`input[data-module="${moduleId}"].permission-checkbox`);
+            const switchInput = document.getElementById(`switch_${moduleId}`);
+            const levelSelect = document.querySelector(`select[data-module="${moduleId}"].permission-level-select`);
+            const levelCell = levelSelect ? levelSelect.parentElement : null;
+            
+            if (!levelCell) return;
+            
+            // 检查是否有任何权限
+            let hasAnyPermission = false;
+            if (switchInput) {
+                // 开关式权限
+                hasAnyPermission = switchInput.checked;
+            } else {
+                // 普通权限
+                hasAnyPermission = Array.from(checkboxes).some(checkbox => checkbox.checked);
+            }
+            
+            // 根据权限状态显示或隐藏权限级别选择框
+            if (hasAnyPermission) {
+                if (!levelSelect) {
+                    // 如果没有选择框，创建一个
+                    levelCell.innerHTML = `
+                        <select class="form-select form-select-sm permission-level-select" 
+                            data-module="${moduleId}" 
+                            ${editMode ? '' : 'disabled'}>
+                            <option value="personal" selected>个人级</option>
+                            <option value="department">部门级</option>
+                            <option value="company">企业级</option>
+                            <option value="system">系统级</option>
+                        </select>
+                    `;
+                }
+            } else {
+                // 没有权限时显示占位符
+                levelCell.innerHTML = `<span class="text-muted">-</span>`;
             }
         }
 
@@ -758,13 +829,20 @@
                 // 检查是否为开关式权限模块
                 const switchInput = document.getElementById(`switch_${moduleId}`);
                 if (switchInput) {
+                    const hasPermission = switchInput.checked;
+                    
+                    // 获取权限级别（只有在有权限时才设置）
+                    const levelSelect = document.querySelector(`select[data-module="${moduleId}"].permission-level-select`);
+                    const permissionLevel = hasPermission && levelSelect ? levelSelect.value : 'personal';
+                    
                     // 开关式权限：将开关状态保存为create权限
                     permissions.push({
                         module: moduleId,
                         can_view: false,
-                        can_create: switchInput.checked,
+                        can_create: hasPermission,
                         can_edit: false,
                         can_delete: false,
+                        permission_level: permissionLevel,
                         pricing_discount_limit: (moduleId === 'pricing_order' || moduleId === 'settlement_order') ? pricingLimit : null,
                         settlement_discount_limit: (moduleId === 'pricing_order' || moduleId === 'settlement_order') ? settlementLimit : null
                     });
@@ -775,12 +853,25 @@
                     const editCheckbox = document.getElementById(`edit_${moduleId}`);
                     const deleteCheckbox = document.getElementById(`delete_${moduleId}`);
                     
+                    const canView = viewCheckbox ? viewCheckbox.checked : false;
+                    const canCreate = createCheckbox ? createCheckbox.checked : false;
+                    const canEdit = editCheckbox ? editCheckbox.checked : false;
+                    const canDelete = deleteCheckbox ? deleteCheckbox.checked : false;
+                    
+                    // 检查是否有任何权限
+                    const hasAnyPermission = canView || canCreate || canEdit || canDelete;
+                    
+                    // 获取权限级别（只有在有权限时才设置）
+                    const levelSelect = document.querySelector(`select[data-module="${moduleId}"].permission-level-select`);
+                    const permissionLevel = hasAnyPermission && levelSelect ? levelSelect.value : 'personal';
+                    
                     permissions.push({
                         module: moduleId,
-                        can_view: viewCheckbox ? viewCheckbox.checked : false,
-                        can_create: createCheckbox ? createCheckbox.checked : false,
-                        can_edit: editCheckbox ? editCheckbox.checked : false,
-                        can_delete: deleteCheckbox ? deleteCheckbox.checked : false,
+                        can_view: canView,
+                        can_create: canCreate,
+                        can_edit: canEdit,
+                        can_delete: canDelete,
+                        permission_level: permissionLevel,
                         pricing_discount_limit: (moduleId === 'pricing_order' || moduleId === 'settlement_order') ? pricingLimit : null,
                         settlement_discount_limit: (moduleId === 'pricing_order' || moduleId === 'settlement_order') ? settlementLimit : null
                     });
@@ -885,6 +976,11 @@
             // 控制复选框和开关
             document.querySelectorAll('#permissionsTableBody input[type=checkbox]').forEach(cb => {
                 cb.disabled = !enable;
+            });
+            
+            // 控制权限级别选择框
+            document.querySelectorAll('#permissionsTableBody select.permission-level-select').forEach(select => {
+                select.disabled = !enable;
             });
             
             // 控制折扣权限输入框

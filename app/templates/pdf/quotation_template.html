@@ -4,13 +4,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>报价单 - {{ quotation.quotation_number }}</title>
+    <style>
+        /* 水印样式 */
+        body {
+            position: relative;
+        }
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 48px;
+            color: rgba(0, 0, 0, 0.1);
+            font-weight: bold;
+            z-index: -1;
+            pointer-events: none;
+        }
+    </style>
 </head>
 <body>
+    <!-- 水印 -->
+    <div class="watermark">
+        {% if quotation.owner and quotation.owner.company_name %}
+            {{ quotation.owner.company_name }}
+        {% else %}
+            {{ current_user.company_name if current_user.company_name else '厂商企业' }}
+        {% endif %}
+    </div>
+    
     <!-- 公司信息头部 -->
     <div class="document-header">
         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
             <div style="flex: 1;">
-                <h1 style="font-size: 20px; font-weight: bold; color: #0066cc; margin: 0;">和源通信（上海）股份有限公司</h1>
+                <h1 style="font-size: 20px; font-weight: bold; color: #0066cc; margin: 0;">
+                                {% if quotation.owner and quotation.owner.company_name %}
+                {{ quotation.owner.company_name }}
+            {% else %}
+                {{ current_user.company_name if current_user.company_name else '厂商企业' }}
+            {% endif %}
+                </h1>
                 <div style="font-size: 12px; color: #666; margin-top: 5px;">
                     <div>武威路88号19楼6楼</div>
                     <div>普陀区 上海市</div>
@@ -78,6 +110,38 @@
             {% for detail in quotation.details %}
             <tr>
                 <td>{{ loop.index }}</td>
+                <td class="text-left">{{ detail.product_name or '-' }}</td>
+                <td class="text-left">{{ detail.product_model or '-' }}</td>
+                <td class="text-left">{{ detail.product_desc or '-' }}</td>
+                <td class="text-left">{{ detail.brand or '-' }}</td>
+                <td>{{ detail.unit or '-' }}</td>
+                <td>{{ detail.quantity or 0 }}</td>
+                <td class="text-right">{{ '{:,.2f}'.format(detail.unit_price) if detail.unit_price else '0.00' }}</td>
+                <td class="text-right">{{ '{:,.2f}'.format(detail.total_price) if detail.total_price else '0.00' }}</td>
+                <td class="text-left">{{ detail.product_mn or '-' }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="10" style="text-align: center; color: #666;">暂无产品明细</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- 总价 -->
+    <div class="summary-section">
+        <div class="total-amount">
+            总价：¥{{ '{:,.2f}'.format(quotation.amount) if quotation.amount else '0.00' }}
+        </div>
+    </div>
+
+    <!-- 页脚信息 -->
+    <div style="margin-top: 40px; font-size: 10px; color: #666; text-align: center;">
+        <div>生成时间：{{ generated_at.strftime('%Y年%m月%d日 %H:%M:%S') }}</div>
+        <div style="margin-top: 5px;">此报价单由系统自动生成</div>
+    </div>
+</body>
+</html> 
                 <td class="text-left">{{ detail.product_name or '-' }}</td>
                 <td class="text-left">{{ detail.product_model or '-' }}</td>
                 <td class="text-left">{{ detail.product_desc or '-' }}</td>

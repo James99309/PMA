@@ -27,7 +27,7 @@
     <div>
       {{ render_button('返回业务对象', href=object_url, color='secondary', icon='fas fa-arrow-left') }}
       {{ render_button('审批中心', href=url_for('approval.center'), color='primary', icon='fas fa-list', extra_class='ms-2') }}
-      {% if current_user.role == 'admin' %}
+      {% if has_permission('approval_management', 'admin') %}
       {{ render_button('删除', type='button', color='danger', icon='fas fa-trash-alt', extra_class='ms-2', attrs='data-bs-toggle="modal" data-bs-target="#deleteApprovalModal"') }}
       {% endif %}
     </div>
@@ -478,7 +478,7 @@
 </style>
 
 <!-- 删除确认模态框 -->
-{% if current_user.role == 'admin' %}
+{% if has_permission('approval_management', 'admin') %}
 <div class="modal fade" id="deleteApprovalModal" tabindex="-1" role="dialog" aria-labelledby="deleteApprovalModalLabel" aria-hidden="true">
   <div class="modal-dialog" role="document">
     <div class="modal-content">

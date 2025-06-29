@@ -1,9 +1,14 @@
 from app import db
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from sqlalchemy import event, Date, Column, Integer, String, DateTime, Text, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.utils.authorization import generate_authorization_code as gen_auth_code
+
+def get_local_time():
+    """获取本地时间（北京时区）"""
+    return datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
 
 class Project(db.Model):
     __tablename__ = 'projects'
@@ -50,7 +55,7 @@ class Project(db.Model):
     industry = Column(String(50), nullable=True)  # 项目所属行业
     
     created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=get_local_time)
     
     owner_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     # 明确指定外键字段，避免与locked_by外键冲突

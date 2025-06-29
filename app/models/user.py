@@ -148,6 +148,7 @@ class User(db.Model, UserMixin):
             if role_permission:
                 print(f"[DEBUG][has_permission] using role_permission: role={self.role}, module={module}")
                 print(f"[DEBUG][has_permission] role_can_view={role_permission.can_view}, role_can_create={role_permission.can_create}, role_can_edit={role_permission.can_edit}, role_can_delete={role_permission.can_delete}")
+                print(f"[DEBUG][has_permission] permission_level={role_permission.permission_level}")
             print(f"[DEBUG][has_permission] final result: role={role_has_permission}, personal={personal_has_permission}, final={final_permission}")
             
             return final_permission
@@ -169,6 +170,18 @@ class User(db.Model, UserMixin):
                 return True
             
             return False
+    
+    def get_permission_level(self, module):
+        """获取用户在指定模块的权限级别"""
+        try:
+            from app.models.role_permissions import RolePermission
+            role_permission = RolePermission.query.filter_by(role=self.role, module=module).first()
+            if role_permission:
+                return role_permission.permission_level
+            return 'personal'  # 默认个人级权限
+        except Exception as e:
+            print(f"[ERROR][get_permission_level] Database error: {str(e)}")
+            return 'personal'
         
     def get_permissions(self):
         """获取用户的所有权限，转换为字典格式"""
@@ -435,6 +448,19 @@ def transfer_member_affiliations_on_department_change(user, old_department, old_
     当员工部门或公司变更时，自动将其从原部门所有负责人的归属关系中移除，并添加到新部门所有负责人的归属关系中。
     """
     from app import db
+    # 1. 移除原部门所有负责人对该员工的归属
+    if old_department and old_company:
+        old_managers = User.query.filter_by(department=old_department, company_name=old_company, is_department_manager=True).all()
+        for manager in old_managers:
+            db.session.query(Affiliation).filter_by(owner_id=user.id, viewer_id=manager.id).delete()
+    # 2. 添加到新部门所有负责人的归属
+    if user.department and user.company_name:
+        new_managers = User.query.filter_by(department=user.department, company_name=user.company_name, is_department_manager=True).all()
+        for manager in new_managers:
+            exists = Affiliation.query.filter_by(owner_id=user.id, viewer_id=manager.id).first()
+            if not exists and manager.id != user.id:
+                db.session.add(Affiliation(owner_id=user.id, viewer_id=manager.id))
+    db.session.commit() 
     # 1. 移除原部门所有负责人对该员工的归属
     if old_department and old_company:
         old_managers = User.query.filter_by(department=old_department, company_name=old_company, is_department_manager=True).all()

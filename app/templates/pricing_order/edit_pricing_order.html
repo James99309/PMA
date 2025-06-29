@@ -1002,6 +1002,8 @@
             <h6 class="mb-0"><i class="fas fa-sitemap me-2"></i>审批流程图</h6>
         </div>
         <div class="card-body">
+            <!-- 只有非草稿状态且有审批记录时才显示审批流程图 -->
+            {% if pricing_order.status not in ['draft'] and pricing_order.approval_records|length > 0 %}
             <div class="approval-workflow">
                 <div class="timeline">
                     {% set visible_records = pricing_order.approval_records|selectattr('action', '!=', 'recall')|list|sort(attribute='step_order') %}
@@ -1113,6 +1115,7 @@
                     {% endif %}
                 </div>
             </div>
+            {% endif %}
             
             <!-- 当前审批人操作区 -->
             {% if current_approval_record and pricing_order.status == 'pending' %}
@@ -1948,9 +1951,11 @@ function toggleDirectContract() {
     console.log('厂商直签开关状态:', directContractSwitch.checked);
     
     if (directContractSwitch.checked) {
-        // 厂商直签开启：禁用经销商和分销商选择，清空内容
+        // 厂商直签开启：禁用经销商和分销商选择，保持为空
         dealerSelect.disabled = true;
         distributorSelect.disabled = true;
+        
+        // 清空经销商和分销商选择
         dealerSelect.value = '';
         distributorSelect.value = '';
         
@@ -1964,12 +1969,25 @@ function toggleDirectContract() {
         updateBasicInfo('is_direct_contract', true);
         updateBasicInfo('is_factory_pickup', false);
     } else {
-        // 厂商直签关闭：启用经销商选择
+        // 厂商直签关闭：启用经销商选择，移除临时厂商选项
         dealerSelect.disabled = false;
+        
+        // 移除临时添加的厂商选项
+        const vendorOptions = dealerSelect.querySelectorAll('option[value="vendor_company"]');
+        vendorOptions.forEach(option => option.remove());
+        
+        const distributorVendorOptions = distributorSelect.querySelectorAll('option[value="vendor_company"]');
+        distributorVendorOptions.forEach(option => option.remove());
+        
+        // 清空选择
+        dealerSelect.value = '';
+        distributorSelect.value = '';
         
         // 根据经销商内容决定是否启用其他控件
         updateSwitchesBasedOnDealer();
         
+        updateBasicInfo('dealer_id', '');
+        updateBasicInfo('distributor_id', '');
         updateBasicInfo('is_direct_contract', false);
     }
 }
@@ -4862,4 +4880,4 @@ function checkAllDiscountRates() {
     });
 }
 </script>
-{% endblock %} 
+{% endblock %}

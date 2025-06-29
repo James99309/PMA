@@ -38,7 +38,7 @@ class ExcelGenerator:
         self.header_fill = PatternFill(start_color='0066CC', end_color='0066CC', fill_type='solid')
         self.light_fill = PatternFill(start_color='F8F9FA', end_color='F8F9FA', fill_type='solid')
     
-    def generate_quotation_excel(self, quotation):
+    def generate_quotation_excel(self, quotation, current_user=None):
         """生成报价单Excel"""
         try:
             # 创建工作簿
@@ -67,7 +67,8 @@ class ExcelGenerator:
             
             # 公司信息头部
             ws.merge_cells(f'A{current_row}:E{current_row}')
-            ws[f'A{current_row}'] = '和源通信（上海）股份有限公司'
+            company_name = quotation.owner.company_name if quotation.owner and quotation.owner.company_name else (current_user.company_name if current_user and current_user.company_name else '厂商企业')
+            ws[f'A{current_row}'] = company_name
             ws[f'A{current_row}'].font = self.title_font
             ws[f'A{current_row}'].alignment = self.left_alignment
             
@@ -235,6 +236,7 @@ class ExcelGenerator:
 excel_generator = ExcelGenerator()
 
 # 便捷函数
-def generate_quotation_excel(quotation):
+def generate_quotation_excel(quotation, current_user=None):
     """生成报价单Excel的便捷函数"""
-    return excel_generator.generate_quotation_excel(quotation) 
+    return excel_generator.generate_quotation_excel(quotation, current_user) 
+    return excel_generator.generate_quotation_excel(quotation, current_user) 

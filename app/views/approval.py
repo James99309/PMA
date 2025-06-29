@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import login_required, current_user
-from app.permissions import admin_required
+from app.permissions import admin_required, has_permission
 from app.helpers.approval_helpers import (
     get_user_created_approvals,
     get_user_pending_approvals,
@@ -99,7 +99,7 @@ def center():
             page=page,
             per_page=per_page
         )
-    elif tab == 'all' and current_user.role == 'admin':
+    elif tab == 'all' and has_permission('approval_management', 'all'):
         # 全部审批（仅admin可见）
         status_param = None
         if status:
@@ -811,7 +811,7 @@ def approve_quotation(quotation_id):
         
         # 检查用户权限 - 只有管理员和有审批权限的用户可以执行审核
         from app.permissions import has_permission
-        if not (current_user.role == 'admin' or has_permission('quotation_approval', 'create')):
+        if not (has_permission('quotation', 'admin') or has_permission('quotation_approval', 'create')):
             return jsonify({'success': False, 'message': '无权限执行审核操作'}), 403
         
         # 获取项目当前阶段
@@ -920,7 +920,7 @@ def get_quotation_approval_status(quotation_id):
         
         # 检查用户权限
         from app.permissions import has_permission
-        can_user_approve = current_user.role == 'admin' or has_permission('quotation_approval', 'create')
+        can_user_approve = has_permission('quotation', 'admin') or has_permission('quotation_approval', 'create')
         
         return jsonify({
             'success': True,

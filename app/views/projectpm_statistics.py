@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request, render_template
 from app.models.projectpm_statistics import ProjectStatistics
 from app.decorators import permission_required
 from flask_login import login_required, current_user
+from app.permissions import has_permission
 import logging
 from sqlalchemy import distinct
 from sqlalchemy import func
@@ -101,30 +102,106 @@ def get_project_stage_trends_api():
 @login_required
 @permission_required('project', 'view')
 def get_available_accounts_api():
-    """获取可用于统计的账户列表（只返回有真实项目且为owner的账户，彻底排除伪数据账户）"""
+    """获取可用于统计的账户列表（基于严格的权限控制）"""
     try:
         from sqlalchemy import distinct
         from app.models.projectpm_stage_history import ProjectStageHistory
         from app.models.project import Project
         from app import db
-        from app.models.user import User
+        from app.models.user import User, Affiliation
         from app.utils.access_control import get_viewable_data
 
-        # 当前用户有权限的项目，且有授权编码
-        viewable_projects = get_viewable_data(Project, current_user).filter(
-            Project.authorization_code.isnot(None),
-            func.length(Project.authorization_code) > 0
-        ).all()
-        if not viewable_projects:
-            return jsonify({'success': True, 'data': []})
-
-        # 只统计这些项目的owner（不再依赖历史记录）
-        owner_ids = set([p.owner_id for p in viewable_projects if p.owner_id])
-        valid_account_ids = owner_ids
+        # 管理员可以看到所有有项目的账户
+        if has_permission('project', 'admin'):
+            owner_ids = set([p.owner_id for p in Project.query.filter(
+                Project.owner_id.isnot(None),
+                Project.authorization_code.isnot(None),
+                func.length(Project.authorization_code) > 0
+            ).all()])
+        else:
+            # 基于四级权限系统的账户筛选逻辑
+            permission_level = current_user.get_permission_level('project')
+            
+            if permission_level == 'system':
+                # 系统级权限：可以看到所有有项目的账户
+                owner_ids = set([p.owner_id for p in Project.query.filter(
+                    Project.owner_id.isnot(None),
+                    Project.authorization_code.isnot(None),
+                    func.length(Project.authorization_code) > 0
+                ).all()])
+            elif permission_level == 'company' and current_user.company_name:
+                # 企业级权限：可以看到企业内所有用户的账户
+                company_users = User.query.filter_by(company_name=current_user.company_name).all()
+                viewable_user_ids = [u.id for u in company_users]
+                
+                # 只返回这些用户中有项目数据的账户
+                owner_ids = set()
+                for user_id in viewable_user_ids:
+                    if Project.query.filter(
+                        Project.owner_id == user_id,
+                        Project.authorization_code.isnot(None),
+                        func.length(Project.authorization_code) > 0
+                    ).first():
+                        owner_ids.add(user_id)
+            elif permission_level == 'department' and current_user.department and current_user.company_name:
+                # 部门级权限：可以看到部门内所有用户的账户
+                dept_users = User.query.filter(
+                    User.department == current_user.department,
+                    User.company_name == current_user.company_name
+                ).all()
+                viewable_user_ids = [u.id for u in dept_users]
+                
+                # 只返回这些用户中有项目数据的账户
+                owner_ids = set()
+                for user_id in viewable_user_ids:
+                    if Project.query.filter(
+                        Project.owner_id == user_id,
+                        Project.authorization_code.isnot(None),
+                        func.length(Project.authorization_code) > 0
+                    ).first():
+                        owner_ids.add(user_id)
+            else:
+                # 个人级权限：使用原有逻辑
+                viewable_user_ids = [current_user.id]  # 首先包含自己
+                
+                # 检查用户角色和权限
+                user_role = current_user.role.strip() if current_user.role else ''
+                
+                # 部门负责人可以看到本部门所有用户的账户
+                if getattr(current_user, 'is_department_manager', False) and current_user.department:
+                    dept_users = User.query.filter_by(department=current_user.department).all()
+                    viewable_user_ids.extend([u.id for u in dept_users])
+                
+                # 商务助理可以看到同部门用户的账户
+                elif user_role == 'business_admin':
+                    if current_user.department and current_user.company_name:
+                        dept_users = User.query.filter(
+                            User.department == current_user.department,
+                            User.company_name == current_user.company_name
+                        ).all()
+                        viewable_user_ids.extend([u.id for u in dept_users])
+                
+                # 添加通过归属关系可以查看的用户
+                affiliations = Affiliation.query.filter_by(viewer_id=current_user.id).all()
+                for affiliation in affiliations:
+                    viewable_user_ids.append(affiliation.owner_id)
+                
+                # 去重
+                viewable_user_ids = list(set(viewable_user_ids))
+                
+                # 只返回这些用户中有项目数据的账户
+                owner_ids = set()
+                for user_id in viewable_user_ids:
+                    if Project.query.filter(
+                        Project.owner_id == user_id,
+                        Project.authorization_code.isnot(None),
+                        func.length(Project.authorization_code) > 0
+                    ).first():
+                        owner_ids.add(user_id)
 
         # 查询账户信息
         accounts = []
-        for acc_id in valid_account_ids:
+        for acc_id in owner_ids:
             user = User.query.get(acc_id)
             if user:
                 accounts.append({

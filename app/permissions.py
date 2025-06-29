@@ -82,6 +82,45 @@ def is_admin_or_ceo(user=None):
     user_role = getattr(user, 'role', '').strip().lower()
     return user_role in ['admin', 'ceo']
 
+def has_permission(module, action):
+    """
+    检查当前用户是否具有指定模块和动作的权限
+    
+    参数:
+        module: 模块名称 (例如 'customer', 'project', 'approval_management')
+        action: 操作类型 (例如 'view', 'create', 'edit', 'delete', 'admin', 'import')
+    
+    返回:
+        bool: 是否拥有权限
+    """
+    if not current_user.is_authenticated:
+        return False
+    
+    # admin和CEO超级管理员特权
+    if is_admin_or_ceo():
+        return True
+    
+    # 查询数据库role_permissions表
+    from app.models.role_permissions import RolePermission
+    role_permission = RolePermission.query.filter_by(role=current_user.role, module=module).first()
+    
+    if role_permission:
+        # 根据动作类型检查相应权限
+        if action == 'view':
+            return role_permission.can_view or False
+        elif action == 'create':
+            return role_permission.can_create or False
+        elif action == 'edit':
+            return role_permission.can_edit or False
+        elif action == 'delete':
+            return role_permission.can_delete or False
+        elif action in ['admin', 'import', 'all', 'department']:
+            # 对于特殊权限，检查是否有管理权限
+            # 这里可以根据需要扩展逻辑
+            return (role_permission.can_create and role_permission.can_edit and role_permission.can_delete) or False
+    
+    return False
+
 def check_permission(permission):
     """
     检查当前用户是否具有指定权限
@@ -101,19 +140,9 @@ def check_permission(permission):
         return False
     module = parts[0]
     action = parts[1]
-    # 只查数据库role_permissions表
-    from app.models.role_permissions import RolePermission
-    role_permission = RolePermission.query.filter_by(role=current_user.role, module=module).first()
-    if role_permission:
-        if action == 'view':
-            return role_permission.can_view
-        elif action == 'create':
-            return role_permission.can_create
-        elif action == 'edit':
-            return role_permission.can_edit
-        elif action == 'delete':
-            return role_permission.can_delete
-    return False
+    
+    # 使用新的has_permission函数
+    return has_permission(module, action)
 
 def permission_required(module, action):
     """

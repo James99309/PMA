@@ -1,7 +1,12 @@
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from enum import Enum
 from app import db
 from app.models.user import User
+
+def get_local_time():
+    """获取本地时间（北京时区）"""
+    return datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
 
 
 class ApprovalStatus(Enum):
@@ -53,7 +58,7 @@ class ApprovalProcessTemplate(db.Model):
     object_type = db.Column(db.String(50), nullable=False, comment="适用对象（如 quotation）")
     is_active = db.Column(db.Boolean, default=True, comment="是否启用")
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, comment="创建人账号ID")
-    created_at = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
+    created_at = db.Column(db.DateTime, default=get_local_time, comment="创建时间")
     required_fields = db.Column(db.JSON, default=list, comment="发起审批时必填字段列表")
     
     # 新增字段：对象锁定配置
@@ -165,7 +170,7 @@ class ApprovalInstance(db.Model):
     object_type = db.Column(db.String(50), nullable=False, comment="单据类型（如 project）")
     current_step = db.Column(db.Integer, default=1, comment="当前步骤序号")
     status = db.Column(db.Enum(ApprovalStatus), default=ApprovalStatus.PENDING, comment="状态")
-    started_at = db.Column(db.DateTime, default=datetime.now, comment="流程发起时间")
+    started_at = db.Column(db.DateTime, default=get_local_time, comment="流程发起时间")
     ended_at = db.Column(db.DateTime, comment="审批完成时间")
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, comment="发起人ID")
     
@@ -236,7 +241,7 @@ class ApprovalRecord(db.Model):
     approver_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, comment="审批人ID")
     action = db.Column(db.String(50), nullable=False, comment="同意/拒绝")
     comment = db.Column(db.Text, comment="审批意见")
-    timestamp = db.Column(db.DateTime, default=datetime.now, comment="审批时间")
+    timestamp = db.Column(db.DateTime, default=get_local_time, comment="审批时间")
 
     # 关联关系
     step = db.relationship("ApprovalStep")

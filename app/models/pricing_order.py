@@ -1,9 +1,14 @@
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from app import db
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
+
+def get_local_time():
+    """获取本地时间（北京时区）"""
+    return datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
 
 
 class PricingOrderStatus(enum.Enum):
@@ -65,8 +70,8 @@ class PricingOrder(db.Model):
     
     # 基础信息
     created_by = Column(Integer, ForeignKey('users.id'), nullable=False, comment='创建人')
-    created_at = Column(DateTime, default=datetime.now, comment='创建时间')
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')
+    created_at = Column(DateTime, default=get_local_time, comment='创建时间')
+    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time, comment='更新时间')
     
     # 货币字段
     currency = Column(String(10), default='CNY', comment='货币类型')
@@ -215,8 +220,8 @@ class SettlementOrder(db.Model):
     
     # 基础信息
     created_by = Column(Integer, ForeignKey('users.id'), nullable=False, comment='创建人')
-    created_at = Column(DateTime, default=datetime.now, comment='创建时间')
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')
+    created_at = Column(DateTime, default=get_local_time, comment='创建时间')
+    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time, comment='更新时间')
     
     # 关系定义
     project = relationship('Project', backref='settlement_orders')

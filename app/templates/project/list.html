@@ -99,7 +99,7 @@
                     </div>
                 </div>
                 <div class="d-none d-lg-block">
-                    {% if current_user.role == 'admin' %}
+                    {% if has_permission('project', 'import') %}
                         {{ ui.render_button(_("批量导入"), type="button", color="info", icon="fas fa-file-import", attrs='id="importProjectsBtn"', extra_class="me-2") }}
                     {% endif %}
                     {{ ui.render_button(_("创建项目"), href=url_for('project.add_project'), color="primary", attrs='', extra_class="me-2") }}
@@ -116,7 +116,7 @@
                 </button>
                 <div id="mobileFabMenu" class="card shadow position-fixed" style="right: 24px; bottom: 90px; min-width: 140px; z-index: 1051; display: none;">
                     <ul class="list-group list-group-flush">
-                        {% if current_user.role == 'admin' %}
+                        {% if has_permission('project', 'import') %}
                         <li class="list-group-item p-2">
                             <a href="#" id="mobileImportBtn" class="text-info text-decoration-none"><i class="fas fa-file-import me-2"></i>{{ _('批量导入') }}</a>
                         </li>

@@ -178,8 +178,8 @@
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label for="industry" class="form-label mb-2">{{ _('项目行业') }}</label>
-                        <select class="form-select" id="industry" name="industry">
+                        <label for="industry" class="form-label mb-2">{{ _('项目行业') }} <span class="text-danger">*</span></label>
+                        <select class="form-select" id="industry" name="industry" required>
                             <option value="">{{ _('请选择项目行业') }}</option>
                             {% for value, label in INDUSTRY_OPTIONS %}
                             <option value="{{ value }}" {% if project and project.industry == value %}selected{% endif %}>{{ label }}</option>

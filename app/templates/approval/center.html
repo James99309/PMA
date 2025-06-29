@@ -153,10 +153,10 @@
         {'key': 'pricing_order', 'label': '批价单审批', 'icon': 'fas fa-file-invoice-dollar'},
         {'key': 'order', 'label': '订单审批', 'icon': 'fas fa-shopping-cart'}
       ] %}
-      {% if current_user.role == 'business_admin' %}
+      {% if has_permission('approval_management', 'department') %}
         {% set _ = approval_tabs.append({'key': 'department', 'label': '部门审批', 'icon': 'fas fa-building'}) %}
       {% endif %}
-      {% if current_user.role == 'admin' %}
+      {% if has_permission('approval_management', 'all') %}
         {% set _ = approval_tabs.append({'key': 'all', 'label': '全部审批', 'icon': 'fas fa-list'}) %}
       {% endif %}
       {{ render_standard_tabs(approval_tabs, current_tab, url_for('approval.center')) | safe }}
