@@ -2159,3 +2159,41 @@ def i18n_demo():
                          sample_customer=sample_customer,
                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
                          STATUS_OPTIONS=STATUS_OPTIONS)
+
+@customer.route('/api/available_accounts', methods=['GET'])
+@login_required
+@permission_required('customer', 'view')
+def get_available_accounts_api():
+    """获取可用于客户筛选的账户列表"""
+    try:
+        from app.models.user import User
+        from app.utils.access_control import get_viewable_user_ids
+        
+        # 获取当前用户可以查看的用户ID列表
+        viewable_user_ids = get_viewable_user_ids(current_user)
+        
+        # 查询这些用户的信息
+        users = User.query.filter(User.id.in_(viewable_user_ids)).all()
+        
+        accounts = []
+        for user in users:
+            accounts.append({
+                'id': user.id,
+                'name': user.real_name or user.username,
+                'is_current_user': user.id == current_user.id
+            })
+        
+        # 按是否为当前用户排序，当前用户排在前面
+        accounts.sort(key=lambda x: (not x['is_current_user'], x['name']))
+        
+        return jsonify({
+            'success': True,
+            'data': accounts
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"获取可用账户列表失败: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'获取可用账户列表失败: {str(e)}'
+        }), 500
