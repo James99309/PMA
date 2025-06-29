@@ -2167,10 +2167,9 @@ def get_available_accounts_api():
     """获取可用于客户筛选的账户列表"""
     try:
         from app.models.user import User
-        from app.utils.access_control import get_viewable_user_ids
         
         # 获取当前用户可以查看的用户ID列表
-        viewable_user_ids = get_viewable_user_ids(current_user)
+        viewable_user_ids = current_user.get_viewable_user_ids()
         
         # 查询这些用户的信息
         users = User.query.filter(User.id.in_(viewable_user_ids)).all()
