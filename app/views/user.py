@@ -723,7 +723,14 @@ def manage_role_permissions():
                 return jsonify({'success': False, 'message': '角色名称或权限数据不能为空'}), 400
             if role == 'admin':
                 return jsonify({'success': False, 'message': '管理员角色权限不允许修改'}), 403
-            RolePermission.query.filter_by(role=role).delete()
+            
+            # 先删除现有权限记录
+            deleted_count = RolePermission.query.filter_by(role=role).delete()
+            logger.warning(f"[DEBUG] 删除了 {deleted_count} 条 {role} 角色的权限记录")
+            
+            # 刷新会话以确保删除操作生效
+            db.session.flush()
+            
             for perm in permissions:
                 if not isinstance(perm, dict) or 'module' not in perm or not perm['module']:
                     continue
@@ -749,6 +756,7 @@ def manage_role_permissions():
                     can_edit=can_edit,
                     can_delete=can_delete,
                     permission_level=permission_level,
+                    permission_level_description=perm.get('permission_level_description'),
                     pricing_discount_limit=perm.get('pricing_discount_limit'),
                     settlement_discount_limit=perm.get('settlement_discount_limit')
                 )
