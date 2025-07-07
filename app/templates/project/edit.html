@@ -14,26 +14,141 @@
             margin-top: 120px !important;
         }
     }
+
+    /* 自定义搜索下拉框样式 */
+    .searchable-select-wrapper {
+        position: relative;
+    }
+
+    .searchable-select-input {
+        cursor: pointer;
+    }
+
+    .searchable-select-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #dee2e6;
+        border-top: none;
+        border-radius: 0 0 0.375rem 0.375rem;
+        max-height: 300px;
+        overflow-y: auto;
+        z-index: 1000;
+        display: none;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+
+    .searchable-select-wrapper.open .searchable-select-dropdown {
+        display: block;
+    }
+
+    .searchable-select-option {
+        padding: 0.5rem 0.75rem;
+        cursor: pointer;
+        border-bottom: 1px solid #f8f9fa;
+        transition: background-color 0.15s ease-in-out;
+    }
+
+    .searchable-select-option:hover {
+        background-color: #f8f9fa;
+    }
+
+    .searchable-select-option.selected {
+        background-color: #e3f2fd;
+        color: #1976d2;
+    }
+
+    .searchable-select-option.readonly {
+        color: #6c757d;
+        font-style: italic;
+    }
+
+    .searchable-select-loading {
+        padding: 0.75rem;
+        text-align: center;
+        color: #6c757d;
+    }
+
+    .searchable-select-no-results {
+        padding: 0.75rem;
+        text-align: center;
+        color: #6c757d;
+        font-style: italic;
+    }
+
+    /* 输入框聚焦时的样式 */
+    .searchable-select-wrapper.open .searchable-select-input {
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+        border-bottom-color: transparent;
+    }
+    
+    /* 项目名称搜索框样式 */
+    .project-name-wrapper {
+        position: relative;
+    }
+    
+    .project-name-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #dee2e6;
+        border-top: none;
+        border-radius: 0 0 0.375rem 0.375rem;
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 1000;
+        display: none;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+    
+    .project-name-wrapper.open .project-name-dropdown {
+        display: block;
+    }
+    
+    .project-name-wrapper.open #project_name {
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+        border-bottom-color: transparent;
+    }
+    
+    .project-name-suggestion {
+        padding: 0.5rem 0.75rem;
+        cursor: default;
+        border-bottom: 1px solid #f8f9fa;
+        color: #6c757d;
+        font-size: 0.9em;
+    }
+    
+    .project-name-suggestion:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .project-name-status {
+        font-size: 0.875em;
+    }
+    
+    .project-name-status.duplicate {
+        color: #dc3545;
+    }
+    
+    .project-name-status.available {
+        color: #198754;
+    }
+    
+    .project-name-status.checking {
+        color: #6c757d;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- 添加一个隐藏的div用于调试 -->
-<div style="display:none;" id="debug-info">
-    {% if companies is defined %}
-        <p>companies变量已定义</p>
-        <ul>
-            {% for company_type, company_list in companies.items() %}
-                <li>{{ company_type }}: {{ company_list|length }} 家公司</li>
-            {% endfor %}
-        </ul>
-    {% else %}
-        <p>companies变量未定义!</p>
-    {% endif %}
-</div>
-
 <div class="container mt-4 page-with-fixed-nav">
-    <h2 class="mb-4">{% if project %}{{ _('编辑项目') }}{% else %}{{ _('添加项目') }}{% endif %}</h2>
+    <h2 class="mb-4">{{ _('编辑项目') }}</h2>
 
     <!-- 授权编号提示框 -->
     {% if project %}
@@ -63,117 +178,93 @@
             <div class="card-body">
                 <div class="row mb-4">
                     <div class="col-md-6">
-                        <label for="project_name" class="form-label mb-2">项目名称</label>
-                        <input type="text" class="form-control" id="project_name" name="project_name" value="{{ project.project_name if project else '' }}" required>
+                        <label for="project_name" class="form-label mb-2">{{ _('项目名称') }}</label>
+                        <div class="project-name-wrapper position-relative">
+                            <input type="text" class="form-control" id="project_name" name="project_name" 
+                                   placeholder="输入项目名称..." autocomplete="off" required
+                                   value="{{ project.project_name if project else '' }}">
+                            <div class="project-name-dropdown">
+                                <!-- 搜索建议将在这里显示 -->
+                            </div>
+                            <div class="project-name-status mt-1">
+                                <!-- 重复检查状态将在这里显示 -->
+                            </div>
+                        </div>
                     </div>
                     <div class="col-md-6">
-                        <label for="report_time" class="form-label mb-2">报备日期</label>
-                        <input type="date" class="form-control {% if project %}bg-light{% endif %}" id="report_time" name="report_time" value="{{ project.formatted_report_time if project else '' }}" {% if project %}readonly{% endif %}>
+                        <label for="report_time" class="form-label mb-2">{{ _('报备日期') }}</label>
+                        <input type="date" class="form-control" id="report_time" name="report_time" required 
+                               value="{{ project.report_time.strftime('%Y-%m-%d') if project and project.report_time else '' }}">
                     </div>
                 </div>
 
                 <div class="row mb-4">
                     <div class="col-md-6">
-                        <label for="report_source" class="form-label mb-2">报备来源</label>
+                        <label for="report_source" class="form-label mb-2">{{ _('报备来源') }}</label>
                         <select class="form-select" id="report_source" name="report_source">
-                            <option value="">请选择报备来源</option>
+                            <option value="">{{ _('请选择报备来源') }}</option>
                             {% for k, v in REPORT_SOURCE_OPTIONS %}
                             <option value="{{ k }}" {% if project and project.report_source == k %}selected{% endif %}>{{ v }}</option>
                             {% endfor %}
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label for="project_type" class="form-label mb-2">项目类型</label>
-                        <select class="form-select" id="project_type" name="project_type" {% if project and project.authorization_code %}disabled{% endif %}>
-                            <option value="">-- 请选择项目类型 --</option>
+                        <label for="project_type" class="form-label mb-2">{{ _('项目类型') }}</label>
+                        <select class="form-select" id="project_type" name="project_type">
+                            <option value="">-- {{ _('请选择项目类型') }} --</option>
                             {% for k, v in PROJECT_TYPE_OPTIONS %}
                             <option value="{{ k }}" {% if project and project.project_type == k %}selected{% endif %}>{{ v }}</option>
                             {% endfor %}
                         </select>
-                        {% if project and project.authorization_code %}
-                        <input type="hidden" name="project_type" value="{{ project.project_type }}">
-                        <small class="text-muted">
-                            <i class="fas fa-lock me-1"></i>项目类型已锁定（已有授权编号：{{ project.authorization_code }}）
-                        </small>
-                        {% endif %}
                     </div>
                 </div>
 
                 <div class="row mb-4">
                     <div class="col-md-6">
-                        <label for="product_situation" class="form-label mb-2">品牌情况</label>
+                        <label for="product_situation" class="form-label mb-2">{{ _('品牌情况') }}</label>
                         <select class="form-select" id="product_situation" name="product_situation">
-                            <option value="">请选择品牌情况</option>
+                            <option value="">{{ _('请选择品牌情况') }}</option>
                             {% for k, v in PRODUCT_SITUATION_OPTIONS %}
                             <option value="{{ k }}" {% if project and project.product_situation == k %}selected{% endif %}>{{ v }}</option>
                             {% endfor %}
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label for="current_stage" class="form-label mb-2">当前阶段</label>
-                        <input type="text" class="form-control" id="current_stage" name="current_stage_display" value="{{ project_stage_label(project.current_stage) if project and project.current_stage else '' }}" readonly>
-                        <input type="hidden" name="current_stage" value="{{ project.current_stage if project else '' }}">
+                        <label for="current_stage" class="form-label mb-2">{{ _('当前阶段') }}</label>
+                        <select class="form-select" id="current_stage" name="current_stage" required>
+                            <option value="">{{ _('请选择当前阶段') }}</option>
+                            <option value="discover" {% if project and project.current_stage == 'discover' %}selected{% endif %}>{{ _('发现') }}</option>
+                            <option value="qualify" {% if project and project.current_stage == 'qualify' %}selected{% endif %}>{{ _('确认') }}</option>
+                            <option value="develop" {% if project and project.current_stage == 'develop' %}selected{% endif %}>{{ _('开发') }}</option>
+                            <option value="propose" {% if project and project.current_stage == 'propose' %}selected{% endif %}>{{ _('投标') }}</option>
+                            <option value="negotiate" {% if project and project.current_stage == 'negotiate' %}selected{% endif %}>{{ _('谈判') }}</option>
+                            <option value="close" {% if project and project.current_stage == 'close' %}selected{% endif %}>{{ _('成交') }}</option>
+                            <option value="post_sale" {% if project and project.current_stage == 'post_sale' %}selected{% endif %}>{{ _('售后') }}</option>
+                        </select>
                     </div>
                 </div>
 
                 <div class="row mb-4">
                     <div class="col-md-6">
-                        <label for="quotation_customer" class="form-label mb-2">报价（元）</label>
-                        <div class="input-group quotation-wrapper">
+                        <label for="quotation_customer" class="form-label mb-2">{{ _('报价') }}（{{ _('元') }}）</label>
                             <input type="text" class="form-control" id="quotation_customer" name="quotation_customer"
-                                value="{% if project and project.quotation_customer %}{{ '{:,.2f}'.format(project.quotation_customer) }}{% endif %}"
-                                placeholder="选择报价单或直接输入金额"
-                                oninput="formatAmount(this)"
-                                style="border-right: none;" readonly>
-                            <button class="form-control dropdown-toggle quotation-dropdown-btn" type="button"
-                                    onclick="toggleQuotationDropdown()"
-                                    style="max-width: 40px; border-left: none; background-color: white;">
-                                <i class="fas fa-chevron-down"></i>
-                            </button>
-                            <div class="quotation-dropdown" id="quotationDropdown">
-                                {% if project.quotations %}
-                                    {% for quotation in project.quotations %}
-                                    <div class="quotation-item"
-                                         onclick="selectQuotation(`{{ quotation.quotation_number }}`, `{{ '{:,.2f}'.format(quotation.amount) if quotation.amount else '0.00' }}`, `{{ quotation.project.end_user or '未知公司' }}`, `{{ quotation.updated_at.strftime('%Y-%m-%d') if quotation.updated_at else '' }}`)">
-                                        <div class="d-flex align-items-center px-2">
-                                            <div class="quotation-col" style="width: 140px;">
-                                                <span class="badge bg-primary quotation-number">{{ quotation.quotation_number }}</span>
-                                            </div>
-                                            <div class="quotation-col text-truncate" style="width: 200px;" title="{{ quotation.project.end_user or '未知公司' }}">
-                                                {{ quotation.project.end_user or '未知公司' }}
-                                            </div>
-                                            <div class="quotation-col text-end" style="width: 140px;">
-                                                {{ '{:,.2f}'.format(quotation.amount) if quotation.amount else '0.00' }}
-                                            </div>
-                                            <div class="quotation-col" style="width: 120px;">
-                                                {{ quotation.updated_at.strftime('%Y-%m-%d') if quotation.updated_at else '' }}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {% if not loop.last %}
-                                    <div class="quotation-divider"></div>
-                                    {% endif %}
-                                    {% endfor %}
-                                {% else %}
-                                    <div class="quotation-item text-muted">暂无报价单</div>
-                                {% endif %}
-                            </div>
-                        </div>
-                        <small class="text-muted mt-1" id="quotation_info"></small>
+                            placeholder="{{ _('不可编辑') }}"
+                            value="{{ '{:,.2f}'.format(project.quotation_customer) if project and project.quotation_customer else '' }}"
+                            disabled>
                     </div>
                     <div class="col-md-6">
-                        <label for="delivery_forecast" class="form-label mb-2">出货预测日期</label>
-                        <input type="date" class="form-control" id="delivery_forecast" name="delivery_forecast" value="{{ project.formatted_delivery_forecast if project else '' }}">
+                        <label for="delivery_forecast" class="form-label mb-2">{{ _('出货预测日期') }}</label>
+                        <input type="date" class="form-control" id="delivery_forecast" name="delivery_forecast" 
+                               value="{{ project.delivery_forecast.strftime('%Y-%m-%d') if project and project.delivery_forecast else '' }}">
                     </div>
                 </div>
                 
-                <!-- 销售负责人和行业字段 -->
+                <!-- 销售负责人字段 -->
                 <div class="row mb-4">
                     <div class="col-md-6">
-                        <label for="vendor_sales_manager_id" class="form-label mb-2">厂商销售负责人</label>
-                        <select class="form-select" id="vendor_sales_manager_id" name="vendor_sales_manager_id"
-                                data-current-value="{{ project.vendor_sales_manager_id if project else '' }}">
-                            <option value="">请选择厂商销售负责人</option>
+                        <label for="vendor_sales_manager_id" class="form-label mb-2">{{ _('厂商销售负责人') }}</label>
+                        <select class="form-select" id="vendor_sales_manager_id" name="vendor_sales_manager_id">
+                            <option value="">{{ _('请选择厂商销售负责人') }}</option>
                             <!-- 这里将通过JavaScript动态加载厂商用户 -->
                         </select>
                     </div>
@@ -181,8 +272,8 @@
                         <label for="industry" class="form-label mb-2">{{ _('项目行业') }} <span class="text-danger">*</span></label>
                         <select class="form-select" id="industry" name="industry" required>
                             <option value="">{{ _('请选择项目行业') }}</option>
-                            {% for value, label in INDUSTRY_OPTIONS %}
-                            <option value="{{ value }}" {% if project and project.industry == value %}selected{% endif %}>{{ label }}</option>
+                            {% for k, v in INDUSTRY_OPTIONS %}
+                            <option value="{{ k }}" {% if project and project.industry == k %}selected{% endif %}>{{ v }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -193,53 +284,75 @@
         <!-- 参与单位卡片 -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="card-title mb-0">参与单位</h5>
+                <h5 class="card-title mb-0">{{ _('参与单位') }}</h5>
             </div>
             <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label for="end_user" class="form-label mb-2">{{ _('直接用户') }}</label>
+                        <div class="searchable-select-wrapper" data-type="user" data-name="end_user">
+                            <input type="text" class="form-control searchable-select-input" placeholder="请选择或搜索直接用户" autocomplete="off"
+                                   value="{{ project.end_user if project and project.end_user else '' }}">
+                            <input type="hidden" name="end_user" class="searchable-select-value" 
+                                   value="{{ project.end_user if project and project.end_user else '' }}">
+                            <div class="searchable-select-dropdown">
+                                <div class="searchable-select-loading">加载中...</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="design_issues" class="form-label mb-2">{{ _('设计院及顾问') }}</label>
+                        <div class="searchable-select-wrapper" data-type="designer" data-name="design_issues">
+                            <input type="text" class="form-control searchable-select-input" placeholder="请选择或搜索设计院及顾问" autocomplete="off"
+                                   value="{{ project.design_issues if project and project.design_issues else '' }}">
+                            <input type="hidden" name="design_issues" class="searchable-select-value"
+                                   value="{{ project.design_issues if project and project.design_issues else '' }}">
+                            <div class="searchable-select-dropdown">
+                                <div class="searchable-select-loading">加载中...</div>
+                            </div>
+                        </div>
+                    </div>
+                    </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label for="contractor" class="form-label mb-2">{{ _('总承包单位') }}</label>
+                        <div class="searchable-select-wrapper" data-type="contractor" data-name="contractor">
+                            <input type="text" class="form-control searchable-select-input" placeholder="请选择或搜索总承包单位" autocomplete="off"
+                                   value="{{ project.contractor if project and project.contractor else '' }}">
+                            <input type="hidden" name="contractor" class="searchable-select-value"
+                                   value="{{ project.contractor if project and project.contractor else '' }}">
+                            <div class="searchable-select-dropdown">
+                                <div class="searchable-select-loading">加载中...</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="system_integrator" class="form-label mb-2">{{ _('系统集成商') }}</label>
+                        <div class="searchable-select-wrapper" data-type="integrator" data-name="system_integrator">
+                            <input type="text" class="form-control searchable-select-input" placeholder="请选择或搜索系统集成商" autocomplete="off"
+                                   value="{{ project.system_integrator if project and project.system_integrator else '' }}">
+                            <input type="hidden" name="system_integrator" class="searchable-select-value"
+                                   value="{{ project.system_integrator if project and project.system_integrator else '' }}">
+                            <div class="searchable-select-dropdown">
+                                <div class="searchable-select-loading">加载中...</div>
+                            </div>
+                        </div>
+                    </div>
+                    </div>
+
                 <div class="row">
-                    <!-- 直接用户 -->
-                    <div class="col-md-6 mb-3">
-                        <label for="direct_user" class="form-label">直接用户</label>
-                        <select class="form-select company-select" id="direct_user" name="end_user"
-                                data-preselected="{{ project.end_user if project else '' }}">
-                            <option value="">请选择直接用户</option>
-                        </select>
-                    </div>
-
-                    <!-- 设计院及顾问 -->
-                    <div class="col-md-6 mb-3">
-                        <label for="design_issues" class="form-label">设计院及顾问</label>
-                        <select class="form-select company-select" id="design_issues" name="design_issues"
-                                data-preselected="{{ project.design_issues if project else '' }}">
-                            <option value="">请选择设计院及顾问</option>
-                        </select>
-                    </div>
-
-                    <!-- 总承包单位 -->
-                    <div class="col-md-6 mb-3">
-                        <label for="contractor" class="form-label">总承包单位</label>
-                        <select class="form-select company-select" id="contractor" name="contractor"
-                                data-preselected="{{ project.contractor if project else '' }}">
-                            <option value="">请选择总承包单位</option>
-                        </select>
-                    </div>
-
-                    <!-- 系统集成商 -->
-                    <div class="col-md-6 mb-3">
-                        <label for="system_integrator" class="form-label">系统集成商</label>
-                        <select class="form-select company-select" id="system_integrator" name="system_integrator"
-                                data-preselected="{{ project.system_integrator if project else '' }}">
-                            <option value="">请选择系统集成商</option>
-                        </select>
-                    </div>
-
-                    <!-- 经销商 -->
-                    <div class="col-md-6 mb-3">
-                        <label for="dealer" class="form-label">经销商</label>
-                        <select class="form-select company-select" id="dealer" name="dealer"
-                                data-preselected="{{ project.dealer if project else '' }}">
-                            <option value="">请选择经销商</option>
-                        </select>
+                    <div class="col-md-6">
+                        <label for="dealer" class="form-label mb-2">{{ _('经销商') }}</label>
+                        <div class="searchable-select-wrapper" data-type="dealer" data-name="dealer">
+                            <input type="text" class="form-control searchable-select-input" placeholder="请选择或搜索经销商" autocomplete="off"
+                                   value="{{ project.dealer if project and project.dealer else '' }}">
+                            <input type="hidden" name="dealer" class="searchable-select-value"
+                                   value="{{ project.dealer if project and project.dealer else '' }}">
+                            <div class="searchable-select-dropdown">
+                                <div class="searchable-select-loading">加载中...</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -248,17 +361,17 @@
         <!-- 阶段说明卡片 -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="card-title mb-0">阶段说明</h5>
+                <h5 class="card-title mb-0">{{ _('阶段说明') }}</h5>
             </div>
             <div class="card-body">
                 <div class="mb-4">
-                    <label for="stage_description" class="form-label mb-2">当前阶段情况说明</label>
-                    <textarea class="form-control" id="stage_description" name="stage_description" rows="3">{{ project.stage_description if project else '' }}</textarea>
+                    <label for="stage_description" class="form-label mb-2">{{ _('当前阶段情况说明') }}</label>
+                    <textarea class="form-control" id="stage_description" name="stage_description" rows="3">{{ project.stage_description if project and project.stage_description else '' }}</textarea>
                 </div>
 
-                <div class="mb-4 d-flex justify-content-end gap-2">
-                    {{ ui.render_button('返回列表', href=url_for('project.list_projects'), color='secondary') }}
-                    {{ ui.render_button('保存', type='submit', color='primary') }}
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    {{ ui.render_button(_("保存"), type="submit", color="primary", extra_class="me-md-2") }}
+                    {{ ui.render_button(_("取消"), href=url_for('project.view_project', project_id=project.id), color="secondary") }}
                 </div>
             </div>
         </div>
@@ -283,393 +396,365 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let dateInputs = document.querySelectorAll('input[type="date"]');
     dateInputs.forEach(formatDateInput);
-});
 
-function toggleQuotationDropdown() {
-    const wrapper = document.querySelector('.quotation-wrapper');
-    const dropdown = document.getElementById('quotationDropdown');
-
-    wrapper.classList.toggle('show');
-    dropdown.classList.toggle('show');
-}
-
-function selectQuotation(number, amount, company, date) {
-    const quotationCustomer = document.getElementById('quotation_customer');
-    quotationCustomer.value = amount;
-
-    const quotationInfo = document.getElementById('quotation_info');
-    quotationInfo.innerHTML = `<span class="badge bg-primary">${number}</span> ${company} | ${date}`;
-
-    // 关闭下拉菜单
-    toggleQuotationDropdown();
-}
-
-// 点击外部关闭下拉菜单
-document.addEventListener('click', function(e) {
-    const wrapper = document.querySelector('.quotation-wrapper');
-    const dropdown = document.getElementById('quotationDropdown');
-
-    if (!wrapper.contains(e.target)) {
-        wrapper.classList.remove('show');
-        dropdown.classList.remove('show');
-    }
-});
-
-// 保留原有的金额格式化函数
-function formatAmount(input) {
+    // 金额格式化函数
+    window.formatAmount = function(input) {
     let value = input.value.replace(/[^\d.]/g, '');
-
+        if (value) {
+            // 确保只有一个小数点
     let parts = value.split('.');
     if (parts.length > 2) {
         parts = [parts[0], parts.slice(1).join('')];
-        value = parts.join('.');
-    }
-
-    if (parts.length > 1) {
-        value = parts[0] + '.' + parts[1].slice(0, 2);
-    }
-
-    let intPart = parts[0];
-    let decPart = parts.length > 1 ? '.' + parts[1] : '';
-    intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-
-    input.value = intPart + decPart;
-}
-
-// 页面加载时格式化金额
-document.addEventListener('DOMContentLoaded', function() {
-    let amountInput = document.getElementById('quotation_customer');
-    if (amountInput && amountInput.value) {
-        formatAmount(amountInput);
-    }
-});
-
-document.addEventListener('DOMContentLoaded', function() {
-    // 加载各类型公司数据的函数
-    async function loadCompanies(type, selectId) {
-        try {
-            const response = await fetch(`/api/companies/${type}`);
-            const data = await response.json();
-
-            const select = document.getElementById(selectId);
-            select.innerHTML = '<option value="">请选择</option>';
-
-            (data.companies || data).forEach(company => {
-                const option = document.createElement('option');
-                option.value = company.name;
-                option.textContent = company.name;
-                option.setAttribute('data-id', company.id);
-                option.setAttribute('data-contact', company.contact);
-                option.setAttribute('data-phone', company.phone);
-                select.appendChild(option);
-            });
-
-            // 如果有预选值，设置选中
-            const preSelectedValue = select.getAttribute('data-preselected');
-            if (preSelectedValue) {
-                select.value = preSelectedValue;
             }
-        } catch (error) {
-            console.error('加载公司数据失败:', error);
+            
+            // 格式化整数部分
+            let integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            
+            // 重组金额
+            if (parts.length === 2) {
+                // 最多保留两位小数
+                let decimalPart = parts[1].substring(0, 2);
+                input.value = integerPart + '.' + decimalPart;
+            } else {
+                input.value = integerPart;
+            }
         }
+    };
+
+    // 简化版拼音转换表
+    const pinyinMap = {
+        '阿': 'a', '啊': 'a', '安': 'an', '按': 'an', '暗': 'an',
+        '八': 'ba', '白': 'bai', '百': 'bai', '拜': 'bai', '班': 'ban', '办': 'ban', '半': 'ban',
+        '帮': 'bang', '包': 'bao', '报': 'bao', '北': 'bei', '被': 'bei', '本': 'ben',
+        '比': 'bi', '必': 'bi', '边': 'bian', '变': 'bian', '表': 'biao', '别': 'bie',
+        '并': 'bing', '不': 'bu', '部': 'bu',
+        '才': 'cai', '参': 'can', '草': 'cao', '层': 'ceng', '查': 'cha', '产': 'chan',
+        '长': 'chang', '常': 'chang', '场': 'chang', '车': 'che', '成': 'cheng', '城': 'cheng',
+        '出': 'chu', '处': 'chu', '川': 'chuan', '传': 'chuan', '创': 'chuang', '春': 'chun',
+        '从': 'cong', '村': 'cun',
+        '大': 'da', '打': 'da', '代': 'dai', '带': 'dai', '单': 'dan', '当': 'dang',
+        '道': 'dao', '到': 'dao', '得': 'de', '的': 'de', '地': 'di', '第': 'di',
+        '点': 'dian', '电': 'dian', '定': 'ding', '东': 'dong', '动': 'dong', '都': 'du',
+        '对': 'dui', '多': 'duo',
+        '而': 'er', '二': 'er',
+        '发': 'fa', '法': 'fa', '反': 'fan', '方': 'fang', '放': 'fang', '非': 'fei',
+        '分': 'fen', '风': 'feng', '服': 'fu', '福': 'fu',
+        '该': 'gai', '感': 'gan', '干': 'gan', '港': 'gang', '高': 'gao', '个': 'ge',
+        '给': 'gei', '根': 'gen', '工': 'gong', '公': 'gong', '共': 'gong', '关': 'guan',
+        '管': 'guan', '广': 'guang', '国': 'guo', '过': 'guo',
+        '还': 'hai', '海': 'hai', '好': 'hao', '和': 'he', '很': 'hen', '后': 'hou',
+        '湖': 'hu', '华': 'hua', '化': 'hua', '环': 'huan', '黄': 'huang', '回': 'hui',
+        '会': 'hui', '活': 'huo', '或': 'huo',
+        '机': 'ji', '基': 'ji', '及': 'ji', '集': 'ji', '几': 'ji', '家': 'jia',
+        '加': 'jia', '间': 'jian', '见': 'jian', '建': 'jian', '江': 'jiang', '将': 'jiang',
+        '交': 'jiao', '教': 'jiao', '接': 'jie', '结': 'jie', '解': 'jie', '金': 'jin',
+        '进': 'jin', '经': 'jing', '京': 'jing', '就': 'jiu', '九': 'jiu', '具': 'ju',
+        '据': 'ju',
+        '开': 'kai', '看': 'kan', '可': 'ke', '科': 'ke', '口': 'kou',
+        '来': 'lai', '老': 'lao', '了': 'le', '类': 'lei', '里': 'li', '理': 'li',
+        '力': 'li', '立': 'li', '连': 'lian', '两': 'liang', '林': 'lin', '流': 'liu',
+        '六': 'liu', '龙': 'long', '路': 'lu',
+        '马': 'ma', '吗': 'ma', '买': 'mai', '卖': 'mai', '满': 'man', '没': 'mei',
+        '美': 'mei', '每': 'mei', '门': 'men', '们': 'men', '面': 'mian', '民': 'min',
+        '明': 'ming', '名': 'ming',
+        '那': 'na', '南': 'nan', '内': 'nei', '能': 'neng', '你': 'ni', '年': 'nian',
+        '宁': 'ning', '农': 'nong',
+        '欧': 'ou',
+        '派': 'pai', '盘': 'pan', '平': 'ping', '普': 'pu',
+        '七': 'qi', '其': 'qi', '期': 'qi', '前': 'qian', '强': 'qiang', '青': 'qing',
+        '清': 'qing', '情': 'qing', '区': 'qu', '全': 'quan', '群': 'qun',
+        '然': 'ran', '让': 'rang', '人': 'ren', '日': 'ri', '如': 'ru',
+        '三': 'san', '山': 'shan', '上': 'shang', '商': 'shang', '少': 'shao', '社': 'she',
+        '深': 'shen', '什': 'shen', '生': 'sheng', '省': 'sheng', '市': 'shi', '是': 'shi',
+        '事': 'shi', '时': 'shi', '实': 'shi', '十': 'shi', '手': 'shou', '首': 'shou',
+        '水': 'shui', '说': 'shuo', '四': 'si', '苏': 'su',
+        '他': 'ta', '她': 'ta', '台': 'tai', '太': 'tai', '天': 'tian', '田': 'tian',
+        '条': 'tiao', '通': 'tong', '同': 'tong', '头': 'tou', '土': 'tu',
+        '外': 'wai', '万': 'wan', '王': 'wang', '网': 'wang', '为': 'wei', '位': 'wei',
+        '文': 'wen', '问': 'wen', '我': 'wo', '无': 'wu', '五': 'wu',
+        '西': 'xi', '系': 'xi', '下': 'xia', '先': 'xian', '现': 'xian', '想': 'xiang',
+        '小': 'xiao', '新': 'xin', '信': 'xin', '行': 'xing', '性': 'xing', '学': 'xue',
+        '要': 'yao', '也': 'ye', '业': 'ye', '一': 'yi', '以': 'yi', '用': 'yong',
+        '有': 'you', '又': 'you', '于': 'yu', '与': 'yu', '元': 'yuan', '原': 'yuan',
+        '月': 'yue', '越': 'yue', '云': 'yun', '运': 'yun',
+        '在': 'zai', '再': 'zai', '早': 'zao', '怎': 'zen', '增': 'zeng', '展': 'zhan',
+        '张': 'zhang', '长': 'zhang', '找': 'zhao', '这': 'zhe', '着': 'zhe', '真': 'zhen',
+        '正': 'zheng', '政': 'zheng', '之': 'zhi', '知': 'zhi', '直': 'zhi', '只': 'zhi',
+        '中': 'zhong', '重': 'zhong', '州': 'zhou', '主': 'zhu', '住': 'zhu', '专': 'zhuan',
+        '转': 'zhuan', '资': 'zi', '自': 'zi', '总': 'zong', '走': 'zou', '最': 'zui',
+        '作': 'zuo', '做': 'zuo'
+    };
+
+    // 拼音转换函数
+    function toPinyin(text) {
+        return text.split('').map(char => pinyinMap[char] || char).join('');
     }
 
-    // 初始化加载所有类型的公司数据
-    loadCompanies('user', 'direct_user');
-    loadCompanies('designer', 'design_issues');
-    loadCompanies('contractor', 'contractor');
-    loadCompanies('integrator', 'system_integrator');
-    loadCompanies('dealer', 'dealer');
-    
-    // 加载销售负责人数据
-    loadSalesManagers();
-    
-    // 为每个选择框添加change事件监听器
-    const companySelects = document.querySelectorAll('.company-select');
-    companySelects.forEach(select => {
-        select.addEventListener('change', function() {
-            const selectedOption = this.options[this.selectedIndex];
-            if (selectedOption) {
-                // 可以在这里处理选择变化后的逻辑
-                console.log('选择的公司:', {
-                    name: selectedOption.value,
-                    id: selectedOption.getAttribute('data-id'),
-                    contact: selectedOption.getAttribute('data-contact'),
-                    phone: selectedOption.getAttribute('data-phone')
-                });
-            }
-        });
-    });
-});
+    // 获取拼音首字母
+    function getPinyinInitials(text) {
+        return text.split('').map(char => {
+            const pinyin = pinyinMap[char];
+            return pinyin ? pinyin[0] : char;
+        }).join('');
+    }
 
-// 加载销售负责人数据的函数
-async function loadSalesManagers() {
-    try {
-        // 使用标准的用户层级API获取所有用户
-        const response = await fetch('/api/users/hierarchical');
-        const data = await response.json();
+    // 搜索匹配函数
+    function matchesSearch(text, searchTerm) {
+        if (!searchTerm) return true;
         
-        const vendorSelect = document.getElementById('vendor_sales_manager_id');
+        const lowerSearch = searchTerm.toLowerCase();
+        const lowerText = text.toLowerCase();
         
-        vendorSelect.innerHTML = '<option value="">请选择厂商销售负责人</option>';
+        // 直接文本匹配
+        if (lowerText.includes(lowerSearch)) {
+            return true;
+        }
         
-        if (data.success && data.data) {
-            // 按企业分组用户，并根据企业名称过滤
-            data.data.forEach(company => {
-                const isVendorCompany = company.is_vendor === true;
-                
-                if (company.users && company.users.length > 0) {
-                    if (isVendorCompany) {
-                        // 厂商下拉菜单：不显示企业级，只显示部门级和账户（账户包括真实姓名和角色）
-                        company.users.forEach(user => {
-                            const option = document.createElement('option');
-                            option.value = user.id;
-                            // 使用真实姓名和中文角色显示
-                            const displayName = user.real_name || user.name;
-                            const roleDisplay = user.role_display || user.role;
-                            option.textContent = `${displayName} (${roleDisplay})`;
-                            vendorSelect.appendChild(option);
-                        });
-                    }
+        // 拼音全拼匹配
+        const pinyin = toPinyin(text).toLowerCase();
+        if (pinyin.includes(lowerSearch)) {
+            return true;
+        }
+        
+        // 拼音首字母匹配
+        const initials = getPinyinInitials(text).toLowerCase();
+        if (initials.includes(lowerSearch)) {
+            return true;
+        }
+        
+        return false;
+    }
+
+    // 搜索下拉框类
+    class SearchableSelect {
+        constructor(wrapper) {
+            this.wrapper = wrapper;
+            this.input = wrapper.querySelector('.searchable-select-input');
+            this.hiddenInput = wrapper.querySelector('.searchable-select-value');
+            this.dropdown = wrapper.querySelector('.searchable-select-dropdown');
+            this.type = wrapper.dataset.type;
+            this.name = wrapper.dataset.name;
+            this.companies = [];
+            this.isOpen = false;
+            
+            this.bindEvents();
+            this.loadCompanies();
+        }
+        
+        bindEvents() {
+            // 点击输入框显示下拉
+            this.input.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleDropdown();
+            });
+            
+            // 聚焦时显示下拉
+            this.input.addEventListener('focus', () => {
+                this.showDropdown();
+            });
+            
+            // 输入时过滤
+            this.input.addEventListener('input', () => {
+                this.filterOptions();
+                this.showDropdown();
+            });
+            
+            // ESC键关闭
+            this.input.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    this.hideDropdown();
+                }
+            });
+            
+            // 点击外部关闭
+            document.addEventListener('click', (e) => {
+                if (!this.wrapper.contains(e.target)) {
+                    this.hideDropdown();
                 }
             });
         }
         
-        // 设置当前选中值（避免模板语法错误）
-        setTimeout(() => {
-            const currentVendorManagerId = vendorSelect.getAttribute('data-current-value');
-            
-            if (currentVendorManagerId && currentVendorManagerId !== '') {
-                vendorSelect.value = currentVendorManagerId;
+        async loadCompanies() {
+            try {
+                const response = await fetch(`/api/companies/${this.type}`);
+                if (response.ok) {
+                    this.companies = await response.json();
+                    this.renderOptions();
+                } else {
+                    console.error('加载企业数据失败:', response.statusText);
+                    this.dropdown.innerHTML = '<div class="searchable-select-no-results">加载失败</div>';
+                }
+            } catch (error) {
+                console.error('加载企业数据异常:', error);
+                this.dropdown.innerHTML = '<div class="searchable-select-no-results">加载异常</div>';
             }
-        }, 100);
+        }
         
-    } catch (error) {
-        console.error('加载销售负责人数据失败:', error);
+        renderOptions() {
+            const searchTerm = this.input.value;
+            const filteredCompanies = this.companies.filter(company => 
+                matchesSearch(company.name, searchTerm)
+            );
+            
+            if (filteredCompanies.length === 0) {
+                this.dropdown.innerHTML = '<div class="searchable-select-no-results">未找到匹配的企业</div>';
+                return;
+            }
+            
+            const html = filteredCompanies.map(company => {
+                const displayText = company.owner_name ? 
+                    `${company.name} | ${company.owner_name}${!company.is_readable ? ' [只读]' : ''}` : 
+                    `${company.name}${!company.is_readable ? ' [只读]' : ''}`;
+                
+                const classes = ['searchable-select-option'];
+                if (!company.is_readable) {
+                    classes.push('readonly');
+                }
+                
+                return `<div class="${classes.join(' ')}" data-value="${company.name}" data-id="${company.id}">${displayText}</div>`;
+            }).join('');
+            
+            this.dropdown.innerHTML = html;
+            
+            // 绑定选项点击事件
+            this.dropdown.querySelectorAll('.searchable-select-option').forEach(option => {
+                option.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.selectOption(option);
+                });
+            });
+        }
+        
+        filterOptions() {
+            this.renderOptions();
+        }
+        
+        selectOption(option) {
+            const value = option.dataset.value;
+            const displayText = option.textContent;
+            
+            this.input.value = displayText;
+            this.hiddenInput.value = value;
+            this.hideDropdown();
+        }
+        
+        toggleDropdown() {
+            if (this.isOpen) {
+                this.hideDropdown();
+            } else {
+                this.showDropdown();
+            }
+        }
+        
+        showDropdown() {
+            this.wrapper.classList.add('open');
+            this.isOpen = true;
+            this.renderOptions();
+        }
+        
+        hideDropdown() {
+            this.wrapper.classList.remove('open');
+            this.isOpen = false;
+        }
     }
-}
+
+    // 初始化搜索下拉框
+    document.querySelectorAll('.searchable-select-wrapper').forEach(wrapper => {
+        new SearchableSelect(wrapper);
+    });
+
+    // 加载厂商销售负责人
+    async function loadVendorSalesManagers() {
+        try {
+            const response = await fetch('/api/users?role=vendor');
+            if (response.ok) {
+                const users = await response.json();
+                const select = document.getElementById('vendor_sales_manager_id');
+                
+                // 清空现有选项（保留默认选项）
+                const defaultOption = select.querySelector('option[value=""]');
+                select.innerHTML = '';
+                select.appendChild(defaultOption);
+                
+                // 添加厂商用户选项
+                users.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = user.id;
+                    option.textContent = `${user.username} (${user.company_name || '未设置公司'})`;
+                    
+                    // 如果是编辑模式且当前项目有设置厂商销售负责人，则选中
+                    {% if project and project.vendor_sales_manager_id %}
+                    if (user.id === {{ project.vendor_sales_manager_id }}) {
+                        option.selected = true;
+                    }
+                    {% endif %}
+                    
+                    select.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('加载厂商销售负责人失败:', error);
+        }
+    }
+
+    // 页面加载完成后执行
+    loadVendorSalesManagers();
+
+    // 项目名称重复检查功能（编辑模式下可选）
+    const projectNameInput = document.getElementById('project_name');
+    const projectNameStatus = document.querySelector('.project-name-status');
+    let checkTimeout;
+    
+    {% if project %}
+    const originalProjectName = "{{ project.project_name }}";
+    {% endif %}
+
+    function checkProjectNameDuplicate(projectName) {
+        if (!projectName.trim()) {
+            projectNameStatus.innerHTML = '';
+            return;
+        }
+        
+        {% if project %}
+        // 编辑模式下，如果名称没有改变，不需要检查
+        if (projectName === originalProjectName) {
+            projectNameStatus.innerHTML = '<span class="available">✓ 当前项目名称</span>';
+            return;
+        }
+        {% endif %}
+        
+        projectNameStatus.innerHTML = '<span class="checking">检查中...</span>';
+        
+        fetch('/project/check_similar_projects', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+            },
+            body: JSON.stringify({ project_name: projectName })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.has_duplicates) {
+                projectNameStatus.innerHTML = '<span class="duplicate">⚠ 发现相似项目名称</span>';
+            } else {
+                projectNameStatus.innerHTML = '<span class="available">✓ 项目名称可用</span>';
+            }
+        })
+        .catch(error => {
+            console.error('检查项目名称失败:', error);
+            projectNameStatus.innerHTML = '';
+        });
+    }
+
+    if (projectNameInput) {
+        projectNameInput.addEventListener('input', function() {
+            clearTimeout(checkTimeout);
+            checkTimeout = setTimeout(() => {
+                checkProjectNameDuplicate(this.value);
+            }, 500);
+        });
+    }
+});
 </script>
-
-<style>
-/* 统一下拉菜单样式 */
-.form-select {
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
-    background-repeat: no-repeat;
-    background-position: right 0.75rem center;
-    background-size: 16px 12px;
-    padding-right: 2.25rem;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-}
-
-.form-select-wrapper {
-    position: relative;
-    flex: 0 0 auto;
-}
-
-.form-select-wrapper .form-select {
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-    border-left: 0;
-    padding-right: 2.25rem;
-    min-width: 120px;
-}
-
-/* 报价单选择器样式 */
-#quotation_selector {
-    border-color: #ced4da;
-    background-color: #fff;
-}
-
-#quotation_selector:hover {
-    background-color: #f8f9fa;
-}
-
-#quotation_selector option {
-    padding: 8px 12px;
-}
-
-/* 报价单信息样式 */
-#quotation_info {
-    margin-top: 0.5rem;
-    display: block;
-}
-
-#quotation_info .badge {
-    font-size: 0.9em;
-    padding: 5px 10px;
-    margin-right: 8px;
-}
-
-/* 横向布局的报价单列表 */
-.quotation-list {
-    display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding: 10px 0;
-    gap: 10px;
-    scrollbar-width: thin;
-    scrollbar-color: #888 #f1f1f1;
-}
-
-.quotation-list::-webkit-scrollbar {
-    height: 6px;
-}
-
-.quotation-list::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 3px;
-}
-
-.quotation-list::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 3px;
-}
-
-.quotation-list::-webkit-scrollbar-thumb:hover {
-    background: #555;
-}
-
-.quotation-item {
-    flex: 0 0 auto;
-    width: 280px;
-    padding: 12px;
-    border: 1px solid #dee2e6;
-    border-radius: 6px;
-    background-color: #fff;
-    transition: all 0.2s ease;
-}
-
-.quotation-item:hover {
-    border-color: #6c757d;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.quotation-dropdown-btn {
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-    padding-left: 8px;
-    padding-right: 8px;
-}
-
-.quotation-dropdown-btn:hover,
-.quotation-dropdown-btn:focus {
-    background-color: #f8f9fa !important;
-    border-color: #ced4da;
-}
-
-.quotation-dropdown-btn:focus {
-    box-shadow: none;
-}
-
-.quotation-dropdown-btn i {
-    font-size: 12px;
-    color: #6c757d;
-}
-
-.dropdown-menu {
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.dropdown-item {
-    padding: 10px 16px;
-    white-space: nowrap;
-}
-
-.dropdown-item:hover {
-    background-color: #f8f9fa;
-}
-
-.dropdown-divider {
-    margin: 0;
-}
-
-.badge {
-    font-size: 0.9em;
-    padding: 5px 10px;
-}
-
-/* 列对齐样式 */
-.col-field {
-    padding: 0;
-    box-sizing: border-box;
-}
-
-/* 隐藏输入框的右边框 */
-.input-group .form-control:focus {
-    border-right-color: transparent;
-    box-shadow: none;
-}
-
-/* 确保下拉按钮和输入框的边框颜色一致 */
-.input-group .form-control:focus + .quotation-dropdown-btn {
-    border-left-color: transparent;
-    border-color: #86b7fe;
-}
-
-/* 文本溢出处理 */
-.text-truncate {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-/* 下拉菜单打开时的输入框样式 */
-.dropdown.show .form-control,
-.dropdown.show .quotation-dropdown-btn {
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-}
-
-.dropdown-menu.show {
-    border-top: none;
-}
-
-.quotation-wrapper {
-    position: relative;
-}
-
-.quotation-wrapper.show .quotation-dropdown {
-    display: block;
-    left: 0;
-}
-
-.quotation-dropdown {
-    display: none;
-    position: absolute;
-    top: 100%;
-    left: 0;
-    min-width: 700px;
-    background: white;
-    border: 1px solid #ced4da;
-    border-top: none;
-    border-radius: 0 0 4px 4px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    z-index: 1000;
-}
-
-.quotation-item {
-    padding: 8px 0;
-    cursor: pointer;
-    width: 100%;
-}
-
-.quotation-item:hover {
-    background-color: #f8f9fa;
-}
-
-.quotation-col {
-    padding: 0 12px;
-    color: #495057;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.quotation-col:nth-child(1) { width: 150px; }
-.quotation-col:nth-child(2) { width: 250px; }
-.quotation-col:nth-child(3) { width: 150px; }
-.quotation-col:nth-child(4) { width: 120px; }
-</style>
 {% endblock %}

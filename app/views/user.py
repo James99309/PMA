@@ -877,28 +877,58 @@ def user_detail(user_id):
     # 检查用户是否为厂商用户
     is_vendor = user.is_vendor_user()
     
+    # 获取所有模块
+    modules = get_default_modules()
+    
+    # 获取用户的角色权限
+    from app.models.role_permissions import RolePermission
+    role_perms = RolePermission.query.filter_by(role=user.role).all()
+    role_permissions = {}
+    for perm in role_perms:
+        role_permissions[perm.module] = {
+            'can_view': perm.can_view,
+            'can_create': perm.can_create,
+            'can_edit': perm.can_edit,
+            'can_delete': perm.can_delete
+        }
+    
+    # 获取用户的个人权限
     personal_perms = list(user.permissions) if hasattr(user, 'permissions') else []
+    personal_permissions = {}
+    for permission in personal_perms:
+        personal_permissions[permission.module] = {
+            'can_view': permission.can_view,
+            'can_create': permission.can_create,
+            'can_edit': permission.can_edit,
+            'can_delete': permission.can_delete
+        }
+    
+    # 合并权限：个人权限可以增强角色权限，生成完整的权限列表
     permissions = []
-    if personal_perms:
-        for perm in personal_perms:
-            permissions.append({
-                'module': perm.module,
-                'can_view': perm.can_view,
-                'can_create': perm.can_create,
-                'can_edit': perm.can_edit,
-                'can_delete': perm.can_delete
-            })
-    else:
-        from app.models.role_permissions import RolePermission
-        perms = RolePermission.query.filter_by(role=user.role).all()
-        for perm in perms:
-            permissions.append({
-                'module': perm.module,
-                'can_view': perm.can_view,
-                'can_create': perm.can_create,
-                'can_edit': perm.can_edit,
-                'can_delete': perm.can_delete
-            })
+    for module in modules:
+        module_id = module['id']
+        role_perm = role_permissions.get(module_id, {
+            'can_view': False,
+            'can_create': False,
+            'can_edit': False,
+            'can_delete': False
+        })
+        personal_perm = personal_permissions.get(module_id, {
+            'can_view': False,
+            'can_create': False,
+            'can_edit': False,
+            'can_delete': False
+        })
+        
+        # 合并权限（个人权限可以增强角色权限）
+        final_perm = {
+            'module': module_id,
+            'can_view': role_perm['can_view'] or personal_perm['can_view'],
+            'can_create': role_perm['can_create'] or personal_perm['can_create'],
+            'can_edit': role_perm['can_edit'] or personal_perm['can_edit'],
+            'can_delete': role_perm['can_delete'] or personal_perm['can_delete']
+        }
+        permissions.append(final_perm)
     affiliation_users = []
     aff_qs = Affiliation.query.filter_by(viewer_id=user.id).all()
     for aff in aff_qs:
@@ -921,7 +951,6 @@ def user_detail(user_id):
     }
     
     role_dict = {d.key: d.value for d in Dictionary.query.filter_by(type='role').all()}
-    modules = get_default_modules()
     
     return render_template(
         'user/detail.html',

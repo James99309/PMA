@@ -2196,3 +2196,407 @@ def get_available_accounts_api():
             'success': False,
             'message': f'获取可用账户列表失败: {str(e)}'
         }), 500
+
+# ==================== 客户合并功能 ====================
+
+@customer.route('/merge-tool')
+@login_required
+@permission_required('customer', 'create')
+def customer_merge_tool():
+    """客户合并工具页面（仅管理员可访问）"""
+    if current_user.role != 'admin':
+        flash(_('只有管理员可以使用客户合并工具'), 'error')
+        return redirect(url_for('customer.list_companies'))
+    
+    return render_template('customer/merge_tool.html')
+
+@customer.route('/api/detect-duplicates', methods=['GET'])
+@login_required
+@permission_required('customer', 'create')
+def detect_duplicates():
+    """检测重复客户"""
+    if current_user.role != 'admin':
+        return jsonify({'success': False, 'message': '只有管理员可以使用此功能'}), 403
+    
+    try:
+        # 获取所有公司
+        companies = Company.query.filter_by(is_deleted=False).all()
+        
+        # 按名称分组检测重复
+        name_groups = {}
+        for company in companies:
+            normalized_name = normalize_company_name(company.company_name)
+            if normalized_name not in name_groups:
+                name_groups[normalized_name] = []
+            name_groups[normalized_name].append(company)
+        
+        # 使用更智能的重复检测
+        duplicate_groups = []
+        processed_companies = set()
+        
+        for company in companies:
+            if company.id in processed_companies:
+                continue
+                
+            similar_companies = find_similar_companies(company, companies)
+            
+            if len(similar_companies) > 1:
+                # 获取每个公司的统计信息
+                companies_data = []
+                for similar_company in similar_companies:
+                    if similar_company.id not in processed_companies:
+                        processed_companies.add(similar_company.id)
+                        
+                        # 统计关联数据
+                        contact_count = Contact.query.filter_by(company_id=similar_company.id).count()
+                        action_count = Action.query.filter_by(company_id=similar_company.id).count()
+                        project_count = db.session.query(Project).filter(
+                            Project.end_user == similar_company.company_name
+                        ).count()
+                        
+                        companies_data.append({
+                            'id': similar_company.id,
+                            'company_name': similar_company.company_name,
+                            'company_code': similar_company.company_code,
+                            'owner_name': similar_company.owner.real_name if similar_company.owner else None,
+                            'created_at': similar_company.created_at.strftime('%Y-%m-%d') if similar_company.created_at else None,
+                            'contact_count': contact_count,
+                            'action_count': action_count,
+                            'project_count': project_count
+                        })
+                
+                if len(companies_data) > 1:
+                    duplicate_groups.append({
+                        'name': companies_data[0]['company_name'],
+                        'companies': companies_data
+                    })
+        
+        return jsonify({
+            'success': True,
+            'data': duplicate_groups
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"检测重复客户失败: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'检测失败: {str(e)}'
+        }), 500
+
+@customer.route('/api/merge-preview', methods=['POST'])
+@login_required
+@permission_required('customer', 'create')
+def get_merge_preview():
+    """获取合并预览数据"""
+    if current_user.role != 'admin':
+        return jsonify({'success': False, 'message': '只有管理员可以使用此功能'}), 403
+    
+    try:
+        data = request.json
+        target_company_id = data.get('target_company_id')
+        source_company_ids = data.get('source_company_ids', [])
+        
+        if not target_company_id or not source_company_ids:
+            return jsonify({'success': False, 'message': '参数错误'}), 400
+        
+        # 获取目标公司
+        target_company = Company.query.get(target_company_id)
+        if not target_company:
+            return jsonify({'success': False, 'message': '目标客户不存在'}), 404
+        
+        # 获取目标公司的现有联系人
+        target_contacts = Contact.query.filter_by(company_id=target_company_id).all()
+        target_contact_keys = set()
+        for tc in target_contacts:
+            key = f"{tc.name}|{tc.email or ''}|{tc.phone or ''}"
+            target_contact_keys.add(key)
+        
+        # 获取所有源公司的联系人
+        contacts = Contact.query.filter(Contact.company_id.in_(source_company_ids)).all()
+        contacts_data = []
+        duplicate_contacts = []
+        
+        for contact in contacts:
+            contact_key = f"{contact.name}|{contact.email or ''}|{contact.phone or ''}"
+            contact_info = {
+                'name': contact.name,
+                'company_name': contact.company.company_name,
+                'position': contact.position or '',
+                'phone': contact.phone or '',
+                'email': contact.email or ''
+            }
+            
+            if contact_key in target_contact_keys:
+                duplicate_contacts.append(contact_info)
+            else:
+                contacts_data.append(contact_info)
+                target_contact_keys.add(contact_key)
+        
+        # 获取所有源公司的行动记录
+        actions = Action.query.filter(Action.company_id.in_(source_company_ids)).order_by(Action.date.desc()).all()
+        actions_data = []
+        for action in actions:
+            actions_data.append({
+                'date': action.date.strftime('%Y-%m-%d') if action.date else '',
+                'communication': action.communication[:100],
+                'company_name': action.company.company_name if action.company else ''
+            })
+        
+        # 获取关联的项目（通过end_user字段）
+        source_companies = Company.query.filter(Company.id.in_(source_company_ids)).all()
+        source_company_names = [c.company_name for c in source_companies]
+        
+        projects = db.session.query(Project).filter(
+            Project.end_user.in_(source_company_names)
+        ).all()
+        projects_data = []
+        for project in projects:
+            projects_data.append({
+                'project_name': project.project_name,
+                'end_user': project.end_user
+            })
+        
+        # 获取目标企业的现有数据
+        target_actions = Action.query.filter_by(company_id=target_company_id).order_by(Action.date.desc()).all()
+        target_actions_data = []
+        for action in target_actions:
+            target_actions_data.append({
+                'date': action.date.strftime('%Y-%m-%d') if action.date else '',
+                'communication': action.communication[:100],
+                'company_name': action.company.company_name if action.company else ''
+            })
+        
+        # 获取目标企业的现有联系人数据
+        target_contacts_data = []
+        for contact in target_contacts:
+            target_contacts_data.append({
+                'name': contact.name,
+                'company_name': contact.company.company_name,
+                'position': contact.position or '',
+                'phone': contact.phone or '',
+                'email': contact.email or ''
+            })
+        
+        # 获取目标企业的项目
+        target_projects = db.session.query(Project).filter(
+            Project.end_user == target_company.company_name
+        ).all()
+        target_projects_data = []
+        for project in target_projects:
+            target_projects_data.append({
+                'project_name': project.project_name,
+                'end_user': project.end_user
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'contacts': contacts_data,
+                'duplicate_contacts': duplicate_contacts,
+                'actions': actions_data,
+                'projects': projects_data,
+                'target': {
+                    'company_name': target_company.company_name,
+                    'contacts': target_contacts_data,
+                    'actions': target_actions_data,
+                    'projects': target_projects_data
+                }
+            }
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"获取合并预览失败: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'获取预览失败: {str(e)}'
+        }), 500
+
+@customer.route('/api/execute-merge', methods=['POST'])
+@login_required
+@permission_required('customer', 'create')
+def execute_merge():
+    """执行客户合并"""
+    if current_user.role != 'admin':
+        return jsonify({'success': False, 'message': '只有管理员可以使用此功能'}), 403
+    
+    try:
+        data = request.json
+        target_company_id = data.get('target_company_id')
+        source_company_ids = data.get('source_company_ids', [])
+        final_company_name = data.get('final_company_name', '')
+        
+        if not target_company_id or not source_company_ids:
+            return jsonify({'success': False, 'message': '参数错误'}), 400
+        
+        # 获取目标公司
+        target_company = Company.query.get(target_company_id)
+        if not target_company:
+            db.session.rollback()
+            return jsonify({'success': False, 'message': '目标客户不存在'}), 404
+        
+        # 获取源公司列表
+        source_companies = Company.query.filter(Company.id.in_(source_company_ids)).all()
+        if len(source_companies) != len(source_company_ids):
+            db.session.rollback()
+            return jsonify({'success': False, 'message': '部分源客户不存在'}), 404
+        
+        # 确保目标公司不在源公司列表中
+        if target_company_id in source_company_ids:
+            db.session.rollback()
+            return jsonify({'success': False, 'message': '目标客户不能在被合并的客户列表中'}), 400
+        
+        merge_summary = {
+            'merged_contacts': 0,
+            'merged_duplicate_contacts': 0,
+            'merged_actions': 0,
+            'updated_projects': 0,
+            'deleted_companies': 0
+        }
+        
+        # 添加详细日志
+        current_app.logger.info(f"开始合并客户: 目标={target_company_id}, 源={source_company_ids}")
+        
+        # 1. 智能合并联系人
+        target_contacts = Contact.query.filter_by(company_id=target_company_id).all()
+        target_contact_keys = set()
+        for tc in target_contacts:
+            # 创建联系人唯一标识（姓名+邮箱+电话）
+            key = f"{tc.name}|{tc.email or ''}|{tc.phone or ''}"
+            target_contact_keys.add(key)
+        
+        for source_company in source_companies:
+            contacts = Contact.query.filter_by(company_id=source_company.id).all()
+            for contact in contacts:
+                # 检查是否是重复联系人
+                contact_key = f"{contact.name}|{contact.email or ''}|{contact.phone or ''}"
+                
+                if contact_key in target_contact_keys:
+                    # 重复联系人：合并行动记录到目标企业，然后删除联系人
+                    contact_actions = Action.query.filter_by(contact_id=contact.id).all()
+                    for action in contact_actions:
+                        action.contact_id = None  # 解除与重复联系人的关联
+                        action.company_id = target_company_id
+                    
+                    # 删除重复联系人
+                    db.session.delete(contact)
+                    merge_summary['merged_duplicate_contacts'] += 1
+                else:
+                    # 不重复的联系人：直接转移
+                    contact.company_id = target_company_id
+                    merge_summary['merged_contacts'] += 1
+                    target_contact_keys.add(contact_key)
+        
+        # 2. 合并行动记录
+        for source_company in source_companies:
+            actions = Action.query.filter_by(company_id=source_company.id).all()
+            for action in actions:
+                action.company_id = target_company_id
+                # 保持行动记录的原有所有者不变
+                merge_summary['merged_actions'] += 1
+        
+        # 3. 更新项目的end_user字段
+        for source_company in source_companies:
+            projects = db.session.query(Project).filter(
+                Project.end_user == source_company.company_name
+            ).all()
+            for project in projects:
+                project.end_user = target_company.company_name
+                # 项目的归属不变，只更新end_user字段
+                merge_summary['updated_projects'] += 1
+        
+        # 4. 合并共享信息
+        target_shared_users = set(target_company.shared_with_users or [])
+        for source_company in source_companies:
+            if source_company.shared_with_users:
+                target_shared_users.update(source_company.shared_with_users)
+        
+        target_company.shared_with_users = list(target_shared_users)
+        
+        # 5. 删除源公司（标记为删除）
+        for source_company in source_companies:
+            source_company.is_deleted = True
+            merge_summary['deleted_companies'] += 1
+        
+        # 6. 更新目标公司名称（如果提供了新名称）
+        if final_company_name and final_company_name.strip():
+            old_name = target_company.company_name
+            target_company.company_name = final_company_name.strip()
+            # 同时更新项目中的end_user字段
+            projects_to_update_name = db.session.query(Project).filter(
+                Project.end_user == old_name
+            ).all()
+            for project in projects_to_update_name:
+                project.end_user = final_company_name.strip()
+        
+        # 7. 更新目标公司的更新时间
+        target_company.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
+        
+        # 提交事务
+        db.session.commit()
+        
+        # 记录操作日志
+        current_app.logger.info(f"管理员 {current_user.username} 执行客户合并: "
+                              f"目标客户 {target_company.company_name} (ID: {target_company_id}), "
+                              f"合并客户 {[c.company_name for c in source_companies]}, "
+                              f"合并统计: {merge_summary}")
+        
+        return jsonify({
+            'success': True,
+            'message': '客户合并成功',
+            'data': merge_summary
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"执行客户合并失败: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'合并失败: {str(e)}'
+        }), 500
+
+def normalize_company_name(name):
+    """标准化公司名称，用于重复检测"""
+    if not name:
+        return ""
+    
+    # 去除常见的公司后缀
+    suffixes = [
+        "有限公司", "有限责任公司", "股份有限公司", "股份公司", 
+        "公司", "集团", "科技", "实业", "企业",
+        "Co.", "Ltd", "Inc", "Corp", "LLC"
+    ]
+    
+    normalized = name.strip()
+    for suffix in suffixes:
+        if normalized.endswith(suffix):
+            normalized = normalized[:-len(suffix)].strip()
+    
+    # 去除空格和特殊字符
+    normalized = ''.join(normalized.split())
+    
+    return normalized.lower()
+
+def find_similar_companies(target_company, all_companies):
+    """查找相似的公司"""
+    similar_companies = [target_company]
+    target_normalized = normalize_company_name(target_company.company_name)
+    
+    for company in all_companies:
+        if company.id == target_company.id:
+            continue
+            
+        company_normalized = normalize_company_name(company.company_name)
+        
+        # 计算相似度
+        similarity = difflib.SequenceMatcher(None, target_normalized, company_normalized).ratio()
+        
+        # 检查是否满足相似条件
+        if similarity > 0.8:  # 高相似度
+            similar_companies.append(company)
+        elif similarity > 0.6 and len(target_normalized) > 2 and len(company_normalized) > 2:
+            # 中等相似度但需要更严格的检查
+            if (target_normalized in company_normalized or 
+                company_normalized in target_normalized):
+                similar_companies.append(company)
+    
+    return similar_companies

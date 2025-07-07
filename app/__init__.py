@@ -341,6 +341,15 @@ def create_app(config_class=Config):
     #     logger.error(f"测试功能蓝图注册失败: {e}")
     logger.info("测试功能蓝图已暂时禁用")
     
+    # 注册测试合并蓝图（仅本地调试）
+    try:
+        from app.routes.test_merge import test_merge_bp
+        app.register_blueprint(test_merge_bp, url_prefix='/debug')
+        csrf.exempt(test_merge_bp)
+        logger.info("测试合并蓝图注册成功")
+    except Exception as e:
+        logger.warning(f"测试合并蓝图注册失败: {e}")
+    
     # 添加版本信息API路由
     @app.route('/api/version', methods=['GET'])
     def get_app_version():

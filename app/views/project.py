@@ -275,33 +275,54 @@ def view_project(project_id):
         flash('您没有权限查看此项目', 'danger')
         return redirect(url_for('project.list_projects'))
     
-    # 查询相关单位对应的企业ID
+    # 查询相关单位对应的企业ID并检查访问权限
+    from app.utils.access_control import can_view_company
     related_companies = {}
     
     # 查询直接用户
     if project.end_user:
         end_user_company = Company.query.filter_by(company_name=project.end_user).first()
-        related_companies['end_user'] = end_user_company.id if end_user_company else None
+        if end_user_company:
+            can_view = can_view_company(current_user, end_user_company)
+            logger.debug(f"权限检查 - 用户 {current_user.username} (ID: {current_user.id}) 访问企业 '{end_user_company.company_name}' (ID: {end_user_company.id}, 拥有者: {end_user_company.owner_id}): {can_view}")
+            if can_view:
+                related_companies['end_user'] = end_user_company.id
+            else:
+                related_companies['end_user'] = None
+        else:
+            related_companies['end_user'] = None
     
     # 查询设计院及顾问
     if project.design_issues:
         design_company = Company.query.filter_by(company_name=project.design_issues).first()
-        related_companies['design_issues'] = design_company.id if design_company else None
+        if design_company and can_view_company(current_user, design_company):
+            related_companies['design_issues'] = design_company.id
+        else:
+            related_companies['design_issues'] = None
     
     # 查询经销商
     if project.dealer:
         dealer_company = Company.query.filter_by(company_name=project.dealer).first()
-        related_companies['dealer'] = dealer_company.id if dealer_company else None
+        if dealer_company and can_view_company(current_user, dealer_company):
+            related_companies['dealer'] = dealer_company.id
+        else:
+            related_companies['dealer'] = None
     
     # 查询总承包单位
     if project.contractor:
         contractor_company = Company.query.filter_by(company_name=project.contractor).first()
-        related_companies['contractor'] = contractor_company.id if contractor_company else None
+        if contractor_company and can_view_company(current_user, contractor_company):
+            related_companies['contractor'] = contractor_company.id
+        else:
+            related_companies['contractor'] = None
     
     # 查询系统集成商
     if project.system_integrator:
         integrator_company = Company.query.filter_by(company_name=project.system_integrator).first()
-        related_companies['system_integrator'] = integrator_company.id if integrator_company else None
+        if integrator_company and can_view_company(current_user, integrator_company):
+            related_companies['system_integrator'] = integrator_company.id
+        else:
+            related_companies['system_integrator'] = None
     
     # 解析阶段变更历史，生成stageHistory结构
     # 优先使用project_stage_history表中的数据，如果没有则从stage_description解析
@@ -649,6 +670,17 @@ def get_company_data():
         for key in COMPANY_TYPE_LABELS.keys()
     }
 
+# 新的编辑项目后台逻辑函数
+def get_edit_project_data():
+    """获取编辑项目需要的数据"""
+    return {
+        'PRODUCT_SITUATION_OPTIONS': PRODUCT_SITUATION_OPTIONS,
+        'REPORT_SOURCE_OPTIONS': REPORT_SOURCE_OPTIONS,
+        'PROJECT_TYPE_OPTIONS': PROJECT_TYPE_OPTIONS,
+        'INDUSTRY_OPTIONS': INDUSTRY_OPTIONS,
+        **get_company_data()
+    }
+
 @project.route('/edit/<int:project_id>', methods=['GET', 'POST'])
 @permission_required('project', 'edit')
 def edit_project(project_id):
@@ -676,16 +708,16 @@ def edit_project(project_id):
             # 必填项校验
             if not request.form.get('project_name'):
                 flash('项目名称不能为空', 'danger')
-                return render_template('project/edit.html', project=project, companies=get_company_data())
+                return render_template('project/edit.html', project=project, **get_edit_project_data())
             if not request.form.get('report_time'):
                 flash('报备日期不能为空', 'danger')
-                return render_template('project/edit.html', project=project, companies=get_company_data())
+                return render_template('project/edit.html', project=project, **get_edit_project_data())
             if not request.form.get('current_stage'):
                 flash('当前阶段不能为空', 'danger')
-                return render_template('project/edit.html', project=project, companies=get_company_data())
+                return render_template('project/edit.html', project=project, **get_edit_project_data())
             if not request.form.get('industry'):
                 flash('项目行业不能为空', 'danger')
-                return render_template('project/edit.html', project=project, companies=get_company_data())
+                return render_template('project/edit.html', project=project, **get_edit_project_data())
             # 解析日期
             if request.form.get('report_time'):
                 project.report_time = datetime.strptime(request.form['report_time'], '%Y-%m-%d').date()
@@ -824,22 +856,11 @@ def edit_project(project_id):
             else:
                 flash(f'保存失败：{type(e).__name__}: {str(e)}', 'danger')
     
-    # 使用集中定义的字典生成公司数据
-    from app.utils.dictionary_helpers import COMPANY_TYPE_LABELS
-    company_query = get_viewable_data(Company, current_user)
-    companies = {
-        key: company_query.filter_by(company_type=key).all()
-        for key in COMPANY_TYPE_LABELS.keys()
-    }
-    
+    # GET请求：返回编辑页面
     return render_template(
         'project/edit.html',
         project=project,
-        companies=companies,
-        PRODUCT_SITUATION_OPTIONS=PRODUCT_SITUATION_OPTIONS,
-        REPORT_SOURCE_OPTIONS=REPORT_SOURCE_OPTIONS,
-        PROJECT_TYPE_OPTIONS=PROJECT_TYPE_OPTIONS,
-        INDUSTRY_OPTIONS=INDUSTRY_OPTIONS
+        **get_edit_project_data()
     )
 
 @project.route('/delete/<int:project_id>', methods=['POST'])

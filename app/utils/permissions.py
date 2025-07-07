@@ -302,6 +302,7 @@ def clear_user_permissions_cache(user_id=None):
 def get_accessible_users(current_user):
     """
     获取当前用户可访问的用户列表（用于绩效统计等功能）
+    基于权限管理中的设置和归属关系控制用户访问范围
     
     参数:
         current_user: 当前登录用户
@@ -313,12 +314,90 @@ def get_accessible_users(current_user):
         if not current_user or not current_user.is_authenticated:
             return []
         
-        # 管理员和CEO可以查看所有用户
-        if current_user.role in ['admin', 'ceo']:
-            return User.query.filter(User.is_active == True).all()
+        # 管理员可以查看所有用户
+        if current_user.role == 'admin':
+            return User.query.filter(User._is_active == True).all()
         
-        # 其他角色只能查看自己的数据
-        return [current_user]
+        # 收集可访问的用户ID
+        accessible_user_ids = set([current_user.id])  # 始终可以查看自己
+        
+        # 1. 基于用户管理模块权限的访问控制
+        if current_user.has_permission('user', 'view'):
+            user_permission_level = current_user.get_permission_level('user')
+            
+            if user_permission_level == 'system':
+                # 系统级权限：可以查看所有用户
+                all_users = User.query.filter(User._is_active == True).all()
+                accessible_user_ids.update([u.id for u in all_users])
+            elif user_permission_level == 'company' and current_user.company_name:
+                # 企业级权限：可以查看企业下所有用户
+                company_users = User.query.filter(
+                    User.company_name == current_user.company_name,
+                    User._is_active == True
+                ).all()
+                accessible_user_ids.update([u.id for u in company_users])
+            elif user_permission_level == 'department' and current_user.department and current_user.company_name:
+                # 部门级权限：可以查看部门下所有用户
+                dept_users = User.query.filter(
+                    User.department == current_user.department,
+                    User.company_name == current_user.company_name,
+                    User._is_active == True
+                ).all()
+                accessible_user_ids.update([u.id for u in dept_users])
+        
+        # 2. 基于归属关系的访问控制（Affiliation）
+        from app.models.user import Affiliation
+        affiliations = Affiliation.query.filter_by(viewer_id=current_user.id).all()
+        for affiliation in affiliations:
+            affiliated_user = User.query.filter(
+                User.id == affiliation.owner_id,
+                User._is_active == True
+            ).first()
+            if affiliated_user:
+                accessible_user_ids.add(affiliated_user.id)
+        
+        # 3. 基于角色的特殊权限
+        user_role = current_user.role.strip() if current_user.role else ''
+        
+        # CEO可以查看所有用户
+        if user_role == 'ceo':
+            all_users = User.query.filter(User._is_active == True).all()
+            accessible_user_ids.update([u.id for u in all_users])
+        
+        # 营销总监可以查看所有销售人员
+        elif user_role == 'sales_director':
+            sales_users = User.query.filter(
+                User.role.in_(['sales', 'sales_manager']),
+                User._is_active == True
+            ).all()
+            accessible_user_ids.update([u.id for u in sales_users])
+        
+        # 商务助理可以查看同部门用户
+        elif user_role == 'business_admin' and current_user.department and current_user.company_name:
+            dept_users = User.query.filter(
+                User.department == current_user.department,
+                User.company_name == current_user.company_name,
+                User._is_active == True
+            ).all()
+            accessible_user_ids.update([u.id for u in dept_users])
+        
+        # 部门经理可以查看本部门用户
+        elif (hasattr(current_user, 'is_department_manager') and current_user.is_department_manager 
+              and current_user.department):
+            dept_users = User.query.filter(
+                User.department == current_user.department,
+                User._is_active == True
+            ).all()
+            accessible_user_ids.update([u.id for u in dept_users])
+        
+        # 4. 根据收集到的用户ID获取用户对象
+        accessible_users = User.query.filter(
+            User.id.in_(accessible_user_ids),
+            User._is_active == True
+        ).order_by(User.real_name, User.username).all()
+        
+        logger.info(f"用户 {current_user.username} 可访问 {len(accessible_users)} 个用户的绩效数据")
+        return accessible_users
         
     except Exception as e:
         logger.error(f"获取可访问用户列表失败: {str(e)}")

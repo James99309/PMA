@@ -69,12 +69,12 @@ def index():
             'five_star_target': []
         }
         
-        # 汇总当年累计数据
+        # 汇总当年累计数据，确保初始值为正确的数据类型
         total_actual = {
-            'implant': 0, 'sales': 0, 'customers': 0, 'projects': 0, 'five_star': 0
+            'implant': 0.0, 'sales': 0.0, 'customers': 0, 'projects': 0, 'five_star': 0
         }
         total_target = {
-            'implant': 0, 'sales': 0, 'customers': 0, 'projects': 0, 'five_star': 0
+            'implant': 0.0, 'sales': 0.0, 'customers': 0, 'projects': 0, 'five_star': 0
         }
         
         for month in range(1, 13):
@@ -104,12 +104,12 @@ def index():
                 chart_data['projects_actual'].append(stats.new_projects_actual or 0)
                 chart_data['five_star_actual'].append(stats.five_star_projects_actual or 0)
                 
-                # 累计实际值
-                total_actual['implant'] += implant_actual
-                total_actual['sales'] += sales_actual
-                total_actual['customers'] += stats.new_customers_actual or 0
-                total_actual['projects'] += stats.new_projects_actual or 0
-                total_actual['five_star'] += stats.five_star_projects_actual or 0
+                # 累计实际值，确保数据类型一致
+                total_actual['implant'] += float(implant_actual)
+                total_actual['sales'] += float(sales_actual)
+                total_actual['customers'] += int(stats.new_customers_actual or 0)
+                total_actual['projects'] += int(stats.new_projects_actual or 0)
+                total_actual['five_star'] += int(stats.five_star_projects_actual or 0)
             else:
                 chart_data['implant_actual'].append(0)
                 chart_data['sales_actual'].append(0)
@@ -140,12 +140,12 @@ def index():
                 chart_data['projects_target'].append(target.new_projects_target or 0)
                 chart_data['five_star_target'].append(target.five_star_projects_target or 0)
                 
-                # 累计目标值
-                total_target['implant'] += implant_target
-                total_target['sales'] += sales_target
-                total_target['customers'] += target.new_customers_target or 0
-                total_target['projects'] += target.new_projects_target or 0
-                total_target['five_star'] += target.five_star_projects_target or 0
+                # 累计目标值，确保数据类型一致
+                total_target['implant'] += float(implant_target)
+                total_target['sales'] += float(sales_target)
+                total_target['customers'] += int(target.new_customers_target or 0)
+                total_target['projects'] += int(target.new_projects_target or 0)
+                total_target['five_star'] += int(target.five_star_projects_target or 0)
             else:
                 chart_data['implant_target'].append(0)
                 chart_data['sales_target'].append(0)
@@ -159,6 +159,32 @@ def index():
             achievement_rates[key] = PerformanceService.get_achievement_rate(
                 total_actual[key], total_target[key]
             )
+        
+        # 计算每月的达成率
+        monthly_rates = {}
+        for month in range(1, 13):
+            stats = yearly_stats[month - 1] if yearly_stats and len(yearly_stats) > month - 1 else None
+            target = yearly_targets.get(month)
+            
+            monthly_rates[month] = {}
+            if stats and target:
+                monthly_rates[month]['implant'] = PerformanceService.get_achievement_rate(
+                    stats.implant_amount_actual or 0, target.implant_amount_target or 0
+                )
+                monthly_rates[month]['sales'] = PerformanceService.get_achievement_rate(
+                    stats.sales_amount_actual or 0, target.sales_amount_target or 0
+                )
+                monthly_rates[month]['customers'] = PerformanceService.get_achievement_rate(
+                    stats.new_customers_actual or 0, target.new_customers_target or 0
+                )
+                monthly_rates[month]['projects'] = PerformanceService.get_achievement_rate(
+                    stats.new_projects_actual or 0, target.new_projects_target or 0
+                )
+                monthly_rates[month]['five_star'] = PerformanceService.get_achievement_rate(
+                    stats.five_star_projects_actual or 0, target.five_star_projects_target or 0
+                )
+            else:
+                monthly_rates[month] = {'implant': 0.0, 'sales': 0.0, 'customers': 0.0, 'projects': 0.0, 'five_star': 0.0}
         
         # 获取行业统计（当年累计）
         industry_summary = PerformanceService.calculate_industry_statistics(selected_user_id, current_year)
@@ -175,6 +201,7 @@ def index():
                              total_actual=total_actual,
                              total_target=total_target,
                              achievement_rates=achievement_rates,
+                             monthly_rates=monthly_rates,
                              industry_summary=industry_summary,
                              monthly_industry_stats=monthly_industry_stats,
                              display_currency=display_currency,

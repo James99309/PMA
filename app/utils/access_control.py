@@ -558,9 +558,13 @@ def can_view_company(user, company):
     """
     检查用户是否有权限查看指定的客户
     """
+    logger.debug(f"[权限检查] 用户 {user.username} (ID: {user.id}, 角色: {user.role}) 尝试访问企业 '{company.company_name}' (ID: {company.id}, 拥有者: {company.owner_id})")
+    
     if user.role == 'admin':
+        logger.debug(f"[权限检查] 管理员权限 - 允许访问")
         return True
     if user.id == company.owner_id:
+        logger.debug(f"[权限检查] 企业拥有者权限 - 允许访问")
         return True
     
     # 商务助理：可以查看同部门用户和归属关系授权用户的客户
@@ -582,40 +586,29 @@ def can_view_company(user, company):
     # 判断是否通过共享获得权限
     if hasattr(company, 'shared_with_users') and company.shared_with_users:
         if user.id in company.shared_with_users:
+            logger.debug(f"[权限检查] 企业共享权限 - 允许访问")
             return True
     # 判断是否通过归属关系获得权限
     affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
     if company.owner_id in [affiliation.owner_id for affiliation in affiliations]:
+        logger.debug(f"[权限检查] 归属关系权限 - 允许访问")
         return True
     # 判断是否创建了该公司下的联系人
     contact_count = Contact.query.filter_by(company_id=company.id, owner_id=user.id).count()
     if contact_count > 0:
+        logger.debug(f"[权限检查] 联系人创建权限 - 允许访问")
         return True
     
-    # 厂商负责人可以查看项目相关的客户
-    # 检查是否有项目涉及该公司，且当前用户是项目的厂商负责人
-    from app.models.project import Project
-    from sqlalchemy import or_
-    
-    # 查询涉及该公司的项目
-    related_projects = Project.query.filter(
-        or_(
-            Project.end_user == company.company_name,
-            Project.design_issues.like(f'%{company.company_name}%'),
-            Project.contractor == company.company_name,
-            Project.system_integrator == company.company_name,
-            Project.dealer == company.company_name
-        ),
-        Project.vendor_sales_manager_id == user.id
-    ).first()
-    
-    if related_projects:
-        return True
+    # 移除厂商负责人可以查看项目相关客户的逻辑
+    # 这个权限过于宽泛，会导致用户能够查看其他账户拥有的企业详情
+    # 即使用户是项目的厂商销售负责人，也不应该允许查看其他账户的企业信息
     
     # 厂商用户特殊权限：可以查看所有经销商类型的公司详情
     if user.is_vendor_user() and company.company_type in ['经销商', 'dealer']:
+        logger.debug(f"[权限检查] 厂商用户经销商权限 - 允许访问")
         return True
     
+    logger.debug(f"[权限检查] 所有权限检查失败 - 拒绝访问")
     return False
 
 def can_edit_company_info(user, company):

@@ -1,5 +1,5 @@
 from datetime import datetime, date
-from sqlalchemy import func, extract, and_, or_
+from sqlalchemy import func, extract, and_, or_, text
 from app import db
 from app.models.performance import PerformanceTarget, PerformanceStatistics, FiveStarProjectBaseline
 from app.models.quotation import Quotation, QuotationDetail
@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 
 class PerformanceService:
     """绩效统计服务"""
+    
+    # 配置：是否启用实时统计（True=实时，False=缓存）
+    ENABLE_REALTIME_STATS = True
     
     @staticmethod
     def calculate_implant_amount(user_id, year, month):
@@ -232,43 +235,175 @@ class PerformanceService:
     
     @staticmethod
     def get_yearly_statistics(user_id, year):
-        """获取用户年度统计数据"""
+        """获取用户年度统计数据 - 支持实时/缓存模式切换"""
         try:
-            # 确保事务开始时是干净的
-            db.session.rollback()
+            if PerformanceService.ENABLE_REALTIME_STATS:
+                # 实时计算模式
+                logger.info(f"使用实时统计模式计算用户{user_id}的{year}年度数据")
+                monthly_stats = []
+                
+                for month in range(1, 13):
+                    try:
+                        # 直接实时计算，不使用缓存
+                        stats = PerformanceService.calculate_monthly_statistics_realtime(user_id, year, month)
+                        monthly_stats.append(stats)
+                    except Exception as month_error:
+                        logger.warning(f"实时计算第{month}月统计失败: {month_error}")
+                        monthly_stats.append(PerformanceService._create_empty_stats())
+                
+                logger.info(f"实时计算用户{user_id}年度{year}统计完成")
+                return monthly_stats
+            else:
+                # 缓存模式（原有逻辑）
+                logger.info(f"使用缓存统计模式计算用户{user_id}的{year}年度数据")
+                db.session.rollback()
+                
+                monthly_stats = []
+                for month in range(1, 13):
+                    try:
+                        stats = PerformanceStatistics.query.filter_by(
+                            user_id=user_id, year=year, month=month
+                        ).first()
+                        
+                        if not stats:
+                            # 如果没有缓存数据，实时计算并保存
+                            stats = PerformanceService.calculate_monthly_statistics(user_id, year, month)
+                        
+                        monthly_stats.append(stats)
+                    except Exception as month_error:
+                        logger.warning(f"缓存模式计算第{month}月统计失败: {month_error}")
+                        monthly_stats.append(None)
+                        db.session.rollback()
+                
+                return monthly_stats
             
-            # 获取或计算当年各月的统计数据
-            monthly_stats = []
-            for month in range(1, 13):
-                try:
-                    stats = PerformanceStatistics.query.filter_by(
-                        user_id=user_id, year=year, month=month
-                    ).first()
-                    
-                    if not stats:
-                        # 如果没有缓存数据，实时计算
-                        stats = PerformanceService.calculate_monthly_statistics(user_id, year, month)
-                    
-                    monthly_stats.append(stats)
-                except Exception as month_error:
-                    logger.warning(f"计算第{month}月统计失败: {month_error}")
-                    # 添加空的统计对象
-                    monthly_stats.append(None)
-                    # 回滚失败的事务
-                    db.session.rollback()
-            
-            return monthly_stats
         except Exception as e:
             logger.error(f"获取年度统计失败: {e}")
-            db.session.rollback()
             return []
+    
+    @staticmethod
+    def calculate_monthly_statistics_realtime(user_id, year, month):
+        """实时计算用户指定月份的绩效统计（不使用缓存）- 优化版本"""
+        try:
+            # 使用单个查询批量计算所有指标，提高性能
+            result = db.session.execute(text("""
+                WITH monthly_data AS (
+                    -- 新增项目统计
+                    SELECT 
+                        COUNT(DISTINCT p.id) as new_projects,
+                        SUM(CASE WHEN p.rating = 5 THEN 1 ELSE 0 END) as five_star_projects,
+                        string_agg(DISTINCT p.industry, '|') as industries
+                    FROM projects p
+                    WHERE p.owner_id = :user_id 
+                      AND EXTRACT(year FROM p.created_at) = :year 
+                      AND EXTRACT(month FROM p.created_at) = :month
+                ),
+                implant_data AS (
+                    -- 植入额统计
+                    SELECT COALESCE(SUM(qd.quantity * qd.market_price), 0) as implant_amount
+                    FROM quotation_details qd
+                    JOIN quotations q ON qd.quotation_id = q.id
+                    WHERE q.owner_id = :user_id
+                      AND EXTRACT(year FROM q.created_at) = :year
+                      AND EXTRACT(month FROM q.created_at) = :month
+                ),
+                customer_data AS (
+                    -- 新增客户统计
+                    SELECT COUNT(*) as new_customers
+                    FROM companies c
+                    WHERE c.owner_id = :user_id
+                      AND EXTRACT(year FROM c.created_at) = :year
+                      AND EXTRACT(month FROM c.created_at) = :month
+                ),
+                sales_data AS (
+                    -- 销售额统计
+                    SELECT COALESCE(SUM(po.pricing_total_amount), 0) as sales_amount
+                    FROM pricing_orders po
+                    WHERE po.created_by = :user_id
+                      AND po.status = 'approved'
+                      AND EXTRACT(year FROM po.approved_at) = :year
+                      AND EXTRACT(month FROM po.approved_at) = :month
+                )
+                SELECT 
+                    COALESCE(md.new_projects, 0) as new_projects,
+                    COALESCE(md.five_star_projects, 0) as five_star_projects,
+                    COALESCE(md.industries, '') as industries,
+                    COALESCE(id.implant_amount, 0) as implant_amount,
+                    COALESCE(cd.new_customers, 0) as new_customers,
+                    COALESCE(sd.sales_amount, 0) as sales_amount
+                FROM monthly_data md
+                CROSS JOIN implant_data id
+                CROSS JOIN customer_data cd
+                CROSS JOIN sales_data sd
+            """), {
+                'user_id': user_id,
+                'year': year,
+                'month': month
+            }).fetchone()
+            
+            if result:
+                # 处理行业统计
+                industries = result.industries.split('|') if result.industries else []
+                industry_stats = {}
+                for industry in industries:
+                    if industry and industry.strip():
+                        industry_name = industry.strip()
+                        industry_stats[industry_name] = industry_stats.get(industry_name, 0) + 1
+                
+                # 五星项目增量计算（简化版，当月新增的五星项目数）
+                five_star_increment = result.five_star_projects or 0
+                
+                # 创建动态统计对象（不保存到数据库）
+                stats = type('RealtimeStats', (), {
+                    'implant_amount_actual': float(result.implant_amount or 0),
+                    'sales_amount_actual': float(result.sales_amount or 0),
+                    'new_customers_actual': int(result.new_customers or 0),
+                    'new_projects_actual': int(result.new_projects or 0),
+                    'five_star_projects_actual': int(five_star_increment),
+                    'industry_statistics': industry_stats,
+                    'calculated_at': datetime.now()
+                })()
+                
+                logger.debug(f"实时计算用户{user_id} {year}年{month}月统计: 项目{result.new_projects}个, 植入额{result.implant_amount}")
+                return stats
+            else:
+                # 如果查询无结果，返回空统计
+                return PerformanceService._create_empty_stats()
+                
+        except Exception as e:
+            logger.error(f"实时计算月度统计失败: {e}")
+            return PerformanceService._create_empty_stats()
+    
+    @staticmethod
+    def _create_empty_stats():
+        """创建空的统计对象"""
+        return type('EmptyStats', (), {
+            'implant_amount_actual': 0,
+            'sales_amount_actual': 0,
+            'new_customers_actual': 0,
+            'new_projects_actual': 0,
+            'five_star_projects_actual': 0,
+            'industry_statistics': {}
+        })()
     
     @staticmethod
     def get_achievement_rate(actual, target):
         """计算达成率"""
-        if not target or target == 0:
+        try:
+            if not target or target == 0:
+                return 0.0
+            
+            # 确保数据类型兼容性，转换为float进行计算
+            actual_float = float(actual) if actual is not None else 0.0
+            target_float = float(target) if target is not None else 0.0
+            
+            if target_float == 0:
+                return 0.0
+                
+            return round((actual_float / target_float) * 100, 2)
+        except (TypeError, ValueError, ZeroDivisionError) as e:
+            logger.warning(f"计算达成率时出错: actual={actual}, target={target}, error={e}")
             return 0.0
-        return round((actual / target) * 100, 2)
     
     @staticmethod
     def get_achievement_color(rate):

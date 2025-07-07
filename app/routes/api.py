@@ -43,18 +43,68 @@ def get_role_display_name(role_key):
 @login_required
 def get_companies_by_type(company_type):
     """
-    获取指定类型的公司列表
+    获取指定类型的公司列表，包含拥有者信息和权限状态
     company_type可以是：user（直接用户）, designer（设计院）, contractor（总承包）, 
     integrator（系统集成商）, dealer（经销商）
     """
     if company_type not in COMPANY_TYPE_LABELS:
         return jsonify({'error': '无效的公司类型'}), 400
 
-    query = get_viewable_data(Company, current_user)
-    companies = query.filter_by(company_type=company_type).order_by(Company.company_name).all()
-
-    # 直接返回数组，兼容前端
-    return jsonify([{'id': c.id, 'name': c.company_name} for c in companies])
+    try:
+        # 获取所有该类型的企业（不限制权限，显示所有）
+        companies = Company.query.filter_by(company_type=company_type).order_by(Company.company_name).all()
+        
+        # 获取有权限查看的企业ID列表
+        viewable_companies = get_viewable_data(Company, current_user).filter_by(company_type=company_type).all()
+        viewable_company_ids = {c.id for c in viewable_companies}
+        
+        # 预加载所有企业的所有者信息
+        owner_ids = [company.owner_id for company in companies if company.owner_id]
+        owners = {}
+        if owner_ids:
+            from app.models.user import User
+            owner_users = User.query.filter(User.id.in_(owner_ids)).all()
+            owners = {user.id: user for user in owner_users}
+        
+        # 分别处理有权限和只读的企业
+        readable_companies = []
+        readonly_companies = []
+        
+        for company in companies:
+            # 判断用户是否有权限访问该企业
+            is_readable = company.id in viewable_company_ids
+            
+            # 获取拥有者信息
+            owner_name = "未指定"
+            if company.owner_id and company.owner_id in owners:
+                owner = owners[company.owner_id]
+                owner_name = owner.real_name or owner.username
+            
+            company_data = {
+                'id': company.id,
+                'name': company.company_name,
+                'is_readable': is_readable,
+                'owner_name': owner_name,
+                'owner_id': company.owner_id
+            }
+            
+            if is_readable:
+                readable_companies.append(company_data)
+            else:
+                readonly_companies.append(company_data)
+        
+        # 按企业名称排序
+        readable_companies.sort(key=lambda x: x['name'])
+        readonly_companies.sort(key=lambda x: x['name'])
+        
+        # 先放有权限的，再放只读的
+        result = readable_companies + readonly_companies
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        current_app.logger.error(f"获取企业列表失败: {str(e)}")
+        return jsonify({'error': '获取企业列表失败', 'message': str(e)}), 500
 
 @api_bp.route('/products/categories', methods=['GET'])
 def get_product_categories():
@@ -1077,3 +1127,64 @@ def get_vendor_company_name():
             'company_name': user_company_name
         }
     }) 
+
+@api_bp.route('/projects/search', methods=['GET'])
+@login_required
+def search_project_names():
+    """
+    搜索项目名称，用于重复检查和搜索建议
+    """
+    try:
+        query = request.args.get('q', '').strip()
+        current_project_id = request.args.get('exclude_id')  # 编辑时排除当前项目
+        
+        if not query:
+            return jsonify([])
+        
+        from app.models.project import Project
+        from app.models.user import User
+        from app.utils.access_control import get_viewable_data
+        
+        # 获取用户可见的项目
+        projects_query = get_viewable_data(Project, current_user)
+        
+        # 如果是编辑模式，排除当前项目
+        if current_project_id:
+            projects_query = projects_query.filter(Project.id != current_project_id)
+        
+        # 搜索匹配的项目名称，并加载拥有者信息
+        matching_projects = projects_query.filter(
+            Project.project_name.ilike(f'%{query}%')
+        ).join(User, Project.owner_id == User.id, isouter=True).limit(10).all()
+        
+        results = []
+        exact_match = False
+        
+        for project in matching_projects:
+            # 检查是否完全匹配
+            if project.project_name.lower() == query.lower():
+                exact_match = True
+            
+            # 获取拥有者信息
+            owner_name = "未指定"
+            if project.owner_id:
+                owner = User.query.get(project.owner_id)
+                if owner:
+                    owner_name = owner.real_name or owner.username
+            
+            results.append({
+                'id': project.id,
+                'name': project.project_name,
+                'owner_name': owner_name,
+                'is_exact_match': project.project_name.lower() == query.lower()
+            })
+        
+        return jsonify({
+            'results': results,
+            'has_exact_match': exact_match,
+            'query': query
+        })
+        
+    except Exception as e:
+        print(f"搜索项目名称失败: {e}")
+        return jsonify({'error': '搜索失败'}), 500 

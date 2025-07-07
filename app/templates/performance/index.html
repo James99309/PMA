@@ -79,56 +79,194 @@
     z-index: 10;
 }
 
+/* 进度追踪样式优化 */
+.progress-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    padding: 4px 0;
+}
+
+.progress-value {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.actual-value {
+    font-weight: 600;
+    color: #ffffff;
+    font-size: 0.9rem;
+}
+
+.percentage {
+    font-size: 0.75rem;
+    color: #d1d5db;
+}
+
+/* 关键指标卡片优化 */
+.metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.metric-card {
+    background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    border: 1px solid #e9ecef;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.metric-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+}
+
+.metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--metric-color);
+}
+
+.metric-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.metric-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--metric-color);
+    color: white;
+    font-size: 18px;
+}
+
+.metric-main {
+    text-align: center;
+    margin: 20px 0;
+}
+
+.metric-value-large {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--metric-color);
+    margin: 8px 0;
+    line-height: 1;
+}
+
+.metric-label-new {
+    font-size: 0.9rem;
+    color: #6c757d;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.metric-progress {
+    margin-top: 16px;
+}
+
+.progress-circular {
+    position: relative;
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 12px;
+}
+
+.progress-circular svg {
+    transform: rotate(-90deg);
+}
+
+.progress-circular .progress-ring {
+    fill: none;
+    stroke: #e9ecef;
+    stroke-width: 4;
+}
+
+.progress-circular .progress-value {
+    fill: none;
+    stroke: var(--metric-color);
+    stroke-width: 4;
+    stroke-linecap: round;
+    transition: stroke-dasharray 0.5s ease;
+}
+
+.achievement-rate-new {
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-align: center;
+}
+
 /* 统计方式切换点样式 */
 .metric-toggle-container {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 15px;
-}
-
-.metric-toggle-dot {
-    display: inline-block;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    cursor: pointer;
-    transition: transform 0.3s, box-shadow 0.3s;
-    box-shadow: 0 0 0 0 rgba(24,144,255,0.2);
-    position: relative;
-    border: 2px solid transparent;
-}
-
-.metric-toggle-dot.active {
-    transform: scale(1.2);
-    box-shadow: 0 0 0 4px rgba(24,144,255,0.12);
-    animation: dotPulse 0.4s;
-    border-color: #fff;
-}
-
-.metric-toggle-dot:hover {
-    transform: scale(1.1);
+    gap: 12px;
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 12px;
 }
 
 .metric-toggle-item {
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin: 0 8px;
+    padding: 12px 16px;
+    border-radius: 10px;
     cursor: pointer;
+    transition: all 0.3s ease;
+    background: white;
+    border: 2px solid transparent;
+    min-width: 80px;
+}
+
+.metric-toggle-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.metric-toggle-item.active {
+    border-color: var(--metric-color);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
+}
+
+.metric-toggle-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    margin-bottom: 8px;
+    transition: all 0.3s ease;
 }
 
 .metric-toggle-label {
-    font-size: 12px;
-    margin-top: 6px;
-    white-space: nowrap;
-    transition: all 0.3s;
+    font-size: 0.8rem;
+    font-weight: 500;
     color: #666;
+    transition: color 0.3s ease;
 }
 
-.metric-toggle-label.active {
-    font-weight: bold;
+.metric-toggle-item.active .metric-toggle-label {
     color: #333;
+    font-weight: 600;
 }
 
 @keyframes dotPulse {
@@ -152,13 +290,13 @@
 }
 
 .modern-table .table thead th {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    background: #ffffff !important;
+    color: #000000 !important;
     font-weight: 600;
     font-size: 0.9rem;
     padding: 16px 12px;
     border: none;
-    text-align: center;
+    border-bottom: 2px solid #dee2e6 !important;
 }
 
 .modern-table .table tbody td {
@@ -206,6 +344,162 @@
     color: #495057;
     font-size: 0.95rem;
 }
+
+/* 用户选择器样式 */
+.user-selector-container {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 12px;
+    padding: 16px 20px;
+    border: 1px solid #dee2e6;
+    min-width: 280px;
+}
+
+.user-selector-container .form-label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+}
+
+.user-selector {
+    border-radius: 8px;
+    border: 2px solid #dee2e6;
+    padding: 8px 12px;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+    background: white;
+    margin-bottom: 4px;
+}
+
+.user-selector:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.current-user-info {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 12px 20px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+}
+
+.current-user-info i {
+    font-size: 1.2rem;
+    opacity: 0.9;
+}
+
+/* 新增样式 */
+.main-content-area {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 24px;
+    margin-bottom: 30px;
+}
+
+.chart-section {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+.sidebar-section {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.current-month-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 16px;
+    padding: 24px;
+    text-align: center;
+}
+
+.current-month-title {
+    font-size: 1.1rem;
+    margin-bottom: 16px;
+    opacity: 0.9;
+}
+
+.current-month-progress {
+    margin: 16px 0;
+}
+
+.progress-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 8px 0;
+    font-size: 0.9rem;
+}
+
+.industry-card {
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+.expandable-section {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    overflow: hidden;
+    margin-top: 30px;
+}
+
+.section-header {
+    padding: 20px 24px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.section-header:hover {
+    background: #e9ecef;
+}
+
+.toggle-icon {
+    transition: transform 0.3s ease;
+}
+
+.toggle-icon.expanded {
+    transform: rotate(180deg);
+}
+
+@media (max-width: 1200px) {
+    .main-content-area {
+        grid-template-columns: 1fr;
+    }
+    
+    .metric-grid {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .metric-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 16px;
+    }
+    
+    .metric-card {
+        padding: 16px;
+    }
+    
+    .metric-value-large {
+        font-size: 2rem;
+    }
+}
 </style>
 {% endblock %}
 
@@ -221,15 +515,24 @@
         <div class="d-flex align-items-center gap-3">
             <!-- 用户选择器 -->
             {% if accessible_users|length > 1 %}
-            <div class="form-group mb-0">
-                <label for="userSelector" class="form-label mb-1 small">选择用户：</label>
-                <select id="userSelector" class="form-select form-select-sm" style="width: auto;">
+            <div class="user-selector-container">
+                <label for="userSelector" class="form-label mb-1">
+                    <i class="fas fa-user-circle me-2"></i>查看用户：
+                </label>
+                <select id="userSelector" class="form-select user-selector">
                     {% for user in accessible_users %}
                     <option value="{{ user.id }}" {% if user.id == selected_user.id %}selected{% endif %}>
                         {{ user.real_name or user.username }}
+                        {% if user.id == current_user.id %} (我自己){% endif %}
                     </option>
                     {% endfor %}
                 </select>
+                <small class="text-muted">可查看 {{ accessible_users|length }} 个用户的绩效数据</small>
+            </div>
+            {% else %}
+            <div class="current-user-info">
+                <i class="fas fa-user-circle me-2"></i>
+                <strong>{{ selected_user.real_name or selected_user.username }}</strong> 的绩效统计
             </div>
             {% endif %}
             
@@ -247,89 +550,111 @@
         </div>
     </div>
 
-    <!-- 年度汇总指标卡片 -->
-    <div class="card performance-card">
-        <div class="card-header">
-            <h5 class="mb-0">{{ current_year }}年度汇总 ({{ display_currency }})</h5>
+    <!-- 年度汇总指标卡片 - 紧凑风格 -->
+    <div class="d-flex flex-wrap gap-2 mb-2" style="justify-content: space-between;">
+        <!-- 植入额 -->
+        <div style="flex: 1; min-width: 160px;">
+            <div class="card border-0 shadow-sm h-100 bg-primary bg-opacity-10">
+                <div class="card-body py-2">
+                    <h6 class="card-title text-primary mb-1" style="font-size: 0.85rem;">
+                        <i class="fas fa-chart-line me-1"></i> 植入额
+                    </h6>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="fs-6 fw-bold">{{ "{:,.0f}".format(total_actual.implant) }}</span>
+                            <span class="text-muted ms-1 small">{{ display_currency }}</span>
+                        </div>
+                        <div class="text-end">
+                            <span class="fs-6 fw-bold text-{{ 'success' if achievement_rates.implant >= 100 else 'warning' if achievement_rates.implant >= 80 else 'danger' }}">
+                                {{ "%.1f"|format(achievement_rates.implant) }}%
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="card-body p-0">
-            <div class="row no-gutters">
-                <div class="col performance-metric">
-                    <div class="metric-label">植入额</div>
-                    <div class="metric-value text-primary">
-                        {{ "{:,.0f}".format(total_actual.implant) }}
-                    </div>
-                    <div class="achievement-rate text-{{ 'success' if achievement_rates.implant >= 100 else 'warning' if achievement_rates.implant >= 80 else 'danger' }}">
-                        达成率: {{ "%.1f"|format(achievement_rates.implant) }}%
-                    </div>
-                    <div class="progress-wrapper">
-                        <div class="progress" style="height: 6px;">
-                            <div class="progress-bar bg-{{ 'success' if achievement_rates.implant >= 100 else 'warning' if achievement_rates.implant >= 80 else 'danger' }}" 
-                                 style="width: {{ [achievement_rates.implant, 100]|min }}%"></div>
+
+        <!-- 销售额 -->
+        <div style="flex: 1; min-width: 160px;">
+            <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10">
+                <div class="card-body py-2">
+                    <h6 class="card-title text-success mb-1" style="font-size: 0.85rem;">
+                        <i class="fas fa-dollar-sign me-1"></i> 销售额
+                    </h6>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="fs-6 fw-bold">{{ "{:,.0f}".format(total_actual.sales) }}</span>
+                            <span class="text-muted ms-1 small">{{ display_currency }}</span>
+                        </div>
+                        <div class="text-end">
+                            <span class="fs-6 fw-bold text-{{ 'success' if achievement_rates.sales >= 100 else 'warning' if achievement_rates.sales >= 80 else 'danger' }}">
+                                {{ "%.1f"|format(achievement_rates.sales) }}%
+                            </span>
                         </div>
                     </div>
                 </div>
-                
-                <div class="col performance-metric">
-                    <div class="metric-label">销售额</div>
-                    <div class="metric-value text-success">
-                        {{ "{:,.0f}".format(total_actual.sales) }}
-                    </div>
-                    <div class="achievement-rate text-{{ 'success' if achievement_rates.sales >= 100 else 'warning' if achievement_rates.sales >= 80 else 'danger' }}">
-                        达成率: {{ "%.1f"|format(achievement_rates.sales) }}%
-                    </div>
-                    <div class="progress-wrapper">
-                        <div class="progress" style="height: 6px;">
-                            <div class="progress-bar bg-{{ 'success' if achievement_rates.sales >= 100 else 'warning' if achievement_rates.sales >= 80 else 'danger' }}" 
-                                 style="width: {{ [achievement_rates.sales, 100]|min }}%"></div>
+            </div>
+        </div>
+        <!-- 新增客户 -->
+        <div style="flex: 1; min-width: 160px;">
+            <div class="card border-0 shadow-sm h-100 bg-info bg-opacity-10">
+                <div class="card-body py-2">
+                    <h6 class="card-title text-info mb-1" style="font-size: 0.85rem;">
+                        <i class="fas fa-users me-1"></i> 新增客户
+                    </h6>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="fs-6 fw-bold">{{ total_actual.customers }}</span>
+                            <span class="text-muted ms-1 small">户</span>
+                        </div>
+                        <div class="text-end">
+                            <span class="fs-6 fw-bold text-{{ 'success' if achievement_rates.customers >= 100 else 'warning' if achievement_rates.customers >= 80 else 'danger' }}">
+                                {{ "%.1f"|format(achievement_rates.customers) }}%
+                            </span>
                         </div>
                     </div>
                 </div>
-                
-                <div class="col performance-metric">
-                    <div class="metric-label">新增客户</div>
-                    <div class="metric-value text-info">
-                        {{ total_actual.customers }}
-                    </div>
-                    <div class="achievement-rate text-{{ 'success' if achievement_rates.customers >= 100 else 'warning' if achievement_rates.customers >= 80 else 'danger' }}">
-                        达成率: {{ "%.1f"|format(achievement_rates.customers) }}%
-                    </div>
-                    <div class="progress-wrapper">
-                        <div class="progress" style="height: 6px;">
-                            <div class="progress-bar bg-{{ 'success' if achievement_rates.customers >= 100 else 'warning' if achievement_rates.customers >= 80 else 'danger' }}" 
-                                 style="width: {{ [achievement_rates.customers, 100]|min }}%"></div>
+            </div>
+        </div>
+
+        <!-- 新增项目 -->
+        <div style="flex: 1; min-width: 160px;">
+            <div class="card border-0 shadow-sm h-100 bg-warning bg-opacity-10">
+                <div class="card-body py-2">
+                    <h6 class="card-title text-warning mb-1" style="font-size: 0.85rem;">
+                        <i class="fas fa-project-diagram me-1"></i> 新增项目
+                    </h6>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="fs-6 fw-bold">{{ total_actual.projects }}</span>
+                            <span class="text-muted ms-1 small">项</span>
+                        </div>
+                        <div class="text-end">
+                            <span class="fs-6 fw-bold text-{{ 'success' if achievement_rates.projects >= 100 else 'warning' if achievement_rates.projects >= 80 else 'danger' }}">
+                                {{ "%.1f"|format(achievement_rates.projects) }}%
+                            </span>
                         </div>
                     </div>
                 </div>
-                
-                <div class="col performance-metric">
-                    <div class="metric-label">新增项目</div>
-                    <div class="metric-value text-warning">
-                        {{ total_actual.projects }}
-                    </div>
-                    <div class="achievement-rate text-{{ 'success' if achievement_rates.projects >= 100 else 'warning' if achievement_rates.projects >= 80 else 'danger' }}">
-                        达成率: {{ "%.1f"|format(achievement_rates.projects) }}%
-                    </div>
-                    <div class="progress-wrapper">
-                        <div class="progress" style="height: 6px;">
-                            <div class="progress-bar bg-{{ 'success' if achievement_rates.projects >= 100 else 'warning' if achievement_rates.projects >= 80 else 'danger' }}" 
-                                 style="width: {{ [achievement_rates.projects, 100]|min }}%"></div>
+            </div>
+        </div>
+
+        <!-- 五星项目增量 -->
+        <div style="flex: 1; min-width: 160px;">
+            <div class="card border-0 shadow-sm h-100 bg-danger bg-opacity-10">
+                <div class="card-body py-2">
+                    <h6 class="card-title text-danger mb-1" style="font-size: 0.85rem;">
+                        <i class="fas fa-star me-1"></i> 五星项目增量
+                    </h6>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="fs-6 fw-bold">{{ total_actual.five_star }}</span>
+                            <span class="text-muted ms-1 small">项</span>
                         </div>
-                    </div>
-                </div>
-                
-                <div class="col performance-metric">
-                    <div class="metric-label">五星项目增量</div>
-                    <div class="metric-value text-purple">
-                        {{ total_actual.five_star }}
-                    </div>
-                    <div class="achievement-rate text-{{ 'success' if achievement_rates.five_star >= 100 else 'warning' if achievement_rates.five_star >= 80 else 'danger' }}">
-                        达成率: {{ "%.1f"|format(achievement_rates.five_star) }}%
-                    </div>
-                    <div class="progress-wrapper">
-                        <div class="progress" style="height: 6px;">
-                            <div class="progress-bar bg-{{ 'success' if achievement_rates.five_star >= 100 else 'warning' if achievement_rates.five_star >= 80 else 'danger' }}" 
-                                 style="width: {{ [achievement_rates.five_star, 100]|min }}%"></div>
+                        <div class="text-end">
+                            <span class="fs-6 fw-bold text-{{ 'success' if achievement_rates.five_star >= 100 else 'warning' if achievement_rates.five_star >= 80 else 'danger' }}">
+                                {{ "%.1f"|format(achievement_rates.five_star) }}%
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -337,334 +662,348 @@
         </div>
     </div>
 
-    <div class="row">
-        <!-- 月度趋势图表 -->
-        <div class="col-lg-8">
-            <div class="card performance-card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">月度完成趋势</h5>
-                    <!-- 指标切换点 -->
-                    <div id="performanceTrendToggle" class="metric-toggle-container">
-                        <!-- 切换点将通过JavaScript动态生成 -->
-                    </div>
-                </div>
-                <div class="card-body">
-                    <!-- 图表容器 -->
-                    <div id="performanceTrendChart" class="chart-container"></div>
-                    
-                    <!-- 统计方式切换器 -->
-                    <div class="text-center mt-2">
-                        <div id="performanceTrendToggle" class="metric-toggle-container">
-                            <!-- 动态生成统计方式切换点 -->
-                        </div>
-                    </div>
+    <!-- 主要内容区域 - 新布局 -->
+    <div class="main-content-area">
+        <!-- 图表区域 -->
+        <div class="chart-section">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-area me-2"></i>
+                    月度完成趋势
+                </h5>
+            </div>
+            
+            <!-- 图表容器 -->
+            <div id="performanceTrendChart" class="chart-container"></div>
+            
+            <!-- 统一的指标切换器 -->
+            <div class="mt-3">
+                <div id="performanceTrendToggle" class="metric-toggle-container">
+                    <!-- 动态生成统计方式切换点 -->
                 </div>
             </div>
         </div>
 
-        <!-- 行业维度统计 -->
-        <div class="col-lg-4">
-            <div class="card performance-card">
-                <div class="card-header">
-                    <h5 class="mb-0">行业维度统计</h5>
-                    <small class="text-muted">{{ current_year }}年项目增量分布</small>
+        <!-- 侧边栏区域 -->
+        <div class="sidebar-section">
+            <!-- 当月进度卡片 -->
+            <div class="current-month-card">
+                <div class="current-month-title">
+                    <i class="fas fa-calendar-check me-2"></i>
+                    {{ current_month }}月 进度追踪
                 </div>
-                <div class="card-body">
-                    <div class="industry-stats">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>行业</th>
-                                    <th class="text-center">年度汇总</th>
-                                    <th class="text-center">历史汇总</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% if industry_summary and industry_summary|length > 0 %}
-                                    {% for industry, count in industry_summary.items() %}
-                                    <tr>
-                                        <td>
-                                            {% if industry == '未分类' %}
-                                                <span class="badge bg-secondary">{{ industry }}</span>
-                                            {% else %}
-                                                {% set industry_colors = {
-                                                    'manufacturing': 'primary',
-                                                    'healthcare': 'success', 
-                                                    'education': 'info',
-                                                    'finance': 'warning',
-                                                    'real_estate': 'danger',
-                                                    'retail': 'light',
-                                                    'transportation': 'dark',
-                                                    'energy': 'success',
-                                                    'technology': 'primary',
-                                                    'government': 'secondary',
-                                                    'hospitality': 'info',
-                                                    'agriculture': 'success'
-                                                } %}
-                                                {% set industry_names = {
-                                                    'manufacturing': '制造业',
-                                                    'healthcare': '医疗健康',
-                                                    'education': '教育',
-                                                    'finance': '金融',
-                                                    'real_estate': '房地产',
-                                                    'retail': '零售',
-                                                    'transportation': '交通运输',
-                                                    'energy': '能源',
-                                                    'technology': '科技',
-                                                    'government': '政府',
-                                                    'hospitality': '酒店服务',
-                                                    'agriculture': '农业'
-                                                } %}
-                                                <span class="badge bg-{{ industry_colors.get(industry, 'secondary') }}">
-                                                    {{ industry_names.get(industry, industry) }}
-                                                </span>
-                                            {% endif %}
-                                        </td>
-                                        <td class="text-center">
-                                            <span class="badge bg-primary">{{ count }}</span>
-                                        </td>
-                                        <td class="text-center">
-                                            <span class="badge bg-info">-</span>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                {% else %}
-                                    <tr>
-                                        <td colspan="3" class="text-center text-muted py-3">
-                                            <i class="fas fa-chart-pie me-2"></i>
-                                            暂无行业统计数据<br>
-                                            <small>请先创建项目数据</small>
-                                        </td>
-                                    </tr>
-                                {% endif %}
-                            </tbody>
-                        </table>
-                        
-                        <!-- 月度详细统计 -->
-                        {% if monthly_industry_stats %}
-                        <div class="mt-3">
-                            <h6 class="text-muted mb-2">月度详细分布</h6>
-                            <div class="monthly-industry-detail" style="max-height: 200px; overflow-y: auto;">
-                                <table class="table table-sm">
-                                    <thead class="sticky-top bg-white">
-                                        <tr>
-                                            <th style="font-size: 0.8rem;">月份</th>
-                                            {% for industry in industry_summary.keys() %}
-                                            <th class="text-center" style="font-size: 0.8rem;">
-                                                {% if industry == '未分类' %}
-                                                    未分类
-                                                {% else %}
-                                                    {% set industry_names = {
-                                                        'manufacturing': '制造业',
-                                                        'healthcare': '医疗',
-                                                        'education': '教育',
-                                                        'finance': '金融',
-                                                        'real_estate': '地产',
-                                                        'retail': '零售',
-                                                        'transportation': '交通',
-                                                        'energy': '能源',
-                                                        'technology': '科技',
-                                                        'government': '政府',
-                                                        'hospitality': '酒店',
-                                                        'agriculture': '农业'
-                                                    } %}
-                                                    {{ industry_names.get(industry, industry) }}
-                                                {% endif %}
-                                            </th>
-                                            {% endfor %}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for month in range(1, 13) %}
-                                        <tr>
-                                            <td style="font-size: 0.8rem;"><strong>{{ month }}月</strong></td>
-                                            {% for industry in industry_summary.keys() %}
-                                            <td class="text-center" style="font-size: 0.8rem;">
-                                                {{ monthly_industry_stats.get(month, {}).get(industry, 0) }}
-                                            </td>
-                                            {% endfor %}
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
+                <div class="current-month-progress">
+                    {% if yearly_stats and yearly_stats|length >= current_month %}
+                        {% set current_stats = yearly_stats[current_month-1] %}
+                        {% set current_target = yearly_targets.get(current_month) %}
+                        <div class="progress-item">
+                            <span>植入额</span>
+                            <div class="progress-value">
+                                <span class="actual-value">{{ "{:,.0f}".format(chart_data.implant_actual[current_month-1]) if chart_data.implant_actual else "0" }}</span>
+                                <span class="percentage">({{ "%.0f"|format(monthly_rates[current_month]['implant']) if monthly_rates.get(current_month) else "0" }}%)</span>
                             </div>
                         </div>
-                        {% endif %}
-                    </div>
+                        <div class="progress-item">
+                            <span>销售额</span>
+                            <div class="progress-value">
+                                <span class="actual-value">{{ "{:,.0f}".format(chart_data.sales_actual[current_month-1]) if chart_data.sales_actual else "0" }}</span>
+                                <span class="percentage">({{ "%.0f"|format(monthly_rates[current_month]['sales']) if monthly_rates.get(current_month) else "0" }}%)</span>
+                            </div>
+                        </div>
+                        <div class="progress-item">
+                            <span>新增客户</span>
+                            <div class="progress-value">
+                                <span class="actual-value">{{ (current_stats.new_customers_actual or 0) if current_stats else "0" }}</span>
+                                <span class="percentage">({{ "%.0f"|format(monthly_rates[current_month]['customers']) if monthly_rates.get(current_month) else "0" }}%)</span>
+                            </div>
+                        </div>
+                        <div class="progress-item">
+                            <span>新增项目</span>
+                            <div class="progress-value">
+                                <span class="actual-value">{{ (current_stats.new_projects_actual or 0) if current_stats else "0" }}</span>
+                                <span class="percentage">({{ "%.0f"|format(monthly_rates[current_month]['projects']) if monthly_rates.get(current_month) else "0" }}%)</span>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="text-center">
+                            <i class="fas fa-chart-line mb-2" style="font-size: 2rem; opacity: 0.7;"></i>
+                            <p class="mb-0">暂无当月数据</p>
+                        </div>
+                    {% endif %}
                 </div>
+            </div>
+
+            <!-- 行业统计卡片 -->
+            <div class="industry-card">
+                <h6 class="mb-3">
+                    <i class="fas fa-industry me-2"></i>
+                    行业分布概览
+                </h6>
+                {% if industry_summary and industry_summary|length > 0 %}
+                    <div class="industry-stats" style="max-height: 300px; overflow-y: auto; padding-right: 15px;">
+                        {% for industry, count in industry_summary.items() %}
+                        <div class="d-flex justify-content-between align-items-center mb-2" style="margin-right: 10px;">
+                            <span class="text-sm">
+                                {% if industry == '未分类' %}
+                                    {{ industry }}
+                                {% else %}
+                                    {% set industry_names = {
+                                        'manufacturing': '制造业',
+                                        'healthcare': '医疗健康',
+                                        'education': '教育',
+                                        'finance': '金融',
+                                        'real_estate': '房地产',
+                                        'retail': '零售',
+                                        'transportation': '交通运输',
+                                        'energy': '能源',
+                                        'technology': '科技',
+                                        'government': '政府',
+                                        'hospitality': '酒店服务',
+                                        'agriculture': '农业'
+                                    } %}
+                                    {{ industry_names.get(industry, industry) }}
+                                {% endif %}
+                            </span>
+                            <span class="fw-bold" style="margin-right: 5px;">
+                                {{ count }}
+                                {% if monthly_industry_stats and monthly_industry_stats.get(current_month) and monthly_industry_stats[current_month].get(industry, 0) > 0 %}
+                                    <span class="text-success">+</span>
+                                {% endif %}
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center text-muted py-3">
+                        <i class="fas fa-chart-pie mb-2"></i>
+                        <p class="mb-0 small">暂无行业统计数据</p>
+                    </div>
+                {% endif %}
             </div>
         </div>
     </div>
 
     <!-- 个人绩效成绩统计 -->
-    <div class="card performance-card">
-        <div class="card-header">
-            <h5 class="mb-0">个人绩效成绩统计</h5>
+    <div class="performance-detail-section">
+        <div class="section-header-simple">
+            <h5 class="mb-0">
+                <i class="fas fa-table me-2"></i>
+                个人绩效详细统计
+            </h5>
         </div>
-        <div class="card-body p-0">
-            <div class="modern-table">
-                <div class="table-responsive">
-                    <table class="table">
-                        <thead style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-                            <tr>
-                                <th style="color: #ffffff; font-weight: 600; padding: 12px;">
-                                    <i class="fas fa-calendar-alt text-warning me-2"></i>月份
-                                </th>
-                                <th style="color: #ffffff; font-weight: 600; text-align: center; padding: 12px;">
-                                    <i class="fas fa-chart-line text-success me-2"></i>植入额/目标 ({{ display_currency }})
-                                </th>
-                                <th style="color: #ffffff; font-weight: 600; text-align: center; padding: 12px;">
-                                    <i class="fas fa-dollar-sign text-info me-2"></i>销售额/目标 ({{ display_currency }})
-                                </th>
-                                <th style="color: #ffffff; font-weight: 600; text-align: center; padding: 12px;">
-                                    <i class="fas fa-users text-primary me-2"></i>新增客户/目标
-                                </th>
-                                <th style="color: #ffffff; font-weight: 600; text-align: center; padding: 12px;">
-                                    <i class="fas fa-project-diagram text-warning me-2"></i>新增项目/目标
-                                </th>
-                                <th style="color: #ffffff; font-weight: 600; text-align: center; padding: 12px;">
-                                    <i class="fas fa-star text-danger me-2"></i>五星项目增量/目标
-                                </th>
-                            </tr>
-                        </thead>
+        <div class="modern-table">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead style="background: #ffffff; color: #000000;">
+                        <tr>
+                            <th style="color: #000000; font-weight: 600; padding: 12px; border-bottom: 2px solid #dee2e6;">
+                                <i class="fas fa-calendar-alt text-primary me-2"></i>月份
+                            </th>
+                            <th style="color: #000000; font-weight: 600; padding: 12px; border-bottom: 2px solid #dee2e6;">
+                                <i class="fas fa-chart-line text-primary me-2"></i>植入额/目标 ({{ display_currency }})
+                            </th>
+                            <th style="color: #000000; font-weight: 600; padding: 12px; border-bottom: 2px solid #dee2e6;">
+                                <i class="fas fa-dollar-sign text-success me-2"></i>销售额/目标 ({{ display_currency }})
+                            </th>
+                            <th style="color: #000000; font-weight: 600; padding: 12px; border-bottom: 2px solid #dee2e6;">
+                                <i class="fas fa-users text-info me-2"></i>新增客户/目标
+                            </th>
+                            <th style="color: #000000; font-weight: 600; padding: 12px; border-bottom: 2px solid #dee2e6;">
+                                <i class="fas fa-project-diagram text-warning me-2"></i>新增项目/目标
+                            </th>
+                            <th style="color: #000000; font-weight: 600; padding: 12px; border-bottom: 2px solid #dee2e6;">
+                                <i class="fas fa-star text-danger me-2"></i>五星项目增量/目标
+                            </th>
+                        </tr>
+                    </thead>
                         <tbody>
-                            {% for month in range(1, 13) %}
-                            {% set stats = yearly_stats[month-1] %}
+                            <!-- 只显示已过月份和当月数据 -->
+                            {% for month in range(1, current_month + 1) %}
+                            {% set stats = yearly_stats[month-1] if yearly_stats and yearly_stats|length >= month else None %}
                             {% set target = yearly_targets.get(month) %}
                             {% set is_current_month = month == current_month %}
-                            {% set is_future_month = month > current_month %}
-                            <tr>
+                            <tr {{ 'style=background-color: #e3f2fd;' if is_current_month else '' }}>
                                 <td>
                                     <span class="month-label" style="font-weight: {{ 'bold' if is_current_month else 'normal' }}; color: {{ '#007bff' if is_current_month else 'inherit' }};">
                                         {{ month }}月
-                                        {% if is_current_month %}<i class="fas fa-clock text-primary ms-1"></i>{% endif %}
+                                        {% if is_current_month %}<i class="fas fa-clock text-primary ms-1" title="当前月份"></i>{% endif %}
                                     </span>
                                 </td>
                                 
                                 <!-- 植入额/目标 -->
-                                <td style="text-align: center;">
+                                <td style="text-align: left; padding-left: 12px;">
                                     {% set actual = chart_data.implant_actual[month-1] if stats else 0 %}
                                     {% set target_val = chart_data.implant_target[month-1] if target else 0 %}
-                                    {% set rate = (actual / target_val * 100) if target_val > 0 else 0 %}
-                                    {% if is_future_month %}
-                                        <span style="color: #6c757d;">目标: {{ "{:,.0f}".format(target_val) }}</span>
-                                    {% else %}
-                                        <span style="color: {{ '#28a745' if rate >= 100 else '#fd7e14' if rate >= 80 else '#dc3545' }};">
-                                            {{ "{:,.0f}".format(actual) }}
-                                        </span>/<span style="color: #000;">{{ "{:,.0f}".format(target_val) }}</span>  <span style="color: #000;">({{ "%.0f"|format(rate) }}%)</span>
-                                    {% endif %}
+                                    {% set rate = monthly_rates[month]['implant'] %}
+                                    <div class="metric-value-cell">
+                                        <div class="metric-fraction">
+                                            <span style="color: {{ '#000' if target_val == 0 else '#28a745' if rate >= 100 else '#fd7e14' if rate >= 80 else '#dc3545' }}; font-weight: 600;">
+                                                {{ "{:,.0f}".format(actual) }}
+                                            </span>
+                                            <span class="metric-separator">/</span>
+                                            <span style="color: {{ '#6c757d' if target_val == 0 else '#000' }};">{{ "{:,.0f}".format(target_val) }}</span>
+                                        </div>
+                                        <small class="text-muted mt-1" style="font-size: 0.75rem;">{{ "%.0f"|format(rate) }}%</small>
+                                    </div>
                                 </td>
                                 
                                 <!-- 销售额/目标 -->
-                                <td style="text-align: center;">
+                                <td style="text-align: left; padding-left: 12px;">
                                     {% set actual = chart_data.sales_actual[month-1] if stats else 0 %}
                                     {% set target_val = chart_data.sales_target[month-1] if target else 0 %}
-                                    {% set rate = (actual / target_val * 100) if target_val > 0 else 0 %}
-                                    {% if is_future_month %}
-                                        <span style="color: #6c757d;">目标: {{ "{:,.0f}".format(target_val) }}</span>
-                                    {% else %}
-                                        <span style="color: {{ '#28a745' if rate >= 100 else '#fd7e14' if rate >= 80 else '#dc3545' }};">
-                                            {{ "{:,.0f}".format(actual) }}
-                                        </span>/<span style="color: #000;">{{ "{:,.0f}".format(target_val) }}</span>  <span style="color: #000;">({{ "%.0f"|format(rate) }}%)</span>
-                                    {% endif %}
+                                    {% set rate = monthly_rates[month]['sales'] %}
+                                    <div class="metric-value-cell">
+                                        <div class="metric-fraction">
+                                            <span style="color: {{ '#000' if target_val == 0 else '#28a745' if rate >= 100 else '#fd7e14' if rate >= 80 else '#dc3545' }}; font-weight: 600;">
+                                                {{ "{:,.0f}".format(actual) }}
+                                            </span>
+                                            <span class="metric-separator">/</span>
+                                            <span style="color: {{ '#6c757d' if target_val == 0 else '#000' }};">{{ "{:,.0f}".format(target_val) }}</span>
+                                        </div>
+                                        <small class="text-muted mt-1" style="font-size: 0.75rem;">{{ "%.0f"|format(rate) }}%</small>
+                                    </div>
                                 </td>
                                 
                                 <!-- 新增客户/目标 -->
-                                <td style="text-align: center;">
+                                <td style="text-align: left; padding-left: 12px;">
                                     {% set actual = stats.new_customers_actual or 0 if stats else 0 %}
                                     {% set target_val = target.new_customers_target or 0 if target else 0 %}
-                                    {% set rate = (actual / target_val * 100) if target_val > 0 else 0 %}
-                                    {% if is_future_month %}
-                                        <span style="color: #6c757d;">目标: {{ target_val }}</span>
-                                    {% else %}
-                                        <span style="color: {{ '#28a745' if rate >= 100 else '#fd7e14' if rate >= 80 else '#dc3545' }};">
-                                            {{ actual }}
-                                        </span>/<span style="color: #000;">{{ target_val }}</span>  <span style="color: #000;">({{ "%.0f"|format(rate) }}%)</span>
-                                    {% endif %}
+                                    {% set rate = monthly_rates[month]['customers'] %}
+                                    <div class="metric-value-cell">
+                                        <div class="metric-fraction">
+                                            <span style="color: {{ '#000' if target_val == 0 else '#28a745' if rate >= 100 else '#fd7e14' if rate >= 80 else '#dc3545' }}; font-weight: 600;">
+                                                {{ actual }}
+                                            </span>
+                                            <span class="metric-separator">/</span>
+                                            <span style="color: {{ '#6c757d' if target_val == 0 else '#000' }};">{{ target_val }}</span>
+                                        </div>
+                                        <small class="text-muted mt-1" style="font-size: 0.75rem;">{{ "%.0f"|format(rate) }}%</small>
+                                    </div>
                                 </td>
                                 
                                 <!-- 新增项目/目标 -->
-                                <td style="text-align: center;">
+                                <td style="text-align: left; padding-left: 12px;">
                                     {% set actual = stats.new_projects_actual or 0 if stats else 0 %}
                                     {% set target_val = target.new_projects_target or 0 if target else 0 %}
-                                    {% set rate = (actual / target_val * 100) if target_val > 0 else 0 %}
-                                    {% if is_future_month %}
-                                        <span style="color: #6c757d;">目标: {{ target_val }}</span>
-                                    {% else %}
-                                        <span style="color: {{ '#28a745' if rate >= 100 else '#fd7e14' if rate >= 80 else '#dc3545' }};">
-                                            {{ actual }}
-                                        </span>/<span style="color: #000;">{{ target_val }}</span>  <span style="color: #000;">({{ "%.0f"|format(rate) }}%)</span>
-                                    {% endif %}
+                                    {% set rate = monthly_rates[month]['projects'] %}
+                                    <div class="metric-value-cell">
+                                        <div class="metric-fraction">
+                                            <span style="color: {{ '#000' if target_val == 0 else '#28a745' if rate >= 100 else '#fd7e14' if rate >= 80 else '#dc3545' }}; font-weight: 600;">
+                                                {{ actual }}
+                                            </span>
+                                            <span class="metric-separator">/</span>
+                                            <span style="color: {{ '#6c757d' if target_val == 0 else '#000' }};">{{ target_val }}</span>
+                                        </div>
+                                        <small class="text-muted mt-1" style="font-size: 0.75rem;">{{ "%.0f"|format(rate) }}%</small>
+                                    </div>
                                 </td>
                                 
                                 <!-- 五星项目增量/目标 -->
-                                <td style="text-align: center;">
+                                <td style="text-align: left; padding-left: 12px;">
                                     {% set actual = stats.five_star_projects_actual or 0 if stats else 0 %}
                                     {% set target_val = target.five_star_projects_target or 0 if target else 0 %}
-                                    {% set rate = (actual / target_val * 100) if target_val > 0 else 0 %}
-                                    {% if is_future_month %}
-                                        <span style="color: #6c757d;">目标: {{ target_val }}</span>
-                                    {% else %}
-                                        <span style="color: {{ '#28a745' if rate >= 100 else '#fd7e14' if rate >= 80 else '#dc3545' }};">
-                                            {{ actual }}
-                                        </span>/<span style="color: #000;">{{ target_val }}</span>  <span style="color: #000;">({{ "%.0f"|format(rate) }}%)</span>
-                                    {% endif %}
+                                    {% set rate = monthly_rates[month]['five_star'] %}
+                                    <div class="metric-value-cell">
+                                        <div class="metric-fraction">
+                                            <span style="color: {{ '#000' if target_val == 0 else '#28a745' if rate >= 100 else '#fd7e14' if rate >= 80 else '#dc3545' }}; font-weight: 600;">
+                                                {{ actual }}
+                                            </span>
+                                            <span class="metric-separator">/</span>
+                                            <span style="color: {{ '#6c757d' if target_val == 0 else '#000' }};">{{ target_val }}</span>
+                                        </div>
+                                        <small class="text-muted mt-1" style="font-size: 0.75rem;">{{ "%.0f"|format(rate) }}%</small>
+                                    </div>
                                 </td>
                             </tr>
                             {% endfor %}
                             
                             <!-- 汇总行 -->
                             <tr style="background-color: #f8f9fa; border-top: 2px solid #dee2e6; font-weight: 600;">
-                                <td><span class="month-label">汇总</span></td>
+                                <td><span class="month-label">年度汇总</span></td>
                                 
                                 <!-- 植入额汇总 -->
-                                <td style="text-align: center;">
+                                <td style="text-align: left; padding-left: 12px;">
                                     {% set implant_actual = total_actual.implant %}
                                     {% set implant_target = total_target.implant %}
-                                    {% set implant_rate = (implant_actual / implant_target * 100) if implant_target > 0 else 0 %}
-                                    <span style="color: {{ '#28a745' if implant_rate >= 100 else '#fd7e14' if implant_rate >= 80 else '#dc3545' }};">
-                                        {{ "{:,.0f}".format(implant_actual) }}
-                                    </span>/<span style="color: #000;">{{ "{:,.0f}".format(implant_target) }}</span>  <span style="color: #000;">({{ "%.0f"|format(implant_rate) }}%)</span>
+                                    {% set implant_rate = achievement_rates.implant %}
+                                    <div class="metric-value-cell">
+                                        <div class="metric-fraction">
+                                            <span style="color: {{ '#000' if implant_target == 0 else '#28a745' if implant_rate >= 100 else '#fd7e14' if implant_rate >= 80 else '#dc3545' }}; font-weight: 600;">
+                                                {{ "{:,.0f}".format(implant_actual) }}
+                                            </span>
+                                            <span class="metric-separator">/</span>
+                                            <span style="color: {{ '#6c757d' if implant_target == 0 else '#000' }};">{{ "{:,.0f}".format(implant_target) }}</span>
+                                        </div>
+                                        <small class="text-muted mt-1" style="font-size: 0.75rem;">{{ "%.0f"|format(implant_rate) }}%</small>
+                                    </div>
                                 </td>
                                 
                                 <!-- 销售额汇总 -->
-                                <td style="text-align: center;">
+                                <td style="text-align: left; padding-left: 12px;">
                                     {% set sales_actual = total_actual.sales %}
                                     {% set sales_target = total_target.sales %}
-                                    {% set sales_rate = (sales_actual / sales_target * 100) if sales_target > 0 else 0 %}
-                                    <span style="color: {{ '#28a745' if sales_rate >= 100 else '#fd7e14' if sales_rate >= 80 else '#dc3545' }};">
-                                        {{ "{:,.0f}".format(sales_actual) }}
-                                    </span>/<span style="color: #000;">{{ "{:,.0f}".format(sales_target) }}</span>  <span style="color: #000;">({{ "%.0f"|format(sales_rate) }}%)</span>
+                                    {% set sales_rate = achievement_rates.sales %}
+                                    <div class="metric-value-cell">
+                                        <div class="metric-fraction">
+                                            <span style="color: {{ '#000' if sales_target == 0 else '#28a745' if sales_rate >= 100 else '#fd7e14' if sales_rate >= 80 else '#dc3545' }}; font-weight: 600;">
+                                                {{ "{:,.0f}".format(sales_actual) }}
+                                            </span>
+                                            <span class="metric-separator">/</span>
+                                            <span style="color: {{ '#6c757d' if sales_target == 0 else '#000' }};">{{ "{:,.0f}".format(sales_target) }}</span>
+                                        </div>
+                                        <small class="text-muted mt-1" style="font-size: 0.75rem;">{{ "%.0f"|format(sales_rate) }}%</small>
+                                    </div>
                                 </td>
                                 
                                 <!-- 新增客户汇总 -->
-                                <td style="text-align: center;">
+                                <td style="text-align: left; padding-left: 12px;">
                                     {% set customers_actual = total_actual.customers %}
                                     {% set customers_target = total_target.customers %}
-                                    {% set customers_rate = (customers_actual / customers_target * 100) if customers_target > 0 else 0 %}
-                                    <span style="color: {{ '#28a745' if customers_rate >= 100 else '#fd7e14' if customers_rate >= 80 else '#dc3545' }};">
-                                        {{ customers_actual }}
-                                    </span>/<span style="color: #000;">{{ customers_target }}</span>  <span style="color: #000;">({{ "%.0f"|format(customers_rate) }}%)</span>
+                                    {% set customers_rate = achievement_rates.customers %}
+                                    <div class="metric-value-cell">
+                                        <div class="metric-fraction">
+                                            <span style="color: {{ '#000' if customers_target == 0 else '#28a745' if customers_rate >= 100 else '#fd7e14' if customers_rate >= 80 else '#dc3545' }}; font-weight: 600;">
+                                                {{ customers_actual }}
+                                            </span>
+                                            <span class="metric-separator">/</span>
+                                            <span style="color: {{ '#6c757d' if customers_target == 0 else '#000' }};">{{ customers_target }}</span>
+                                        </div>
+                                        <small class="text-muted mt-1" style="font-size: 0.75rem;">{{ "%.0f"|format(customers_rate) }}%</small>
+                                    </div>
                                 </td>
                                 
                                 <!-- 新增项目汇总 -->
-                                <td style="text-align: center;">
+                                <td style="text-align: left; padding-left: 12px;">
                                     {% set projects_actual = total_actual.projects %}
                                     {% set projects_target = total_target.projects %}
-                                    {% set projects_rate = (projects_actual / projects_target * 100) if projects_target > 0 else 0 %}
-                                    <span style="color: {{ '#28a745' if projects_rate >= 100 else '#fd7e14' if projects_rate >= 80 else '#dc3545' }};">
-                                        {{ projects_actual }}
-                                    </span>/<span style="color: #000;">{{ projects_target }}</span>  <span style="color: #000;">({{ "%.0f"|format(projects_rate) }}%)</span>
+                                    {% set projects_rate = achievement_rates.projects %}
+                                    <div class="metric-value-cell">
+                                        <div class="metric-fraction">
+                                            <span style="color: {{ '#000' if projects_target == 0 else '#28a745' if projects_rate >= 100 else '#fd7e14' if projects_rate >= 80 else '#dc3545' }}; font-weight: 600;">
+                                                {{ projects_actual }}
+                                            </span>
+                                            <span class="metric-separator">/</span>
+                                            <span style="color: {{ '#6c757d' if projects_target == 0 else '#000' }};">{{ projects_target }}</span>
+                                        </div>
+                                        <small class="text-muted mt-1" style="font-size: 0.75rem;">{{ "%.0f"|format(projects_rate) }}%</small>
+                                    </div>
                                 </td>
                                 
                                 <!-- 五星项目增量汇总 -->
-                                <td style="text-align: center;">
+                                <td style="text-align: left; padding-left: 12px;">
                                     {% set five_star_actual = total_actual.five_star %}
                                     {% set five_star_target = total_target.five_star %}
-                                    {% set five_star_rate = (five_star_actual / five_star_target * 100) if five_star_target > 0 else 0 %}
-                                    <span style="color: {{ '#28a745' if five_star_rate >= 100 else '#fd7e14' if five_star_rate >= 80 else '#dc3545' }};">
-                                        {{ five_star_actual }}
-                                    </span>/<span style="color: #000;">{{ five_star_target }}</span>  <span style="color: #000;">({{ "%.0f"|format(five_star_rate) }}%)</span>
+                                    {% set five_star_rate = achievement_rates.five_star %}
+                                    <div class="metric-value-cell">
+                                        <div class="metric-fraction">
+                                            <span style="color: {{ '#000' if five_star_target == 0 else '#28a745' if five_star_rate >= 100 else '#fd7e14' if five_star_rate >= 80 else '#dc3545' }}; font-weight: 600;">
+                                                {{ five_star_actual }}
+                                            </span>
+                                            <span class="metric-separator">/</span>
+                                            <span style="color: {{ '#6c757d' if five_star_target == 0 else '#000' }};">{{ five_star_target }}</span>
+                                        </div>
+                                        <small class="text-muted mt-1" style="font-size: 0.75rem;">{{ "%.0f"|format(five_star_rate) }}%</small>
+                                    </div>
                                 </td>
                             </tr>
                         </tbody>
@@ -790,14 +1129,72 @@ document.addEventListener('DOMContentLoaded', function() {
     startAutoSwitch();
     
     // 用户选择器事件
+    initUserSelector();
+});
+
+function initUserSelector() {
     const userSelector = document.getElementById('userSelector');
     if (userSelector) {
         userSelector.addEventListener('change', function() {
             const userId = this.value;
-            window.location.href = `{{ url_for('performance.index') }}?user_id=${userId}`;
+            const selectedOption = this.options[this.selectedIndex];
+            
+            // 显示loading状态
+            showUserSwitchLoading(selectedOption.text);
+            
+            // 跳转到新用户的绩效页面
+            window.location.href = "{{ url_for('performance.index') }}?user_id=" + userId;
         });
     }
-});
+}
+
+function showUserSwitchLoading(userName) {
+    // 创建loading覆盖层
+    const loadingOverlay = document.createElement('div');
+    loadingOverlay.className = 'user-switch-loading';
+    loadingOverlay.innerHTML = 
+        '<div class="loading-content">' +
+            '<div class="spinner-border text-primary" role="status">' +
+                '<span class="visually-hidden">加载中...</span>' +
+            '</div>' +
+            '<p class="mt-3 mb-0">正在切换到 <strong>' + userName + '</strong> 的绩效数据...</p>' +
+        '</div>';
+    
+    // 添加loading样式
+    if (!document.getElementById('userSwitchLoadingStyles')) {
+        const style = document.createElement('style');
+        style.id = 'userSwitchLoadingStyles';
+        style.textContent = 
+            '.user-switch-loading {' +
+                'position: fixed;' +
+                'top: 0;' +
+                'left: 0;' +
+                'right: 0;' +
+                'bottom: 0;' +
+                'background: rgba(255, 255, 255, 0.95);' +
+                'display: flex;' +
+                'align-items: center;' +
+                'justify-content: center;' +
+                'z-index: 9999;' +
+                'backdrop-filter: blur(2px);' +
+            '}' +
+            '.loading-content {' +
+                'text-align: center;' +
+                'padding: 30px;' +
+                'background: white;' +
+                'border-radius: 16px;' +
+                'box-shadow: 0 8px 30px rgba(0,0,0,0.12);' +
+                'border: 1px solid #e9ecef;' +
+            '}' +
+            '.loading-content p {' +
+                'color: #495057;' +
+                'font-size: 1rem;' +
+            '}';
+        document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(loadingOverlay);
+}
 
 function initPerformanceChart() {
     performanceChart = echarts.init(document.getElementById('performanceTrendChart'));
@@ -887,31 +1284,48 @@ function initMetricToggle() {
     toggleContainer.innerHTML = '';
     
     METRIC_TYPES.forEach((config, index) => {
-        const dot = document.createElement('span');
+        // 创建切换项容器
+        const toggleItem = document.createElement('div');
+        toggleItem.className = 'metric-toggle-item';
+        toggleItem.setAttribute('data-metric-index', index);
+        
+        // 创建彩色圆点
+        const dot = document.createElement('div');
         dot.className = 'metric-toggle-dot';
-        dot.setAttribute('data-metric-index', index);
         dot.style.backgroundColor = config.color;
+        dot.style.setProperty('--metric-color', config.color);
+        
+        // 创建标签
+        const label = document.createElement('div');
+        label.className = 'metric-toggle-label';
+        label.textContent = config.name;
         
         // 设置初始活跃状态
         if (index === currentMetricIndex) {
-            dot.classList.add('active');
+            toggleItem.classList.add('active');
+            toggleItem.style.setProperty('--metric-color', config.color);
         }
         
+        // 组装元素
+        toggleItem.appendChild(dot);
+        toggleItem.appendChild(label);
+        
         // 点击事件
-        dot.addEventListener('click', function() {
+        toggleItem.addEventListener('click', function() {
             switchMetricIndex(index);
         });
         
-        toggleContainer.appendChild(dot);
+        toggleContainer.appendChild(toggleItem);
     });
 }
 
 function updateSwitchDots() {
-    document.querySelectorAll('.metric-toggle-dot').forEach((dot, index) => {
+    document.querySelectorAll('.metric-toggle-item').forEach((item, index) => {
         if (index === currentMetricIndex) {
-            dot.classList.add('active');
+            item.classList.add('active');
+            item.style.setProperty('--metric-color', METRIC_TYPES[index].color);
         } else {
-            dot.classList.remove('active');
+            item.classList.remove('active');
         }
     });
 }
@@ -958,6 +1372,20 @@ window.addEventListener('resize', function() {
     if (performanceChart) performanceChart.resize();
 });
 
+// 折叠详细统计表格
+function toggleDetailedStats() {
+    const section = document.getElementById('detailedStatsSection');
+    const icon = document.getElementById('detailToggleIcon');
+    
+    if (section.classList.contains('show')) {
+        section.classList.remove('show');
+        icon.classList.remove('expanded');
+    } else {
+        section.classList.add('show');
+        icon.classList.add('expanded');
+    }
+}
+
 // 刷新统计数据
 function refreshStatistics() {
     const userId = {{ selected_user.id }};
@@ -968,7 +1396,7 @@ function refreshStatistics() {
     button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 刷新中...';
     button.disabled = true;
     
-    fetch(`{{ url_for('performance.refresh_statistics') }}?user_id=${userId}&year=${year}`)
+    fetch("{{ url_for('performance.refresh_statistics') }}?user_id=" + userId + "&year=" + year)
         .then(response => response.json())
         .then(data => {
             if (data.success) {

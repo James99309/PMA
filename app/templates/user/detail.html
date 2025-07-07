@@ -185,13 +185,18 @@
                     </tr>
                 </thead>
                 <tbody>
-                {% if permissions and permissions|length > 0 %}
+                {% if modules and modules|length > 0 %}
+                    {% set permission_map = {} %}
                     {% for perm in permissions %}
+                        {% set _ = permission_map.update({perm.module: perm}) %}
+                    {% endfor %}
+                    {% for module in modules %}
+                        {% set perm = permission_map.get(module.id, {'can_view': false, 'can_create': false, 'can_edit': false, 'can_delete': false}) %}
                     <tr>
                         <td>
-                            {{ module_name_map.get(perm.module, perm.module) }}
-                            {% if module_desc_map.get(perm.module) %}
-                                <small class="text-muted d-block">{{ module_desc_map.get(perm.module) }}</small>
+                            {{ module_name_map.get(module.id, module.id) }}
+                            {% if module_desc_map.get(module.id) %}
+                                <small class="text-muted d-block">{{ module_desc_map.get(module.id) }}</small>
                             {% endif %}
                         </td>
                         <td class="text-center">{% if perm.can_view %}<i class="fas fa-check text-success"></i>{% else %}<i class="fas fa-times text-danger"></i>{% endif %}</td>
@@ -201,7 +206,7 @@
                     </tr>
                     {% endfor %}
                 {% else %}
-                    <tr><td colspan="5" class="text-muted text-center">暂无权限</td></tr>
+                    <tr><td colspan="5" class="text-muted text-center">暂无权限模块</td></tr>
                 {% endif %}
                 </tbody>
             </table>
