@@ -70,7 +70,7 @@
                         </div>
                         <div class="col-md-4 text-end d-none d-lg-block">
                             {% if current_user.role == 'admin' %}
-                                {{ render_button(_('客户合并'), url_for('customer.customer_merge_tool'), color='warning', extra_class='me-2', attrs='title="检测并合并重复的客户数据"') }}
+                                {{ render_button(_('智能合并'), url_for('customer.customer_merge_tool'), color='warning', icon='fas fa-compress-arrows-alt', extra_class='me-2', attrs='title="智能检测并合并重复的客户数据"') }}
                             {% endif %}
                             {{ render_button(_('添加企业'), url_for('customer.add_company'), color='primary', extra_class='me-2') }}
                             {% if has_permission('customer', 'import') %}

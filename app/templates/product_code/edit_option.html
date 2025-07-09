@@ -30,7 +30,10 @@
                 {% elif field.field_type == 'supplement' %}
                 <span class="badge bg-info">补充字段</span>
                 {% endif %}
-                | 指标编码: <strong>{{ option.code }}</strong>
+                | 指标编码: <strong id="current-code">{{ option.code }}</strong>
+                <span id="invalid-code-warning" class="text-danger ms-2" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i> 无效编码
+                </span>
             </div>
 
             <form method="POST" action="{{ url_for('product_code.edit_option', id=option.id) }}">
@@ -60,4 +63,18 @@
         </div>
     </div>
 </div>
+
+<script>
+// 检查当前编码是否有效
+document.addEventListener('DOMContentLoaded', function() {
+    const code = '{{ option.code | e }}';
+    const codeElement = document.getElementById('current-code');
+    const warningElement = document.getElementById('invalid-code-warning');
+    
+    if (code && !(code.length === 1 && /^[A-Z0-9]$/i.test(code))) {
+        codeElement.classList.add('text-danger');
+        warningElement.style.display = 'inline';
+    }
+});
+</script>
 {% endblock %}

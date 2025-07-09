@@ -503,8 +503,9 @@ h1.fw-bold {
 
 .user-avatar-capsule .notification-badge {
     position: absolute;
-    top: -2px;
-    right: 8px;
+    top: 50%;
+    right: -8px;
+    transform: translateY(-50%);
     background: #dc3545;
     color: white;
     border-radius: 10px;

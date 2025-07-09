@@ -11,6 +11,7 @@
         <li class="breadcrumb-item"><a href="{{ url_for('product_code.subcategory_fields', id=field.subcategory_id) }}">规格管理</a></li>
         <li class="breadcrumb-item active">指标管理</li>
     </ol>
+    
 
     <div class="alert alert-info mb-4">
         <i class="fas fa-info-circle me-1"></i>
@@ -30,9 +31,14 @@
         <div class="card-header">
             <i class="fas fa-list me-1"></i>
             {{ field.name }} 指标列表
-            <a href="{{ url_for('product_code.new_option', id=field.id) }}" class="btn btn-sm btn-primary float-end">
-                <i class="fas fa-plus"></i> 添加指标
-            </a>
+            <div class="float-end">
+                <button id="cleanupInvalidCodes" class="btn btn-sm btn-warning me-2" onclick="cleanupInvalidCodes()">
+                    <i class="fas fa-broom"></i> 清理无效编码
+                </button>
+                <a href="{{ url_for('product_code.new_option', id=field.id) }}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus"></i> 添加指标
+                </a>
+            </div>
         </div>
         <div class="card-body">
             <table class="table table-bordered table-striped">
@@ -51,7 +57,10 @@
                     <tr>
                         <td>{{ loop.index }}</td>
                         <td>{{ option.value }}</td>
-                        <td><code>{{ option.code }}</code></td>
+                        <td>
+                            <code class="indicator-code-{{ option.id }}">{{ option.code }}</code>
+                            <span id="invalid-warning-{{ option.id }}" class="text-danger small d-none">无效编码</span>
+                        </td>
                         <td>{{ option.description }}</td>
                         <td>{{ option.created_at.strftime('%Y-%m-%d') if option.created_at else '未知' }}</td>
                         <td>
@@ -60,6 +69,7 @@
                             </a>
                             <form method="POST" action="{{ url_for('product_code.delete_option', id=option.id) }}"
                                   class="d-inline" onsubmit="return confirm('确定要删除此指标吗？');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-sm btn-danger">
                                     <i class="fas fa-trash"></i> 删除
                                 </button>
@@ -76,4 +86,63 @@
         </div>
     </div>
 </div>
+
+<script>
+
+// 检查并高亮无效编码
+document.addEventListener('DOMContentLoaded', function() {
+    {% for option in options %}
+    (function() {
+        const code = '{{ option.code | e }}';
+        const codeElement = document.querySelector('.indicator-code-{{ option.id }}');
+        const warningElement = document.getElementById('invalid-warning-{{ option.id }}');
+        
+        if (code && !(code.length === 1 && /^[A-Z0-9]$/i.test(code))) {
+            codeElement.classList.add('bg-danger', 'text-white', 'px-1');
+            warningElement.classList.remove('d-none');
+        }
+    })();
+    {% endfor %}
+});
+
+function cleanupInvalidCodes() {
+    if (!confirm('确定要清理所有无效的指标编码吗？\n\n无效编码（如中文字符）将被替换为有效的英文字母或数字。')) {
+        return;
+    }
+    
+    const button = document.getElementById('cleanupInvalidCodes');
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 清理中...';
+    button.disabled = true;
+    
+    fetch('{{ url_for("product_code.cleanup_invalid_codes") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token() }}'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            if (data.fixed_count > 0) {
+                location.reload(); // 刷新页面显示更新后的编码
+            }
+        } else {
+            alert('清理失败: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('清理过程中发生错误');
+    })
+    .finally(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    });
+}
+
+
+</script>
 {% endblock %}

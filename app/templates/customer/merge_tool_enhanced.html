@@ -1,0 +1,685 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button, render_date, render_datetime %}
+
+{% block title %}{{ _('智能客户合并工具') }}{% endblock %}
+
+{% block head %}
+<style>
+.merge-container {
+    background: #f8f9fa;
+    min-height: calc(100vh - 140px);
+}
+
+.merge-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 24px;
+}
+
+.merge-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 24px;
+    border-radius: 12px 12px 0 0;
+}
+
+.duplicate-suggestion {
+    border: 1px solid #e9ecef;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.duplicate-suggestion:hover {
+    border-color: #007bff;
+    box-shadow: 0 4px 12px rgba(0,123,255,0.15);
+}
+
+.suggestion-header {
+    background: #f8f9fa;
+    padding: 20px;
+    border-bottom: 1px solid #e9ecef;
+    cursor: pointer;
+}
+
+.suggestion-body {
+    padding: 0;
+    display: none;
+}
+
+.suggestion-body.show {
+    display: block;
+}
+
+.target-company {
+    background: #e8f5e8;
+    border-left: 4px solid #28a745;
+    padding: 20px;
+    margin: 0;
+}
+
+.similar-companies {
+    padding: 0;
+}
+
+.company-item {
+    padding: 20px;
+    border-bottom: 1px solid #f1f3f4;
+    transition: all 0.2s ease;
+}
+
+.company-item:last-child {
+    border-bottom: none;
+}
+
+.company-item:hover {
+    background-color: #f8f9fa;
+}
+
+.company-item.selected {
+    background-color: #e3f2fd;
+    border-left: 4px solid #2196f3;
+}
+
+.company-checkbox {
+    transform: scale(1.2);
+    margin-right: 15px;
+}
+
+.company-info {
+    flex-grow: 1;
+}
+
+.company-name {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+    font-size: 1.1em;
+}
+
+.company-details {
+    font-size: 0.9em;
+    color: #666;
+    margin-bottom: 12px;
+}
+
+.merge-stats {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.stat-item {
+    background: #f8f9fa;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.85em;
+}
+
+.stat-number {
+    font-weight: 600;
+    color: #007bff;
+}
+
+.similarity-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: 500;
+    margin-left: 10px;
+}
+
+.similarity-high {
+    background: #d4edda;
+    color: #155724;
+}
+
+.similarity-medium {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.similarity-low {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.target-badge {
+    background: #28a745;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: 500;
+    margin-left: 10px;
+}
+
+.merge-actions {
+    padding: 20px;
+    background: #f8f9fa;
+    border-top: 1px solid #e9ecef;
+}
+
+.btn-merge {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    border: none;
+    color: white;
+    font-weight: 600;
+    padding: 12px 24px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.btn-merge:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(40,167,69,0.3);
+    color: white;
+}
+
+.btn-merge:disabled {
+    background: #6c757d;
+    transform: none;
+    box-shadow: none;
+}
+
+.merge-preview-card {
+    position: sticky;
+    top: 20px;
+}
+
+.preview-section {
+    border-bottom: 1px solid #e9ecef;
+    padding: 15px 0;
+}
+
+.preview-section:last-child {
+    border-bottom: none;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #6c757d;
+}
+
+.empty-state i {
+    font-size: 4em;
+    margin-bottom: 20px;
+    opacity: 0.5;
+}
+
+.loading-state {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.loading-spinner {
+    width: 3rem;
+    height: 3rem;
+}
+
+@media (max-width: 768px) {
+    .merge-stats {
+        gap: 10px;
+    }
+    
+    .stat-item {
+        font-size: 0.8em;
+        padding: 6px 10px;
+    }
+    
+    .company-name {
+        font-size: 1em;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="merge-container">
+    <div class="container-fluid">
+        <!-- 头部信息 -->
+        <div class="merge-card">
+            <div class="merge-header">
+                <h1 class="h3 mb-3">
+                    <i class="fas fa-compress-arrows-alt me-3"></i>
+                    {{ _('智能客户合并工具') }}
+                </h1>
+                <p class="mb-0">
+                    {{ _('智能检测重复客户，按匹配度排序，支持多选合并') }}
+                </p>
+            </div>
+            
+            <div class="p-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-1">{{ _('重复客户检测') }}</h5>
+                        <p class="text-muted mb-0">{{ _('系统将自动检测可能重复的客户并按匹配度排序') }}</p>
+                    </div>
+                    <button id="detectBtn" class="btn btn-primary">
+                        <i class="fas fa-search me-2"></i>
+                        {{ _('开始检测') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- 左侧：重复建议列表 -->
+            <div class="col-lg-8">
+                <!-- 加载状态 -->
+                <div id="loadingState" class="merge-card loading-state d-none">
+                    <div class="spinner-border loading-spinner text-primary" role="status">
+                        <span class="visually-hidden">{{ _('检测中...') }}</span>
+                    </div>
+                    <h5 class="mt-3">{{ _('正在检测重复客户...') }}</h5>
+                    <p class="text-muted">{{ _('请稍候，系统正在分析客户数据') }}</p>
+                </div>
+
+                <!-- 空状态 -->
+                <div id="emptyState" class="merge-card empty-state d-none">
+                    <i class="fas fa-check-circle text-success"></i>
+                    <h5>{{ _('检测完成') }}</h5>
+                    <p>{{ _('未发现需要合并的重复客户') }}</p>
+                </div>
+
+                <!-- 重复建议列表 -->
+                <div id="duplicateSuggestions"></div>
+            </div>
+
+            <!-- 右侧：合并预览 -->
+            <div class="col-lg-4">
+                <div id="mergePreviewCard" class="merge-card merge-preview-card d-none">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0">
+                            <i class="fas fa-eye me-2"></i>
+                            {{ _('合并预览') }}
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="mergePreviewContent">
+                            <!-- 预览内容将在这里动态生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 合并确认对话框 -->
+<div class="modal fade" id="mergeConfirmModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                    {{ _('确认合并操作') }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <strong>{{ _('警告：') }}</strong>
+                    {{ _('此操作不可撤销！合并后，被合并的客户将被删除，其所有数据将转移到目标客户。') }}
+                </div>
+                <div id="mergeConfirmContent">
+                    <!-- 确认内容将在这里动态生成 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {{ _('取消') }}
+                </button>
+                <button type="button" id="confirmMergeBtn" class="btn btn-danger">
+                    <i class="fas fa-compress-arrows-alt me-2"></i>
+                    {{ _('确认合并') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    let duplicateSuggestions = [];
+    let selectedTargetCompany = null;
+    let selectedSourceCompanies = [];
+
+    // 开始检测按钮事件
+    $('#detectBtn').click(function() {
+        loadDuplicateSuggestions();
+    });
+
+    // 加载重复建议
+    function loadDuplicateSuggestions() {
+        $('#loadingState').removeClass('d-none');
+        $('#duplicateSuggestions').empty();
+        $('#emptyState').addClass('d-none');
+        $('#mergePreviewCard').addClass('d-none');
+        
+        selectedTargetCompany = null;
+        selectedSourceCompanies = [];
+
+        $.ajax({
+            url: '{{ url_for("customer.detect_duplicates") }}',
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    duplicateSuggestions = response.data;
+                    renderDuplicateSuggestions();
+                } else {
+                    showError(response.message || '{{ _("检测失败") }}');
+                }
+            },
+            error: function() {
+                showError('{{ _("网络错误，请重试") }}');
+            },
+            complete: function() {
+                $('#loadingState').addClass('d-none');
+            }
+        });
+    }
+
+    // 渲染重复建议
+    function renderDuplicateSuggestions() {
+        const container = $('#duplicateSuggestions');
+        container.empty();
+
+        if (duplicateSuggestions.length === 0) {
+            $('#emptyState').removeClass('d-none');
+            return;
+        }
+
+        duplicateSuggestions.forEach((suggestion, index) => {
+            const suggestionHtml = createSuggestionHtml(suggestion, index);
+            container.append(suggestionHtml);
+        });
+
+        // 绑定事件
+        bindSuggestionEvents();
+    }
+
+    // 创建建议HTML
+    function createSuggestionHtml(suggestion, index) {
+        const targetCompany = suggestion.target_company;
+        const similarCompanies = suggestion.similar_companies;
+        const maxSimilarity = (suggestion.max_similarity * 100).toFixed(1);
+
+        // 目标公司HTML
+        const targetHtml = createCompanyHtml(targetCompany, index, true);
+
+        // 相似公司HTML
+        const similarHtml = similarCompanies.map(company => 
+            createCompanyHtml(company, index, false)
+        ).join('');
+
+        return `
+            <div class="duplicate-suggestion" data-suggestion="${index}">
+                <div class="suggestion-header" data-bs-toggle="collapse" data-bs-target="#suggestion_${index}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">
+                                <i class="fas fa-layer-group me-2"></i>
+                                ${targetCompany.company_name}
+                                <span class="similarity-badge similarity-${getSimilarityClass(suggestion.max_similarity)}">
+                                    ${maxSimilarity}% {{ _('匹配') }}
+                                </span>
+                            </h6>
+                            <small class="text-muted">
+                                {{ _('找到') }} ${similarCompanies.length} {{ _('个相似客户，点击展开查看详情') }}
+                            </small>
+                        </div>
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                </div>
+                <div id="suggestion_${index}" class="suggestion-body collapse">
+                    <div class="target-company">
+                        ${targetHtml}
+                        <div class="mt-3">
+                            <strong class="text-success">{{ _('目标客户（数据将保留）') }}</strong>
+                        </div>
+                    </div>
+                    <div class="similar-companies">
+                        <div class="p-3 bg-light">
+                            <strong class="text-muted">{{ _('相似客户（选择要合并的客户）') }}</strong>
+                        </div>
+                        ${similarHtml}
+                    </div>
+                    <div class="merge-actions">
+                        <button class="btn-merge btn" data-suggestion="${index}" disabled>
+                            <i class="fas fa-compress-arrows-alt me-2"></i>
+                            {{ _('合并选中的客户') }}
+                        </button>
+                        <small class="text-muted ms-3">{{ _('请先选择要合并的客户') }}</small>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // 创建公司HTML
+    function createCompanyHtml(company, suggestionIndex, isTarget) {
+        const similarityBadge = !isTarget ? `
+            <span class="similarity-badge similarity-${getSimilarityClass(company.similarity)}">
+                ${(company.similarity * 100).toFixed(1)}% {{ _('匹配') }}
+            </span>
+        ` : '<span class="target-badge">{{ _("目标客户") }}</span>';
+
+        const checkboxHtml = !isTarget ? `
+            <input type="checkbox" class="company-checkbox" 
+                   data-suggestion="${suggestionIndex}" 
+                   data-company="${company.id}" 
+                   data-is-target="false">
+        ` : '';
+
+        return `
+            <div class="company-item" data-company="${company.id}">
+                <div class="d-flex align-items-start">
+                    ${checkboxHtml}
+                    <div class="company-info">
+                        <div class="company-name">
+                            ${company.company_name}
+                            ${similarityBadge}
+                        </div>
+                        <div class="company-details">
+                            ${company.company_code} | ${company.owner_name || '{{ _("无所有者") }}'} | 
+                            ${company.created_at || ''}
+                        </div>
+                        <div class="merge-stats">
+                            <span class="stat-item">
+                                <i class="fas fa-users me-1"></i>
+                                {{ _('联系人') }}: <span class="stat-number">${company.contact_count}</span>
+                            </span>
+                            <span class="stat-item">
+                                <i class="fas fa-history me-1"></i>
+                                {{ _('行动记录') }}: <span class="stat-number">${company.action_count}</span>
+                            </span>
+                            <span class="stat-item">
+                                <i class="fas fa-project-diagram me-1"></i>
+                                {{ _('项目') }}: <span class="stat-number">${company.project_count}</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // 获取相似度等级类名
+    function getSimilarityClass(similarity) {
+        if (similarity > 0.8) return 'high';
+        if (similarity > 0.6) return 'medium';
+        return 'low';
+    }
+
+    // 绑定建议事件
+    function bindSuggestionEvents() {
+        // 复选框变化事件
+        $('.company-checkbox').change(function() {
+            const suggestionIndex = $(this).data('suggestion');
+            const companyId = $(this).data('company');
+            const isChecked = $(this).is(':checked');
+
+            if (isChecked) {
+                // 添加到选中列表
+                if (!selectedSourceCompanies.includes(companyId)) {
+                    selectedSourceCompanies.push(companyId);
+                }
+                $(this).closest('.company-item').addClass('selected');
+            } else {
+                // 从选中列表移除
+                selectedSourceCompanies = selectedSourceCompanies.filter(id => id !== companyId);
+                $(this).closest('.company-item').removeClass('selected');
+            }
+
+            // 更新目标公司
+            const suggestion = duplicateSuggestions[suggestionIndex];
+            selectedTargetCompany = suggestion.target_company;
+
+            // 更新合并按钮状态
+            updateMergeButton(suggestionIndex);
+
+            // 更新预览
+            if (selectedSourceCompanies.length > 0) {
+                updateMergePreview();
+            } else {
+                $('#mergePreviewCard').addClass('d-none');
+            }
+        });
+
+        // 合并按钮事件
+        $('.btn-merge').click(function() {
+            const suggestionIndex = $(this).data('suggestion');
+            showMergeConfirmation();
+        });
+    }
+
+    // 更新合并按钮状态
+    function updateMergeButton(suggestionIndex) {
+        const button = $(`.btn-merge[data-suggestion="${suggestionIndex}"]`);
+        const hasSelection = selectedSourceCompanies.length > 0;
+        
+        button.prop('disabled', !hasSelection);
+        
+        if (hasSelection) {
+            button.next('small').text(`{{ _('将合并') }} ${selectedSourceCompanies.length} {{ _('个客户') }}`);
+        } else {
+            button.next('small').text('{{ _("请先选择要合并的客户") }}');
+        }
+    }
+
+    // 更新合并预览
+    function updateMergePreview() {
+        if (!selectedTargetCompany || selectedSourceCompanies.length === 0) {
+            $('#mergePreviewCard').addClass('d-none');
+            return;
+        }
+
+        $('#mergePreviewCard').removeClass('d-none');
+        
+        // 这里可以调用后端API获取详细预览
+        // 为了简化，这里先显示基本信息
+        const previewHtml = `
+            <div class="preview-section">
+                <h6 class="text-success">{{ _('目标客户') }}</h6>
+                <p class="mb-1"><strong>${selectedTargetCompany.company_name}</strong></p>
+                <small class="text-muted">${selectedTargetCompany.company_code}</small>
+            </div>
+            <div class="preview-section">
+                <h6 class="text-warning">{{ _('被合并客户') }}</h6>
+                <p class="mb-1">${selectedSourceCompanies.length} {{ _('个客户将被合并') }}</p>
+            </div>
+            <div class="preview-section">
+                <small class="text-muted">
+                    {{ _('合并后，被合并客户的所有数据将转移到目标客户，被合并客户将被删除。') }}
+                </small>
+            </div>
+        `;
+        
+        $('#mergePreviewContent').html(previewHtml);
+    }
+
+    // 显示合并确认对话框
+    function showMergeConfirmation() {
+        const confirmHtml = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="text-success">{{ _('目标客户') }}</h6>
+                    <p><strong>${selectedTargetCompany.company_name}</strong></p>
+                    <small class="text-muted">${selectedTargetCompany.company_code}</small>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-danger">{{ _('被合并客户') }}</h6>
+                    <p>${selectedSourceCompanies.length} {{ _('个客户') }}</p>
+                </div>
+            </div>
+        `;
+        
+        $('#mergeConfirmContent').html(confirmHtml);
+        $('#mergeConfirmModal').modal('show');
+    }
+
+    // 确认合并按钮事件
+    $('#confirmMergeBtn').click(function() {
+        executeMerge();
+    });
+
+    // 执行合并
+    function executeMerge() {
+        const $btn = $('#confirmMergeBtn');
+        const originalText = $btn.html();
+        
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>{{ _("合并中...") }}');
+
+        $.ajax({
+            url: '{{ url_for("customer.execute_merge") }}',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                target_company_id: selectedTargetCompany.id,
+                source_company_ids: selectedSourceCompanies,
+                final_company_name: selectedTargetCompany.company_name
+            }),
+            success: function(response) {
+                if (response.success) {
+                    $('#mergeConfirmModal').modal('hide');
+                    showSuccess('{{ _("合并成功！") }}');
+                    // 重新加载数据
+                    loadDuplicateSuggestions();
+                } else {
+                    showError(response.message || '{{ _("合并失败") }}');
+                }
+            },
+            error: function() {
+                showError('{{ _("合并失败，请重试") }}');
+            },
+            complete: function() {
+                $btn.prop('disabled', false).html(originalText);
+            }
+        });
+    }
+
+    // 显示成功消息
+    function showSuccess(message) {
+        // 可以使用 Bootstrap toast 或其他通知组件
+        alert(message);
+    }
+
+    // 显示错误消息
+    function showError(message) {
+        // 可以使用 Bootstrap toast 或其他通知组件
+        alert(message);
+    }
+
+    // 页面加载时自动检测
+    loadDuplicateSuggestions();
+});
+</script>
+{% endblock %}

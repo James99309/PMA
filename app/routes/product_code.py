@@ -645,16 +645,28 @@ def new_option(id):
         description = request.form.get('description')
         
         # 自动生成唯一指标编码
-        # 获取该字段下所有已使用的编码
+        # 获取该字段下所有已使用的编码（过滤掉非英文字母数字的无效编码）
         used_codes = db.session.query(ProductCodeFieldOption.code).filter_by(field_id=id).all()
-        used_codes = [code[0] for code in used_codes if code[0] is not None]
+        valid_used_codes = []
+        invalid_codes = []
         
-        # 可用字母池
-        available_letters = [letter for letter in string.ascii_uppercase if letter not in used_codes]
+        for code_tuple in used_codes:
+            code = code_tuple[0]
+            if code and len(code) == 1 and (code.isalpha() or code.isdigit()) and code.isascii():
+                valid_used_codes.append(code.upper())
+            elif code:
+                invalid_codes.append(code)
         
-        # 如果字母用完，使用数字
+        # 记录发现的无效编码
+        if invalid_codes:
+            current_app.logger.warning(f"发现无效指标编码 (字段ID: {id}): {invalid_codes}")
+        
+        # 可用字母池 (A-Z)
+        available_letters = [letter for letter in string.ascii_uppercase if letter not in valid_used_codes]
+        
+        # 如果字母用完，使用数字 (0-9)
         if not available_letters:
-            available_letters = [str(digit) for digit in range(10) if str(digit) not in used_codes]
+            available_letters = [str(digit) for digit in range(10) if str(digit) not in valid_used_codes]
         
         # 如果还有可用字符，随机选择一个
         code = random.choice(available_letters) if available_letters else None
@@ -663,17 +675,28 @@ def new_option(id):
             flash('无法生成唯一编码，已达到最大指标数量限制', 'danger')
             return render_template('product_code/new_option.html', field=field)
         
-        option = ProductCodeFieldOption(
-            field_id=id,
-            value=value,
-            code=code,
-            description=description,
-            is_active=True  # 默认为活跃状态
-        )
-        db.session.add(option)
-        db.session.commit()
-        flash('指标创建成功', 'success')
-        return redirect(url_for('product_code.field_options', id=id))
+        try:
+            # 获取下一个position值
+            max_position = db.session.query(db.func.max(ProductCodeFieldOption.position)).filter_by(field_id=id).scalar() or 0
+            next_position = max_position + 1
+            
+            option = ProductCodeFieldOption(
+                field_id=id,
+                value=value,
+                code=code,
+                description=description,
+                is_active=True,  # 默认为活跃状态
+                position=next_position
+            )
+            db.session.add(option)
+            db.session.commit()
+            flash('指标创建成功', 'success')
+            return redirect(url_for('product_code.field_options', id=id))
+        except IntegrityError as e:
+            db.session.rollback()
+            current_app.logger.error(f"指标创建失败 - 数据库完整性错误: {str(e)}")
+            flash('指标创建失败，可能存在重复的编码或其他数据冲突', 'danger')
+            return render_template('product_code/new_option.html', field=field)
         
     return render_template('product_code/new_option.html', field=field)
 
@@ -1235,14 +1258,37 @@ def update_fields_order(id):
         existing_field_ids = set(field.id for field in existing_fields)
         current_app.logger.info(f"现有字段ID: {existing_field_ids}")
         
+        # 检查哪些规格字段已被产品引用（通过DevProductSpec表）
+        from app.models.dev_product import DevProductSpec
+        referenced_field_names = set()
+        referenced_specs = db.session.query(DevProductSpec.field_name).distinct().all()
+        for spec in referenced_specs:
+            referenced_field_names.add(spec.field_name.lower())
+        
         valid_field_ids = []
         invalid_field_ids = []
+        blocked_field_ids = []  # 被引用无法修改排序的字段
         
         for field_id in field_ids:
             if field_id in existing_field_ids:
-                valid_field_ids.append(field_id)
+                # 检查这个字段是否已被产品引用
+                field = next((f for f in existing_fields if f.id == field_id), None)
+                if field and field.name.lower() in referenced_field_names:
+                    blocked_field_ids.append(field_id)
+                    current_app.logger.warning(f"字段 '{field.name}' (ID: {field_id}) 已被产品引用，不允许修改排序")
+                else:
+                    valid_field_ids.append(field_id)
             else:
                 invalid_field_ids.append(field_id)
+        
+        # 如果有被引用的字段，返回错误
+        if blocked_field_ids:
+            blocked_fields = [f for f in existing_fields if f.id in blocked_field_ids]
+            blocked_names = [f.name for f in blocked_fields]
+            return jsonify({
+                "success": False, 
+                "error": f"以下规格字段已被产品引用，不允许修改排序: {', '.join(blocked_names)}"
+            }), 400
         
         if invalid_field_ids:
             current_app.logger.warning(f"忽略无效字段ID: {invalid_field_ids}")
@@ -1451,4 +1497,69 @@ def update_subcategory_order():
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"更新子分类排序失败: {str(e)}")
-        return jsonify({'success': False, 'message': f'更新失败: {str(e)}'}), 500 
+        return jsonify({'success': False, 'message': f'更新失败: {str(e)}'}), 500
+
+@product_code_bp.route('/cleanup-invalid-codes', methods=['POST'])
+@login_required
+@admin_required
+def cleanup_invalid_codes():
+    """清理无效的指标编码（非英文字母数字的编码）"""
+    try:
+        # 查找所有无效编码
+        all_options = ProductCodeFieldOption.query.all()
+        invalid_options = []
+        
+        for option in all_options:
+            code = option.code
+            if code and not (len(code) == 1 and (code.isalpha() or code.isdigit()) and code.isascii()):
+                invalid_options.append({
+                    'id': option.id,
+                    'field_id': option.field_id,
+                    'value': option.value,
+                    'invalid_code': code
+                })
+        
+        if not invalid_options:
+            return jsonify({'success': True, 'message': '未找到无效编码'})
+        
+        # 为无效编码重新分配有效编码
+        fixed_count = 0
+        for invalid_option in invalid_options:
+            option = ProductCodeFieldOption.query.get(invalid_option['id'])
+            if not option:
+                continue
+                
+            # 获取该字段下所有已使用的有效编码
+            used_codes = db.session.query(ProductCodeFieldOption.code).filter_by(
+                field_id=option.field_id
+            ).filter(ProductCodeFieldOption.id != option.id).all()
+            
+            valid_used_codes = []
+            for code_tuple in used_codes:
+                code = code_tuple[0]
+                if code and len(code) == 1 and (code.isalpha() or code.isdigit()) and code.isascii():
+                    valid_used_codes.append(code.upper())
+            
+            # 找一个可用的编码
+            available_letters = [letter for letter in string.ascii_uppercase if letter not in valid_used_codes]
+            if not available_letters:
+                available_letters = [str(digit) for digit in range(10) if str(digit) not in valid_used_codes]
+            
+            if available_letters:
+                new_code = available_letters[0]  # 取第一个可用的
+                option.code = new_code
+                fixed_count += 1
+                current_app.logger.info(f"修复无效编码: '{invalid_option['invalid_code']}' -> '{new_code}' (指标: {option.value})")
+        
+        db.session.commit()
+        return jsonify({
+            'success': True, 
+            'message': f'成功修复 {fixed_count} 个无效编码',
+            'fixed_count': fixed_count,
+            'invalid_options': invalid_options
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"清理无效编码失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'清理失败: {str(e)}'}), 500 

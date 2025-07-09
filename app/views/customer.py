@@ -2203,12 +2203,12 @@ def get_available_accounts_api():
 @login_required
 @permission_required('customer', 'create')
 def customer_merge_tool():
-    """客户合并工具页面（仅管理员可访问）"""
+    """智能客户合并工具页面（仅管理员可访问）"""
     if current_user.role != 'admin':
         flash(_('只有管理员可以使用客户合并工具'), 'error')
         return redirect(url_for('customer.list_companies'))
     
-    return render_template('customer/merge_tool.html')
+    return render_template('customer/merge_tool_optimized.html')
 
 @customer.route('/api/detect-duplicates', methods=['GET'])
 @login_required
@@ -2230,20 +2230,43 @@ def detect_duplicates():
                 name_groups[normalized_name] = []
             name_groups[normalized_name].append(company)
         
-        # 使用更智能的重复检测
-        duplicate_groups = []
+        # 重新设计的重复检测逻辑 - 支持按匹配度排序和提供重复可能性建议
+        duplicate_suggestions = []
         processed_companies = set()
         
         for company in companies:
             if company.id in processed_companies:
                 continue
                 
-            similar_companies = find_similar_companies(company, companies)
+            similar_companies_data = find_similar_companies(company, companies)
             
-            if len(similar_companies) > 1:
-                # 获取每个公司的统计信息
-                companies_data = []
-                for similar_company in similar_companies:
+            # 去掉"至少2个重复"的限制，只要有相似公司就提供建议
+            if similar_companies_data:
+                processed_companies.add(company.id)
+                
+                # 构建目标公司信息
+                target_contact_count = Contact.query.filter_by(company_id=company.id).count()
+                target_action_count = Action.query.filter_by(company_id=company.id).count()
+                target_project_count = db.session.query(Project).filter(
+                    Project.end_user == company.company_name
+                ).count()
+                
+                target_data = {
+                    'id': company.id,
+                    'company_name': company.company_name,
+                    'company_code': company.company_code,
+                    'owner_name': company.owner.real_name if company.owner else None,
+                    'created_at': company.created_at.strftime('%Y-%m-%d') if company.created_at else None,
+                    'contact_count': target_contact_count,
+                    'action_count': target_action_count,
+                    'project_count': target_project_count,
+                    'is_target': True
+                }
+                
+                # 构建相似公司列表（按匹配度排序）
+                similar_companies_list = []
+                for similar_data in similar_companies_data:
+                    similar_company = similar_data['company']
                     if similar_company.id not in processed_companies:
                         processed_companies.add(similar_company.id)
                         
@@ -2254,7 +2277,7 @@ def detect_duplicates():
                             Project.end_user == similar_company.company_name
                         ).count()
                         
-                        companies_data.append({
+                        similar_companies_list.append({
                             'id': similar_company.id,
                             'company_name': similar_company.company_name,
                             'company_code': similar_company.company_code,
@@ -2262,18 +2285,27 @@ def detect_duplicates():
                             'created_at': similar_company.created_at.strftime('%Y-%m-%d') if similar_company.created_at else None,
                             'contact_count': contact_count,
                             'action_count': action_count,
-                            'project_count': project_count
+                            'project_count': project_count,
+                            'similarity': similar_data['similarity'],
+                            'match_type': similar_data['match_type'],
+                            'is_target': False
                         })
                 
-                if len(companies_data) > 1:
-                    duplicate_groups.append({
-                        'name': companies_data[0]['company_name'],
-                        'companies': companies_data
+                if similar_companies_list:
+                    duplicate_suggestions.append({
+                        'group_id': f"group_{company.id}",
+                        'target_company': target_data,
+                        'similar_companies': similar_companies_list,
+                        'max_similarity': max(s['similarity'] for s in similar_companies_list),
+                        'total_companies': 1 + len(similar_companies_list)
                     })
+        
+        # 按最高匹配度排序重复建议组
+        duplicate_suggestions.sort(key=lambda x: x['max_similarity'], reverse=True)
         
         return jsonify({
             'success': True,
-            'data': duplicate_groups
+            'data': duplicate_suggestions
         })
         
     except Exception as e:
@@ -2287,7 +2319,7 @@ def detect_duplicates():
 @login_required
 @permission_required('customer', 'create')
 def get_merge_preview():
-    """获取合并预览数据"""
+    """获取详细的合并预览数据，包括重复联系人检测"""
     if current_user.role != 'admin':
         return jsonify({'success': False, 'message': '只有管理员可以使用此功能'}), 403
     
@@ -2577,8 +2609,8 @@ def normalize_company_name(name):
     return normalized.lower()
 
 def find_similar_companies(target_company, all_companies):
-    """查找相似的公司"""
-    similar_companies = [target_company]
+    """查找相似的公司，返回带匹配度的结果"""
+    similar_companies = []
     target_normalized = normalize_company_name(target_company.company_name)
     
     for company in all_companies:
@@ -2590,13 +2622,24 @@ def find_similar_companies(target_company, all_companies):
         # 计算相似度
         similarity = difflib.SequenceMatcher(None, target_normalized, company_normalized).ratio()
         
-        # 检查是否满足相似条件
-        if similarity > 0.8:  # 高相似度
-            similar_companies.append(company)
-        elif similarity > 0.6 and len(target_normalized) > 2 and len(company_normalized) > 2:
-            # 中等相似度但需要更严格的检查
-            if (target_normalized in company_normalized or 
-                company_normalized in target_normalized):
-                similar_companies.append(company)
+        # 增加包含关系的匹配度加权
+        containment_bonus = 0
+        if len(target_normalized) > 2 and len(company_normalized) > 2:
+            if target_normalized in company_normalized or company_normalized in target_normalized:
+                containment_bonus = 0.2
+        
+        # 最终匹配度
+        final_score = min(1.0, similarity + containment_bonus)
+        
+        # 降低匹配度阈值，提供更多重复可能性建议
+        if final_score > 0.4:  # 从0.6降低到0.4，提供更多建议
+            similar_companies.append({
+                'company': company,
+                'similarity': final_score,
+                'match_type': 'high' if final_score > 0.8 else 'medium' if final_score > 0.6 else 'low'
+            })
+    
+    # 按匹配度降序排序
+    similar_companies.sort(key=lambda x: x['similarity'], reverse=True)
     
     return similar_companies

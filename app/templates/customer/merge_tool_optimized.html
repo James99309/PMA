@@ -1,0 +1,1164 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button, render_date, render_datetime %}
+
+{% block title %}{{ _('智能客户合并工具') }}{% endblock %}
+
+{% block head %}
+<style>
+.merge-container {
+    background: #f8f9fa;
+    min-height: calc(100vh - 140px);
+}
+
+.merge-card {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    margin-bottom: 16px;
+}
+
+.merge-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 8px 8px 0 0;
+}
+
+.suggestion-group {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    transition: all 0.2s ease;
+    background: white;
+}
+
+.suggestion-group:hover {
+    border-color: #007bff;
+    box-shadow: 0 2px 8px rgba(0,123,255,0.15);
+}
+
+.suggestion-header {
+    background: #f8f9fa;
+    padding: 12px 16px;
+    border-radius: 8px 8px 0 0;
+    border-bottom: 1px solid #e9ecef;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+
+.suggestion-body {
+    padding: 0;
+    display: none;
+}
+
+.suggestion-body.show {
+    display: block;
+}
+
+.companies-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 8px;
+    padding: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.company-card {
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 12px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    position: relative;
+    font-size: 0.85em;
+    min-height: 120px;
+}
+
+.company-card:hover {
+    border-color: #007bff;
+    background-color: #f8f9fa;
+}
+
+.company-card.selected-target {
+    border-color: #28a745;
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+}
+
+.company-card.selected-source {
+    border-color: #ffc107;
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+}
+
+.company-card.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.company-selector {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 10;
+}
+
+.company-selector input[type="radio"],
+.company-selector input[type="checkbox"] {
+    transform: scale(1.2);
+    margin: 0;
+}
+
+.company-header {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 8px;
+    padding-right: 35px;
+    min-height: 45px;
+}
+
+.company-badges {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 4px;
+    flex-wrap: wrap;
+}
+
+.company-name {
+    font-weight: 600;
+    color: #333;
+    font-size: 0.95em;
+    line-height: 1.2;
+    word-break: break-word;
+}
+
+.company-details {
+    color: #666;
+    margin-bottom: 6px;
+    font-size: 0.8em;
+    line-height: 1.3;
+}
+
+.company-stats {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: auto;
+}
+
+.stat-badge {
+    background: rgba(0,123,255,0.1);
+    color: #0056b3;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.75em;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.stat-badge.zero {
+    background: rgba(108,117,125,0.1);
+    color: #6c757d;
+}
+
+.similarity-badge {
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.7em;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.similarity-high {
+    background: #d4edda;
+    color: #155724;
+}
+
+.similarity-medium {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.similarity-low {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.target-option-badge {
+    background: #17a2b8;
+    color: white;
+}
+
+.selected-target-badge {
+    background: #28a745;
+    color: white;
+}
+
+.source-badge {
+    background: #ffc107;
+    color: #856404;
+}
+
+/* 鼠标悬浮效果 */
+.company-card:not(.disabled):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.company-card.disabled:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+/* 选择器样式优化 */
+.company-selector input[type="radio"]:hover,
+.company-selector input[type="checkbox"]:hover {
+    transform: scale(1.3);
+    cursor: pointer;
+}
+
+/* 标签动画效果 */
+.company-badges .similarity-badge {
+    transition: all 0.3s ease;
+}
+
+/* 卡片点击效果 */
+.company-card:not(.disabled) {
+    cursor: pointer;
+}
+
+.company-card.disabled {
+    cursor: not-allowed;
+}
+
+.merge-control-panel {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    position: sticky;
+    top: 20px;
+    border: 1px solid #dee2e6;
+}
+
+.selection-summary {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 16px;
+    border-left: 4px solid #007bff;
+}
+
+.selection-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.selection-item:last-child {
+    border-bottom: none;
+}
+
+.data-preview {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 12px;
+    margin-top: 16px;
+    font-size: 0.85em;
+}
+
+.data-category {
+    margin-bottom: 8px;
+}
+
+.data-category strong {
+    color: #495057;
+}
+
+.warning-item {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 4px;
+    padding: 8px;
+    margin: 4px 0;
+    font-size: 0.8em;
+}
+
+.warning-item.duplicate {
+    background: #f8d7da;
+    border-color: #f5c6cb;
+    color: #721c24;
+}
+
+.btn-merge-execute {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    border: none;
+    color: white;
+    font-weight: 600;
+    padding: 12px 24px;
+    border-radius: 6px;
+    width: 100%;
+    transition: all 0.3s ease;
+}
+
+.btn-merge-execute:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(40,167,69,0.3);
+    color: white;
+}
+
+.btn-merge-execute:disabled {
+    background: #6c757d;
+    transform: none;
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #6c757d;
+}
+
+.empty-state i {
+    font-size: 3em;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+.loading-state {
+    text-align: center;
+    padding: 30px 20px;
+}
+
+.loading-spinner {
+    width: 2.5rem;
+    height: 2.5rem;
+}
+
+/* 响应式优化 */
+@media (max-width: 768px) {
+    .companies-grid {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+    
+    .company-stats {
+        gap: 4px;
+    }
+    
+    .stat-badge {
+        font-size: 0.7em;
+        padding: 1px 4px;
+    }
+    
+    .merge-control-panel {
+        position: static;
+        margin-top: 16px;
+    }
+}
+
+@media (min-width: 1400px) {
+    .companies-grid {
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="merge-container">
+    <div class="container-fluid">
+        <!-- 头部信息 -->
+        <div class="merge-card">
+            <div class="merge-header">
+                <h1 class="h4 mb-2">
+                    <i class="fas fa-compress-arrows-alt me-2"></i>
+                    {{ _('智能客户合并工具') }}
+                </h1>
+                <p class="mb-0 opacity-90">
+                    {{ _('智能检测重复客户，支持灵活选择目标客户和被合并客户') }}
+                </p>
+            </div>
+            
+            <div class="p-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">{{ _('重复客户检测') }}</h6>
+                        <p class="text-muted mb-0 small">{{ _('按匹配度排序，一页显示更多信息') }}</p>
+                    </div>
+                    <button id="detectBtn" class="btn btn-primary">
+                        <i class="fas fa-search me-1"></i>
+                        {{ _('开始检测') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- 左侧：重复建议列表 -->
+            <div class="col-lg-8">
+                <!-- 加载状态 -->
+                <div id="loadingState" class="merge-card loading-state d-none">
+                    <div class="spinner-border loading-spinner text-primary" role="status">
+                        <span class="visually-hidden">{{ _('检测中...') }}</span>
+                    </div>
+                    <h6 class="mt-3">{{ _('正在检测重复客户...') }}</h6>
+                    <p class="text-muted small">{{ _('请稍候，系统正在分析客户数据') }}</p>
+                </div>
+
+                <!-- 空状态 -->
+                <div id="emptyState" class="merge-card empty-state d-none">
+                    <i class="fas fa-check-circle text-success"></i>
+                    <h6>{{ _('检测完成') }}</h6>
+                    <p>{{ _('未发现需要合并的重复客户') }}</p>
+                </div>
+
+                <!-- 重复建议列表 -->
+                <div id="duplicateSuggestions"></div>
+            </div>
+
+            <!-- 右侧：合并控制面板 -->
+            <div class="col-lg-4">
+                <div id="mergeControlPanel" class="merge-control-panel d-none">
+                    <h6 class="mb-3">
+                        <i class="fas fa-cogs me-2"></i>
+                        {{ _('合并设置') }}
+                    </h6>
+                    
+                    <!-- 选择摘要 -->
+                    <div id="selectionSummary" class="selection-summary">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <strong class="text-primary">{{ _('当前选择') }}</strong>
+                            <button id="clearSelection" class="btn btn-sm btn-outline-secondary">
+                                {{ _('清空') }}
+                            </button>
+                        </div>
+                        <div id="selectionDetails">
+                            <!-- 选择详情将在这里显示 -->
+                        </div>
+                    </div>
+
+                    <!-- 合并预览 -->
+                    <div id="mergePreview" class="d-none">
+                        <h6 class="mb-2">
+                            <i class="fas fa-eye me-2"></i>
+                            {{ _('合并预览') }}
+                        </h6>
+                        <div id="mergePreviewContent">
+                            <!-- 预览内容 -->
+                        </div>
+                    </div>
+
+                    <!-- 执行合并按钮 -->
+                    <button id="executeMergeBtn" class="btn-merge-execute" disabled>
+                        <i class="fas fa-compress-arrows-alt me-2"></i>
+                        {{ _('执行合并') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 合并确认对话框 -->
+<div class="modal fade" id="mergeConfirmModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                    {{ _('确认合并操作') }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <strong>{{ _('警告：') }}</strong>
+                    {{ _('此操作不可撤销！被合并的客户将被删除，其所有数据将转移到目标客户。') }}
+                </div>
+                <div id="mergeConfirmContent">
+                    <!-- 确认内容 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {{ _('取消') }}
+                </button>
+                <button type="button" id="confirmMergeBtn" class="btn btn-danger">
+                    <i class="fas fa-compress-arrows-alt me-2"></i>
+                    {{ _('确认合并') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    let duplicateSuggestions = [];
+    let selectedTargetCompany = null;
+    let selectedSourceCompanies = [];
+    let currentGroupIndex = null;
+
+    // 开始检测按钮事件
+    $('#detectBtn').click(function() {
+        loadDuplicateSuggestions();
+    });
+
+    // 清空选择按钮事件
+    $('#clearSelection').click(function() {
+        clearAllSelections();
+    });
+
+    // 加载重复建议
+    function loadDuplicateSuggestions() {
+        $('#loadingState').removeClass('d-none');
+        $('#duplicateSuggestions').empty();
+        $('#emptyState').addClass('d-none');
+        $('#mergeControlPanel').addClass('d-none');
+        
+        clearAllSelections();
+
+        $.ajax({
+            url: '{{ url_for("customer.detect_duplicates") }}',
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    duplicateSuggestions = response.data;
+                    renderDuplicateSuggestions();
+                } else {
+                    showError(response.message || '{{ _("检测失败") }}');
+                }
+            },
+            error: function() {
+                showError('{{ _("网络错误，请重试") }}');
+            },
+            complete: function() {
+                $('#loadingState').addClass('d-none');
+            }
+        });
+    }
+
+    // 渲染重复建议
+    function renderDuplicateSuggestions() {
+        const container = $('#duplicateSuggestions');
+        container.empty();
+
+        if (duplicateSuggestions.length === 0) {
+            $('#emptyState').removeClass('d-none');
+            return;
+        }
+
+        duplicateSuggestions.forEach((suggestion, index) => {
+            const suggestionHtml = createSuggestionHtml(suggestion, index);
+            container.append(suggestionHtml);
+        });
+
+        // 绑定事件
+        bindSuggestionEvents();
+    }
+
+    // 创建建议HTML
+    function createSuggestionHtml(suggestion, index) {
+        const targetCompany = suggestion.target_company;
+        const similarCompanies = suggestion.similar_companies;
+        const maxSimilarity = (suggestion.max_similarity * 100).toFixed(1);
+        const totalCompanies = 1 + similarCompanies.length;
+
+        // 合并所有公司用于网格显示
+        const allCompanies = [
+            { ...targetCompany, similarity: 1.0, match_type: 'target', is_target: true },
+            ...similarCompanies.map(c => ({ ...c, is_target: false }))
+        ];
+
+        const companiesHtml = allCompanies.map(company => 
+            createCompanyCardHtml(company, index)
+        ).join('');
+
+        return `
+            <div class="suggestion-group" data-suggestion="${index}">
+                <div class="suggestion-header" data-bs-toggle="collapse" data-bs-target="#suggestion_${index}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong class="text-primary">${targetCompany.company_name}</strong>
+                            <span class="similarity-badge similarity-${getSimilarityClass(suggestion.max_similarity)} ms-2">
+                                ${maxSimilarity}% {{ _('匹配') }}
+                            </span>
+                            <small class="text-muted ms-2">
+                                (${totalCompanies} {{ _('个客户') }})
+                            </small>
+                        </div>
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                </div>
+                <div id="suggestion_${index}" class="suggestion-body collapse">
+                    <div class="companies-grid">
+                        ${companiesHtml}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // 创建公司卡片HTML
+    function createCompanyCardHtml(company, suggestionIndex) {
+        // 构建初始标签 - 所有客户都可以被选择为目标
+        let badges = '';
+        if (company.is_target) {
+            badges = '<span class="similarity-badge target-option-badge">{{ _("推荐目标") }}</span>';
+        } else {
+            badges = `<span class="similarity-badge similarity-${getSimilarityClass(company.similarity)}">
+                ${(company.similarity * 100).toFixed(1)}% {{ _("匹配") }}
+            </span>`;
+        }
+
+        // 所有客户都有目标选择单选框
+        const selectorHtml = `
+            <div class="company-selector">
+                <input type="radio" name="target_${suggestionIndex}" value="${company.id}" 
+                       class="target-radio" data-suggestion="${suggestionIndex}" 
+                       data-company-id="${company.id}" data-is-original-target="${company.is_target}"
+                       title="{{ _('点击选择为目标客户') }}">
+            </div>
+        `;
+
+        return `
+            <div class="company-card" data-company-id="${company.id}" data-suggestion="${suggestionIndex}" 
+                 data-is-original-target="${company.is_target}">
+                ${selectorHtml}
+                <div class="company-header">
+                    <div class="company-badges" data-original-badges='${JSON.stringify(badges)}'>
+                        ${badges}
+                    </div>
+                    <div class="company-name" title="${company.company_name}">
+                        ${company.company_name}
+                    </div>
+                </div>
+                <div class="company-details">
+                    ${company.company_code} | ${company.owner_name || '{{ _("无所有者") }}'}<br>
+                    ${company.created_at || ''}
+                </div>
+                <div class="company-stats">
+                    <span class="stat-badge ${company.contact_count === 0 ? 'zero' : ''}">
+                        <i class="fas fa-users"></i> ${company.contact_count}
+                    </span>
+                    <span class="stat-badge ${company.action_count === 0 ? 'zero' : ''}">
+                        <i class="fas fa-history"></i> ${company.action_count}
+                    </span>
+                    <span class="stat-badge ${company.project_count === 0 ? 'zero' : ''}">
+                        <i class="fas fa-project-diagram"></i> ${company.project_count}
+                    </span>
+                </div>
+            </div>
+        `;
+    }
+
+    // 获取相似度等级类名
+    function getSimilarityClass(similarity) {
+        if (similarity > 0.8) return 'high';
+        if (similarity > 0.6) return 'medium';
+        return 'low';
+    }
+
+    // 绑定建议事件
+    function bindSuggestionEvents() {
+        // 目标客户单选框事件
+        $('.target-radio').change(function() {
+            if ($(this).is(':checked')) {
+                const suggestionIndex = $(this).data('suggestion');
+                const companyId = $(this).data('company-id');
+                
+                // 清除当前组的其他选择
+                if (currentGroupIndex !== null && currentGroupIndex !== suggestionIndex) {
+                    clearGroupSelections(currentGroupIndex);
+                }
+                
+                currentGroupIndex = suggestionIndex;
+                
+                // 找到选中的目标客户
+                const suggestion = duplicateSuggestions[suggestionIndex];
+                const allCompanies = [suggestion.target_company, ...suggestion.similar_companies];
+                selectedTargetCompany = allCompanies.find(c => c.id == companyId);
+                
+                // 清空之前的源客户选择
+                selectedSourceCompanies = [];
+                
+                // 更新卡片样式和源客户选择
+                updateCardStylesAndSourceOptions(suggestionIndex, companyId);
+                
+                // 更新控制面板
+                updateControlPanel();
+            }
+        });
+
+        // 源客户复选框事件
+        $('.source-checkbox').change(function() {
+            const suggestionIndex = $(this).data('suggestion');
+            const companyId = $(this).data('company-id');
+            
+            if (currentGroupIndex !== suggestionIndex) {
+                $(this).prop('checked', false);
+                return;
+            }
+            
+            if ($(this).is(':checked')) {
+                if (!selectedSourceCompanies.includes(companyId)) {
+                    selectedSourceCompanies.push(companyId);
+                }
+            } else {
+                selectedSourceCompanies = selectedSourceCompanies.filter(id => id !== companyId);
+            }
+            
+            // 更新卡片样式
+            updateSourceCardStyles(suggestionIndex);
+            
+            // 更新控制面板
+            updateControlPanel();
+        });
+
+        // 公司卡片点击事件
+        $('.company-card').click(function(e) {
+            if ($(e.target).is('input')) return;
+            
+            const $targetRadio = $(this).find('.target-radio');
+            const $sourceCheckbox = $(this).find('.source-checkbox');
+            
+            if ($targetRadio.length > 0 && !$targetRadio.prop('disabled')) {
+                $targetRadio.prop('checked', true).trigger('change');
+            } else if ($sourceCheckbox.length > 0 && !$sourceCheckbox.prop('disabled')) {
+                $sourceCheckbox.prop('checked', !$sourceCheckbox.prop('checked')).trigger('change');
+            }
+        });
+    }
+
+    // 清除所有选择
+    function clearAllSelections() {
+        selectedTargetCompany = null;
+        selectedSourceCompanies = [];
+        const oldGroupIndex = currentGroupIndex;
+        currentGroupIndex = null;
+        
+        $('.target-radio').prop('checked', false);
+        $('.source-checkbox').remove();
+        $('.company-card').removeClass('selected-target selected-source disabled');
+        
+        // 恢复所有组的原始标签
+        if (oldGroupIndex !== null) {
+            clearGroupSelections(oldGroupIndex);
+        }
+        
+        // 恢复所有组的原始标签和选择器
+        duplicateSuggestions.forEach((suggestion, index) => {
+            $(`.company-card[data-suggestion="${index}"]`).each(function() {
+                const $card = $(this);
+                const isOriginalTarget = $card.data('is-original-target');
+                const $badges = $card.find('.company-badges');
+                const companyId = $card.data('company-id');
+                
+                // 恢复目标客户单选框
+                $card.find('.company-selector').html(`
+                    <input type="radio" name="target_${index}" value="${companyId}" 
+                           class="target-radio" data-suggestion="${index}" 
+                           data-company-id="${companyId}" data-is-original-target="${isOriginalTarget}"
+                           title="{{ _('点击选择为目标客户') }}">
+                `);
+                
+                // 恢复原始标签
+                if (isOriginalTarget) {
+                    $badges.html('<span class="similarity-badge target-option-badge">{{ _("推荐目标") }}</span>');
+                } else {
+                    const company = suggestion.similar_companies.find(c => c.id == companyId);
+                    if (company) {
+                        $badges.html(`<span class="similarity-badge similarity-${getSimilarityClass(company.similarity)}">
+                            ${(company.similarity * 100).toFixed(1)}% {{ _("匹配") }}
+                        </span>`);
+                    }
+                }
+            });
+        });
+        
+        // 重新绑定所有目标客户选择事件
+        bindSuggestionEvents();
+        
+        updateControlPanel();
+    }
+
+    // 清除特定组的选择
+    function clearGroupSelections(suggestionIndex) {
+        $(`.company-card[data-suggestion="${suggestionIndex}"]`).removeClass('selected-target selected-source disabled');
+        $(`.target-radio[data-suggestion="${suggestionIndex}"]`).prop('checked', false);
+        $(`.source-checkbox[data-suggestion="${suggestionIndex}"]`).remove();
+        
+        // 恢复原始标签和选择器
+        $(`.company-card[data-suggestion="${suggestionIndex}"]`).each(function() {
+            const $card = $(this);
+            const isOriginalTarget = $card.data('is-original-target');
+            const $badges = $card.find('.company-badges');
+            const companyId = $card.data('company-id');
+            
+            // 恢复目标客户单选框
+            $card.find('.company-selector').html(`
+                <input type="radio" name="target_${suggestionIndex}" value="${companyId}" 
+                       class="target-radio" data-suggestion="${suggestionIndex}" 
+                       data-company-id="${companyId}" data-is-original-target="${isOriginalTarget}"
+                       title="{{ _('点击选择为目标客户') }}">
+            `);
+            
+            // 恢复原始标签
+            if (isOriginalTarget) {
+                $badges.html('<span class="similarity-badge target-option-badge">{{ _("推荐目标") }}</span>');
+            } else {
+                // 需要重新获取相似度信息
+                const suggestion = duplicateSuggestions[suggestionIndex];
+                const company = suggestion.similar_companies.find(c => c.id == companyId);
+                if (company) {
+                    $badges.html(`<span class="similarity-badge similarity-${getSimilarityClass(company.similarity)}">
+                        ${(company.similarity * 100).toFixed(1)}% {{ _("匹配") }}
+                    </span>`);
+                }
+            }
+        });
+        
+        // 重新绑定目标客户选择事件
+        $(`.target-radio[data-suggestion="${suggestionIndex}"]`).change(function() {
+            if ($(this).is(':checked')) {
+                const newSuggestionIndex = $(this).data('suggestion');
+                const companyId = $(this).data('company-id');
+                
+                // 清除当前组的其他选择
+                if (currentGroupIndex !== null && currentGroupIndex !== newSuggestionIndex) {
+                    clearGroupSelections(currentGroupIndex);
+                }
+                
+                currentGroupIndex = newSuggestionIndex;
+                
+                // 找到选中的目标客户
+                const suggestion = duplicateSuggestions[newSuggestionIndex];
+                const allCompanies = [suggestion.target_company, ...suggestion.similar_companies];
+                selectedTargetCompany = allCompanies.find(c => c.id == companyId);
+                
+                // 清空之前的源客户选择
+                selectedSourceCompanies = [];
+                
+                // 更新卡片样式和源客户选择
+                updateCardStylesAndSourceOptions(newSuggestionIndex, companyId);
+                
+                // 更新控制面板
+                updateControlPanel();
+            }
+        });
+    }
+
+    // 更新卡片样式和源客户选择选项
+    function updateCardStylesAndSourceOptions(suggestionIndex, targetCompanyId) {
+        // 重置所有卡片样式
+        $('.company-card').removeClass('selected-target selected-source disabled');
+        $('.source-checkbox').remove();
+        
+        // 禁用其他组的卡片
+        $('.company-card').not(`[data-suggestion="${suggestionIndex}"]`).addClass('disabled');
+        
+        // 设置目标客户样式
+        const $targetCard = $(`.company-card[data-company-id="${targetCompanyId}"]`);
+        $targetCard.addClass('selected-target');
+        
+        // 更新目标客户的标签
+        $targetCard.find('.company-badges').html(
+            '<span class="similarity-badge selected-target-badge">{{ _("已选目标") }}</span>'
+        );
+        
+        // 为其他同组客户添加源客户复选框并恢复原始标签
+        $(`.company-card[data-suggestion="${suggestionIndex}"]`).not(`[data-company-id="${targetCompanyId}"]`).each(function() {
+            const $card = $(this);
+            const cardCompanyId = $card.data('company-id');
+            const isOriginalTarget = $card.data('is-original-target');
+            
+            // 恢复原始标签
+            const $badges = $card.find('.company-badges');
+            if (isOriginalTarget) {
+                $badges.html('<span class="similarity-badge target-option-badge">{{ _("推荐目标") }}</span>');
+            } else {
+                // 重新获取相似度信息
+                const suggestion = duplicateSuggestions[suggestionIndex];
+                const company = suggestion.similar_companies.find(c => c.id == cardCompanyId);
+                if (company) {
+                    $badges.html(`<span class="similarity-badge similarity-${getSimilarityClass(company.similarity)}">
+                        ${(company.similarity * 100).toFixed(1)}% {{ _("匹配") }}
+                    </span>`);
+                }
+            }
+            
+            // 添加源客户复选框
+            $card.find('.company-selector').html(`
+                <input type="checkbox" class="source-checkbox" 
+                       data-suggestion="${suggestionIndex}" data-company-id="${cardCompanyId}"
+                       title="{{ _('选择为被合并客户') }}">
+            `);
+            
+            // 重新绑定复选框事件
+            $card.find('.source-checkbox').change(function() {
+                const companyId = $(this).data('company-id');
+                
+                if ($(this).is(':checked')) {
+                    if (!selectedSourceCompanies.includes(companyId)) {
+                        selectedSourceCompanies.push(companyId);
+                    }
+                    $card.addClass('selected-source');
+                    
+                    // 为选中的源客户添加特殊标签
+                    const $cardBadges = $card.find('.company-badges');
+                    const originalBadge = $cardBadges.html();
+                    $cardBadges.html(originalBadge + ' <span class="similarity-badge source-badge">{{ _("待合并") }}</span>');
+                } else {
+                    selectedSourceCompanies = selectedSourceCompanies.filter(id => id !== companyId);
+                    $card.removeClass('selected-source');
+                    
+                    // 移除待合并标签，恢复原始标签
+                    const $cardBadges = $card.find('.company-badges');
+                    if (isOriginalTarget) {
+                        $cardBadges.html('<span class="similarity-badge target-option-badge">{{ _("推荐目标") }}</span>');
+                    } else {
+                        const suggestion = duplicateSuggestions[suggestionIndex];
+                        const company = suggestion.similar_companies.find(c => c.id == cardCompanyId);
+                        if (company) {
+                            $cardBadges.html(`<span class="similarity-badge similarity-${getSimilarityClass(company.similarity)}">
+                                ${(company.similarity * 100).toFixed(1)}% {{ _("匹配") }}
+                            </span>`);
+                        }
+                    }
+                }
+                
+                updateControlPanel();
+            });
+        });
+    }
+    
+    // 更新源客户卡片样式
+    function updateSourceCardStyles(suggestionIndex) {
+        // 重置同组源客户样式
+        $(`.company-card[data-suggestion="${suggestionIndex}"]`).removeClass('selected-source');
+        
+        // 设置选中的源客户样式
+        selectedSourceCompanies.forEach(companyId => {
+            $(`.company-card[data-company-id="${companyId}"]`).addClass('selected-source');
+        });
+    }
+
+    // 更新控制面板
+    function updateControlPanel() {
+        if (!selectedTargetCompany) {
+            $('#mergeControlPanel').addClass('d-none');
+            return;
+        }
+        
+        $('#mergeControlPanel').removeClass('d-none');
+        
+        // 更新选择摘要
+        updateSelectionSummary();
+        
+        // 更新合并预览
+        if (selectedSourceCompanies.length > 0) {
+            loadMergePreview();
+        } else {
+            $('#mergePreview').addClass('d-none');
+        }
+        
+        // 更新执行按钮
+        $('#executeMergeBtn').prop('disabled', selectedSourceCompanies.length === 0);
+    }
+
+    // 更新选择摘要
+    function updateSelectionSummary() {
+        let summaryHtml = `
+            <div class="selection-item">
+                <div>
+                    <strong class="text-success">{{ _('目标客户') }}</strong><br>
+                    <small>${selectedTargetCompany.company_name}</small>
+                </div>
+                <span class="badge bg-success">{{ _('保留') }}</span>
+            </div>
+        `;
+        
+        if (selectedSourceCompanies.length > 0) {
+            summaryHtml += `
+                <div class="selection-item">
+                    <div>
+                        <strong class="text-warning">{{ _('被合并客户') }}</strong><br>
+                        <small>${selectedSourceCompanies.length} {{ _('个客户') }}</small>
+                    </div>
+                    <span class="badge bg-warning">{{ _('合并') }}</span>
+                </div>
+            `;
+        }
+        
+        $('#selectionDetails').html(summaryHtml);
+    }
+
+    // 加载合并预览
+    function loadMergePreview() {
+        $.ajax({
+            url: '{{ url_for("customer.get_merge_preview") }}',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                target_company_id: selectedTargetCompany.id,
+                source_company_ids: selectedSourceCompanies
+            }),
+            success: function(response) {
+                if (response.success) {
+                    displayMergePreview(response.data);
+                } else {
+                    showError(response.message || '{{ _("获取预览失败") }}');
+                }
+            },
+            error: function() {
+                showError('{{ _("网络错误，请重试") }}');
+            }
+        });
+    }
+
+    // 显示合并预览
+    function displayMergePreview(data) {
+        let previewHtml = '';
+        
+        // 数据统计
+        const contactsToAdd = data.contacts.length;
+        const actionsToAdd = data.actions.length;
+        const projectsToUpdate = data.projects.length;
+        const duplicateContacts = data.duplicate_contacts.length;
+        
+        previewHtml += `
+            <div class="data-category">
+                <strong>{{ _('将要合并的数据') }}:</strong>
+            </div>
+        `;
+        
+        if (contactsToAdd > 0) {
+            previewHtml += `
+                <div class="warning-item">
+                    <i class="fas fa-users me-1"></i>
+                    ${contactsToAdd} {{ _('个联系人') }}
+                </div>
+            `;
+        }
+        
+        if (actionsToAdd > 0) {
+            previewHtml += `
+                <div class="warning-item">
+                    <i class="fas fa-history me-1"></i>
+                    ${actionsToAdd} {{ _('条行动记录') }}
+                </div>
+            `;
+        }
+        
+        if (projectsToUpdate > 0) {
+            previewHtml += `
+                <div class="warning-item">
+                    <i class="fas fa-project-diagram me-1"></i>
+                    ${projectsToUpdate} {{ _('个项目关联') }}
+                </div>
+            `;
+        }
+        
+        // 重复联系人警告
+        if (duplicateContacts > 0) {
+            previewHtml += `
+                <div class="data-category mt-2">
+                    <strong class="text-danger">{{ _('重复联系人警告') }}:</strong>
+                </div>
+                <div class="warning-item duplicate">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    ${duplicateContacts} {{ _('个联系人完全一致，将被跳过') }}
+                </div>
+            `;
+        }
+        
+        $('#mergePreviewContent').html(previewHtml);
+        $('#mergePreview').removeClass('d-none');
+    }
+
+    // 执行合并按钮事件
+    $('#executeMergeBtn').click(function() {
+        showMergeConfirmation();
+    });
+
+    // 显示合并确认对话框
+    function showMergeConfirmation() {
+        const confirmHtml = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="text-success">{{ _('目标客户（保留）') }}</h6>
+                    <p><strong>${selectedTargetCompany.company_name}</strong></p>
+                    <small class="text-muted">${selectedTargetCompany.company_code}</small>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-danger">{{ _('被合并客户（删除）') }}</h6>
+                    <p>${selectedSourceCompanies.length} {{ _('个客户') }}</p>
+                    <small class="text-muted">{{ _('数据将转移到目标客户') }}</small>
+                </div>
+            </div>
+        `;
+        
+        $('#mergeConfirmContent').html(confirmHtml);
+        $('#mergeConfirmModal').modal('show');
+    }
+
+    // 确认合并按钮事件
+    $('#confirmMergeBtn').click(function() {
+        executeMerge();
+    });
+
+    // 执行合并
+    function executeMerge() {
+        const $btn = $('#confirmMergeBtn');
+        const originalText = $btn.html();
+        
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>{{ _("合并中...") }}');
+
+        $.ajax({
+            url: '{{ url_for("customer.execute_merge") }}',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                target_company_id: selectedTargetCompany.id,
+                source_company_ids: selectedSourceCompanies,
+                final_company_name: selectedTargetCompany.company_name
+            }),
+            success: function(response) {
+                if (response.success) {
+                    $('#mergeConfirmModal').modal('hide');
+                    showSuccess('{{ _("合并成功！") }}');
+                    // 重新加载数据
+                    loadDuplicateSuggestions();
+                } else {
+                    showError(response.message || '{{ _("合并失败") }}');
+                }
+            },
+            error: function() {
+                showError('{{ _("合并失败，请重试") }}');
+            },
+            complete: function() {
+                $btn.prop('disabled', false).html(originalText);
+            }
+        });
+    }
+
+    // 显示成功消息
+    function showSuccess(message) {
+        alert(message); // 可以替换为更好的通知组件
+    }
+
+    // 显示错误消息
+    function showError(message) {
+        alert(message); // 可以替换为更好的通知组件
+    }
+
+    // 页面加载时自动检测
+    loadDuplicateSuggestions();
+});
+</script>
+{% endblock %}

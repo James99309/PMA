@@ -41,6 +41,19 @@
         <li class="breadcrumb-item active">规格管理</li>
     </ol>
     
+    <!-- 从产品规格页面来的返回按钮 -->
+    {% if request.args.get('from') == 'new_product' %}
+    <div class="alert alert-info d-flex justify-content-between align-items-center">
+        <div>
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>来自产品规格页面</strong> - 您可以在此页面定义规格的编码位置，完成后点击返回继续创建产品
+        </div>
+        <button onclick="returnToNewProduct()" class="btn btn-primary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>返回产品规格
+        </button>
+    </div>
+    {% endif %}
+    
     <!-- 成功提示 -->
     <div id="successAlert" class="alert alert-success mb-4" style="display:none;">
         <i class="fas fa-check-circle me-1"></i>
@@ -385,5 +398,28 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初始化拖拽功能
     initializeDragAndDrop();
 });
+
+// 返回到新产品页面的函数
+function returnToNewProduct() {
+    // 尝试从sessionStorage或history中获取返回路径
+    const returnUrl = sessionStorage.getItem('newProductReturnUrl') || '/product-management/new';
+    
+    // 使用history.back()如果用户是从新产品页面来的，否则跳转到新产品页面
+    if (document.referrer && document.referrer.includes('/product-management/new')) {
+        window.history.back();
+    } else {
+        window.location.href = returnUrl;
+    }
+}
+
+// 当页面从新产品页面打开时，存储返回路径
+{% if request.args.get('from') == 'new_product' %}
+document.addEventListener('DOMContentLoaded', function() {
+    // 如果referrer包含new，存储该URL
+    if (document.referrer && document.referrer.includes('/product-management/new')) {
+        sessionStorage.setItem('newProductReturnUrl', document.referrer);
+    }
+});
+{% endif %}
 </script>
 {% endblock %}
