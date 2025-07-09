@@ -325,7 +325,7 @@ def get_record_info(module_name, table_name, record_id):
             if project:
                 return f"项目: {project.project_name}"
         elif table_name == 'companies':
-            company = Company.query.get(record_id)
+            company = Company.query.filter_by(id=record_id, is_deleted=False).first()
             if company:
                 return f"客户: {company.company_name}"
         elif table_name == 'contacts':

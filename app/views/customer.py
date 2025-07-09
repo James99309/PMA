@@ -11,6 +11,7 @@ from sqlalchemy import or_, func, desc, text
 from datetime import datetime
 import difflib
 import json
+import re
 from app.utils.dictionary_helpers import COMPANY_TYPE_OPTIONS, INDUSTRY_OPTIONS, STATUS_OPTIONS
 from app.utils.access_control import (
     get_viewable_data, can_edit_data, 
@@ -179,7 +180,7 @@ def search_contacts():
     
     # 获取联系人所属的公司信息
     company_ids = set(contact.company_id for contact in contacts if contact.company_id)
-    companies = {company.id: company for company in Company.query.filter(Company.id.in_(company_ids)).all()}
+    companies = {company.id: company for company in Company.query.filter(Company.id.in_(company_ids), Company.is_deleted == False).all()}
     
     # 为每个联系人添加company属性
     for contact in contacts:
@@ -195,7 +196,7 @@ def search_contacts():
 @customer.route('/<int:company_id>/view')
 @permission_required('customer', 'view')
 def view_company(company_id):
-    company = Company.query.get_or_404(company_id)
+    company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
     
     # 检查当前用户是否有权限查看此企业
     if not can_view_company(current_user, company):
@@ -358,7 +359,7 @@ def add_company():
 @customer.route('/edit/<int:company_id>', methods=['GET', 'POST'])
 @permission_required('customer', 'edit')
 def edit_company(company_id):
-    company = Company.query.get_or_404(company_id)
+    company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
     
     # 检查编辑权限
     if not can_edit_company_info(current_user, company):
@@ -402,7 +403,7 @@ def edit_company(company_id):
 @customer.route('/delete/<int:company_id>', methods=['POST'])
 @permission_required('customer', 'delete')
 def delete_company(company_id):
-    company = Company.query.get_or_404(company_id)
+    company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
     
     # 检查删除权限
     if not can_edit_data(company, current_user):
@@ -495,7 +496,7 @@ def delete_company(company_id):
 @customer.route('/<int:company_id>/contacts')
 @permission_required('customer', 'view')
 def list_contacts(company_id):
-    company = Company.query.get_or_404(company_id)
+    company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
     
     # 预加载所有联系人的所有者信息
     owner_ids = [contact.owner_id for contact in company.contacts if contact.owner_id]
@@ -512,7 +513,7 @@ def list_contacts(company_id):
 @customer.route('/<int:company_id>/contacts/add', methods=['GET', 'POST'])
 @permission_required('customer', 'create')
 def add_contact(company_id):
-    company = Company.query.get_or_404(company_id)
+    company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
     # 允许所有人添加联系人，但只显示自己创建的联系人
     if request.method == 'POST':
         name = request.form['name']
@@ -572,7 +573,7 @@ def add_contact(company_id):
 @permission_required('customer', 'edit')
 def edit_contact(company_id, contact_id):
     contact = Contact.query.get_or_404(contact_id)
-    company = Company.query.get_or_404(company_id)
+    company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
     
     # 检查编辑权限
     if not can_edit_contact(current_user, contact):
@@ -716,7 +717,7 @@ def search_company_api():
         search_condition = Company.company_name.ilike(f"%{keyword}%")
     
     # 执行查询
-    all_matches = Company.query.filter(search_condition).limit(15).all()
+    all_matches = Company.query.filter(search_condition, Company.is_deleted == False).limit(15).all()
     
     # 获取用户有权限查看的公司
     user_authorized_companies = get_viewable_data(Company, current_user).all()
@@ -808,7 +809,7 @@ def search_contact_api():
     results = []
     for contact in all_matches:
         # 预加载公司信息，避免N+1查询
-        company = Company.query.get(contact.company_id)
+        company = Company.query.filter_by(id=contact.company_id, is_deleted=False).first()
         if not company:
             continue
             
@@ -890,7 +891,7 @@ def check_duplicates():
         print(f"过滤后的企业名称列表: {company_names}")
         
         # 获取所有现有企业名称
-        existing_companies = Company.query.with_entities(Company.id, Company.company_name).all()
+        existing_companies = Company.query.with_entities(Company.id, Company.company_name).filter(Company.is_deleted == False).all()
         existing_names = {company.company_name: company.id for company in existing_companies}
         
         conflicts = []
@@ -952,7 +953,7 @@ def check_duplicates():
                             break
                     
                     # 检查是否一方完全包含另一方（处理简称情况），但忽略常见后缀
-                    def normalize_company_name(name):
+                    def normalize_for_import(name):
                         # 去除常见的公司后缀
                         suffixes = ["有限公司", "有限责任公司", "股份有限公司", "股份公司", "公司"]
                         normalized = name
@@ -960,8 +961,8 @@ def check_duplicates():
                             normalized = normalized.replace(suffix, "")
                         return normalized.strip()
                     
-                    norm_import = normalize_company_name(import_name)
-                    norm_existing = normalize_company_name(existing_name)
+                    norm_import = normalize_for_import(import_name)
+                    norm_existing = normalize_for_import(existing_name)
                     
                     name_contains = (norm_import in norm_existing or norm_existing in norm_import) and \
                                     min(len(norm_import), len(norm_existing)) >= 2  # 确保有意义的匹配
@@ -1547,7 +1548,7 @@ def import_customers():
             }), 400
         
         # 获取现有企业列表(用于检查重复)
-        existing_companies = {c.company_name: c for c in Company.query.all()}
+        existing_companies = {c.company_name: c for c in Company.query.filter(Company.is_deleted == False).all()}
         
         imported_count = 0
         updated_count = 0
@@ -1737,7 +1738,7 @@ def batch_delete_companies():
             return jsonify({'success': False, 'message': '企业ID必须是整数'}), 400
         
         # 获取要删除的企业记录
-        companies = Company.query.filter(Company.id.in_(company_ids)).all()
+        companies = Company.query.filter(Company.id.in_(company_ids), Company.is_deleted == False).all()
         
         # 检查操作人是否有权限删除这些企业，未授权的企业自动跳过
         unauthorized_companies = []
@@ -1951,7 +1952,7 @@ def view_contact(contact_id):
 @customer.route('/<int:company_id>/add_action', methods=['GET', 'POST'])
 @permission_required('customer', 'create')
 def add_action_for_company(company_id):
-    company = Company.query.get_or_404(company_id)
+    company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
     # 允许为所有有权限的联系人添加行动记录
     all_contacts = Contact.query.filter_by(company_id=company_id).all()
     contacts = [c for c in all_contacts if can_view_contact(current_user, c)]
@@ -2006,7 +2007,7 @@ def add_action_for_company(company_id):
 @customer.route('/<int:company_id>/update_sharing', methods=['POST'])
 @permission_required('customer', 'edit')
 def update_company_sharing(company_id):
-    company = Company.query.get_or_404(company_id)
+    company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
     if not can_edit_company_sharing(current_user, company):
         flash('您没有权限编辑此客户的共享设置', 'danger')
         return redirect(url_for('customer.view_company', company_id=company_id))
@@ -2026,7 +2027,7 @@ def update_company_sharing(company_id):
 @customer.route('/<int:company_id>/change_owner', methods=['POST'])
 @permission_required('customer', 'edit')
 def change_company_owner(company_id):
-    company = Company.query.get_or_404(company_id)
+    company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
     if not can_change_company_owner(current_user, company):
         flash('您没有权限修改该客户的拥有人', 'danger')
         return redirect(url_for('customer.view_company', company_id=company_id))
@@ -2210,6 +2211,100 @@ def customer_merge_tool():
     
     return render_template('customer/merge_tool_optimized.html')
 
+@customer.route('/api/debug-normalize', methods=['GET'])
+@login_required
+@permission_required('customer', 'create')
+def debug_normalize():
+    """调试名称标准化 - 检查特定客户名称的标准化结果"""
+    if current_user.role != 'admin':
+        return jsonify({'success': False, 'message': '只有管理员可以使用此功能'}), 403
+    
+    try:
+        search_name = request.args.get('name', '')
+        if not search_name:
+            return jsonify({'success': False, 'message': '请提供要检查的客户名称'}), 400
+        
+        # 查找包含该名称的所有客户
+        companies = Company.query.filter(
+            Company.company_name.ilike(f'%{search_name}%'),
+            Company.is_deleted == False
+        ).all()
+        
+        debug_results = []
+        normalized_groups = {}
+        
+        for company in companies:
+            normalized = normalize_company_name(company.company_name)
+            debug_results.append({
+                'id': company.id,
+                'original_name': company.company_name,
+                'normalized_name': normalized,
+                'name_length': len(company.company_name),
+                'normalized_length': len(normalized),
+                'owner': company.owner.real_name if company.owner else None,
+                'created_at': company.created_at.strftime('%Y-%m-%d') if company.created_at else None,
+                'char_codes': [ord(c) for c in company.company_name],
+                'is_deleted': company.is_deleted
+            })
+            
+            # 按标准化名称分组
+            if normalized not in normalized_groups:
+                normalized_groups[normalized] = []
+            normalized_groups[normalized].append(company)
+        
+        # 找出重复的标准化名称
+        duplicates = {k: v for k, v in normalized_groups.items() if len(v) > 1}
+        
+        # 特别测试相似度计算
+        similarity_tests = []
+        if len(companies) > 1:
+            for i, company1 in enumerate(companies):
+                for j, company2 in enumerate(companies):
+                    if i >= j:
+                        continue
+                    
+                    norm1 = normalize_company_name(company1.company_name)
+                    norm2 = normalize_company_name(company2.company_name)
+                    
+                    # 计算相似度（使用与find_similar_companies相同的逻辑）
+                    if norm1 == norm2:
+                        similarity = 1.0
+                    elif len(norm1) < 3 or len(norm2) < 3:
+                        similarity = 0
+                    else:
+                        similarity = difflib.SequenceMatcher(None, norm1, norm2).ratio()
+                    
+                    similarity_tests.append({
+                        'company1_id': company1.id,
+                        'company1_name': company1.company_name,
+                        'company2_id': company2.id,
+                        'company2_name': company2.company_name,
+                        'normalized1': norm1,
+                        'normalized2': norm2,
+                        'similarity': similarity,
+                        'would_match': similarity > 0.85
+                    })
+        
+        return jsonify({
+            'success': True,
+            'search_name': search_name,
+            'total_found': len(companies),
+            'companies': debug_results,
+            'duplicates': {
+                k: [{'id': c.id, 'name': c.company_name} for c in v] 
+                for k, v in duplicates.items()
+            },
+            'similarity_tests': similarity_tests,
+            'matching_threshold': 0.85
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"调试标准化失败: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'调试失败: {str(e)}'
+        }), 500
+
 @customer.route('/api/detect-duplicates', methods=['GET'])
 @login_required
 @permission_required('customer', 'create')
@@ -2218,9 +2313,29 @@ def detect_duplicates():
     if current_user.role != 'admin':
         return jsonify({'success': False, 'message': '只有管理员可以使用此功能'}), 403
     
+    # 检查是否请求进度信息
+    check_progress = request.args.get('progress') == 'true'
+    if check_progress:
+        return detect_duplicates_with_progress()
+    
+    # 原有的快速检测逻辑（保持向后兼容）
+    return detect_duplicates_simple()
+
+def detect_duplicates_simple():
+    """简单的重复检测（原有逻辑）"""
+    
     try:
+        current_app.logger.info("开始检测重复客户...")
+        
         # 获取所有公司
         companies = Company.query.filter_by(is_deleted=False).all()
+        current_app.logger.info(f"检测重复客户: 找到 {len(companies)} 个未删除的公司")
+        
+        if not companies:
+            return jsonify({
+                'success': True,
+                'data': []
+            })
         
         # 按名称分组检测重复
         name_groups = {}
@@ -2234,28 +2349,44 @@ def detect_duplicates():
         duplicate_suggestions = []
         processed_companies = set()
         
+        # 特别检查包含"瑞康"的公司
+        ruikang_companies = [c for c in companies if '瑞康' in c.company_name]
+        if ruikang_companies:
+            current_app.logger.info(f"发现 {len(ruikang_companies)} 个包含'瑞康'的公司:")
+            for rc in ruikang_companies:
+                current_app.logger.info(f"  - ID {rc.id}: '{rc.company_name}' (标准化: '{normalize_company_name(rc.company_name)}')")
+        
         for company in companies:
             if company.id in processed_companies:
                 continue
                 
-            similar_companies_data = find_similar_companies(company, companies)
+            try:
+                similar_companies_data = find_similar_companies(company, companies)
+            except Exception as e:
+                current_app.logger.error(f"查找相似公司失败 - 公司ID {company.id}: {str(e)}")
+                continue
             
             # 去掉"至少2个重复"的限制，只要有相似公司就提供建议
             if similar_companies_data:
                 processed_companies.add(company.id)
                 
                 # 构建目标公司信息
-                target_contact_count = Contact.query.filter_by(company_id=company.id).count()
-                target_action_count = Action.query.filter_by(company_id=company.id).count()
-                target_project_count = db.session.query(Project).filter(
-                    Project.end_user == company.company_name
-                ).count()
+                try:
+                    target_contact_count = Contact.query.filter_by(company_id=company.id).count()
+                    target_action_count = Action.query.filter_by(company_id=company.id).count()
+                    target_project_count = db.session.query(Project).filter(
+                        Project.end_user == company.company_name
+                    ).count()
+                except Exception as e:
+                    current_app.logger.error(f"收集目标公司数据失败 - 公司ID {company.id}: {str(e)}")
+                    target_contact_count = target_action_count = target_project_count = 0
                 
                 target_data = {
                     'id': company.id,
                     'company_name': company.company_name,
-                    'company_code': company.company_code,
-                    'owner_name': company.owner.real_name if company.owner else None,
+                    'company_code': company.company_code or '',
+                    'owner_name': (company.owner.real_name if company.owner and hasattr(company.owner, 'real_name') else None) or 
+                                 (company.owner.username if company.owner and hasattr(company.owner, 'username') else None) or '无所有者',
                     'created_at': company.created_at.strftime('%Y-%m-%d') if company.created_at else None,
                     'contact_count': target_contact_count,
                     'action_count': target_action_count,
@@ -2271,17 +2402,22 @@ def detect_duplicates():
                         processed_companies.add(similar_company.id)
                         
                         # 统计关联数据
-                        contact_count = Contact.query.filter_by(company_id=similar_company.id).count()
-                        action_count = Action.query.filter_by(company_id=similar_company.id).count()
-                        project_count = db.session.query(Project).filter(
-                            Project.end_user == similar_company.company_name
-                        ).count()
+                        try:
+                            contact_count = Contact.query.filter_by(company_id=similar_company.id).count()
+                            action_count = Action.query.filter_by(company_id=similar_company.id).count()
+                            project_count = db.session.query(Project).filter(
+                                Project.end_user == similar_company.company_name
+                            ).count()
+                        except Exception as e:
+                            current_app.logger.error(f"收集相似公司数据失败 - 公司ID {similar_company.id}: {str(e)}")
+                            contact_count = action_count = project_count = 0
                         
                         similar_companies_list.append({
                             'id': similar_company.id,
                             'company_name': similar_company.company_name,
-                            'company_code': similar_company.company_code,
-                            'owner_name': similar_company.owner.real_name if similar_company.owner else None,
+                            'company_code': similar_company.company_code or '',
+                            'owner_name': (similar_company.owner.real_name if similar_company.owner and hasattr(similar_company.owner, 'real_name') else None) or 
+                                         (similar_company.owner.username if similar_company.owner and hasattr(similar_company.owner, 'username') else None) or '无所有者',
                             'created_at': similar_company.created_at.strftime('%Y-%m-%d') if similar_company.created_at else None,
                             'contact_count': contact_count,
                             'action_count': action_count,
@@ -2302,6 +2438,10 @@ def detect_duplicates():
         
         # 按最高匹配度排序重复建议组
         duplicate_suggestions.sort(key=lambda x: x['max_similarity'], reverse=True)
+        
+        current_app.logger.info(f"重复检测完成: 找到 {len(duplicate_suggestions)} 个重复组")
+        for i, suggestion in enumerate(duplicate_suggestions):
+            current_app.logger.info(f"  重复组 {i+1}: 目标 '{suggestion['target_company']['company_name']}', 相似公司 {len(suggestion['similar_companies'])} 个, 最高匹配度 {suggestion['max_similarity']:.3f}")
         
         return jsonify({
             'success': True,
@@ -2332,7 +2472,7 @@ def get_merge_preview():
             return jsonify({'success': False, 'message': '参数错误'}), 400
         
         # 获取目标公司
-        target_company = Company.query.get(target_company_id)
+        target_company = Company.query.filter_by(id=target_company_id, is_deleted=False).first()
         if not target_company:
             return jsonify({'success': False, 'message': '目标客户不存在'}), 404
         
@@ -2375,7 +2515,7 @@ def get_merge_preview():
             })
         
         # 获取关联的项目（通过end_user字段）
-        source_companies = Company.query.filter(Company.id.in_(source_company_ids)).all()
+        source_companies = Company.query.filter(Company.id.in_(source_company_ids), Company.is_deleted == False).all()
         source_company_names = [c.company_name for c in source_companies]
         
         projects = db.session.query(Project).filter(
@@ -2461,13 +2601,13 @@ def execute_merge():
             return jsonify({'success': False, 'message': '参数错误'}), 400
         
         # 获取目标公司
-        target_company = Company.query.get(target_company_id)
+        target_company = Company.query.filter_by(id=target_company_id, is_deleted=False).first()
         if not target_company:
             db.session.rollback()
             return jsonify({'success': False, 'message': '目标客户不存在'}), 404
         
         # 获取源公司列表
-        source_companies = Company.query.filter(Company.id.in_(source_company_ids)).all()
+        source_companies = Company.query.filter(Company.id.in_(source_company_ids), Company.is_deleted == False).all()
         if len(source_companies) != len(source_company_ids):
             db.session.rollback()
             return jsonify({'success': False, 'message': '部分源客户不存在'}), 404
@@ -2482,7 +2622,8 @@ def execute_merge():
             'merged_duplicate_contacts': 0,
             'merged_actions': 0,
             'updated_projects': 0,
-            'deleted_companies': 0
+            'deleted_companies': 0,
+            'added_shared_users': 0
         }
         
         # 添加详细日志
@@ -2536,11 +2677,26 @@ def execute_merge():
                 # 项目的归属不变，只更新end_user字段
                 merge_summary['updated_projects'] += 1
         
-        # 4. 合并共享信息
+        # 4. 合并共享信息，确保被合并客户的所有者能访问目标客户
+        original_shared_users = set(target_company.shared_with_users or [])
         target_shared_users = set(target_company.shared_with_users or [])
+        
+        # 添加所有源公司的共享用户
         for source_company in source_companies:
             if source_company.shared_with_users:
                 target_shared_users.update(source_company.shared_with_users)
+            
+            # 重要：将被合并客户的所有者添加到目标客户的共享列表中
+            if source_company.owner_id and source_company.owner_id != target_company.owner_id:
+                target_shared_users.add(source_company.owner_id)
+                current_app.logger.info(f"将被合并客户 {source_company.company_name} 的所有者(ID: {source_company.owner_id})添加到目标客户的共享列表")
+        
+        # 确保目标客户的所有者不在共享列表中（所有者默认有完全访问权限）
+        if target_company.owner_id and target_company.owner_id in target_shared_users:
+            target_shared_users.remove(target_company.owner_id)
+        
+        # 统计新增的共享用户数量
+        merge_summary['added_shared_users'] = len(target_shared_users - original_shared_users)
         
         target_company.shared_with_users = list(target_shared_users)
         
@@ -2587,31 +2743,85 @@ def execute_merge():
         }), 500
 
 def normalize_company_name(name):
-    """标准化公司名称，用于重复检测"""
+    """标准化公司名称，用于重复检测 - 更精确的匹配逻辑"""
     if not name:
         return ""
     
-    # 去除常见的公司后缀
-    suffixes = [
-        "有限公司", "有限责任公司", "股份有限公司", "股份公司", 
-        "公司", "集团", "科技", "实业", "企业",
-        "Co.", "Ltd", "Inc", "Corp", "LLC"
+    import re
+    
+    # 1. 清理不可见字符和额外空格
+    normalized = re.sub(r'\s+', '', name.strip())  # 去除所有空白字符
+    normalized = re.sub(r'[^\w\u4e00-\u9fff]', '', normalized)  # 只保留字母、数字和中文
+    
+    # 2. 去除地名前缀（更精确的地名识别）
+    location_prefixes = [
+        # 直辖市
+        "北京市", "上海市", "天津市", "重庆市",
+        "北京", "上海", "天津", "重庆",
+        # 常见省份简称
+        "广东省", "浙江省", "江苏省", "山东省", "河南省", "四川省", "湖北省", "湖南省",
+        "广东", "浙江", "江苏", "山东", "河南", "四川", "湖北", "湖南",
+        "福建", "安徽", "江西", "云南", "贵州", "山西", "陕西", "甘肃",
+        "青海", "海南", "台湾", "香港", "澳门",
+        # 常见城市
+        "深圳市", "广州市", "杭州市", "南京市", "苏州市", "无锡市", "常州市",
+        "深圳", "广州", "杭州", "南京", "苏州", "无锡", "常州",
+        "宁波", "温州", "东莞", "佛山", "中山", "珠海", "厦门",
+        "青岛", "大连", "沈阳", "长春", "哈尔滨", "西安", "成都",
+        "武汉", "长沙", "郑州", "济南", "石家庄", "太原", "呼和浩特",
+        # 开发区等
+        "经济技术开发区", "高新技术开发区", "工业园区", "科技园区",
+        "开发区", "高新区", "工业区", "科技园"
     ]
     
-    normalized = name.strip()
-    for suffix in suffixes:
+    # 按长度排序，先匹配长的地名
+    location_prefixes.sort(key=len, reverse=True)
+    
+    for prefix in location_prefixes:
+        if normalized.startswith(prefix):
+            normalized = normalized[len(prefix):]
+            break
+    
+    # 3. 去除公司类型后缀（只保留核心业务相关的后缀）
+    business_suffixes = [
+        # 标准公司类型
+        "有限责任公司", "股份有限公司", "有限公司", "股份公司",
+        # 特殊组织形式
+        "集团有限公司", "控股有限公司", "投资有限公司",
+        "集团股份有限公司", "控股股份有限公司",
+        # 简化形式
+        "有限", "股份", "集团", "控股", "投资",
+        # 英文后缀
+        "Co.,Ltd", "Co.Ltd", "Ltd", "Inc", "Corp", "LLC",
+        "Company", "Corporation", "Limited", "Incorporated"
+    ]
+    
+    # 按长度排序，先匹配长的后缀
+    business_suffixes.sort(key=len, reverse=True)
+    
+    for suffix in business_suffixes:
         if normalized.endswith(suffix):
-            normalized = normalized[:-len(suffix)].strip()
+            normalized = normalized[:-len(suffix)]
+            break  # 只删除一个后缀
     
-    # 去除空格和特殊字符
-    normalized = ''.join(normalized.split())
+    # 4. 再次清理可能的空格
+    normalized = re.sub(r'\s+', '', normalized)
     
-    return normalized.lower()
+    result = normalized.lower()
+    
+    # 调试日志
+    if name != result:
+        current_app.logger.debug(f"精确标准化: '{name}' -> '{result}'")
+    
+    return result
 
 def find_similar_companies(target_company, all_companies):
     """查找相似的公司，返回带匹配度的结果"""
     similar_companies = []
     target_normalized = normalize_company_name(target_company.company_name)
+    
+    # 添加调试日志
+    current_app.logger.debug(f"查找相似公司: 目标公司 '{target_company.company_name}' -> 标准化后: '{target_normalized}'")
     
     for company in all_companies:
         if company.id == target_company.id:
@@ -2619,20 +2829,52 @@ def find_similar_companies(target_company, all_companies):
             
         company_normalized = normalize_company_name(company.company_name)
         
-        # 计算相似度
-        similarity = difflib.SequenceMatcher(None, target_normalized, company_normalized).ratio()
+        # 更严格的相似度计算逻辑
+        # 1. 首先检查原始名称的完全匹配（处理空格后）
+        target_cleaned = re.sub(r'\s+', '', target_company.company_name.strip())
+        company_cleaned = re.sub(r'\s+', '', company.company_name.strip())
         
-        # 增加包含关系的匹配度加权
-        containment_bonus = 0
-        if len(target_normalized) > 2 and len(company_normalized) > 2:
-            if target_normalized in company_normalized or company_normalized in target_normalized:
-                containment_bonus = 0.2
+        if target_cleaned == company_cleaned:
+            final_score = 1.0
+            current_app.logger.info(f"发现原始名称完全匹配: '{target_company.company_name}' vs '{company.company_name}'")
+        else:
+            # 2. 检查标准化后的名称匹配
+            if target_normalized == company_normalized:
+                # 标准化后相同，但原始名称不同（前缀或后缀差异）
+                final_score = 0.95  # 高匹配度但不是100%
+                current_app.logger.info(f"发现标准化后匹配: '{target_company.company_name}' vs '{company.company_name}' (标准化后都是: '{target_normalized}')")
+            else:
+                # 3. 检查核心企业名称的长度，太短的不作为匹配候选
+                if len(target_normalized) < 3 or len(company_normalized) < 3:
+                    final_score = 0  # 跳过太短的名称
+                else:
+                    # 4. 计算基础相似度
+                    similarity = difflib.SequenceMatcher(None, target_normalized, company_normalized).ratio()
+                    
+                    # 5. 更严格的包含关系检查
+                    containment_bonus = 0
+                    if len(target_normalized) >= 4 and len(company_normalized) >= 4:
+                        # 只有当名称足够长时才考虑包含关系
+                        if target_normalized in company_normalized or company_normalized in target_normalized:
+                            # 计算包含关系的权重，避免过度匹配
+                            shorter_len = min(len(target_normalized), len(company_normalized))
+                            longer_len = max(len(target_normalized), len(company_normalized))
+                            length_ratio = shorter_len / longer_len
+                            
+                            # 只有当长度比例合理时才给予包含关系加权
+                            if length_ratio > 0.8:  # 提高长度比例要求
+                                containment_bonus = 0.1 * length_ratio  # 降低加权
+                    
+                    final_score = min(1.0, similarity + containment_bonus)
         
-        # 最终匹配度
-        final_score = min(1.0, similarity + containment_bonus)
+        # 调试高匹配度的情况
+        if final_score > 0.8:
+            current_app.logger.info(f"高匹配度 {final_score:.3f}: '{target_company.company_name}' vs '{company.company_name}'")
+            current_app.logger.info(f"  标准化: '{target_normalized}' vs '{company_normalized}'")
+            current_app.logger.info(f"  长度: {len(target_normalized)} vs {len(company_normalized)}")
         
-        # 降低匹配度阈值，提供更多重复可能性建议
-        if final_score > 0.4:  # 从0.6降低到0.4，提供更多建议
+        # 提高匹配度阈值，减少误匹配
+        if final_score > 0.85:  # 从0.4提高到0.85，更严格的匹配
             similar_companies.append({
                 'company': company,
                 'similarity': final_score,

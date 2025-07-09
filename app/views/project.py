@@ -281,7 +281,7 @@ def view_project(project_id):
     
     # 查询直接用户
     if project.end_user:
-        end_user_company = Company.query.filter_by(company_name=project.end_user).first()
+        end_user_company = Company.query.filter_by(company_name=project.end_user, is_deleted=False).first()
         if end_user_company:
             can_view = can_view_company(current_user, end_user_company)
             logger.debug(f"权限检查 - 用户 {current_user.username} (ID: {current_user.id}) 访问企业 '{end_user_company.company_name}' (ID: {end_user_company.id}, 拥有者: {end_user_company.owner_id}): {can_view}")
@@ -294,7 +294,7 @@ def view_project(project_id):
     
     # 查询设计院及顾问
     if project.design_issues:
-        design_company = Company.query.filter_by(company_name=project.design_issues).first()
+        design_company = Company.query.filter_by(company_name=project.design_issues, is_deleted=False).first()
         if design_company and can_view_company(current_user, design_company):
             related_companies['design_issues'] = design_company.id
         else:
@@ -302,7 +302,7 @@ def view_project(project_id):
     
     # 查询经销商
     if project.dealer:
-        dealer_company = Company.query.filter_by(company_name=project.dealer).first()
+        dealer_company = Company.query.filter_by(company_name=project.dealer, is_deleted=False).first()
         if dealer_company and can_view_company(current_user, dealer_company):
             related_companies['dealer'] = dealer_company.id
         else:
@@ -310,7 +310,7 @@ def view_project(project_id):
     
     # 查询总承包单位
     if project.contractor:
-        contractor_company = Company.query.filter_by(company_name=project.contractor).first()
+        contractor_company = Company.query.filter_by(company_name=project.contractor, is_deleted=False).first()
         if contractor_company and can_view_company(current_user, contractor_company):
             related_companies['contractor'] = contractor_company.id
         else:
@@ -318,7 +318,7 @@ def view_project(project_id):
     
     # 查询系统集成商
     if project.system_integrator:
-        integrator_company = Company.query.filter_by(company_name=project.system_integrator).first()
+        integrator_company = Company.query.filter_by(company_name=project.system_integrator, is_deleted=False).first()
         if integrator_company and can_view_company(current_user, integrator_company):
             related_companies['system_integrator'] = integrator_company.id
         else:
@@ -840,7 +840,7 @@ def edit_project(project_id):
                 
             # 查找匹配的企业ID并更新活跃状态
             for company_name in set(related_companies):
-                company = Company.query.filter_by(company_name=company_name).first()
+                company = Company.query.filter_by(company_name=company_name, is_deleted=False).first()
                 if company:
                     check_company_activity(company_id=company.id, days_threshold=1)
             
@@ -1824,31 +1824,31 @@ def add_action_for_project(project_id):
     related_companies_dict = {}
     
     if project.end_user:
-        company = Company.query.filter_by(company_name=project.end_user).first()
+        company = Company.query.filter_by(company_name=project.end_user, is_deleted=False).first()
         if company:
             related_companies.append(company)
             related_companies_dict[company.id] = company
     
     if project.design_issues:
-        company = Company.query.filter_by(company_name=project.design_issues).first()
+        company = Company.query.filter_by(company_name=project.design_issues, is_deleted=False).first()
         if company and company.id not in related_companies_dict:
             related_companies.append(company)
             related_companies_dict[company.id] = company
     
     if project.contractor:
-        company = Company.query.filter_by(company_name=project.contractor).first()
+        company = Company.query.filter_by(company_name=project.contractor, is_deleted=False).first()
         if company and company.id not in related_companies_dict:
             related_companies.append(company)
             related_companies_dict[company.id] = company
     
     if project.system_integrator:
-        company = Company.query.filter_by(company_name=project.system_integrator).first()
+        company = Company.query.filter_by(company_name=project.system_integrator, is_deleted=False).first()
         if company and company.id not in related_companies_dict:
             related_companies.append(company)
             related_companies_dict[company.id] = company
     
     if project.dealer:
-        company = Company.query.filter_by(company_name=project.dealer).first()
+        company = Company.query.filter_by(company_name=project.dealer, is_deleted=False).first()
         if company and company.id not in related_companies_dict:
             related_companies.append(company)
             related_companies_dict[company.id] = company
@@ -1859,7 +1859,7 @@ def add_action_for_project(project_id):
     company_contacts = []
     
     if default_company_id and default_company_id.isdigit():
-        selected_company = Company.query.get(int(default_company_id))
+        selected_company = Company.query.filter_by(id=int(default_company_id), is_deleted=False).first()
         if selected_company:
             company_contacts = Contact.query.filter_by(company_id=selected_company.id).all()
     elif related_companies:
@@ -1908,7 +1908,7 @@ def add_action_for_project(project_id):
 def get_company_contacts(company_id):
     """获取企业联系人API"""
     try:
-        company = Company.query.get_or_404(company_id)
+        company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
         contacts = Contact.query.filter_by(company_id=company_id).all()
         
         result = [{

@@ -1114,7 +1114,7 @@ def get_project_customers(project_id):
         # 添加直接用户公司（如果存在）
         if project.end_user:
             print(f"查找直接用户: {project.end_user}")
-            end_user_company = Company.query.filter_by(company_name=project.end_user).first()
+            end_user_company = Company.query.filter_by(company_name=project.end_user, is_deleted=False).first()
             if end_user_company:
                 companies.append({
                     'id': end_user_company.id,
@@ -1125,7 +1125,7 @@ def get_project_customers(project_id):
         # 添加设计院公司（如果存在）
         if project.design_issues:
             print(f"查找设计院: {project.design_issues}")
-            design_company = Company.query.filter_by(company_name=project.design_issues).first()
+            design_company = Company.query.filter_by(company_name=project.design_issues, is_deleted=False).first()
             if design_company:
                 companies.append({
                     'id': design_company.id,
@@ -1136,7 +1136,7 @@ def get_project_customers(project_id):
         # 添加总承包单位（如果存在）
         if project.contractor:
             print(f"查找总承包单位: {project.contractor}")
-            contractor_company = Company.query.filter_by(company_name=project.contractor).first()
+            contractor_company = Company.query.filter_by(company_name=project.contractor, is_deleted=False).first()
             if contractor_company:
                 companies.append({
                     'id': contractor_company.id,
@@ -1147,7 +1147,7 @@ def get_project_customers(project_id):
         # 添加系统集成商（如果存在）
         if project.system_integrator:
             print(f"查找系统集成商: {project.system_integrator}")
-            si_company = Company.query.filter_by(company_name=project.system_integrator).first()
+            si_company = Company.query.filter_by(company_name=project.system_integrator, is_deleted=False).first()
             if si_company:
                 companies.append({
                     'id': si_company.id,
@@ -1158,7 +1158,7 @@ def get_project_customers(project_id):
         # 添加经销商（如果存在）
         if project.dealer:
             print(f"查找经销商: {project.dealer}")
-            dealer_company = Company.query.filter_by(company_name=project.dealer).first()
+            dealer_company = Company.query.filter_by(company_name=project.dealer, is_deleted=False).first()
             if dealer_company:
                 companies.append({
                     'id': dealer_company.id,

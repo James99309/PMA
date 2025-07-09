@@ -51,8 +51,8 @@ def get_companies_by_type(company_type):
         return jsonify({'error': '无效的公司类型'}), 400
 
     try:
-        # 获取所有该类型的企业（不限制权限，显示所有）
-        companies = Company.query.filter_by(company_type=company_type).order_by(Company.company_name).all()
+        # 获取所有该类型的企业（过滤已删除的记录）
+        companies = Company.query.filter_by(company_type=company_type, is_deleted=False).order_by(Company.company_name).all()
         
         # 获取有权限查看的企业ID列表
         viewable_companies = get_viewable_data(Company, current_user).filter_by(company_type=company_type).all()

@@ -339,17 +339,21 @@ def get_viewable_data(model_class, user, special_filters=None):
         # 基于四级权限系统的数据访问控制
         permission_level = user.get_permission_level('customer')
         
+        # 为Company模型添加is_deleted过滤条件
+        base_filters = []
+        if model_class.__name__ == 'Company':
+            base_filters.append(model_class.is_deleted == False)
+        
         if permission_level == 'system':
             # 系统级权限：可以查看所有客户数据
-            return model_class.query.filter(*special_filters if special_filters else [])
+            all_filters = base_filters + (special_filters if special_filters else [])
+            return model_class.query.filter(*all_filters)
         elif permission_level == 'company' and user.company_name:
             # 企业级权限：可以查看企业下所有客户数据
             from app.models.user import User
             company_user_ids = [u.id for u in User.query.filter_by(company_name=user.company_name).all()]
-            return model_class.query.filter(
-                model_class.owner_id.in_(company_user_ids),
-                *special_filters if special_filters else []
-            )
+            all_filters = base_filters + [model_class.owner_id.in_(company_user_ids)] + (special_filters if special_filters else [])
+            return model_class.query.filter(*all_filters)
         elif permission_level == 'department' and user.department and user.company_name:
             # 部门级权限：可以查看部门下所有客户数据
             from app.models.user import User
@@ -357,10 +361,8 @@ def get_viewable_data(model_class, user, special_filters=None):
                 User.department == user.department,
                 User.company_name == user.company_name
             ).all()]
-            return model_class.query.filter(
-                model_class.owner_id.in_(dept_user_ids),
-                *special_filters if special_filters else []
-            )
+            all_filters = base_filters + [model_class.owner_id.in_(dept_user_ids)] + (special_filters if special_filters else [])
+            return model_class.query.filter(*all_filters)
         
         # 个人级权限或其他情况：基础权限控制
         viewable_user_ids = [user.id]
@@ -388,10 +390,8 @@ def get_viewable_data(model_class, user, special_filters=None):
         viewable_user_ids = list(set(viewable_user_ids))
         
         # 基于权限管理系统的数据访问控制
-        return model_class.query.filter(
-            model_class.owner_id.in_(viewable_user_ids),
-            *special_filters
-        )
+        all_filters = base_filters + [model_class.owner_id.in_(viewable_user_ids)] + (special_filters if special_filters else [])
+        return model_class.query.filter(*all_filters)
     
     # 行动记录的特殊处理
     if model_class.__name__ == 'Action':

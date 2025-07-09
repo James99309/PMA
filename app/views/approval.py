@@ -252,7 +252,7 @@ def start_approval():
         business_obj = Quotation.query.get(object_id)
     elif object_type == 'customer':
         from app.models.customer import Company
-        business_obj = Company.query.get(object_id)
+        business_obj = Company.query.filter_by(id=object_id, is_deleted=False).first()
     
     if not business_obj:
         flash(f'找不到业务对象: {object_type}:{object_id}', 'danger')
@@ -298,7 +298,7 @@ def start_approval():
             obj = Quotation.query.get(object_id)
         elif object_type == 'customer':
             from app.models.customer import Company
-            obj = Company.query.get(object_id)
+            obj = Company.query.filter_by(id=object_id, is_deleted=False).first()
         else:
             obj = None
         
@@ -611,7 +611,7 @@ def check_required_fields_api():
             obj = Quotation.query.get(object_id)
         elif object_type == 'customer':
             from app.models.customer import Company
-            obj = Company.query.get(object_id)
+            obj = Company.query.filter_by(id=object_id, is_deleted=False).first()
         else:
             return jsonify({
                 'success': False,
