@@ -41,10 +41,7 @@
                 {{ render_button(_('编辑客户'), url_for('customer.edit_company', company_id=company.id), color='primary', size='md') }}
                 {% endif %}
                 {% if has_permission('customer', 'delete') and can_edit_data(company, current_user) %}
-                <form method="post" action="{{ url_for('customer.delete_company', company_id=company.id) }}" style="display:inline;">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    {{ render_button(_('删除客户'), type='submit', color='danger', icon='fas fa-trash', size='md', attrs='onclick="return confirm(\"' + _('确认删除') + '？\");"') }}
-                </form>
+                {{ render_button(_('删除客户'), '#', color='danger', icon='fas fa-trash', size='md', attrs='id="deleteCompanyBtn" data-company-id="' + company.id|string + '"') }}
                 {% endif %}
             </div>
         </div>
@@ -814,6 +811,8 @@
     .reply-delete:hover { text-decoration: underline; }
 </style>
 
+{% endblock %}
+
 {% block scripts %}
 {{ super() }}
 <!-- 确保jQuery加载完成 -->
@@ -1008,5 +1007,204 @@ document.addEventListener('DOMContentLoaded', function() {
 {% if can_change_company_owner(current_user, company) %}
 {{ render_change_owner_modal('changeOwnerModal', url_for('customer.change_company_owner', company_id=company.id), all_users, company.owner_id, user_tree_data) }}
 {% endif %}
-{% endblock %}
+
+<!-- 删除确认模态框 -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteConfirmModalLabel">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    {{ _('删除企业确认') }}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="deleteConfirmModalBody">
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">{{ _('加载中...') }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" id="deleteConfirmModalFooter">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('取消') }}</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">{{ _('确认删除') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 删除确认功能
+document.addEventListener('DOMContentLoaded', function() {
+    const deleteBtn = document.getElementById('deleteCompanyBtn');
+    const deleteModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+    
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', function() {
+            const companyId = this.dataset.companyId;
+            showDeleteConfirm(companyId);
+        });
+    }
+    
+    function showDeleteConfirm(companyId) {
+        const modalBody = document.getElementById('deleteConfirmModalBody');
+        const confirmBtn = document.getElementById('confirmDeleteBtn');
+        
+        // 显示加载状态
+        modalBody.innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                </div>
+            </div>
+        `;
+        
+        deleteModal.show();
+        
+        // 获取删除确认数据
+        fetch('{{ url_for("customer.api_delete_confirm", company_id=0) }}'.replace('0', companyId))
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    modalBody.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+                    return;
+                }
+                
+                modalBody.innerHTML = renderDeleteConfirmContent(data);
+                
+                // 设置确认删除按钮事件
+                confirmBtn.onclick = function() {
+                    executeDelete(companyId);
+                };
+            })
+            .catch(error => {
+                modalBody.innerHTML = '<div class="alert alert-danger">加载删除确认信息失败</div>';
+            });
+    }
+    
+    function executeDelete(companyId) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ url_for("customer.delete_company", company_id=0) }}'.replace('0', companyId);
+        
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrf_token';
+        csrfInput.value = '{{ csrf_token() }}';
+        
+        const forceInput = document.createElement('input');
+        forceInput.type = 'hidden';
+        forceInput.name = 'force_delete';
+        forceInput.value = 'true';
+        
+        form.appendChild(csrfInput);
+        form.appendChild(forceInput);
+        document.body.appendChild(form);
+        form.submit();
+    }
+    
+    function renderDeleteConfirmContent(data) {
+        const { company, impact_data } = data;
+        
+        let html = `
+            <div class="alert alert-warning">
+                <strong>注意：</strong>删除企业将永久删除该企业及其关联的所有数据，此操作不可恢复！
+            </div>
+            
+            <div class="mb-3">
+                <h6>要删除的企业：</h6>
+                <div class="card border-danger">
+                    <div class="card-body py-2">
+                        <strong>${company.name}</strong>
+                        ${company.type ? `<span class="badge bg-secondary ms-2">${company.type}</span>` : ''}
+                        ${company.industry ? `<span class="badge bg-info ms-1">${company.industry}</span>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        if (impact_data.total_affected > 0) {
+            html += `
+                <div class="alert alert-info">
+                    <h6 class="alert-heading">影响数据统计</h6>
+                    <p class="mb-0">删除此企业将影响 <strong>${impact_data.total_affected}</strong> 条关联数据</p>
+                </div>
+                
+                <div class="row">
+            `;
+            
+            // 渲染各类关联数据
+            if (impact_data.contacts && impact_data.contacts.length > 0) {
+                html += renderImpactCard('联系人', impact_data.contacts, 'warning', 'fas fa-users');
+            }
+            
+            if (impact_data.pricing_orders && impact_data.pricing_orders.length > 0) {
+                html += renderImpactCard('批价单', impact_data.pricing_orders, 'danger', 'fas fa-file-invoice-dollar');
+            }
+            
+            if (impact_data.settlement_orders && impact_data.settlement_orders.length > 0) {
+                html += renderImpactCard('结算单', impact_data.settlement_orders, 'danger', 'fas fa-file-contract');
+            }
+            
+            if (impact_data.projects && impact_data.projects.length > 0) {
+                html += renderImpactCard('项目引用', impact_data.projects, 'info', 'fas fa-project-diagram');
+            }
+            
+            html += '</div>';
+        } else {
+            html += `
+                <div class="alert alert-success">
+                    <h6 class="alert-heading">无关联数据</h6>
+                    <p class="mb-0">此企业没有关联的数据，可以安全删除。</p>
+                </div>
+            `;
+        }
+        
+        return html;
+    }
+    
+    function renderImpactCard(title, items, color, icon) {
+        const displayItems = items.slice(0, 5);
+        const remaining = items.length - 5;
+        
+        let html = `
+            <div class="col-md-6 mb-3">
+                <div class="card border-${color}">
+                    <div class="card-header bg-${color} ${color === 'warning' ? 'text-dark' : 'text-white'}">
+                        <h6 class="mb-0">
+                            <i class="${icon}"></i>
+                            ${title} (${items.length})
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-group list-group-flush">
+        `;
+        
+        displayItems.forEach(item => {
+            if (title === '联系人') {
+                html += `<li class="list-group-item py-1">${item.name} <small class="text-muted">(${item.owner})</small></li>`;
+            } else if (title === '批价单' || title === '结算单') {
+                html += `<li class="list-group-item py-1">${item.number} <span class="badge bg-secondary">${item.status}</span></li>`;
+            } else if (title === '项目引用') {
+                html += `<li class="list-group-item py-1">${item.name} <span class="badge bg-secondary">${item.status}</span></li>`;
+            }
+        });
+        
+        if (remaining > 0) {
+            html += `<li class="list-group-item py-1 text-muted">还有 ${remaining} 个${title}...</li>`;
+        }
+        
+        html += `
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        return html;
+    }
+});
+</script>
+
 {% endblock %} 

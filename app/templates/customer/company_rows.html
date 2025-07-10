@@ -1,0 +1,32 @@
+{% from 'macros/ui_helpers.html' import render_owner, render_datetime %}
+{% import 'macros/ui_helpers.html' as ui %}
+
+{% for company in companies %}
+<tr>
+    {% if has_permission('customer', 'delete') %}
+    <td class="px-3">
+        <div class="form-check">
+            <input class="form-check-input company-checkbox" type="checkbox" value="{{ company.id }}" 
+                   {% if company.owner_id != current_user.id and current_user.role != 'admin' %}disabled{% endif %}>
+        </div>
+    </td>
+    {% endif %}
+    <td class="px-3">{{ render_owner(company.owner) }}</td>
+    <td class="px-3">
+        <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="text-decoration-none">
+            {{ company.company_name }}
+        </a>
+        {% if company.owner_id != current_user.id and current_user.id in company.contact_owner_ids %}
+        <span class="badge bg-info ms-1" style="font-size: 0.7em;">{{ _('已创建联系人') }}</span>
+        {% endif %}
+    </td>
+    <td class="px-3">{{ company.company_type|company_type_label if company.company_type else '' }}</td>
+    <td class="px-3">{{ company.industry|industry_label if company.industry else '' }}</td>
+    <td class="px-3">{{ country_code_to_name[company.country] if (company.country and company.country in country_code_to_name) else (company.country if company.country else '') }}</td>
+    <td class="px-3">{{ company.region if company.region else '' }}</td>
+    <td class="px-3">{{ company.address if company.address else '' }}</td>
+    <td class="px-3">{{ ui.render_status_badge(company.status) }}</td>
+    <td class="px-3">{{ render_datetime(company.updated_at) }}</td>
+    <td class="px-3">{{ render_datetime(company.created_at) }}</td>
+</tr>
+{% endfor %}

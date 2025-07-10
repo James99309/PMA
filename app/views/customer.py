@@ -35,9 +35,39 @@ customer = Blueprint('customer', __name__)
 @permission_required('customer', 'view')
 def list_companies():
     search = request.args.get('search', '')
-
-    # 字段筛选逻辑已移除，统一初始化查询
+    
+    # 滚动加载参数
+    offset = request.args.get('offset', 0, type=int)
+    limit = request.args.get('limit', 20, type=int)
+    
+    # 限制每次加载数量的范围
+    if limit not in [10, 20, 30, 50]:
+        limit = 20
+    
+    # 初始化查询：使用权限控制
     query = get_viewable_data(Company, current_user)
+    
+    # 搜索过滤
+    if search:
+        query = query.filter(Company.company_name.ilike(f'%{search}%'))
+    
+    # 筛选条件
+    owner_filter = request.args.get('owner_filter')
+    company_type_filter = request.args.get('company_type')
+    industry_filter = request.args.get('industry')
+    country_filter = request.args.get('country')
+    status_filter = request.args.get('status_filter')
+    
+    if owner_filter:
+        query = query.filter(Company.owner_id == owner_filter)
+    if company_type_filter:
+        query = query.filter(Company.company_type == company_type_filter)
+    if industry_filter:
+        query = query.filter(Company.industry == industry_filter)
+    if country_filter:
+        query = query.filter(Company.country == country_filter)
+    if status_filter:
+        query = query.filter(Company.status == status_filter)
     
     # 获取排序参数
     sort_field = request.args.get('sort', 'updated_at')
@@ -45,14 +75,11 @@ def list_companies():
     
     # 验证排序字段是否有效
     valid_sort_fields = ['company_code', 'company_name', 'company_type', 'industry',
-                         'country', 'region', 'status', 'owner_id',
+                         'country', 'region', 'address', 'status', 'owner_id',
                          'updated_at', 'created_at']
 
     if sort_field not in valid_sort_fields:
-        sort_field = 'company_name'
-
-    if search:
-        query = query.filter(Company.company_name.ilike(f'%{search}%'))
+        sort_field = 'updated_at'
 
     # 添加排序
     if hasattr(Company, sort_field):
@@ -62,7 +89,133 @@ def list_companies():
         else:
             query = query.order_by(order_attr.asc())
 
-    companies = query.all()
+    # 获取总记录数
+    total_count = query.count()
+    
+    # 滚动加载查询
+    companies = query.offset(offset).limit(limit).all()
+    
+    # 计算是否还有更多数据
+    has_more = (offset + limit) < total_count
+    
+    # 预加载所有企业的所有者信息（优化：只加载当前页的数据）
+    owner_ids = [company.owner_id for company in companies if company.owner_id]
+    if owner_ids:
+        owners = {user.id: user for user in User.query.filter(User.id.in_(owner_ids)).all()}
+        for company in companies:
+            if company.owner_id and company.owner_id in owners:
+                company.owner = owners[company.owner_id]
+    
+    # 为每个公司添加联系人创建者ID列表（优化：只处理当前页的数据）
+    company_ids = [company.id for company in companies]
+    company_contact_owners = {}
+    if company_ids:
+        contact_owners = db.session.query(Contact.company_id, Contact.owner_id).filter(
+            Contact.company_id.in_(company_ids)
+        ).distinct().all()
+        
+        for company_id, owner_id in contact_owners:
+            if company_id not in company_contact_owners:
+                company_contact_owners[company_id] = []
+            company_contact_owners[company_id].append(owner_id)
+    
+    # 将映射添加到公司对象
+    for company in companies:
+        company.contact_owner_ids = company_contact_owners.get(company.id, [])
+    
+    # 获取国际化的国家名称映射
+    from app.utils.i18n import get_current_language
+    country_code_to_name = get_country_names(get_current_language())
+    
+    # 获取所有用户和唯一的owner_ids用于筛选
+    all_users = User.query.filter(User._is_active == True).order_by(User.real_name, User.username).all()
+    unique_owner_ids = {c.owner_id for c in get_viewable_data(Company, current_user).all() if c.owner_id}
+    
+    return render_template('customer/list.html', 
+                          companies=companies, 
+                          total_count=total_count,
+                          has_more=has_more,
+                          offset=offset,
+                          limit=limit,
+                          search_term=search, 
+                          sort_field=sort_field, 
+                          sort_order=sort_order,
+                          owner_filter=owner_filter,
+                          all_users=all_users,
+                          unique_owner_ids=unique_owner_ids,
+                          country_code_to_name=country_code_to_name,
+                          COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
+                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
+                          STATUS_OPTIONS=STATUS_OPTIONS)
+
+@customer.route('/api/load-more', methods=['GET'])
+@permission_required('customer', 'view')
+def load_more_companies():
+    """为滚动加载提供的API端点"""
+    # 使用与list_companies相同的逻辑，但返回JSON
+    search = request.args.get('search', '')
+    
+    # 滚动加载参数
+    offset = request.args.get('offset', 0, type=int)
+    limit = request.args.get('limit', 20, type=int)
+    
+    # 限制每次加载数量的范围
+    if limit not in [10, 20, 30, 50]:
+        limit = 20
+    
+    # 初始化查询：使用权限控制
+    query = get_viewable_data(Company, current_user)
+    
+    # 搜索过滤
+    if search:
+        query = query.filter(Company.company_name.ilike(f'%{search}%'))
+    
+    # 筛选条件
+    owner_filter = request.args.get('owner_filter')
+    company_type_filter = request.args.get('company_type')
+    industry_filter = request.args.get('industry')
+    country_filter = request.args.get('country')
+    status_filter = request.args.get('status_filter')
+    
+    if owner_filter:
+        query = query.filter(Company.owner_id == owner_filter)
+    if company_type_filter:
+        query = query.filter(Company.company_type == company_type_filter)
+    if industry_filter:
+        query = query.filter(Company.industry == industry_filter)
+    if country_filter:
+        query = query.filter(Company.country == country_filter)
+    if status_filter:
+        query = query.filter(Company.status == status_filter)
+    
+    # 获取排序参数
+    sort_field = request.args.get('sort', 'updated_at')
+    sort_order = request.args.get('order', 'desc')
+    
+    # 验证排序字段是否有效
+    valid_sort_fields = ['company_code', 'company_name', 'company_type', 'industry',
+                         'country', 'region', 'address', 'status', 'owner_id',
+                         'updated_at', 'created_at']
+
+    if sort_field not in valid_sort_fields:
+        sort_field = 'updated_at'
+
+    # 添加排序
+    if hasattr(Company, sort_field):
+        order_attr = getattr(Company, sort_field)
+        if sort_order == 'desc':
+            query = query.order_by(order_attr.desc())
+        else:
+            query = query.order_by(order_attr.asc())
+
+    # 获取总记录数
+    total_count = query.count()
+    
+    # 滚动加载查询
+    companies = query.offset(offset).limit(limit).all()
+    
+    # 计算是否还有更多数据
+    has_more = (offset + limit) < total_count
     
     # 预加载所有企业的所有者信息
     owner_ids = [company.owner_id for company in companies if company.owner_id]
@@ -74,20 +227,16 @@ def list_companies():
     
     # 为每个公司添加联系人创建者ID列表
     company_ids = [company.id for company in companies]
-    contact_owners = db.session.query(Contact.company_id, Contact.owner_id).filter(
-        Contact.company_id.in_(company_ids)
-    ).distinct().all()
-    
-    # 调试信息
-    print(f"公司ID列表: {company_ids}")
-    print(f"联系人所有者关系: {contact_owners}")
-    
-    # 创建公司ID到联系人创建者ID列表的映射
     company_contact_owners = {}
-    for company_id, owner_id in contact_owners:
-        if company_id not in company_contact_owners:
-            company_contact_owners[company_id] = []
-        company_contact_owners[company_id].append(owner_id)
+    if company_ids:
+        contact_owners = db.session.query(Contact.company_id, Contact.owner_id).filter(
+            Contact.company_id.in_(company_ids)
+        ).distinct().all()
+        
+        for company_id, owner_id in contact_owners:
+            if company_id not in company_contact_owners:
+                company_contact_owners[company_id] = []
+            company_contact_owners[company_id].append(owner_id)
     
     # 将映射添加到公司对象
     for company in companies:
@@ -96,15 +245,22 @@ def list_companies():
     # 获取国际化的国家名称映射
     from app.utils.i18n import get_current_language
     country_code_to_name = get_country_names(get_current_language())
-    return render_template('customer/list.html', 
-                          companies=companies, 
-                          search_term=search, 
-                          sort_field=sort_field, 
-                          sort_order=sort_order,
+    
+    # 渲染HTML片段
+    html = render_template('customer/company_rows.html', 
+                          companies=companies,
+                          owner_filter=owner_filter,
                           country_code_to_name=country_code_to_name,
                           COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
                           INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
                           STATUS_OPTIONS=STATUS_OPTIONS)
+    
+    return jsonify({
+        'html': html,
+        'has_more': has_more,
+        'total_count': total_count,
+        'loaded_count': offset + len(companies)
+    })
 
 @customer.route('/search', methods=['GET'])
 @permission_required('customer', 'view')
@@ -400,6 +556,225 @@ def edit_company(company_id):
                           INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
                           STATUS_OPTIONS=STATUS_OPTIONS)
 
+@customer.route('/api/delete-confirm/<int:company_id>')
+@permission_required('customer', 'delete') 
+def api_delete_confirm(company_id):
+    """API端点 - 获取删除确认数据"""
+    try:
+        company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
+        
+        # 检查删除权限
+        if not can_edit_data(company, current_user):
+            return jsonify({'error': '您没有权限删除此企业'}), 403
+
+        # 分析关联数据
+        impact_data = analyze_company_dependencies(company)
+        
+        return jsonify({
+            'company': {
+                'id': company.id,
+                'name': company.company_name,
+                'type': company.company_type,
+                'industry': company.industry
+            },
+            'impact_data': impact_data
+        })
+    except Exception as e:
+        current_app.logger.error(f"删除确认API出错 (企业ID: {company_id}): {str(e)}")
+        return jsonify({'error': f'获取删除确认信息失败: {str(e)}'}), 500
+
+@customer.route('/api/batch-delete-confirm', methods=['POST'])
+@permission_required('customer', 'delete')
+def api_batch_delete_confirm():
+    """API端点 - 获取批量删除确认数据"""
+    try:
+        if not request.is_json:
+            return jsonify({'error': '请求必须是JSON格式'}), 400
+            
+        data = request.json
+        company_ids = data.get('company_ids', [])
+        
+        if not company_ids or not isinstance(company_ids, list):
+            return jsonify({'error': '缺少要删除的企业ID列表'}), 400
+        
+        try:
+            company_ids = [int(id) for id in company_ids]
+        except ValueError:
+            return jsonify({'error': '企业ID必须是整数'}), 400
+        
+        # 获取企业列表并检查权限
+        companies = Company.query.filter(Company.id.in_(company_ids), Company.is_deleted == False).all()
+    except Exception as e:
+        current_app.logger.error(f"批量删除确认API出错: {str(e)}")
+        return jsonify({'error': f'服务器内部错误: {str(e)}'}), 500
+    
+    try:
+        companies_data = []
+        for company in companies:
+            if can_edit_data(company, current_user):
+                try:
+                    impact_data = analyze_company_dependencies(company)
+                    companies_data.append({
+                        'company': {
+                            'id': company.id,
+                            'name': company.company_name,
+                            'type': company.company_type,
+                            'industry': company.industry
+                        },
+                        'impact_data': impact_data
+                    })
+                except Exception as e:
+                    current_app.logger.error(f"分析企业 {company.id} 依赖关系时出错: {str(e)}")
+                    return jsonify({'error': f'分析企业依赖关系失败: {str(e)}'}), 500
+        
+        return jsonify({
+            'companies': companies_data,
+            'total_count': len(companies_data)
+        })
+    except Exception as e:
+        current_app.logger.error(f"批量删除确认数据处理出错: {str(e)}")
+        return jsonify({'error': f'数据处理失败: {str(e)}'}), 500
+
+def analyze_company_dependencies(company):
+    """分析企业的关联数据依赖"""
+    try:
+        impact_data = {
+            'contacts': [],
+            'projects': [],
+            'inventories': [],
+            'settlements': [],
+            'pricing_orders': [],
+            'settlement_orders': [],
+            'purchase_orders': [],
+            'actions': [],
+            'total_affected': 0
+        }
+    
+        # 检查联系人
+        try:
+            existing_contacts = Contact.query.filter_by(company_id=company.id).all()
+            if existing_contacts:
+                impact_data['contacts'] = [{'name': c.name, 'owner': c.owner.username if c.owner else 'N/A'} for c in existing_contacts]
+        except Exception as e:
+            current_app.logger.error(f"分析联系人失败: {str(e)}")
+            impact_data['contacts'] = []
+    
+        # 检查项目引用
+        try:
+            from app.models.project import Project
+            related_projects = Project.query.filter(
+                db.or_(
+                    Project.end_user == company.company_name,
+                    Project.design_issues == company.company_name,
+                    Project.contractor == company.company_name,
+                    Project.system_integrator == company.company_name,
+                    Project.dealer == company.company_name
+                )
+            ).all()
+            if related_projects:
+                impact_data['projects'] = [{'name': p.project_name, 'status': p.status} for p in related_projects]
+        except (ImportError, AttributeError) as e:
+            current_app.logger.warning(f"项目模块不可用: {str(e)}")
+            impact_data['projects'] = []
+        except Exception as e:
+            current_app.logger.error(f"分析项目引用失败: {str(e)}")
+            impact_data['projects'] = []
+    
+        # 检查库存相关数据
+        try:
+            from app.models.inventory import Inventory, Settlement, PurchaseOrder
+            inventories = Inventory.query.filter_by(company_id=company.id).all()
+            if inventories:
+                impact_data['inventories'] = [{'product': i.product.product_name if i.product else 'N/A', 'quantity': i.quantity} for i in inventories]
+            
+            settlements = Settlement.query.filter_by(company_id=company.id).all()
+            if settlements:
+                impact_data['settlements'] = [{'number': s.settlement_number, 'status': s.status} for s in settlements]
+            
+            purchase_orders = PurchaseOrder.query.filter_by(company_id=company.id).all()
+            if purchase_orders:
+                impact_data['purchase_orders'] = [{'number': po.order_number, 'status': po.status} for po in purchase_orders]
+        except (ImportError, AttributeError) as e:
+            current_app.logger.warning(f"库存模块不可用: {str(e)}")
+            impact_data['inventories'] = []
+            impact_data['settlements'] = []
+            impact_data['purchase_orders'] = []
+        except Exception as e:
+            current_app.logger.error(f"分析库存相关数据失败: {str(e)}")
+            impact_data['inventories'] = []
+            impact_data['settlements'] = []
+            impact_data['purchase_orders'] = []
+    
+        # 检查批价单和结算单
+        try:
+            from app.models.pricing_order import PricingOrder, SettlementOrder
+            pricing_orders = PricingOrder.query.filter(
+                db.or_(
+                    PricingOrder.dealer_id == company.id,
+                    PricingOrder.distributor_id == company.id
+                )
+            ).all()
+            if pricing_orders:
+                impact_data['pricing_orders'] = [{'number': po.order_number, 'status': po.status, 'role': 'dealer' if po.dealer_id == company.id else 'distributor'} for po in pricing_orders]
+            
+            settlement_orders = SettlementOrder.query.filter(
+                db.or_(
+                    SettlementOrder.distributor_id == company.id,
+                    SettlementOrder.dealer_id == company.id
+                )
+            ).all()
+            if settlement_orders:
+                impact_data['settlement_orders'] = [{'number': so.order_number, 'status': so.status, 'role': 'distributor' if so.distributor_id == company.id else 'dealer'} for so in settlement_orders]
+        except (ImportError, AttributeError) as e:
+            current_app.logger.warning(f"批价单模块不可用: {str(e)}")
+            impact_data['pricing_orders'] = []
+            impact_data['settlement_orders'] = []
+        except Exception as e:
+            current_app.logger.error(f"分析批价单和结算单失败: {str(e)}")
+            impact_data['pricing_orders'] = []
+            impact_data['settlement_orders'] = []
+    
+        # 检查行动记录
+        try:
+            related_actions = Action.query.filter_by(company_id=company.id).all()
+            if related_actions:
+                impact_data['actions'] = [{'date': a.date, 'content': a.content[:50] + '...' if len(a.content) > 50 else a.content} for a in related_actions]
+        except Exception as e:
+            current_app.logger.error(f"分析行动记录失败: {str(e)}")
+            impact_data['actions'] = []
+        
+        # 计算总影响数量
+        try:
+            impact_data['total_affected'] = (
+                len(impact_data['contacts']) + 
+                len(impact_data['projects']) + 
+                len(impact_data['inventories']) + 
+                len(impact_data['settlements']) + 
+                len(impact_data['pricing_orders']) + 
+                len(impact_data['settlement_orders']) + 
+                len(impact_data['purchase_orders']) + 
+                len(impact_data['actions'])
+            )
+        except Exception as e:
+            current_app.logger.error(f"计算总影响数量失败: {str(e)}")
+            impact_data['total_affected'] = 0
+        
+        return impact_data
+    except Exception as e:
+        current_app.logger.error(f"分析企业依赖关系完全失败: {str(e)}")
+        # 返回空的影响数据
+        return {
+            'contacts': [],
+            'projects': [],
+            'inventories': [],
+            'settlements': [],
+            'pricing_orders': [],
+            'settlement_orders': [],
+            'purchase_orders': [],
+            'actions': [],
+            'total_affected': 0
+        }
+
 @customer.route('/delete/<int:company_id>', methods=['POST'])
 @permission_required('customer', 'delete')
 def delete_company(company_id):
@@ -410,51 +785,19 @@ def delete_company(company_id):
         flash('您没有权限删除此企业', 'danger')
         return redirect(url_for('customer.list_companies'))
 
-    # === 新增：检查是否存在关联的联系人 ===
-    existing_contacts = Contact.query.filter_by(company_id=company_id).all()
-    if existing_contacts:
-        contact_names = [contact.name for contact in existing_contacts]
-        flash(f'删除失败：该客户下还有 {len(existing_contacts)} 个联系人，请先转移或删除这些联系人后再删除客户。联系人列表：{", ".join(contact_names)}', 'danger')
-        return redirect(url_for('customer.view_company', company_id=company_id))
+    # 检查是否强制删除
+    force_delete = request.form.get('force_delete') == 'true'
+    if not force_delete:
+        # 如果不是强制删除，重定向到确认页面
+        return redirect(url_for('customer.delete_confirm', company_id=company_id))
 
-    # === 新增：检查是否有项目引用该客户 ===
-    from app.models.project import Project
-    related_projects = Project.query.filter(
-        db.or_(
-            Project.end_user == company.company_name,
-            Project.design_issues == company.company_name,
-            Project.contractor == company.company_name,
-            Project.system_integrator == company.company_name,
-            Project.dealer == company.company_name
-        )
-    ).all()
-    
-    if related_projects:
-        project_info = []
-        for project in related_projects:
-            relationships = []
-            if project.end_user == company.company_name:
-                relationships.append("直接用户")
-            if project.design_issues == company.company_name:
-                relationships.append("设计院")
-            if project.contractor == company.company_name:
-                relationships.append("总承包单位")
-            if project.system_integrator == company.company_name:
-                relationships.append("系统集成商")
-            if project.dealer == company.company_name:
-                relationships.append("经销商")
-            
-            project_info.append(f"{project.project_name}({', '.join(relationships)})")
-        
-        flash(f'删除失败：该客户被 {len(related_projects)} 个项目引用，请先处理这些项目中的客户引用后再删除。相关项目：{"; ".join(project_info)}', 'danger')
-        return redirect(url_for('customer.view_company', company_id=company_id))
 
     try:
         # 记录删除历史
         try:
             ChangeTracker.log_delete(company)
         except Exception as track_err:
-            logger.warning(f"记录客户删除历史失败: {str(track_err)}")
+            current_app.logger.warning(f"记录客户删除历史失败: {str(track_err)}")
         
         # === 新增：删除客户审批实例和相关审批记录 ===
         from app.models.approval import ApprovalInstance, ApprovalRecord
@@ -474,7 +817,7 @@ def delete_company(company_id):
                 # 删除审批实例
                 db.session.delete(approval)
             
-            logger.info(f"已删除 {len(customer_approvals)} 个客户审批实例和 {approval_record_count} 个审批记录")
+            current_app.logger.info(f"已删除 {len(customer_approvals)} 个客户审批实例和 {approval_record_count} 个审批记录")
         
         # 找到与此公司相关的所有行动记录
         related_actions = Action.query.filter_by(company_id=company.id).all()
@@ -482,6 +825,55 @@ def delete_company(company_id):
         # 删除所有相关的行动记录（包括其回复，通过级联删除）
         for action in related_actions:
             db.session.delete(action)
+        
+        # === 新增：处理inventory相关记录 ===
+        from app.models.inventory import Inventory, InventoryTransaction, Settlement, SettlementDetail, PurchaseOrder
+        
+        # 删除库存变动记录
+        inventories = Inventory.query.filter_by(company_id=company.id).all()
+        for inventory in inventories:
+            # 删除库存变动记录
+            InventoryTransaction.query.filter_by(inventory_id=inventory.id).delete()
+            # 删除结算明细记录
+            SettlementDetail.query.filter_by(inventory_id=inventory.id).delete()
+            # 删除库存记录
+            db.session.delete(inventory)
+        
+        # 删除结算记录
+        Settlement.query.filter_by(company_id=company.id).delete()
+        
+        # 删除订货单记录
+        PurchaseOrder.query.filter_by(company_id=company.id).delete()
+        
+        # === 新增：处理pricing和settlement相关记录 ===
+        from app.models.pricing_order import PricingOrder, SettlementOrder, PricingOrderDetail, SettlementOrderDetail, PricingOrderApprovalRecord
+        
+        # 删除批价单相关记录
+        pricing_orders = PricingOrder.query.filter(
+            db.or_(
+                PricingOrder.dealer_id == company.id,
+                PricingOrder.distributor_id == company.id
+            )
+        ).all()
+        for po in pricing_orders:
+            # 删除批价单明细
+            PricingOrderDetail.query.filter_by(pricing_order_id=po.id).delete()
+            # 删除结算单明细
+            SettlementOrderDetail.query.filter_by(pricing_order_id=po.id).delete()
+            # 删除审批记录
+            PricingOrderApprovalRecord.query.filter_by(pricing_order_id=po.id).delete()
+            # 删除批价单
+            db.session.delete(po)
+        
+        # 删除结算单记录
+        settlement_orders = SettlementOrder.query.filter(
+            db.or_(
+                SettlementOrder.distributor_id == company.id,
+                SettlementOrder.dealer_id == company.id
+            )
+        ).all()
+        for so in settlement_orders:
+            db.session.delete(so)
             
         # 然后删除公司 (这将级联删除联系人，因为在模型中设置了cascade='all, delete-orphan')
         db.session.delete(company)
@@ -1817,6 +2209,55 @@ def batch_delete_companies():
                 for action in related_actions:
                     db.session.delete(action)
                 
+                # === 新增：处理inventory相关记录 ===
+                from app.models.inventory import Inventory, InventoryTransaction, Settlement, SettlementDetail, PurchaseOrder
+                
+                # 删除库存变动记录
+                inventories = Inventory.query.filter_by(company_id=company.id).all()
+                for inventory in inventories:
+                    # 删除库存变动记录
+                    InventoryTransaction.query.filter_by(inventory_id=inventory.id).delete()
+                    # 删除结算明细记录
+                    SettlementDetail.query.filter_by(inventory_id=inventory.id).delete()
+                    # 删除库存记录
+                    db.session.delete(inventory)
+                
+                # 删除结算记录
+                Settlement.query.filter_by(company_id=company.id).delete()
+                
+                # 删除订货单记录
+                PurchaseOrder.query.filter_by(company_id=company.id).delete()
+                
+                # === 新增：处理pricing和settlement相关记录 ===
+                from app.models.pricing_order import PricingOrder, SettlementOrder, PricingOrderDetail, SettlementOrderDetail, PricingOrderApprovalRecord
+                
+                # 删除批价单相关记录
+                pricing_orders = PricingOrder.query.filter(
+                    db.or_(
+                        PricingOrder.dealer_id == company.id,
+                        PricingOrder.distributor_id == company.id
+                    )
+                ).all()
+                for po in pricing_orders:
+                    # 删除批价单明细
+                    PricingOrderDetail.query.filter_by(pricing_order_id=po.id).delete()
+                    # 删除结算单明细
+                    SettlementOrderDetail.query.filter_by(pricing_order_id=po.id).delete()
+                    # 删除审批记录
+                    PricingOrderApprovalRecord.query.filter_by(pricing_order_id=po.id).delete()
+                    # 删除批价单
+                    db.session.delete(po)
+                
+                # 删除结算单记录
+                settlement_orders = SettlementOrder.query.filter(
+                    db.or_(
+                        SettlementOrder.distributor_id == company.id,
+                        SettlementOrder.dealer_id == company.id
+                    )
+                ).all()
+                for so in settlement_orders:
+                    db.session.delete(so)
+                
                 # 删除企业（会级联删除联系人）
                 db.session.delete(company)
                 deleted_count += 1
@@ -2620,6 +3061,7 @@ def execute_merge():
         merge_summary = {
             'merged_contacts': 0,
             'merged_duplicate_contacts': 0,
+            'merged_contact_fields': 0,
             'merged_actions': 0,
             'updated_projects': 0,
             'deleted_companies': 0,
@@ -2629,35 +3071,62 @@ def execute_merge():
         # 添加详细日志
         current_app.logger.info(f"开始合并客户: 目标={target_company_id}, 源={source_company_ids}")
         
-        # 1. 智能合并联系人
+        # 1. 智能合并联系人 - 支持字段级别的合并
         target_contacts = Contact.query.filter_by(company_id=target_company_id).all()
-        target_contact_keys = set()
+        target_contact_dict = {}
+        
+        # 建立目标联系人的姓名索引
         for tc in target_contacts:
-            # 创建联系人唯一标识（姓名+邮箱+电话）
-            key = f"{tc.name}|{tc.email or ''}|{tc.phone or ''}"
-            target_contact_keys.add(key)
+            target_contact_dict[tc.name] = tc
         
         for source_company in source_companies:
             contacts = Contact.query.filter_by(company_id=source_company.id).all()
             for contact in contacts:
-                # 检查是否是重复联系人
-                contact_key = f"{contact.name}|{contact.email or ''}|{contact.phone or ''}"
-                
-                if contact_key in target_contact_keys:
-                    # 重复联系人：合并行动记录到目标企业，然后删除联系人
+                # 检查是否存在同名联系人
+                if contact.name in target_contact_dict:
+                    # 同名联系人：合并字段信息
+                    target_contact = target_contact_dict[contact.name]
+                    
+                    # 字段级别合并：目标联系人字段为空时，使用源联系人的字段
+                    fields_to_merge = ['department', 'position', 'phone', 'email', 'notes']
+                    updated_fields = []
+                    
+                    for field in fields_to_merge:
+                        target_value = getattr(target_contact, field)
+                        source_value = getattr(contact, field)
+                        
+                        # 如果目标字段为空且源字段有值，则合并
+                        if (not target_value or target_value.strip() == '') and source_value and source_value.strip():
+                            setattr(target_contact, field, source_value)
+                            updated_fields.append(field)
+                    
+                    # 如果源联系人是主要联系人，且目标联系人不是，则更新主要联系人标识
+                    if contact.is_primary and not target_contact.is_primary:
+                        target_contact.is_primary = True
+                        updated_fields.append('is_primary')
+                    
+                    # 更新时间戳
+                    target_contact.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
+                    
+                    # 记录合并信息
+                    if updated_fields:
+                        current_app.logger.info(f"合并同名联系人 '{contact.name}' 的字段: {updated_fields}")
+                        merge_summary['merged_contact_fields'] += len(updated_fields)
+                    
+                    # 转移源联系人的行动记录到目标联系人
                     contact_actions = Action.query.filter_by(contact_id=contact.id).all()
                     for action in contact_actions:
-                        action.contact_id = None  # 解除与重复联系人的关联
+                        action.contact_id = target_contact.id
                         action.company_id = target_company_id
                     
-                    # 删除重复联系人
+                    # 删除源联系人
                     db.session.delete(contact)
                     merge_summary['merged_duplicate_contacts'] += 1
                 else:
-                    # 不重复的联系人：直接转移
+                    # 不同名的联系人：直接转移
                     contact.company_id = target_company_id
                     merge_summary['merged_contacts'] += 1
-                    target_contact_keys.add(contact_key)
+                    target_contact_dict[contact.name] = contact
         
         # 2. 合并行动记录
         for source_company in source_companies:

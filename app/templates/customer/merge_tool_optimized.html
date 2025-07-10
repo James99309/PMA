@@ -596,6 +596,11 @@ $(document).ready(function() {
             url: '{{ url_for("customer.detect_duplicates") }}',
             method: 'GET',
             success: function(response) {
+                // 清除进度条间隔
+                if (window.progressInterval) {
+                    clearInterval(window.progressInterval);
+                }
+                
                 if (response.success) {
                     duplicateSuggestions = response.data;
                     
@@ -604,41 +609,75 @@ $(document).ready(function() {
                     
                     setTimeout(function() {
                         renderDuplicateSuggestions();
-                    }, 500);
+                    }, 800);
                 } else {
                     showError(response.message || '{{ _("检测失败") }}');
                 }
             },
             error: function() {
+                // 清除进度条间隔
+                if (window.progressInterval) {
+                    clearInterval(window.progressInterval);
+                }
                 showError('{{ _("网络错误，请重试") }}');
             },
             complete: function() {
                 setTimeout(function() {
                     $('#loadingState').addClass('d-none');
-                }, 500);
+                }, 800);
             }
         });
     }
     
-    // 模拟进度更新
+    // 模拟进度更新 - 更均匀的进度分布
     function simulateProgress() {
-        const steps = [
-            { step: 1, progress: 10, delay: 200 },
-            { step: 2, progress: 35, delay: 800 },
-            { step: 3, progress: 60, delay: 1200 },
-            { step: 4, progress: 85, delay: 1600 }
-        ];
+        let currentProgress = 0;
+        let currentStep = 1;
         
-        steps.forEach(function(item) {
-            setTimeout(function() {
-                updateLoadingProgress(item.progress, item.step);
-            }, item.delay);
-        });
+        const progressInterval = setInterval(function() {
+            // 根据步骤调整进度增长速度
+            let increment;
+            if (currentStep === 1) {
+                increment = 2; // 第一步较快
+            } else if (currentStep === 2) {
+                increment = 1.5; // 第二步中等
+            } else if (currentStep === 3) {
+                increment = 1; // 第三步较慢（相似度计算）
+            } else {
+                increment = 2; // 第四步较快
+            }
+            
+            currentProgress += increment;
+            
+            // 步骤切换逻辑
+            if (currentProgress >= 20 && currentStep === 1) {
+                currentStep = 2;
+                updateLoadingProgress(currentProgress, currentStep);
+            } else if (currentProgress >= 45 && currentStep === 2) {
+                currentStep = 3;
+                updateLoadingProgress(currentProgress, currentStep);
+            } else if (currentProgress >= 75 && currentStep === 3) {
+                currentStep = 4;
+                updateLoadingProgress(currentProgress, currentStep);
+            } else if (currentProgress >= 95) {
+                // 到达95%后停止，等待实际完成
+                clearInterval(progressInterval);
+                return;
+            }
+            
+            updateLoadingProgress(currentProgress, currentStep);
+        }, 300); // 每300ms更新一次
+        
+        // 保存interval引用，以便在请求完成时清除
+        window.progressInterval = progressInterval;
     }
     
     // 更新加载进度
     function updateLoadingProgress(percentage, currentStep) {
         $('#loadingProgress').css('width', percentage + '%');
+        
+        // 显示所有步骤，并更新状态
+        $('.loading-step').removeClass('d-none');
         
         // 更新步骤状态
         for (let i = 1; i <= 4; i++) {
@@ -650,12 +689,6 @@ $(document).ready(function() {
             } else {
                 $step.removeClass('active completed');
             }
-        }
-        
-        // 显示当前步骤
-        $('.loading-step').addClass('d-none');
-        if (currentStep <= 4) {
-            $(`[data-step="${currentStep}"]`).removeClass('d-none');
         }
     }
 
