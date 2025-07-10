@@ -524,10 +524,19 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 this.showLoading();
                 const response = await fetch('/api/companies/' + this.type);
-            const data = await response.json();
-                this.companies = data || [];
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                this.companies = Array.isArray(data) ? data : [];
                 this.filteredCompanies = this.companies.slice();
                 this.renderOptions();
+                
+                if (this.companies.length === 0) {
+                    this.showNoData();
+                }
             } catch (error) {
                 console.error('加载公司数据失败:', error);
                 this.showError();
@@ -535,31 +544,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         bindEvents() {
-            // 输入框点击和聚焦事件 - 移除自动打开
+            // 输入框点击和聚焦事件 - 总是打开下拉菜单
             this.input.addEventListener('click', () => {
-                // 只有在有内容时才打开
-                if (this.input.value.trim()) {
-                    this.open();
-                }
+                this.open();
             });
             
             this.input.addEventListener('focus', () => {
-                // 只有在有内容时才打开
-                if (this.input.value.trim()) {
-                    this.open();
-                }
+                this.open();
             });
             
             // 输入事件 - 实时搜索
             this.input.addEventListener('input', (e) => {
                 const searchTerm = e.target.value;
                 this.filter(searchTerm);
-                // 只有在有搜索结果时才打开
-                if (searchTerm.trim() && this.filteredCompanies.length > 0) {
-                    this.open();
-                } else {
-                    this.close();
-                }
+                this.open(); // 总是保持打开状态
             });
             
             // 键盘事件
@@ -595,8 +593,12 @@ document.addEventListener('DOMContentLoaded', function() {
         renderOptions() {
             this.dropdown.innerHTML = '';
             
-            if (this.filteredCompanies.length === 0) {
-                this.dropdown.innerHTML = '<div class="searchable-select-no-results">未找到匹配的选项</div>';
+            if (!this.filteredCompanies || this.filteredCompanies.length === 0) {
+                if (this.companies && this.companies.length === 0) {
+                    this.dropdown.innerHTML = '<div class="searchable-select-no-results">暂无数据</div>';
+                } else {
+                    this.dropdown.innerHTML = '<div class="searchable-select-no-results">未找到匹配的选项</div>';
+                }
                 return;
             }
             
@@ -604,7 +606,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const option = document.createElement('div');
                 option.className = 'searchable-select-option';
                 
-                let displayText = company.name;
+                let displayText = company.name || '未命名';
                 if (company.owner_name && company.owner_name !== "未指定") {
                     displayText += ' | ' + company.owner_name;
                 }
@@ -653,6 +655,10 @@ document.addEventListener('DOMContentLoaded', function() {
         
         showError() {
             this.dropdown.innerHTML = '<div class="searchable-select-no-results">加载失败</div>';
+        }
+        
+        showNoData() {
+            this.dropdown.innerHTML = '<div class="searchable-select-no-results">暂无数据</div>';
         }
     }
     
@@ -833,14 +839,13 @@ async function loadSalesManagers() {
                 
                 if (company.users && company.users.length > 0) {
                     if (isVendorCompany) {
-                        // 厂商下拉菜单：不显示企业级，只显示部门级和账户（账户包括真实姓名和角色）
+                        // 厂商下拉菜单：只显示真实姓名，不显示角色信息
                         company.users.forEach(user => {
                             const option = document.createElement('option');
                             option.value = user.id;
-                            // 使用真实姓名和中文角色显示
+                            // 只显示真实姓名，不显示角色信息
                             const displayName = user.real_name || user.name;
-                            const roleDisplay = user.role_display || user.role;
-                            option.textContent = `${displayName} (${roleDisplay})`;
+                            option.textContent = displayName;
                             vendorSelect.appendChild(option);
                         });
                     }

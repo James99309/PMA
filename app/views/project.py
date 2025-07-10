@@ -2114,7 +2114,7 @@ def get_users_api():
             'users': users_data
         })
     except Exception as e:
-        logger.error(f"获取用户列表失败: {str(e)}")
+        current_app.logger.error(f"获取用户列表失败: {str(e)}")
         return jsonify({
             'success': False,
             'message': f'获取用户列表失败: {str(e)}'

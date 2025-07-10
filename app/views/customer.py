@@ -1086,6 +1086,46 @@ def add_action_api(contact_id):
         print(f"添加行动记录出错: {str(e)}\n{traceback_str}")
         return jsonify({'success': False, 'message': f'服务器处理请求时出错: {str(e)}'}), 500
 
+@customer.route('/api/companies/<company_type>')
+@permission_required('customer', 'view')
+def api_companies_by_type(company_type):
+    """API端点 - 根据类型获取企业列表"""
+    try:
+        # 获取用户可查看的企业
+        query = get_viewable_data(Company, current_user)
+        query = query.filter(Company.is_deleted == False)
+        
+        # 根据类型筛选企业
+        type_mapping = {
+            'user': ['end_user', 'customer'],
+            'designer': ['design_institute', 'consultant'],
+            'contractor': ['contractor', 'general_contractor'],
+            'integrator': ['system_integrator', 'integrator'],
+            'dealer': ['dealer', 'distributor']
+        }
+        
+        if company_type in type_mapping:
+            company_types = type_mapping[company_type]
+            query = query.filter(Company.company_type.in_(company_types))
+        
+        companies = query.order_by(Company.company_name).all()
+        
+        # 格式化返回数据
+        result = []
+        for company in companies:
+            result.append({
+                'id': company.id,
+                'name': company.company_name,
+                'type': company.company_type,
+                'owner_name': company.owner.real_name if company.owner else '未指定',
+                'is_readable': can_view_company(current_user, company)
+            })
+        
+        return jsonify(result)
+    except Exception as e:
+        current_app.logger.error(f"获取企业列表失败: {str(e)}")
+        return jsonify([])
+
 @customer.route('/api/company/search')
 @permission_required('customer', 'view')
 def search_company_api():
