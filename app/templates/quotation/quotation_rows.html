@@ -1,0 +1,49 @@
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_currency, render_currency_with_symbol, render_quotation_number, render_project_stage, render_status_badge, render_button, render_confirmation_badge %}
+
+{% for quotation in quotations %}
+<tr>
+    {% if has_permission('quotation', 'delete') %}
+    <td class="px-3">
+        <div class="form-check">
+            <input class="form-check-input quotation-checkbox" type="checkbox" value="{{ quotation.id }}">
+        </div>
+    </td>
+    {% endif %}
+    <td class="px-3">
+        <div class="d-flex align-items-center">
+            <a href="{{ url_for('quotation.view_quotation', id=quotation.id) }}">
+                {{ render_quotation_number(quotation.quotation_number) }}
+            </a>
+            <!-- 使用数据库确认徽章字段，与详情页面保持一致 -->
+            {{ render_confirmation_badge(quotation) }}
+        </div>
+    </td>
+    <td class="px-3">{{ render_owner(quotation.owner) }}</td>
+    <td class="px-3">
+        <a href="{{ url_for('project.view_project', project_id=quotation.project.id) }}" class="text-decoration-none project-link">
+            {{ quotation.project.project_name }}
+        </a>
+    </td>
+    <td class="px-3">
+        <a href="{{ url_for('quotation.edit_quotation', id=quotation.id) }}">
+            {{ render_currency_with_symbol(quotation.amount, quotation.currency) }}
+        </a>
+    </td>
+    <td class="px-3">
+        {% if quotation.project and quotation.project.current_stage %}
+            {{ render_project_stage(quotation.project.current_stage|project_stage_label('zh')) }}
+        {% else %}
+            {{ render_project_stage(_('未设置')) }}
+        {% endif %}
+    </td>
+    <td class="px-3">
+        {% if quotation.project and quotation.project.project_type %}
+            {{ render_project_type(quotation.project.project_type|project_type_label('zh')) }}
+        {% else %}
+            {{ render_project_type(_('未设置')) }}
+        {% endif %}
+    </td>
+    <td class="px-3">{{ render_datetime(quotation.updated_at) }}</td>
+    <td class="px-3">{{ render_datetime(quotation.created_at) }}</td>
+</tr>
+{% endfor %}

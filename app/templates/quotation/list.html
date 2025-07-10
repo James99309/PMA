@@ -175,6 +175,63 @@
         </div>
     </div>
 
+    <!-- 筛选器区域 -->
+    <div class="row mb-3" id="filterRow">
+        <div class="col-12">
+            <div class="card bg-light border-0">
+                <div class="card-body py-2">
+                    <div class="d-flex flex-wrap align-items-end gap-3">
+                        <!-- 负责人筛选 -->
+                        <div class="flex-shrink-0">
+                            <label class="form-label text-muted small mb-1">负责人</label>
+                            <select class="form-select form-select-sm" id="ownerFilter" style="min-width: 120px;">
+                                <option value="">全部</option>
+                                {% for user in available_users %}
+                                <option value="{{ user.id }}" {% if owner_filter and owner_filter|int == user.id %}selected{% endif %}>
+                                    {{ user.real_name or user.username }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <!-- 项目阶段筛选 -->
+                        <div class="flex-shrink-0">
+                            <label class="form-label text-muted small mb-1">项目阶段</label>
+                            <select class="form-select form-select-sm" id="projectStageFilter" style="min-width: 120px;">
+                                <option value="">全部</option>
+                                {% for option in project_stage_options %}
+                                <option value="{{ option.value }}" {% if project_stage_filter == option.value %}selected{% endif %}>
+                                    {{ option.label }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <!-- 项目类型筛选 -->
+                        <div class="flex-shrink-0">
+                            <label class="form-label text-muted small mb-1">项目类型</label>
+                            <select class="form-select form-select-sm" id="projectTypeFilter" style="min-width: 120px;">
+                                <option value="">全部</option>
+                                {% for option in project_type_options %}
+                                <option value="{{ option.value }}" {% if project_type_filter == option.value %}selected{% endif %}>
+                                    {{ option.label }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <!-- 清空筛选按钮 -->
+                        <div class="flex-shrink-0">
+                            <button id="clearFilters" class="btn btn-outline-secondary btn-sm">
+                                <i class="fas fa-times"></i> 清空筛选
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 移动端卡片视图 - 仅在小屏幕显示 -->
     <div class="d-block d-lg-none mb-4">
         {% if not quotations %}
@@ -314,58 +371,35 @@
                             </th>
                         </tr>
                     </thead>
-                    <tbody>
-                        {% for quotation in quotations %}
-                        <tr>
-                            {% if has_permission('quotation', 'delete') %}
-                            <td class="px-3">
-                                <div class="form-check">
-                                    <input class="form-check-input quotation-checkbox" type="checkbox" value="{{ quotation.id }}">
-                                </div>
+                    <tbody id="quotationTableBody">
+                        {% include 'quotation/quotation_rows.html' %}
+                        
+                        <!-- 空数据行 -->
+                        <tr id="emptyDataRow" class="{% if quotations %}d-none{% endif %}">
+                            <td colspan="9" class="text-center py-4 text-muted">
+                                <i class="fas fa-inbox fa-3x mb-3 d-block text-secondary opacity-50"></i>
+                                <h5>暂无报价单数据</h5>
+                                <p class="mb-0">尝试调整筛选条件或创建新的报价单</p>
                             </td>
-                            {% endif %}
-                            <td class="px-3">
-                                <div class="d-flex align-items-center">
-                                    <a href="{{ url_for('quotation.view_quotation', id=quotation.id) }}">
-                                        {{ render_quotation_number(quotation.quotation_number) }}
-                                    </a>
-                        <!-- 使用数据库确认徽章字段，与详情页面保持一致 -->
-                        {{ render_confirmation_badge(quotation) }}
-                                </div>
-                            </td>
-                            <td class="px-3">{{ render_owner(quotation.owner) }}</td>
-                            <td class="px-3">
-                                <a href="{{ url_for('project.view_project', project_id=quotation.project.id) }}" class="text-decoration-none project-link">
-                                    {{ quotation.project.project_name }}
-                                </a>
-                            </td>
-                            <td class="px-3">
-                                <a href="{{ url_for('quotation.edit_quotation', id=quotation.id) }}">
-                                    {{ render_currency_with_symbol(quotation.amount, quotation.currency) }}
-                                </a>
-                            </td>
-                            <td class="px-3">
-                                {% if quotation.project and quotation.project.current_stage %}
-                                    {{ render_project_stage(quotation.project.current_stage|project_stage_label('zh')) }}
-                                {% else %}
-                                    {{ render_project_stage('未设置') }}
-                                {% endif %}
-                            </td>
-                            <td class="px-3">
-                                {% if quotation.project and quotation.project.project_type %}
-                                    {{ render_project_type(quotation.project.project_type) }}
-                                {% else %}
-                                    {{ render_project_type('unknown') }}
-                                {% endif %}
-                            </td>
-                            <td class="px-3">{{ render_datetime(quotation.updated_at) }}</td>
-                            <td class="px-3">{{ render_datetime(quotation.created_at) }}</td>
                         </tr>
-                        {% endfor %}
                     </tbody>
                 </table>
             </div>
         </div>
+    </div>
+    
+    <!-- 滚动加载指示器 -->
+    <div id="loadingIndicator" class="text-center py-3 d-none">
+        <div class="spinner-border spinner-border-sm text-primary" role="status">
+            <span class="visually-hidden">加载中...</span>
+        </div>
+        <span class="ms-2 text-muted">正在加载更多数据...</span>
+    </div>
+    
+    <!-- 没有更多数据提示 -->
+    <div id="noMoreData" class="text-center py-3 text-muted d-none">
+        <i class="fas fa-check-circle me-1"></i>
+        已加载所有数据
     </div>
 </div>
 
@@ -1296,6 +1330,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const confirmBatchDeleteBtn = document.getElementById('confirmBatchDelete');
     const batchDeleteModal = new bootstrap.Modal(document.getElementById('batchDeleteModal'));
     
+    // 筛选器元素
+    const ownerFilter = document.getElementById('ownerFilter');
+    const projectTypeFilter = document.getElementById('projectTypeFilter');
+    const projectStageFilter = document.getElementById('projectStageFilter');
+    const clearFiltersBtn = document.getElementById('clearFilters');
+    
     // 更新批量删除按钮显示状态的函数
     function updateBatchDeleteButtonVisibility() {
         const checkedCount = document.querySelectorAll('.quotation-checkbox:checked').length;
@@ -1377,6 +1417,61 @@ document.addEventListener('DOMContentLoaded', function() {
                 e.preventDefault();
                 searchBtn.click();
             }
+        });
+    }
+    
+    // 筛选功能
+    function applyFilters() {
+        const currentUrl = new URL(window.location);
+        const params = new URLSearchParams();
+        
+        // 保留当前的项目搜索
+        if (projectSearch && projectSearch.value.trim()) {
+            params.set('project', projectSearch.value.trim());
+        }
+        
+        // 添加筛选参数
+        if (ownerFilter && ownerFilter.value) {
+            params.set('owner_filter', ownerFilter.value);
+        }
+        if (projectTypeFilter && projectTypeFilter.value) {
+            params.set('project_type_filter', projectTypeFilter.value);
+        }
+        if (projectStageFilter && projectStageFilter.value) {
+            params.set('project_stage_filter', projectStageFilter.value);
+        }
+        
+        // 跳转到新的URL
+        window.location.href = `{{ url_for('quotation.list_quotations') }}?${params.toString()}`;
+    }
+    
+    // 筛选器事件监听
+    if (ownerFilter) {
+        ownerFilter.addEventListener('change', applyFilters);
+    }
+    if (projectTypeFilter) {
+        projectTypeFilter.addEventListener('change', applyFilters);
+    }
+    if (projectStageFilter) {
+        projectStageFilter.addEventListener('change', applyFilters);
+    }
+    
+    // 清除筛选按钮
+    if (clearFiltersBtn) {
+        clearFiltersBtn.addEventListener('click', function() {
+            // 清除所有筛选器的值
+            if (ownerFilter) ownerFilter.value = '';
+            if (projectTypeFilter) projectTypeFilter.value = '';
+            if (projectStageFilter) projectStageFilter.value = '';
+            
+            // 保留项目搜索，只清除筛选参数
+            const params = new URLSearchParams();
+            if (projectSearch && projectSearch.value.trim()) {
+                params.set('project', projectSearch.value.trim());
+            }
+            
+            // 跳转到清除筛选后的URL
+            window.location.href = `{{ url_for('quotation.list_quotations') }}?${params.toString()}`;
         });
     }
     

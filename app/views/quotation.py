@@ -34,31 +34,48 @@ quotation = Blueprint('quotation', __name__)
 
 @quotation.route('/quotations')
 @login_required
-@permission_required('quotation', 'view')  # 添加视图权限装饰器
+@permission_required('quotation', 'view')
 def list_quotations():
     try:
         # 获取搜索参数
+        search = request.args.get('search', '')
         project_search = request.args.get('project', '')
-        project_type = request.args.get('project_type', '')
+        
+        # 滚动加载参数
+        offset = request.args.get('offset', 0, type=int)
+        limit = request.args.get('limit', 20, type=int)
+        
+        # 限制每次加载数量的范围
+        if limit not in [10, 20, 30, 50]:
+            limit = 20
         
         # 获取排序参数
-        sort_field = request.args.get('sort', 'created_at')  # 默认按创建时间排序
-        sort_order = request.args.get('order', 'desc')  # 默认降序
+        sort_field = request.args.get('sort', 'created_at')
+        sort_order = request.args.get('order', 'desc')
         
         # 使用访问控制函数构建查询
         query = get_viewable_data(Quotation, current_user)
         
         # 渠道经理默认只查看渠道跟进项目的报价单
+        project_type = request.args.get('project_type', '')
         if current_user.role and current_user.role.strip() == 'channel_manager' and not project_type:
             project_type = 'channel_follow'
         
         # 营销总监默认查看销售重点和渠道跟进项目的报价单
         if current_user.role and current_user.role.strip() == 'sales_director' and not project_type:
-            # 使用特殊标识来表示多个项目类型
             project_type = 'marketing_focus'
         
         # 标记是否已经JOIN了Project表
         project_joined = False
+        
+        # 搜索过滤 - 在报价单编号或描述中搜索
+        if search:
+            query = query.filter(
+                or_(
+                    Quotation.quotation_number.ilike(f'%{search}%'),
+                    Quotation.description.ilike(f'%{search}%')
+                )
+            )
         
         # 项目名称搜索
         if project_search:
@@ -66,25 +83,46 @@ def list_quotations():
             query = query.filter(Project.project_name.like(f'%{project_search}%'))
             project_joined = True
         
+        # 筛选条件
+        owner_filter = request.args.get('owner_filter')
+        project_type_filter = request.args.get('project_type_filter') or project_type
+        project_stage_filter = request.args.get('project_stage_filter')
+        
+        if owner_filter:
+            query = query.filter(Quotation.owner_id == owner_filter)
+        
         # 项目类型筛选
-        if project_type:
+        if project_type_filter:
             if not project_joined:
                 query = query.join(Project, Quotation.project_id == Project.id)
                 project_joined = True
             
-            if project_type == 'channel_follow':
+            if project_type_filter == 'channel_follow':
                 query = query.filter(Project.project_type.in_(['channel_follow', '渠道跟进']))
-            elif project_type == 'sales_focus':
+            elif project_type_filter == 'sales_focus':
                 query = query.filter(Project.project_type.in_(['sales_focus', '销售重点']))
-            elif project_type == 'marketing_focus':
-                # 营销总监的特殊筛选：销售重点和渠道跟进
+            elif project_type_filter == 'marketing_focus':
                 query = query.filter(Project.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进']))
             else:
-                query = query.filter(Project.project_type == project_type)
+                query = query.filter(Project.project_type == project_type_filter)
+        
+        # 项目阶段筛选
+        if project_stage_filter:
+            if not project_joined:
+                query = query.join(Project, Quotation.project_id == Project.id)
+                project_joined = True
+            query = query.filter(Project.current_stage == project_stage_filter)
+        
+        # 验证排序字段是否有效
+        valid_sort_fields = ['quotation_number', 'created_at', 'updated_at', 'total_amount', 
+                           'status', 'approval_status', 'owner_id', 'project_name', 
+                           'project_stage', 'project_type']
+        
+        if sort_field not in valid_sort_fields:
+            sort_field = 'created_at'
         
         # 处理排序
         if sort_field == 'project_name':
-            # 按项目名称排序需要关联Project表
             if not project_joined:
                 query = query.join(Project, Quotation.project_id == Project.id)
                 project_joined = True
@@ -93,7 +131,6 @@ def list_quotations():
             else:
                 query = query.order_by(Project.project_name.asc())
         elif sort_field == 'project_stage':
-            # 按项目阶段排序需要关联Project表
             if not project_joined:
                 query = query.join(Project, Quotation.project_id == Project.id)
                 project_joined = True
@@ -102,7 +139,6 @@ def list_quotations():
             else:
                 query = query.order_by(Project.current_stage.asc())
         elif sort_field == 'project_type':
-            # 按项目类型排序需要关联Project表
             if not project_joined:
                 query = query.join(Project, Quotation.project_id == Project.id)
                 project_joined = True
@@ -110,40 +146,88 @@ def list_quotations():
                 query = query.order_by(Project.project_type.desc())
             else:
                 query = query.order_by(Project.project_type.asc())
-        elif sort_field == 'owner':
-            # 按拥有人排序
+        elif sort_field == 'owner_id':
             if sort_order == 'desc':
                 query = query.order_by(Quotation.owner_id.desc())
             else:
                 query = query.order_by(Quotation.owner_id.asc())
         else:
             # 其他字段直接使用
-            sort_attr = getattr(Quotation, sort_field, Quotation.created_at)
-            if sort_order == 'desc':
-                query = query.order_by(sort_attr.desc())
+            if hasattr(Quotation, sort_field):
+                sort_attr = getattr(Quotation, sort_field)
+                if sort_order == 'desc':
+                    query = query.order_by(sort_attr.desc())
+                else:
+                    query = query.order_by(sort_attr.asc())
+        
+        # 获取总记录数
+        total_count = query.count()
+        
+        # 滚动加载查询
+        quotations = query.offset(offset).limit(limit).all()
+        
+        # 计算是否还有更多数据
+        has_more = (offset + limit) < total_count
+        
+        # 预加载所有报价单的所有者信息
+        owner_ids = [quotation.owner_id for quotation in quotations if quotation.owner_id]
+        if owner_ids:
+            owners = {user.id: user for user in User.query.filter(User.id.in_(owner_ids)).all()}
+            for quotation in quotations:
+                if quotation.owner_id and quotation.owner_id in owners:
+                    quotation.owner = owners[quotation.owner_id]
+        
+        # 获取实际存在的项目类型选项
+        from app.utils.dictionary_helpers import PROJECT_TYPE_LABELS
+        
+        # 获取当前用户可见的报价单的项目类型
+        available_project_types_query = get_viewable_data(Quotation, current_user).join(Project, Quotation.project_id == Project.id)
+        unique_project_types = {project.project_type for quotation in available_project_types_query.all() for project in [quotation.project] if project and project.project_type}
+        
+        # 构建项目类型选项（不包含"全部"选项，因为模板中已经有了）
+        project_type_options = []
+        
+        for project_type in unique_project_types:
+            if project_type in PROJECT_TYPE_LABELS:
+                project_type_options.append({
+                    'value': project_type,
+                    'label': PROJECT_TYPE_LABELS[project_type]['zh']
+                })
             else:
-                query = query.order_by(sort_attr.asc())
+                # 处理没有在字典中定义的项目类型
+                project_type_options.append({
+                    'value': project_type,
+                    'label': project_type
+                })
         
-        quotations = query.all()
+        # 获取筛选选项数据
+        all_users = User.query.filter(User._is_active == True).order_by(User.real_name, User.username).all()
+        unique_owner_ids = {q.owner_id for q in get_viewable_data(Quotation, current_user).all() if q.owner_id}
+        available_users = [user for user in all_users if user.id in unique_owner_ids]
         
-        # 获取项目类型选项
-        project_type_options = [
-            {'value': '', 'label': '全部类型'},
-            {'value': 'channel_follow', 'label': '渠道跟进'},
-            {'value': 'sales_focus', 'label': '销售重点'}
+        # 项目阶段选项
+        from app.utils.dictionary_helpers import PROJECT_STAGE_LABELS
+        project_stage_options = [
+            {'value': key, 'label': label['zh']}
+            for key, label in PROJECT_STAGE_LABELS.items()
         ]
-        
-        # 为营销总监添加特殊选项
-        if current_user.role and current_user.role.strip() == 'sales_director':
-            project_type_options.insert(1, {'value': 'marketing_focus', 'label': '营销重点项目'})
         
         return render_template('quotation/list.html', 
                               quotations=quotations, 
                               sort_field=sort_field, 
                               sort_order=sort_order,
-                              project_type=project_type,
+                              project_type=project_type_filter,
                               project_type_options=project_type_options,
-                              project_search=project_search)
+                              project_stage_options=project_stage_options,
+                              project_search=project_search,
+                              offset=offset,
+                              limit=limit,
+                              has_more=has_more,
+                              total_count=total_count,
+                              available_users=available_users,
+                              owner_filter=owner_filter,
+                              project_type_filter=project_type_filter,
+                              project_stage_filter=project_stage_filter)
                               
     except Exception as e:
         logger.error(f"加载报价单列表时出错: {str(e)}", exc_info=True)
@@ -162,7 +246,151 @@ def list_quotations():
                               sort_order='desc',
                               project_type='',
                               project_type_options=[],
+                              project_stage_options=[],
+                              available_users=[],
                               project_search='')
+
+@quotation.route('/api/load-more', methods=['GET'])
+@login_required
+@permission_required('quotation', 'view')
+def load_more_quotations():
+    """为滚动加载提供的API端点"""
+    try:
+        # 获取搜索参数  
+        project_search = request.args.get('project', '')
+        
+        # 滚动加载参数
+        offset = request.args.get('offset', 0, type=int)
+        limit = request.args.get('limit', 20, type=int)
+        
+        # 限制每次加载数量的范围
+        if limit not in [10, 20, 30, 50]:
+            limit = 20
+        
+        # 获取排序参数
+        sort_field = request.args.get('sort', 'created_at')
+        sort_order = request.args.get('order', 'desc')
+        
+        # 使用访问控制函数构建查询
+        query = get_viewable_data(Quotation, current_user)
+        
+        # 标记是否已经JOIN了Project表
+        project_joined = False
+        
+        # 项目名称搜索
+        if project_search:
+            query = query.join(Project)
+            query = query.filter(Project.project_name.like(f'%{project_search}%'))
+            project_joined = True
+        
+        # 筛选条件
+        owner_filter = request.args.get('owner_filter')
+        project_type_filter = request.args.get('project_type_filter')
+        project_stage_filter = request.args.get('project_stage_filter')
+        
+        if owner_filter:
+            query = query.filter(Quotation.owner_id == owner_filter)
+        
+        # 项目类型筛选
+        if project_type_filter:
+            if not project_joined:
+                query = query.join(Project, Quotation.project_id == Project.id)
+                project_joined = True
+            
+            if project_type_filter == 'channel_follow':
+                query = query.filter(Project.project_type.in_(['channel_follow', '渠道跟进']))
+            elif project_type_filter == 'sales_focus':
+                query = query.filter(Project.project_type.in_(['sales_focus', '销售重点']))
+            elif project_type_filter == 'marketing_focus':
+                query = query.filter(Project.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进']))
+            else:
+                query = query.filter(Project.project_type == project_type_filter)
+        
+        # 项目阶段筛选
+        if project_stage_filter:
+            if not project_joined:
+                query = query.join(Project, Quotation.project_id == Project.id)
+                project_joined = True
+            query = query.filter(Project.current_stage == project_stage_filter)
+        
+        # 处理排序
+        if sort_field == 'project_name':
+            if not project_joined:
+                query = query.join(Project, Quotation.project_id == Project.id)
+                project_joined = True
+            if sort_order == 'desc':
+                query = query.order_by(Project.project_name.desc())
+            else:
+                query = query.order_by(Project.project_name.asc())
+        elif sort_field == 'project_stage':
+            if not project_joined:
+                query = query.join(Project, Quotation.project_id == Project.id)
+                project_joined = True
+            if sort_order == 'desc':
+                query = query.order_by(Project.current_stage.desc())
+            else:
+                query = query.order_by(Project.current_stage.asc())
+        elif sort_field == 'project_type':
+            if not project_joined:
+                query = query.join(Project, Quotation.project_id == Project.id)
+                project_joined = True
+            if sort_order == 'desc':
+                query = query.order_by(Project.project_type.desc())
+            else:
+                query = query.order_by(Project.project_type.asc())
+        elif sort_field == 'owner_id':
+            if sort_order == 'desc':
+                query = query.order_by(Quotation.owner_id.desc())
+            else:
+                query = query.order_by(Quotation.owner_id.asc())
+        else:
+            # 其他字段直接使用
+            if hasattr(Quotation, sort_field):
+                sort_attr = getattr(Quotation, sort_field)
+                if sort_order == 'desc':
+                    query = query.order_by(sort_attr.desc())
+                else:
+                    query = query.order_by(sort_attr.asc())
+        
+        # 获取总记录数
+        total_count = query.count()
+        
+        # 滚动加载查询
+        quotations = query.offset(offset).limit(limit).all()
+        
+        # 计算是否还有更多数据
+        has_more = (offset + limit) < total_count
+        
+        # 预加载所有报价单的所有者信息
+        owner_ids = [quotation.owner_id for quotation in quotations if quotation.owner_id]
+        if owner_ids:
+            owners = {user.id: user for user in User.query.filter(User.id.in_(owner_ids)).all()}
+            for quotation in quotations:
+                if quotation.owner_id and quotation.owner_id in owners:
+                    quotation.owner = owners[quotation.owner_id]
+        
+        # 渲染HTML片段
+        html = render_template('quotation/quotation_rows.html', 
+                              quotations=quotations,
+                              sort_field=sort_field,
+                              sort_order=sort_order)
+        
+        return jsonify({
+            'html': html,
+            'has_more': has_more,
+            'total_count': total_count,
+            'loaded_count': offset + len(quotations)
+        })
+        
+    except Exception as e:
+        logger.error(f"加载更多报价单时出错: {str(e)}", exc_info=True)
+        return jsonify({
+            'html': '',
+            'has_more': False,
+            'total_count': 0,
+            'loaded_count': 0,
+            'error': str(e)
+        })
 
 @quotation.route('/create', methods=['GET', 'POST'])
 @login_required
