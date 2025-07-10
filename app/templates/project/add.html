@@ -523,7 +523,7 @@ document.addEventListener('DOMContentLoaded', function() {
         async loadCompanies() {
             try {
                 this.showLoading();
-                const response = await fetch('/api/companies/' + this.type);
+                const response = await fetch('/project/api/companies/' + this.type);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);

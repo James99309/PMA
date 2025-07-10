@@ -576,7 +576,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         async loadCompanies() {
             try {
-                const response = await fetch(`/api/companies/${this.type}`);
+                const response = await fetch(`/project/api/companies/${this.type}`);
                 if (response.ok) {
                     this.companies = await response.json();
                     this.renderOptions();
