@@ -98,6 +98,17 @@
 .searchable-select-wrapper.open .searchable-select-input {
     border-radius: 0.375rem 0.375rem 0 0;
 }
+
+/* 禁用状态样式 */
+.searchable-select-wrapper.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.searchable-select-wrapper.disabled .searchable-select-input {
+    background-color: #e9ecef;
+    cursor: not-allowed;
+}
 </style>
 {% endblock %}
 
@@ -2013,20 +2024,25 @@ function toggleDirectContractSwitch() {
 // 厂商直签开关处理
 function toggleDirectContract() {
     const directContractSwitch = document.getElementById('directContractSwitch');
-    const dealerSelect = document.getElementById('dealerSelect');
-    const distributorSelect = document.getElementById('distributorSelect');
     const factoryPickupSwitch = document.getElementById('factoryPickupSwitch');
     
+    // 获取SearchableSelect实例
+    const dealerSelect = window.searchableSelects?.dealer_id;
+    const distributorSelect = window.searchableSelects?.distributor_id;
+    
     console.log('厂商直签开关状态:', directContractSwitch.checked);
+    console.log('SearchableSelect实例:', {dealerSelect, distributorSelect});
     
     if (directContractSwitch.checked) {
-        // 厂商直签开启：禁用经销商和分销商选择，保持为空
-        dealerSelect.disabled = true;
-        distributorSelect.disabled = true;
-        
-        // 清空经销商和分销商选择
-        dealerSelect.value = '';
-        distributorSelect.value = '';
+        // 厂商直签开启：禁用经销商和分销商选择，清空内容
+        if (dealerSelect) {
+            dealerSelect.disable();
+            dealerSelect.clear(true); // 抑制change事件
+        }
+        if (distributorSelect) {
+            distributorSelect.disable();
+            distributorSelect.clear(true); // 抑制change事件
+        }
         
         // 同时禁用厂家提货开关
         factoryPickupSwitch.disabled = true;
@@ -2038,26 +2054,24 @@ function toggleDirectContract() {
         updateBasicInfo('is_direct_contract', true);
         updateBasicInfo('is_factory_pickup', false);
     } else {
-        // 厂商直签关闭：启用经销商选择，移除临时厂商选项
-        dealerSelect.disabled = false;
+        // 厂商直签关闭：启用经销商和分销商选择
+        if (dealerSelect) {
+            dealerSelect.enable();
+            dealerSelect.clear(true); // 抑制change事件，避免触发updateSwitchesBasedOnDealer
+        }
+        if (distributorSelect) {
+            distributorSelect.enable(); // 明确启用分销商输入框
+            distributorSelect.clear(true); // 抑制change事件
+        }
         
-        // 移除临时添加的厂商选项
-        const vendorOptions = dealerSelect.querySelectorAll('option[value="vendor_company"]');
-        vendorOptions.forEach(option => option.remove());
-        
-        const distributorVendorOptions = distributorSelect.querySelectorAll('option[value="vendor_company"]');
-        distributorVendorOptions.forEach(option => option.remove());
-        
-        // 清空选择
-        dealerSelect.value = '';
-        distributorSelect.value = '';
-        
-        // 根据经销商内容决定是否启用其他控件
-        updateSwitchesBasedOnDealer();
+        // 启用厂家提货开关
+        factoryPickupSwitch.disabled = false;
         
         updateBasicInfo('dealer_id', '');
         updateBasicInfo('distributor_id', '');
         updateBasicInfo('is_direct_contract', false);
+        
+        console.log('厂商直签关闭：已启用经销商和分销商输入框，启用厂家提货开关');
     }
 }
 
@@ -2080,20 +2094,27 @@ function toggleFactoryPickupSwitch() {
 // 厂家提货开关处理
 function toggleFactoryPickup() {
     const factoryPickupSwitch = document.getElementById('factoryPickupSwitch');
-    const distributorSelect = document.getElementById('distributorSelect');
+    
+    // 获取SearchableSelect实例
+    const distributorSelect = window.searchableSelects?.distributor_id;
     
     console.log('厂家提货开关状态:', factoryPickupSwitch.checked);
+    console.log('DistributorSelect实例:', distributorSelect);
     
     if (factoryPickupSwitch.checked) {
         // 厂家提货开启：禁用分销商选择，清空内容
-        distributorSelect.disabled = true;
-        distributorSelect.value = '';
+        if (distributorSelect) {
+            distributorSelect.disable();
+            distributorSelect.clear(true); // 抑制change事件
+        }
         
         updateBasicInfo('distributor_id', '');
         updateBasicInfo('is_factory_pickup', true);
     } else {
         // 厂家提货关闭：启用分销商选择
-        distributorSelect.disabled = false;
+        if (distributorSelect) {
+            distributorSelect.enable();
+        }
         
         updateBasicInfo('is_factory_pickup', false);
     }
@@ -2101,86 +2122,106 @@ function toggleFactoryPickup() {
 
 // 经销商选择变化时的处理
 function onDealerChange() {
-    const dealerSelect = document.getElementById('dealerSelect');
+    const dealerSelect = window.searchableSelects?.dealer_id;
     
-    // 更新缓存
-    updateBasicInfo('dealer_id', dealerSelect.value);
-    
-    // 根据经销商选择状态更新开关
-    updateSwitchesBasedOnDealer();
+    if (dealerSelect) {
+        // 更新缓存
+        updateBasicInfo('dealer_id', dealerSelect.hiddenInput.value);
+        
+        // 检查是否在厂商直签模式
+        const directContractSwitch = document.getElementById('directContractSwitch');
+        if (!directContractSwitch.checked) {
+            // 非厂商直签模式下，根据经销商选择状态更新开关
+            updateSwitchesBasedOnDealer();
+        }
+    }
 }
 
 // 分销商选择变化时的处理
 function onDistributorChange() {
-    const distributorSelect = document.getElementById('distributorSelect');
+    const distributorSelect = window.searchableSelects?.distributor_id;
     
-    // 更新缓存
-    updateBasicInfo('distributor_id', distributorSelect.value);
-    
-    // 更新厂家提货开关状态
-    updateFactoryPickupSwitchState();
+    if (distributorSelect) {
+        // 更新缓存
+        updateBasicInfo('distributor_id', distributorSelect.hiddenInput.value);
+        
+        // 更新厂家提货开关状态
+        updateFactoryPickupSwitchState();
+    }
 }
 
 // 页面加载时初始化开关状态
 function initializeSwitches() {
     const directContractSwitch = document.getElementById('directContractSwitch');
     const factoryPickupSwitch = document.getElementById('factoryPickupSwitch');
-    const distributorSelect = document.getElementById('distributorSelect');
-    const dealerSelect = document.getElementById('dealerSelect');
     
-    // 初始化厂商直签状态
-    if (directContractSwitch.checked) {
-        toggleDirectContract();
-    }
-    
-    // 根据经销商输入框内容控制开关状态
-    updateSwitchesBasedOnDealer();
-    
-    // 初始化厂家提货状态
-    if (factoryPickupSwitch.checked) {
-        toggleFactoryPickup();
-    }
+    // 等待SearchableSelect实例初始化完成
+    setTimeout(() => {
+        console.log('初始化开关状态...');
+        
+        // 初始化厂商直签状态
+        if (directContractSwitch.checked) {
+            toggleDirectContract();
+        }
+        
+        // 根据经销商输入框内容控制开关状态
+        updateSwitchesBasedOnDealer();
+        
+        // 初始化厂家提货状态
+        if (factoryPickupSwitch.checked) {
+            toggleFactoryPickup();
+        }
+    }, 1000); // 延迟1秒确保SearchableSelect实例已创建
 }
 
 // 根据经销商输入框内容更新开关状态
 function updateSwitchesBasedOnDealer() {
-    const dealerSelect = document.getElementById('dealerSelect');
-    const distributorSelect = document.getElementById('distributorSelect');
+    const dealerSelect = window.searchableSelects?.dealer_id;
+    const distributorSelect = window.searchableSelects?.distributor_id;
     const factoryPickupSwitch = document.getElementById('factoryPickupSwitch');
     const directContractSwitch = document.getElementById('directContractSwitch');
     
-    const hasDealer = dealerSelect.value && dealerSelect.value.trim() !== '';
+    const hasDealer = dealerSelect && dealerSelect.hiddenInput.value && dealerSelect.hiddenInput.value.trim() !== '';
+    const isDirectContract = directContractSwitch.checked;
     
-    console.log('经销商选择状态:', hasDealer, '经销商值:', dealerSelect.value);
+    console.log('经销商选择状态:', hasDealer, '经销商值:', dealerSelect?.hiddenInput.value, '厂商直签:', isDirectContract);
+    
+    // 如果是厂商直签模式，不执行任何操作
+    if (isDirectContract) {
+        console.log('厂商直签模式下，跳过经销商状态更新');
+        return;
+    }
     
     if (!hasDealer) {
-        // 没有经销商时：禁用分销商选择框和厂家提货开关
-        distributorSelect.disabled = true;
-        distributorSelect.value = '';
+        // 没有经销商时：厂家提货开关应该被禁用
         factoryPickupSwitch.disabled = true;
         factoryPickupSwitch.checked = false;
         
+        // 分销商输入框在非直签模式下保持启用
+        if (distributorSelect) {
+            distributorSelect.enable();
+        }
+        
         // 更新缓存
-        updateBasicInfo('distributor_id', '');
         updateBasicInfo('is_factory_pickup', false);
     } else {
-        // 有经销商时：如果不是厂商直签，则启用分销商选择框
-        if (!directContractSwitch.checked) {
-            distributorSelect.disabled = false;
-            // 厂家提货开关根据分销商内容决定是否启用
-            updateFactoryPickupSwitchState();
+        // 有经销商时：启用分销商选择框和厂家提货开关
+        if (distributorSelect) {
+            distributorSelect.enable();
         }
+        // 厂家提货开关根据分销商内容决定是否启用
+        updateFactoryPickupSwitchState();
     }
 }
 
 // 更新厂家提货开关状态
 function updateFactoryPickupSwitchState() {
-    const distributorSelect = document.getElementById('distributorSelect');
+    const distributorSelect = window.searchableSelects?.distributor_id;
     const factoryPickupSwitch = document.getElementById('factoryPickupSwitch');
-    const dealerSelect = document.getElementById('dealerSelect');
+    const dealerSelect = window.searchableSelects?.dealer_id;
     
-    const hasDealer = dealerSelect.value && dealerSelect.value.trim() !== '';
-    const hasDistributor = distributorSelect.value && distributorSelect.value.trim() !== '';
+    const hasDealer = dealerSelect && dealerSelect.hiddenInput.value && dealerSelect.hiddenInput.value.trim() !== '';
+    const hasDistributor = distributorSelect && distributorSelect.hiddenInput.value && distributorSelect.hiddenInput.value.trim() !== '';
     
     if (hasDealer) {
         // 有经销商时，厂家提货开关可以启用
@@ -2197,13 +2238,13 @@ function updateFactoryPickupSwitchState() {
 function validateChannelInfo() {
     const directContractSwitch = document.getElementById('directContractSwitch');
     const factoryPickupSwitch = document.getElementById('factoryPickupSwitch');
-    const dealerSelect = document.getElementById('dealerSelect');
-    const distributorSelect = document.getElementById('distributorSelect');
+    const dealerSelect = window.searchableSelects?.dealer_id;
+    const distributorSelect = window.searchableSelects?.distributor_id;
     
     const isDirectContract = directContractSwitch.checked;
     const isFactoryPickup = factoryPickupSwitch.checked;
-    const hasDealer = dealerSelect.value && dealerSelect.value.trim() !== '';
-    const hasDistributor = distributorSelect.value && distributorSelect.value.trim() !== '';
+    const hasDealer = dealerSelect && dealerSelect.hiddenInput.value && dealerSelect.hiddenInput.value.trim() !== '';
+    const hasDistributor = distributorSelect && distributorSelect.hiddenInput.value && distributorSelect.hiddenInput.value.trim() !== '';
     
     // 构建条件检查列表
     const conditions = [
@@ -5148,7 +5189,13 @@ class SearchableSelect {
         
         // 点击显示输入框时展开下拉框
         this.input.addEventListener('click', (e) => {
-            console.log('🖱️ 输入框被点击:', this.type);
+            console.log('🖱️ 输入框被点击:', this.type, 'isOpen:', this.isOpen, 'options数量:', this.options.length);
+            // 如果输入框被禁用，不响应点击
+            if (this.input.disabled || this.input.readOnly) {
+                console.log('输入框已禁用，忽略点击事件');
+                e.preventDefault();
+                return;
+            }
             e.preventDefault();
             this.toggle();
         });
@@ -5192,10 +5239,14 @@ class SearchableSelect {
     }
     
     open() {
+        console.log(`📂 打开 ${this.type} 下拉框, 当前options数量:`, this.options.length);
         this.isOpen = true;
         this.wrapper.classList.add('open');
         if (this.options.length === 0) {
+            console.log(`${this.type} 选项为空，开始加载...`);
             this.loadOptions();
+        } else {
+            console.log(`${this.type} 已有选项，直接显示`);
         }
     }
     
@@ -5283,30 +5334,78 @@ class SearchableSelect {
         this.hiddenInput.dispatchEvent(event);
     }
     
+    // 启用输入框
+    enable() {
+        this.input.disabled = false;
+        this.input.readOnly = false;
+        this.wrapper.classList.remove('disabled');
+        console.log(`${this.type} 输入框已启用`);
+    }
+    
+    // 禁用输入框
+    disable() {
+        this.input.disabled = true;
+        this.input.readOnly = true;
+        this.wrapper.classList.add('disabled');
+        this.close(); // 关闭下拉框
+        console.log(`${this.type} 输入框已禁用`);
+    }
+    
+    // 清空输入框内容
+    clear(suppressChangeEvent = false) {
+        this.input.value = '';
+        this.hiddenInput.value = '';
+        console.log(`${this.type} 输入框内容已清空`);
+        
+        // 根据参数决定是否触发change事件
+        if (!suppressChangeEvent) {
+            this.triggerChangeEvent();
+        }
+    }
+    
     loadOptions() {
+        console.log(`开始加载 ${this.type} 选项...`);
         this.dropdown.innerHTML = '<div class="searchable-select-loading">加载中...</div>';
         
         // 分销商使用经销商的API端点
         const apiType = this.type === 'distributor' ? 'dealer' : this.type;
+        const apiUrl = `/pricing_order/api/companies/${apiType}`;
+        console.log(`API URL: ${apiUrl}`);
         
-        fetch(`/api/companies/${apiType}`)
-            .then(response => response.json())
+        fetch(apiUrl)
+            .then(response => {
+                console.log(`API响应状态 (${this.type}):`, response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
-                this.options = data;
-                this.renderOptions(data);
+                console.log(`${this.type} 数据:`, data);
+                this.options = Array.isArray(data) ? data : [];
+                this.renderOptions(this.options);
+                console.log(`${this.type} 选项加载完成，共 ${this.options.length} 个选项`);
             })
             .catch(error => {
-                console.error('加载选项失败:', error);
+                console.error(`加载 ${this.type} 选项失败:`, error);
                 this.dropdown.innerHTML = '<div class="searchable-select-no-results">加载失败</div>';
             });
     }
 }
 
+// 全局变量存储SearchableSelect实例
+window.searchableSelects = {};
+
 // 初始化所有搜索下拉框
 function initializeSearchableSelects() {
     const wrappers = document.querySelectorAll('.searchable-select-wrapper');
     wrappers.forEach(wrapper => {
-        new SearchableSelect(wrapper);
+        const instance = new SearchableSelect(wrapper);
+        const name = wrapper.dataset.name;
+        if (name) {
+            window.searchableSelects[name] = instance;
+            console.log(`已存储 ${name} 的SearchableSelect实例`);
+        }
     });
 }
 

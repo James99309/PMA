@@ -18,6 +18,46 @@ logger = logging.getLogger(__name__)
 pricing_order_bp = Blueprint('pricing_order', __name__)
 
 
+@pricing_order_bp.route('/api/companies/<company_type>')
+@login_required
+def api_companies_for_pricing(company_type):
+    """API端点 - 为批价单获取企业列表（经销商/分销商）"""
+    try:
+        from app.utils.access_control import get_viewable_data, can_view_company
+        
+        # 获取用户可查看的企业
+        query = get_viewable_data(Company, current_user)
+        query = query.filter(Company.is_deleted == False)
+        
+        # 根据类型筛选企业
+        type_mapping = {
+            'dealer': ['dealer', 'distributor', 'end_user', 'customer'], # 经销商类型包含多种
+            'distributor': ['distributor', 'dealer', 'end_user', 'customer'] # 分销商也可以从这些类型中选择
+        }
+        
+        if company_type in type_mapping:
+            company_types = type_mapping[company_type]
+            query = query.filter(Company.company_type.in_(company_types))
+        
+        companies = query.order_by(Company.company_name).all()
+        
+        # 格式化返回数据
+        result = []
+        for company in companies:
+            result.append({
+                'id': company.id,
+                'name': company.company_name,
+                'type': company.company_type,
+                'owner_name': company.owner.real_name if company.owner else '未指定',
+                'is_readable': can_view_company(current_user, company)
+            })
+        
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"获取批价单企业列表失败: {str(e)}")
+        return jsonify([])
+
+
 def check_pricing_edit_permission(pricing_order, current_user):
     """
     检查批价单编辑权限，支持审批上下文
