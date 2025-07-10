@@ -62,10 +62,10 @@ def api_companies_for_project(company_type):
         
         # 根据类型筛选企业
         type_mapping = {
-            'user': ['end_user', 'customer'],
-            'designer': ['design_institute', 'consultant'],
+            'user': ['user', 'end_user', 'customer'],
+            'designer': ['designer', 'design_institute', 'consultant'],
             'contractor': ['contractor', 'general_contractor'],
-            'integrator': ['system_integrator', 'integrator'],
+            'integrator': ['integrator', 'system_integrator'],
             'dealer': ['dealer', 'distributor']
         }
         
@@ -75,16 +75,30 @@ def api_companies_for_project(company_type):
         
         companies = query.order_by(Company.company_name).all()
         
-        # 格式化返回数据
+        # 格式化返回数据，区分当前用户和其他用户的公司
         result = []
+        current_user_companies = []
+        other_companies = []
+        
         for company in companies:
-            result.append({
+            company_data = {
                 'id': company.id,
                 'name': company.company_name,
                 'type': company.company_type,
                 'owner_name': company.owner.real_name if company.owner else '未指定',
-                'is_readable': can_view_company(current_user, company)
-            })
+                'owner_id': company.owner_id,
+                'is_readable': can_view_company(current_user, company),
+                'is_own': company.owner_id == current_user.id
+            }
+            
+            # 分组：当前用户的公司优先
+            if company.owner_id == current_user.id:
+                current_user_companies.append(company_data)
+            else:
+                other_companies.append(company_data)
+        
+        # 组合结果：当前用户的公司在前，其他公司在后
+        result = current_user_companies + other_companies
         
         return jsonify(result)
     except Exception as e:

@@ -77,6 +77,32 @@
         color: #6c757d;
         font-style: italic;
     }
+    
+    /* 分组标题样式 */
+    .searchable-select-section-header {
+        padding: 0.375rem 0.75rem;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #e9ecef;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #495057;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+    
+    /* 当前用户的企业样式 */
+    .searchable-select-option.own-company {
+        background-color: #e3f2fd;
+        border-left: 3px solid #2196f3;
+        font-weight: 500;
+    }
+    
+    .searchable-select-option.own-company:hover {
+        background-color: #bbdefb;
+    }
 
     /* 输入框聚焦时的样式 */
     .searchable-select-wrapper.open .searchable-select-input {
@@ -601,18 +627,45 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            const html = filteredCompanies.map(company => {
-                const displayText = company.owner_name ? 
-                    `${company.name} | ${company.owner_name}${!company.is_readable ? ' [只读]' : ''}` : 
-                    `${company.name}${!company.is_readable ? ' [只读]' : ''}`;
-                
-                const classes = ['searchable-select-option'];
-                if (!company.is_readable) {
-                    classes.push('readonly');
+            // 将已经按优先级排序的公司进一步分组（当前用户的公司 vs 其他用户的公司）
+            const ownCompanies = filteredCompanies.filter(company => company.is_own);
+            const otherCompanies = filteredCompanies.filter(company => !company.is_own);
+            
+            let html = '';
+            
+            // 添加当前用户的公司（如果有的话）
+            if (ownCompanies.length > 0) {
+                html += '<div class="searchable-select-section-header">我的企业</div>';
+                html += ownCompanies.map(company => {
+                    const displayText = `${company.name}${!company.is_readable ? ' [只读]' : ''}`;
+                    const classes = ['searchable-select-option'];
+                    if (!company.is_readable) {
+                        classes.push('readonly');
+                    }
+                    classes.push('own-company');
+                    
+                    return `<div class="${classes.join(' ')}" data-value="${company.name}" data-id="${company.id}">${displayText}</div>`;
+                }).join('');
+            }
+            
+            // 添加其他用户的公司（如果有的话）
+            if (otherCompanies.length > 0) {
+                if (ownCompanies.length > 0) {
+                    html += '<div class="searchable-select-section-header">其他企业</div>';
                 }
-                
-                return `<div class="${classes.join(' ')}" data-value="${company.name}" data-id="${company.id}">${displayText}</div>`;
-            }).join('');
+                html += otherCompanies.map(company => {
+                    const displayText = company.owner_name ? 
+                        `${company.name} | ${company.owner_name}${!company.is_readable ? ' [只读]' : ''}` : 
+                        `${company.name}${!company.is_readable ? ' [只读]' : ''}`;
+                    
+                    const classes = ['searchable-select-option'];
+                    if (!company.is_readable) {
+                        classes.push('readonly');
+                    }
+                    
+                    return `<div class="${classes.join(' ')}" data-value="${company.name}" data-id="${company.id}">${displayText}</div>`;
+                }).join('');
+            }
             
             this.dropdown.innerHTML = html;
             
@@ -631,10 +684,11 @@ document.addEventListener('DOMContentLoaded', function() {
         
         selectOption(option) {
             const value = option.dataset.value;
-            const displayText = option.textContent;
+            // 只显示企业名称，不显示账户信息
+            const companyName = value;
             
-            this.input.value = displayText;
-            this.hiddenInput.value = value;
+            this.input.value = companyName;
+            this.hiddenInput.value = companyName;
             this.hideDropdown();
         }
         

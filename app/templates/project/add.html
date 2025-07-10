@@ -77,6 +77,32 @@
         color: #6c757d;
         font-style: italic;
     }
+    
+    /* 分组标题样式 */
+    .searchable-select-section-header {
+        padding: 0.375rem 0.75rem;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #e9ecef;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #495057;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+    
+    /* 当前用户的企业样式 */
+    .searchable-select-option.own-company {
+        background-color: #e3f2fd;
+        border-left: 3px solid #2196f3;
+        font-weight: 500;
+    }
+    
+    .searchable-select-option.own-company:hover {
+        background-color: #bbdefb;
+    }
 
     /* 输入框聚焦时的样式 */
     .searchable-select-wrapper.open .searchable-select-input {
@@ -602,40 +628,74 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            this.filteredCompanies.forEach(company => {
-                const option = document.createElement('div');
-                option.className = 'searchable-select-option';
+            // 分组：当前用户的公司 vs 其他用户的公司
+            const ownCompanies = this.filteredCompanies.filter(company => company.is_own);
+            const otherCompanies = this.filteredCompanies.filter(company => !company.is_own);
+            
+            // 添加当前用户的公司
+            if (ownCompanies.length > 0) {
+                const header = document.createElement('div');
+                header.className = 'searchable-select-section-header';
+                header.textContent = '我的企业';
+                this.dropdown.appendChild(header);
                 
-                let displayText = company.name || '未命名';
-                if (company.owner_name && company.owner_name !== "未指定") {
-                    displayText += ' | ' + company.owner_name;
-                }
-                if (!company.is_readable) {
-                    displayText += ' [只读]';
-                    option.classList.add('readonly');
-                }
-                
-                option.textContent = displayText;
-                
-                option.addEventListener('click', () => {
-                    this.selectOption(company);
+                ownCompanies.forEach(company => {
+                    const option = document.createElement('div');
+                    option.className = 'searchable-select-option own-company';
+                    
+                    let displayText = company.name || '未命名';
+                    if (!company.is_readable) {
+                        displayText += ' [只读]';
+                        option.classList.add('readonly');
+                    }
+                    
+                    option.textContent = displayText;
+                    option.addEventListener('click', () => {
+                        this.selectOption(company);
+                    });
+                    
+                    this.dropdown.appendChild(option);
                 });
+            }
+            
+            // 添加其他用户的公司
+            if (otherCompanies.length > 0) {
+                if (ownCompanies.length > 0) {
+                    const header = document.createElement('div');
+                    header.className = 'searchable-select-section-header';
+                    header.textContent = '其他企业';
+                    this.dropdown.appendChild(header);
+                }
                 
-                this.dropdown.appendChild(option);
-            });
+                otherCompanies.forEach(company => {
+                    const option = document.createElement('div');
+                    option.className = 'searchable-select-option';
+                    
+                    let displayText = company.name || '未命名';
+                    if (company.owner_name && company.owner_name !== "未指定") {
+                        displayText += ' | ' + company.owner_name;
+                    }
+                    if (!company.is_readable) {
+                        displayText += ' [只读]';
+                        option.classList.add('readonly');
+                    }
+                    
+                    option.textContent = displayText;
+                    option.addEventListener('click', () => {
+                        this.selectOption(company);
+                    });
+                    
+                    this.dropdown.appendChild(option);
+                });
+            }
         }
         
         selectOption(company) {
-            let displayText = company.name;
-            if (company.owner_name && company.owner_name !== "未指定") {
-                displayText += ' | ' + company.owner_name;
-            }
-            if (!company.is_readable) {
-                displayText += ' [只读]';
-            }
+            // 只显示企业名称，不显示账户信息
+            const companyName = company.name;
             
-            this.input.value = displayText;
-            this.hiddenInput.value = company.name;
+            this.input.value = companyName;
+            this.hiddenInput.value = companyName;
             this.close();
         }
         
