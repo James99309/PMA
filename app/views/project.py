@@ -52,13 +52,10 @@ project = Blueprint('project', __name__)
 @project.route('/api/companies/<company_type>')
 @login_required
 def api_companies_for_project(company_type):
-    """API端点 - 为项目获取企业列表"""
+    """API端点 - 为项目获取企业列表（移除权限等级过滤，仅过滤删除状态和企业角色）"""
     try:
-        from app.utils.access_control import get_viewable_data, can_view_company
-        
-        # 获取用户可查看的企业
-        query = get_viewable_data(Company, current_user)
-        query = query.filter(Company.is_deleted == False)
+        # 直接查询所有未删除的企业，不使用权限等级过滤
+        query = Company.query.filter(Company.is_deleted == False)
         
         # 根据类型筛选企业
         type_mapping = {
@@ -73,10 +70,9 @@ def api_companies_for_project(company_type):
             company_types = type_mapping[company_type]
             query = query.filter(Company.company_type.in_(company_types))
         
-        companies = query.order_by(Company.company_name).all()
+        companies = query.all()  # 先获取所有企业，后面分组后再排序
         
         # 格式化返回数据，区分当前用户和其他用户的公司
-        result = []
         current_user_companies = []
         other_companies = []
         
@@ -87,7 +83,7 @@ def api_companies_for_project(company_type):
                 'type': company.company_type,
                 'owner_name': company.owner.real_name if company.owner else '未指定',
                 'owner_id': company.owner_id,
-                'is_readable': can_view_company(current_user, company),
+                'is_readable': True,  # 移除权限检查，所有企业都可读
                 'is_own': company.owner_id == current_user.id
             }
             
@@ -96,6 +92,10 @@ def api_companies_for_project(company_type):
                 current_user_companies.append(company_data)
             else:
                 other_companies.append(company_data)
+        
+        # 对每个分组内部按企业名称排序
+        current_user_companies.sort(key=lambda x: x['name'] or '')
+        other_companies.sort(key=lambda x: x['name'] or '')
         
         # 组合结果：当前用户的公司在前，其他公司在后
         result = current_user_companies + other_companies

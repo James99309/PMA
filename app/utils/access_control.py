@@ -42,43 +42,29 @@ def get_viewable_data(model_class, user, special_filters=None):
     if user.role == 'admin':
         return model_class.query.filter(*special_filters)
     
-    # 营销总监特殊处理：可以查看销售重点和渠道跟进项目
+    # 营销总监特殊处理：可以查看销售重点和渠道跟进项目 - 优化为单个OR查询
     if user.role and user.role.strip() == 'sales_director' and model_class.__name__ == 'Project':
-        # 获取自己的项目
-        own_projects = model_class.query.filter(model_class.owner_id == user.id)
-        
-        # 获取销售重点和渠道跟进项目
-        special_projects = model_class.query.filter(
-            model_class.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进'])
+        # 使用单个OR查询替代UNION操作，提高性能
+        return model_class.query.filter(
+            or_(
+                model_class.owner_id == user.id,  # 自己的项目
+                model_class.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进']),  # 特殊项目类型
+                model_class.vendor_sales_manager_id == user.id  # 作为销售负责人的项目
+            ),
+            *special_filters
         )
-        
-        # 获取自己作为销售负责人的项目
-        sales_manager_projects = model_class.query.filter(
-            model_class.vendor_sales_manager_id == user.id
-        )
-        
-        # 合并查询结果
-        combined_query = own_projects.union(special_projects).union(sales_manager_projects)
-        return combined_query.filter(*special_filters)
     
-    # 渠道经理特殊处理：可以查看渠道跟进项目
+    # 渠道经理特殊处理：可以查看渠道跟进项目 - 优化为单个OR查询
     if user.role and user.role.strip() == 'channel_manager' and model_class.__name__ == 'Project':
-        # 获取自己的项目
-        own_projects = model_class.query.filter(model_class.owner_id == user.id)
-        
-        # 获取渠道跟进项目
-        channel_projects = model_class.query.filter(
-            model_class.project_type.in_(['channel_follow', '渠道跟进'])
+        # 使用单个OR查询替代UNION操作，提高性能
+        return model_class.query.filter(
+            or_(
+                model_class.owner_id == user.id,  # 自己的项目
+                model_class.project_type.in_(['channel_follow', '渠道跟进']),  # 渠道跟进项目
+                model_class.vendor_sales_manager_id == user.id  # 作为销售负责人的项目
+            ),
+            *special_filters
         )
-        
-        # 获取自己作为销售负责人的项目
-        sales_manager_projects = model_class.query.filter(
-            model_class.vendor_sales_manager_id == user.id
-        )
-        
-        # 合并查询结果
-        combined_query = own_projects.union(channel_projects).union(sales_manager_projects)
-        return combined_query.filter(*special_filters)
     
     # User 模型特殊处理 - User 没有 owner_id 字段
     if model_class.__name__ == 'User':

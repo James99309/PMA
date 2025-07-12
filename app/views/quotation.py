@@ -177,12 +177,17 @@ def list_quotations():
                 if quotation.owner_id and quotation.owner_id in owners:
                     quotation.owner = owners[quotation.owner_id]
         
-        # 获取实际存在的项目类型选项
+        # 获取实际存在的项目类型选项 - 优化查询避免N+1问题
         from app.utils.dictionary_helpers import PROJECT_TYPE_LABELS
         
-        # 获取当前用户可见的报价单的项目类型
-        available_project_types_query = get_viewable_data(Quotation, current_user).join(Project, Quotation.project_id == Project.id)
-        unique_project_types = {project.project_type for quotation in available_project_types_query.all() for project in [quotation.project] if project and project.project_type}
+        # 使用高效的子查询获取项目类型，避免加载所有报价单数据
+        viewable_quotation_subquery = get_viewable_data(Quotation, current_user).subquery()
+        unique_project_types_query = db.session.query(Project.project_type.distinct())\
+            .join(viewable_quotation_subquery, Project.id == viewable_quotation_subquery.c.project_id)\
+            .filter(Project.project_type.isnot(None))\
+            .filter(Project.project_type != '')
+        
+        unique_project_types = {row[0] for row in unique_project_types_query.all()}
         
         # 构建项目类型选项（不包含"全部"选项，因为模板中已经有了）
         project_type_options = []
@@ -200,17 +205,47 @@ def list_quotations():
                     'label': project_type
                 })
         
-        # 获取筛选选项数据
-        all_users = User.query.filter(User._is_active == True).order_by(User.real_name, User.username).all()
-        unique_owner_ids = {q.owner_id for q in get_viewable_data(Quotation, current_user).all() if q.owner_id}
-        available_users = [user for user in all_users if user.id in unique_owner_ids]
+        # 获取筛选选项数据 - 优化用户查询避免N+1问题
+        unique_owner_ids_query = get_viewable_data(Quotation, current_user)\
+            .filter(Quotation.owner_id.isnot(None))\
+            .with_entities(Quotation.owner_id.distinct())
         
-        # 项目阶段选项
+        unique_owner_ids = {row[0] for row in unique_owner_ids_query.all()}
+        
+        # 只查询需要的用户，避免加载所有用户
+        available_users = User.query.filter(
+            User.id.in_(unique_owner_ids),
+            User._is_active == True
+        ).order_by(User.real_name, User.username).all()
+        
+        # 项目阶段选项 - 优化为只显示实际存在的阶段
         from app.utils.dictionary_helpers import PROJECT_STAGE_LABELS
-        project_stage_options = [
-            {'value': key, 'label': label['zh']}
-            for key, label in PROJECT_STAGE_LABELS.items()
-        ]
+        
+        # 使用高效查询获取实际存在的项目阶段
+        unique_project_stages_query = db.session.query(Project.current_stage.distinct())\
+            .join(viewable_quotation_subquery, Project.id == viewable_quotation_subquery.c.project_id)\
+            .filter(Project.current_stage.isnot(None))\
+            .filter(Project.current_stage != '')
+        
+        unique_project_stages = {row[0] for row in unique_project_stages_query.all()}
+        
+        # 构建项目阶段选项，只包含实际存在的阶段
+        project_stage_options = []
+        for stage in unique_project_stages:
+            if stage in PROJECT_STAGE_LABELS:
+                project_stage_options.append({
+                    'value': stage,
+                    'label': PROJECT_STAGE_LABELS[stage]['zh']
+                })
+            else:
+                # 处理没有在字典中定义的项目阶段
+                project_stage_options.append({
+                    'value': stage,
+                    'label': stage
+                })
+        
+        # 按标签排序
+        project_stage_options.sort(key=lambda x: x['label'])
         
         return render_template('quotation/list.html', 
                               quotations=quotations, 
