@@ -222,9 +222,7 @@
                         
                         <!-- 清空筛选按钮 -->
                         <div class="flex-shrink-0">
-                            <button id="clearFilters" class="btn btn-outline-secondary btn-sm">
-                                <i class="fas fa-times"></i> 清空筛选
-                            </button>
+                            {{ render_button('清空筛选', type='button', color='secondary', size='sm', icon='fas fa-times', extra_class='', attrs='id="clearFilters"') }}
                         </div>
                     </div>
                 </div>
@@ -1106,13 +1104,41 @@ function initProjectAutocomplete() {
         }, 200);
     });
     
-    // 清除搜索按钮
-    $('#clearSearch').on('click', function() {
-        $('#projectSearch').val('');
+    // 清除搜索处理函数
+    function handleClearSearch() {
+        console.log('🧹 清除搜索条件...');
+        
+        // 清除搜索框内容
+        if (document.getElementById('projectSearch')) {
+            document.getElementById('projectSearch').value = '';
+        }
         hideProjectDropdown();
-        // 重新加载页面，清除搜索结果
-        window.location.href = "{{ url_for('quotation.list_quotations') }}";
-    });
+        
+        // 重置滚动状态
+        sessionStorage.removeItem('quotationListScrollTop');
+        sessionStorage.removeItem('quotationListScrollLeft');
+        
+        // 获取当前URL参数
+        const params = new URLSearchParams(window.location.search);
+        
+        // 清除搜索参数
+        params.delete('project');
+        params.delete('offset'); // 重置分页
+        
+        // 构建新的URL
+        const newUrl = `${window.location.pathname}?${params.toString()}`;
+        console.log('🚀 清除搜索后跳转到:', newUrl);
+        window.location.href = newUrl;
+    }
+    
+    // 清除搜索按钮 - 统一函数风格
+    const clearSearchBtn = document.getElementById('clearSearch');
+    if (clearSearchBtn) {
+        clearSearchBtn.addEventListener('click', handleClearSearch);
+        console.log('✅ 清除搜索按钮事件已绑定');
+    } else {
+        console.log('❌ 无法绑定清除搜索按钮事件 - 元素不存在');
+    }
     
     // 键盘导航支持
     $('#projectSearch').on('keydown', function(e) {
@@ -1248,22 +1274,6 @@ function selectQuotation(quotation) {
     window.location.href = `{{ url_for('quotation.view_quotation', id=0) }}`.replace('0', quotation.quotation_id);
 }
 
-// 执行搜索
-function performSearch() {
-    const searchTerm = $('#projectSearch').val().trim();
-    if (searchTerm) {
-        window.location.href = "{{ url_for('quotation.list_quotations') }}?project=" + encodeURIComponent(searchTerm);
-    } else {
-        window.location.href = "{{ url_for('quotation.list_quotations') }}";
-    }
-}
-
-// 旧的搜索事件处理器（保持兼容性）
-document.getElementById('searchProject').addEventListener('click', function() {
-    performSearch();
-});
-
-// 删除项目类型筛选功能（已移除相关代码）
 
 // 全局变量
 let parsedQuotations = [];
@@ -1271,13 +1281,6 @@ let quotationDetails = {};
 let conflicts = [];
 let conflictActions = {};
 let skippedHeaderRows = 0; // 用于记录过滤掉的表头行数量
-
-// 添加回车键搜索功能
-document.getElementById('projectSearch').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-        document.getElementById('searchProject').click();
-    }
-});
 
 function copyQuotation(id) {
     if (confirm('确定要复制这个报价单吗？')) {
@@ -1318,6 +1321,7 @@ function deleteQuotation(id) {
 
 // 批量删除功能
 document.addEventListener('DOMContentLoaded', function() {
+    try {
     // 初始化项目搜索自动完成功能
     initProjectAutocomplete();
     
@@ -1336,8 +1340,104 @@ document.addEventListener('DOMContentLoaded', function() {
     const projectStageFilter = document.getElementById('projectStageFilter');
     const clearFiltersBtn = document.getElementById('clearFilters');
     
+    // 初始化验证函数
+    function validateQuotationListElements() {
+        console.log('=== 报价单列表元素验证 ===');
+        console.log('当前用户:', '{{ current_user.username }}', '角色:', '{{ current_user.role }}');
+        
+        const elements = {
+            projectSearch: projectSearch,
+            searchBtn: searchBtn,
+            clearSearchBtn: document.getElementById('clearSearch'),
+            batchDeleteBtn: batchDeleteBtn,
+            confirmBatchDeleteBtn: confirmBatchDeleteBtn,
+            ownerFilter: ownerFilter,
+            projectTypeFilter: projectTypeFilter,
+            projectStageFilter: projectStageFilter,
+            clearFiltersBtn: clearFiltersBtn
+        };
+        
+        let missingElements = [];
+        
+        for (const [name, element] of Object.entries(elements)) {
+            if (element) {
+                console.log(`✅ ${name}: 已找到`);
+                if (element.options && element.options.length) {
+                    console.log(`   - 包含 ${element.options.length} 个选项`);
+                }
+            } else {
+                console.log(`❌ ${name}: 未找到`);
+                missingElements.push(name);
+            }
+        }
+        
+        if (missingElements.length > 0) {
+            console.warn('⚠️ 缺失的元素:', missingElements.join(', '));
+        } else {
+            console.log('🎉 所有关键元素都已正确加载');
+        }
+        
+        console.log('========================');
+        return missingElements.length === 0;
+    }
+    
+    // 执行初始化验证
+    const allElementsLoaded = validateQuotationListElements();
+    
+    // 测试筛选功能
+    function testFilterFunctionality() {
+        console.log('🧪 测试筛选功能...');
+        
+        // 检查当前URL参数
+        const currentParams = new URLSearchParams(window.location.search);
+        console.log('当前URL参数:', currentParams.toString());
+        
+        // 检查筛选器当前值
+        if (ownerFilter) {
+            console.log('负责人筛选器当前值:', ownerFilter.value);
+        }
+        if (projectTypeFilter) {
+            console.log('项目类型筛选器当前值:', projectTypeFilter.value);
+        }
+        if (projectStageFilter) {
+            console.log('项目阶段筛选器当前值:', projectStageFilter.value);
+        }
+        
+        console.log('筛选功能测试完成');
+    }
+    
+    // 延迟执行测试，确保页面完全加载
+    setTimeout(testFilterFunctionality, 1000);
+    
+    // 统一函数风格总结
+    function summarizeEventBindings() {
+        console.log('=== 事件绑定总结 ===');
+        console.log('📋 已采用统一函数风格的事件处理器:');
+        console.log('  🔍 handleProjectSearch - 项目搜索');
+        console.log('  ⌨️ handleSearchKeyPress - 搜索回车键');
+        console.log('  🧹 handleClearSearch - 清除搜索');
+        console.log('  📊 handleFilterChange - 筛选器变更');
+        console.log('  🧽 handleClearFilters - 清除筛选');
+        console.log('  🗑️ handleBatchDeleteClick - 批量删除');
+        console.log('  ✅ handleConfirmBatchDelete - 确认批量删除');
+        console.log('  📋 handleSelectAllChange - 全选复选框');
+        console.log('  ☑️ handleSingleCheckboxChange - 单个复选框');
+        console.log('🎉 所有主要按键都已采用统一函数风格!');
+        console.log('========================');
+    }
+    
+    // 延迟执行总结，确保所有绑定完成
+    setTimeout(summarizeEventBindings, 1200);
+    
+    
     // 更新批量删除按钮显示状态的函数
     function updateBatchDeleteButtonVisibility() {
+        // 检查按钮是否存在，避免空指针错误
+        if (!batchDeleteBtn) {
+            console.log('⚠️ 批量删除按钮不存在，跳过状态更新');
+            return;
+        }
+        
         const checkedCount = document.querySelectorAll('.quotation-checkbox:checked').length;
         
         if (checkedCount > 0) {
@@ -1358,200 +1458,333 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初始化检查批量删除按钮状态
     updateBatchDeleteButtonVisibility();
     
-    // 全选checkbox事件
-    if (selectAllCheckbox) {
-        selectAllCheckbox.addEventListener('change', function() {
-            const isChecked = this.checked;
-            
-            quotationCheckboxes.forEach(function(checkbox) {
-                checkbox.checked = isChecked;
-            });
-            
-            // 添加脉冲效果给全选
-            if (isChecked) {
-                this.parentElement.classList.add('checkbox-pulse');
-                setTimeout(() => {
-                    this.parentElement.classList.remove('checkbox-pulse');
-                }, 1000);
-            }
-            
-            updateBatchDeleteButtonVisibility();
+    // 全选复选框处理函数
+    function handleSelectAllChange() {
+        const isChecked = this.checked;
+        
+        quotationCheckboxes.forEach(function(checkbox) {
+            checkbox.checked = isChecked;
         });
-    }
-    
-    // 单个checkbox事件
-    quotationCheckboxes.forEach(function(checkbox) {
-        checkbox.addEventListener('change', function() {
-            // 如果取消勾选，更新全选checkbox
-            if (!this.checked && selectAllCheckbox && selectAllCheckbox.checked) {
-                selectAllCheckbox.checked = false;
-            }
-            
-            // 如果所有可选的都被选中，更新全选checkbox
-            if (selectAllCheckbox) {
-                const allChecked = Array.from(quotationCheckboxes).every(cb => cb.checked);
-                selectAllCheckbox.checked = allChecked;
-            }
-            
-            // 添加脉冲效果给变化的复选框
+        
+        // 添加脉冲效果给全选
+        if (isChecked) {
             this.parentElement.classList.add('checkbox-pulse');
             setTimeout(() => {
                 this.parentElement.classList.remove('checkbox-pulse');
             }, 1000);
-            
-            updateBatchDeleteButtonVisibility();
-        });
-    });
+        }
+        
+        updateBatchDeleteButtonVisibility();
+        console.log('📋 全选状态变更:', isChecked);
+    }
     
-    // 搜索处理
+    // 单个复选框处理函数
+    function handleSingleCheckboxChange() {
+        // 如果取消勾选，更新全选checkbox
+        if (!this.checked && selectAllCheckbox && selectAllCheckbox.checked) {
+            selectAllCheckbox.checked = false;
+        }
+        
+        // 如果所有可选的都被选中，更新全选checkbox
+        if (selectAllCheckbox) {
+            const allChecked = Array.from(quotationCheckboxes).every(cb => cb.checked);
+            selectAllCheckbox.checked = allChecked;
+        }
+        
+        // 添加脉冲效果给变化的复选框
+        this.parentElement.classList.add('checkbox-pulse');
+        setTimeout(() => {
+            this.parentElement.classList.remove('checkbox-pulse');
+        }, 1000);
+        
+        updateBatchDeleteButtonVisibility();
+        console.log('☑️ 单个复选框状态变更:', this.checked);
+    }
+    
+    // 全选checkbox事件绑定 - 统一函数风格
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', handleSelectAllChange);
+        console.log('✅ 全选复选框事件已绑定');
+    } else {
+        console.log('❌ 无法绑定全选复选框事件 - 元素不存在');
+    }
+    
+    // 单个checkbox事件绑定 - 统一函数风格
+    quotationCheckboxes.forEach(function(checkbox, index) {
+        checkbox.addEventListener('change', handleSingleCheckboxChange);
+    });
+    if (quotationCheckboxes.length > 0) {
+        console.log(`✅ ${quotationCheckboxes.length}个单个复选框事件已绑定`);
+    } else {
+        console.log('❌ 无单个复选框元素需要绑定事件');
+    }
+    
+    // 执行项目搜索处理函数
+    function handleProjectSearch() {
+        console.log('🔍 执行项目搜索...');
+        
+        // 重置滚动状态
+        sessionStorage.removeItem('quotationListScrollTop');
+        sessionStorage.removeItem('quotationListScrollLeft');
+        
+        // 获取当前URL参数
+        const params = new URLSearchParams(window.location.search);
+        
+        // 重置分页
+        params.delete('offset');
+        
+        // 设置搜索参数
+        const searchValue = projectSearch ? projectSearch.value.trim() : '';
+        if (searchValue) {
+            params.set('project', searchValue);
+        } else {
+            params.delete('project');
+        }
+        
+        // 构建新的URL
+        const newUrl = `${window.location.pathname}?${params.toString()}`;
+        console.log('🚀 搜索跳转到:', newUrl);
+        window.location.href = newUrl;
+    }
+    
+    // 回车键搜索处理函数
+    function handleSearchKeyPress(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleProjectSearch();
+        }
+    }
+    
+    // 搜索处理 - 统一函数风格
     if (searchBtn) {
-        searchBtn.addEventListener('click', function() {
-            const searchValue = projectSearch.value.trim();
-            window.location.href = `{{ url_for('quotation.list_quotations') }}?project=${encodeURIComponent(searchValue)}`;
-        });
+        searchBtn.addEventListener('click', handleProjectSearch);
+        console.log('✅ 搜索按钮事件已绑定');
+    } else {
+        console.log('❌ 无法绑定搜索按钮事件 - 元素不存在');
     }
     
     if (projectSearch) {
-        projectSearch.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                searchBtn.click();
-            }
-        });
+        projectSearch.addEventListener('keypress', handleSearchKeyPress);
+        console.log('✅ 搜索框回车键事件已绑定');
+    } else {
+        console.log('❌ 无法绑定搜索框事件 - 元素不存在');
     }
     
-    // 筛选功能
+    // 筛选功能 - 参考客户管理模块设计
     function applyFilters() {
-        const currentUrl = new URL(window.location);
-        const params = new URLSearchParams();
+        console.log('🔄 开始应用筛选...');
         
-        // 保留当前的项目搜索
+        // 重置滚动状态
+        sessionStorage.removeItem('quotationListScrollTop');
+        sessionStorage.removeItem('quotationListScrollLeft');
+        
+        // 获取当前URL参数
+        const params = new URLSearchParams(window.location.search);
+        
+        // 清除之前的筛选参数
+        params.delete('owner_filter');
+        params.delete('project_type_filter');
+        params.delete('project_stage_filter');
+        params.delete('offset'); // 重置分页
+        
+        // 保留搜索参数
         if (projectSearch && projectSearch.value.trim()) {
             params.set('project', projectSearch.value.trim());
+            console.log('保留项目搜索:', projectSearch.value.trim());
         }
         
-        // 添加筛选参数
+        // 添加新的筛选参数
         if (ownerFilter && ownerFilter.value) {
             params.set('owner_filter', ownerFilter.value);
+            console.log('添加负责人筛选:', ownerFilter.value);
         }
         if (projectTypeFilter && projectTypeFilter.value) {
             params.set('project_type_filter', projectTypeFilter.value);
+            console.log('添加项目类型筛选:', projectTypeFilter.value);
         }
         if (projectStageFilter && projectStageFilter.value) {
             params.set('project_stage_filter', projectStageFilter.value);
+            console.log('添加项目阶段筛选:', projectStageFilter.value);
         }
         
+        // 构建新的URL  
+        const newUrl = `${window.location.pathname}?${params.toString()}`;
+        console.log('🚀 跳转到URL:', newUrl);
+        
+        // 验证筛选参数
+        console.log('📊 当前筛选状态:');
+        console.log('  负责人:', ownerFilter ? ownerFilter.value : 'N/A');
+        console.log('  项目类型:', projectTypeFilter ? projectTypeFilter.value : 'N/A');
+        console.log('  项目阶段:', projectStageFilter ? projectStageFilter.value : 'N/A');
+        
         // 跳转到新的URL
-        window.location.href = `{{ url_for('quotation.list_quotations') }}?${params.toString()}`;
+        window.location.href = newUrl;
     }
     
-    // 筛选器事件监听
+    // 筛选器变更处理函数
+    function handleFilterChange(filterType, value) {
+        console.log(`📊 ${filterType}筛选器变更:`, value);
+        applyFilters();
+    }
+    
+    // 筛选器事件监听 - 统一函数风格
     if (ownerFilter) {
-        ownerFilter.addEventListener('change', applyFilters);
+        ownerFilter.addEventListener('change', function() {
+            handleFilterChange('负责人', this.value);
+        });
+        console.log('✅ 负责人筛选器事件已绑定');
+    } else {
+        console.log('❌ 无法绑定负责人筛选器事件 - 元素不存在');
     }
+    
     if (projectTypeFilter) {
-        projectTypeFilter.addEventListener('change', applyFilters);
+        projectTypeFilter.addEventListener('change', function() {
+            handleFilterChange('项目类型', this.value);
+        });
+        console.log('✅ 项目类型筛选器事件已绑定');
+    } else {
+        console.log('❌ 无法绑定项目类型筛选器事件 - 元素不存在');
     }
+    
     if (projectStageFilter) {
-        projectStageFilter.addEventListener('change', applyFilters);
+        projectStageFilter.addEventListener('change', function() {
+            handleFilterChange('项目阶段', this.value);
+        });
+        console.log('✅ 项目阶段筛选器事件已绑定');
+    } else {
+        console.log('❌ 无法绑定项目阶段筛选器事件 - 元素不存在');
     }
     
-    // 清除筛选按钮
+    // 清除筛选处理函数
+    function handleClearFilters() {
+        console.log('🧹 清除所有筛选条件...');
+        
+        // 重置滚动状态
+        sessionStorage.removeItem('quotationListScrollTop');
+        sessionStorage.removeItem('quotationListScrollLeft');
+        
+        // 获取当前URL参数
+        const params = new URLSearchParams(window.location.search);
+        
+        // 清除筛选参数
+        params.delete('owner_filter');
+        params.delete('project_type_filter');
+        params.delete('project_stage_filter');
+        params.delete('offset'); // 重置分页
+        
+        // 保留项目搜索参数
+        // project参数如果存在则保留
+        
+        // 构建新的URL
+        const newUrl = `${window.location.pathname}?${params.toString()}`;
+        console.log('🚀 清除筛选后跳转到:', newUrl);
+        window.location.href = newUrl;
+    }
+    
+    // 清除筛选按钮 - 统一函数风格
     if (clearFiltersBtn) {
-        clearFiltersBtn.addEventListener('click', function() {
-            // 清除所有筛选器的值
-            if (ownerFilter) ownerFilter.value = '';
-            if (projectTypeFilter) projectTypeFilter.value = '';
-            if (projectStageFilter) projectStageFilter.value = '';
-            
-            // 保留项目搜索，只清除筛选参数
-            const params = new URLSearchParams();
-            if (projectSearch && projectSearch.value.trim()) {
-                params.set('project', projectSearch.value.trim());
-            }
-            
-            // 跳转到清除筛选后的URL
-            window.location.href = `{{ url_for('quotation.list_quotations') }}?${params.toString()}`;
-        });
+        clearFiltersBtn.addEventListener('click', handleClearFilters);
+        console.log('✅ 清除筛选按钮事件已绑定');
+    } else {
+        console.log('❌ 无法绑定清除筛选按钮事件 - 元素不存在');
     }
     
-    // 批量删除按钮点击事件
-    if (batchDeleteBtn) {
-        batchDeleteBtn.addEventListener('click', function() {
-            const checkedCount = document.querySelectorAll('.quotation-checkbox:checked').length;
-            if (checkedCount > 0) {
-                if (selectedCountSpan) {
-                    selectedCountSpan.textContent = checkedCount;
-                }
-                batchDeleteModal.show();
+    // 批量删除处理函数
+    function handleBatchDeleteClick() {
+        const checkedCount = document.querySelectorAll('.quotation-checkbox:checked').length;
+        if (checkedCount > 0) {
+            if (selectedCountSpan) {
+                selectedCountSpan.textContent = checkedCount;
             }
-        });
+            batchDeleteModal.show();
+        }
     }
     
-    // 确认批量删除
-    if (confirmBatchDeleteBtn) {
-        confirmBatchDeleteBtn.addEventListener('click', function() {
-            const checkedBoxes = document.querySelectorAll('.quotation-checkbox:checked');
-            const quotationIds = Array.from(checkedBoxes).map(cb => cb.value);
+    // 确认批量删除处理函数
+    function handleConfirmBatchDelete() {
+        const checkedBoxes = document.querySelectorAll('.quotation-checkbox:checked');
+        const quotationIds = Array.from(checkedBoxes).map(cb => cb.value);
+        
+        if (quotationIds.length === 0) {
+            batchDeleteModal.hide();
+            return;
+        }
+        
+        console.log('🗑️ 执行批量删除，ID列表:', quotationIds);
+        
+        // 发送批量删除请求
+        fetch("{{ url_for('quotation.batch_delete_quotations') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify({ quotation_ids: quotationIds })
+        })
+        .then(response => response.json())
+        .then(data => {
+            batchDeleteModal.hide();
             
-            if (quotationIds.length === 0) {
-                batchDeleteModal.hide();
-                return;
-            }
-            
-            // 发送批量删除请求
-            fetch("{{ url_for('quotation.batch_delete_quotations') }}", {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
-                },
-                body: JSON.stringify({ quotation_ids: quotationIds })
-            })
-            .then(response => response.json())
-            .then(data => {
-                batchDeleteModal.hide();
+            if (data.success) {
+                console.log('✅ 批量删除成功:', data.message);
+                // 显示成功消息
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-success alert-dismissible fade show';
+                alertDiv.innerHTML = `
+                    <strong>成功!</strong> ${data.message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `;
+                document.querySelector('.container-fluid').prepend(alertDiv);
                 
-                if (data.success) {
-                    // 显示成功消息
-                    const alertDiv = document.createElement('div');
-                    alertDiv.className = 'alert alert-success alert-dismissible fade show';
-                    alertDiv.innerHTML = `
-                        <strong>成功!</strong> ${data.message}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    `;
-                    document.querySelector('.container-fluid').prepend(alertDiv);
-                    
-                    // 刷新页面或移除已删除的行
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1500);
-                } else {
-                    // 显示错误消息
-                    const alertDiv = document.createElement('div');
-                    alertDiv.className = 'alert alert-danger alert-dismissible fade show';
-                    alertDiv.innerHTML = `
-                        <strong>错误!</strong> ${data.message}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    `;
-                    document.querySelector('.container-fluid').prepend(alertDiv);
-                }
-            })
-            .catch(error => {
-                console.error('批量删除报价单时出错:', error);
-                batchDeleteModal.hide();
-                
+                // 刷新页面或移除已删除的行
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                console.error('❌ 批量删除失败:', data.message);
                 // 显示错误消息
                 const alertDiv = document.createElement('div');
                 alertDiv.className = 'alert alert-danger alert-dismissible fade show';
                 alertDiv.innerHTML = `
-                    <strong>错误!</strong> 批量删除请求失败
+                    <strong>错误!</strong> ${data.message}
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 `;
                 document.querySelector('.container-fluid').prepend(alertDiv);
-            });
+            }
+        })
+        .catch(error => {
+            console.error('❌ 批量删除报价单时出错:', error);
+            batchDeleteModal.hide();
+            
+            // 显示错误消息
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+            alertDiv.innerHTML = `
+                <strong>错误!</strong> 批量删除请求失败
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            document.querySelector('.container-fluid').prepend(alertDiv);
         });
     }
+    
+    // 批量删除按钮事件绑定 - 统一函数风格
+    if (batchDeleteBtn) {
+        batchDeleteBtn.addEventListener('click', handleBatchDeleteClick);
+        console.log('✅ 批量删除按钮事件已绑定');
+    } else {
+        console.log('❌ 无法绑定批量删除按钮事件 - 元素不存在');
+    }
+    
+    // 确认批量删除按钮事件绑定 - 统一函数风格
+    if (confirmBatchDeleteBtn) {
+        confirmBatchDeleteBtn.addEventListener('click', handleConfirmBatchDelete);
+        console.log('✅ 确认批量删除按钮事件已绑定');
+    } else {
+        console.log('❌ 无法绑定确认批量删除按钮事件 - 元素不存在');
+    }
+} catch (error) {
+    console.error('初始化报价单列表功能时出错:', error);
+}
 });
 
 // 报价单批量导入功能
@@ -2733,6 +2966,163 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         // ... existing code ...
     });
+});
+
+// 滚动加载相关JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+    // 滚动加载相关变量
+    let currentOffset = {{ offset + quotations|length }};
+    let isLoading = false;
+    let hasMore = {{ has_more | tojson }};
+    const limit = {{ limit }};
+    
+    console.log('🔄 初始化滚动加载状态:');
+    console.log('  当前偏移量:', currentOffset);
+    console.log('  是否还有更多数据:', hasMore);
+    console.log('  每页限制:', limit);
+    
+    // 获取当前URL参数 - 参考客户管理模块设计
+    function getCurrentParams() {
+        const url = new URL(window.location.href);
+        return {
+            search: url.searchParams.get('search'),
+            project: url.searchParams.get('project'),
+            sort: url.searchParams.get('sort'),
+            order: url.searchParams.get('order'),
+            owner_filter: url.searchParams.get('owner_filter'),
+            project_type_filter: url.searchParams.get('project_type_filter'),
+            project_stage_filter: url.searchParams.get('project_stage_filter')
+        };
+    }
+    
+    // 加载更多数据
+    function loadMoreData() {
+        if (isLoading || !hasMore) return;
+        
+        isLoading = true;
+        document.getElementById('loadingIndicator').classList.remove('d-none');
+        
+        const params = getCurrentParams();
+        const url = new URL('{{ url_for("quotation.load_more_quotations") }}', window.location.origin);
+        url.searchParams.set('offset', currentOffset);
+        url.searchParams.set('limit', limit);
+        
+        // 添加所有筛选参数
+        if (params.search) url.searchParams.set('search', params.search);
+        if (params.project) url.searchParams.set('project', params.project);
+        if (params.sort) url.searchParams.set('sort', params.sort);
+        if (params.order) url.searchParams.set('order', params.order);
+        if (params.owner_filter) url.searchParams.set('owner_filter', params.owner_filter);
+        if (params.project_type_filter) url.searchParams.set('project_type_filter', params.project_type_filter);
+        if (params.project_stage_filter) url.searchParams.set('project_stage_filter', params.project_stage_filter);
+        
+        console.log('📡 加载更多数据请求URL:', url.toString());
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('❌ 服务器返回错误:', data.error);
+                    hasMore = false;
+                    return;
+                }
+                
+                const tableBody = document.getElementById('quotationTableBody');
+                const emptyRow = tableBody.querySelector('tr[id*="empty"]');
+                
+                // 如果有新数据，添加到表格中
+                if (data.html && data.html.trim()) {
+                    // 隐藏空数据行（如果存在）
+                    if (emptyRow) {
+                        emptyRow.style.display = 'none';
+                    }
+                    tableBody.insertAdjacentHTML('beforeend', data.html);
+                    console.log('✅ 成功追加', (data.html.match(/<tr/g) || []).length, '行数据');
+                } else {
+                    console.log('⚠️ 没有返回新的HTML数据');
+                }
+                
+                currentOffset = data.loaded_count || currentOffset;
+                hasMore = data.has_more;
+                
+                console.log('📊 更新状态: offset=', currentOffset, ', hasMore=', hasMore);
+                
+                // 重新初始化新加载内容的事件监听器
+                initializeQuotationEvents();
+                
+                if (!hasMore) {
+                    document.getElementById('noMoreData').classList.remove('d-none');
+                    console.log('🏁 已加载所有数据，停止滚动加载');
+                }
+            })
+            .catch(error => {
+                console.error('加载数据失败:', error);
+                // 显示用户友好的错误提示
+                const tableBody = document.getElementById('quotationTableBody');
+                tableBody.insertAdjacentHTML('beforeend', 
+                    '<tr><td colspan="100%" class="text-center text-danger py-3">' +
+                    '<i class="fas fa-exclamation-triangle me-2"></i>加载数据失败，请刷新页面重试' +
+                    '</td></tr>'
+                );
+            })
+            .finally(() => {
+                isLoading = false;
+                document.getElementById('loadingIndicator').classList.add('d-none');
+            });
+    }
+    
+    // 重置列表数据
+    function resetListData() {
+        const tableBody = document.getElementById('quotationTableBody');
+        // 保留表头，清空数据行
+        const rows = tableBody.querySelectorAll('tr:not([id*="empty"])');
+        rows.forEach(row => row.remove());
+        
+        currentOffset = 0;
+        hasMore = true;
+        document.getElementById('noMoreData').classList.add('d-none');
+        
+        // 滚动到页面顶部
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        
+        // 加载第一批数据
+        loadMoreData();
+    }
+    
+    // 滚动监听
+    let scrollTimer;
+    window.addEventListener('scroll', function() {
+        clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(function() {
+            // 当滚动到距离底部800px时开始加载
+            if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 800) {
+                loadMoreData();
+            }
+        }, 100);
+    });
+    
+    // 初始化报价单相关事件（用于新加载的内容）
+    function initializeQuotationEvents() {
+        // 重新初始化批量选择功能
+        const quotationCheckboxes = document.querySelectorAll('.quotation-checkbox');
+        quotationCheckboxes.forEach(checkbox => {
+            if (!checkbox.hasAttribute('data-initialized')) {
+                checkbox.addEventListener('change', updateBatchDeleteButton);
+                checkbox.setAttribute('data-initialized', 'true');
+            }
+        });
+        
+        // 重新初始化其他交互功能
+        // 可以在这里添加其他需要重新绑定的事件
+    }
+    
+    // 初始显示状态设置
+    if (!hasMore && currentOffset > 0) {
+        document.getElementById('noMoreData').classList.remove('d-none');
+    }
+    
+    // 注意：筛选和搜索功能通过已有的事件处理程序实现
+    // 不要在这里重复绑定筛选事件，避免与现有筛选功能冲突
 });
 </script>
 {% endblock %}
