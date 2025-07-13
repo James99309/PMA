@@ -2,7 +2,7 @@
 {% from 'macros/ui_helpers.html' import render_primary_contact_badge, render_owner, render_date, render_button, render_confirm_cancel %}
 {% from 'macros/ui_modals.html' import render_change_owner_modal with context %}
 
-{% block title %}{{ contact.name }} - 联系人详情{% endblock %}
+{% block title %}{{ contact.name }} - {{ _('联系人详情') }}{% endblock %}
 
 {% block custom_head %}
 <!-- 添加jQuery库确保删除功能可用 -->
@@ -15,7 +15,7 @@
     <!-- 页面标题和操作按钮 -->
     <div class="row mb-3">
         <div class="col">
-            <h2 class="text-primary">联系人详情</h2>
+            <h2 class="text-primary">{{ _('联系人详情') }}</h2>
             <p class="text-muted mb-0">
                 <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="text-decoration-none text-primary">
                     {{ company.company_name }}
@@ -23,14 +23,14 @@
             </p>
         </div>
         <div class="col text-end">
-            <div class="btn-group" role="group" aria-label="操作按钮组">
-                {{ render_button('返回企业', url_for('customer.view_company', company_id=company.id), color='secondary', size='sm') }}
-                {{ render_button('编辑联系人', has_permission('customer', 'edit') and can_edit_contact(current_user, contact) and url_for('customer.edit_contact', company_id=company.id, contact_id=contact.id) or '#', color='primary', size='sm') }}
+            <div class="btn-group" role="group" aria-label="{{ _('操作按钮组') }}">
+                {{ render_button(_('返回企业'), url_for('customer.view_company', company_id=company.id), color='secondary', size='sm') }}
+                {{ render_button(_('编辑联系人'), has_permission('customer', 'edit') and can_edit_contact(current_user, contact) and url_for('customer.edit_contact', company_id=company.id, contact_id=contact.id) or '#', color='primary', size='sm') }}
             </div>
             {% if has_permission('customer', 'delete') and can_delete_contact(current_user, contact) %}
             <form method="post" action="{{ url_for('customer.delete_contact', company_id=company.id, contact_id=contact.id) }}" style="display:inline;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                {{ render_button('删除联系人', None, color='danger', type='submit', size='sm') }}
+                {{ render_button(_('删除联系人'), None, color='danger', type='submit', size='sm') }}
             </form>
             {% endif %}
         </div>
@@ -48,45 +48,45 @@
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-3 mb-3">
-                            <label class="fw-bold text-muted">部门</label>
-                            <p>{{ contact.department or '未指定' }}</p>
+                            <label class="fw-bold text-muted">{{ _('部门') }}</label>
+                            <p>{{ contact.department or _('未指定') }}</p>
                         </div>
                         <div class="col-md-3 mb-3">
-                            <label class="fw-bold text-muted">职位</label>
-                            <p>{{ contact.position or '未指定' }}</p>
+                            <label class="fw-bold text-muted">{{ _('职位') }}</label>
+                            <p>{{ contact.position or _('未指定') }}</p>
                         </div>
                         <div class="col-md-3 mb-3">
-                            <label class="fw-bold text-muted">电话</label>
-                            <p>{{ contact.phone or '未指定' }}</p>
+                            <label class="fw-bold text-muted">{{ _('电话') }}</label>
+                            <p>{{ contact.phone or _('未指定') }}</p>
                         </div>
                         <div class="col-md-3 mb-3">
-                            <label class="fw-bold text-muted">所有者</label>
+                            <label class="fw-bold text-muted">{{ _('所有者') }}</label>
                             <p>
                                 {{ render_owner(contact.owner) }}
                                 {% if has_change_owner_permission %}
-                                    <button class="btn btn-link btn-sm p-0 ms-2" data-bs-toggle="modal" data-bs-target="#changeOwnerModal">修改</button>
+                                    <button class="btn btn-link btn-sm p-0 ms-2" data-bs-toggle="modal" data-bs-target="#changeOwnerModal">{{ _('修改') }}</button>
                                 {% endif %}
                             </p>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="fw-bold text-muted">邮箱</label>
-                            <p>{{ contact.email or '未指定' }}</p>
+                            <label class="fw-bold text-muted">{{ _('邮箱') }}</label>
+                            <p>{{ contact.email or _('未指定') }}</p>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="fw-bold text-muted">创建时间</label>
+                            <label class="fw-bold text-muted">{{ _('创建时间') }}</label>
                             <p>{{ render_date(contact.created_at) }}</p>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-12">
-                            <label class="fw-bold text-muted">备注</label>
-                            <p>{{ contact.notes or '暂无备注' }}</p>
+                            <label class="fw-bold text-muted">{{ _('备注') }}</label>
+                            <p>{{ contact.notes or _('暂无备注') }}</p>
                         </div>
                     </div>
                     <div class="mb-3">
-                      <span class="fw-bold">主要联系人：</span>
+                      <span class="fw-bold">{{ _('主要联系人') }}：</span>
                       {{ render_primary_contact_badge(contact.is_primary) }}
                     </div>
                 </div>
@@ -97,11 +97,11 @@
     <!-- 行动记录列表 -->
     <div class="row mb-3 align-items-center">
         <div class="col">
-            <h3 class="text-primary mb-0">行动记录</h3>
+            <h3 class="text-primary mb-0">{{ _('行动记录') }}</h3>
         </div>
         {% if has_permission('customer', 'create') %}
         <div class="col-auto text-end">
-            {{ render_button('添加行动记录', url_for('customer.add_action_for_company', company_id=contact.company_id) ~ '?contact_id=' ~ contact.id, color='auxiliary', size='sm') }}
+            {{ render_button(_('添加行动记录'), url_for('customer.add_action_for_company', company_id=contact.company_id) ~ '?contact_id=' ~ contact.id, color='auxiliary', size='sm') }}
         </div>
         {% endif %}
     </div>
@@ -125,9 +125,9 @@
                                         {% endif %}
                                     </div>
                                     <div>
-                                        <small class="text-muted me-3">记录人: {{ render_owner(action.owner) }}</small>
+                                        <small class="text-muted me-3">{{ _('记录人') }}: {{ render_owner(action.owner) }}</small>
                                         {% if action.owner_id == current_user.id or current_user.role == 'admin' %}
-                                        {{ render_button('删除', '#', color='danger', size='sm', attrs='data-action-id="' ~ action.id ~ '" data-bs-toggle="tooltip" title="删除此行动记录"') }}
+                                        {{ render_button(_('删除'), '#', color='danger', size='sm', attrs='data-action-id="' ~ action.id ~ '" data-bs-toggle="tooltip" title="' ~ _('删除此行动记录') ~ '"') }}
                                         {% endif %}
                                     </div>
                                 </div>
@@ -139,7 +139,7 @@
                     </div>
                     {% endfor %}
                 {% else %}
-                    <p class="text-center text-muted my-5">暂无行动记录</p>
+                    <p class="text-center text-muted my-5">{{ _('暂无行动记录') }}</p>
                 {% endif %}
             </div>
         </div>
@@ -151,15 +151,15 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="deleteActionModalLabel">确认删除</h5>
+                <h5 class="modal-title" id="deleteActionModalLabel">{{ _('确认删除') }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                您确定要删除这条行动记录吗？此操作不可撤销。
+                {{ _('确定要删除这条行动记录吗？') }}{{ _('此操作不可撤销。') }}
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">确认删除</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('取消') }}</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">{{ _('确认删除') }}</button>
             </div>
         </div>
     </div>
@@ -169,11 +169,11 @@
 <div class="toast-container position-fixed bottom-0 end-0 p-3">
     <div id="resultToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
         <div class="toast-header">
-            <strong class="me-auto" id="toastTitle">提示</strong>
+            <strong class="me-auto" id="toastTitle">{{ _('提示') }}</strong>
             <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
         </div>
         <div class="toast-body" id="toastMessage">
-            操作结果会显示在这里
+            {{ _('操作结果会显示在这里') }}
         </div>
     </div>
 </div>
@@ -270,6 +270,14 @@
 </style>
 
 <script>
+window.i18nTexts = {
+    processing: '{{ _("处理中...") }}',
+    success: '{{ _("成功") }}',
+    error: '{{ _("错误") }}',
+    confirmDelete: '{{ _("确认删除") }}',
+    deleteError: '{{ _("删除过程中发生错误，请稍后重试") }}'
+};
+
 document.addEventListener('DOMContentLoaded', function() {
     // 初始化工具提示
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
@@ -303,7 +311,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (currentActionId) {
             // 禁用按钮，防止重复点击
             confirmDeleteBtn.disabled = true;
-            confirmDeleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 处理中...';
+            confirmDeleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + (window.i18nTexts ? window.i18nTexts.processing : '处理中...');
             
             // 发送删除请求
             fetch(`/customer/api/actions/${currentActionId}/delete`, {
@@ -319,7 +327,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 if (data.success) {
                     // 显示成功消息
-                    toastTitle.textContent = '成功';
+                    toastTitle.textContent = window.i18nTexts ? window.i18nTexts.success : '成功';
                     toastMessage.textContent = data.message;
                     resultToast.show();
                     
@@ -329,13 +337,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     }, 1500);
                 } else {
                     // 显示错误消息
-                    toastTitle.textContent = '错误';
+                    toastTitle.textContent = window.i18nTexts ? window.i18nTexts.error : '错误';
                     toastMessage.textContent = data.message;
                     resultToast.show();
                     
                     // 恢复按钮状态
                     confirmDeleteBtn.disabled = false;
-                    confirmDeleteBtn.textContent = '确认删除';
+                    confirmDeleteBtn.textContent = window.i18nTexts ? window.i18nTexts.confirmDelete : '确认删除';
                 }
             })
             .catch(error => {
@@ -343,13 +351,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 deleteModal.hide();
                 
                 // 显示错误消息
-                toastTitle.textContent = '错误';
-                toastMessage.textContent = '删除过程中发生错误，请稍后重试';
+                toastTitle.textContent = window.i18nTexts ? window.i18nTexts.error : '错误';
+                toastMessage.textContent = window.i18nTexts ? window.i18nTexts.deleteError : '删除过程中发生错误，请稍后重试';
                 resultToast.show();
                 
                 // 恢复按钮状态
                 confirmDeleteBtn.disabled = false;
-                confirmDeleteBtn.textContent = '确认删除';
+                confirmDeleteBtn.textContent = window.i18nTexts ? window.i18nTexts.confirmDelete : '确认删除';
             });
         }
     });

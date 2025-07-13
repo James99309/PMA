@@ -11,18 +11,18 @@
                 </div>
         <div class="col-auto ml-auto">
             {% if return_to %}
-            {{ render_button('返回项目详情', return_to, color='secondary') }}
+            {{ render_button(_('返回项目详情'), return_to, color='secondary') }}
             {% else %}
-            {{ render_button('返回列表', url_for('quotation.list_quotations'), color='secondary') }}
+            {{ render_button(_('返回列表'), url_for('quotation.list_quotations'), color='secondary') }}
             {% endif %}
-            {{ render_button('提交', None, color='primary', type='submit', attrs='form="quotation-form" id="submit-btn"') }}
+            {{ render_button(_('提交'), None, color='primary', type='submit', attrs='form="quotation-form" id="submit-btn"') }}
         </div>
     </div>
 
     {% if error %}
     <!-- 错误提示 -->
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <strong>错误:</strong> {{ error }}
+        <strong>{{ _('错误') }}:</strong> {{ error }}
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
     {% endif %}
@@ -39,7 +39,7 @@
                                            class="form-control" 
                                            id="project_search" 
                                            name="project_search"
-                                           placeholder="输入项目名称或授权码进行搜索..."
+                                           placeholder="{{ _('输入项目名称或授权码进行搜索...') }}"
                                            autocomplete="off"
                                            {% if preset_project_id %}readonly{% endif %}
                                            required>
@@ -55,7 +55,7 @@
                                     <button type="button" class="btn btn-outline-secondary btn-sm position-absolute" 
                                             id="clear_project" 
                                             style="right: 5px; top: 50%; transform: translateY(-50%); z-index: 10;"
-                                            title="清除选择">
+                                            title="{{ _('清除选择') }}">
                                         <i class="fas fa-times"></i>
                                     </button>
                                     {% endif %}
@@ -68,7 +68,7 @@
                                         {% if project.id == preset_project_id|int %}
                                         <div class="alert alert-info py-2">
                                             <i class="fas fa-info-circle me-2"></i>
-                                            已预选项目：<strong>{{ project.project_name }}</strong>
+                                            {{ _('已预选项目') }}：<strong>{{ project.project_name }}</strong>
                                             {% if project.authorization_code %}({{ project.authorization_code }}){% endif %}
                                         </div>
                                         {% endif %}
@@ -86,29 +86,26 @@
                         <div class="row mb-3">
                             <!-- 报价日期 -->
                             <div class="col-md-3">
-                                <label class="form-label">报价日期</label>
+                                <label class="form-label">{{ _('报价日期') }}</label>
                                 <input type="text" class="form-control" value="{{ today_date }}" readonly>
                             </div>
                             <!-- 项目阶段 -->
                             <div class="col-md-3">
-                                <label for="project_stage" class="form-label">项目阶段</label>
-                                <input type="text" class="form-control" id="project_stage" name="project_stage" readonly placeholder="选择项目后自动填充">
+                                <label for="project_stage" class="form-label">{{ _('项目阶段') }}</label>
+                                <input type="text" class="form-control" id="project_stage" name="project_stage" readonly placeholder="{{ _('选择项目后自动填充') }}">
                             </div>
                             <!-- 项目类型 -->
                             <div class="col-md-3">
-                                <label for="project_type" class="form-label">项目类型</label>
-                                <input type="text" class="form-control" id="project_type" name="project_type" readonly placeholder="选择项目后自动填充">
+                                <label for="project_type" class="form-label">{{ _('项目类型') }}</label>
+                                <input type="text" class="form-control" id="project_type" name="project_type" readonly placeholder="{{ _('选择项目后自动填充') }}">
                             </div>
                             <!-- 货币类型 -->
                             <div class="col-md-3">
-                                <label for="currency" class="form-label">货币类型</label>
+                                <label for="currency" class="form-label">{{ _('货币类型') }}</label>
                                 <select class="form-select" id="currency" name="currency">
-                                    <option value="CNY" {% if default_currency == 'CNY' %}selected{% endif %}>人民币 (CNY)</option>
-                                    <option value="USD" {% if default_currency == 'USD' %}selected{% endif %}>美元 (USD)</option>
-                                    <option value="SGD" {% if default_currency == 'SGD' %}selected{% endif %}>新加坡元 (SGD)</option>
-                                    <option value="MYR" {% if default_currency == 'MYR' %}selected{% endif %}>马来西亚林吉特 (MYR)</option>
-                                    <option value="IDR" {% if default_currency == 'IDR' %}selected{% endif %}>印尼盾 (IDR)</option>
-                                    <option value="THB" {% if default_currency == 'THB' %}selected{% endif %}>泰铢 (THB)</option>
+                                    {% for value, label in CURRENCY_TYPE_OPTIONS %}
+                                    <option value="{{ value }}" {% if default_currency == value %}selected{% endif %}>{{ label }} ({{ value }})</option>
+                                    {% endfor %}
                                 </select>
                             </div>
                         </div>
@@ -116,33 +113,33 @@
                         <!-- 产品明细表格 -->
                         <div class="card mb-4">
                             <div class="card-header text-center">
-                                <h5 class="card-title mb-0">产品明细</h5>
-                <small class="text-muted">表格可横向滚动查看更多内容</small>
+                                <h5 class="card-title mb-0">{{ _('产品明细') }}</h5>
+                <small class="text-muted">{{ _('表格可横向滚动查看更多内容') }}</small>
                             </div>
                             <div class="card-body">
                 <div class="table-responsive product-table-container">
                                     <table class="table table-bordered" id="productTable">
                                         <thead>
                                             <tr>
-                                <th width="180px">产品名称</th>
-                                <th width="150px">产品型号</th>
-                                <th width="200px">产品描述</th>
-                                <th width="120px">品牌</th>
-                                <th width="80px">单位</th>
-                                <th width="120px">市场单价</th>
-                                <th width="100px">折扣率%</th>
-                                <th width="120px">单价</th>
-                                <th width="80px">数量</th>
-                                <th width="120px">小计</th>
+                                <th width="180px">{{ _('产品名称') }}</th>
+                                <th width="150px">{{ _('产品型号') }}</th>
+                                <th width="200px">{{ _('产品描述') }}</th>
+                                <th width="120px">{{ _('品牌') }}</th>
+                                <th width="80px">{{ _('单位') }}</th>
+                                <th width="120px">{{ _('市场单价') }}</th>
+                                <th width="100px">{{ _('折扣率') }}%</th>
+                                <th width="120px">{{ _('单价') }}</th>
+                                <th width="80px">{{ _('数量') }}</th>
+                                <th width="120px">{{ _('小计') }}</th>
                                 <th width="100px">MN</th>
-                                <th width="70px">操作</th>
+                                <th width="70px">{{ _('操作') }}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <tr>
                                                 <td>
                                                     <div class="product-name-container">
-                                                        <input type="text" class="form-control product-name" name="product_name[]" required placeholder="点击选择产品...">
+                                                        <input type="text" class="form-control product-name" name="product_name[]" required placeholder="{{ _('点击选择产品...') }}">
                                                     </div>
                                                 </td>
                                                 <td>
@@ -190,7 +187,7 @@
                                     </table>
                                 </div>
                                 <div class="text-end mt-3">
-                                    {{ render_button('添加产品', '#', color='auxiliary', attrs='type="button" id="addProduct"') }}
+                                    {{ render_button(_('添加产品'), '#', color='auxiliary', attrs='type="button" id="addProduct"') }}
                                 </div>
                             </div>
                         </div>
@@ -200,7 +197,7 @@
                             <div class="col-md-3">
                                 <div class="total-amount-container">
                                     <div class="input-group">
-                                        <span class="input-group-text">总计金额</span>
+                                        <span class="input-group-text">{{ _('总计金额') }}</span>
                                         <input type="text" class="form-control" id="grandTotal" name="total_amount" readonly>
                                     </div>
                                 </div>
@@ -443,7 +440,7 @@ var isEditPage = false;
             }
             
             var $input = $('#project_search');
-            $input.empty().append('<option value="">-- 请选择项目 --</option>');
+            $input.empty().append('<option value="">-- {{ _("请选择项目") }} --</option>');
             
             if (response.projects && response.projects.length > 0) {
                 console.log('找到', response.projects.length, '个项目');
@@ -460,57 +457,23 @@ var isEditPage = false;
                 checkProjectIdFromUrl();
             } else {
                 console.log('没有找到项目或项目列表为空');
-                $input.append('<option value="" disabled>没有找到项目</option>');
+                $input.append('<option value="" disabled>{{ _("没有找到项目") }}</option>');
                 removeLoading(); // 移除可能存在的加载指示器
             }
         },
         error: function(xhr, status, error) {
             console.error('获取项目列表失败:', error, '状态:', status);
-            var errorMsg = '获取项目列表失败';
+            var errorMsg = '{{ _("获取项目列表失败") }}';
             if (status === 'timeout') {
-                errorMsg = '请求超时，请刷新页面重试';
+                errorMsg = '{{ _("请求超时，请刷新页面重试") }}';
             }
             $('#project_search').empty().append('<option value="">-- ' + errorMsg + ' --</option>');
             removeLoading(); // 移除可能存在的加载指示器
-            alert('获取项目列表失败: ' + errorMsg);
+            alert('{{ _("获取项目列表失败") }}: ' + errorMsg);
         }
     });
 })();
 
-// 项目类型翻译函数 - 移至全局作用域
-function translateProjectType(typeCode) {
-    var typeMap = {
-        'sales_focus': '销售重点',
-        'channel_follow': '渠道跟进',
-        'internal_project': '内部项目',
-        'partner_project': '合作伙伴项目',
-        'poc': '概念验证',
-        'strategic': '战略项目'
-    };
-    
-    return typeMap[typeCode] || typeCode; // 如果没有匹配的翻译，返回原值
-}
-
-// 项目阶段翻译函数
-function translateProjectStage(stageCode) {
-    var stageMap = {
-        'initial_contact': '初步接触',
-        'requirement_analysis': '需求分析',
-        'solution_design': '方案设计',
-        'proposal_submission': '方案提交',
-        'negotiation': '商务谈判',
-        'contract_signing': '合同签署',
-        'project_implementation': '项目实施',
-        'acceptance_testing': '验收测试',
-        'project_delivery': '项目交付',
-        'maintenance_support': '维护支持',
-        'project_closure': '项目结束',
-        'on_hold': '暂停',
-        'cancelled': '已取消'
-    };
-    
-    return stageMap[stageCode] || stageCode; // 如果没有匹配的翻译，返回原值
-}
 
 // 页面加载完成后执行
 $(document).ready(function() {
@@ -563,11 +526,11 @@ function testSearchAPI() {
         data: { q: '上海', limit: 5 },
         success: function(response) {
             console.log('搜索成功:', response);
-            alert('搜索成功，找到 ' + (response.data ? response.data.length : 0) + ' 个项目');
+            alert('{{ _("搜索成功，找到") }} ' + (response.data ? response.data.length : 0) + ' {{ _("个项目") }}');
         },
         error: function(xhr, status, error) {
             console.error('搜索失败:', error);
-            alert('搜索失败: ' + error);
+            alert('{{ _("搜索失败") }}: ' + error);
         }
     });
 }
@@ -702,17 +665,17 @@ function searchProjects(query) {
 // 渲染授权编号徽章（模拟宏函数）
 function renderAuthorizationCodeBadge(code, projectType) {
     if (!code) {
-        return '<span class="badge rounded-pill" style="background-color: #6c757d; color: #fff; font-family: \'Helvetica Neue\', sans-serif; font-size: 0.75rem; padding: 0.35em 0.85em;">无</span>';
+        return '<span class="badge rounded-pill" style="background-color: #6c757d; color: #fff; font-family: \'Helvetica Neue\', sans-serif; font-size: 0.75rem; padding: 0.35em 0.85em;">{{ _("无") }}</span>';
     }
     
     let bgColor = '#6c757d'; // 默认灰色
     
     // 根据项目类型或编号前缀确定颜色
-    if (code.startsWith('CPJ') || projectType === '渠道跟进') {
+    if (code.startsWith('CPJ') || projectType === '{{ _("渠道跟进") }}') {
         bgColor = '#5bc0de';
-    } else if (code.startsWith('SPJ') || projectType === '销售重点') {
+    } else if (code.startsWith('SPJ') || projectType === '{{ _("销售重点") }}') {
         bgColor = '#0B6EFD';
-    } else if (code.startsWith('APJ') || projectType === '业务机会') {
+    } else if (code.startsWith('APJ') || projectType === '{{ _("业务机会") }}') {
         bgColor = '#198754';
     }
     
@@ -722,7 +685,7 @@ function renderAuthorizationCodeBadge(code, projectType) {
 // 渲染负责人徽章（模拟宏函数）
 function renderOwnerBadge(ownerName, companyName = null, isVendorUser = false) {
     if (!ownerName) {
-        return '<span class="badge bg-secondary">未知</span>';
+        return '<span class="badge bg-secondary">{{ _("未知") }}</span>';
     }
     
     // 如果是厂商账户，使用胶囊造型徽章
@@ -740,7 +703,7 @@ function showProjectDropdown(projects) {
     $dropdown.empty();
     
     if (projects.length === 0) {
-        $dropdown.append('<div class="dropdown-item-text text-muted">未找到匹配的项目</div>');
+        $dropdown.append('<div class="dropdown-item-text text-muted">{{ _("未找到匹配的项目") }}</div>');
         } else {
         projects.forEach(project => {
             const $item = $('<div class="dropdown-item" style="cursor: pointer;"></div>');
@@ -762,15 +725,15 @@ function showProjectDropdown(projects) {
             let infoTexts = [];
             
             if (project.project_type_display) {
-                infoTexts.push(`类型: ${project.project_type_display}`);
+                infoTexts.push(`{{ _("类型") }}: ${project.project_type_display}`);
             }
             if (project.current_stage_display) {
-                infoTexts.push(`阶段: ${project.current_stage_display}`);
+                infoTexts.push(`{{ _("阶段") }}: ${project.current_stage_display}`);
             }
             if (project.owner_name) {
                 // 使用统一的负责人徽章样式
                 const ownerBadgeHtml = renderOwnerBadge(project.owner_name, project.company_name, project.is_vendor_user);
-                infoTexts.push(`负责人: ${ownerBadgeHtml}`);
+                infoTexts.push(`{{ _("负责人") }}: ${ownerBadgeHtml}`);
             }
             
             // 使用HTML而不是纯文本，以支持徽章样式
@@ -805,9 +768,9 @@ function selectProject(project) {
     $('#project_id').val(project.id);
     $('#project_search').val(project.project_name + (project.authorization_code ? ` (${project.authorization_code})` : ''));
     
-    // 设置项目阶段和类型，使用中文标签
-    $('#project_stage').val(project.current_stage_display || translateProjectStage(project.current_stage) || '');
-    $('#project_type').val(project.project_type_display || translateProjectType(project.project_type) || '');
+    // 设置项目阶段和类型，使用后端提供的已翻译标签
+    $('#project_stage').val(project.current_stage_display || project.current_stage || '');
+    $('#project_type').val(project.project_type_display || project.project_type || '');
     
     // 隐藏下拉菜单
     $('#project_dropdown').removeClass('show');
@@ -830,7 +793,7 @@ function loadProjectDetails(projectId) {
     if (!projectId) return;
     
     console.log('加载项目详细信息:', projectId);
-    showLoading('正在加载项目信息...');
+    showLoading('{{ _("正在加载项目信息") }}...');
     
     $.ajax({
         url: `/project/api/project/${projectId}`,
@@ -850,7 +813,7 @@ function loadProjectDetails(projectId) {
                 console.log('项目信息加载完成');
             } else {
                 console.error('加载项目信息失败:', response);
-                alert('加载项目信息失败: ' + (response.error || '未知错误'));
+                alert('{{ _("加载项目信息失败") }}: ' + (response.error || '{{ _("未知错误") }}'));
                 clearProjectSelection();
             }
         },
@@ -858,16 +821,16 @@ function loadProjectDetails(projectId) {
             console.error('加载项目信息失败:', error);
             let errorMsg = '网络错误';
             if (xhr.status === 404) {
-                errorMsg = '项目不存在或已被删除';
+                errorMsg = '{{ _("项目不存在或已被删除") }}';
             } else if (xhr.status === 403) {
-                errorMsg = '没有权限访问该项目';
+                errorMsg = '{{ _("没有权限访问该项目") }}';
             } else if (xhr.status === 500) {
-                errorMsg = '服务器内部错误';
+                errorMsg = '{{ _("服务器内部错误") }}';
             } else if (status === 'timeout') {
-                errorMsg = '请求超时';
+                errorMsg = '{{ _("请求超时") }}';
             }
             
-            alert('加载项目信息失败: ' + errorMsg);
+            alert('{{ _("加载项目信息失败") }}: ' + errorMsg);
             clearProjectSelection();
         },
         complete: function() {
@@ -925,7 +888,7 @@ function validateForm() {
         // 验证项目ID
         var projectId = $('#project_id').val();
         if (!projectId) {
-            alert('请选择项目');
+            alert('{{ _("请选择项目") }}');
             $('#project_search').focus();
             return false;
         }
@@ -933,7 +896,7 @@ function validateForm() {
         // 验证项目ID格式
         var parsedProjectId = parseInt(projectId, 10);
         if (isNaN(parsedProjectId) || parsedProjectId <= 0) {
-            alert('项目ID无效，请重新选择项目');
+            alert('{{ _("项目ID无效，请重新选择项目") }}');
             $('#project_search').focus();
             return false;
         }
@@ -952,7 +915,7 @@ function validateForm() {
         });
         
         if (!hasValidProduct) {
-            alert('请至少添加一个有效的产品明细');
+            alert('{{ _("请至少添加一个有效的产品明细") }}');
             return false;
         }
         
@@ -960,7 +923,7 @@ function validateForm() {
         return true;
     } catch (error) {
         console.error('表单验证时出错:', error);
-        alert('表单验证时发生错误: ' + error.message);
+        alert('{{ _("表单验证时发生错误") }}: ' + error.message);
         return false;
     }
 }
@@ -1000,7 +963,7 @@ function prepareFormData() {
                 product_model: $row.find('.product-model').val(),
                 product_desc: $row.find('.product-spec').val() || '',
                 brand: $row.find('.product-brand').val() || '',
-                unit: $row.find('.product-unit').val() || '个',
+                unit: $row.find('.product-unit').val() || '{{ _("个") }}',
                 market_price: parseFloat($row.find('.product-price').val().replace(/,/g, '')) || 0,
                 discount_rate: parseFloat($row.find('.discount-rate').val()) || 100,
                 quantity: parseInt($row.find('.quantity').val()) || 1,
@@ -1063,7 +1026,7 @@ function checkProjectIdFromUrl() {
                 
                 // 直接设置项目ID并加载详情
                 $('#project_id').val(parsedId);
-                showLoading('正在加载项目信息...');
+                showLoading('{{ _("正在加载项目信息") }}...');
                 loadProjectDetails(parsedId);
             } else {
                 console.warn('URL中的项目ID无效:', projectId);
@@ -1077,13 +1040,13 @@ function checkProjectIdFromUrl() {
         console.error('检查URL项目ID时出错:', error);
         removeLoading();
         setTimeout(function() {
-            alert('加载项目信息时出错: ' + error.message);
+            alert('{{ _("加载项目信息时出错") }}: ' + error.message);
         }, 500);
     }
 }
 
 // 显示加载指示器
-function showLoading(message = '加载中...') {
+function showLoading(message = '{{ _("加载中") }}...') {
     // 如果已有加载指示器，先移除
     removeLoading();
     
@@ -1282,10 +1245,10 @@ function initializeProductAutocomplete() {
             var $models = $('<div class="model-list menu-list"></div>');
             var $specs = $('<div class="spec-list menu-list"></div>');
             
-            $categories.html('<div class="menu-loading">加载中...</div>');
-            $products.html('<div class="menu-loading">请选择左侧类别</div>');
-            $models.html('<div class="menu-loading">请选择产品名称</div>');
-            $specs.html('<div class="menu-loading">请选择产品型号</div>');
+            $categories.html('<div class="menu-loading">{{ _("加载中") }}...</div>');
+            $products.html('<div class="menu-loading">{{ _("请选择左侧类别") }}</div>');
+            $models.html('<div class="menu-loading">{{ _("请选择产品名称") }}</div>');
+            $specs.html('<div class="menu-loading">{{ _("请选择产品型号") }}</div>');
             
             $menu.append($categories).append($products).append($models).append($specs);
             
@@ -1316,7 +1279,7 @@ function initializeProductAutocomplete() {
                     $categories.empty();
                     
                     if (!categories || categories.length === 0) {
-                        $categories.html('<div class="menu-loading">无产品类别</div>');
+                        $categories.html('<div class="menu-loading">{{ _("无产品类别") }}</div>');
                         return;
                     }
                     
@@ -1337,7 +1300,7 @@ function initializeProductAutocomplete() {
                             
                             // 显示产品列表并加载数据
                             $products.show();
-                            $products.html('<div class="menu-loading">加载中...</div>');
+                            $products.html('<div class="menu-loading">{{ _("加载中") }}...</div>');
                             
                             var selectedCategory = $(this).data('category');
                             console.log('选中类别:', selectedCategory);
@@ -1352,7 +1315,7 @@ function initializeProductAutocomplete() {
                                     $products.empty();
                                     
                                     if (!products || products.length === 0) {
-                                        $products.html('<div class="menu-loading">此类别下无产品</div>');
+                                        $products.html('<div class="menu-loading">{{ _("此类别下无产品") }}</div>');
                                         return;
                                     }
                                     
@@ -1368,7 +1331,7 @@ function initializeProductAutocomplete() {
                                     
                                     // 显示产品名称列表
                                     if (productNames.length === 0) {
-                                        $products.html('<div class="menu-loading">此类别下无产品</div>');
+                                        $products.html('<div class="menu-loading">{{ _("此类别下无产品") }}</div>');
                                     } else {
                                         productNames.forEach(function(name) {
                                             // 过滤出该产品名称对应的所有产品
@@ -1404,7 +1367,7 @@ function initializeProductAutocomplete() {
                                                     var modelList = Object.keys(uniqueModels);
                                                     
                                                     if (modelList.length === 0) {
-                                                        $models.html('<div class="menu-loading">此产品下无型号</div>');
+                                                        $models.html('<div class="menu-loading">{{ _("此产品下无型号") }}</div>');
                                                     } else {
                                                         modelList.forEach(function(model) {
                                                             // 过滤出该型号对应的所有产品
@@ -1427,10 +1390,10 @@ function initializeProductAutocomplete() {
                                                                     var productsWithModel = $(this).data('products');
                                                                     
                                                                     if (productsWithModel.length === 0) {
-                                                                        $specs.html('<div class="menu-loading">此型号下无规格</div>');
+                                                                        $specs.html('<div class="menu-loading">{{ _("此型号下无规格") }}</div>');
                                                                     } else {
                                                                         productsWithModel.forEach(function(product) {
-                                                                            var specText = product.specification || '默认规格';
+                                                                            var specText = product.specification || '{{ _("默认规格") }}';
                                                                             var $specItem = $('<div class="menu-item no-arrow d-flex align-items-center"></div>').data('product', product);
                                                                             if (product.image_url) {
                                                                                 var $img = $('<img>').attr('src', product.image_url).css({
@@ -1473,7 +1436,7 @@ function initializeProductAutocomplete() {
                                 },
                                 error: function(xhr, status, error) {
                                     console.error('加载产品失败:', error);
-                                    $products.html('<div class="menu-loading">加载产品失败</div>');
+                                    $products.html('<div class="menu-loading">{{ _("加载产品失败") }}</div>');
                                 }
                             });
                         })
@@ -1485,7 +1448,7 @@ function initializeProductAutocomplete() {
                 },
                 error: function(xhr, status, error) {
                     console.error('加载类别失败:', error);
-                    $categories.html('<div class="menu-loading">加载类别失败</div>');
+                    $categories.html('<div class="menu-loading">{{ _("加载类别失败") }}</div>');
                 }
             });
             
@@ -1754,7 +1717,7 @@ $(document).ready(function() {
 async function convertProductPrices(fromCurrency, toCurrency) {
     try {
         // 显示转换提示
-        if (confirm(`是否要将所有价格从${fromCurrency}转换为${toCurrency}？`)) {
+        if (confirm(`{{ _("是否要将所有价格从") }}${fromCurrency}{{ _("转换为") }}${toCurrency}？`)) {
             const rows = $('#productTable tbody tr');
             
             for (let i = 0; i < rows.length; i++) {
@@ -1794,10 +1757,20 @@ async function convertProductPrices(fromCurrency, toCurrency) {
         }
     } catch (error) {
         console.error('转换价格失败:', error);
-        alert('价格转换失败，请重试');
+        alert('{{ _("价格转换失败，请重试") }}');
         $('#currency').val(fromCurrency);
     }
 }
+</script>
+
+<!-- 传递货币翻译数据到JavaScript -->
+<script>
+// 为currency_selector.js提供翻译后的货币数据
+window.CURRENCY_TRANSLATIONS = [
+    {% for value, label in CURRENCY_TYPE_OPTIONS %}
+    { code: '{{ value }}', name: '{{ label }}' },
+    {% endfor %}
+];
 </script>
 
 <!-- 加载货币选择器 -->

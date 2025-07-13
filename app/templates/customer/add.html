@@ -2,7 +2,7 @@
 {% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel %}
 {% from 'macros/ui_helpers.html' import render_company_code %}
 
-{% block title %}添加客户{% endblock %}
+{% block title %}{{ _('添加客户') }}{% endblock %}
 
 {% block content %}
 <div class="mt-3"></div>
@@ -11,23 +11,23 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header">
-                    <h4>添加企业</h4>
+                    <h4>{{ _('添加企业') }}</h4>
                     <small class="text-muted">{{ render_company_code(company.code) if company and company.code else '' }}</small>
                 </div>
                 <div class="card-body">
                     <div class="alert alert-info" role="alert">
-                        <h5 class="alert-heading"><i class="fas fa-info-circle"></i> 添加企业须知</h5>
-                        <p>系统会检查您输入的企业名称是否已经存在。如果企业已存在：</p>
+                        <h5 class="alert-heading"><i class="fas fa-info-circle"></i> {{ _('添加企业须知') }}</h5>
+                        <p>{{ _('系统会检查您输入的企业名称是否已经存在。如果企业已存在：') }}</p>
                         <ul>
-                            <li>您可以看到已存在企业的名称作为参考</li>
-                            <li>系统不会允许您添加名称完全相同的企业（忽略大小写和空格）</li>
-                            <li>如需修改已有企业信息，请联系管理员</li>
+                            <li>{{ _('您可以看到已存在企业的名称作为参考') }}</li>
+                            <li>{{ _('系统不会允许您添加名称完全相同的企业（忽略大小写和空格）') }}</li>
+                            <li>{{ _('如需修改已有企业信息，请联系管理员') }}</li>
                         </ul>
                     </div>
                     <form id="customer-add-form" method="POST">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-3 position-relative">
-                            <label for="company_name" class="form-label">企业名称 <span class="text-danger">*</span></label>
+                            <label for="company_name" class="form-label">{{ _('企业名称') }} <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="company_name" name="company_name" required>
                             <div id="company-suggestions" class="position-absolute w-100 mt-1 d-none" style="z-index: 1000;"></div>
                             <div id="company-name-error" class="invalid-feedback"></div>
@@ -35,38 +35,38 @@
 
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="country" class="form-label">国家/地区 <span class="text-danger">*</span></label>
+                                <label for="country" class="form-label">{{ _('国家/地区') }} <span class="text-danger">*</span></label>
                                 <select class="form-select" id="country" name="country" required disabled>
-                                    <option value="">请选择国家</option>
+                                    <option value="">{{ _('请选择国家') }}</option>
                                 </select>
                             </div>
                             <div class="col-md-6">
-                                <label for="region" class="form-label">省/州 <span class="text-danger">*</span></label>
+                                <label for="region" class="form-label">{{ _('省/州') }} <span class="text-danger">*</span></label>
                                 <select class="form-select" id="region" name="region" required disabled>
-                                    <option value="">请选择省/州</option>
+                                    <option value="">{{ _('请选择省/州') }}</option>
                                 </select>
                             </div>
                         </div>
 
                         <div class="mb-3">
-                            <label for="address" class="form-label">详细地址 <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="address" name="address" placeholder="示例：中国 北京市 朝阳区xx路" required disabled>
+                            <label for="address" class="form-label">{{ _('详细地址') }} <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="address" name="address" placeholder="{{ _('示例：中国 北京市 朝阳区xx路') }}" required disabled>
                         </div>
 
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="industry" class="form-label">行业 <span class="text-danger">*</span></label>
+                                <label for="industry" class="form-label">{{ _('行业') }} <span class="text-danger">*</span></label>
                                 <select class="form-select" id="industry" name="industry" required>
-                                    <option value="">请选择行业</option>
+                                    <option value="">{{ _('请选择行业') }}</option>
                                     {% for value, label in INDUSTRY_OPTIONS %}
                                     <option value="{{ value }}">{{ label }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
                             <div class="col-md-6">
-                                <label for="company_type" class="form-label">企业类型 <span class="text-danger">*</span></label>
+                                <label for="company_type" class="form-label">{{ _('企业类型') }} <span class="text-danger">*</span></label>
                                 <select class="form-select" id="company_type" name="company_type" required>
-                                    <option value="">请选择企业类型</option>
+                                    <option value="">{{ _('请选择企业类型') }}</option>
                                     {% for value, label in COMPANY_TYPE_OPTIONS %}
                                     <option value="{{ value }}">{{ label }}</option>
                                     {% endfor %}
@@ -75,50 +75,50 @@
                         </div>
 
                         <div class="mb-3">
-                            <label for="notes" class="form-label">备注</label>
+                            <label for="notes" class="form-label">{{ _('备注') }}</label>
                             <textarea class="form-control" id="notes" name="notes" rows="3" disabled></textarea>
                         </div>
 
                         <hr class="my-4">
-                        <h5>主要联系人信息</h5>
+                        <h5>{{ _('主要联系人信息') }}</h5>
 
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="contact_name" class="form-label">联系人姓名</label>
+                                <label for="contact_name" class="form-label">{{ _('联系人姓名') }}</label>
                                 <input type="text" class="form-control" id="contact_name" name="contact_name" disabled>
                             </div>
                             <div class="col-md-6">
-                                <label for="contact_department" class="form-label">部门</label>
+                                <label for="contact_department" class="form-label">{{ _('部门') }}</label>
                                 <input type="text" class="form-control" id="contact_department" name="contact_department" disabled>
                             </div>
                         </div>
 
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="contact_position" class="form-label">职位</label>
+                                <label for="contact_position" class="form-label">{{ _('职位') }}</label>
                                 <input type="text" class="form-control" id="contact_position" name="contact_position" disabled>
                             </div>
                             <div class="col-md-6">
-                                <label for="contact_phone" class="form-label">电话</label>
+                                <label for="contact_phone" class="form-label">{{ _('电话') }}</label>
                                 <input type="text" class="form-control" id="contact_phone" name="contact_phone" disabled>
                             </div>
                         </div>
 
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="contact_email" class="form-label">邮箱</label>
+                                <label for="contact_email" class="form-label">{{ _('邮箱') }}</label>
                                 <input type="email" class="form-control" id="contact_email" name="contact_email" disabled>
                             </div>
                             <div class="col-md-6">
-                                <label for="contact_notes" class="form-label">备注</label>
+                                <label for="contact_notes" class="form-label">{{ _('备注') }}</label>
                                 <input type="text" class="form-control" id="contact_notes" name="contact_notes" disabled>
                             </div>
                         </div>
 
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                             {{ render_confirm_cancel(
-                                confirm_text='保存',
-                                cancel_text='取消',
+                                confirm_text=_('保存'),
+                                cancel_text=_('取消'),
                                 confirm_type='submit',
                                 cancel_href=url_for('customer.list_companies')
                             ) }}
@@ -132,8 +132,14 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/country_region_data.js') }}"></script>
-<script src="{{ url_for('static', filename='js/country_region_selector.js') }}"></script>
+<script>
+// 国际化文本变量
+window.i18nTexts = {
+    selectCountry: '{{ _("请选择国家") }}',
+    selectRegion: '{{ _("请选择省/州") }}'
+};
+</script>
+<script src="{{ url_for('static', filename='js/country_region_selector_i18n.js') }}"></script>
 <script>
 // 公司名称模糊搜索和自动填充功能
 $(document).ready(function() {

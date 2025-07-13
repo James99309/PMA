@@ -8,12 +8,12 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">修改拥有人</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+          <h5 class="modal-title">{{ _('修改拥有人') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('关闭') }}"></button>
         </div>
         <div class="modal-body">
           <div class="mb-3">
-            <label for="new_owner_id" class="form-label">选择新拥有人</label>
+            <label for="new_owner_id" class="form-label">{{ _('选择新拥有人') }}</label>
             {% if user_tree_data %}
               {{ render_tree_select_plugin(name="new_owner_id", tree_data=user_tree_data, selected_value=current_owner_id, required=true) }}
             {% else %}
@@ -28,8 +28,8 @@
           </div>
         </div>
         <div class="modal-footer">
-          {{ render_button('取消', type='button', color='secondary', attrs='data-bs-dismiss="modal"') }}
-          {{ render_button('确认修改', type='submit', color='primary') }}
+          {{ render_button(_('取消'), type='button', color='secondary', attrs='data-bs-dismiss="modal"') }}
+          {{ render_button(_('确认修改'), type='submit', color='primary') }}
         </div>
       </div>
     </form>
@@ -54,12 +54,12 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">修改项目拥有人</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+          <h5 class="modal-title">{{ _('修改项目拥有人') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('关闭') }}"></button>
         </div>
         <div class="modal-body">
           <div class="mb-3">
-            <label for="new_owner_id" class="form-label">选择新拥有人</label>
+            <label for="new_owner_id" class="form-label">{{ _('选择新拥有人') }}</label>
             {% if user_tree_data %}
               {{ render_tree_select_plugin(name="new_owner_id", tree_data=user_tree_data, selected_value=current_owner_id, required=true) }}
             {% else %}

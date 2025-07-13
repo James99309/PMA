@@ -22,7 +22,7 @@ import os
 from flask_wtf.csrf import CSRFProtect
 from app.models.action import Action, ActionReply
 from app.models.projectpm_stage_history import ProjectStageHistory  # 导入阶段历史记录模型
-from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS, INDUSTRY_OPTIONS
+from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS, INDUSTRY_OPTIONS, get_industry_options, get_project_type_options, get_report_source_options, get_product_situation_options, get_project_stage_options
 from sqlalchemy import or_, func
 from app.utils.notification_helpers import trigger_event_notification
 from app.services.event_dispatcher import notify_project_created, notify_project_status_updated
@@ -117,27 +117,14 @@ def list_projects():
     search = request.args.get('search', '')
     sort = request.args.get('sort', 'updated_at')
     order = request.args.get('order', 'desc')
-    my_projects = request.args.get('my_projects', '0')
-    # 获取account_id参数用于账户过滤
-    account_id = request.args.get('account_id')
+    # my_projects和account_id参数处理已移除
     # 检查是否需要保持面板打开
     keep_panel = request.args.get('keep_panel', 'false') == 'true'
     
     # 使用数据访问控制
     query = get_viewable_data(Project, current_user)
     
-    # 如果启用了"只看自己"筛选
-    if my_projects == '1':
-        # 过滤包括拥有人是自己的和厂商负责人是自己的项目
-        query = query.filter(
-            db.or_(
-                Project.owner_id == current_user.id,
-                Project.vendor_sales_manager_id == current_user.id
-            )
-        )
-    # 如果指定了账户ID，按owner_id过滤项目
-    elif account_id and account_id.isdigit():
-        query = query.filter(Project.owner_id == int(account_id))
+    # 只看自己和账户过滤逻辑已移除
     
     # 添加搜索条件
     if search:
@@ -149,6 +136,7 @@ def list_projects():
         if key.startswith('filter_') and value:
             field = key[7:]  # 移除'filter_'前缀
             filters[field] = value
+    
     
     # 移除默认的有效业务过滤逻辑
     # 现在页面默认显示所有项目，包括签约、失败、搁置状态的项目
@@ -283,7 +271,17 @@ def list_projects():
         return jsonify({'success': True, 'html': html})
     
     # 传递keep_panel参数到模板
-    return render_template('project/list.html', projects=projects, search_term=search, Quotation=Quotation, filter_params=filter_params, keep_panel=keep_panel)
+    return render_template(
+        'project/list.html', 
+        projects=projects, 
+        search_term=search, 
+        Quotation=Quotation, 
+        filter_params=filter_params, 
+        keep_panel=keep_panel,
+        INDUSTRY_OPTIONS=get_industry_options(),
+        PROJECT_TYPE_OPTIONS=get_project_type_options(),
+        REPORT_SOURCE_OPTIONS=get_report_source_options()
+    )
 
 @project.route('/view/<int:project_id>')
 @permission_required_with_approval_context('project', 'view')
@@ -562,6 +560,10 @@ def view_project(project_id):
         has_pricing_orders = False
         pricing_orders_list = []
 
+    # 添加语言支持
+    from app.utils.i18n import get_current_language
+    current_language = get_current_language()
+    
     return render_template("project/detail.html", 
                          project=project, 
                          Quotation=Quotation, 
@@ -581,7 +583,9 @@ def view_project(project_id):
                          # 添加审批相关函数
                          get_object_approval_instance=get_object_approval_instance,
                          get_available_templates=get_available_templates,
-                         can_start_approval=can_start_approval)
+                         can_start_approval=can_start_approval,
+                         # 添加语言支持
+                         current_language=current_language)
 
 @project.route('/add', methods=['GET', 'POST'])
 @permission_required('project', 'create')
@@ -591,16 +595,16 @@ def add_project():
             # 验证必填字段
             if not request.form.get('project_name'):
                 flash('项目名称不能为空', 'danger')
-                return render_template('project/add.html', REPORT_SOURCE_OPTIONS=REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS=PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS=PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS=PROJECT_STAGE_LABELS, **get_company_data())
+                return render_template('project/add.html', **get_project_form_data())
             if not request.form.get('report_time'):
                 flash('报备日期不能为空', 'danger')
-                return render_template('project/add.html', REPORT_SOURCE_OPTIONS=REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS=PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS=PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS=PROJECT_STAGE_LABELS, **get_company_data())
+                return render_template('project/add.html', **get_project_form_data())
             if not request.form.get('current_stage'):
                 flash('当前阶段不能为空', 'danger')
-                return render_template('project/add.html', REPORT_SOURCE_OPTIONS=REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS=PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS=PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS=PROJECT_STAGE_LABELS, **get_company_data())
+                return render_template('project/add.html', **get_project_form_data())
             if not request.form.get('industry'):
                 flash('项目行业不能为空', 'danger')
-                return render_template('project/add.html', REPORT_SOURCE_OPTIONS=REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS=PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS=PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS=PROJECT_STAGE_LABELS, **get_company_data())
+                return render_template('project/add.html', **get_project_form_data())
             
             # 解析日期
             report_time = None
@@ -707,15 +711,11 @@ def add_project():
             db.session.rollback()
             logger.error(f"保存项目失败: {str(e)}", exc_info=True)
             flash(f'保存失败：{str(e)}', 'danger')
-            return render_template('project/add.html', REPORT_SOURCE_OPTIONS=REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS=PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS=PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS=PROJECT_STAGE_LABELS, **get_company_data())
+            return render_template('project/add.html', **get_project_form_data())
     
     return render_template(
         'project/add.html',
-        REPORT_SOURCE_OPTIONS=REPORT_SOURCE_OPTIONS,
-        PROJECT_TYPE_OPTIONS=PROJECT_TYPE_OPTIONS,
-        PRODUCT_SITUATION_OPTIONS=PRODUCT_SITUATION_OPTIONS,
-        PROJECT_STAGE_LABELS=PROJECT_STAGE_LABELS,
-        **get_company_data()
+        **get_project_form_data()
     )
 
 # 辅助函数，获取公司数据
@@ -726,16 +726,22 @@ def get_company_data():
         for key in COMPANY_TYPE_LABELS.keys()
     }
 
+# 新的项目表单数据逻辑函数
+def get_project_form_data():
+    """获取项目表单需要的数据（创建和编辑通用）"""
+    return {
+        'PRODUCT_SITUATION_OPTIONS': get_product_situation_options(),
+        'REPORT_SOURCE_OPTIONS': get_report_source_options(),
+        'PROJECT_TYPE_OPTIONS': get_project_type_options(),
+        'PROJECT_STAGE_OPTIONS': get_project_stage_options(),
+        'INDUSTRY_OPTIONS': get_industry_options(),
+        **get_company_data()
+    }
+
 # 新的编辑项目后台逻辑函数
 def get_edit_project_data():
     """获取编辑项目需要的数据"""
-    return {
-        'PRODUCT_SITUATION_OPTIONS': PRODUCT_SITUATION_OPTIONS,
-        'REPORT_SOURCE_OPTIONS': REPORT_SOURCE_OPTIONS,
-        'PROJECT_TYPE_OPTIONS': PROJECT_TYPE_OPTIONS,
-        'INDUSTRY_OPTIONS': INDUSTRY_OPTIONS,
-        **get_company_data()
-    }
+    return get_project_form_data()
 
 @project.route('/edit/<int:project_id>', methods=['GET', 'POST'])
 @permission_required('project', 'edit')
@@ -1218,7 +1224,9 @@ def approve_authorization(project_id):
         approval_note = request.form.get('approval_note', '')
         
         # 生成授权编号 - 先将英文类型映射为中文
-        project_type_for_code = project_type_label(project.project_type)
+        from app.utils.i18n import get_current_language
+        lang_code = get_current_language()
+        project_type_for_code = project_type_label(project.project_type, lang_code)
         authorization_code = Project.generate_authorization_code(project_type_for_code)
         
         if not authorization_code:

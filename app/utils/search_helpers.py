@@ -186,17 +186,21 @@ def search_projects_by_name(query_term: str, user=None, limit: int = 10) -> List
                         # 获取用户的企业信息
                         company_name = owner.company_name or ''
                 
-                # 添加中文标签
+                # 添加语言感知的标签
                 from app.utils.dictionary_helpers import project_type_label, project_stage_label
+                from app.utils.i18n import get_current_language
+                
+                # 获取当前语言
+                lang_code = get_current_language()
                 
                 enhanced_result = {
                     'id': result['id'],
                     'project_name': result['project_name'],
                     'authorization_code': result.get('authorization_code', ''),
                     'project_type': result.get('project_type', ''),
-                    'project_type_display': project_type_label(result.get('project_type', '')),
+                    'project_type_display': project_type_label(result.get('project_type', ''), lang_code),
                     'current_stage': result.get('current_stage', ''),
-                    'current_stage_display': project_stage_label(result.get('current_stage', '')),
+                    'current_stage_display': project_stage_label(result.get('current_stage', ''), lang_code),
                     'owner_id': result.get('owner_id'),
                     'owner_name': owner_name,
                     'company_name': company_name
@@ -279,17 +283,21 @@ def search_projects_without_quotations(query_term: str, user=None, limit: int = 
                         # 获取用户的企业信息
                         company_name = owner.company_name or ''
                 
-                # 添加中文标签
+                # 添加语言感知的标签
                 from app.utils.dictionary_helpers import project_type_label, project_stage_label
+                from app.utils.i18n import get_current_language
+                
+                # 获取当前语言
+                lang_code = get_current_language()
                 
                 result = {
                     'id': project.id,
                     'project_name': project.project_name,
                     'authorization_code': project.authorization_code or '',
                     'project_type': project.project_type or '',
-                    'project_type_display': project_type_label(project.project_type or ''),
+                    'project_type_display': project_type_label(project.project_type or '', lang_code),
                     'current_stage': project.current_stage or '',
-                    'current_stage_display': project_stage_label(project.current_stage or ''),
+                    'current_stage_display': project_stage_label(project.current_stage or '', lang_code),
                     'owner_id': project.owner_id,
                     'owner_name': owner_name,
                     'company_name': company_name

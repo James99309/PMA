@@ -14,7 +14,7 @@ import logging
 from decimal import Decimal
 import json
 from flask import current_app
-from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS
+from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS, get_currency_type_options
 from app.utils.notification_helpers import trigger_event_notification
 from app.services.event_dispatcher import notify_project_created, notify_project_status_updated
 from app.helpers.project_helpers import is_project_editable
@@ -870,7 +870,8 @@ def create_quotation():
                          preset_project_id=preset_project_id,
                          selected_project=selected_project,
                          return_to=return_to,
-                         default_currency=default_currency)
+                         default_currency=default_currency,
+                         CURRENCY_TYPE_OPTIONS=get_currency_type_options())
 
 @quotation.route('/get_project/<int:project_id>')
 def get_project(project_id):

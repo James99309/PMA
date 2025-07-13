@@ -15,7 +15,7 @@ from app.utils import version_check
 import datetime
 from app.utils.filters import project_type_style, project_stage_style, format_date, format_datetime, format_currency
 from app.utils.dictionary_helpers import (
-    project_type_label, project_stage_label, report_source_label, authorization_status_label, company_type_label, product_situation_label, industry_label, status_label, brand_status_label, reporting_source_label, share_permission_label, user_label, get_role_display_name
+    project_type_label, project_stage_label, project_type_label_i18n, project_stage_label_i18n, report_source_label, authorization_status_label, company_type_label, product_situation_label, industry_label, status_label, brand_status_label, reporting_source_label, share_permission_label, user_label, get_role_display_name
 )
 from app.utils.access_control import can_edit_company_info, can_edit_data, can_change_company_owner, can_start_approval
 from sqlalchemy.exc import OperationalError
@@ -105,8 +105,8 @@ def create_app(config_class=Config):
     csrf.init_app(app)
     
     # 配置Babel国际化
-    app.config['LANGUAGES'] = {'zh_CN': '简体中文', 'en': 'English'}
-    app.config['BABEL_DEFAULT_LOCALE'] = 'zh_CN'
+    app.config['LANGUAGES'] = {'zh': '简体中文', 'en': 'English'}
+    app.config['BABEL_DEFAULT_LOCALE'] = 'zh'
     app.config['BABEL_DEFAULT_TIMEZONE'] = 'Asia/Shanghai'
     
     # 初始化Babel国际化
@@ -624,8 +624,8 @@ def create_app(config_class=Config):
     app.jinja_env.filters['format_date'] = format_date
     app.jinja_env.filters['format_datetime'] = format_datetime
     app.jinja_env.filters['format_currency'] = format_currency
-    app.jinja_env.filters['project_type_label'] = project_type_label
-    app.jinja_env.filters['project_stage_label'] = project_stage_label
+    app.jinja_env.filters['project_type_label'] = project_type_label_i18n
+    app.jinja_env.filters['project_stage_label'] = project_stage_label_i18n
     app.jinja_env.filters['report_source_label'] = report_source_label
     app.jinja_env.filters['authorization_status_label'] = authorization_status_label
     app.jinja_env.filters['company_type_label'] = company_type_label
@@ -658,7 +658,7 @@ def create_app(config_class=Config):
     app.jinja_env.globals['now'] = datetime.datetime.now
 
     # 注册为全局函数，便于模板直接调用
-    app.jinja_env.globals['project_stage_label'] = project_stage_label
+    app.jinja_env.globals['project_stage_label'] = project_stage_label_i18n
 
     # 统计图表
     from app.views.projectpm_statistics import projectpm_statistics
@@ -681,6 +681,10 @@ def create_app(config_class=Config):
     # 添加项目相关函数到模板上下文
     from app.context_processors import inject_project_functions
     app.context_processor(inject_project_functions)
+
+    # 添加语言相关函数到模板上下文
+    from app.context_processors import inject_language_functions
+    app.context_processor(inject_language_functions)
 
     # 添加项目阶段配置函数到模板上下文
     from app.context_processors import inject_project_stages_config

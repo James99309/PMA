@@ -169,6 +169,27 @@
     .project-name-status.checking {
         color: #6c757d;
     }
+    
+    /* 下拉菜单提示选项样式 */
+    select.form-select {
+        color: #495057;
+    }
+    
+    select.form-select option[value=""] {
+        color: #6c757d !important;
+        font-style: italic;
+    }
+    
+    /* 当下拉菜单没有选择值时显示灰色 */
+    select.form-select:invalid {
+        color: #6c757d;
+        font-style: italic;
+    }
+    
+    select.form-select:valid {
+        color: #495057;
+        font-style: normal;
+    }
 </style>
 {% endblock %}
 
@@ -207,7 +228,7 @@
                         <label for="project_name" class="form-label mb-2">{{ _('项目名称') }}</label>
                         <div class="project-name-wrapper position-relative">
                             <input type="text" class="form-control" id="project_name" name="project_name" 
-                                   placeholder="输入项目名称..." autocomplete="off" required
+                                   placeholder="{{ _('输入项目名称...') }}" autocomplete="off" required
                                    value="{{ project.project_name if project else '' }}">
                             <div class="project-name-dropdown">
                                 <!-- 搜索建议将在这里显示 -->
@@ -237,7 +258,7 @@
                     <div class="col-md-6">
                         <label for="project_type" class="form-label mb-2">{{ _('项目类型') }}</label>
                         <select class="form-select" id="project_type" name="project_type">
-                            <option value="">-- {{ _('请选择项目类型') }} --</option>
+                            <option value="">{{ _('请选择项目类型') }}</option>
                             {% for k, v in PROJECT_TYPE_OPTIONS %}
                             <option value="{{ k }}" {% if project and project.project_type == k %}selected{% endif %}>{{ v }}</option>
                             {% endfor %}
@@ -259,13 +280,9 @@
                         <label for="current_stage" class="form-label mb-2">{{ _('当前阶段') }}</label>
                         <select class="form-select" id="current_stage" name="current_stage" required>
                             <option value="">{{ _('请选择当前阶段') }}</option>
-                            <option value="discover" {% if project and project.current_stage == 'discover' %}selected{% endif %}>{{ _('发现') }}</option>
-                            <option value="qualify" {% if project and project.current_stage == 'qualify' %}selected{% endif %}>{{ _('确认') }}</option>
-                            <option value="develop" {% if project and project.current_stage == 'develop' %}selected{% endif %}>{{ _('开发') }}</option>
-                            <option value="propose" {% if project and project.current_stage == 'propose' %}selected{% endif %}>{{ _('投标') }}</option>
-                            <option value="negotiate" {% if project and project.current_stage == 'negotiate' %}selected{% endif %}>{{ _('谈判') }}</option>
-                            <option value="close" {% if project and project.current_stage == 'close' %}selected{% endif %}>{{ _('成交') }}</option>
-                            <option value="post_sale" {% if project and project.current_stage == 'post_sale' %}selected{% endif %}>{{ _('售后') }}</option>
+                            {% for k, v in PROJECT_STAGE_OPTIONS %}
+                            <option value="{{ k }}" {% if project and project.current_stage == k %}selected{% endif %}>{{ v }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                 </div>
@@ -317,24 +334,24 @@
                     <div class="col-md-6">
                         <label for="end_user" class="form-label mb-2">{{ _('直接用户') }}</label>
                         <div class="searchable-select-wrapper" data-type="user" data-name="end_user">
-                            <input type="text" class="form-control searchable-select-input" placeholder="请选择或搜索直接用户" autocomplete="off"
+                            <input type="text" class="form-control searchable-select-input" placeholder="{{ _('请选择或搜索直接用户') }}" autocomplete="off"
                                    value="{{ project.end_user if project and project.end_user else '' }}">
                             <input type="hidden" name="end_user" class="searchable-select-value" 
                                    value="{{ project.end_user if project and project.end_user else '' }}">
                             <div class="searchable-select-dropdown">
-                                <div class="searchable-select-loading">加载中...</div>
+                                <div class="searchable-select-loading">{{ _('加载中...') }}</div>
                             </div>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <label for="design_issues" class="form-label mb-2">{{ _('设计院及顾问') }}</label>
                         <div class="searchable-select-wrapper" data-type="designer" data-name="design_issues">
-                            <input type="text" class="form-control searchable-select-input" placeholder="请选择或搜索设计院及顾问" autocomplete="off"
+                            <input type="text" class="form-control searchable-select-input" placeholder="{{ _('请选择或搜索设计院及顾问') }}" autocomplete="off"
                                    value="{{ project.design_issues if project and project.design_issues else '' }}">
                             <input type="hidden" name="design_issues" class="searchable-select-value"
                                    value="{{ project.design_issues if project and project.design_issues else '' }}">
                             <div class="searchable-select-dropdown">
-                                <div class="searchable-select-loading">加载中...</div>
+                                <div class="searchable-select-loading">{{ _('加载中...') }}</div>
                             </div>
                         </div>
                     </div>
@@ -344,24 +361,24 @@
                     <div class="col-md-6">
                         <label for="contractor" class="form-label mb-2">{{ _('总承包单位') }}</label>
                         <div class="searchable-select-wrapper" data-type="contractor" data-name="contractor">
-                            <input type="text" class="form-control searchable-select-input" placeholder="请选择或搜索总承包单位" autocomplete="off"
+                            <input type="text" class="form-control searchable-select-input" placeholder="{{ _('请选择或搜索总承包单位') }}" autocomplete="off"
                                    value="{{ project.contractor if project and project.contractor else '' }}">
                             <input type="hidden" name="contractor" class="searchable-select-value"
                                    value="{{ project.contractor if project and project.contractor else '' }}">
                             <div class="searchable-select-dropdown">
-                                <div class="searchable-select-loading">加载中...</div>
+                                <div class="searchable-select-loading">{{ _('加载中...') }}</div>
                             </div>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <label for="system_integrator" class="form-label mb-2">{{ _('系统集成商') }}</label>
                         <div class="searchable-select-wrapper" data-type="integrator" data-name="system_integrator">
-                            <input type="text" class="form-control searchable-select-input" placeholder="请选择或搜索系统集成商" autocomplete="off"
+                            <input type="text" class="form-control searchable-select-input" placeholder="{{ _('请选择或搜索系统集成商') }}" autocomplete="off"
                                    value="{{ project.system_integrator if project and project.system_integrator else '' }}">
                             <input type="hidden" name="system_integrator" class="searchable-select-value"
                                    value="{{ project.system_integrator if project and project.system_integrator else '' }}">
                             <div class="searchable-select-dropdown">
-                                <div class="searchable-select-loading">加载中...</div>
+                                <div class="searchable-select-loading">{{ _('加载中...') }}</div>
                             </div>
                         </div>
                     </div>
@@ -371,12 +388,12 @@
                     <div class="col-md-6">
                         <label for="dealer" class="form-label mb-2">{{ _('经销商') }}</label>
                         <div class="searchable-select-wrapper" data-type="dealer" data-name="dealer">
-                            <input type="text" class="form-control searchable-select-input" placeholder="请选择或搜索经销商" autocomplete="off"
+                            <input type="text" class="form-control searchable-select-input" placeholder="{{ _('请选择或搜索经销商') }}" autocomplete="off"
                                    value="{{ project.dealer if project and project.dealer else '' }}">
                             <input type="hidden" name="dealer" class="searchable-select-value"
                                    value="{{ project.dealer if project and project.dealer else '' }}">
                             <div class="searchable-select-dropdown">
-                                <div class="searchable-select-loading">加载中...</div>
+                                <div class="searchable-select-loading">{{ _('加载中...') }}</div>
                             </div>
                         </div>
                     </div>
@@ -406,6 +423,13 @@
 
 <!-- 添加日期格式化脚本 -->
 <script>
+// 国际化文本变量
+const i18nTexts = {
+    loading: '{{ _("加载中...") }}',
+    loadFailed: '{{ _("加载失败") }}',
+    searchFailed: '{{ _("搜索失败") }}'
+};
+
 document.addEventListener('DOMContentLoaded', function() {
     function formatDateInput(input) {
         input.addEventListener('input', function(e) {
@@ -608,7 +632,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.renderOptions();
                 } else {
                     console.error('加载企业数据失败:', response.statusText);
-                    this.dropdown.innerHTML = '<div class="searchable-select-no-results">加载失败</div>';
+                    this.dropdown.innerHTML = `<div class="searchable-select-no-results">${i18nTexts.loadFailed}</div>`;
                 }
             } catch (error) {
                 console.error('加载企业数据异常:', error);

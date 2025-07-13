@@ -27,10 +27,10 @@
             var container = $('#replies-' + actionId);
             if (container.is(':empty')) {
                 loadReplies(actionId, container);
-                $(this).text('收起');
+                $(this).text(window.i18nTexts ? window.i18nTexts.collapse : '收起');
             } else {
                 container.empty();
-                $(this).text('展开');
+                $(this).text(window.i18nTexts ? window.i18nTexts.expand : '展开');
             }
         });
 
@@ -84,10 +84,10 @@
                     form.hide();
                     form.find('textarea').val('');
                     // 更新展开/收起按钮的文字
-                    $('.reply-toggle-btn[data-action-id="' + actionId + '"]').text('收起');
+                    $('.reply-toggle-btn[data-action-id="' + actionId + '"]').text(window.i18nTexts ? window.i18nTexts.collapse : '收起');
                 },
                 error: function(xhr, status, error) {
-                    alert('提交回复失败: ' + error);
+                    alert((window.i18nTexts ? window.i18nTexts.submitReplyFailed : '提交回复失败') + ': ' + error);
                 }
             });
         });
@@ -118,10 +118,10 @@
                     form.hide();
                     form.find('textarea').val('');
                     // 更新展开/收起按钮的文字
-                    $('.reply-toggle-btn[data-action-id="' + actionId + '"]').text('收起');
+                    $('.reply-toggle-btn[data-action-id="' + actionId + '"]').text(window.i18nTexts ? window.i18nTexts.collapse : '收起');
                 },
                 error: function(xhr, status, error) {
-                    alert('提交回复失败: ' + error);
+                    alert((window.i18nTexts ? window.i18nTexts.submitReplyFailed : '提交回复失败') + ': ' + error);
                 }
             });
         });
@@ -140,7 +140,7 @@
                     }, 100);
                 }
             }).fail(function(xhr, status, error) {
-                container.html('<div class="alert alert-danger">加载回复失败</div>');
+                container.html('<div class="alert alert-danger">' + (window.i18nTexts ? window.i18nTexts.loadRepliesFailed : '加载回复失败') + '</div>');
             });
         }
 
@@ -168,7 +168,7 @@
                 var replyId = btn.data('reply-id');
                 
                 btn.off('click').on('click', function() {
-                    if(confirm('确定要删除这条回复吗？')) {
+                    if(confirm(window.i18nTexts ? window.i18nTexts.confirmDeleteReply : '确定要删除这条回复吗？')) {
                         var $this = $(this);
                         $.ajax({
                             url: getActionBaseUrl() + 'reply/' + replyId + '/delete',
@@ -183,7 +183,7 @@
                                 loadReplies(actionId, container);
                             },
                             error: function() { 
-                                alert('删除失败，请重试'); 
+                                alert(window.i18nTexts ? window.i18nTexts.deleteFailedRetry : '删除失败，请重试'); 
                             }
                         });
                     }
@@ -200,15 +200,15 @@
                         <span class="fw-bold">${reply.owner}</span>
                         <span class="text-muted small ms-2">${reply.created_at}</span>`;
                 if (reply.can_delete) {
-                    html += `<span class="reply-delete text-danger" data-reply-id="${reply.id}" style="cursor:pointer;margin-left:8px;">删除</span>`;
+                    html += `<span class="reply-delete text-danger" data-reply-id="${reply.id}" style="cursor:pointer;margin-left:8px;">${window.i18nTexts ? window.i18nTexts.delete : '删除'}</span>`;
                 }
                 html += `</div>
                     <div class="mb-1">${escapeHtml(reply.content)}</div>
-                    <button class="btn btn-link btn-xs reply-child-btn" data-reply-id="${reply.id}">回复</button>
+                    <button class="btn btn-link btn-xs reply-child-btn" data-reply-id="${reply.id}">${window.i18nTexts ? window.i18nTexts.reply : '回复'}</button>
                     <div class="child-reply-form mt-2" id="child-reply-form-${reply.id}" data-action-id="${actionId}" style="display:none">
-                        <textarea class="form-control mb-2" rows="2" placeholder="输入回复内容..."></textarea>
-                        <button class="btn btn-primary btn-sm submit-child-reply">提交</button>
-                        <button class="btn btn-secondary btn-sm cancel-reply">取消</button>
+                        <textarea class="form-control mb-2" rows="2" placeholder="${window.i18nTexts ? window.i18nTexts.inputReplyContent : '输入回复内容...'}"></textarea>
+                        <button class="btn btn-primary btn-sm submit-child-reply">${window.i18nTexts ? window.i18nTexts.submit : '提交'}</button>
+                        <button class="btn btn-secondary btn-sm cancel-reply">${window.i18nTexts ? window.i18nTexts.cancel : '取消'}</button>
                     </div>
                 </div>`;
                 if (reply.children && reply.children.length > 0) {

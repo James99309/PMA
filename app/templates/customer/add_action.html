@@ -6,31 +6,31 @@
         <div class="col-md-8">
             <div class="card">
                 <div class="card-header">
-                    <h5 class="mb-0">记录行动</h5>
+                    <h5 class="mb-0">{{ _('记录行动') }}</h5>
                 </div>
                 <div class="card-body">
                     <form id="actionForm">
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="date" class="form-label">日期</label>
+                                <label for="date" class="form-label">{{ _('日期') }}</label>
                                 <input type="date" class="form-control" id="date" name="date" required>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="contact" class="form-label">联系人</label>
+                                <label for="contact" class="form-label">{{ _('联系人') }}</label>
                                 <input type="text" class="form-control" id="contact" value="{{ contact.name }}" readonly>
                                 <input type="hidden" name="contact_id" value="{{ contact.id }}">
                             </div>
                         </div>
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="company" class="form-label">企业名称</label>
+                                <label for="company" class="form-label">{{ _('企业名称') }}</label>
                                 <input type="text" class="form-control" id="company" value="{{ company.company_name }}" readonly>
                                 <input type="hidden" name="company_id" value="{{ company.id }}">
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="project" class="form-label">关联项目</label>
+                                <label for="project" class="form-label">{{ _('关联项目') }}</label>
                                 <select class="form-select" id="project_id" name="project_id">
-                                    <option value="">-- 请选择项目 --</option>
+                                    <option value="">-- {{ _('请选择项目') }} --</option>
                                     {% for project in projects %}
                                     <option value="{{ project.id }}">{{ project.project_name }}</option>
                                     {% endfor %}
@@ -38,12 +38,12 @@
                             </div>
                         </div>
                         <div class="mb-3">
-                            <label for="communication" class="form-label">沟通情况</label>
+                            <label for="communication" class="form-label">{{ _('沟通情况') }}</label>
                             <textarea class="form-control" id="communication" name="communication" rows="4" required></textarea>
                         </div>
                         <div class="text-end">
                             <button type="button" id="saveButton" class="btn btn-primary me-2">
-                                保存
+                                {{ _('保存') }}
                             </button>
                         </div>
                     </form>
@@ -53,7 +53,7 @@
         <div class="col-md-4">
             <div class="card mb-3">
                 <div class="card-header">
-                    <h5 class="mb-0">行动记录统计</h5>
+                    <h5 class="mb-0">{{ _('行动记录统计') }}</h5>
                 </div>
                 <div class="card-body">
                     <div class="d-flex align-items-center">
@@ -67,14 +67,14 @@
                     </div>
                     <hr>
                     <div class="text-muted">
-                        <small>总共记录了 {{ action_count }} 次沟通行动</small>
+                        <small>{{ _('总共记录了') }} {{ action_count }} {{ _('次沟通行动') }}</small>
                     </div>
                 </div>
             </div>
 
             <div class="card">
                 <div class="card-header">
-                    <h5 class="mb-0">历史沟通记录</h5>
+                    <h5 class="mb-0">{{ _('历史沟通记录') }}</h5>
                 </div>
                 <div class="card-body p-0">
                     <div class="communication-history" style="max-height: 500px; overflow-y: auto;">
@@ -84,11 +84,11 @@
                                 <div>
                                     <small class="text-muted">{{ action.date.strftime('%Y-%m-%d') }}</small>
                                     {% if action.owner %}
-                                    <small class="ms-2 text-muted">记录人: {{ action.owner.real_name if action.owner.real_name else action.owner.username }}</small>
+                                    <small class="ms-2 text-muted">{{ _('记录人') }}: {{ action.owner.real_name if action.owner.real_name else action.owner.username }}</small>
                                     {% endif %}
                                 </div>
                                 {% if loop.first %}
-                                <span class="badge bg-info">上次沟通</span>
+                                <span class="badge bg-info">{{ _('上次沟通') }}</span>
                                 {% endif %}
                             </div>
                             <div class="text-muted" style="white-space: pre-wrap;">{{ action.communication }}</div>
@@ -121,16 +121,24 @@
 <div class="toast-container position-fixed bottom-0 end-0 p-3">
   <div id="resultToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
     <div class="toast-header">
-      <strong class="me-auto" id="toastTitle">提示</strong>
+      <strong class="me-auto" id="toastTitle">{{ _('提示') }}</strong>
       <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
     </div>
     <div class="toast-body" id="toastMessage">
-      操作结果会显示在这里
+      {{ _('操作结果会显示在这里') }}
     </div>
   </div>
 </div>
 
 <script>
+window.i18nTexts = {
+    saving: '{{ _("保存中...") }}',
+    success: '{{ _("成功") }}',
+    error: '{{ _("错误") }}',
+    save: '{{ _("保存") }}',
+    submitError: '{{ _("提交数据时发生错误，请稍后重试") }}'
+};
+
 document.addEventListener('DOMContentLoaded', function() {
     // 获取今天的日期并设置为默认值
     const today = new Date().toISOString().split('T')[0];
@@ -162,7 +170,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 禁用保存按钮，防止重复提交
         saveButton.disabled = true;
-        saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 保存中...';
+        saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + (window.i18nTexts ? window.i18nTexts.saving : '保存中...');
         
         // 发送API请求
         fetch(`/customer/api/contacts/{{ contact.id }}/add_action`, {
@@ -177,7 +185,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             if (data.success) {
                 // 显示成功消息
-                toastTitle.textContent = '成功';
+                toastTitle.textContent = window.i18nTexts ? window.i18nTexts.success : '成功';
                 toastMessage.textContent = data.message;
                 resultToast.show();
                 
@@ -187,25 +195,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 }, 1500);
             } else {
                 // 显示错误消息
-                toastTitle.textContent = '错误';
+                toastTitle.textContent = window.i18nTexts ? window.i18nTexts.error : '错误';
                 toastMessage.textContent = data.message;
                 resultToast.show();
                 
                 // 恢复保存按钮状态
                 saveButton.disabled = false;
-                saveButton.innerHTML = '保存';
+                saveButton.innerHTML = window.i18nTexts ? window.i18nTexts.save : '保存';
             }
         })
         .catch(error => {
             console.error('Error:', error);
             // 显示错误消息
-            toastTitle.textContent = '错误';
-            toastMessage.textContent = '提交数据时发生错误，请稍后重试';
+            toastTitle.textContent = window.i18nTexts ? window.i18nTexts.error : '错误';
+            toastMessage.textContent = window.i18nTexts ? window.i18nTexts.submitError : '提交数据时发生错误，请稍后重试';
             resultToast.show();
             
             // 恢复保存按钮状态
             saveButton.disabled = false;
-            saveButton.innerHTML = '保存';
+            saveButton.innerHTML = window.i18nTexts ? window.i18nTexts.save : '保存';
         });
     });
 });

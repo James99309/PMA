@@ -7,56 +7,56 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header">
-                    <h4>编辑联系人 - {{ contact.company.company_name }}</h4>
+                    <h4>{{ _('编辑联系人') }} - {{ contact.company.company_name }}</h4>
                 </div>
                 <div class="card-body">
                     <form method="POST">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="name" class="form-label">姓名</label>
+                                <label for="name" class="form-label">{{ _('姓名') }}</label>
                                 <input type="text" class="form-control" id="name" name="name" value="{{ contact.name }}" required>
                             </div>
                             <div class="col-md-6">
-                                <label for="department" class="form-label">部门</label>
+                                <label for="department" class="form-label">{{ _('部门') }}</label>
                                 <input type="text" class="form-control" id="department" name="department" value="{{ contact.department }}">
                             </div>
                         </div>
 
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="position" class="form-label">职位</label>
+                                <label for="position" class="form-label">{{ _('职位') }}</label>
                                 <input type="text" class="form-control" id="position" name="position" value="{{ contact.position }}">
                             </div>
                             <div class="col-md-6">
-                                <label for="phone" class="form-label">电话</label>
+                                <label for="phone" class="form-label">{{ _('电话') }}</label>
                                 <input type="text" class="form-control" id="phone" name="phone" value="{{ contact.phone }}">
                             </div>
                         </div>
 
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="email" class="form-label">邮箱</label>
+                                <label for="email" class="form-label">{{ _('邮箱') }}</label>
                                 <input type="email" class="form-control" id="email" name="email" value="{{ contact.email }}">
                             </div>
                             <div class="col-md-6">
-                                <label for="is_primary" class="form-label">主要联系人</label>
+                                <label for="is_primary" class="form-label">{{ _('主要联系人') }}</label>
                                 <div class="form-check form-switch mt-2">
                                     <input class="form-check-input" type="checkbox" id="is_primary" name="is_primary" {% if contact.is_primary %}checked{% endif %}>
-                                    <label class="form-check-label" for="is_primary">设为主要联系人</label>
+                                    <label class="form-check-label" for="is_primary">{{ _('设为主要联系人') }}</label>
                                 </div>
                             </div>
                         </div>
 
                         <div class="mb-3">
-                            <label for="notes" class="form-label">备注</label>
+                            <label for="notes" class="form-label">{{ _('备注') }}</label>
                             <textarea class="form-control" id="notes" name="notes" rows="3">{{ contact.notes or '' }}</textarea>
                         </div>
 
                         <!-- 共享控制区域 -->
                         <div class="card mb-3">
                             <div class="card-header bg-light">
-                                <h6 class="mb-0">权限控制</h6>
+                                <h6 class="mb-0">{{ _('权限控制') }}</h6>
                             </div>
                             <div class="card-body">
                                 <div class="mb-3">
@@ -65,7 +65,7 @@
                                             {% if contact.override_share %}checked{% endif %}
                                             onchange="document.getElementById('shared_disabled_row').style.display = this.checked ? 'block' : 'none';">
                                         <label class="form-check-label" for="override_share">
-                                            启用联系人独立权限设置
+                                            {{ _('启用联系人独立权限设置') }}
                                         </label>
                                     </div>
                                 </div>
@@ -75,16 +75,16 @@
                                         <input class="form-check-input" type="checkbox" id="shared_disabled" name="shared_disabled" 
                                             {% if contact.shared_disabled %}checked{% endif %}>
                                         <label class="form-check-label" for="shared_disabled">
-                                            禁止共享该联系人
+                                            {{ _('禁止共享该联系人') }}
                                         </label>
-                                        <div class="form-text text-muted">选中后，即使公司设置了共享，该联系人也不会被共享给其他用户</div>
+                                        <div class="form-text text-muted">{{ _('选中后，即使公司设置了共享，该联系人也不会被共享给其他用户') }}</div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                            {{ render_confirm_cancel(confirm_text='保存', cancel_text='取消', confirm_href=None, cancel_href=url_for('customer.view_company', company_id=contact.company_id)) }}
+                            {{ render_confirm_cancel(confirm_text=_('保存'), cancel_text=_('取消'), confirm_href=None, cancel_href=url_for('customer.view_company', company_id=contact.company_id)) }}
                         </div>
                     </form>
                 </div>

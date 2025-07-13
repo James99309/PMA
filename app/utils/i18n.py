@@ -12,7 +12,7 @@ import os
 
 # 支持的语言列表
 LANGUAGES = {
-    'zh_CN': '简体中文',
+    'zh': '简体中文',
     'en': 'English'
 }
 
@@ -47,10 +47,10 @@ def get_current_language():
                 return browser_lang
         
         # 5. 默认返回简体中文
-        return 'zh_CN'
+        return 'zh'
     except Exception:
         # 如果出现任何异常，返回默认语言
-        return 'zh_CN'
+        return 'zh'
 
 def set_current_language(language):
     """设置当前语言"""
@@ -58,6 +58,7 @@ def set_current_language(language):
         session['language'] = language
         return True
     return False
+
 
 def force_locale(language):
     """强制设置语言上下文管理器，用于测试"""

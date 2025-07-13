@@ -76,10 +76,13 @@ def index():
             db.session.rollback()
             recent_companies = []
     
-    # 在index视图中，recent_projects处理类型key转中文
+    # 在index视图中，recent_projects处理类型key转中文，支持语言感知
+    from app.utils.i18n import get_current_language
+    lang_code = get_current_language()
+    
     for p in recent_projects:
         if hasattr(p, 'project_type'):
-            p.project_type_display = project_type_label(p.project_type)
+            p.project_type_display = project_type_label(p.project_type, lang_code)
     return render_template('index.html', 
                          now=datetime.now(), 
                          recent_projects=recent_projects, 

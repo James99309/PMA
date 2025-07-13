@@ -5,20 +5,45 @@
 
 class CurrencySelector {
     constructor() {
-        this.supportedCurrencies = [
-            { code: 'USD', name: '美元', symbol: '$' },
-            { code: 'CNY', name: '人民币', symbol: '￥' },
-            { code: 'SGD', name: '新加坡元', symbol: 'S$' },
-            { code: 'MYR', name: '马来西亚林吉特', symbol: 'RM' },
-            { code: 'IDR', name: '印尼盾', symbol: 'Rp' },
-            { code: 'THB', name: '泰铢', symbol: '฿' }
-        ];
+        // 使用从模板传递的翻译数据，如果没有则使用默认中文
+        if (window.CURRENCY_TRANSLATIONS && window.CURRENCY_TRANSLATIONS.length > 0) {
+            this.supportedCurrencies = window.CURRENCY_TRANSLATIONS.map(currency => ({
+                code: currency.code,
+                name: currency.name,
+                symbol: this.getSymbolByCode(currency.code)
+            }));
+        } else {
+            // fallback to default Chinese names
+            this.supportedCurrencies = [
+                { code: 'USD', name: '美元', symbol: '$' },
+                { code: 'CNY', name: '人民币', symbol: '￥' },
+                { code: 'SGD', name: '新加坡元', symbol: 'S$' },
+                { code: 'MYR', name: '马来西亚林吉特', symbol: 'RM' },
+                { code: 'IDR', name: '印尼盾', symbol: 'Rp' },
+                { code: 'THB', name: '泰铢', symbol: '฿' }
+            ];
+        }
         
         this.exchangeRates = {};
         this.baseCurrency = 'CNY';
         this.lastUpdated = null;
         
         this.init();
+    }
+    
+    /**
+     * 根据货币代码获取符号
+     */
+    getSymbolByCode(code) {
+        const symbolMap = {
+            'USD': '$',
+            'CNY': '￥',
+            'SGD': 'S$',
+            'MYR': 'RM',
+            'IDR': 'Rp',
+            'THB': '฿'
+        };
+        return symbolMap[code] || code;
     }
     
     async init() {
@@ -107,13 +132,19 @@ class CurrencySelector {
         const currencySelects = document.querySelectorAll('select[name="currency"], select[id*="currency"]');
         
         currencySelects.forEach(select => {
+            // 如果模板已经提供了翻译数据，并且选择框已经有正确数量的选项，不需要重新生成
+            if (window.CURRENCY_TRANSLATIONS && select.options.length === this.supportedCurrencies.length) {
+                console.log('货币选择框已经被后端正确渲染且有翻译数据，跳过JavaScript重新生成');
+                return;
+            }
+            
             // 保存当前选中的值
             const currentValue = select.value || 'CNY';
             
             // 清空现有选项
             select.innerHTML = '';
             
-            // 添加货币选项
+            // 添加货币选项（现在使用正确的翻译）
             this.supportedCurrencies.forEach(currency => {
                 const option = document.createElement('option');
                 option.value = currency.code;

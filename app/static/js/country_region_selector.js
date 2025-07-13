@@ -12,7 +12,8 @@ document.addEventListener('DOMContentLoaded', function() {
   console.log("国家地区选择器初始化开始...");
   
   // 清空国家选择框并添加提示选项
-  countrySelect.innerHTML = '<option value="">请选择国家</option>';
+  const selectCountryText = window.i18nTexts ? window.i18nTexts.selectCountry : '请选择国家';
+  countrySelect.innerHTML = `<option value="">${selectCountryText}</option>`;
   
   // 遍历国家数据并添加到选择框
   countryData.forEach(country => {
@@ -29,7 +30,8 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log("更新地区，选中的国家代码:", selectedCountryCode);
     
     // 清空省/州选择框并添加提示选项
-    regionSelect.innerHTML = '<option value="">请选择省/州</option>';
+    const selectRegionText = window.i18nTexts ? window.i18nTexts.selectRegion : '请选择省/州';
+    regionSelect.innerHTML = `<option value="">${selectRegionText}</option>`;
     
     // 禁用省/州选择框，直到选择了国家
     regionSelect.disabled = !selectedCountryCode;

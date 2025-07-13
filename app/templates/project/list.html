@@ -65,22 +65,7 @@
             <div id="dashboardWrapper" style="display:block;">
                 {% include 'project/statistics_dashboard.html' %}
             </div>
-            <!-- 账户选择器 -->
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="dropdown account-selector">
-                        <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" id="accountSelectorBtn" data-bs-toggle="dropdown" aria-expanded="false">
-                            {{ _('全部账户') }}
-                        </button>
-                        <ul class="dropdown-menu" id="accountSelectorMenu" aria-labelledby="accountSelectorBtn">
-                            <li><a class="dropdown-item active" href="#" data-account-id="all">{{ _('全部账户') }}</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-center"><div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">{{ _('加载中...') }}</span></div></a></li>
-                        </ul>
-                    </div>
-                </div>
-                {# 统计总览默认开启，移除显示隐藏按钮相关代码 #}
-            </div>
+            {# 账户选择器已移除 #}
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div class="d-flex align-items-center">
                     <div class="input-group" style="max-width: 300px;">
@@ -89,23 +74,95 @@
                             <i class="fas fa-search"></i>
                         </button>
                     </div>
-                    <div class="d-inline-flex align-items-center gap-2 flex-nowrap ms-4">
-                        {{ ui.render_toggle_switch('showMyProjectsSwitch',
-                                                   checked=request.args.get('my_projects') == '1',
-                                                   label_on='ON',
-                                                   label_off='OFF',
-                                                   attrs='id="showMyProjectsSwitch"') }}
-                        <span class="form-label mb-0 text-nowrap">{{ _('只看自己') }}</span>
-                    </div>
+                    {# 只看自己开关已移除 #}
                 </div>
                 <div class="d-none d-lg-block">
                     {% if has_permission('project', 'import') %}
                         {{ ui.render_button(_("批量导入"), type="button", color="info", icon="fas fa-file-import", attrs='id="importProjectsBtn"', extra_class="me-2") }}
                     {% endif %}
                     {{ ui.render_button(_("创建项目"), href=url_for('project.add_project'), color="primary", attrs='', extra_class="me-2") }}
-                    {% if has_permission('project', 'delete') %}
-                    {{ ui.render_button(_("批量删除"), type="button", color="danger", icon="fas fa-trash", attrs='id="batchDeleteBtn" style="display: none;"') }}
-                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 筛选工具行 -->
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="card border-0 bg-light">
+                        <div class="card-body py-3">
+                            <div class="row g-3 align-items-end">
+                                <!-- 拥有者筛选 -->
+                                <div class="col-md-2 col-sm-6">
+                                    <label for="ownerFilter" class="form-label small text-muted">{{ _('拥有者') }}</label>
+                                    <select class="form-select form-select-sm" id="ownerFilter">
+                                        <option value="">{{ _('全部') }}</option>
+                                        <!-- 动态加载拥有者选项 -->
+                                    </select>
+                                </div>
+                                
+                                <!-- 厂商负责人筛选 -->
+                                <div class="col-md-2 col-sm-6">
+                                    <label for="vendorManagerFilter" class="form-label small text-muted">{{ _('厂商负责人') }}</label>
+                                    <select class="form-select form-select-sm" id="vendorManagerFilter">
+                                        <option value="">{{ _('全部') }}</option>
+                                        <!-- 动态加载厂商负责人选项 -->
+                                    </select>
+                                </div>
+                                
+                                <!-- 活跃状态筛选 -->
+                                <div class="col-md-2 col-sm-6">
+                                    <label for="activeStatusFilter" class="form-label small text-muted">{{ _('活跃状态') }}</label>
+                                    <select class="form-select form-select-sm" id="activeStatusFilter">
+                                        <option value="">{{ _('全部') }}</option>
+                                        <option value="true">{{ _('活跃') }}</option>
+                                        <option value="false">{{ _('非活跃') }}</option>
+                                    </select>
+                                </div>
+                                
+                                <!-- 当前阶段筛选 -->
+                                <div class="col-md-2 col-sm-6">
+                                    <label for="currentStageFilter" class="form-label small text-muted">{{ _('当前阶段') }}</label>
+                                    <select class="form-select form-select-sm" id="currentStageFilter">
+                                        <option value="">{{ _('全部') }}</option>
+                                        <!-- 动态加载项目阶段选项 -->
+                                    </select>
+                                </div>
+                                
+                                <!-- 项目类型筛选 -->
+                                <div class="col-md-2 col-sm-6">
+                                    <label for="projectTypeFilter" class="form-label small text-muted">{{ _('项目类型') }}</label>
+                                    <select class="form-select form-select-sm" id="projectTypeFilter">
+                                        <option value="">{{ _('全部') }}</option>
+                                        <!-- 动态加载项目类型选项 -->
+                                    </select>
+                                </div>
+                                
+                                <!-- 行业筛选 -->
+                                <div class="col-md-2 col-sm-6">
+                                    <label for="industryFilter" class="form-label small text-muted">{{ _('行业') }}</label>
+                                    <select class="form-select form-select-sm" id="industryFilter">
+                                        <option value="">{{ _('全部') }}</option>
+                                        <!-- 动态加载行业选项 -->
+                                    </select>
+                                </div>
+                                
+                                <!-- 报备来源筛选 -->
+                                <div class="col-md-2 col-sm-6">
+                                    <label for="reportSourceFilter" class="form-label small text-muted">{{ _('报备来源') }}</label>
+                                    <select class="form-select form-select-sm" id="reportSourceFilter">
+                                        <option value="">{{ _('全部') }}</option>
+                                        <!-- 动态加载报备来源选项 -->
+                                    </select>
+                                </div>
+                                
+                                <!-- 清空筛选按钮 -->
+                                <div class="col-md-2 col-sm-6">
+                                    <div class="d-grid">
+                                        {{ ui.render_button(_("清空筛选"), type="button", color="secondary", size="sm", icon="fas fa-times", attrs='id="clearFiltersBtn"') }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -166,7 +223,7 @@
                             <span class="badge bg-info">{{ project.authorization_code or _('无编号') }}</span>
                             <div>
                                 {{ render_status_badge('active' if project.is_active else 'inactive') }}
-                                {{ render_project_stage(project.current_stage|project_stage_label('zh')) if project.current_stage else render_project_stage(_('未设置')) }}
+                                {{ render_project_stage(project.current_stage|project_stage_label(get_current_language())) if project.current_stage else render_project_stage(_('未设置')) }}
                             </div>
                         </div>
                         <h5 class="card-title mb-2">
@@ -230,13 +287,6 @@
                     <table class="table table-striped table-hover">
                         <thead>
                             <tr>
-                                {% if has_permission('project', 'delete') %}
-                                <th style="width: 40px;">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="selectAll">
-                                    </div>
-                                </th>
-                                {% endif %}
 
                                 <th style="min-width: 100px;" data-sort="owner_id">
                                     <div class="th-content">
@@ -413,15 +463,7 @@
                         </thead>
                         <tbody>
                             {% for project in projects %}
-                            <tr>
-                                {% if has_permission('project', 'delete') %}
-                                <td>
-                                    <div class="form-check">
-                                        <input class="form-check-input project-checkbox" type="checkbox" value="{{ project.id }}"
-                                               {% if current_user.role != 'admin' and current_user.id != project.owner_id %}disabled{% endif %}>
-                                    </div>
-                                </td>
-                                {% endif %}
+                            <tr data-active="{{ project.is_active|lower }}" data-industry="{{ project.industry or '' }}" data-report-source="{{ project.report_source or '' }}">
 
                                 <td>{{ render_owner(project.owner) if project.owner else '' }}
                                   <span class="d-none" data-owner-id="{{ project.owner_id }}"></span>
@@ -453,7 +495,7 @@
                                     {{ render_project_rating(project.rating, style="list") }}
                                 </td>
                                 <td>{{ render_status_badge('active' if project.is_active else 'inactive') }}</td>
-                                <td>{{ render_project_stage(project.current_stage|project_stage_label('zh')) if project.current_stage else render_project_stage(_('未设置')) }}</td>
+                                <td>{{ render_project_stage(project.current_stage|project_stage_label(get_current_language())) if project.current_stage else render_project_stage(_('未设置')) }}</td>
                                 <td>{{ render_project_type(project.project_type) if project.project_type else '' }}</td>
                                 <td>
                                     {% if project.quotation_customer and project.quotations.count() > 0 %}
@@ -471,7 +513,7 @@
                                 </td>
                                 <td>
                                     {% if project.industry %}
-                                        {{ project.industry|industry_label('zh') }}
+                                        {{ project.industry|industry_label(get_current_language()) }}
                                     {% else %}
                                         <span class="text-muted">{{ _('未设置') }}</span>
                                     {% endif %}
@@ -838,8 +880,64 @@
 ╚════════════════════════════════════════════════════════════════════════════════╝
 -->
 <script>
+// 国际化文本变量
+window.projectListI18n = {
+    // 确认消息
+    confirmDelete: '{{ _("确定要删除这个项目吗？") }}',
+    confirmSelectAccount: '{{ _("请选择归属账户") }}',
+    confirmSelectFile: '{{ _("请选择Excel文件") }}',
+    confirmNoData: '{{ _("没有可导入的数据") }}',
+    
+    // 错误消息
+    errorDelete: '{{ _("删除失败") }}',
+    errorRedirect: '{{ _("重定向") }}',
+    errorInsufficientData: '{{ _("工作表中未找到足够的数据，请确保至少有标题行和一行数据") }}',
+    errorNoValidData: '{{ _("未在工作表中找到有效数据") }}',
+    
+    // 字段映射
+    fieldMapping: {
+        '{{ _("项目名称") }}': "project_name",
+        '{{ _("报备时间") }}': "report_time", 
+        '{{ _("项目分类") }}': "project_type",
+        '{{ _("报备来源") }}': "report_source",
+        '{{ _("品牌情况") }}': "product_situation",
+        '{{ _("用户") }}': "end_user",
+        '{{ _("设计院及顾问") }}': "design_issues",
+        '{{ _("经销商") }}': "dealer",
+        '{{ _("总承包商") }}': "contractor",
+        '{{ _("系统集成商") }}': "system_integrator",
+        '{{ _("阶段状态") }}': "current_stage",
+        '{{ _("项目跟进记录") }}': "stage_description",
+        '{{ _("授权编号") }}': "authorization_code",
+        '{{ _("预测签约时间") }}': "delivery_forecast",
+        '{{ _("更新时间") }}': "updated_at",
+        '{{ _("销售负责人") }}': "owner_id"
+    },
+    
+    // 字段中文名称
+    fieldNames: {
+        "project_name": '{{ _("项目名称") }}',
+        "report_time": '{{ _("报备时间") }}',
+        "created_at": '{{ _("创建日期") }}',
+        "project_type": '{{ _("项目分类") }}',
+        "report_source": '{{ _("报备来源") }}',
+        "product_situation": '{{ _("品牌情况") }}',
+        "end_user": '{{ _("用户") }}',
+        "design_issues": '{{ _("设计院及顾问") }}',
+        "dealer": '{{ _("经销商") }}',
+        "contractor": '{{ _("总承包商") }}',
+        "system_integrator": '{{ _("系统集成商") }}',
+        "current_stage": '{{ _("阶段状态") }}',
+        "stage_description": '{{ _("项目跟进记录") }}',
+        "authorization_code": '{{ _("授权编号") }}',
+        "delivery_forecast": '{{ _("预测签约时间") }}',
+        "updated_at": '{{ _("更新时间") }}',
+        "owner_id": '{{ _("销售负责人") }}'
+    }
+};
+
 function deleteProject(id) {
-    if (confirm('确定要删除这个项目吗？')) {
+    if (confirm(window.projectListI18n.confirmDelete)) {
         fetch(`/project/${id}/delete`, {
             method: 'POST',
             headers: {
@@ -851,11 +949,11 @@ function deleteProject(id) {
         .then(response => {
             if (response.redirected) {
                 window.location.href = response.url;
-                return Promise.reject('重定向');
+                return Promise.reject(window.projectListI18n.errorRedirect);
             }
 
             if (!response.ok) {
-                throw new Error('删除失败');
+                throw new Error(window.projectListI18n.errorDelete);
             }
 
             window.location.reload();
@@ -885,186 +983,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // 获取URL参数
     const urlParams = new URLSearchParams(window.location.search);
     const searchParam = urlParams.get('search');
-    const myProjectsParam = urlParams.get('my_projects');
+    // myProjectsParam已移除
     
     // 初始化搜索框值
     if (searchParam) {
         searchInput.value = searchParam;
     }
     
-    // 初始化"只看自己"过滤
-    const showMyProjectsSwitch = document.getElementById('showMyProjectsSwitch');
+    // 只看自己过滤功能已移除
     
-    // 如果URL包含my_projects=1参数，应用客户端过滤
-    if (myProjectsParam === '1' && showMyProjectsSwitch) {
-        // 确保开关状态与URL参数一致
-        showMyProjectsSwitch.checked = true;
-        
-        // 应用过滤
-        const currentUserId = parseInt("{{ current_user.id }}");
-        
-        // PC端表格视图过滤
-        const tableRows = document.querySelectorAll('.table tbody tr');
-        tableRows.forEach(row => {
-            const ownerSpan = row.querySelector('td [data-owner-id]');
-            const vendorSalesManagerSpan = row.querySelector('td [data-vendor-sales-manager-id]');
-            
-            let isMyProject = false;
-            
-            // 检查是否是拥有人
-            if (ownerSpan) {
-                const ownerId = parseInt(ownerSpan.getAttribute('data-owner-id'));
-                if (ownerId === currentUserId) {
-                    isMyProject = true;
-                }
-            }
-            
-            // 检查是否是厂商负责人
-            if (!isMyProject && vendorSalesManagerSpan) {
-                const vendorSalesManagerId = parseInt(vendorSalesManagerSpan.getAttribute('data-vendor-sales-manager-id'));
-                if (vendorSalesManagerId === currentUserId) {
-                    isMyProject = true;
-                }
-            }
-            
-            if (!isMyProject) {
-                row.classList.add('filtered');
-            }
-        });
-        
-        // 移动端卡片视图过滤
-        const mobileCards = document.querySelectorAll('.d-block.d-lg-none .card');
-        mobileCards.forEach(card => {
-            const ownerSpan = card.querySelector('[data-owner-id]');
-            const vendorSalesManagerSpan = card.querySelector('[data-vendor-sales-manager-id]');
-            
-            let isMyProject = false;
-            
-            // 检查是否是拥有人
-            if (ownerSpan) {
-                const ownerId = parseInt(ownerSpan.getAttribute('data-owner-id'));
-                if (ownerId === currentUserId) {
-                    isMyProject = true;
-                }
-            }
-            
-            // 检查是否是厂商负责人
-            if (!isMyProject && vendorSalesManagerSpan) {
-                const vendorSalesManagerId = parseInt(vendorSalesManagerSpan.getAttribute('data-vendor-sales-manager-id'));
-                if (vendorSalesManagerId === currentUserId) {
-                    isMyProject = true;
-                }
-            }
-            
-            if (!isMyProject) {
-                card.classList.add('filtered');
-            }
-        });
-    }
-    
-    // 只看自己开关事件
-    showMyProjectsSwitch.addEventListener('change', function() {
-        // 直接调用performSearch函数应用过滤
-        performSearch();
-        
-        // 如果开关被关闭，确保所有行显示（清除"只看自己"的过滤）
-        if (!this.checked) {
-            // 获取所有表格行和移动端卡片
-            const tableRows = document.querySelectorAll('.table tbody tr');
-            const mobileCards = document.querySelectorAll('.d-block.d-lg-none .card');
-            const tableBody = document.querySelector('.table tbody');
-            const mobileContainer = document.querySelector('.d-block.d-lg-none');
-            
-            // 先检查是否有搜索条件
-            const searchText = searchInput.value.trim().toLowerCase();
-            if (!searchText) {
-                // 如果没有搜索条件，重新排列所有元素
-                const allRows = Array.from(tableRows);
-                const allCards = Array.from(mobileCards);
-                
-                // 按更新时间降序排序的函数
-                const sortByUpdatedAtDesc = (a, b) => {
-                  // 尝试从元素中获取更新时间
-                  const getUpdatedAt = (el) => {
-                    // 从表格行中提取更新时间（假设在倒数第二列）
-                    if (!el.classList.contains('card')) {
-                      // PC端表格视图
-                      const cells = el.querySelectorAll('td');
-                      if (cells.length > 2) {
-                        const updatedAtCell = cells[cells.length - 2]; // 倒数第二列是更新时间
-                        if (updatedAtCell) {
-                          const dateText = updatedAtCell.textContent.trim();
-                          if (dateText) {
-                            return new Date(dateText).getTime();
-                          }
-                        }
-                      }
-                    } else {
-                      // 移动端卡片视图
-                      const updatedAtText = el.textContent.match(/更新: (\d{4}-\d{2}-\d{2})/);
-                      if (updatedAtText && updatedAtText[1]) {
-                        return new Date(updatedAtText[1]).getTime();
-                      }
-                    }
-                    return 0; // 默认时间戳
-                  };
-                  
-                  const updatedAtA = getUpdatedAt(a);
-                  const updatedAtB = getUpdatedAt(b);
-                  return updatedAtB - updatedAtA; // 降序排列（新到旧）
-                };
-                
-                // 排序行和卡片
-                allRows.sort(sortByUpdatedAtDesc);
-                allCards.sort(sortByUpdatedAtDesc);
-                
-                // 重新排列表格行
-                if (tableBody) {
-                    // 清空表格
-                    while (tableBody.firstChild) {
-                        tableBody.removeChild(tableBody.firstChild);
-                    }
-                    
-                    // 重新添加所有行
-                    allRows.forEach(row => {
-                        row.classList.remove('filtered');
-                        row.style.display = '';
-                        tableBody.appendChild(row);
-                    });
-                }
-                
-                // 重新排列移动端卡片
-                if (mobileContainer) {
-                    // 保存非卡片元素
-                    const nonCardElements = Array.from(mobileContainer.children).filter(el => 
-                        !el.classList.contains('card')
-                    );
-                    
-                    // 清空容器
-                    while (mobileContainer.firstChild) {
-                        mobileContainer.removeChild(mobileContainer.firstChild);
-                    }
-                    
-                    // 添加非卡片元素
-                    nonCardElements.forEach(el => {
-                        mobileContainer.appendChild(el);
-                    });
-                    
-                    // 添加所有卡片
-                    allCards.forEach(card => {
-                        card.classList.remove('filtered');
-                        card.style.display = '';
-                        mobileContainer.appendChild(card);
-                    });
-                }
-            }
-        }
-    });
+    // 只看自己开关事件已移除
 
 // 执行搜索功能，在客户端过滤不刷新页面
     function performSearch() {
     const searchText = searchInput.value.trim().toLowerCase();
-    const isMyProjectsOnly = showMyProjectsSwitch.checked;
     
     // 获取所有表格行和移动端卡片
     const tableRows = document.querySelectorAll('.table tbody tr');
@@ -1073,7 +1005,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const mobileContainer = document.querySelector('.d-block.d-lg-none');
     
     // 如果没有任何筛选条件，恢复所有元素显示
-    if (!searchText && !isMyProjectsOnly) {
+    if (!searchText) {
         // 按更新时间降序排序的函数
         const sortByUpdatedAtDesc = (a, b) => {
             // 尝试从元素中获取更新时间
@@ -1190,34 +1122,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         
-        // 再检查"只看自己"条件
-        if (!shouldFilter && isMyProjectsOnly) {
-            const currentUserId = parseInt("{{ current_user.id }}");
-            const ownerSpan = row.querySelector('td [data-owner-id]');
-            const vendorSalesManagerSpan = row.querySelector('td [data-vendor-sales-manager-id]');
-            
-            let isMyProject = false;
-            
-            // 检查是否是拥有人
-            if (ownerSpan) {
-                const ownerId = parseInt(ownerSpan.getAttribute('data-owner-id'));
-                if (ownerId === currentUserId) {
-                    isMyProject = true;
-                }
-            }
-            
-            // 检查是否是厂商负责人
-            if (!isMyProject && vendorSalesManagerSpan) {
-                const vendorSalesManagerId = parseInt(vendorSalesManagerSpan.getAttribute('data-vendor-sales-manager-id'));
-                if (vendorSalesManagerId === currentUserId) {
-                    isMyProject = true;
-                }
-            }
-            
-            if (!isMyProject) {
-                shouldFilter = true;
-            }
-        }
+        // 只看自己条件检查已移除
         
         // 根据筛选结果，分类存储
         if (shouldFilter) {
@@ -1244,34 +1149,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         
-        // 再检查"只看自己"条件
-        if (!shouldFilter && isMyProjectsOnly) {
-            const currentUserId = parseInt("{{ current_user.id }}");
-            const ownerSpan = card.querySelector('[data-owner-id]');
-            const vendorSalesManagerSpan = card.querySelector('[data-vendor-sales-manager-id]');
-            
-            let isMyProject = false;
-            
-            // 检查是否是拥有人
-            if (ownerSpan) {
-                const ownerId = parseInt(ownerSpan.getAttribute('data-owner-id'));
-                if (ownerId === currentUserId) {
-                    isMyProject = true;
-                }
-            }
-            
-            // 检查是否是厂商负责人
-            if (!isMyProject && vendorSalesManagerSpan) {
-                const vendorSalesManagerId = parseInt(vendorSalesManagerSpan.getAttribute('data-vendor-sales-manager-id'));
-                if (vendorSalesManagerId === currentUserId) {
-                    isMyProject = true;
-                }
-            }
-            
-            if (!isMyProject) {
-                shouldFilter = true;
-            }
-        }
+        // 只看自己条件检查已移除
         
         // 根据筛选结果，分类存储
         if (shouldFilter) {
@@ -1379,11 +1257,7 @@ document.addEventListener('DOMContentLoaded', function() {
         searchUrlParams.delete('search');
     }
     
-    if (isMyProjectsOnly) {
-        searchUrlParams.set('my_projects', '1');
-    } else {
-        searchUrlParams.delete('my_projects');
-    }
+    // my_projects参数处理已移除
     
     // 更新URL，保留其他参数如排序
     const searchNewUrl = `${window.location.pathname}?${searchUrlParams.toString()}`;
@@ -1410,9 +1284,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(function() {
         console.log('延迟初始化筛选功能');
         
-        // 立即保存原始数据
-        saveOriginalData();
-        console.log('筛选功能：原始数据已保存');
+        console.log('筛选功能：开始初始化');
         
         // 获取筛选功能元素
         const filterIcons = document.querySelectorAll('.filter-icon');
@@ -1503,13 +1375,13 @@ document.addEventListener('DOMContentLoaded', function() {
         input.addEventListener('input', function() {
                 console.log('筛选输入事件触发，字段:', this.getAttribute('data-field'), '值:', this.value);
                 // 实时筛选，不提交到服务器
-            performColumnFilter();
+            // performColumnFilter(); // 已移除，使用新的筛选系统
         });
 
         input.addEventListener('change', function() {
                 console.log('筛选change事件触发，字段:', this.getAttribute('data-field'), '值:', this.value);
                 // 当输入框失去焦点时，也执行筛选
-            performColumnFilter();
+            // performColumnFilter(); // 已移除，使用新的筛选系统
         });
 
         // 防止筛选输入框的点击事件冒泡，避免影响筛选行的显示
@@ -1521,7 +1393,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // 按ESC键清除筛选条件
             if (e.key === 'Escape') {
                 this.value = '';
-                performColumnFilter();
+                // performColumnFilter(); // 已移除，使用新的筛选系统
 
                 // 检查是否所有筛选都为空，如果是则隐藏筛选行
                 let allEmpty = true;
@@ -1544,7 +1416,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 按回车键时仅应用筛选，不向服务器提交（避免500错误）
             if (e.key === 'Enter') {
                     e.preventDefault(); // 阻止默认的表单提交行为
-                    performColumnFilter(); // 只执行客户端筛选
+                    // performColumnFilter(); // 已移除，使用新的筛选系统 // 只执行客户端筛选
             }
         });
     });
@@ -1587,28 +1459,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 500); // 延迟500ms确保主要功能先初始化完成
 });
 
-// 恢复所有项目显示的函数
-function restoreAllItems() {
-    console.log('恢复所有项目显示，原始行数:', originalTableRows.length, '原始卡片数:', originalMobileCards.length);
-    
-    // 如果原始数据未保存，重新保存
-    if (originalTableRows.length === 0) {
-        console.log('原始数据为空，重新保存');
-        saveOriginalData();
-    }
-    
-    // 恢复PC端表格行显示
-    originalTableRows.forEach(row => {
-        row.classList.remove('filtered');
-        row.style.display = '';
-    });
-    
-    // 恢复移动端卡片显示
-    originalMobileCards.forEach(card => {
-        card.classList.remove('filtered');
-        card.style.display = '';
-    });
-}
 
 // 清除所有筛选条件的函数
 function clearAllFilters() {
@@ -1627,20 +1477,20 @@ function clearAllFilters() {
         });
 
     // 恢复所有项目显示
-    restoreAllItems();
+    // restoreAllItems(); // 已移除，使用新的筛选系统
     }
 
-    // 执行列筛选
-    function performColumnFilter() {
+    // 执行列筛选 - 已禁用，使用新的筛选系统
+    function performColumnFilter_disabled() {
     console.log('开始执行列筛选');
     
     // 如果原始数据未保存，重新保存
-    if (originalTableRows.length === 0) {
+    if (false) { // 已禁用旧的筛选系统
         console.log('原始数据为空，重新保存');
-        saveOriginalData();
+        // saveOriginalData(); // 已移除，使用新的筛选系统
     }
     
-    console.log('当前原始数据行数:', originalTableRows.length, '卡片数:', originalMobileCards.length);
+    // console.log('当前原始数据行数:', originalTableRows.length, '卡片数:', originalMobileCards.length); // 已禁用
     
         const tableBody = document.querySelector('.table tbody');
     const mobileContainer = document.querySelector('.d-block.d-lg-none');
@@ -1662,7 +1512,7 @@ function clearAllFilters() {
     // 如果没有筛选条件，恢复所有项目显示
     if (Object.keys(filters).length === 0) {
         console.log('无筛选条件，恢复所有项目显示');
-        restoreAllItems();
+        // restoreAllItems(); // 已移除，使用新的筛选系统
         return;
     }
     
@@ -1670,7 +1520,8 @@ function clearAllFilters() {
     let visibleRowCount = 0;
     console.log('开始筛选表格行，总行数:', originalTableRows.length);
 
-    originalTableRows.forEach((row, index) => {
+    // originalTableRows.forEach // 已禁用旧筛选系统
+    [].forEach((row, index) => {
             let showRow = true;
 
             // 检查每个筛选条件
@@ -1731,7 +1582,8 @@ function clearAllFilters() {
     let visibleCardCount = 0;
     console.log('开始筛选移动端卡片，总卡片数:', originalMobileCards.length);
     
-    originalMobileCards.forEach((card, index) => {
+    // originalMobileCards.forEach // 已禁用旧筛选系统
+    [].forEach((card, index) => {
         let showCard = true;
         const cardText = card.textContent.toLowerCase();
 
@@ -1758,7 +1610,8 @@ function clearAllFilters() {
 
     // 确保所有原始数据都在DOM中
     if (tableBody) {
-        originalTableRows.forEach(row => {
+        // originalTableRows.forEach // 已禁用旧筛选系统
+    [].forEach(row => {
             if (!tableBody.contains(row)) {
                 tableBody.appendChild(row);
             }
@@ -1766,7 +1619,8 @@ function clearAllFilters() {
     }
     
     if (mobileContainer) {
-        originalMobileCards.forEach(card => {
+        // originalMobileCards.forEach // 已禁用旧筛选系统
+    [].forEach(card => {
             if (!mobileContainer.contains(card)) {
                 mobileContainer.appendChild(card);
             }
@@ -1908,98 +1762,7 @@ function clearAllFilters() {
         }
     }
 
-// 批量选择和删除功能
-    const selectAllCheckbox = document.getElementById('selectAll');
-    const projectCheckboxes = document.querySelectorAll('.project-checkbox');
-    const batchDeleteBtn = document.getElementById('batchDeleteBtn');
 
-    if (selectAllCheckbox) {
-        // 全选/取消全选
-        selectAllCheckbox.addEventListener('change', function() {
-            const isChecked = this.checked;
-
-            projectCheckboxes.forEach(checkbox => {
-                if (!checkbox.disabled) {
-                    checkbox.checked = isChecked;
-                }
-            });
-
-            updateBatchDeleteButton();
-        });
-    }
-
-    // 单个复选框状态变化
-    projectCheckboxes.forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            updateBatchDeleteButton();
-
-            // 更新全选框状态
-            if (selectAllCheckbox) {
-                const enabledCheckboxes = Array.from(projectCheckboxes).filter(cb => !cb.disabled);
-                const allChecked = enabledCheckboxes.every(cb => cb.checked);
-                selectAllCheckbox.checked = allChecked && enabledCheckboxes.length > 0;
-            }
-        });
-    });
-
-    // 批量删除按钮点击事件
-    if (batchDeleteBtn) {
-        batchDeleteBtn.addEventListener('click', function() {
-            const selectedIds = Array.from(projectCheckboxes)
-                .filter(checkbox => checkbox.checked)
-                .map(checkbox => parseInt(checkbox.value));
-
-            if (selectedIds.length === 0) {
-                alert('请至少选择一个项目');
-                return;
-            }
-
-            if (confirm(`确定要删除已选中的 ${selectedIds.length} 个项目吗？此操作不可恢复！`)) {
-                // 发送批量删除请求
-                fetch('/project/api/batch-delete', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRFToken': '{{ csrf_token() }}'
-                    },
-                    body: JSON.stringify({
-                        project_ids: selectedIds
-                    })
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('请求失败，状态码: ' + response.status);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.success) {
-                        alert(data.message);
-                        window.location.reload();
-                    } else {
-                        alert('删除失败: ' + data.message);
-                        console.error('删除失败详情:', data.failure_reasons);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('操作失败，请重试: ' + error.message);
-                });
-            }
-        });
-    }
-
-    // 更新批量删除按钮状态
-    function updateBatchDeleteButton() {
-        if (batchDeleteBtn) {
-            const anyChecked = Array.from(projectCheckboxes).some(checkbox => checkbox.checked);
-            batchDeleteBtn.style.display = anyChecked ? 'inline-block' : 'none';
-        }
-    }
-
-    // 初始化批量删除按钮状态
-    updateBatchDeleteButton();
 
 // 添加行滚动焦点效果
 const tableContainer = document.querySelector('.table-responsive');
@@ -2162,13 +1925,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
             /* 移除必选验证
             if (!ownerIdSelect.value) {
-                alert('请选择归属账户');
+                alert(window.projectListI18n.confirmSelectAccount);
                 return;
             }
             */
 
             if (!fileInput.files.length) {
-                alert('请选择Excel文件');
+                alert(window.projectListI18n.confirmSelectFile);
                 return;
             }
 
@@ -2197,7 +1960,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
 
                     if (jsonData.length <= 1) {
-                        alert('工作表中未找到足够的数据，请确保至少有标题行和一行数据');
+                        alert(window.projectListI18n.errorInsufficientData);
                         progressDiv.style.display = 'none';
                         return;
                     }
@@ -2205,46 +1968,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     // 获取表头
                     const headers = jsonData[0];
 
-                    // 定义数据库字段映射
-                    const dbFields = {
-                        "项目名称": "project_name",
-                        "报备时间": "report_time",
-                        "项目分类": "project_type",
-                        "报备来源": "report_source",
-                        "品牌情况": "product_situation",
-                        "用户": "end_user",
-                        "设计院及顾问": "design_issues",
-                        "经销商": "dealer",
-                        "总承包商": "contractor",
-                        "系统集成商": "system_integrator",
-                        "阶段状态": "current_stage",
-                        "项目跟进记录": "stage_description",
-                        "授权编号": "authorization_code",
-                        "预测签约时间": "delivery_forecast",
-                        "更新时间": "updated_at",
-                        "销售负责人": "owner_id"
-                    };
+                    // 使用国际化的字段映射
+                    const dbFields = window.projectListI18n.fieldMapping;
 
-                    // 定义数据库字段中文名称
-                    const dbFieldsChineseNames = {
-                        "project_name": "项目名称",
-                        "report_time": "报备时间",
-                        "created_at": "创建日期",
-                        "project_type": "项目分类",
-                        "report_source": "报备来源",
-                        "product_situation": "品牌情况",
-                        "end_user": "用户",
-                        "design_issues": "设计院及顾问",
-                        "dealer": "经销商",
-                        "contractor": "总承包商",
-                        "system_integrator": "系统集成商",
-                        "current_stage": "阶段状态",
-                        "stage_description": "项目跟进记录",
-                        "authorization_code": "授权编号",
-                        "delivery_forecast": "预测签约时间",
-                        "updated_at": "更新时间",
-                        "owner_id": "销售负责人"
-                    };
+                    // 使用国际化的字段中文名称
+                    const dbFieldsChineseNames = window.projectListI18n.fieldNames;
 
                     // 自动映射字段
                     fieldMapping = {};
@@ -2291,7 +2019,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     if (parsedData.length === 0) {
-                        alert('未在工作表中找到有效数据');
+                        alert(window.projectListI18n.errorNoValidData);
                         progressDiv.style.display = 'none';
                         return;
                     }
@@ -2600,13 +2328,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
             /* 移除必选验证
             if (!ownerId) {
-                alert('请选择归属账户');
+                alert(window.projectListI18n.confirmSelectAccount);
                 return;
             }
             */
 
             if (parsedData.length === 0) {
-                alert('没有可导入的数据');
+                alert(window.projectListI18n.confirmNoData);
                 return;
             }
 
@@ -2727,6 +2455,356 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+
+    // 筛选工具功能
+    function initializeFilters() {
+        console.log('开始初始化筛选功能');
+        
+        // 检查筛选元素是否存在
+        const filterIds = ['ownerFilter', 'vendorManagerFilter', 'activeStatusFilter', 'currentStageFilter', 'projectTypeFilter', 'industryFilter', 'reportSourceFilter'];
+        const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+        
+        // 验证必要的筛选元素是否存在
+        let missingElements = [];
+        filterIds.forEach(filterId => {
+            const element = document.getElementById(filterId);
+            if (!element) {
+                missingElements.push(filterId);
+            }
+        });
+        
+        if (!clearFiltersBtn) {
+            missingElements.push('clearFiltersBtn');
+        }
+        
+        if (missingElements.length > 0) {
+            console.warn('未找到筛选功能元素:', missingElements);
+            console.log('将在1秒后重试初始化...');
+            setTimeout(initializeFilters, 1000);
+            return;
+        }
+        
+        console.log('所有筛选元素已找到，开始初始化');
+        
+        // 加载筛选选项数据
+        loadFilterOptions();
+
+        // 绑定筛选器事件
+        filterIds.forEach(filterId => {
+            const filterElement = document.getElementById(filterId);
+            if (filterElement) {
+                filterElement.addEventListener('change', applyFilters);
+                console.log(`已绑定 ${filterId} 的change事件`);
+            }
+        });
+
+        // 清空筛选按钮事件
+        if (clearFiltersBtn) {
+            clearFiltersBtn.addEventListener('click', clearAllFilters);
+            console.log('已绑定清空筛选按钮事件');
+        }
+        
+        console.log('筛选功能初始化完成');
+    }
+
+    // 中文映射字典
+    const industryLabels = {
+        'manufacturing': '制造业',
+        'real_estate': '商业地产',
+        'energy': '石油能源',
+        'chemical': '化工医药',
+        'health': '医疗卫生',
+        'healthcare': '医疗健康',
+        'transport': '交通运输',
+        'transportation': '交通物流',
+        'government': '政府机构',
+        'education': '教育',
+        'agriculture': '农业',
+        'finance': '金融服务',
+        'technology': '科技',
+        'retail': '零售',
+        'hospitality': '酒店餐饮',
+        'other': '其他选择'
+    };
+    
+    const reportSourceLabels = {
+        'channel': '渠道报备',
+        'sales': '销售线索',
+        'marketing': '市场拓展'
+    };
+
+    // 加载筛选选项数据
+    function loadFilterOptions() {
+        console.log('开始加载筛选选项数据');
+        // 获取当前页面的项目数据来动态生成筛选选项
+        const tableRows = document.querySelectorAll('.table tbody tr');
+        
+        // 收集唯一值
+        const owners = new Set();
+        const vendorManagers = new Set();
+        const stages = new Set();
+        const projectTypes = new Set();
+        const industries = new Set();
+        const reportSources = new Set();
+
+        tableRows.forEach((row, index) => {
+            if (row.cells.length === 0) return; // 跳过空行
+            
+            // 现在没有删除复选框列了
+            const columnOffset = 0;
+
+            // 拥有者（第0列）
+            const ownerCell = row.cells[0];
+            if (ownerCell) {
+                const ownerText = ownerCell.textContent.trim();
+                if (ownerText && ownerText !== '未指定') {
+                    owners.add(ownerText);
+                }
+            }
+
+            // 厂商负责人（第1列）
+            const vendorCell = row.cells[1];
+            if (vendorCell) {
+                const vendorText = vendorCell.textContent.trim();
+                if (vendorText && vendorText !== '未设置' && vendorText !== '-') {
+                    vendorManagers.add(vendorText);
+                }
+            }
+
+            // 当前阶段（第5列）
+            const stageCell = row.cells[5];
+            if (stageCell) {
+                const stageText = stageCell.textContent.trim();
+                if (stageText && stageText !== '未设置') {
+                    stages.add(stageText);
+                }
+            }
+
+            // 项目类型（第6列）
+            const typeCell = row.cells[6];
+            if (typeCell) {
+                const typeText = typeCell.textContent.trim();
+                if (typeText) {
+                    projectTypes.add(typeText);
+                }
+            }
+
+            // 行业（从data属性获取，转换为中文）
+            const industryAttr = row.getAttribute('data-industry');
+            if (industryAttr && industryAttr.trim()) {
+                const industryKey = industryAttr.trim();
+                const industryLabel = industryLabels[industryKey] || industryKey;
+                industries.add(industryLabel);
+            }
+
+            // 报备来源（从data属性获取，转换为中文）
+            const reportSourceAttr = row.getAttribute('data-report-source');
+            if (reportSourceAttr && reportSourceAttr.trim()) {
+                const reportSourceKey = reportSourceAttr.trim();
+                const reportSourceLabel = reportSourceLabels[reportSourceKey] || reportSourceKey;
+                reportSources.add(reportSourceLabel);
+            }
+        });
+
+        console.log('加载的筛选选项:', {
+            owners: Array.from(owners),
+            vendorManagers: Array.from(vendorManagers),
+            stages: Array.from(stages),
+            projectTypes: Array.from(projectTypes),
+            industries: Array.from(industries),
+            reportSources: Array.from(reportSources)
+        });
+
+        // 填充筛选选项
+        populateSelectOptions('ownerFilter', Array.from(owners).sort());
+        populateSelectOptions('vendorManagerFilter', Array.from(vendorManagers).sort());
+        populateSelectOptions('currentStageFilter', Array.from(stages).sort());
+        populateSelectOptions('projectTypeFilter', Array.from(projectTypes).sort());
+        populateSelectOptions('industryFilter', Array.from(industries).sort());
+        populateSelectOptions('reportSourceFilter', Array.from(reportSources).sort());
+    }
+
+    // 填充选择框选项
+    function populateSelectOptions(selectId, options) {
+        const selectElement = document.getElementById(selectId);
+        if (!selectElement) return;
+
+        // 保留第一个"全部"选项
+        const firstOption = selectElement.children[0];
+        selectElement.innerHTML = '';
+        selectElement.appendChild(firstOption);
+
+        // 添加其他选项
+        options.forEach(option => {
+            const optionElement = document.createElement('option');
+            optionElement.value = option;
+            optionElement.textContent = option;
+            selectElement.appendChild(optionElement);
+        });
+    }
+
+    // 应用筛选
+    function applyFilters() {
+        const filters = {
+            owner: document.getElementById('ownerFilter').value,
+            vendorManager: document.getElementById('vendorManagerFilter').value,
+            activeStatus: document.getElementById('activeStatusFilter').value,
+            currentStage: document.getElementById('currentStageFilter').value,
+            projectType: document.getElementById('projectTypeFilter').value,
+            industry: document.getElementById('industryFilter').value,
+            reportSource: document.getElementById('reportSourceFilter').value
+        };
+
+        const tableRows = document.querySelectorAll('.table tbody tr');
+        const mobileCards = document.querySelectorAll('.d-block.d-lg-none .card');
+        
+        // 现在没有删除复选框列了
+        const columnOffset = 0;
+
+        let visibleRowCount = 0;
+
+        // 筛选表格行
+        tableRows.forEach(row => {
+            if (row.cells.length === 0) return; // 跳过空行
+            
+            let shouldShow = true;
+
+            // 拥有者筛选
+            if (filters.owner) {
+                const ownerCell = row.cells[0];
+                const ownerText = ownerCell ? ownerCell.textContent.trim() : '';
+                if (ownerText !== filters.owner) {
+                    shouldShow = false;
+                }
+            }
+
+            // 厂商负责人筛选
+            if (filters.vendorManager && shouldShow) {
+                const vendorCell = row.cells[1];
+                const vendorText = vendorCell ? vendorCell.textContent.trim() : '';
+                if (vendorText !== filters.vendorManager) {
+                    shouldShow = false;
+                }
+            }
+
+            // 活跃状态筛选
+            if (filters.activeStatus && shouldShow) {
+                const isActive = row.getAttribute('data-active') === 'true';
+                if ((filters.activeStatus === 'true' && !isActive) || (filters.activeStatus === 'false' && isActive)) {
+                    shouldShow = false;
+                }
+            }
+
+            // 当前阶段筛选
+            if (filters.currentStage && shouldShow) {
+                const stageCell = row.cells[5];
+                const stageText = stageCell ? stageCell.textContent.trim() : '';
+                if (stageText !== filters.currentStage) {
+                    shouldShow = false;
+                }
+            }
+
+            // 项目类型筛选
+            if (filters.projectType && shouldShow) {
+                const typeCell = row.cells[6];
+                const typeText = typeCell ? typeCell.textContent.trim() : '';
+                if (typeText !== filters.projectType) {
+                    shouldShow = false;
+                }
+            }
+
+            // 行业筛选
+            if (filters.industry && shouldShow) {
+                const industryAttr = row.getAttribute('data-industry');
+                const industryLabel = industryLabels[industryAttr] || industryAttr;
+                if (industryLabel !== filters.industry) {
+                    shouldShow = false;
+                }
+            }
+
+            // 报备来源筛选
+            if (filters.reportSource && shouldShow) {
+                const reportSourceAttr = row.getAttribute('data-report-source');
+                const reportSourceLabel = reportSourceLabels[reportSourceAttr] || reportSourceAttr;
+                if (reportSourceLabel !== filters.reportSource) {
+                    shouldShow = false;
+                }
+            }
+
+            // 显示或隐藏行
+            if (shouldShow) {
+                row.style.display = '';
+                visibleRowCount++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        // 筛选移动端卡片（简化处理，因为移动端卡片结构复杂）
+        mobileCards.forEach(card => {
+            // 暂时保持显示，如需要可以根据具体需求实现
+            card.style.display = '';
+        });
+
+        console.log(`筛选后显示 ${visibleRowCount} 条记录`);
+    }
+
+    // 清空所有筛选
+    function clearAllFilters() {
+        // 重置所有筛选器
+        const filterIds = ['ownerFilter', 'vendorManagerFilter', 'activeStatusFilter', 'currentStageFilter', 'projectTypeFilter', 'industryFilter', 'reportSourceFilter'];
+        
+        filterIds.forEach(filterId => {
+            const filterElement = document.getElementById(filterId);
+            if (filterElement) {
+                filterElement.value = '';
+            }
+        });
+
+        // 显示所有行和卡片
+        const tableRows = document.querySelectorAll('.table tbody tr');
+        const mobileCards = document.querySelectorAll('.d-block.d-lg-none .card');
+
+        tableRows.forEach(row => {
+            row.style.display = '';
+        });
+
+        mobileCards.forEach(card => {
+            card.style.display = '';
+        });
+        
+        console.log('已清空所有筛选条件');
+    }
+
+    // 初始化筛选功能 - 等待DOM完全加载
+    let initRetryCount = 0;
+    const maxRetries = 10; // 最多重试10次（5秒）
+    
+    function waitForDOMAndInitialize() {
+        initRetryCount++;
+        
+        // 检查关键元素是否存在
+        const table = document.querySelector('.table.table-striped.table-hover');
+        const tableBody = document.querySelector('.table tbody');
+        const filterContainer = document.querySelector('.card.border-0.bg-light');
+        const ownerFilter = document.getElementById('ownerFilter');
+        const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+        
+        if (table && tableBody && filterContainer && ownerFilter && clearFiltersBtn) {
+            console.log('DOM已准备好，开始初始化筛选功能');
+            initializeFilters();
+        } else if (initRetryCount < maxRetries) {
+            console.log(`等待DOM完全加载... 重试 ${initRetryCount}/${maxRetries}`);
+            console.log('检查状态: 表格:', !!table, '表格体:', !!tableBody, '筛选容器:', !!filterContainer, '拥有者筛选:', !!ownerFilter, '清空按钮:', !!clearFiltersBtn);
+            setTimeout(waitForDOMAndInitialize, 500);
+        } else {
+            console.error('DOM元素加载超时，无法初始化筛选功能');
+            console.log('请检查页面模板是否包含所需的筛选元素');
+        }
+    }
+    
+    // 开始等待和初始化
+    waitForDOMAndInitialize();
 });
 </script>
 
@@ -2872,8 +2950,8 @@ document.addEventListener('DOMContentLoaded', function() {
 let originalTableRows = [];
 let originalMobileCards = [];
 
-// 保存原始数据结构
-function saveOriginalData() {
+// 保存原始数据结构 - 已禁用，使用新的筛选系统
+function saveOriginalData_disabled() {
     const tableRows = document.querySelectorAll('.table tbody tr');
     const mobileCards = document.querySelectorAll('.d-block.d-lg-none .card');
     
@@ -2918,14 +2996,14 @@ function checkCardActiveState(cardId, paramNames, expectedValues) {
 document.addEventListener('DOMContentLoaded', function() {
     // 立即保存原始数据
     console.log('页面加载完成，开始保存原始数据');
-    saveOriginalData();
+    // saveOriginalData(); // 已移除，使用新的筛选系统
     
     // 如果第一次保存失败（可能因为DOM还未完全准备好），稍后再试
-    if (originalTableRows.length === 0) {
+    if (false) { // 已禁用旧的筛选系统
         console.log('首次保存失败，1秒后重试');
         setTimeout(function() {
-            saveOriginalData();
-            if (originalTableRows.length === 0) {
+            // saveOriginalData(); // 已移除，使用新的筛选系统
+            if (false) { // 已禁用旧的筛选系统
                 console.error('重试后仍无法保存原始数据，可能表格还未渲染');
             }
         }, 1000);

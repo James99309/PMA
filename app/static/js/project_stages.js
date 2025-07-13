@@ -75,7 +75,14 @@ class ProjectStageProgress {
      */
     getStageIndex(stageName) {
         const stageIndex = this.stages.findIndex(stage => stage.key === stageName);
-        return stageIndex >= 0 ? stageIndex : 0;
+        
+        if (stageIndex < 0) {
+            // 如果通过key找不到，尝试通过中文名称找
+            const stageIndexByName = this.stages.findIndex(stage => stage.zh_name === stageName || stage.name === stageName);
+            return stageIndexByName >= 0 ? stageIndexByName : 0;
+        }
+        
+        return stageIndex;
     }
 
     /**
@@ -99,22 +106,24 @@ class ProjectStageProgress {
      * 计算各阶段持续时间
      */
     calculateStageDurations() {
+        
         // 如果有阶段历史，使用历史计算持续时间
         if (this.stageHistory && Array.isArray(this.stageHistory)) {
             this.stageDurations = this.stageHistory.map(stage => {
                 // 对于当前阶段，确保天数计算是从推进日到今天
                 const endDate = stage.endDate || new Date();
-                return {
+                const duration = {
                     stageName: stage.stage,
                     days: this.calculateDaysBetween(stage.startDate, endDate)
                 };
+                return duration;
             });
         } else {
             // 无历史记录，所有阶段天数显示为"未知"
             this.stageDurations = this.stages.map(stage => {
                 return {
                     stageName: stage.key,
-                    days: '未知'
+                    days: window.stageI18nTexts?.unknown || '未知'
                 };
             });
         }
@@ -135,17 +144,13 @@ class ProjectStageProgress {
      * 生成随机持续时间（用于演示）
      */
     getRandomDuration() {
-        return Math.floor(Math.random() * 20) + 5; // 5-25天
+        return Math.floor(Math.random() * 20) + 5; // 5-25 days
     }
 
     /**
      * 渲染进度条
      */
     render() {
-        console.log('ProjectStageProgress 渲染开始:');
-        console.log('- 当前阶段:', this.currentStage);
-        console.log('- 主线阶段:', this.mainStages);
-        console.log('- 分支阶段:', this.branchStages);
         
         const container = document.getElementById(this.containerId);
         if (!container) {
@@ -194,23 +199,31 @@ class ProjectStageProgress {
                 stageName.textContent = stage.name;
                 stageMarker.appendChild(stageName);
                 // 推进信息 - 对于当前阶段，显示推进到这个阶段的日期和从推进日到今天的天数
-                const durationItem = this.stageDurations.find(item => item.stageName === stage.key);
+                const durationItem = this.stageDurations.find(item => 
+                    item.stageName === stage.key || 
+                    item.stageName === stage.name || 
+                    item.stageName === stage.zh_name
+                );
                 const days = durationItem ? durationItem.days : '未知';
                 let stageExtra = '';
                 if (this.stageHistory && Array.isArray(this.stageHistory)) {
-                    const historyItem = this.stageHistory.find(item => item.stage === stage.key);
+                    const historyItem = this.stageHistory.find(item => 
+                        item.stage === stage.key || 
+                        item.stage === stage.name || 
+                        item.stage === stage.zh_name
+                    );
                     if (historyItem && historyItem.startDate) {
                         // 显示推进到这个阶段的日期
                         const stageDate = historyItem.startDate.split(' ')[0];
                         if (typeof days === 'number' && days > 0) {
                             // 显示推进日期和从推进日到今天的天数
-                            stageExtra = `${stageDate}｜${days}天`;
+                            stageExtra = `${stageDate}｜${days}${window.stageI18nTexts?.days || '天'}`;
                         } else {
                             // 只显示推进日期
                             stageExtra = stageDate;
                         }
                     } else if (typeof days === 'number' && days > 0) {
-                        stageExtra = `${days}天`;
+                        stageExtra = `${days}${window.stageI18nTexts?.days || '天'}`;
                     }
                 }
                 if (stageExtra) {
@@ -259,23 +272,31 @@ class ProjectStageProgress {
             stageMarker.appendChild(stageName);
 
             // 推进信息 - 显示推进到这个阶段的日期和从推进日到今天的天数
-            const durationItem = this.stageDurations.find(item => item.stageName === stage.key);
+            const durationItem = this.stageDurations.find(item => 
+                item.stageName === stage.key || 
+                item.stageName === stage.name || 
+                item.stageName === stage.zh_name
+            );
             const days = durationItem ? durationItem.days : '未知';
             let stageExtra = '';
             if (this.stageHistory && Array.isArray(this.stageHistory)) {
-                const historyItem = this.stageHistory.find(item => item.stage === stage.key);
+                const historyItem = this.stageHistory.find(item => 
+                    item.stage === stage.key || 
+                    item.stage === stage.name || 
+                    item.stage === stage.zh_name
+                );
                 if (historyItem && historyItem.startDate) {
                     // 显示推进到这个阶段的日期
                     const stageDate = historyItem.startDate.split(' ')[0];
                     if (typeof days === 'number' && days > 0) {
                         // 显示推进日期和从推进日到今天的天数
-                        stageExtra = `${stageDate}｜${days}天`;
+                        stageExtra = `${stageDate}｜${days}${window.stageI18nTexts?.days || '天'}`;
                     } else {
                         // 只显示推进日期
                         stageExtra = stageDate;
                     }
                 } else if (typeof days === 'number' && days > 0) {
-                    stageExtra = `${days}天`;
+                    stageExtra = `${days}${window.stageI18nTexts?.days || '天'}`;
                 }
             }
             if (stageExtra) {
@@ -352,23 +373,31 @@ class ProjectStageProgress {
             branchMarker.appendChild(branchName);
 
             // 推进信息 - 显示推进到这个阶段的日期和从推进日到今天的天数
-            const durationItem = this.stageDurations.find(item => item.stageName === branch.key);
+            const durationItem = this.stageDurations.find(item => 
+                item.stageName === branch.key || 
+                item.stageName === branch.name || 
+                item.stageName === branch.zh_name
+            );
             const days = durationItem ? durationItem.days : '未知';
             let stageExtra = '';
             if (this.stageHistory && Array.isArray(this.stageHistory)) {
-                const historyItem = this.stageHistory.find(item => item.stage === branch.key);
+                const historyItem = this.stageHistory.find(item => 
+                    item.stage === branch.key || 
+                    item.stage === branch.name || 
+                    item.stage === branch.zh_name
+                );
                 if (historyItem && historyItem.startDate) {
                     // 显示推进到这个阶段的日期
                     const stageDate = historyItem.startDate.split(' ')[0];
                     if (typeof days === 'number' && days > 0) {
                         // 显示推进日期和从推进日到今天的天数
-                        stageExtra = `${stageDate}｜${days}天`;
+                        stageExtra = `${stageDate}｜${days}${window.stageI18nTexts?.days || '天'}`;
                     } else {
                         // 只显示推进日期
                         stageExtra = stageDate;
                     }
                 } else if (typeof days === 'number' && days > 0) {
-                    stageExtra = `${days}天`;
+                    stageExtra = `${days}${window.stageI18nTexts?.days || '天'}`;
                 }
             }
             if (stageExtra) {
@@ -505,7 +534,6 @@ class ProjectStageProgress {
         })
         .then(data => {
             if (data.success) {
-                console.log('项目阶段已成功更新为: ' + targetStage);
                 
                 // 移除加载指示器
                 document.body.removeChild(loadingOverlay);
@@ -531,7 +559,6 @@ class ProjectStageProgress {
             
             if (error instanceof BlockedProgressError) {
                 // 处理阻塞的进度推进（批价流程检查失败）
-                console.log('阶段推进被阻止:', error.data.message);
                 
                 if (error.data.pricing_flow) {
                     // 显示批价流程相关的提示

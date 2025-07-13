@@ -701,7 +701,9 @@ def preview_authorization_code():
     
     # 将项目类型映射为中文
     from app.utils.dictionary_helpers import project_type_label
-    project_type_zh = project_type_label(project_type)
+    from app.utils.i18n import get_current_language
+    lang_code = get_current_language()
+    project_type_zh = project_type_label(project_type, lang_code)
     
     # 从utils中获取前缀
     from app.utils.authorization import PROJECT_TYPE_PREFIXES
@@ -767,13 +769,16 @@ def authorize(instance_id):
     # 获取项目类型对应的前缀
     from app.utils.authorization import PROJECT_TYPE_PREFIXES
     
-    # 生成当前类型的预览授权编号
-    project_type_zh = project_type_label(project.project_type) if project.project_type else ''
+    # 生成当前类型的预览授权编号 
+    from app.utils.i18n import get_current_language
+    lang_code = get_current_language()
+    
+    project_type_zh = project_type_label(project.project_type, lang_code) if project.project_type else ''
     prefix = PROJECT_TYPE_PREFIXES.get(project_type_zh, '')
     preview_code = f"{prefix}{year}{month}-001" if prefix else ''
     
     # 为模板传递当前项目类型的中文显示名称
-    current_project_type_display = project_type_label(project.project_type) if project.project_type else project.project_type
+    current_project_type_display = project_type_label(project.project_type, lang_code) if project.project_type else project.project_type
     
     return render_template('approval/authorization_step.html',
                           instance=instance,

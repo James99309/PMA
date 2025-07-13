@@ -163,6 +163,17 @@ def inject_user_helpers():
         'get_user_by_id': get_user_by_id,
     }
 
+# 添加语言相关上下文处理器
+def inject_language_functions():
+    """
+    向模板上下文注入语言相关函数，供模板使用
+    """
+    from app.utils.i18n import get_current_language
+    
+    return {
+        'get_current_language': get_current_language
+    }
+
 # 添加项目阶段配置上下文处理器
 def inject_project_stages_config():
     """
@@ -171,10 +182,18 @@ def inject_project_stages_config():
     def project_stages_config():
         """
         生成项目阶段配置，包括主线阶段和分支阶段
+        支持国际化，根据当前语言返回相应的阶段名称
         
         Returns:
             dict: 包含主线阶段和分支阶段的配置信息
         """
+        # 获取当前语言
+        try:
+            from app.utils.i18n import get_current_language
+            lang = get_current_language()
+        except:
+            lang = 'zh'  # 默认中文
+        
         # 主线阶段（不包括lost和paused）
         mainStages = []
         branchStages = []
@@ -183,8 +202,10 @@ def inject_project_stages_config():
         for i, (key, value) in enumerate(PROJECT_STAGE_LABELS.items()):
             stage_info = {
                 'id': i,
-                'key': value['zh'],  # 使用中文名称作为key，与前端JavaScript保持一致
-                'name': value['zh']  # 使用中文名称
+                'key': key,  # 使用英文key作为标识符
+                'name': value[lang],  # 使用当前语言的名称
+                'zh_name': value['zh'],  # 保留中文名称用于兼容性
+                'en_name': value['en']   # 保留英文名称用于兼容性
             }
             
             # 根据阶段类型分类

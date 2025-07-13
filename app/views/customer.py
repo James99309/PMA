@@ -12,7 +12,7 @@ from datetime import datetime
 import difflib
 import json
 import re
-from app.utils.dictionary_helpers import COMPANY_TYPE_OPTIONS, INDUSTRY_OPTIONS, STATUS_OPTIONS
+from app.utils.dictionary_helpers import get_company_type_options, get_industry_options, get_status_options, get_country_options, COMPANY_TYPE_LABELS, INDUSTRY_LABELS, STATUS_LABELS, COUNTRY_LABELS
 from app.utils.access_control import (
     get_viewable_data, can_edit_data, 
     can_view_company, can_edit_company_info, can_edit_company_sharing, can_delete_company,
@@ -30,6 +30,164 @@ from app.utils.country_names import get_country_names
 
 
 customer = Blueprint('customer', __name__)
+
+@customer.route('/api/countries-regions')
+@login_required
+def get_countries_regions():
+    """获取语言感知的国家和地区数据"""
+    from app.utils.i18n import get_current_language
+    from app.utils.country_names import get_country_names
+    
+    lang = get_current_language()
+    country_names = get_country_names(lang)
+    
+    # 地区数据映射（扩展支持多语言）
+    region_data = {
+        "CN": {
+            "zh": ["北京市", "上海市", "天津市", "重庆市", "河北省", "山西省", "辽宁省", "吉林省", "黑龙江省", 
+                   "江苏省", "浙江省", "安徽省", "福建省", "江西省", "山东省", "河南省", "湖北省", "湖南省", 
+                   "广东省", "海南省", "四川省", "贵州省", "云南省", "陕西省", "甘肃省", "青海省", "台湾省",
+                   "内蒙古自治区", "广西壮族自治区", "西藏自治区", "宁夏回族自治区", "新疆维吾尔自治区",
+                   "香港特别行政区", "澳门特别行政区"],
+            "en": ["Beijing", "Shanghai", "Tianjin", "Chongqing", "Hebei Province", "Shanxi Province", 
+                   "Liaoning Province", "Jilin Province", "Heilongjiang Province", "Jiangsu Province", 
+                   "Zhejiang Province", "Anhui Province", "Fujian Province", "Jiangxi Province", 
+                   "Shandong Province", "Henan Province", "Hubei Province", "Hunan Province", 
+                   "Guangdong Province", "Hainan Province", "Sichuan Province", "Guizhou Province", 
+                   "Yunnan Province", "Shaanxi Province", "Gansu Province", "Qinghai Province", 
+                   "Taiwan Province", "Inner Mongolia Autonomous Region", "Guangxi Zhuang Autonomous Region", 
+                   "Tibet Autonomous Region", "Ningxia Hui Autonomous Region", "Xinjiang Uyghur Autonomous Region",
+                   "Hong Kong Special Administrative Region", "Macao Special Administrative Region"]
+        },
+        "US": {
+            "zh": ["阿拉巴马州", "阿拉斯加州", "亚利桑那州", "阿肯色州", "加利福尼亚州", "科罗拉多州", "康涅狄格州",
+                   "特拉华州", "佛罗里达州", "乔治亚州", "夏威夷州", "爱达荷州", "伊利诺伊州", "印第安纳州",
+                   "爱荷华州", "堪萨斯州", "肯塔基州", "路易斯安那州", "缅因州", "马里兰州", "马萨诸塞州",
+                   "密歇根州", "明尼苏达州", "密西西比州", "密苏里州", "蒙大拿州", "内布拉斯加州",
+                   "内华达州", "新罕布什尔州", "新泽西州", "新墨西哥州", "纽约州", "北卡罗来纳州",
+                   "北达科他州", "俄亥俄州", "俄克拉荷马州", "俄勒冈州", "宾夕法尼亚州", "罗得岛州",
+                   "南卡罗来纳州", "南达科他州", "田纳西州", "德克萨斯州", "犹他州", "佛蒙特州",
+                   "弗吉尼亚州", "华盛顿州", "西弗吉尼亚州", "威斯康星州", "怀俄明州", "华盛顿特区"],
+            "en": ["Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", 
+                   "Delaware", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", 
+                   "Iowa", "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", 
+                   "Michigan", "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", 
+                   "Nevada", "New Hampshire", "New Jersey", "New Mexico", "New York", "North Carolina", 
+                   "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", 
+                   "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", 
+                   "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming", "District of Columbia"]
+        },
+        "JP": {
+            "zh": ["东京都", "大阪府", "神奈川县", "爱知县", "埼玉县", "千叶县", "兵库县", "北海道", "福冈县", 
+                   "静冈县", "茨城县", "广岛县", "京都府", "新潟县", "宫城县", "长野县", "岐阜县", "群马县", 
+                   "栃木县", "冈山县", "三重县", "熊本县", "鹿儿岛县", "山口县", "爱媛县", "长崎县", 
+                   "滋贺县", "奈良县", "青森县", "岩手县", "福岛县", "福井县", "山梨县", "和歌山县", 
+                   "佐贺县", "山形县", "香川县", "大分县", "富山县", "石川县", "宫崎县", "秋田县", 
+                   "德岛县", "高知县", "岛根县", "鸟取县", "冲绳县"],
+            "en": ["Tokyo", "Osaka", "Kanagawa", "Aichi", "Saitama", "Chiba", "Hyogo", "Hokkaido", "Fukuoka", 
+                   "Shizuoka", "Ibaraki", "Hiroshima", "Kyoto", "Niigata", "Miyagi", "Nagano", "Gifu", "Gunma", 
+                   "Tochigi", "Okayama", "Mie", "Kumamoto", "Kagoshima", "Yamaguchi", "Ehime", "Nagasaki", 
+                   "Shiga", "Nara", "Aomori", "Iwate", "Fukushima", "Fukui", "Yamanashi", "Wakayama", 
+                   "Saga", "Yamagata", "Kagawa", "Oita", "Toyama", "Ishikawa", "Miyazaki", "Akita", 
+                   "Tokushima", "Kochi", "Shimane", "Tottori", "Okinawa"]
+        },
+        "MY": {
+            "zh": ["柔佛州", "吉打州", "吉兰丹州", "马六甲州", "森美兰州", "彭亨州", "槟城州", "霹雳州", 
+                   "玻璃市州", "雪兰莪州", "丁加奴州", "沙巴州", "砂拉越州", "吉隆坡联邦直辖区", "布城联邦直辖区", "纳闽联邦直辖区"],
+            "en": ["Johor", "Kedah", "Kelantan", "Malacca", "Negeri Sembilan", "Pahang", "Penang", "Perak", 
+                   "Perlis", "Selangor", "Terengganu", "Sabah", "Sarawak", "Kuala Lumpur", "Putrajaya", "Labuan"]
+        },
+        "ID": {
+            "zh": ["雅加达特区", "万丹省", "西爪哇省", "中爪哇省", "日惹特区", "东爪哇省", "巴厘省", "西努沙登加拉省", 
+                   "东努沙登加拉省", "西加里曼丹省", "中加里曼丹省", "东加里曼丹省", "南加里曼丹省", "北加里曼丹省",
+                   "北苏门答腊省", "西苏门答腊省", "廖内省", "廖内群岛省", "占碑省", "南苏门答腊省", "明古鲁省", 
+                   "楠榜省", "邦加-勿里洞省", "北苏拉威西省", "中苏拉威西省", "南苏拉威西省", "东南苏拉威西省", 
+                   "哥伦打洛省", "西苏拉威西省", "马鲁古省", "北马鲁古省", "巴布亚省", "西巴布亚省"],
+            "en": ["Jakarta", "Banten", "West Java", "Central Java", "Yogyakarta", "East Java", "Bali", "West Nusa Tenggara", 
+                   "East Nusa Tenggara", "West Kalimantan", "Central Kalimantan", "East Kalimantan", "South Kalimantan", "North Kalimantan",
+                   "North Sumatra", "West Sumatra", "Riau", "Riau Islands", "Jambi", "South Sumatra", "Bengkulu", 
+                   "Lampung", "Bangka Belitung", "North Sulawesi", "Central Sulawesi", "South Sulawesi", "Southeast Sulawesi", 
+                   "Gorontalo", "West Sulawesi", "Maluku", "North Maluku", "Papua", "West Papua"]
+        },
+        "VN": {
+            "zh": ["河内市", "胡志明市", "海防市", "岘港市", "芹苴市", "安江省", "北江省", "北干省", "北宁省", 
+                   "薄辽省", "槟椥省", "平定省", "平阳省", "平福省", "平顺省", "金瓯省", "高平省", "多乐省", 
+                   "得农省", "奠边省", "同奈省", "同塔省", "嘉莱省", "河江省", "河南省", "河静省", "后江省", 
+                   "兴安省", "和平省", "胡志明市", "承天顺化省", "兴安省", "坚江省", "昆嵩省", "莱州省", 
+                   "林同省", "老街省", "隆安省", "南定省", "义安省", "宁平省", "宁顺省", "富寿省", "富安省", 
+                   "富国岛", "广平省", "广义省", "广南省", "广宁省", "朔庄省", "山罗省", "西宁省", "太原省", 
+                   "太平省", "清化省", "承天顺化省", "茶荣省", "图元省", "永隆省", "永福省", "安沛省"],
+            "en": ["Hanoi", "Ho Chi Minh City", "Hai Phong", "Da Nang", "Can Tho", "An Giang", "Bac Giang", "Bac Kan", "Bac Ninh", 
+                   "Ba Ria-Vung Tau", "Ben Tre", "Binh Dinh", "Binh Duong", "Binh Phuoc", "Binh Thuan", "Ca Mau", "Cao Bang", "Dak Lak", 
+                   "Dak Nong", "Dien Bien", "Dong Nai", "Dong Thap", "Gia Lai", "Ha Giang", "Ha Nam", "Ha Tinh", "Hau Giang", 
+                   "Hung Yen", "Hoa Binh", "Ho Chi Minh City", "Thua Thien Hue", "Hau Giang", "Kien Giang", "Kon Tum", "Lai Chau", 
+                   "Lam Dong", "Lao Cai", "Long An", "Nam Dinh", "Nghe An", "Ninh Binh", "Ninh Thuan", "Phu Tho", "Phu Yen", 
+                   "Phu Quoc", "Quang Binh", "Quang Ngai", "Quang Nam", "Quang Ninh", "Soc Trang", "Son La", "Tay Ninh", "Thai Nguyen", 
+                   "Thai Binh", "Thanh Hoa", "Thua Thien Hue", "Tra Vinh", "Tuyen Quang", "Vinh Long", "Vinh Phuc", "Yen Bai"]
+        },
+        "TH": {
+            "zh": ["曼谷", "春武里府", "北榄府", "暖武里府", "巴吞他尼府", "龙仔厝府", "北碧府", "猜也奔府", 
+                   "彰化府", "清莱府", "清迈府", "春蓬府", "甘烹碧府", "华富里府", "来兴府", "南奔府", 
+                   "南邦府", "廊开府", "洛坤府", "洛武里府", "湄宏顺府", "马哈沙拉堪府", "莫达汉府", 
+                   "那空那育府", "那空拍侬府", "那空叻差是玛府", "那空沙旺府", "那空是贪玛叻府", 
+                   "楠府", "呵叻府", "廊曼府", "巴真府", "北大年府", "攀牙府", "博他仑府", "碧武里府", 
+                   "佛丕府", "佛统府", "普吉府", "叻丕府", "罗勇府", "沙缴府", "桑卡府", "沙敦府",
+                   "信武里府", "四色菊府", "素可泰府", "素林府", "素叻府", "达府", "董里府", "陶公府", 
+                   "程逸府", "乌隆府", "乌泰他尼府", "惹拉府", "也拉府", "益梭通府"],
+            "en": ["Bangkok", "Chonburi", "Samut Prakan", "Nonthaburi", "Pathum Thani", "Samut Sakhon", "Kanchanaburi", "Chachoengsao", 
+                   "Chanthaburi", "Chiang Rai", "Chiang Mai", "Chumphon", "Kamphaeng Phet", "Lopburi", "Loei", "Lamphun", 
+                   "Lampang", "Nong Khai", "Nakhon Si Thammarat", "Lopburi", "Mae Hong Son", "Maha Sarakham", "Mukdahan", 
+                   "Nakhon Nayok", "Nakhon Phanom", "Nakhon Ratchasima", "Nakhon Sawan", "Nakhon Si Thammarat", 
+                   "Nan", "Nong Bua Lamphu", "Nong Khai", "Prachinburi", "Pattani", "Phang Nga", "Phatthalung", "Phetchaburi", 
+                   "Phetchabun", "Nakhon Pathom", "Phuket", "Ratchaburi", "Rayong", "Sa Kaeo", "Sakon Nakhon", "Satun", 
+                   "Sing Buri", "Sisaket", "Sukhothai", "Surin", "Surat Thani", "Tak", "Trang", "Trat", 
+                   "Ubon Ratchathani", "Udon Thani", "Uthai Thani", "Yala", "Yala", "Yasothon"]
+        }
+    }
+    
+    # 构建返回数据 - 保持地区排序
+    countries = []
+    for code, name in country_names.items():
+        countries.append({"code": code, "name": name})
+    
+    # 构建地区数据
+    regions = {}
+    for country_code, region_langs in region_data.items():
+        regions[country_code] = region_langs.get(lang, region_langs.get('zh', []))
+    
+    return jsonify({
+        "countries": countries,
+        "regions": regions
+    })
+
+def get_existing_filter_options(all_viewable_companies):
+    """
+    基于实际存在的公司数据生成筛选器选项
+    """
+    from app.utils.i18n import get_current_language
+    lang_code = get_current_language()
+    
+    # 获取实际存在的企业类型
+    existing_company_types = {c.company_type for c in all_viewable_companies if c.company_type}
+    company_type_options = [(key, COMPANY_TYPE_LABELS.get(key, {}).get(lang_code, key)) 
+                           for key in existing_company_types]
+    
+    # 获取实际存在的行业
+    existing_industries = {c.industry for c in all_viewable_companies if c.industry}  
+    industry_options = [(key, INDUSTRY_LABELS.get(key, {}).get(lang_code, key))
+                       for key in existing_industries]
+    
+    # 获取实际存在的状态
+    existing_statuses = {c.status for c in all_viewable_companies if c.status}
+    status_options = [(key, STATUS_LABELS.get(key, {}).get(lang_code, key))
+                     for key in existing_statuses]
+    
+    # 获取实际存在的国家
+    existing_countries = {c.country for c in all_viewable_companies if c.country}
+    country_options = [(key, COUNTRY_LABELS.get(key, {}).get(lang_code, key))
+                      for key in existing_countries]
+    
+    return company_type_options, industry_options, status_options, country_options
 
 @customer.route('/')
 @permission_required('customer', 'view')
@@ -129,7 +287,13 @@ def list_companies():
     
     # 获取所有用户和唯一的owner_ids用于筛选
     all_users = User.query.filter(User._is_active == True).order_by(User.real_name, User.username).all()
-    unique_owner_ids = {c.owner_id for c in get_viewable_data(Company, current_user).all() if c.owner_id}
+    
+    # 获取当前用户可见的所有公司数据（用于生成筛选器选项）
+    all_viewable_companies = get_viewable_data(Company, current_user).all()
+    unique_owner_ids = {c.owner_id for c in all_viewable_companies if c.owner_id}
+    
+    # 获取实际存在的筛选器选项（基于当前可见数据）
+    company_type_options, industry_options, status_options, country_options = get_existing_filter_options(all_viewable_companies)
     
     return render_template('customer/list.html', 
                           companies=companies, 
@@ -144,9 +308,10 @@ def list_companies():
                           all_users=all_users,
                           unique_owner_ids=unique_owner_ids,
                           country_code_to_name=country_code_to_name,
-                          COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
-                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
-                          STATUS_OPTIONS=STATUS_OPTIONS)
+                          COMPANY_TYPE_OPTIONS=company_type_options,
+                          INDUSTRY_OPTIONS=industry_options,
+                          STATUS_OPTIONS=status_options,
+                          COUNTRY_OPTIONS=country_options)
 
 @customer.route('/api/load-more', methods=['GET'])
 @permission_required('customer', 'view')
@@ -251,9 +416,10 @@ def load_more_companies():
                           companies=companies,
                           owner_filter=owner_filter,
                           country_code_to_name=country_code_to_name,
-                          COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
-                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
-                          STATUS_OPTIONS=STATUS_OPTIONS)
+                          COMPANY_TYPE_OPTIONS=get_company_type_options(),
+                          INDUSTRY_OPTIONS=get_industry_options(),
+                          STATUS_OPTIONS=get_status_options(),
+                          COUNTRY_OPTIONS=get_country_options())
     
     return jsonify({
         'html': html,
@@ -307,15 +473,27 @@ def search_companies():
     
     # 获取国际化的国家名称映射
     country_code_to_name = get_country_names(get_current_language())
+    
+    # 为搜索结果生成筛选器选项（基于当前可见的所有数据，不仅仅是搜索结果）
+    all_viewable_companies = get_viewable_data(Company, current_user).all()
+    company_type_options, industry_options, status_options, country_options = get_existing_filter_options(all_viewable_companies)
+    
+    # 获取用户信息用于筛选器
+    all_users = User.query.filter(User._is_active == True).order_by(User.real_name, User.username).all()
+    unique_owner_ids = {c.owner_id for c in all_viewable_companies if c.owner_id}
+    
     return render_template('customer/list.html', 
                           companies=companies, 
                           search_term=search, 
                           sort_field=sort_field, 
                           sort_order=sort_order,
                           country_code_to_name=country_code_to_name,
-                          COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
-                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
-                          STATUS_OPTIONS=STATUS_OPTIONS)
+                          all_users=all_users,
+                          unique_owner_ids=unique_owner_ids,
+                          COMPANY_TYPE_OPTIONS=company_type_options,
+                          INDUSTRY_OPTIONS=industry_options,
+                          STATUS_OPTIONS=status_options,
+                          COUNTRY_OPTIONS=country_options)
 
 @customer.route('/search_contacts', methods=['GET'])
 @permission_required('customer', 'view')
@@ -345,9 +523,10 @@ def search_contacts():
     
     # 返回搜索结果专用模板，不使用contacts.html
     return render_template('customer/search_results.html', contacts=contacts, search_term=search,
-                          COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
-                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
-                          STATUS_OPTIONS=STATUS_OPTIONS)
+                          COMPANY_TYPE_OPTIONS=get_company_type_options(),
+                          INDUSTRY_OPTIONS=get_industry_options(),
+                          STATUS_OPTIONS=get_status_options(),
+                          COUNTRY_OPTIONS=get_country_options())
 
 @customer.route('/<int:company_id>/view')
 @permission_required('customer', 'view')
@@ -461,9 +640,9 @@ def view_company(company_id):
                           viewable_projects=viewable_projects,
                           country_code_to_name=country_code_to_name,
                           all_users=all_users,
-                          COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
-                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
-                          STATUS_OPTIONS=STATUS_OPTIONS,
+                          COMPANY_TYPE_OPTIONS=get_company_type_options(),
+                          INDUSTRY_OPTIONS=get_industry_options(),
+                          STATUS_OPTIONS=get_status_options(),
                           user_tree_data=user_tree_data,
                           # 添加审批相关函数
                           get_object_approval_instance=get_object_approval_instance,
@@ -508,9 +687,9 @@ def add_company():
             # 增强日志输出，包含表单内容和traceback
             flash('保存失败：' + str(e) + '<br>表单内容：' + str(dict(request.form)) + '<br>' + traceback.format_exc(), 'danger')
     
-    return render_template('customer/add.html', COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
-                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
-                          STATUS_OPTIONS=STATUS_OPTIONS)
+    return render_template('customer/add.html', COMPANY_TYPE_OPTIONS=get_company_type_options(),
+                          INDUSTRY_OPTIONS=get_industry_options(),
+                          STATUS_OPTIONS=get_status_options())
 
 @customer.route('/edit/<int:company_id>', methods=['GET', 'POST'])
 @permission_required('customer', 'edit')
@@ -552,9 +731,9 @@ def edit_company(company_id):
             db.session.rollback()
             flash('保存失败：' + str(e), 'danger')
 
-    return render_template('customer/edit.html', company=company, COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
-                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
-                          STATUS_OPTIONS=STATUS_OPTIONS)
+    return render_template('customer/edit.html', company=company, COMPANY_TYPE_OPTIONS=get_company_type_options(),
+                          INDUSTRY_OPTIONS=get_industry_options(),
+                          STATUS_OPTIONS=get_status_options())
 
 @customer.route('/api/delete-confirm/<int:company_id>')
 @permission_required('customer', 'delete') 
@@ -898,9 +1077,9 @@ def list_contacts(company_id):
             if contact.owner_id and contact.owner_id in owners:
                 contact.owner = owners[contact.owner_id]
     
-    return render_template('customer/contacts.html', company=company, COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
-                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
-                          STATUS_OPTIONS=STATUS_OPTIONS)
+    return render_template('customer/contacts.html', company=company, COMPANY_TYPE_OPTIONS=get_company_type_options(),
+                          INDUSTRY_OPTIONS=get_industry_options(),
+                          STATUS_OPTIONS=get_status_options())
 
 @customer.route('/<int:company_id>/contacts/add', methods=['GET', 'POST'])
 @permission_required('customer', 'create')
@@ -957,9 +1136,9 @@ def add_contact(company_id):
         flash('联系人添加成功！', 'success')
         # 修改为添加后跳转客户详情页
         return redirect(url_for('customer.view_company', company_id=company_id))
-    return render_template('customer/add_contact.html', company=company, COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
-                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
-                          STATUS_OPTIONS=STATUS_OPTIONS)
+    return render_template('customer/add_contact.html', company=company, COMPANY_TYPE_OPTIONS=get_company_type_options(),
+                          INDUSTRY_OPTIONS=get_industry_options(),
+                          STATUS_OPTIONS=get_status_options())
 
 @customer.route('/<int:company_id>/contacts/<int:contact_id>/edit', methods=['GET', 'POST'])
 @permission_required('customer', 'edit')
@@ -1004,9 +1183,9 @@ def edit_contact(company_id, contact_id):
         
         flash('联系人信息更新成功！', 'success')
         return redirect(url_for('customer.list_contacts', company_id=contact.company_id))
-    return render_template('customer/edit_contact.html', contact=contact, COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
-                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
-                          STATUS_OPTIONS=STATUS_OPTIONS)
+    return render_template('customer/edit_contact.html', contact=contact, COMPANY_TYPE_OPTIONS=get_company_type_options(),
+                          INDUSTRY_OPTIONS=get_industry_options(),
+                          STATUS_OPTIONS=get_status_options())
 
 @customer.route('/<int:company_id>/contacts/<int:contact_id>/delete', methods=['POST'])
 @permission_required('customer', 'delete')
@@ -2426,9 +2605,10 @@ def view_contact(contact_id):
                           all_users=all_users,
                           has_change_owner_permission=has_change_owner_permission,
                           user_tree_data=user_tree_data,
-                          COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
-                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
-                          STATUS_OPTIONS=STATUS_OPTIONS)
+                          COMPANY_TYPE_OPTIONS=get_company_type_options(),
+                          INDUSTRY_OPTIONS=get_industry_options(),
+                          STATUS_OPTIONS=get_status_options(),
+                          COUNTRY_OPTIONS=get_country_options())
 
 @customer.route('/<int:company_id>/add_action', methods=['GET', 'POST'])
 @permission_required('customer', 'create')
@@ -2482,9 +2662,10 @@ def add_action_for_company(company_id):
         selected_contact = Contact.query.get(contact_id)
         contact_actions = Action.query.filter_by(contact_id=contact_id).order_by(Action.created_at.desc()).all()
     return render_template('customer/add_action_for_company.html', company=company, contacts=contacts, projects=projects, selected_contact=selected_contact, contact_actions=contact_actions,
-                          COMPANY_TYPE_OPTIONS=COMPANY_TYPE_OPTIONS,
-                          INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
-                          STATUS_OPTIONS=STATUS_OPTIONS) 
+                          COMPANY_TYPE_OPTIONS=get_company_type_options(),
+                          INDUSTRY_OPTIONS=get_industry_options(),
+                          STATUS_OPTIONS=get_status_options(),
+                          COUNTRY_OPTIONS=get_country_options()) 
 @customer.route('/<int:company_id>/update_sharing', methods=['POST'])
 @permission_required('customer', 'edit')
 def update_company_sharing(company_id):
@@ -2639,8 +2820,8 @@ def i18n_demo():
                          current_language=current_language,
                          country_names=country_names,
                          sample_customer=sample_customer,
-                         INDUSTRY_OPTIONS=INDUSTRY_OPTIONS,
-                         STATUS_OPTIONS=STATUS_OPTIONS)
+                         INDUSTRY_OPTIONS=get_industry_options(),
+                         STATUS_OPTIONS=get_status_options())
 
 @customer.route('/api/available_accounts', methods=['GET'])
 @login_required

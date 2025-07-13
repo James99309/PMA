@@ -111,15 +111,9 @@
                                             <label class="form-label small mb-1">{{ _('国家') }}</label>
                                             <select class="form-select form-select-sm" id="countryFilter" style="min-width: 120px;">
                                                 <option value="">{{ _('全部') }}</option>
-                                                <option value="CN">{{ _('中国') }}</option>
-                                                <option value="US">{{ _('美国') }}</option>
-                                                <option value="DE">{{ _('德国') }}</option>
-                                                <option value="JP">{{ _('日本') }}</option>
-                                                <option value="KR">{{ _('韩国') }}</option>
-                                                <option value="SG">{{ _('新加坡') }}</option>
-                                                <option value="MY">{{ _('马来西亚') }}</option>
-                                                <option value="TH">{{ _('泰国') }}</option>
-                                                <option value="OTHER">{{ _('其他') }}</option>
+                                                {% for value, label in COUNTRY_OPTIONS %}
+                                                <option value="{{ value }}">{{ label }}</option>
+                                                {% endfor %}
                                             </select>
                                         </div>
                                         <div class="form-group mb-0">
@@ -1164,7 +1158,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                 } catch (error) {
                     console.error('解析Excel文件失败:', error);
-                    alert('解析文件失败，请确保文件格式正确');
+                    alert(window.i18nTexts.parseFileFailed || '解析文件失败，请确保文件格式正确');
                 }
             };
             
@@ -2522,7 +2516,7 @@ function initializeBatchDeleteLogic() {
                     batchDeleteBtn.style.transform = 'translateX(0)';
                 });
             }
-            batchDeleteBtn.innerHTML = `<i class="fas fa-trash"></i> 批量删除 (${checkedCount})`;
+            batchDeleteBtn.innerHTML = `<i class="fas fa-trash"></i> ${window.i18nTexts.batchDelete} (${checkedCount})`;
         } else {
             if (batchDeleteBtn.style.display !== 'none') {
                 batchDeleteBtn.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
@@ -3085,6 +3079,35 @@ function showBatchDeleteResults() {
         </div>
     </div>
 </div>
+
+<!-- 国际化文本变量 -->
+<script>
+window.i18nTexts = {
+    batchDelete: '{{ _("批量删除") }}',
+    smartMerge: '{{ _("智能合并") }}',
+    clearFilters: '{{ _("清空筛选") }}',
+    importData: '{{ _("导入数据") }}',
+    importCustomers: '{{ _("导入客户") }}',
+    importContacts: '{{ _("导入联系人") }}',
+    cancel: '{{ _("取消") }}',
+    parseFile: '{{ _("解析文件") }}',
+    confirmImport: '{{ _("确认导入") }}',
+    applyRecommended: '{{ _("应用智能推荐") }}',
+    importAllAsNew: '{{ _("全部导入为新用户") }}',
+    ignoreAll: '{{ _("全部忽略不导入") }}',
+    overrideAll: '{{ _("全部覆盖") }}',
+    keepAllExisting: '{{ _("全部保留现有数据") }}',
+    deleteConfirmationTitle: '{{ _("删除企业确认") }}',
+    noCompaniesToDelete: '{{ _("没有可删除的企业") }}',
+    getDeleteConfirmInfoFailed: '{{ _("获取删除确认信息失败，请重试") }}',
+    deleteCompanyWillAffect: '{{ _("删除此企业将影响") }}',
+    relatedDataItems: '{{ _("条关联数据") }}',
+    confirmDelete: '{{ _("确认删除") }}',
+    cancelAll: '{{ _("取消全部") }}',
+    skipThis: '{{ _("跳过此项") }}',
+    parseFileFailed: '{{ _("解析文件失败，请确保文件格式正确") }}'
+};
+</script>
 
 <!-- 引入客户账户选择器JavaScript -->
 <script src="{{ url_for('static', filename='js/customer_account_selector.js') }}"></script>

@@ -1,15 +1,33 @@
-{% macro render_project_type(type) %}
+{% macro render_project_type(type, lang=None) %}
+    {% if not lang %}
+        {% set lang = session.get('language', 'zh') %}
+    {% endif %}
+    
     {% set color = '#6c757d' %}
     {% if type == 'sales_focus' or type == '销售重点' %}{% set color = '#0B6EFD' %}{% endif %}
     {% if type == 'channel_follow' or type == '渠道跟进' %}{% set color = '#5BC0DE' %}{% endif %}
     {% if type == 'business_opportunity' or type == '业务机会' %}{% set color = '#198754' %}{% endif %}
+    
     {% set type_map = {
-        'sales_focus': '销售重点',
-        'channel_follow': '渠道跟进', 
-        'business_opportunity': '业务机会'
+        'sales_focus': {'zh': '销售重点', 'en': 'Sales Focus'},
+        'channel_follow': {'zh': '渠道跟进', 'en': 'Channel Follow'}, 
+        'business_opportunity': {'zh': '业务机会', 'en': 'Business Opportunity'}
     } %}
-    {% set display_type = type_map.get(type, type) %}
-    <span class="badge rounded-pill" style="background-color: {{ color }}; color: #fff;">{{ display_type }}</span>
+    
+    {% if type in type_map %}
+        {% set display_type = type_map[type][lang] %}
+    {% else %}
+        {% set display_type = type %}
+        {% if type in ['销售重点', '渠道跟进', '业务机会'] %}
+            {% for key, labels in type_map.items() %}
+                {% if labels.zh == type %}
+                    {% set display_type = labels[lang] %}
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+    {% endif %}
+    
+    <span class="badge rounded-pill" style="background-color: {{ color }}; color: #fff; font-size: 0.75rem; padding: 0.35em 0.65em;">{{ display_type }}</span>
 {% endmacro %}
 
 {% macro render_pricing_order_number(order_number) %}
@@ -292,9 +310,9 @@
 
 {% macro render_status_badge(value) %}
   {% if value == 'active' %}
-    <span class="badge bg-success rounded-pill">活跃</span>
+    <span class="badge bg-success rounded-pill">{{ _('活跃') }}</span>
   {% else %}
-    <span class="badge bg-secondary rounded-pill">不活跃</span>
+    <span class="badge bg-secondary rounded-pill">{{ _('非活跃') }}</span>
   {% endif %}
 {% endmacro %}
 
@@ -1555,6 +1573,109 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
   {% else %}
     <span class="badge bg-secondary rounded-pill" style="font-size: 0.75rem; padding: 0.35em 0.65em;">
       {% if lang == 'en' %}Unknown{% else %}未知{% endif %}
+    </span>
+  {% endif %}
+{% endmacro %}
+
+{# 品牌情况徽章 #}
+{% macro render_product_situation_badge(situation, lang=None) %}
+  {% if not lang %}
+    {% set lang = session.get('language', 'zh') %}
+  {% endif %}
+  
+  {% set color_map = {
+    'qualified': '#198754',
+    'controlled': '#fd7e14',
+    'not_required': '#6c757d',
+    'unqualified': '#dc3545'
+  } %}
+  
+  {% set label_map = {
+    'qualified': {'zh': '品牌入围', 'en': 'Qualified'},
+    'controlled': {'zh': '品牌受控', 'en': 'Controlled'},
+    'not_required': {'zh': '无品牌要求', 'en': 'Not Required'},
+    'unqualified': {'zh': '品牌未入围', 'en': 'Unqualified'}
+  } %}
+  
+  {% if situation %}
+    {% set color = color_map.get(situation, '#6c757d') %}
+    {% if situation in label_map %}
+      {% set label = label_map[situation][lang] %}
+    {% elif situation in ['品牌入围', '品牌受控', '无品牌要求', '品牌未入围'] %}
+      {% for key, labels in label_map.items() %}
+        {% if labels.zh == situation %}
+          {% set label = labels[lang] %}
+        {% endif %}
+      {% endfor %}
+      {% if not label %}
+        {% set label = situation %}
+      {% endif %}
+    {% else %}
+      {% set label = situation %}
+    {% endif %}
+    
+    <span class="badge rounded-pill" style="background-color: {{ color }}; color: #fff; font-size: 0.75rem; padding: 0.35em 0.65em;">
+      {{ label }}
+    </span>
+  {% else %}
+    <span class="badge bg-secondary rounded-pill" style="font-size: 0.75rem; padding: 0.35em 0.65em;">
+      {% if lang == 'en' %}Unknown{% else %}未知{% endif %}
+    </span>
+  {% endif %}
+{% endmacro %}
+
+{# 行业徽章 #}
+{% macro render_industry_badge(industry, lang=None) %}
+  {% if not lang %}
+    {% set lang = session.get('language', 'zh') %}
+  {% endif %}
+  
+  {% set color_map = {
+    'manufacturing': '#0B6EFD',
+    'datacenter': '#5BC0DE', 
+    'shipbuilding': '#198754',
+    'semiconductor': '#fd7e14',
+    'chemical': '#dc3545',
+    'energy': '#ffc107',
+    'transportation': '#6f42c1',
+    'tunnel_underground': '#6c757d',
+    'real_estate': '#20c997',
+    'hospitality': '#e83e8c',
+    'government': '#495057',
+    'education': '#17a2b8',
+    'other': '#6c757d'
+  } %}
+  
+  {% set label_map = {
+    'manufacturing': {'zh': '制造业', 'en': 'Manufacturing'},
+    'datacenter': {'zh': '数据中心', 'en': 'Data Center'},
+    'shipbuilding': {'zh': '造船业', 'en': 'Shipbuilding'},
+    'semiconductor': {'zh': '半导体', 'en': 'Semiconductor'},
+    'chemical': {'zh': '化工医药', 'en': 'Chemicals & Pharma'},
+    'energy': {'zh': '石油能源', 'en': 'Energy'},
+    'transportation': {'zh': '交通枢纽', 'en': 'Transportation'},
+    'tunnel_underground': {'zh': '隧道及地下道路', 'en': 'Tunnel & Underground Roads'},
+    'real_estate': {'zh': '商业地产', 'en': 'Real Estate'},
+    'hospitality': {'zh': '酒店餐饮', 'en': 'Hospitality'},
+    'government': {'zh': '政府机构', 'en': 'Government'},
+    'education': {'zh': '教育', 'en': 'Education'},
+    'other': {'zh': '其他选择', 'en': 'Other'}
+  } %}
+  
+  {% if industry %}
+    {% set color = color_map.get(industry, '#6c757d') %}
+    {% if industry in label_map %}
+      {% set label = label_map[industry][lang] %}
+    {% else %}
+      {% set label = industry %}
+    {% endif %}
+    
+    <span class="badge rounded-pill" style="background-color: {{ color }}; color: #fff; font-size: 0.75rem; padding: 0.35em 0.65em;">
+      {{ label }}
+    </span>
+  {% else %}
+    <span class="badge bg-secondary rounded-pill" style="font-size: 0.75rem; padding: 0.35em 0.65em;">
+      {% if lang == 'en' %}Uncategorized{% else %}未分类{% endif %}
     </span>
   {% endif %}
 {% endmacro %}

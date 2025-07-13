@@ -77,14 +77,14 @@
                                         <label class="form-check-label" for="shared_disabled">
                                             {{ _('禁止共享该联系人') }}
                                         </label>
-                                        <div class="form-text text-muted">选中后，即使公司设置了共享，该联系人也不会被共享给其他用户</div>
+                                        <div class="form-text text-muted">{{ _('选中后，即使公司设置了共享，该联系人也不会被共享给其他用户') }}</div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                            {{ render_confirm_cancel(confirm_text='保存', cancel_text='返回客户详情', confirm_href=None, cancel_href=url_for('customer.view_company', company_id=company.id), confirm_type='submit') }}
+                            {{ render_confirm_cancel(confirm_text=_('保存'), cancel_text=_('返回客户详情'), confirm_href=None, cancel_href=url_for('customer.view_company', company_id=company.id), confirm_type='submit') }}
                         </div>
                     </form>
                 </div>
