@@ -2403,8 +2403,9 @@ def can_view_quotation(user, quotation):
     1. 归属人
     2. 厂商负责人（项目的厂商负责人可以查看项目相关的报价单）
     3. 归属链
-    4. 基于四级权限系统的访问控制
-    5. 特殊角色权限
+    4. 渠道经理可以查看渠道跟进项目的报价单
+    5. 营销总监可以查看销售重点和渠道跟进项目的报价单
+    6. 财务总监、解决方案经理、产品经理可以查看所有报价单
     暂不考虑共享
     """
     if user.role == 'admin':
@@ -2425,30 +2426,16 @@ def can_view_quotation(user, quotation):
     if user_role in ['finance_director', 'finace_director']:
         return True
     
-    # 🔧 修复：使用四级权限系统进行权限判断
-    if user.has_permission('quotation', 'view'):
-        permission_level = user.get_permission_level('quotation')
-        
-        if permission_level == 'system':
-            # 系统级权限：可以查看所有报价单
-            return True
-        elif permission_level == 'company' and user.company_name:
-            # 企业级权限：可以查看企业下所有报价单
+    # 产品经理、解决方案经理：基于权限系统 + 企业级权限
+    if user_role in ['product_manager', 'product', 'solution_manager', 'solution']:
+        if user.has_permission('quotation', 'view') and user.company_name:
+            # 检查报价单是否属于同企业
+            from app.models.project import Project
             if hasattr(quotation, 'project') and quotation.project:
-                from app.models.user import User
                 project_owner = User.query.get(quotation.project.owner_id)
                 return project_owner and project_owner.company_name == user.company_name
-        elif permission_level == 'department' and user.department and user.company_name:
-            # 部门级权限：可以查看部门下所有报价单
-            if hasattr(quotation, 'project') and quotation.project:
-                from app.models.user import User
-                project_owner = User.query.get(quotation.project.owner_id)
-                return (project_owner and 
-                       project_owner.company_name == user.company_name and
-                       project_owner.department == user.department)
-        # 个人级权限会在下面的归属链检查中处理
+        return False
     
-    # 归属链检查
     from app.models.user import Affiliation
     affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
     if quotation.owner_id in affiliation_owner_ids:
@@ -2462,14 +2449,26 @@ def can_view_quotation(user, quotation):
         if project and project.project_type in ['sales_focus', 'channel_follow', '销售重点', '渠道跟进']:
             return True
         
-    # 渠道经理特殊处理：可以查看渠道跟进项目的报价单
+    # 渠道经理特殊处理：可以查看所有渠道跟进项目的报价单
     if user_role == 'channel_manager':
+        # 获取关联项目
         from app.models.project import Project
         project = Project.query.get(quotation.project_id)
         if project and project.project_type in ['channel_follow', '渠道跟进']:
             return True
     
     return False
+
+# 已在全局context_processor中注册，此处不再重复注册
+# @quotation.app_context_processor
+# def inject_permission_funcs():
+#     from app.utils.access_control import can_edit_data, can_view_project
+#     return dict(
+#         can_edit_data=can_edit_data,
+#         can_view_project=can_view_project,
+#         can_view_quotation=can_view_quotation
+#     )
+
 @quotation.route('/detail/<int:detail_id>/toggle_confirmation', methods=['POST'])
 @login_required
 def toggle_detail_confirmation(detail_id):
