@@ -410,6 +410,35 @@ input[type="number"].discount-rate {
 var isCreatePage = true;
 var isEditPage = false;
 
+// 项目阶段翻译函数
+function translateProjectStage(stage) {
+    const stageTranslations = {
+        'discover': '发现',
+        'embed': '植入',
+        'pre_tender': '招标前',
+        'tendering': '招标中',
+        'awarded': '中标',
+        'quoted': '批价',
+        'signed': '签约',
+        'lost': '失败',
+        'paused': '搁置'
+    };
+    return stageTranslations[stage] || stage;
+}
+
+// 项目类型翻译函数
+function translateProjectType(type) {
+    const typeTranslations = {
+        'new_construction': '新建',
+        'renovation': '改建',
+        'expansion': '扩建',
+        'maintenance': '维护',
+        'upgrade': '升级',
+        'other': '其他'
+    };
+    return typeTranslations[type] || type;
+}
+
 // 确保jQuery完全加载后执行初始化
 (function() {
     // 等待jQuery和DOM完全加载

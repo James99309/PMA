@@ -6,100 +6,7 @@
 
 {% block styles %}
 <style>
-    /* 增强的加载指示器样式 */
-    #loadingIndicator {
-        transition: all 0.3s ease-in-out;
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        border-radius: 10px;
-        margin: 10px 0;
-    }
-    
-    #loadingIndicator .loading-text {
-        font-size: 14px;
-    }
-    
-    #loadingIndicator .progress {
-        background-color: rgba(0,123,255,0.1);
-        border-radius: 10px;
-    }
-    
-    #loadingIndicator .progress-bar {
-        background: linear-gradient(90deg, #007bff, #0056b3, #007bff);
-        background-size: 200% 100%;
-        animation: progressShimmer 2s infinite;
-    }
-    
-    @keyframes progressShimmer {
-        0% { background-position: 200% 0; }
-        100% { background-position: -200% 0; }
-    }
-    
-    /* 加载完成指示器样式 */
-    #noMoreData {
-        animation: fadeInUp 0.5s ease-out;
-    }
-    
-    #noMoreData .border {
-        border: 2px solid #e9ecef !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        transition: all 0.3s ease;
-    }
-    
-    #noMoreData .border:hover {
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        transform: translateY(-1px);
-    }
-    
-    @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-    
-    /* 加载错误样式 */
-    #loadingError td {
-        background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-        animation: shakeError 0.5s ease-in-out;
-    }
-    
-    @keyframes shakeError {
-        0%, 100% { transform: translateX(0); }
-        25% { transform: translateX(-5px); }
-        75% { transform: translateX(5px); }
-    }
-    
-    /* 改进的滚动指示器 */
-    .scroll-controls {
-        position: fixed;
-        right: 20px;
-        bottom: 20px;
-        z-index: 1000;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-    }
-    
-    .scroll-controls button {
-        width: 45px;
-        height: 45px;
-        border-radius: 50%;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        transition: all 0.3s ease;
-        background: rgba(255,255,255,0.95);
-        backdrop-filter: blur(10px);
-    }
-    
-    .scroll-controls button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.25);
-    }
-    
-        /* 滚动控制按钮样式 */
+    /* 滚动控制按钮样式 */
     .scroll-controls {
         position: fixed;
         right: 20px;
@@ -480,41 +387,17 @@
     </div>
     
     <!-- 滚动加载指示器 -->
-    <div id="loadingIndicator" class="text-center py-4 d-none">
-        <div class="d-flex justify-content-center align-items-center">
-            <div class="spinner-border spinner-border-sm text-primary me-3" role="status">
-                <span class="visually-hidden">加载中...</span>
-            </div>
-            <div class="loading-text">
-                <div class="text-primary fw-medium">正在加载更多报价单...</div>
-                <div class="text-muted small mt-1">
-                    <span id="loadingProgress">请稍候</span>
-                </div>
-            </div>
+    <div id="loadingIndicator" class="text-center py-3 d-none">
+        <div class="spinner-border spinner-border-sm text-primary" role="status">
+            <span class="visually-hidden">加载中...</span>
         </div>
-        <!-- 加载进度条 -->
-        <div class="progress mt-3 mx-auto" style="width: 200px; height: 4px;">
-            <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                 role="progressbar" style="width: 100%"></div>
-        </div>
+        <span class="ms-2 text-muted">正在加载更多数据...</span>
     </div>
     
-    <!-- 加载完成状态指示器 -->
-    <div id="noMoreData" class="text-center py-4 text-muted d-none">
-        <div class="border rounded-3 bg-light p-3 mx-auto" style="max-width: 400px;">
-            <div class="d-flex align-items-center justify-content-center mb-2">
-                <i class="fas fa-check-circle text-success me-2"></i>
-                <span class="fw-medium">已加载完成</span>
-            </div>
-            <div class="small text-muted">
-                <i class="fas fa-list me-1"></i>
-                共显示 <span id="totalLoadedCount" class="fw-medium text-dark">--</span> 个报价单
-            </div>
-            <div class="small text-muted mt-1">
-                <i class="fas fa-info-circle me-1"></i>
-                <span id="loadingStats">数据统计加载中...</span>
-            </div>
-        </div>
+    <!-- 没有更多数据提示 -->
+    <div id="noMoreData" class="text-center py-3 text-muted d-none">
+        <i class="fas fa-check-circle me-1"></i>
+        已加载所有数据
     </div>
 </div>
 
@@ -3117,11 +3000,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (isLoading || !hasMore) return;
         
         isLoading = true;
-        const loadingIndicator = document.getElementById('loadingIndicator');
-        const loadingProgress = document.getElementById('loadingProgress');
-        
-        loadingIndicator.classList.remove('d-none');
-        loadingProgress.textContent = `正在请求第 ${Math.floor(currentOffset/limit) + 1} 批数据...`;
+        document.getElementById('loadingIndicator').classList.remove('d-none');
         
         const params = getCurrentParams();
         const url = new URL('{{ url_for("quotation.load_more_quotations") }}', window.location.origin);
@@ -3171,16 +3050,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 重新初始化新加载内容的事件监听器
                 initializeQuotationEvents();
                 
-                // 更新数据统计
-                updateLoadingStatistics();
-                
                 if (!hasMore) {
-                    showCompletionIndicator();
+                    document.getElementById('noMoreData').classList.remove('d-none');
                     console.log('🏁 已加载所有数据，停止滚动加载');
                 }
             })
             .catch(error => {
-                showLoadingError(error);
+                console.error('加载数据失败:', error);
+                // 显示用户友好的错误提示
+                const tableBody = document.getElementById('quotationTableBody');
+                tableBody.insertAdjacentHTML('beforeend', 
+                    '<tr><td colspan="100%" class="text-center text-danger py-3">' +
+                    '<i class="fas fa-exclamation-triangle me-2"></i>加载数据失败，请刷新页面重试' +
+                    '</td></tr>'
+                );
             })
             .finally(() => {
                 isLoading = false;
@@ -3231,82 +3114,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 200); // 增加防抖延迟到200ms，减少触发频率
     }, { passive: true }); // 使用passive事件监听器提高性能
     
-
-    // 更新加载统计信息
-    function updateLoadingStatistics() {
-        const totalRows = document.querySelectorAll('#quotationTableBody tr:not([id*="empty"])').length;
-        const totalCountElement = document.getElementById('totalLoadedCount');
-        if (totalCountElement) {
-            totalCountElement.textContent = totalRows;
-        }
-        
-        // 更新加载统计信息
-        const loadingStatsElement = document.getElementById('loadingStats');
-        if (loadingStatsElement) {
-            const batchCount = Math.ceil(currentOffset / limit);
-            loadingStatsElement.innerHTML = `
-                <i class="fas fa-layer-group me-1"></i>分 ${batchCount} 批加载 
-                <i class="fas fa-clock ms-2 me-1"></i>最后更新: ${new Date().toLocaleTimeString()}
-            `;
-        }
-    }
-    
-    // 显示完成指示器
-    function showCompletionIndicator() {
-        updateLoadingStatistics();
-        document.getElementById('noMoreData').classList.remove('d-none');
-        
-        // 平滑滚动到底部指示器
-        setTimeout(() => {
-            const noMoreDataElement = document.getElementById('noMoreData');
-            if (noMoreDataElement) {
-                noMoreDataElement.scrollIntoView({ 
-                    behavior: 'smooth', 
-                    block: 'center' 
-                });
-            }
-        }, 500);
-    }
-    
-    // 增强的错误处理
-    function showLoadingError(error) {
-        console.error('加载数据失败:', error);
-        const tableBody = document.getElementById('quotationTableBody');
-        const errorMessage = `
-            <tr id="loadingError" class="table-danger">
-                <td colspan="100%" class="text-center py-4">
-                    <div class="d-flex align-items-center justify-content-center mb-2">
-                        <i class="fas fa-exclamation-triangle text-danger me-2"></i>
-                        <span class="fw-medium">加载数据失败</span>
-                    </div>
-                    <div class="small text-muted mb-3">
-                        网络连接异常或服务器暂时不可用
-                    </div>
-                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="retryLoading()">
-                        <i class="fas fa-redo me-1"></i>重试加载
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary ms-2" onclick="location.reload()">
-                        <i class="fas fa-refresh me-1"></i>刷新页面
-                    </button>
-                </td>
-            </tr>
-        `;
-        tableBody.insertAdjacentHTML('beforeend', errorMessage);
-    }
-    
-    // 重试加载功能
-    function retryLoading() {
-        // 移除错误消息
-        const errorRow = document.getElementById('loadingError');
-        if (errorRow) {
-            errorRow.remove();
-        }
-        
-        // 重置加载状态并重试
-        isLoading = false;
-        loadMoreData();
-    }
-        // 初始化报价单相关事件（用于新加载的内容）
+    // 初始化报价单相关事件（用于新加载的内容）
     function initializeQuotationEvents() {
         // 重新初始化批量选择功能
         const quotationCheckboxes = document.querySelectorAll('.quotation-checkbox');
@@ -3322,9 +3130,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // 初始显示状态设置
-    updateLoadingStatistics();
     if (!hasMore && currentOffset > 0) {
-        showCompletionIndicator();
+        document.getElementById('noMoreData').classList.remove('d-none');
     }
     
     // 注意：筛选和搜索功能通过已有的事件处理程序实现

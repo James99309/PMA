@@ -55,28 +55,6 @@ def list_quotations():
         
         # 使用访问控制函数构建查询
         query = get_viewable_data(Quotation, current_user)
-        # 🔍 调试: 检查系统级权限的查询结果
-        if current_user.username == 'liuwei':  # 临时调试代码
-            import logging
-            debug_logger = logging.getLogger('quotation_debug')
-            debug_logger.setLevel(logging.INFO)
-            
-            # 检查权限级别
-            perm_level = current_user.get_permission_level('quotation')
-            debug_logger.info(f"🔍 用户 {current_user.username} 的quotation权限级别: {perm_level}")
-            
-            # 检查基础查询结果
-            base_count = query.count()
-            debug_logger.info(f"📊 get_viewable_data返回的报价单数量: {base_count}")
-            
-            # 检查数据库中的总数
-            from sqlalchemy import func
-            total_count = db.session.query(func.count(Quotation.id)).scalar()
-            debug_logger.info(f"📊 数据库中报价单总数: {total_count}")
-            
-            if perm_level == 'system' and base_count != total_count:
-                debug_logger.warning(f"⚠️ 权限异常: 系统级权限应该看到所有{total_count}个报价单，但只返回了{base_count}个")
-
         
         # 渠道经理默认只查看渠道跟进项目的报价单
         project_type = request.args.get('project_type', '')
@@ -330,28 +308,6 @@ def load_more_quotations():
         
         # 使用访问控制函数构建查询
         query = get_viewable_data(Quotation, current_user)
-        # 🔍 调试: 检查系统级权限的查询结果
-        if current_user.username == 'liuwei':  # 临时调试代码
-            import logging
-            debug_logger = logging.getLogger('quotation_debug')
-            debug_logger.setLevel(logging.INFO)
-            
-            # 检查权限级别
-            perm_level = current_user.get_permission_level('quotation')
-            debug_logger.info(f"🔍 用户 {current_user.username} 的quotation权限级别: {perm_level}")
-            
-            # 检查基础查询结果
-            base_count = query.count()
-            debug_logger.info(f"📊 get_viewable_data返回的报价单数量: {base_count}")
-            
-            # 检查数据库中的总数
-            from sqlalchemy import func
-            total_count = db.session.query(func.count(Quotation.id)).scalar()
-            debug_logger.info(f"📊 数据库中报价单总数: {total_count}")
-            
-            if perm_level == 'system' and base_count != total_count:
-                debug_logger.warning(f"⚠️ 权限异常: 系统级权限应该看到所有{total_count}个报价单，但只返回了{base_count}个")
-
         
         # 标记是否已经JOIN了Project表
         project_joined = False
@@ -2755,65 +2711,3 @@ def export_excel(quotation_id):
         logger.error(f"导出报价单Excel失败: {str(e)}", exc_info=True)
         flash(f'导出Excel失败：{str(e)}', 'danger')
         return redirect(url_for('quotation.view_quotation', id=quotation_id))
-
-
-@quotation.route('/debug/permissions')
-@login_required
-def debug_permissions():
-    """调试权限信息 - 临时调试路由"""
-    if current_user.username != 'liuwei':
-        return "Access denied", 403
-    
-    from app.utils.access_control import get_viewable_data
-    from sqlalchemy import func
-    
-    # 收集调试信息
-    debug_info = {
-        'user': {
-            'username': current_user.username,
-            'role': current_user.role,
-            'company_name': current_user.company_name,
-            'permission_level': current_user.get_permission_level('quotation'),
-            'can_view': current_user.has_permission('quotation', 'view')
-        },
-        'data_counts': {
-            'total_quotations': db.session.query(func.count(Quotation.id)).scalar(),
-            'viewable_quotations': get_viewable_data(Quotation, current_user).count(),
-            'company_quotations': 0,
-            'other_company_quotations': 0
-        }
-    }
-    
-    # 统计按公司分布
-    company_stats = db.session.query(
-        User.company_name,
-        func.count(Quotation.id)
-    ).join(Project, Quotation.project_id == Project.id)     .join(User, Project.owner_id == User.id)     .group_by(User.company_name).all()
-    
-    debug_info['company_distribution'] = []
-    for company, count in company_stats:
-        is_user_company = (company == current_user.company_name)
-        debug_info['company_distribution'].append({
-            'company': company or 'Unknown',
-            'count': count,
-            'is_user_company': is_user_company
-        })
-        
-        if is_user_company:
-            debug_info['data_counts']['company_quotations'] = count
-        else:
-            debug_info['data_counts']['other_company_quotations'] += count
-    
-    # 检查权限一致性
-    expected_count = debug_info['data_counts']['total_quotations']
-    actual_count = debug_info['data_counts']['viewable_quotations']
-    
-    debug_info['permission_analysis'] = {
-        'is_system_level': debug_info['user']['permission_level'] == 'system',
-        'should_see_all': expected_count,
-        'actually_sees': actual_count,
-        'missing_count': expected_count - actual_count,
-        'is_consistent': expected_count == actual_count
-    }
-    
-    return jsonify(debug_info)
