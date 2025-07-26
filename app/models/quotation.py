@@ -424,41 +424,39 @@ class QuotationDetail(db.Model):
     
     def calculate_prices(self):
         """计算单价、总价和植入小计（考虑货币换算）"""
-        self.unit_price = self.market_price * self.discount
-        self.total_price = self.unit_price * self.quantity
+        # 只在单价为空或为0时才重新计算，否则保持用户输入的单价
+        if not self.unit_price or self.unit_price == 0:
+            self.unit_price = (self.market_price or 0) * (self.discount or 1)
         
+        # 总价始终根据单价和数量重新计算
+        self.total_price = (self.unit_price or 0) * (self.quantity or 0)
+        
+        # 计算植入小计
+        self.calculate_implant_subtotal_only()
+
+    def calculate_implant_subtotal_only(self):
+        """只计算植入小计，不修改其他价格字段"""
         # 计算植入小计：通过产品MN查找产品的厂商标记
         from app.models.product import Product
-        from app.services.exchange_rate_service import exchange_rate_service
         
         self.implant_subtotal = 0.0
         
         if self.product_mn:
             product = Product.query.filter_by(product_mn=self.product_mn).first()
             if product and product.is_vendor_product:
-                # 优先使用产品库的零售价格计算植入小计
-                product_price = float(product.retail_price or 0)
-                product_currency = product.currency or 'CNY'
-                detail_currency = self.currency or 'CNY'
-                
-                if product_price > 0:
-                    # 如果产品库货币与明细货币不同，需要转换
-                    if product_currency != detail_currency:
-                        try:
-                            converted_price = exchange_rate_service.convert_amount(
-                                product_price, product_currency, detail_currency
-                            )
-                            implant_amount = converted_price * (self.quantity or 0)
-                        except Exception as e:
-                            print(f"植入小计货币转换失败 {product_currency} -> {detail_currency}: {e}")
-                            # 转换失败时使用明细的市场价
-                            implant_amount = (self.market_price or 0) * (self.quantity or 0)
+                # 使用报价明细中的市场价计算植入小计，避免货币转换问题
+                try:
+                    market_price = float(self.market_price or 0)
+                    quantity = int(self.quantity or 0)
+                    
+                    if market_price > 0 and quantity > 0:
+                        implant_amount = market_price * quantity
                     else:
-                        # 同货币，直接使用产品库价格
-                        implant_amount = product_price * (self.quantity or 0)
-                else:
-                    # 如果产品库没有零售价格，使用明细的市场价
-                    implant_amount = (self.market_price or 0) * (self.quantity or 0)
+                        implant_amount = 0
+                        
+                except (ValueError, TypeError) as e:
+                    print(f"植入小计数据转换错误: {e}")
+                    implant_amount = 0
                 
                 self.implant_subtotal = round(implant_amount, 2)
         

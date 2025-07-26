@@ -1,34 +1,31 @@
-{% macro render_project_type(type, lang=None) %}
-    {% if not lang %}
-        {% set lang = session.get('language', 'zh') %}
-    {% endif %}
-    
-    {% set color = '#6c757d' %}
-    {% if type == 'sales_focus' or type == '销售重点' %}{% set color = '#0B6EFD' %}{% endif %}
-    {% if type == 'channel_follow' or type == '渠道跟进' %}{% set color = '#5BC0DE' %}{% endif %}
-    {% if type == 'business_opportunity' or type == '业务机会' %}{% set color = '#198754' %}{% endif %}
-    
-    {% set type_map = {
-        'sales_focus': {'zh': '销售重点', 'en': 'Sales Focus'},
-        'channel_follow': {'zh': '渠道跟进', 'en': 'Channel Follow'}, 
-        'business_opportunity': {'zh': '业务机会', 'en': 'Business Opportunity'}
-    } %}
-    
-    {% if type in type_map %}
-        {% set display_type = type_map[type][lang] %}
-    {% else %}
-        {% set display_type = type %}
-        {% if type in ['销售重点', '渠道跟进', '业务机会'] %}
-            {% for key, labels in type_map.items() %}
-                {% if labels.zh == type %}
-                    {% set display_type = labels[lang] %}
-                {% endif %}
-            {% endfor %}
-        {% endif %}
-    {% endif %}
-    
-    <span class="badge rounded-pill" style="background-color: {{ color }}; color: #fff; font-size: 0.75rem; padding: 0.35em 0.65em;">{{ display_type }}</span>
-{% endmacro %}
+
+{#
+=============================================================================
+ ⚠️  通用模组保护声明 ⚠️
+=============================================================================
+
+此文件包含PMA系统的通用UI组件模组，被多个页面和功能模块共同使用。
+
+🚨 修改保护协议 🚨
+- 本文件的任何修改都会影响整个系统的多个页面
+- 禁止随意修改此文件中的任何代码
+- 如需修改，必须：
+  1. 详细分析影响范围和风险
+  2. 获得项目负责人明确同意
+  3. 进行充分测试验证
+  4. 记录修改原因和影响范围
+
+📋 核心通用组件列表：
+- render_data_list: 通用数据列表组件
+- render_data_table: 通用数据表格组件  
+- render_stats_cards: 统计卡片组件
+- render_filter_search_form: 筛选搜索组件
+- render_table_cell: 表格单元格渲染组件
+- 各种徽章组件: render_*_badge系列
+
+🔒 修改前请三思！
+=============================================================================
+#}
 
 {% macro render_pricing_order_number(order_number) %}
     <span class="badge rounded-pill" style="background-color: #ff8c00; color: white; font-weight: 500;">{{ order_number }}</span>
@@ -38,36 +35,74 @@
   {% if owner %}
     {# 安全检查：确保owner是用户对象而不是字符串 #}
     {% if owner.__class__.__name__ == 'str' %}
-      <span class="badge bg-secondary">{{ owner }}</span>
+      <span class="badge badge-user regular">{{ owner }}</span>
     {% else %}
     {% set display_name = owner.real_name if owner.real_name else owner.username %}
     {% if owner.is_vendor_user() %}
       {# 厂商账户使用胶囊造型徽章 #}
-      <span class="badge bg-primary rounded-pill">{{ display_name }}</span>
+      <span class="badge badge-user vendor rounded-pill">{{ display_name }}</span>
     {% else %}
       {# 非厂商账户使用默认造型徽章 #}
-      <span class="badge bg-secondary">{{ display_name }}</span>
+      <span class="badge badge-user regular">{{ display_name }}</span>
       {% endif %}
     {% endif %}
   {% else %}
-    <span class="badge bg-secondary">未知</span>
+    <span class="badge badge-user regular">未知</span>
   {% endif %}
 {% endmacro %}
 
 {% macro render_project_stage(stage) %}
-  {% set color_map = {
-    '发现': '#d3e3fc',
-    '植入': '#b7ddc8',
-    '招标前': '#91c79f',
-    '招标中': '#6daf6c',
-    '中标': '#559c4c',
-    '批价': '#3c8c2c',
-    '签约': '#216822',
-    '失败': '#6e2b23',
-    '搁置': '#9e9e9e'
+  {% set stage_map = {
+    'discover': '发现',
+    'embed': '植入',
+    'pre_tender': '招标前',
+    'tendering': '招标中',
+    'awarded': '中标',
+    'quoted': '批价',
+    'signed': '签约',
+    'lost': '失败',
+    'paused': '搁置'
   } %}
-  {% set color = color_map.get(stage, '#6c757d') %}
-  <span class="badge rounded-pill" style="background-color: {{ color }}; color: #fff;">{{ stage }}</span>
+  
+  {# 处理中文到键的映射 #}
+  {% set key_map = {
+    '发现': 'discover',
+    '植入': 'embed',
+    '招标前': 'pre_tender',
+    '招标中': 'tendering',
+    '中标': 'awarded',
+    '批价': 'quoted',
+    '签约': 'signed',
+    '失败': 'lost',
+    '搁置': 'paused'
+  } %}
+  
+  {% set stage_key = key_map.get(stage, stage) %}
+  
+  <span class="badge badge-pill badge-transparent project-stage-{{ stage_key }}">
+    {{ stage_map.get(stage_key, stage) }}
+  </span>
+{% endmacro %}
+
+{% macro render_project_type(type) %}
+  {% set type_map = {
+    'channel_follow': '渠道跟进',
+    'sales_focus': '销售重点', 
+    'business_opportunity': '客户服务'
+  } %}
+  
+  {# 处理中文到键的映射 #}
+  {% set key_map = {
+    '渠道跟进': 'channel_follow',
+    '销售重点': 'sales_focus',
+    '客户服务': 'business_opportunity'
+  } %}
+  
+  {% set type_key = key_map.get(type, type) %}
+  
+  <span class="badge badge-pill badge-transparent project-type-{{ type_key }}">
+    {{ type_map.get(type_key, type or '无') }}
+  </span>
 {% endmacro %}
 
 {% macro render_authorization_code(code, project_type=None, size="normal") %}
@@ -90,19 +125,9 @@
 {% endmacro %}
 
 {% macro render_quotation_number(number, size="normal") %}
-  {% if number %}
-    {% if size == "large" %}
-      <span class="badge rounded-pill" style="background-color: #e6e6e6; color: #0056b3; font-family: 'Helvetica Neue', sans-serif; font-size: 0.95rem; font-weight: normal; padding: 0.3em 0.75em;">{{ number }}</span>
-    {% else %}
-      <span class="badge rounded-pill" style="background-color: #e6e6e6; color: #0056b3; font-family: 'Helvetica Neue', sans-serif; font-size: 0.85rem; font-weight: normal; padding: 0.3em 0.75em;">{{ number }}</span>
-    {% endif %}
-  {% else %}
-    {% if size == "large" %}
-      <span class="badge rounded-pill" style="background-color: #e6e6e6; color: #0056b3; font-family: 'Helvetica Neue', sans-serif; font-size: 0.95rem; font-weight: normal; padding: 0.3em 0.75em;">无</span>
-    {% else %}
-      <span class="badge rounded-pill" style="background-color: #e6e6e6; color: #0056b3; font-family: 'Helvetica Neue', sans-serif; font-size: 0.85rem; font-weight: normal; padding: 0.3em 0.75em;">无</span>
-    {% endif %}
-  {% endif %}
+  <span class="badge badge-pill badge-transparent quotation-number-badge">
+    {{ number or '无' }}
+  </span>
 {% endmacro %}
 
 {% macro render_approval_badge(approval_status) %}
@@ -157,7 +182,11 @@
 
 {% macro render_date(date, format='%Y-%m-%d') %}
   {% if date %}
-    {{ date.strftime(format) }}
+    {% if date.strftime is defined %}
+      {{ date.strftime(format) }}
+    {% else %}
+      {{ date | datetimeformat }}
+    {% endif %}
   {% else %}
 
   {% endif %}
@@ -165,7 +194,11 @@
 
 {% macro render_datetime(datetime, format='%Y-%m-%d %H:%M') %}
   {% if datetime %}
-    {{ datetime.strftime(format) }}
+    {% if datetime.strftime is defined %}
+      {{ datetime.strftime(format) }}
+    {% else %}
+      {{ datetime | datetimeformat }}
+    {% endif %}
   {% else %}
 
   {% endif %}
@@ -229,40 +262,112 @@
 
 {% macro render_button(text, href=None, color="primary", size="md", icon=None, rounded="pill", extra_class="", type="a", attrs=None, onclick=None) %}
   {%- set inline_style = "" %}
+  {# 优化尺寸系统 - 确保最小宽度能容纳图标+4个字符 #}
   {%- if size == "sm" %}
     {%- set font_size = "text-xs" %}
-    {%- set padding = "py-1 px-2" %}
+    {%- set padding = "py-1 px-3" %}
+    {%- set min_width = "min-width-sm" %}
   {%- elif size == "lg" %}
     {%- set font_size = "text-sm" %}
     {%- set padding = "py-2 px-4" %}
+    {%- set min_width = "min-width-lg" %}
   {%- elif size == "xs" %}
     {%- set font_size = "text-xs" %}
     {%- set padding = "py-1 px-2" %}
+    {%- set min_width = "min-width-xs" %}
   {%- else %}
     {%- set font_size = "text-xs" %}
     {%- set padding = "py-1 px-3" %}
+    {%- set min_width = "min-width-md" %}
   {%- endif %}
-  {%- if color == "primary" %}
-    {%- set btn_class = "btn text-white me-2" %}
-    {%- set inline_style = "background-color: #0C7CD0;" %}
-  {%- elif color == "auxiliary" %}
-    {%- set btn_class = "btn btn-auxiliary me-2" %}
-    {%- set inline_style = "" %}
-  {%- elif color == "secondary" %}
-    {%- set btn_class = "btn bg-secondary text-white me-2" %}
-  {%- elif color == "info" %}
-    {%- set btn_class = "btn bg-info text-white me-2" %}
-  {%- elif color == "warning" %}
-    {%- set btn_class = "btn bg-warning text-dark me-2" %}
-  {%- elif color == "danger" %}
-    {%- set btn_class = "btn text-white me-2" %}
-    {%- set inline_style = "background-color: #dc3545;" %}
-  {%- elif color == "success" %}
-    {%- set btn_class = "btn text-white me-2" %}
-    {%- set inline_style = "background-color: #198754;" %}
-  {%- else %}
-    {%- set btn_class = "btn bg-light text-dark me-2" %}
+  
+  {%- set display_text = text %}
+  {%- if text|length == 2 and not icon %}
+    {%- if text == "导出" %}
+      {%- set display_text = "导 出" %}
+    {%- elif text == "编辑" %}
+      {%- set display_text = "编 辑" %}
+    {%- elif text == "删除" %}
+      {%- set display_text = "删 除" %}
+    {%- elif text == "保存" %}
+      {%- set display_text = "保 存" %}
+    {%- elif text == "取消" %}
+      {%- set display_text = "取 消" %}
+    {%- elif text == "提交" %}
+      {%- set display_text = "提 交" %}
+    {%- elif text == "重置" %}
+      {%- set display_text = "重 置" %}
+    {%- elif text == "搜索" %}
+      {%- set display_text = "搜 索" %}
+    {%- elif text == "添加" %}
+      {%- set display_text = "添 加" %}
+    {%- elif text == "修改" %}
+      {%- set display_text = "修 改" %}
+    {%- elif text == "确认" %}
+      {%- set display_text = "确 认" %}
+    {%- elif text == "复制" %}
+      {%- set display_text = "复 制" %}
+    {%- else %}
+      {%- set display_text = text %}
+    {%- endif %}
   {%- endif %}
+  
+  {# 默认图标设置 - 根据按钮颜色和文字内容自动匹配图标 #}
+  {# 先去除空格进行匹配，支持字符间距处理 #}
+  {%- set clean_text = text.replace(' ', '') %}
+  {%- if not icon %}
+    {%- if color == "primary" %}
+      {%- if "保存" in clean_text or "提交" in clean_text or "确认" in clean_text %}
+        {%- set icon = "fas fa-save" %}
+      {%- elif "新增" in clean_text or "添加" in clean_text or "创建" in clean_text %}
+        {%- set icon = "fas fa-plus" %}
+      {%- elif "登录" in clean_text %}
+        {%- set icon = "fas fa-sign-in-alt" %}
+      {%- endif %}
+    {%- elif color == "success" %}
+      {%- if "导出" in clean_text %}
+        {%- set icon = "fas fa-file-excel" %}
+      {%- elif "下载" in clean_text %}
+        {%- set icon = "fas fa-download" %}
+      {%- endif %}
+    {%- elif color == "danger" %}
+      {%- if "删除" in clean_text %}
+        {%- set icon = "fas fa-trash" %}
+      {%- elif "拒绝" in clean_text %}
+        {%- set icon = "fas fa-times-circle" %}
+      {%- endif %}
+    {%- elif color == "warning" %}
+      {%- if "编辑" in clean_text or "修改" in clean_text %}
+        {%- set icon = "fas fa-edit" %}
+      {%- elif "智能合并" in clean_text or "合并" in clean_text %}
+        {%- set icon = "fas fa-compress-arrows-alt" %}
+      {%- endif %}
+    {%- elif color == "info" %}
+      {%- if "查看" in clean_text or "详情" in clean_text %}
+        {%- set icon = "fas fa-eye" %}
+      {%- elif "搜索" in clean_text %}
+        {%- set icon = "fas fa-search" %}
+      {%- endif %}
+    {%- elif color == "secondary" %}
+      {%- if "返回" in clean_text or "取消" in clean_text %}
+        {%- set icon = "fas fa-arrow-left" %}
+      {%- elif "重置" in clean_text or "清空" in clean_text %}
+        {%- set icon = "fas fa-redo" %}
+      {%- elif "筛选" in clean_text %}
+        {%- set icon = "fas fa-filter" %}
+      {%- endif %}
+    {%- elif color == "auxiliary" %}
+      {%- if "导入" in clean_text %}
+        {%- set icon = "fas fa-upload" %}
+      {%- elif "导出" in clean_text %}
+        {%- set icon = "fas fa-download" %}
+      {%- endif %}
+    {%- endif %}
+  {%- endif %}
+  
+  {# 统一按钮外观 - 所有按钮默认使用中性灰色，悬浮时显示语义颜色 #}
+  {%- set btn_class = "btn btn-unified btn-unified-" + color + " " + min_width + " me-2" %}
+  {%- set inline_style = "" %}
   {%- set btn_class = btn_class + " " + padding + " " + font_size %}
   {%- if rounded %} {%- set btn_class = btn_class + " rounded-" + rounded %} {%- endif %}
   {%- if extra_class %} {%- set btn_class = btn_class + " " + extra_class %} {%- endif %}
@@ -271,9 +376,9 @@
        {% if onclick %}onclick="{{ onclick }}"{% endif %} {{ attrs|safe }}>
       {%- if icon %}<i class="{{ icon }} me-1"></i>{% endif -%}
       {%- if icon %}
-        <span class="d-none d-md-inline">{{ text }}</span>
+        <span class="d-none d-md-inline">{{ display_text }}</span>
       {%- else %}
-        {{ text }}
+        {{ display_text }}
       {%- endif %}
     </a>
   {% elif type == "button" %}
@@ -281,9 +386,9 @@
             {% if onclick %}onclick="{{ onclick }}"{% endif %} {{ attrs|safe }}>
       {%- if icon %}<i class="{{ icon }} me-1"></i>{% endif -%}
       {%- if icon %}
-        <span class="d-none d-md-inline">{{ text }}</span>
+        <span class="d-none d-md-inline">{{ display_text }}</span>
       {%- else %}
-        {{ text }}
+        {{ display_text }}
       {%- endif %}
     </button>
   {% elif type == "submit" %}
@@ -291,9 +396,9 @@
             {% if onclick %}onclick="{{ onclick }}"{% endif %} {{ attrs|safe }}>
       {%- if icon %}<i class="{{ icon }} me-1"></i>{% endif -%}
       {%- if icon %}
-        <span class="d-none d-md-inline">{{ text }}</span>
+        <span class="d-none d-md-inline">{{ display_text }}</span>
       {%- else %}
-        {{ text }}
+        {{ display_text }}
       {%- endif %}
     </button>
   {% endif %}
@@ -310,9 +415,9 @@
 
 {% macro render_status_badge(value) %}
   {% if value == 'active' %}
-    <span class="badge bg-success rounded-pill">{{ _('活跃') }}</span>
+    <span class="badge customer-status-badge customer-status-active rounded-pill">活跃</span>
   {% else %}
-    <span class="badge bg-secondary rounded-pill">{{ _('非活跃') }}</span>
+    <span class="badge customer-status-badge customer-status-inactive rounded-pill">非活跃</span>
   {% endif %}
 {% endmacro %}
 
@@ -322,6 +427,102 @@
   {% else %}
     <span class="badge bg-danger">禁用</span>
   {% endif %}
+{% endmacro %}
+
+{% macro render_order_status_badge(status) %}
+  {% set status_map = {
+    'draft': '草稿',
+    'pending': '审批中',
+    'approved': '已审批',
+    'confirmed': '已确认',
+    'rejected': '已拒绝',
+    'shipped': '已发货',
+    'completed': '已完成',
+    'cancelled': '已取消'
+  } %}
+  <span class="badge badge-pill badge-transparent order-status-{{ status }}">
+    {{ status_map.get(status, status) }}
+  </span>
+{% endmacro %}
+
+{% macro render_inventory_status_badge(inventory_status) %}
+  {% if inventory_status is none %}
+    <span class="badge badge-pill badge-muted">-</span>
+  {% else %}
+    {% set status_map = {
+      'pending': '待入库',
+      'partially_received': '部分入库',
+      'fully_received': '全部入库'
+    } %}
+    <span class="badge badge-pill badge-transparent inventory-status-{{ inventory_status }}">
+      {{ status_map.get(inventory_status, inventory_status) }}
+    </span>
+  {% endif %}
+{% endmacro %}
+
+{% macro render_settlement_status_badge(status) %}
+  {% if status is none %}
+    <span class="badge badge-pill badge-muted">-</span>
+  {% else %}
+    {% set status_map = {
+      'draft': '草稿',
+      'pending': '审批中',
+      'approved': '已批准',
+      'rejected': '已拒绝',
+      'executed': '已执行',
+      'cancelled': '已取消'
+    } %}
+    <span class="badge badge-pill badge-transparent settlement-status-{{ status }}">
+      {{ status_map.get(status, status) }}
+    </span>
+  {% endif %}
+{% endmacro %}
+
+{% macro render_user_status_badge(user) %}
+  {% if user.is_active %}
+    <span class="badge badge-pill badge-transparent customer-status-active">已激活</span>
+  {% else %}
+    <span class="badge badge-pill badge-transparent customer-status-inactive">未激活</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro render_user_role_badge(user, role_dict=none) %}
+  {% if role_dict and user.role in role_dict %}
+    {% set role_display = role_dict[user.role] %}
+  {% else %}
+    {% set role_display = user.role or '未设置' %}
+  {% endif %}
+  
+  {# 根据角色类型选择颜色样式 #}
+  {% if user.role in ['admin', 'business_admin', 'finance_director', 'sales_director'] %}
+    <span class="badge badge-pill badge-transparent product-status-admin">{{ role_display }}</span>
+  {% elif user.role in ['vendor'] %}
+    <span class="badge badge-pill badge-transparent product-status-vendor">{{ role_display }}</span>
+  {% elif user.role %}
+    <span class="badge badge-pill badge-transparent product-status-user">{{ role_display }}</span>
+  {% else %}
+    <span class="badge badge-pill badge-muted">未设置</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro render_stock_status_badge(status) %}
+  {% if status is none %}
+    <span class="badge badge-pill badge-muted">-</span>
+  {% else %}
+    {% set status_map = {
+      'out_of_stock': '零库存',
+      'low_stock': '低库存',
+      'normal': '正常',
+      'sufficient': '充足'
+    } %}
+    <span class="badge badge-pill badge-transparent stock-status-{{ status }}">
+      {{ status_map.get(status, status) }}
+    </span>
+  {% endif %}
+{% endmacro %}
+
+{% macro render_item_count_badge(count, text_prefix="共", text_suffix="项") %}
+  <span class="badge badge-count">{{ text_prefix }} {{ count }} {{ text_suffix }}</span>
 {% endmacro %}
 
 {% macro render_company_code(code) %}
@@ -1320,7 +1521,7 @@
     {% if icon %}
       <i class="{{ icon }} me-1"></i>
     {% endif %}
-    {{ text }}
+    {{ display_text }}
   </button>
 {% endmacro %}
 
@@ -1551,27 +1752,32 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
 {% endmacro %}
 
 {# 报告来源徽章 #}
-{% macro render_report_source_badge(source, lang='zh') %}
-  {% set color_map = {
-    'marketing': '#ff6b35',
-    'channel': '#5BC0DE',
-    'sales': '#0B6EFD'
-  } %}
+{% macro render_report_source_badge(source, lang=None) %}
+  {% if not lang %}
+    {% set lang = session.get('language', 'zh') %}
+  {% endif %}
   
   {% set label_map = {
-    'marketing': {'zh': '市场', 'en': 'Marketing'},
-    'channel': {'zh': '渠道', 'en': 'Channel'},
-    'sales': {'zh': '销售', 'en': 'Sales'}
+    'marketing': {'zh': '市场拓展', 'en': 'Marketing'},
+    'channel': {'zh': '渠道报备', 'en': 'Channel'},
+    'sales': {'zh': '销售线索', 'en': 'Sales'}
   } %}
   
-  {% if source %}
-    {% set color = color_map.get(source, '#6c757d') %}
-    {% set label = label_map.get(source, {}).get(lang, source) %}
-    <span class="badge rounded-pill" style="background-color: {{ color }}; color: #fff; font-size: 0.75rem; padding: 0.35em 0.65em;">
-      {{ label }}
+  {# 处理中文到键的映射 #}
+  {% set key_map = {
+    '市场拓展': 'marketing',
+    '渠道报备': 'channel',
+    '销售线索': 'sales'
+  } %}
+  
+  {% set source_key = key_map.get(source, source) %}
+  
+  {% if source_key %}
+    <span class="badge badge-pill badge-transparent report-source-{{ source_key }}">
+      {{ label_map.get(source_key, {}).get(lang, source) }}
     </span>
   {% else %}
-    <span class="badge bg-secondary rounded-pill" style="font-size: 0.75rem; padding: 0.35em 0.65em;">
+    <span class="badge badge-pill badge-transparent report-source-unknown">
       {% if lang == 'en' %}Unknown{% else %}未知{% endif %}
     </span>
   {% endif %}
@@ -1680,10 +1886,1274 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
   {% endif %}
 {% endmacro %}
 
+{# 企业类型徽章 #}
+{% macro render_company_type_badge(company_type, lang=None) %}
+  {% if not lang %}
+    {% set lang = session.get('language', 'zh') %}
+  {% endif %}
+  
+  {% set color_map = {
+    'user': '#0B6EFD',
+    'dealer': '#28a745',
+    'integrator': '#fd7e14',
+    'designer': '#6f42c1',
+    'contractor': '#dc3545',
+    'direct_customer': '#17a2b8',
+    'partner': '#20c997',
+    'system_integrator': '#fd7e14',
+    'design_institute': '#6f42c1',
+    'consultant': '#6f42c1',
+    'general_contractor': '#dc3545',
+    'distributor': '#28a745',
+    'other': '#6c757d'
+  } %}
+  
+  {% set label_map = {
+    'user': {'zh': '用户', 'en': 'User'},
+    'dealer': {'zh': '经销商', 'en': 'Dealer'},
+    'integrator': {'zh': '系统集成商', 'en': 'System Integrator'},
+    'designer': {'zh': '设计院及顾问', 'en': 'Designer'},
+    'contractor': {'zh': '总承包单位', 'en': 'Main Contractor'},
+    'direct_customer': {'zh': '直接客户', 'en': 'Direct Customer'},
+    'partner': {'zh': '合作伙伴', 'en': 'Partner'},
+    'system_integrator': {'zh': '系统集成商', 'en': 'System Integrator'},
+    'design_institute': {'zh': '设计院', 'en': 'Design Institute'},
+    'consultant': {'zh': '顾问', 'en': 'Consultant'},
+    'general_contractor': {'zh': '总承包商', 'en': 'General Contractor'},
+    'distributor': {'zh': '分销商', 'en': 'Distributor'},
+    'other': {'zh': '其他', 'en': 'Other'}
+  } %}
+  
+  {% if company_type %}
+    {% set color = color_map.get(company_type, '#6c757d') %}
+    {% if company_type in label_map %}
+      {% set label = label_map[company_type][lang] %}
+    {% else %}
+      {% set label = company_type %}
+    {% endif %}
+    
+    <span class="badge rounded-pill" style="background-color: {{ color }}; color: #fff; font-size: 0.75rem; padding: 0.35em 0.65em;">
+      {{ label }}
+    </span>
+  {% else %}
+    <span class="badge bg-secondary rounded-pill" style="font-size: 0.75rem; padding: 0.35em 0.65em;">
+      {% if lang == 'en' %}Uncategorized{% else %}未分类{% endif %}
+    </span>
+  {% endif %}
+{% endmacro %}
+
 {# 厂商产品徽章 #}
 {% macro render_vendor_product_badge(is_vendor_product) %}
   {% if is_vendor_product %}
     <span class="badge bg-primary rounded-pill" title="厂商产品，计入植入合计" style="font-size: 0.65rem;">厂商</span>
   {% endif %}
+{% endmacro %}
+
+{# ============================================================================ #}
+{# 通用列表组件系统 #}
+{# ============================================================================ #}
+
+{# 
+  通用统计卡片渲染宏
+  用于渲染页面顶部的统计信息卡片（仅显示，无交互功能）
+  
+  参数:
+  - stats_config: 统计配置对象
+    - cards: 卡片列表，每个卡片包含:
+      - id: 卡片ID
+      - title: 标题
+      - icon: 图标类名  
+      - value: 数值
+      - unit: 单位
+      - color: 颜色主题
+      - amount: 金额数值（可选）
+      - amount_unit: 金额单位（可选）
+#}
+{% macro render_stats_cards(stats_config, language_aware=True) %}
+{# 
+  统计卡片渲染宏（支持语言感知的货币单位）
+  
+  参数：
+  - stats_config: 统计配置对象
+  - language_aware: 是否启用语言感知的货币单位（默认True）
+#}
+
+{# 当启用语言感知时，自动获取单位配置和货币符号 #}
+{% if language_aware %}
+    {% set unit_config = get_amount_unit_config() %}
+    {% set currency_symbol = get_currency_symbol(get_default_currency()) %}
+{% endif %}
+
+<div class="stats-cards-container">
+    <div class="d-flex flex-wrap">
+        {% for card in stats_config.cards %}
+        <div class="card {% if card.color == 'primary' %}bg-light{% else %}bg-{{ card.color }} bg-opacity-10{% endif %}">
+            <div class="card-body">
+                <h6 class="card-title text-{{ card.color }}">
+                    <i class="{{ card.icon }} me-1"></i> {{ card.title }}
+                </h6>
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                    <div>
+                        <span class="fs-5" id="{{ card.id }}Count">{{ card.value }}</span>
+                        <span class="text-muted ms-1">{{ card.unit }}</span>
+                    </div>
+                    {% if card.amount is defined %}
+                    <div>
+                        {# 应用语言感知的金额格式化 - 确保amount是数值类型 #}
+                        {% if language_aware and unit_config %}
+                            {% set numeric_amount = card.amount | float if card.amount is string else (card.amount | default(0)) %}
+                            {% set converted_amount = numeric_amount / (unit_config.divisor | default(10000)) %}
+                            {% set formatted_amount = '{:,.{}f}'.format(converted_amount, unit_config.decimal_places | default(2)) %}
+                            <span class="fs-5" id="{{ card.id }}Amount">{{ currency_symbol | default('¥') }}{{ formatted_amount }}</span>
+                            <span class="text-muted ms-1" id="{{ card.id }}Unit" 
+                                  data-unit-config='{{ unit_config | tojson }}'>{{ unit_config.unit }}</span>
+                        {% else %}
+                            {# 向后兼容：使用原有格式化逻辑 - 确保amount是数值类型 #}
+                            {% set numeric_amount = card.amount | float if card.amount is string else (card.amount | default(0)) %}
+                            {% set converted_amount = numeric_amount / 10000 %}
+                            {% set formatted_amount = '{:,.2f}'.format(converted_amount) %}
+                            <span class="fs-5" id="{{ card.id }}Amount">¥{{ formatted_amount }}</span>
+                            <span class="text-muted ms-1" id="{{ card.id }}Unit">{{ card.amount_unit | default('万元') }}</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endmacro %}
+
+{# 
+  通用数据表格渲染宏
+  用于渲染标准化的数据表格
+  
+  参数:
+  - table_config: 表格配置对象
+    - id: 表格ID
+    - title: 表格标题
+    - icon: 标题图标
+    - columns: 列配置列表，每个列包含:
+      - key: 数据字段名
+      - label: 列标题
+      - width: 列宽度（可选）
+      - align: 对齐方式（可选）
+      - type: 数据类型（可选：text|badge|link|number|date）
+      - render: 自定义渲染宏名（可选）
+    - ajax_target: AJAX更新目标ID（用于AJAX模式）
+    - show_header: 是否显示表头（默认true）
+  - items: 数据项列表（传统模式）
+  - ajax_mode: 是否为AJAX模式（默认false）
+#}
+{% macro render_data_table(table_config, items=[], ajax_mode=false) %}
+<div class="card">
+    {% if table_config.title %}
+    <div class="card-header data-list-table-header">
+        <div class="list-title-container">
+            <div class="list-title-main">
+                <h5 class="mb-0">
+                    {% if table_config.icon %}<i class="{{ table_config.icon }} me-2"></i>{% endif %}
+                    {{ table_config.title }}
+                    {% if table_config.badge_text %}
+                    <span class="badge bg-primary ms-2">{{ table_config.badge_text }}</span>
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="list-title-stats">
+                {% if ajax_mode %}
+                <span class="list-item-count count-loading" id="listItemCount">
+                    加载中
+                </span>
+                {% else %}
+                <span class="list-item-count count-total" id="listItemCount">
+                    共 {{ items|length }} 项
+                </span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    <div class="card-body p-0">
+        <!-- 桌面端表格布局 -->
+        <div class="table-responsive data-list-table-responsive{% if table_config.fixed_height_scroll %} fixed-height-scroll{% endif %}{% if table_config.infinite_scroll %} infinite-scroll-container{% endif %}"
+             {% if table_config.max_height %}style="max-height: {{ table_config.max_height }}; overflow-y: auto;"{% endif %}>
+            <table class="table table-hover mb-0 data-list-table{% if table_config.enhanced_striping %} table-striped{% endif %}{% if table_config.compact %} table-sm{% endif %}"
+                {% if table_config.show_header|default(true) %}
+                <thead class="table-light">
+                    <tr>
+                        {% for column in table_config.columns %}
+                        <th {% if column.width %}style="width: {{ column.width }}"{% endif %}
+                            {% if column.align %}class="text-{{ column.align }}"{% endif %}>
+                            {{ column.label }}
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                {% endif %}
+                <tbody {% if ajax_mode %}id="{{ table_config.ajax_target }}"{% endif %}>
+                    {% if ajax_mode %}
+                        <!-- AJAX模式：内容将通过JavaScript动态加载 -->
+                        <tr>
+                            <td colspan="{{ table_config.columns|length }}" class="text-center py-4">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">加载中...</span>
+                                </div>
+                                <div class="mt-2">正在加载数据...</div>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <!-- 传统模式：直接渲染数据 -->
+                        {% if items %}
+                            {% for item in items %}
+                            <tr>
+                                {% for column in table_config.columns %}
+                                <td {% if column.align %}class="text-{{ column.align }}"{% endif %}>
+                                    {{ render_table_cell(item, column) }}
+                                </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="{{ table_config.columns|length }}" class="text-center py-4">
+                                    暂无数据
+                                </td>
+                            </tr>
+                        {% endif %}
+                    {% endif %}
+                </tbody>
+            </table>
+            
+            <!-- 无限滚动加载指示器 -->
+            {% if table_config.infinite_scroll %}
+            <div class="infinite-scroll-loading text-center py-3" id="infiniteScrollLoading" style="display: none;">
+                <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                </div>
+                <span class="text-muted">加载更多数据...</span>
+            </div>
+            <div class="infinite-scroll-end text-center py-3 text-muted" id="infiniteScrollEnd" style="display: none;">
+                <i class="fas fa-check-circle me-1"></i>
+                已加载全部数据
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- 移动端卡片布局 -->
+        <div class="product-list-mobile data-list-mobile" style="display: none;">
+            <div class="p-3">
+                {% if ajax_mode %}
+                    <!-- AJAX模式：内容将通过JavaScript动态加载 -->
+                    <div class="loading-card">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <div class="mt-2">正在加载数据...</div>
+                    </div>
+                {% else %}
+                    <!-- 传统模式：直接渲染数据 -->
+                    {% if items %}
+                        {% if table_config.use_custom_rows and table_config.custom_rows_template %}
+                            {% include table_config.custom_rows_template %}
+                        {% else %}
+                            {% for item in items %}
+                            <div class="data-card-mobile">
+                                <div class="card-header-mobile">
+                                    <div class="card-title-mobile">
+                                        <a href="#{{ item.id }}">
+                                            {{ render_mobile_card_title(item, table_config) }}
+                                        </a>
+                                        <span class="card-id">#{{ item.id }}</span>
+                                    </div>
+                                    <div class="card-badges-mobile">
+                                        {{ render_mobile_card_badges(item, table_config) }}
+                                    </div>
+                                </div>
+                                <div class="card-details-mobile">
+                                    {% for column in table_config.columns[:8] %}
+                                    {% if column.key != 'id' and column.key != 'actions' and not column.get('mobile_hidden') %}
+                                    <div class="detail-row">
+                                        <span class="label">{{ column.label }}:</span>
+                                        <span class="value">{{ render_table_cell(item, column) }}</span>
+                                    </div>
+                                    {% endif %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% else %}
+                        <div class="empty-card">
+                            暂无数据
+                        </div>
+                    {% endif %}
+                {% endif %}
+                
+                <!-- 移动端无限滚动指示器 -->
+                {% if table_config.infinite_scroll %}
+                <div class="infinite-scroll-loading" id="infiniteScrollLoadingMobile" style="display: none;">
+                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <span class="text-muted">加载更多数据...</span>
+                </div>
+                <div class="infinite-scroll-end" id="infiniteScrollEndMobile" style="display: none;">
+                    <i class="fas fa-check-circle me-1"></i>
+                    已加载全部数据
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- 传统分页 - 仅在非AJAX且非无限滚动模式下显示 -->
+        {% if not ajax_mode and not table_config.infinite_scroll and table_config.pagination %}
+        <div class="card-footer">
+            {{ render_pagination(table_config.pagination) }}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+{# 
+  表格单元格渲染辅助宏
+  根据列配置渲染单元格内容
+#}
+{% macro render_table_cell(item, column) %}
+    {# 安全地获取SQLAlchemy对象的属性值 #}
+    {% if column.key == 'owner' %}
+        {% set value = item.owner if item.owner else None %}
+    {% elif column.key == 'vendor_sales_manager' %}
+        {% set value = item.vendor_sales_manager if item.vendor_sales_manager else None %}
+    {% elif column.key == 'status' %}
+        {% set value = 'active' if item.is_active else 'inactive' %}
+    {% elif column.key == 'is_active' and column.render == 'render_user_status_badge' %}
+        {% set value = item %}
+    {% elif column.key == 'role' and column.render == 'render_user_role_badge' %}
+        {% set value = item %}
+    {% elif column.key == 'created_at' or column.key == 'updated_at' %}
+        {# 时间字段特殊处理 - 直接从对象属性获取 #}
+        {% set value = item.created_at if column.key == 'created_at' else item.updated_at %}
+    {% elif column.key == 'actions' %}
+        {% set value = 'actions' %}
+    {% else %}
+        {# 对于简单属性，直接从__dict__获取或使用点访问 #}
+        {% if item.__dict__ and column.key in item.__dict__ %}
+            {% set value = item.__dict__[column.key] %}
+        {% else %}
+            {% set value = item[column.key] if item[column.key] is defined else '-' %}
+        {% endif %}
+    {% endif %}
+    
+    {% if column.type == 'badge' %}
+        {# 徽章类型 #}
+        {% if column.render %}
+            {% if column.render == 'render_user_status_badge' %}
+                {{ render_user_status_badge(value) }}
+            {% elif column.render == 'render_user_role_badge' %}
+                {% if column.get('role_dict') %}
+                    {{ render_user_role_badge(value, column.role_dict) }}
+                {% else %}
+                    {{ render_user_role_badge(value) }}
+                {% endif %}
+            {% elif column.render == 'render_order_status_badge' %}
+                {{ render_order_status_badge(value) }}
+            {% elif column.render == 'render_inventory_status_badge' %}
+                {{ render_inventory_status_badge(value) }}
+            {% else %}
+                {{ caller(value, column.render) if caller else value }}
+            {% endif %}
+        {% else %}
+            <span class="badge bg-secondary">{{ value }}</span>
+        {% endif %}
+        
+    {% elif column.type == 'link' %}
+        {# 链接类型 #}
+        {% set url = column.url_template.replace('{id}', item.id|string) if column.url_template else '#' %}
+        <a href="{{ url }}" class="text-decoration-none">
+            {% if column.render %}
+                {% if column.render == 'render_quotation_number' %}
+                    {{ render_quotation_number(value) }}
+                {% elif column.render == 'render_project_stage' %}
+                    {{ render_project_stage(value) }}
+                {% elif column.render == 'render_project_type' %}
+                    {{ render_project_type(value) }}
+                {% elif column.render == 'render_order_status_badge' %}
+                    {{ render_order_status_badge(value) }}
+                {% elif column.render == 'render_inventory_status_badge' %}
+                    {{ render_inventory_status_badge(value) }}
+                {% elif column.render == 'render_user_status_badge' %}
+                    {{ render_user_status_badge(value) }}
+                {% elif column.render == 'render_user_role_badge' %}
+                    {% if column.get('role_dict') %}
+                        {{ render_user_role_badge(value, column.role_dict) }}
+                    {% else %}
+                        {{ render_user_role_badge(value) }}
+                    {% endif %}
+                {% else %}
+                    {{ caller(value, column.render) if caller else value }}
+                {% endif %}
+            {% else %}
+                {{ value }}
+            {% endif %}
+        </a>
+        
+    {% elif column.type == 'number' %}
+        {# 数字类型 #}
+        {% if column.format == 'currency' %}
+            ¥{{ "{:,.2f}".format(value) if value else '0.00' }}
+        {% elif column.format == 'wan' %}
+            {{ "{:.2f}".format(value/10000) if value else '0.00' }}万
+        {% else %}
+            {{ "{:,}".format(value) if value else '0' }}
+        {% endif %}
+        
+    {% elif column.type == 'date' %}
+        {# 日期类型 - 使用安全的日期格式化 #}
+        {% if column.format == 'datetimeformat' %}
+            {{ value | datetimeformat }}
+        {% elif value %}
+            {% if value.strftime is defined %}
+                {{ value.strftime(column.format|default('%Y-%m-%d %H:%M')) }}
+            {% else %}
+                {{ value | datetimeformat }}
+            {% endif %}
+        {% else %}
+            -
+        {% endif %}
+        
+    {% elif column.render %}
+        {# 自定义渲染 #}
+        {% if column.render == 'render_quotation_number' %}
+            {{ render_quotation_number(value) }}
+        {% elif column.render == 'render_project_stage' %}
+            {{ render_project_stage(value) }}
+        {% elif column.render == 'render_project_type' %}
+            {{ render_project_type(value) }}
+        {% elif column.render == 'render_order_status_badge' %}
+            {{ render_order_status_badge(value) }}
+        {% elif column.render == 'render_inventory_status_badge' %}
+            {{ render_inventory_status_badge(value) }}
+        {% elif column.render == 'render_user_status_badge' %}
+            {{ render_user_status_badge(value) }}
+        {% elif column.render == 'render_user_role_badge' %}
+            {{ render_user_role_badge(value) }}
+        {% elif column.render == 'render_owner' %}
+            {{ render_owner(value) }}
+        {% elif column.render == 'render_status_badge' %}
+            {{ render_status_badge(value) }}
+        {% elif column.render == 'render_authorization_code' %}
+            {{ render_authorization_code(value) }}
+        {% elif column.render == 'render_date' %}
+            {{ render_date(value) }}
+        {% elif column.render == 'render_industry_badge' %}
+            {{ render_industry_badge(value) if value else '-' }}
+        {% elif column.render == 'render_company_type_badge' %}
+            {{ render_company_type_badge(value) if value else '-' }}
+        {% elif column.render == 'render_report_source_badge' %}
+            {{ render_report_source_badge(value) if value else '-' }}
+        {% else %}
+            {{ caller(value, column.render) if caller else value }}
+        {% endif %}
+    
+    {% elif column.type == 'actions' %}
+        {# 操作按钮列 #}
+        <div class="btn-group" role="group" aria-label="操作">
+            {% if has_permission(list_config.module_name, 'view') %}
+            {% if list_config.module_name == 'project' %}
+            <a href="{{ url_for('project.view_project', project_id=item.id) }}" 
+               class="btn btn-outline-primary btn-sm" title="查看详情">
+                <i class="fas fa-eye"></i>
+            </a>
+            {% else %}
+            <a href="{{ url_for(list_config.module_name + '.view_' + list_config.module_name, **{list_config.module_name + '_id': item.id}) }}" 
+               class="btn btn-outline-primary btn-sm" title="查看详情">
+                <i class="fas fa-eye"></i>
+            </a>
+            {% endif %}
+            {% endif %}
+            {% if has_permission(list_config.module_name, 'edit') %}
+            {% if list_config.module_name == 'project' %}
+            <a href="{{ url_for('project.edit_project', project_id=item.id) }}" 
+               class="btn btn-outline-secondary btn-sm" title="编辑">
+                <i class="fas fa-edit"></i>
+            </a>
+            {% else %}
+            <a href="{{ url_for(list_config.module_name + '.edit_' + list_config.module_name, **{list_config.module_name + '_id': item.id}) }}" 
+               class="btn btn-outline-secondary btn-sm" title="编辑">
+                <i class="fas fa-edit"></i>
+            </a>
+            {% endif %}
+            {% endif %}
+        </div>
+        
+    {% else %}
+        {# 默认文本类型 #}
+        {{ value if value is not none else '-' }}
+    {% endif %}
+{% endmacro %}
+
+{# 
+  完整数据列表组件
+  整合统计卡片、筛选搜索和数据表格的完整列表页面组件
+  
+  参数:
+  - list_config: 列表配置对象
+    - module_name: 模块名称
+    - title: 页面标题  
+    - stats: 统计配置（可选）
+    - filter: 筛选配置（可选）
+    - table: 表格配置
+    - ajax_mode: 是否启用AJAX模式（默认false）
+  - items: 数据项列表（传统模式）
+#}
+{% macro render_data_list(list_config, items=[], caller=none) %}
+<div class="data-list-container">
+    <!-- 页面标题 - 只有在页面模板没有独立标题区域时才显示 -->
+    <!-- 注释：现在所有页面都有独立的 page-header-with-actions 区域，所以这里不再显示标题 -->
+    <!-- {% if list_config.title %}
+    <div class="row page-title-container">
+        <div class="col-12">
+            <h1 class="page-title">{{ list_config.title }}</h1>
+        </div>
+    </div>
+    {% endif %} -->
+    
+    <!-- 统计卡片区域 -->
+    {% if list_config.stats %}
+    <div class="module-stats-section">
+        {{ render_stats_cards(list_config.stats) }}
+    </div>
+    {% endif %}
+    
+    <!-- 筛选搜索区域 -->
+    {% if list_config.filter %}
+    <div class="module-filters-section">
+        {% from 'macros/filter_search.html' import render_filter_search_form %}
+        {{ render_filter_search_form(list_config.filter) }}
+    </div>
+    {% endif %}
+    
+    <!-- 数据内容区域 - 自动响应式适配 -->
+    <div class="module-data-section">
+        {{ render_responsive_content(list_config, items) }}
+    </div>
+    
+    <!-- 自定义内容 -->
+    {% if caller %}
+        {{ caller() }}
+    {% endif %}
+</div>
+{% endmacro %}
+
+{#
+=============================================================================
+移动端检测和响应式支持宏
+=============================================================================
+#}
+
+{# 移动端设备检测宏 #}
+{% macro is_mobile_device() %}
+  {%- set mobile_param = request.args.get('mobile', '').lower() -%}
+  {%- if mobile_param == 'true' -%}
+    {{- true -}}
+  {%- elif mobile_param == 'false' -%}
+    {{- false -}}  
+  {%- else -%}
+    {%- set user_agent = request.headers.get('User-Agent', '').lower() -%}
+    {%- set mobile_keywords = ['mobile', 'android', 'iphone', 'ipad', 'ipod', 'blackberry', 'windows phone'] -%}
+    {{- mobile_keywords|select('in', user_agent)|list|length > 0 -}}
+  {%- endif -%}
+{% endmacro %}
+
+{# 响应式列表内容渲染宏 #}
+{% macro render_responsive_content(list_config, items) %}
+  {# 移动端检测逻辑 #}
+  {%- set mobile_param = request.args.get('mobile', '').lower() -%}
+  {%- set is_mobile = false -%}
+  {%- if mobile_param == 'true' -%}
+    {%- set is_mobile = true -%}
+  {%- elif mobile_param == 'false' -%}
+    {%- set is_mobile = false -%}
+  {%- else -%}
+    {%- set user_agent = request.headers.get('User-Agent', '').lower() -%}
+    {%- set mobile_keywords = ['mobile', 'android', 'iphone', 'ipad', 'ipod', 'blackberry', 'windows phone'] -%}
+    {%- set is_mobile = mobile_keywords|select('in', user_agent)|list|length > 0 -%}
+  {%- endif -%}
+  
+  {% if is_mobile and list_config.mobile_template %}
+    {# 移动端：使用专用卡片模板（优先级最高） #}
+    <div class="mobile-cards-container" {% if list_config.ajax_mode %}id="{{ list_config.table.ajax_target }}"{% endif %}>
+      {% if list_config.ajax_mode and not items %}
+        <!-- AJAX模式：内容将通过JavaScript动态加载 -->
+        <div class="d-flex justify-content-center align-items-center p-4">
+          <div class="spinner-border text-primary me-2" role="status">
+            <span class="visually-hidden">加载中...</span>
+          </div>
+          <span class="text-muted">正在加载数据...</span>
+        </div>
+      {% else %}
+        {% include list_config.mobile_template %}
+      {% endif %}
+    </div>
+  {% elif is_mobile and list_config.table %}
+    {# 移动端：使用通用卡片渲染（默认启用） #}
+    <div class="mobile-cards-container" {% if list_config.ajax_mode %}id="{{ list_config.table.ajax_target }}"{% endif %}>
+      {% if list_config.ajax_mode and not items %}
+        <!-- AJAX模式：内容将通过JavaScript动态加载 -->
+        <div class="d-flex justify-content-center align-items-center p-4">
+          <div class="spinner-border text-primary me-2" role="status">
+            <span class="visually-hidden">加载中...</span>
+          </div>
+          <span class="text-muted">正在加载数据...</span>
+        </div>
+      {% else %}
+        {{ render_mobile_cards_from_table(list_config.table, items) }}
+      {% endif %}
+    </div>
+  {% else %}
+    {# 桌面端：使用标准表格 #}
+    {{ render_data_table(list_config.table, items, list_config.ajax_mode|default(false)) }}
+  {% endif %}
+{% endmacro %}
+
+{# 基于表格配置自动生成移动端卡片的宏 #}
+{% macro render_mobile_cards_from_table(table_config, items) %}
+  {% for item in items %}
+  <div class="data-card-mobile {{ table_config.module_name|default('generic') }}-card-mobile">
+    <div class="card-header-mobile">
+      <div class="card-title-mobile">
+        {{ render_mobile_card_title(item, table_config) }}
+        {% if item.id %}
+          <span class="card-id">#{{ item.id }}</span>
+        {% endif %}
+      </div>
+      <div class="card-badges-mobile">
+        {{ render_mobile_card_badges(item, table_config) }}
+      </div>
+    </div>
+    <div class="card-details-mobile">
+      {{ render_mobile_card_details(item, table_config) }}
+    </div>
+  </div>
+  {% endfor %}
+{% endmacro %}
+
+{#
+  移动端卡片标题渲染函数
+  根据不同的数据类型智能提取标题
+#}
+{% macro render_mobile_card_title(item, table_config) %}
+    {% if item.product_name %}
+        {{ item.product_name }}
+    {% elif item.company_name %}
+        {{ item.company_name }}
+    {% elif item.project_name %}
+        {{ item.project_name }}
+    {% elif item.quotation_number %}
+        {{ _('报价单') }} {{ item.quotation_number }}
+    {% elif item.order_number %}
+        {{ _('订单') }} {{ item.order_number }}
+    {% elif item.name %}
+        {{ item.name }}
+    {% elif item.title %}
+        {{ item.title }}
+    {% else %}
+        {% set title_found = false %}
+        {% for column in table_config.columns if not title_found %}
+            {% if column.type == 'link' and not loop.first %}
+                {{ render_table_cell(item, column) }}
+                {% set title_found = true %}
+            {% endif %}
+        {% endfor %}
+        {% if not title_found %}
+            {{ _('项目') }} #{{ item.id }}
+        {% endif %}
+    {% endif %}
+{% endmacro %}
+
+{#
+  移动端卡片徽章渲染函数
+  根据不同的数据类型智能显示徽章
+#}
+{% macro render_mobile_card_badges(item, table_config) %}
+    {# 产品相关徽章 #}
+    {% if item.product_name or item.type %}
+        {% if item.type %}
+            {{ render_product_type_badge(item.type) }}
+        {% endif %}
+        {% if item.status %}
+            {{ render_product_status_badge(item.status) }}
+        {% endif %}
+    {# 客户相关徽章 #}
+    {% elif item.company_name %}
+        {% if item.status %}
+            {{ render_customer_status_badge(item.status) }}
+        {% endif %}
+        {% if item.company_type %}
+            {{ render_company_type_badge(item.company_type) }}
+        {% endif %}
+        {% if item.industry %}
+            {{ render_industry_badge(item.industry) }}
+        {% endif %}
+    {# 项目相关徽章 #}
+    {% elif item.project_name %}
+        {% if item.current_stage %}
+            {{ render_project_stage(item.current_stage) }}
+        {% endif %}
+    {# 订单相关徽章 #}
+    {% elif item.order_number %}
+        {% if item.status %}
+            {{ render_order_status_badge(item.status) }}
+        {% endif %}
+        {% if item.inventory_status %}
+            {{ render_inventory_status_badge(item.inventory_status) }}
+        {% endif %}
+    {# 报价单相关徽章 #}
+    {% elif item.quotation_number %}
+        {% if item.quotation_number %}
+            {{ render_quotation_number(item.quotation_number) }}
+        {% endif %}
+    {# 通用状态徽章 #}
+    {% elif item.status %}
+        <span class="badge badge-pill badge-transparent status-{{ item.status }}">
+            {{ item.status }}
+        </span>
+    {% endif %}
+{% endmacro %}
+
+{# 移动端卡片详情渲染宏 #}
+{% macro render_mobile_card_details(item, table_config) %}
+    {# 基于表格配置自动渲染详情字段 #}
+    {% for column in table_config.columns %}
+        {% if column.key != 'id' and not (column.type == 'link' and loop.first) %}
+            {% set value = item[column.key] if item[column.key] is defined else '-' %}
+            {% if value and value != '-' %}
+            <div class="detail-row">
+                <span class="label">{{ column.label }}:</span>
+                <span class="value">
+                    {% if column.type == 'badge' %}
+                        {% if column.render %}
+                            {% if column.render == 'render_owner' %}
+                                {{ render_owner(value) }}
+                            {% elif column.render == 'render_order_status_badge' %}
+                                {{ render_order_status_badge(value) }}
+                            {% elif column.render == 'render_inventory_status_badge' %}
+                                {{ render_inventory_status_badge(value) }}
+                            {% elif column.render == 'render_settlement_status_badge' %}
+                                {{ render_settlement_status_badge(value) }}
+                            {% elif column.render == 'render_project_stage' %}
+                                {{ render_project_stage(value) }}
+                            {% elif column.render == 'render_customer_status_badge' %}
+                                {{ render_customer_status_badge(value) }}
+                            {% elif column.render == 'render_company_type_badge' %}
+                                {{ render_company_type_badge(value) }}
+                            {% elif column.render == 'render_industry_badge' %}
+                                {{ render_industry_badge(value) }}
+                            {% else %}
+                                {{ value }}
+                            {% endif %}
+                        {% else %}
+                            {{ value }}
+                        {% endif %}
+                    {% elif column.type == 'link' %}
+                        {% if column.url_template %}
+                            <a href="{{ column.url_template.replace('{id}', item.id|string) }}" class="text-decoration-none">
+                                {{ value }}
+                            </a>
+                        {% else %}
+                            {{ value }}
+                        {% endif %}
+                    {% elif column.type == 'number' %}
+                        {% if column.format == 'currency' %}
+                            ¥{{ "%.2f"|format(value) }}
+                        {% elif column.format == 'wan' %}
+                            {{ "%.2f"|format(value / 10000) }}万
+                        {% else %}
+                            {{ value }}
+                        {% endif %}
+                    {% elif column.type == 'date' %}
+                        {% if column.format %}
+                            {{ value.strftime(column.format) if value.strftime else value }}
+                        {% else %}
+                            {{ value.strftime('%Y-%m-%d') if value.strftime else value }}
+                        {% endif %}
+                    {% else %}
+                        {{ value }}
+                    {% endif %}
+                </span>
+            </div>
+            {% endif %}
+        {% endif %}
+    {% endfor %}
+{% endmacro %}
+
+{# ================================
+   产品相关徽章渲染函数
+   ================================ #}
+
+{# 
+  产品类型徽章渲染 - 胶囊型
+  参数:
+  - product_type: 产品类型值
+  - lang: 语言代码(可选，默认从session获取)
+#}
+{% macro render_product_type_badge(product_type, lang=None) %}
+    {% if not lang %}
+        {% set lang = session.get('language', 'zh') %}
+    {% endif %}
+    
+    {% set type_map = {
+        '项目产品': {'zh': '项目产品', 'en': 'Project Product', 'css_class': 'product-type-project'},
+        '0': {'zh': '项目产品', 'en': 'Project Product', 'css_class': 'product-type-project'},
+        'project': {'zh': '项目产品', 'en': 'Project Product', 'css_class': 'product-type-project'},
+        '渠道产品': {'zh': '渠道产品', 'en': 'Channel Product', 'css_class': 'product-type-channel'},
+        '1': {'zh': '渠道产品', 'en': 'Channel Product', 'css_class': 'product-type-channel'},
+        'channel': {'zh': '渠道产品', 'en': 'Channel Product', 'css_class': 'product-type-channel'},
+        '第三方产品': {'zh': '第三方产品', 'en': 'Third Party Product', 'css_class': 'product-type-third-party'},
+        'third_party': {'zh': '第三方产品', 'en': 'Third Party Product', 'css_class': 'product-type-third-party'},
+        'third party': {'zh': '第三方产品', 'en': 'Third Party Product', 'css_class': 'product-type-third-party'}
+    } %}
+    
+    {% set type_config = type_map.get(product_type, {'zh': product_type or '未知', 'en': product_type or 'Unknown', 'css_class': 'product-type-unknown'}) %}
+    {% set display_text = type_config[lang] %}
+    {% set css_class = type_config.css_class %}
+    
+    <span class="badge product-type-badge rounded-pill {{ css_class }}">
+        {{ display_text }}
+    </span>
+{% endmacro %}
+
+{# 
+  产品状态徽章渲染 - 胶囊型
+  参数:
+  - status: 产品状态值
+  - lang: 语言代码(可选，默认从session获取)
+#}
+{% macro render_product_status_badge(status, lang=None) %}
+    {% if not lang %}
+        {% set lang = session.get('language', 'zh') %}
+    {% endif %}
+    
+    {% set status_map = {
+        'active': {'zh': '生产中', 'en': 'Active', 'css_class': 'product-status-active'},
+        'discontinued': {'zh': '已停产', 'en': 'Discontinued', 'css_class': 'product-status-discontinued'},
+        'upcoming': {'zh': '待上市', 'en': 'Upcoming', 'css_class': 'product-status-upcoming'}
+    } %}
+    
+    {% set status_config = status_map.get(status, {'zh': status or '未知', 'en': status or 'Unknown', 'css_class': 'product-status-unknown'}) %}
+    {% set display_text = status_config[lang] %}
+    {% set css_class = status_config.css_class %}
+    
+    <span class="badge product-status-badge rounded-pill {{ css_class }}">
+        {{ display_text }}
+    </span>
+{% endmacro %}
+
+{# 
+  厂商产品徽章渲染 - 矩形型
+  参数:
+  - is_vendor: 是否为厂商产品
+  - lang: 语言代码(可选，默认从session获取)
+#}
+{% macro render_vendor_badge(is_vendor, lang=None) %}
+    {% if is_vendor %}
+        {% if not lang %}
+            {% set lang = session.get('language', 'zh') %}
+        {% endif %}
+        
+        {% set vendor_text = {'zh': '厂商', 'en': 'Vendor'} %}
+        {% set display_text = vendor_text[lang] %}
+        
+        <span class="badge vendor-badge product-vendor">
+            {{ display_text }}
+        </span>
+    {% endif %}
+{% endmacro %}
+
+{# 
+  产品品牌徽章渲染 - 矩形型 (可选使用)
+  参数:
+  - brand: 品牌名称
+  - is_vendor: 是否为厂商产品 (影响样式)
+#}
+{% macro render_product_brand_badge(brand, is_vendor=False) %}
+    {% if brand %}
+        <span class="badge brand-badge">
+            {{ brand }}
+        </span>
+    {% endif %}
+{% endmacro %}
+
+{# 
+  结算情况徽章渲染宏 - 用于结算单列表
+  参数:
+  - settlement_situation: 结算情况值 (fully_settled, partially_settled, pending)
+  - lang: 语言设置，可选，默认从session获取
+#}
+{% macro render_settlement_situation_badge(settlement_situation, lang=None) %}
+    {% if not lang %}
+        {% set lang = session.get('language', 'zh') %}
+    {% endif %}
+    
+    {% set situation_map = {
+        'fully_settled': {'zh': '完全结算', 'en': 'Fully Settled', 'css_class': 'settlement-situation-fully'},
+        'partially_settled': {'zh': '部分结算', 'en': 'Partially Settled', 'css_class': 'settlement-situation-partial'},
+        'pending': {'zh': '待结算', 'en': 'Pending Settlement', 'css_class': 'settlement-situation-pending'}
+    } %}
+    
+    {% set situation_config = situation_map.get(settlement_situation, {'zh': settlement_situation or '未知', 'en': settlement_situation or 'Unknown', 'css_class': 'settlement-situation-unknown'}) %}
+    {% set display_text = situation_config[lang] %}
+    {% set css_class = situation_config.css_class %}
+    
+    <span class="badge settlement-situation-badge badge-transparent {{ css_class }}">
+        {{ display_text }}
+    </span>
+{% endmacro %}
+
+{# 
+  结算状态徽章渲染宏 - 用于结算明细列表
+  参数:
+  - settlement_status: 结算状态值 (settled, pending)
+  - lang: 语言设置，可选，默认从session获取
+#}
+{% macro render_settlement_detail_status_badge(settlement_status, lang=None) %}
+    {% if not lang %}
+        {% set lang = session.get('language', 'zh') %}
+    {% endif %}
+    
+    {% set status_map = {
+        'settled': {'zh': '已结算', 'en': 'Settled', 'css_class': 'settlement-detail-settled'},
+        'pending': {'zh': '待结算', 'en': 'Pending Settlement', 'css_class': 'settlement-detail-pending'}
+    } %}
+    
+    {% set status_config = status_map.get(settlement_status, {'zh': settlement_status or '未知', 'en': settlement_status or 'Unknown', 'css_class': 'settlement-detail-unknown'}) %}
+    {% set display_text = status_config[lang] %}
+    {% set css_class = status_config.css_class %}
+    
+    <span class="badge settlement-detail-badge badge-transparent {{ css_class }}">
+        {{ display_text }}
+    </span>
+{% endmacro %}
+
+{# 
+  客户状态徽章渲染宏 - 用于客户列表
+  参数:
+  - status: 客户状态值 (active, inactive)
+  - lang: 语言设置，可选，默认从session获取
+#}
+{% macro render_customer_status_badge(status, lang=None) %}
+    {% if not lang %}
+        {% set lang = session.get('language', 'zh') %}
+    {% endif %}
+    
+    {% set status_map = {
+        'active': {'zh': '活跃', 'en': 'Active', 'css_class': 'customer-status-active'},
+        'inactive': {'zh': '非活跃', 'en': 'Inactive', 'css_class': 'customer-status-inactive'}
+    } %}
+    
+    {% set status_config = status_map.get(status, {'zh': status or '未知', 'en': status or 'Unknown', 'css_class': 'customer-status-unknown'}) %}
+    {% set display_text = status_config[lang] %}
+    {% set css_class = status_config.css_class %}
+    
+    <span class="badge customer-status-badge badge-transparent {{ css_class }}">
+        {{ display_text }}
+    </span>
+{% endmacro %}
+
+{# 
+  通用阶段统计组件
+  提供标准化的阶段分布图表功能，支持筛选联动和多种显示模式
+  
+  参数:
+  - analytics_config: 统计组件配置对象
+    - container_id: 容器ID (必需)
+    - chart_id: 图表容器ID (必需)
+    - api_endpoint: API端点 (必需)
+    - title: 组件标题 (可选，默认'阶段分布统计')
+    - icon: 标题图标 (可选，默认'fas fa-chart-bar')
+    - chart_type: 图表类型 (可选，bar/pie/doughnut，默认'bar')
+    - switchable: 是否支持指标切换 (可选，默认true)
+    - height: 图表高度 (可选，默认'350px')
+    - filter_integration: 是否集成筛选器 (可选，默认false)
+    - show_legend: 是否显示图例 (可选，默认true)
+    - responsive: 响应式支持 (可选，默认true)
+    - chart_options: ECharts自定义选项 (可选)
+    - custom_styles: 自定义样式 (可选)
+  
+  使用示例:
+  {% set analytics_config = {
+    'container_id': 'stageAnalytics',
+    'chart_id': 'stageChart', 
+    'api_endpoint': '/api/stage_statistics',
+    'title': '项目阶段分布',
+    'filter_integration': true
+  } %}
+  {{ render_stage_analytics(analytics_config) }}
+#}
+{% macro render_stage_analytics(analytics_config) %}
+<div class="stage-analytics-component" id="{{ analytics_config.container_id }}">
+    <!-- 组件由JavaScript动态渲染 -->
+</div>
+
+<!-- 组件初始化由调用页面负责，避免重复初始化 -->
+{% endmacro %}
+
+{# ============================================================================ #}
+{# 通用标签页组件系统 #}
+{# ============================================================================ #}
+
+{# 
+  通用标签页组件 - 可复用的标签页渲染器
+  
+  参数:
+  - tabs: 标签页配置列表，每个元素为字典 {
+      'key': '标签页key',
+      'label': '显示标签',
+      'icon': '图标class（可选）',
+      'badge': 徽章数字（可选）',
+      'badge_color': '徽章颜色（可选，默认primary）',
+      'disabled': 是否禁用（可选）,
+      'url': '完整URL（可选，与base_url二选一）'
+    }
+  - current_tab: 当前激活的标签页key
+  - base_url: 基础URL（不含参数）- 如果tabs中没有url时使用
+  - extra_params: 额外的URL参数字典（可选）
+  - size: 标签页大小 ('sm', 'md', 'lg')（可选，默认md）
+  - style: 标签页样式 ('pills', 'tabs')（可选，默认tabs）
+  - justified: 是否平铺（可选，默认false）
+  - vertical: 是否垂直排列（可选，默认false）
+#}
+{% macro render_universal_tabs(tabs, current_tab, base_url=None, extra_params=None, size='md', style='tabs', justified=False, vertical=False) %}
+    {% if not extra_params %}
+        {% set extra_params = {} %}
+    {% endif %}
+    
+    {# 构建CSS类 #}
+    {% set nav_class = 'nav' %}
+    {% if style == 'pills' %}
+        {% set nav_class = nav_class + ' nav-pills' %}
+    {% else %}
+        {% set nav_class = nav_class + ' nav-tabs' %}
+    {% endif %}
+    
+    {% if justified %}
+        {% set nav_class = nav_class + ' nav-justified' %}
+    {% endif %}
+    
+    {% if vertical %}
+        {% set nav_class = nav_class + ' flex-column' %}
+    {% endif %}
+    
+    {% if size == 'sm' %}
+        {% set nav_class = nav_class + ' nav-sm' %}
+    {% elif size == 'lg' %}
+        {% set nav_class = nav_class + ' nav-lg' %}
+    {% endif %}
+
+    <ul class="{{ nav_class }}" role="tablist">
+        {% for tab in tabs %}
+            {% set tab_key = tab.key %}
+            {% set tab_label = tab.label %}
+            {% set tab_icon = tab.get('icon', '') %}
+            {% set tab_badge = tab.get('badge', 0) %}
+            {% set tab_badge_color = tab.get('badge_color', 'primary') %}
+            {% set tab_disabled = tab.get('disabled', False) %}
+            {% set tab_url = tab.get('url', '') %}
+            
+            {# 构建URL #}
+            {% if tab_url %}
+                {% set full_url = tab_url %}
+            {% elif base_url %}
+                {% set url_params = {'tab': tab_key} %}
+                {% set _ = url_params.update(extra_params) %}
+                {% set param_list = [] %}
+                {% for k, v in url_params.items() %}
+                    {% set _ = param_list.append(k + '=' + (v|string)) %}
+                {% endfor %}
+                {% set param_str = '&'.join(param_list) %}
+                {% set full_url = base_url + '?' + param_str %}
+            {% else %}
+                {% set full_url = '#' %}
+            {% endif %}
+            
+            {# 判断是否激活 #}
+            {% set is_active = (tab_key == current_tab) %}
+            
+            <li class="nav-item" role="presentation">
+                <a class="nav-link {{ 'active' if is_active else '' }} {{ 'disabled' if tab_disabled else '' }}"
+                   href="{{ full_url if not tab_disabled else '#' }}"
+                   role="tab"
+                   {% if tab_disabled %}aria-disabled="true" tabindex="-1"{% endif %}
+                   aria-selected="{{ 'true' if is_active else 'false' }}">
+                    
+                    {# 图标 #}
+                    {% if tab_icon %}
+                        <i class="{{ tab_icon }} me-1"></i>
+                    {% endif %}
+                    
+                    {# 标签文本 #}
+                    {{ tab_label }}
+                    
+                    {# 徽章 #}
+                    {% if tab_badge and tab_badge > 0 %}
+                        <span class="badge bg-{{ tab_badge_color }} ms-1">{{ tab_badge }}</span>
+                    {% endif %}
+                </a>
+            </li>
+        {% endfor %}
+    </ul>
+{% endmacro %}
+
+{# 
+  简化版标签页组件 - 兼容原有的render_standard_tabs调用
+  
+  参数:
+  - tabs: 标签页配置列表
+  - current_tab: 当前激活的标签页key  
+  - base_url: 基础URL
+  - extra_params: 额外参数（可选）
+#}
+{% macro render_standard_tabs(tabs, current_tab, base_url, extra_params=None) %}
+    {{ render_universal_tabs(tabs, current_tab, base_url, extra_params) }}
+{% endmacro %}
+
+{# ============================================================================ #}
+{# 审批相关徽章组件系统 #}
+{# ============================================================================ #}
+
+{# 
+  审批状态徽章组件 - 用于显示审批流程状态
+  
+  参数:
+  - status: 审批状态 (PENDING, APPROVED, REJECTED, DRAFT, CANCELLED)
+  - status_name: 状态名称（可选，优先使用）
+  - lang: 语言设置（可选，默认从session获取）
+#}
+{% macro render_approval_status_badge(status, status_name=None, lang=None) %}
+    {% if not lang %}
+        {% set lang = session.get('language', 'zh') %}
+    {% endif %}
+    
+    {# 获取状态显示名称 #}
+    {% if status_name %}
+        {% set status_key = status_name %}
+    {% elif status %}
+        {% if status.name is defined %}
+            {% set status_key = status.name %}
+        {% else %}
+            {% set status_key = status %}
+        {% endif %}
+    {% else %}
+        {% set status_key = 'UNKNOWN' %}
+    {% endif %}
+    
+    {# 状态映射配置 #}
+    {% set status_map = {
+        'PENDING': {'zh': '审批中', 'en': 'Pending', 'css_class': 'approval-status-pending'},
+        'APPROVED': {'zh': '已通过', 'en': 'Approved', 'css_class': 'approval-status-approved'},
+        'REJECTED': {'zh': '已拒绝', 'en': 'Rejected', 'css_class': 'approval-status-rejected'},
+        'DRAFT': {'zh': '草稿', 'en': 'Draft', 'css_class': 'approval-status-draft'},
+        'CANCELLED': {'zh': '已取消', 'en': 'Cancelled', 'css_class': 'approval-status-cancelled'}
+    } %}
+    
+    {% set status_config = status_map.get(status_key, {'zh': status_key or '未知状态', 'en': status_key or 'Unknown', 'css_class': 'approval-status-unknown'}) %}
+    {% set display_text = status_config[lang] %}
+    {% set css_class = status_config.css_class %}
+    
+    <span class="badge badge-pill badge-transparent {{ css_class }}">
+        {{ display_text }}
+    </span>
+{% endmacro %}
+
+{# 
+  审批编号徽章组件 - 用于显示审批流程编号
+  
+  参数:
+  - approval_id: 审批ID
+  - prefix: 编号前缀（可选，默认APV）
+  - format_width: 格式化宽度（可选，默认4位）
+#}
+{% macro render_approval_code(approval_id, prefix='APV', format_width=4) %}
+    {% if approval_id %}
+        {% set format_str = '%0' + format_width|string + 'd' %}
+        {% set formatted_id = format_str % (approval_id|int if approval_id is not string else 0) %}
+        <span class="badge badge-pill badge-transparent approval-code-badge">
+            {{ prefix }}-{{ formatted_id }}
+        </span>
+    {% else %}
+        <span class="badge badge-pill badge-transparent approval-code-badge">
+            {{ prefix }}-0000
+        </span>
+    {% endif %}
+{% endmacro %}
+
+{# 
+  业务对象徽章组件 - 用于显示审批关联的业务对象
+  
+  参数:
+  - object_type: 业务对象类型 (project, quotation, customer, pricing_order, purchase_order)
+  - object_data: 业务对象数据
+  - lang: 语言设置（可选）
+#}
+{% macro render_business_object_badge(object_type, object_data=None, lang=None) %}
+    {% if not lang %}
+        {% set lang = session.get('language', 'zh') %}
+    {% endif %}
+    
+    {% if object_type == 'project' and object_data %}
+        {% if object_data.project_name %}
+            <span class="badge badge-pill badge-transparent business-object-project" title="{{ object_data.project_name }}">
+                {{ object_data.project_name[:20] }}{% if object_data.project_name|length > 20 %}...{% endif %}
+            </span>
+        {% else %}
+            <span class="badge badge-pill badge-transparent business-object-none">
+                {{ '无项目名称' if lang == 'zh' else 'No Project Name' }}
+            </span>
+        {% endif %}
+    {% elif object_type == 'quotation' and object_data %}
+        {% if object_data.project and object_data.project.authorization_code %}
+            {{ render_authorization_code(object_data.project.authorization_code, object_data.project.project_type) }}
+        {% else %}
+            <span class="badge badge-pill badge-transparent business-object-none">
+                {{ '无项目编号' if lang == 'zh' else 'No Project Code' }}
+            </span>
+        {% endif %}
+    {% elif object_type == 'customer' and object_data %}
+        {% if object_data.company_name %}
+            <span class="badge badge-pill badge-transparent business-object-customer">
+                {{ object_data.company_name[:10] }}...
+            </span>
+        {% else %}
+            <span class="badge badge-pill badge-transparent business-object-none">
+                {{ '无客户' if lang == 'zh' else 'No Customer' }}
+            </span>
+        {% endif %}
+    {% elif object_type == 'pricing_order' and object_data %}
+        {% if object_data.project and object_data.project.project_name %}
+            <span class="badge badge-pill badge-transparent business-object-pricing" title="{{ object_data.project.project_name }}">
+                {{ object_data.project.project_name[:20] }}{% if object_data.project.project_name|length > 20 %}...{% endif %}
+            </span>
+        {% else %}
+            <span class="badge badge-pill badge-transparent business-object-none">
+                {{ '无关联项目' if lang == 'zh' else 'No Related Project' }}
+            </span>
+        {% endif %}
+    {% elif object_type == 'purchase_order' and object_data %}
+        {% if object_data.company and object_data.company.company_name %}
+            <span class="badge badge-pill badge-transparent business-object-order">
+                {{ object_data.company.company_name[:15] }}{% if object_data.company.company_name|length > 15 %}...{% endif %}
+            </span>
+        {% else %}
+            <span class="badge badge-pill badge-transparent business-object-none">
+                {{ '无关联公司' if lang == 'zh' else 'No Related Company' }}
+            </span>
+        {% endif %}
+    {% else %}
+        <span class="badge badge-pill badge-transparent business-object-none">
+            {{ get_object_type_display(object_type) if get_object_type_display is defined else (object_type or '未知类型') }}
+        </span>
+    {% endif %}
 {% endmacro %}
 

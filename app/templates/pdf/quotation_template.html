@@ -5,172 +5,304 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>报价单 - {{ quotation.quotation_number }}</title>
     <style>
-        /* 水印样式 */
+        /* 基础样式 */
         body {
-            position: relative;
+            font-family: {{ font_family }};
+            font-size: 12px;
+            line-height: 1.4;
+            margin: 0;
+            padding: 20px;
+            color: #000;
         }
-        .watermark {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) rotate(-45deg);
-            font-size: 48px;
-            color: rgba(0, 0, 0, 0.1);
+        
+        /* 页面容器 */
+        .page-container {
+            max-width: 210mm;
+            margin: 0 auto;
+            background: white;
+        }
+        
+        /* 头部区域 */
+        .header-section {
+            display: table;
+            width: 100%;
+            border: 2px solid #000;
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        
+        .header-left {
+            display: table-cell;
+            width: 45%;
+            vertical-align: middle;
+            padding: 20px;
+            text-align: center;
+            border-right: 2px solid #000;
+        }
+        
+        .header-right {
+            display: table-cell;
+            width: 55%;
+            vertical-align: top;
+            padding: 10px 15px;
+        }
+        
+        /* Logo区域 */
+        .logo-section {
+            text-align: center;
+        }
+        
+        .company-logo {
+            font-size: 32px;
+            font-weight: 900;
+            background: linear-gradient(90deg, #4A90A4 0%, #7FC7D9 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 3px;
+            margin-bottom: 2px;
+            font-family: 'Arial', 'Helvetica', sans-serif;
+        }
+        
+        .company-subtitle {
+            font-size: 11px;
+            color: #333;
+            font-weight: normal;
+            letter-spacing: 1px;
+            font-family: 'Arial', 'Helvetica', sans-serif;
+        }
+        
+        /* 公司信息区域 */
+        .company-info {
+            margin-bottom: 15px;
+        }
+        
+        .company-name {
+            font-size: 14px;
             font-weight: bold;
-            z-index: -1;
-            pointer-events: none;
+            margin-bottom: 8px;
+            border: 1px solid #000;
+            padding: 5px;
+            text-align: center;
+        }
+        
+        .company-details {
+            font-size: 11px;
+            margin-bottom: 8px;
+            border: 1px solid #000;
+            padding: 5px;
+        }
+        
+        .quotation-title {
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+            border: 1px solid #000;
+            padding: 8px;
+            margin-top: 10px;
+        }
+        
+        /* 主表格样式 */
+        .main-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 2px solid #000;
+            margin-top: 0;
+        }
+        
+        .main-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            padding: 8px 4px;
+            text-align: center;
+            border: 1px solid #000;
+            font-size: 11px;
+        }
+        
+        .main-table td {
+            padding: 6px 4px;
+            text-align: center;
+            border: 1px solid #000;
+            font-size: 10px;
+            vertical-align: middle;
+        }
+        
+        /* 表格列宽设置 */
+        .col-sn { width: 6%; }
+        .col-name { width: 15%; }
+        .col-model { width: 16%; }
+        .col-brand { width: 16%; }
+        .col-spec { width: 20%; }
+        .col-qty { width: 8%; }
+        .col-price { width: 10%; }
+        .col-total { width: 9%; }
+        
+        /* 文本对齐 */
+        .text-left { text-align: left !important; }
+        .text-right { text-align: right !important; }
+        .text-center { text-align: center !important; }
+        
+        /* 合计行样式 */
+        .total-row {
+            font-weight: bold;
+            background-color: #f8f9fa;
+        }
+        
+        .total-row td {
+            font-size: 11px;
+        }
+        
+        /* 空行样式 */
+        .empty-row td {
+            height: 25px;
+            border: 1px solid #000;
+        }
+        
+        /* 打印优化 */
+        @media print {
+            body { margin: 0; padding: 10px; }
+            .page-container { max-width: none; }
         }
     </style>
 </head>
 <body>
-    <!-- 水印 -->
-    <div class="watermark">
-        {% if quotation.owner and quotation.owner.company_name %}
-            {{ quotation.owner.company_name }}
-        {% else %}
-            {{ current_user.company_name if current_user.company_name else '厂商企业' }}
-        {% endif %}
-    </div>
-    
-    <!-- 公司信息头部 -->
-    <div class="document-header">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
-            <div style="flex: 1;">
-                <h1 style="font-size: 20px; font-weight: bold; color: #0066cc; margin: 0;">
-                                {% if quotation.owner and quotation.owner.company_name %}
-                {{ quotation.owner.company_name }}
-            {% else %}
-                {{ current_user.company_name if current_user.company_name else '厂商企业' }}
-            {% endif %}
-                </h1>
-                <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                    <div>武威路88号19楼6楼</div>
-                    <div>普陀区 上海市</div>
-                    <div>中国 (200335)</div>
-                    <div>021-62596028</div>
-                    <div>www.evertac.net</div>
+    <div class="page-container">
+        <!-- 头部区域 -->
+        <div class="header-section">
+            <!-- Logo区域 -->
+            <div class="header-left">
+                <div class="logo-section">
+                    {% if logo_base64 %}
+                        <img src="{{ logo_base64 }}" alt="EVERTAC SOLUTIONS" style="max-width: 200px; max-height: 50px;">
+                    {% else %}
+                        <div class="company-logo">EVERTAC</div>
+                        <div class="company-subtitle">SOLUTIONS</div>
+                    {% endif %}
                 </div>
             </div>
-            <div style="text-align: right;">
-                <h1 style="font-size: 24px; font-weight: bold; color: #0066cc; margin: 0;">报价单</h1>
+            </div>
+            </div>
+            
+            <!-- 公司信息区域 -->
+            <div class="header-right">
+                <div class="company-info">
+                    <div class="company-name">
+                        {% if quotation.owner and quotation.owner.company_name %}
+                            {{ quotation.owner.company_name }}
+                        {% else %}
+                            （公司全称）
+                        {% endif %}
+                    </div>
+                    <div class="company-details">
+                        {% if quotation.owner and quotation.owner.company_name %}
+                            武威路88号19楼6楼, 普陀区 上海市, 中国 (200335)<br>
+                            电话：021-62596028 | 网站：www.evertac.net
+                        {% else %}
+                            【公司地址】【电话】【网站】
+                        {% endif %}
+                    </div>
+                    <div class="quotation-title">报价单</div>
+                </div>
             </div>
         </div>
-    </div>
-
-    <!-- 基本信息 -->
-    <div class="order-info">
-        <table class="info-table">
-            <tr>
-                <td class="info-label">项目名称</td>
-                <td class="info-value">{{ quotation.project.project_name if quotation.project else '-' }}</td>
-                <td class="info-label">报价单编号</td>
-                <td class="info-value">{{ quotation.quotation_number }}</td>
-            </tr>
-            <tr>
-                <td class="info-label">客户单位</td>
-                <td class="info-value">{{ quotation.project.end_user if quotation.project and quotation.project.end_user else '-' }}</td>
-                <td class="info-label">货币类型</td>
-                <td class="info-value">
-                    {% if quotation.currency == 'USD' %}美元（USD）
-                    {% elif quotation.currency == 'SGD' %}新加坡元（SGD）
-                    {% elif quotation.currency == 'MYR' %}马来西亚林吉特（MYR）
-                    {% elif quotation.currency == 'IDR' %}印尼盾（IDR）
-                    {% elif quotation.currency == 'THB' %}泰铢（THB）
-                    {% else %}人民币（CNY）
-                    {% endif %}
-                </td>
-            </tr>
-            <tr>
-                <td class="info-label">报价日期</td>
-                <td class="info-value">{{ quotation.created_at.strftime('%Y年%m月%d日') if quotation.created_at else '-' }}</td>
-                <td class="info-label">拥有者</td>
-                <td class="info-value">{{ quotation.owner.real_name or quotation.owner.username if quotation.owner else '-' }}</td>
-            </tr>
+        
+        <!-- 主表格 -->
+        <table class="main-table">
+            <thead>
+                <tr>
+                    <th class="col-sn">S/N</th>
+                    <th class="col-name">产品名称</th>
+                    <th class="col-model">型号</th>
+                    <th class="col-brand">品牌</th>
+                    <th class="col-spec">规格</th>
+                    <th class="col-qty">数量</th>
+                    <th class="col-price">单价</th>
+                    <th class="col-total">合计</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set total_amount = 0 %}
+                {% for detail in quotation.details %}
+                <tr>
+                    <td class="text-center">{{ loop.index }}</td>
+                    <td class="text-left">{{ detail.product_name or '-' }}</td>
+                    <td class="text-center">{{ detail.product_model or '-' }}</td>
+                    <td class="text-center">
+                        {% if detail.brand and detail.brand != '-' %}
+                            {{ detail.brand }}
+                        {% else %}
+                            Evertac Solutions
+                        {% endif %}
+                    </td>
+                    <td class="text-left">{{ detail.product_desc or '-' }}</td>
+                    <td class="text-center">{{ detail.quantity or 0 }}</td>
+                    <td class="text-right">{{ '{:,.0f}'.format(detail.unit_price) if detail.unit_price else '' }}</td>
+                    <td class="text-right">
+                        {% if detail.total_price %}
+                            {{ '{:,.0f}'.format(detail.total_price) }}
+                            {% set total_amount = total_amount + detail.total_price %}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <!-- 如果没有产品明细，显示空行 -->
+                {% for i in range(5) %}
+                <tr class="empty-row">
+                    <td>{{ i + 1 }}</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                </tr>
+                {% endfor %}
+                {% endfor %}
+                
+                <!-- 填充空行以确保表格美观 -->
+                {% set remaining_rows = 16 - quotation.details|length %}
+                {% if remaining_rows > 0 and quotation.details|length > 0 %}
+                    {% for i in range(remaining_rows) %}
+                    <tr class="empty-row">
+                        <td>{{ quotation.details|length + i + 1 }}</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
+                
+                <!-- 合计行 -->
+                <tr class="total-row">
+                    <td class="text-center">A</td>
+                    <td class="text-center">合计</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td class="text-right">
+                        {% if quotation.amount %}
+                            {{ '{:,.0f}'.format(quotation.amount) }}
+                        {% elif total_amount > 0 %}
+                            {{ '{:,.0f}'.format(total_amount) }}
+                        {% endif %}
+                    </td>
+                </tr>
+            </tbody>
         </table>
-    </div>
-
-    <!-- 产品明细 -->
-    <div class="section-title">产品明细</div>
-    <table class="details-table">
-        <thead>
-            <tr>
-                <th style="width: 5%;">序号</th>
-                <th style="width: 20%;">产品名称</th>
-                <th style="width: 15%;">型号</th>
-                <th style="width: 20%;">指标描述</th>
-                <th style="width: 10%;">品牌</th>
-                <th style="width: 8%;">单位</th>
-                <th style="width: 8%;">数量</th>
-                <th style="width: 10%;">单价</th>
-                <th style="width: 10%;">小计</th>
-                <th style="width: 12%;">MN</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for detail in quotation.details %}
-            <tr>
-                <td>{{ loop.index }}</td>
-                <td class="text-left">{{ detail.product_name or '-' }}</td>
-                <td class="text-left">{{ detail.product_model or '-' }}</td>
-                <td class="text-left">{{ detail.product_desc or '-' }}</td>
-                <td class="text-left">{{ detail.brand or '-' }}</td>
-                <td>{{ detail.unit or '-' }}</td>
-                <td>{{ detail.quantity or 0 }}</td>
-                <td class="text-right">{{ '{:,.2f}'.format(detail.unit_price) if detail.unit_price else '0.00' }}</td>
-                <td class="text-right">{{ '{:,.2f}'.format(detail.total_price) if detail.total_price else '0.00' }}</td>
-                <td class="text-left">{{ detail.product_mn or '-' }}</td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="10" style="text-align: center; color: #666;">暂无产品明细</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <!-- 总价 -->
-    <div class="summary-section">
-        <div class="total-amount">
-            总价：¥{{ '{:,.2f}'.format(quotation.amount) if quotation.amount else '0.00' }}
+        
+        <!-- 页脚信息 -->
+        <div style="margin-top: 20px; font-size: 9px; color: #666;">
+            <div>报价单编号：{{ quotation.quotation_number }}</div>
+            <div>项目名称：{{ quotation.project.project_name if quotation.project else '-' }}</div>
+            <div>生成时间：{{ generated_at.strftime('%Y年%m月%d日 %H:%M:%S') }}</div>
         </div>
     </div>
-
-    <!-- 页脚信息 -->
-    <div style="margin-top: 40px; font-size: 10px; color: #666; text-align: center;">
-        <div>生成时间：{{ generated_at.strftime('%Y年%m月%d日 %H:%M:%S') }}</div>
-        <div style="margin-top: 5px;">此报价单由系统自动生成</div>
-    </div>
 </body>
-</html> 
-                <td class="text-left">{{ detail.product_name or '-' }}</td>
-                <td class="text-left">{{ detail.product_model or '-' }}</td>
-                <td class="text-left">{{ detail.product_desc or '-' }}</td>
-                <td class="text-left">{{ detail.brand or '-' }}</td>
-                <td>{{ detail.unit or '-' }}</td>
-                <td>{{ detail.quantity or 0 }}</td>
-                <td class="text-right">{{ '{:,.2f}'.format(detail.unit_price) if detail.unit_price else '0.00' }}</td>
-                <td class="text-right">{{ '{:,.2f}'.format(detail.total_price) if detail.total_price else '0.00' }}</td>
-                <td class="text-left">{{ detail.product_mn or '-' }}</td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="10" style="text-align: center; color: #666;">暂无产品明细</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <!-- 总价 -->
-    <div class="summary-section">
-        <div class="total-amount">
-            总价：¥{{ '{:,.2f}'.format(quotation.amount) if quotation.amount else '0.00' }}
-        </div>
-    </div>
-
-    <!-- 页脚信息 -->
-    <div style="margin-top: 40px; font-size: 10px; color: #666; text-align: center;">
-        <div>生成时间：{{ generated_at.strftime('%Y年%m月%d日 %H:%M:%S') }}</div>
-        <div style="margin-top: 5px;">此报价单由系统自动生成</div>
-    </div>
-</body>
-</html> 
+</html>

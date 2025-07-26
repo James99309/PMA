@@ -125,6 +125,41 @@ class PDFGenerator:
         else:  # Linux
             return '"Noto Sans CJK SC", "DejaVu Sans", "Liberation Sans", "Arial", sans-serif'
     
+    def _get_company_logo(self, company_key=None):
+        """
+        获取公司Logo（优先从企业字典，回退到全局Logo）
+        
+        Args:
+            company_key: 企业字典键名，如果提供则尝试获取企业专属Logo
+        """
+        try:
+            # 优先尝试从企业字典获取Logo
+            if company_key:
+                from app.models.dictionary import Dictionary
+                company = Dictionary.query.filter_by(
+                    type='company', 
+                    key=company_key,
+                    is_active=True
+                ).first()
+                
+                if company and company.logo_content:
+                    logger.debug(f"✅ 使用企业字典Logo: {company_key}")
+                    return company.logo_data_url
+            
+            # 回退到全局Logo服务
+            from app.services.logo_service import LogoService
+            global_logo = LogoService.get_company_logo('evertac_logo')
+            if global_logo:
+                logger.debug("✅ 使用全局Logo")
+                return global_logo
+            
+            logger.warning("⚠️ 未找到任何Logo")
+            return None
+            
+        except Exception as e:
+            logger.error(f"❌ 获取公司Logo失败: {e}")
+            return None
+    
     def generate_pricing_order_pdf(self, pricing_order):
         """生成批价单PDF"""
         try:
@@ -216,15 +251,23 @@ class PDFGenerator:
     def generate_quotation_pdf(self, quotation):
         """生成报价单PDF"""
         try:
-            # 获取当前系统的字体配置
+            # 使用简单的Excel样式模板，确保与Excel导出格式一致
             font_family = self._get_system_font_family()
             
-            # 渲染HTML模板
+            # 获取企业Logo（优先使用报价单关联企业的Logo）
+            company_key = None
+            # 这里需要根据实际的数据模型来获取企业key
+            # 暂时使用默认Logo，后续可以根据用户归属企业来获取
+            
+            logo_base64 = self._get_company_logo(company_key)
+            
+            # 渲染HTML模板 - 使用简单的Excel样式模板
             html_content = render_template(
-                'pdf/quotation_template.html',
+                'pdf/quotation_template_simple.html',
                 quotation=quotation,
                 generated_at=datetime.now(),
-                font_family=font_family
+                font_family=font_family,
+                logo_base64=logo_base64
             )
             
             # 生成PDF文件名：报价单编号 & 项目名称
@@ -488,3 +531,13 @@ def generate_order_pdf(order):
     """生成订单PDF的便捷函数"""
     result = pdf_generator.generate_order_pdf(order)
     return result['content'] 
+
+
+def get_company_logo_base64():
+    """获取公司Logo的Base64编码（兼容函数，调用数据库Logo服务）"""
+    try:
+        from app.services.logo_service import get_company_logo_base64 as get_db_logo
+        return get_db_logo('evertac_logo')
+    except Exception as e:
+        logger.error(f"❌ 获取数据库Logo失败: {e}")
+        return None

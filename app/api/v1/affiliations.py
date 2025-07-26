@@ -397,7 +397,7 @@ def get_all_available_users():
     
     # 获取所有活跃用户，排除当前用户
     users = User.query.filter(
-        User.is_active == True,
+        User._is_active == True,
         User.id != current_user.id
     ).all()
     

@@ -53,6 +53,207 @@ h1.fw-bold {
     line-height: 1.2;
 }
 
+/* ==================== 导航栏毛玻璃效果 ==================== */
+.navbar-glass-morphism {
+    /* 加强黑色背景毛玻璃效果 */
+    background: 
+        linear-gradient(135deg, 
+            rgba(40, 40, 40, 0.85) 0%, 
+            rgba(20, 20, 20, 0.90) 30%, 
+            rgba(0, 0, 0, 0.88) 70%, 
+            rgba(0, 0, 0, 0.92) 100%
+        ) !important;
+    backdrop-filter: blur(25px) saturate(180%) brightness(1.1);
+    -webkit-backdrop-filter: blur(25px) saturate(180%) brightness(1.1);
+    
+    /* 增强边框和阴影 */
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-top: none;
+    box-shadow: 
+        0 8px 32px rgba(0, 0, 0, 0.6),
+        0 2px 8px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+    
+    /* 动画过渡 */
+    transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+/* 滚动时的动态效果 */
+.navbar-glass-morphism.navbar-scrolled {
+    background: 
+        linear-gradient(135deg, 
+            rgba(50, 50, 50, 0.80) 0%, 
+            rgba(30, 30, 30, 0.85) 30%, 
+            rgba(0, 0, 0, 0.82) 70%, 
+            rgba(0, 0, 0, 0.88) 100%
+        ) !important;
+    backdrop-filter: blur(30px) saturate(200%) brightness(1.2);
+    -webkit-backdrop-filter: blur(30px) saturate(200%) brightness(1.2);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-top: none;
+    box-shadow: 
+        0 12px 40px rgba(0, 0, 0, 0.7),
+        0 4px 12px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* 增强文字对比度 */
+.navbar-glass-morphism .system-title {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    font-weight: 600;
+}
+
+.navbar-glass-morphism .nav-link {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+}
+
+/* 悬停增强效果 - 移除外框高亮 */
+.navbar-glass-morphism .nav-link:hover {
+    background: 
+        linear-gradient(135deg, 
+            rgba(255, 255, 255, 0.12) 0%, 
+            rgba(255, 255, 255, 0.08) 50%,
+            rgba(255, 255, 255, 0.05) 100%
+        ) !important;
+    backdrop-filter: blur(20px) saturate(150%) brightness(1.1);
+    -webkit-backdrop-filter: blur(20px) saturate(150%) brightness(1.1);
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    transform: translateY(-1px);
+    box-shadow: 
+        0 6px 25px rgba(0, 0, 0, 0.4),
+        0 2px 8px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* 激活状态优化 */
+.navbar-glass-morphism .nav-link.active {
+    background: 
+        linear-gradient(135deg, 
+            rgba(255, 255, 255, 0.22) 0%, 
+            rgba(255, 255, 255, 0.16) 40%, 
+            rgba(255, 255, 255, 0.12) 70%,
+            rgba(255, 255, 255, 0.10) 100%
+        ) !important;
+    backdrop-filter: blur(25px) saturate(170%) brightness(1.15);
+    -webkit-backdrop-filter: blur(25px) saturate(170%) brightness(1.15);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
+    box-shadow: 
+        0 8px 30px rgba(0, 0, 0, 0.45),
+        0 3px 10px rgba(0, 0, 0, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.18),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* ==================== 统一导航下拉菜单样式 ==================== */
+
+/* 最高优先级：强制所有语言下拉菜单使用统一样式 */
+.dropdown-menu[aria-labelledby="mainLanguageDropdown"],
+.dropdown-menu[aria-labelledby="mobileLanguageDropdownTop"],
+ul.dropdown-menu[aria-labelledby="mainLanguageDropdown"],
+ul.dropdown-menu[aria-labelledby="mobileLanguageDropdownTop"] {
+    background: 
+        linear-gradient(135deg, 
+            rgba(40, 40, 40, 0.92) 0%, 
+            rgba(25, 25, 25, 0.94) 30%, 
+            rgba(10, 10, 10, 0.90) 70%,
+            rgba(0, 0, 0, 0.95) 100%
+        ) !important;
+    backdrop-filter: blur(30px) saturate(180%) brightness(1.15) !important;
+    -webkit-backdrop-filter: blur(30px) saturate(180%) brightness(1.15) !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5),
+                0 4px 15px rgba(0, 0, 0, 0.3) !important;
+    border-radius: 6px !important;
+    color: #fff !important;
+    background-color: transparent !important; /* 覆盖可能的白色背景 */
+}
+
+.dropdown-menu[aria-labelledby="mainLanguageDropdown"] .dropdown-item,
+.dropdown-menu[aria-labelledby="mobileLanguageDropdownTop"] .dropdown-item,
+ul.dropdown-menu[aria-labelledby="mainLanguageDropdown"] .dropdown-item,
+ul.dropdown-menu[aria-labelledby="mobileLanguageDropdownTop"] .dropdown-item,
+a.dropdown-item[data-lang] {
+    color: #fff !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    padding: 0.6rem 1rem !important;
+    transition: all 0.2s ease !important;
+    border-radius: 4px !important;
+    margin: 1px 0.25rem !important;
+    display: block !important;
+    width: calc(100% - 0.5rem) !important;
+    border: none !important;
+    text-decoration: none !important;
+    background: transparent !important;
+    background-color: transparent !important; /* 覆盖可能的白色背景 */
+}
+
+.dropdown-menu[aria-labelledby="mainLanguageDropdown"] .dropdown-item:hover,
+.dropdown-menu[aria-labelledby="mobileLanguageDropdownTop"] .dropdown-item:hover,
+ul.dropdown-menu[aria-labelledby="mainLanguageDropdown"] .dropdown-item:hover,
+ul.dropdown-menu[aria-labelledby="mobileLanguageDropdownTop"] .dropdown-item:hover,
+a.dropdown-item[data-lang]:hover {
+    background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05)) !important;
+    background-color: rgba(255,255,255,0.1) !important; /* 双重保险 */
+    color: #fff !important;
+    transform: none !important;
+    box-shadow: none !important;
+    text-decoration: none !important;
+}
+
+/* 下拉菜单毛玻璃效果 - 加强版本（保持向后兼容） */
+.navbar-glass-morphism .dropdown-menu {
+    background: 
+        linear-gradient(135deg, 
+            rgba(40, 40, 40, 0.92) 0%, 
+            rgba(25, 25, 25, 0.94) 30%, 
+            rgba(10, 10, 10, 0.90) 70%,
+            rgba(0, 0, 0, 0.95) 100%
+        ) !important;
+    backdrop-filter: blur(30px) saturate(180%) brightness(1.15) !important;
+    -webkit-backdrop-filter: blur(30px) saturate(180%) brightness(1.15) !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    box-shadow: 
+        0 12px 40px rgba(0, 0, 0, 0.6),
+        0 4px 16px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.06) !important;
+    border-radius: 15px !important;
+}
+
+.navbar-glass-morphism .dropdown-item {
+    color: rgba(255, 255, 255, 0.9) !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+}
+
+.navbar-glass-morphism .dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 4px;
+    transform: none !important;
+    margin: 0 !important;
+    padding: 0.5rem 1rem !important;
+}
+
+/* 移动端优化 */
+@media (max-width: 991.98px) {
+    .navbar-glass-morphism {
+        backdrop-filter: blur(15px) saturate(150%);
+        -webkit-backdrop-filter: blur(15px) saturate(150%);
+    }
+}
+
 /* ==================== 导航栏基础样式 ==================== */
 .navbar {
     margin-bottom: 0;
@@ -99,10 +300,10 @@ h1.fw-bold {
 /* ==================== 双层导航栏样式 ==================== */
 /* 主导航样式 */
 .main-nav {
-    background: linear-gradient(135deg, #000000, #1a1a1a) !important;
+    background: transparent !important;
     margin-bottom: 20px;
     border-bottom: none;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: none;
 }
 
 .main-nav .nav-tabs {
@@ -122,14 +323,20 @@ h1.fw-bold {
     margin: 0 2px;
 }
 
-/* 激活状态和焦点状态 */
-.main-nav .nav-link.active, 
-.main-nav .nav-link:focus {
+/* 激活状态（选中的菜单项） */
+.main-nav .nav-link.active {
     color: var(--pa-blue) !important;
     background: linear-gradient(135deg, #ffffff, #f8f9fa) !important;
     border-radius: 6px 6px 0 0;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     transform: translateY(-1px);
+}
+
+/* 焦点状态（点击时不显示特殊样式） */
+.main-nav .nav-link:focus {
+    outline: none !important;
+    box-shadow: none !important;
+    border: none !important;
 }
 
 /* 非激活链接悬停效果 */
@@ -142,24 +349,38 @@ h1.fw-bold {
 
 /* 响应式菜单选中样式 */
 @media (max-width: 991.98px) {
-    .main-menu-list .nav-link.active, 
-    .main-menu-list .nav-link:focus {
+    /* 移动端激活状态（选中的菜单项） */
+    .main-menu-list .nav-link.active {
         border-left: 4px solid #167ac6 !important;
         border-bottom: none !important;
         color: #167ac6 !important;
         font-weight: bold !important;
         background: none !important;
     }
+    
+    /* 移动端焦点状态（点击时不显示特殊样式） */
+    .main-menu-list .nav-link:focus {
+        outline: none !important;
+        box-shadow: none !important;
+        border: none !important;
+    }
 }
 
 @media (min-width: 992px) {
-    .main-menu-list .nav-link.active, 
-    .main-menu-list .nav-link:focus {
+    /* 桌面端激活状态（选中的菜单项） */
+    .main-menu-list .nav-link.active {
         border-left: none !important;
         border-bottom: 3px solid #167ac6 !important;
         color: #167ac6 !important;
         font-weight: bold !important;
         background: none !important;
+    }
+    
+    /* 桌面端焦点状态（点击时不显示特殊样式） */
+    .main-menu-list .nav-link:focus {
+        outline: none !important;
+        box-shadow: none !important;
+        border: none !important;
     }
 }
 
@@ -184,11 +405,20 @@ h1.fw-bold {
     min-width: 180px;
 }
 
-/* 账户头像下拉菜单样式 - 与头像按键背景色一致 */
+/* 账户头像下拉菜单样式 - 毛玻璃效果版本 */
 .user-avatar-capsule + .dropdown-menu {
-    background: linear-gradient(135deg, #b13a5b, #9d2f4a) !important;
-    border: 1px solid rgba(255,255,255,0.2) !important;
-    box-shadow: 0 4px 12px rgba(177, 58, 91, 0.3) !important;
+    background: 
+        linear-gradient(135deg, 
+            rgba(177, 58, 91, 0.85) 0%, 
+            rgba(157, 47, 74, 0.88) 30%, 
+            rgba(137, 36, 57, 0.85) 70%,
+            rgba(120, 25, 45, 0.90) 100%
+        ) !important;
+    backdrop-filter: blur(25px) saturate(160%) brightness(1.1) !important;
+    -webkit-backdrop-filter: blur(25px) saturate(160%) brightness(1.1) !important;
+    border: 1px solid rgba(255,255,255,0.25) !important;
+    box-shadow: 0 12px 35px rgba(177, 58, 91, 0.4),
+                0 4px 12px rgba(177, 58, 91, 0.2) !important;
     min-width: 180px;
     border-radius: 6px !important;
     margin-top: 0 !important;
@@ -199,17 +429,24 @@ h1.fw-bold {
     color: #fff !important;
     font-size: 14px !important;
     font-weight: 500 !important;
-    padding: 0.7rem 1.1rem !important;
+    padding: 0.6rem 1rem !important;
     transition: all 0.2s ease !important;
-    margin: 0 0.5rem !important;
+    margin: 1px 0.25rem !important;
     border-radius: 4px !important;
+    display: block !important;
+    width: calc(100% - 0.5rem) !important;
+    border: none !important;
+    border-top: none !important;
+    border-bottom: none !important;
 }
 
 .user-avatar-capsule + .dropdown-menu .dropdown-item:hover {
     background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.1)) !important;
     color: #fff !important;
-    transform: translateY(-1px) !important;
-    box-shadow: 0 2px 4px rgba(255,255,255,0.1) !important;
+    transform: none !important;
+    box-shadow: none !important;
+    margin: 1px 0.25rem !important;
+    border-radius: 4px !important;
 }
 
 .main-nav .user-dropdown-item {
@@ -223,8 +460,9 @@ h1.fw-bold {
 .main-nav .user-dropdown-item:hover {
     background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05)) !important;
     color: #fff !important;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(255,255,255,0.1);
+    transform: none !important;
+    box-shadow: none !important;
+    border-radius: 4px !important;
 }
 
 /* 主菜单悬停弹出子菜单样式 */
@@ -241,10 +479,40 @@ h1.fw-bold {
 
 /* 去除主菜单点击时的蓝色边框和outline */
 .main-nav .nav-link:focus,
-.main-nav .dropdown-toggle:focus {
+.main-nav .dropdown-toggle:focus,
+.navbar-glass-morphism .nav-link:focus,
+.navbar-glass-morphism .dropdown-toggle:focus,
+.navbar-nav .nav-link:focus,
+.nav-link:focus {
     outline: none !important;
     box-shadow: none !important;
     border: none !important;
+    background: transparent !important;
+}
+
+/* 去除导航菜单悬停时的外框高亮效果 */
+.navbar-glass-morphism .nav-link,
+.navbar-glass-morphism .dropdown-toggle {
+    border: none !important;
+    outline: none !important;
+}
+
+.navbar-glass-morphism .nav-link:hover,
+.navbar-glass-morphism .dropdown-toggle:hover {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* 强化：确保所有导航链接在各种状态下都不显示蓝色边框 */
+.nav-link:focus:not(.active),
+.nav-link:active:not(.active),
+.nav-link:focus-visible:not(.active) {
+    outline: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+    color: inherit !important;
 }
 
 /* 隐藏主菜单的向下箭头 */
@@ -255,57 +523,97 @@ h1.fw-bold {
 
 
 /* ==================== 导航栏下拉菜单样式 ==================== */
+/* 使用统一的导航下拉菜单毛玻璃样式 */
 .main-nav .dropdown-menu,
-.navbar .dropdown-menu {
-    background: linear-gradient(135deg, #000000, #1a1a1a) !important;
-    border: 1px solid rgba(255,255,255,0.1) !important;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+.navbar .dropdown-menu,
+.nav-dropdown-glass,
+#mainLanguageDropdown + .dropdown-menu,
+#mobileLanguageDropdownTop + .dropdown-menu {
+    background: 
+        linear-gradient(135deg, 
+            rgba(40, 40, 40, 0.92) 0%, 
+            rgba(25, 25, 25, 0.94) 30%, 
+            rgba(10, 10, 10, 0.90) 70%,
+            rgba(0, 0, 0, 0.95) 100%
+        ) !important;
+    backdrop-filter: blur(30px) saturate(180%) brightness(1.15) !important;
+    -webkit-backdrop-filter: blur(30px) saturate(180%) brightness(1.15) !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5),
+                0 4px 15px rgba(0, 0, 0, 0.3) !important;
     border-radius: 6px !important;
 }
 
+/* 统一的导航下拉菜单项样式 */
 .main-nav .dropdown-item,
-.navbar .dropdown-item {
+.navbar .dropdown-item,
+.nav-dropdown-item,
+a[data-lang].dropdown-item {
     color: #fff !important;
     font-size: 14px !important;
     font-weight: 500 !important;
-    padding: 0.7rem 1.1rem !important;
+    padding: 0.6rem 1rem !important;
     transition: all 0.2s ease !important;
     border-radius: 4px !important;
-    margin: 2px 4px !important;
+    margin: 1px 0.25rem !important;
+    display: block !important;
+    width: calc(100% - 0.5rem) !important;
+    border: none !important;
+    border-top: none !important;
+    border-bottom: none !important;
+    text-decoration: none !important;
 }
 
 .main-nav .dropdown-item:hover,
 .main-nav .dropdown-item:focus,
 .navbar .dropdown-item:hover,
-.navbar .dropdown-item:focus {
+.navbar .dropdown-item:focus,
+.nav-dropdown-item:hover,
+.nav-dropdown-item:focus,
+a[data-lang].dropdown-item:hover {
     background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05)) !important;
     color: #fff !important;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(255,255,255,0.1);
+    transform: none !important;
+    box-shadow: none !important;
+    border-radius: 4px !important;
+    margin: 1px 0.25rem !important;
+    text-decoration: none !important;
 }
 
 .main-nav .dropdown-item.active,
-.navbar .dropdown-item.active {
+.navbar .dropdown-item.active,
+.nav-dropdown-item.active {
     background: linear-gradient(135deg, var(--pa-blue), var(--pa-dark-blue)) !important;
     color: #fff !important;
 }
 
 .main-nav .dropdown-divider,
-.navbar .dropdown-divider {
-    border-color: rgba(255,255,255,0.1) !important;
-    margin: 0.25rem 0 !important;
+.navbar .dropdown-divider,
+.user-avatar-capsule + .dropdown-menu .dropdown-divider {
+    display: none !important;
+    border: none !important;
+    margin: 0 !important;
+    height: 0 !important;
+}
+
+/* 移除所有导航栏下拉菜单中的分割线 */
+.navbar-glass-morphism .dropdown-divider {
+    display: none !important;
+    border: none !important;
+    margin: 0 !important;
+    height: 0 !important;
 }
 
 /* ==================== 默认下拉菜单样式（恢复Bootstrap默认） ==================== */
-/* 排除导航栏和用户头像的下拉菜单 */
-.dropdown-menu:not(.main-nav .dropdown-menu):not(.navbar .dropdown-menu):not(.user-avatar-capsule + .dropdown-menu) {
+/* 排除导航栏、用户头像和语言选择的下拉菜单 */
+.dropdown-menu:not(.main-nav .dropdown-menu):not(.navbar .dropdown-menu):not(.user-avatar-capsule + .dropdown-menu):not(#mainLanguageDropdown + .dropdown-menu):not(#mobileLanguageDropdownTop + .dropdown-menu) {
     background-color: #ffffff !important;
     border: 1px solid rgba(0,0,0,0.15) !important;
     box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15) !important;
     border-radius: 0.375rem !important;
 }
 
-.dropdown-item:not(.main-nav .dropdown-item):not(.navbar .dropdown-item):not(.user-avatar-capsule + .dropdown-menu .dropdown-item) {
+.dropdown-item:not(.main-nav .dropdown-item):not(.navbar .dropdown-item):not(.user-avatar-capsule + .dropdown-menu .dropdown-item):not(a[data-lang].dropdown-item) {
     color: #212529 !important;
     font-size: 1rem !important;
     font-weight: 400 !important;
@@ -315,25 +623,26 @@ h1.fw-bold {
     margin: 0 !important;
 }
 
-.dropdown-item:not(.main-nav .dropdown-item):not(.navbar .dropdown-item):not(.user-avatar-capsule + .dropdown-menu .dropdown-item):hover,
-.dropdown-item:not(.main-nav .dropdown-item):not(.navbar .dropdown-item):not(.user-avatar-capsule + .dropdown-menu .dropdown-item):focus {
+.dropdown-item:not(.main-nav .dropdown-item):not(.navbar .dropdown-item):not(.user-avatar-capsule + .dropdown-menu .dropdown-item):not(a[data-lang].dropdown-item):hover,
+.dropdown-item:not(.main-nav .dropdown-item):not(.navbar .dropdown-item):not(.user-avatar-capsule + .dropdown-menu .dropdown-item):not(a[data-lang].dropdown-item):focus {
     background-color: #e9ecef !important;
     color: #1e2125 !important;
     transform: none !important;
     box-shadow: none !important;
 }
 
-.dropdown-item:not(.main-nav .dropdown-item):not(.navbar .dropdown-item):not(.user-avatar-capsule + .dropdown-menu .dropdown-item).active {
+.dropdown-item:not(.main-nav .dropdown-item):not(.navbar .dropdown-item):not(.user-avatar-capsule + .dropdown-menu .dropdown-item):not(a[data-lang].dropdown-item).active {
     background-color: #0d6efd !important;
     color: #ffffff !important;
 }
 
-.dropdown-divider:not(.main-nav .dropdown-divider):not(.navbar .dropdown-divider):not(.user-avatar-capsule + .dropdown-menu .dropdown-divider) {
+.dropdown-divider:not(.main-nav .dropdown-divider):not(.navbar .dropdown-divider):not(.user-avatar-capsule + .dropdown-menu .dropdown-divider):not(#mainLanguageDropdown + .dropdown-menu .dropdown-divider):not(#mobileLanguageDropdownTop + .dropdown-menu .dropdown-divider) {
     border-color: rgba(0,0,0,0.15) !important;
     margin: 0.5rem 0 !important;
 }
 
 /* ==================== 语言切换器样式 ==================== */
+/* 桌面端语言切换器样式 */
 .btn-link.text-white {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05)) !important;
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
@@ -349,6 +658,156 @@ h1.fw-bold {
     color: #fff !important;
     text-decoration: none !important;
 }
+
+/* 顶部移动端语言切换器样式 */
+#mobileLanguageDropdownTop {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05)) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    border-radius: 6px !important;
+    padding: 0.4rem 0.6rem !important;
+    color: #fff !important;
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+    margin: 0 !important;
+    min-width: auto !important;
+    white-space: nowrap !important;
+}
+
+#mobileLanguageDropdownTop:hover,
+#mobileLanguageDropdownTop:focus {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.08)) !important;
+    border-color: rgba(255, 255, 255, 0.25) !important;
+    color: #fff !important;
+    text-decoration: none !important;
+    box-shadow: 0 2px 8px rgba(255, 255, 255, 0.1) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* 顶部移动端语言切换器图标样式 */
+#mobileLanguageDropdownTop .fas.fa-globe {
+    color: rgba(255, 255, 255, 0.9) !important;
+    font-size: 0.8rem !important;
+}
+
+#mobileLanguageDropdownTop .fas.fa-caret-down {
+    color: rgba(255, 255, 255, 0.7) !important;
+    font-size: 0.7rem !important;
+    transition: transform 0.2s ease !important;
+}
+
+#mobileLanguageDropdownTop[aria-expanded="true"] .fas.fa-caret-down {
+    transform: rotate(180deg) !important;
+}
+
+/* 移动端顶部语言选择器布局优化 */
+@media (max-width: 991.98px) {
+    /* 移动端顶部语言选择器下拉菜单位置 */
+    #mobileLanguageDropdownTop + .dropdown-menu {
+        min-width: 120px !important;
+        right: 0 !important;
+        left: auto !important;
+        font-size: 0.8rem !important;
+    }
+    
+    /* 小屏幕隐藏语言文本，只显示图标 */
+    @media (max-width: 575.98px) {
+        #mobileLanguageDropdownTop .d-none.d-sm-inline {
+            display: none !important;
+        }
+        
+        #mobileLanguageDropdownTop {
+            padding: 0.4rem !important;
+            min-width: 32px !important;
+        }
+    }
+}
+
+/* 语言选择器下拉菜单样式 - 与导航菜单完全一致 */
+.main-language-option,
+.mobile-language-option,
+.language-option {
+    color: #fff !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    padding: 0.6rem 1rem !important;
+    transition: all 0.2s ease !important;
+    border-radius: 4px !important;
+    margin: 1px 0.25rem !important;
+    display: block !important;
+    width: calc(100% - 0.5rem) !important;
+    border: none !important;
+    border-top: none !important;
+    border-bottom: none !important;
+    background: transparent !important;
+}
+
+.main-language-option:hover,
+.mobile-language-option:hover,
+.language-option:hover {
+    background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05)) !important;
+    color: #fff !important;
+    transform: none !important;
+    box-shadow: none !important;
+    border-radius: 4px !important;
+    margin: 1px 0.25rem !important;
+    text-decoration: none !important;
+}
+
+.main-language-option i,
+.mobile-language-option i,
+.language-option i {
+    color: #fff !important;
+}
+
+/* 强制语言下拉菜单使用统一毛玻璃样式 */
+ul[aria-labelledby="mainLanguageDropdown"],
+ul[aria-labelledby="mobileLanguageDropdownTop"] {
+    background: 
+        linear-gradient(135deg, 
+            rgba(40, 40, 40, 0.92) 0%, 
+            rgba(25, 25, 25, 0.94) 30%, 
+            rgba(10, 10, 10, 0.90) 70%,
+            rgba(0, 0, 0, 0.95) 100%
+        ) !important;
+    backdrop-filter: blur(30px) saturate(180%) brightness(1.15) !important;
+    -webkit-backdrop-filter: blur(30px) saturate(180%) brightness(1.15) !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5),
+                0 4px 15px rgba(0, 0, 0, 0.3) !important;
+    border-radius: 6px !important;
+    color: #fff !important;
+    font-size: 14px !important;
+}
+
+ul[aria-labelledby="mainLanguageDropdown"] .dropdown-item,
+ul[aria-labelledby="mobileLanguageDropdownTop"] .dropdown-item {
+    color: #fff !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    padding: 0.6rem 1rem !important;
+    transition: all 0.2s ease !important;
+    border-radius: 4px !important;
+    margin: 1px 0.25rem !important;
+    display: block !important;
+    width: calc(100% - 0.5rem) !important;
+    border: none !important;
+    text-decoration: none !important;
+    background: transparent !important;
+}
+
+ul[aria-labelledby="mainLanguageDropdown"] .dropdown-item:hover,
+ul[aria-labelledby="mobileLanguageDropdownTop"] .dropdown-item:hover {
+    background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05)) !important;
+    color: #fff !important;
+    transform: none !important;
+    box-shadow: none !important;
+    text-decoration: none !important;
+}
+
+/* 覆盖语言下拉菜单的内联样式（已在上方统一定义） */
+
+/* 语言选择菜单项样式（已通过统一选择器定义） */
 
 /* ==================== 响应式菜单按钮样式 ==================== */
 .navbar-toggler {
@@ -727,10 +1186,12 @@ input[type="number"].discount-rate:hover {
 }
 
 .menu-item {
-    padding: 10px 12px;
+    padding: 8px 10px;
     border-bottom: 1px solid #f8f9fa;
     cursor: pointer;
     transition: background-color 0.2s;
+    font-size: 0.875rem; /* 缩小字体 */
+    line-height: 1.4;
 }
 
 .menu-item:hover,
@@ -746,15 +1207,17 @@ input[type="number"].discount-rate:hover {
 .menu-item.no-arrow {
     display: flex;
     align-items: flex-start;
-    gap: 10px;
-    padding: 12px;
+    gap: 8px;
+    padding: 10px;
+    font-size: 0.875rem; /* 缩小字体 */
 }
 
 .menu-loading {
-    padding: 15px;
+    padding: 12px;
     text-align: center;
     color: #6c757d;
     font-style: italic;
+    font-size: 0.875rem; /* 缩小字体 */
 }
 
 /* 产品图片预览样式 */
@@ -777,10 +1240,11 @@ input[type="number"].discount-rate:hover {
     color: #333;
     margin-bottom: 4px;
     word-wrap: break-word;
+    font-size: 0.875rem; /* 缩小字体 */
 }
 
 .product-spec-text {
-    font-size: 0.9em;
+    font-size: 0.8rem; /* 进一步缩小规格说明字体 */
     color: #666;
     line-height: 1.3;
     word-wrap: break-word;
@@ -990,11 +1454,66 @@ input[type="number"].discount-rate:hover {
 
 /* 徽章样式 - 无动画效果，保持静态渐变和阴影 */
 
-/* ==================== 标准按钮悬浮动画效果 ==================== */
-.btn:not(.btn-auxiliary):not(.user-avatar-capsule):not(.navbar-toggler):hover {
+/* ==================== 优化的统一按钮系统 ==================== */
+
+/* 统一按钮基础样式 - 默认灰色外观，1px黑色边框 */
+.btn-unified {
+    background-color: #f8f9fa !important;
+    color: #495057 !important;
+    border: 1px solid #000000 !important;  /* 1px黑色边框，简洁显眼 */
+    transition: all 0.2s ease !important;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* 统一按钮最小宽度设置 - 确保能容纳图标+4个字符 */
+.min-width-xs { min-width: 60px; }
+.min-width-sm { min-width: 80px; }
+.min-width-md { min-width: 90px; }
+.min-width-lg { min-width: 110px; }
+
+/* 统一按钮悬浮效果 - 显示语义颜色 */
+.btn-unified:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
     transition: all 0.2s ease;
+}
+
+/* 语义颜色按钮hover效果 - 鼠标悬停时显示对应的语义颜色 */
+.btn-unified-primary:hover {
+    background-color: #0C7CD0 !important;
+    color: white !important;
+    border-color: #0C7CD0 !important;
+}
+
+.btn-unified-success:hover {
+    background-color: #198754 !important;
+    color: white !important;
+    border-color: #198754 !important;
+}
+
+.btn-unified-danger:hover {
+    background-color: #dc3545 !important;
+    color: white !important;
+    border-color: #dc3545 !important;
+}
+
+.btn-unified-warning:hover {
+    background-color: #ffc107 !important;
+    color: #212529 !important;
+    border-color: #ffc107 !important;
+}
+
+.btn-unified-info:hover {
+    background-color: #0dcaf0 !important;
+    color: #212529 !important;
+    border-color: #0dcaf0 !important;
+}
+
+.btn-unified-secondary:hover {
+    background-color: #6c757d !important;
+    color: white !important;
+    border-color: #6c757d !important;
 }
 
 .btn:not(.btn-auxiliary):not(.user-avatar-capsule):not(.navbar-toggler):active {
@@ -1043,4 +1562,2561 @@ input[type="number"].discount-rate:hover {
     .badge.rounded-pill {
         padding: 0.25em 0.65em;
     }
+}
+
+/* 徽章基础样式 - 胶囊形状和半透明效果 */
+.badge-pill {
+    border-radius: 10rem;
+    padding: 0.35em 0.65em;
+}
+
+.badge-transparent {
+    border: 1px solid !important;
+    /* CSS变量定义透明度 */
+    --badge-bg-opacity: 0.4;
+    --badge-text-opacity: 0.8;
+    --badge-border-opacity: 0.6;
+    /* 确保徽章显示 */
+    display: inline-block !important;
+    padding: 0.35em 0.65em !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    line-height: 1 !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+    vertical-align: baseline !important;
+    border-radius: 0.375rem !important;
+}
+
+/* 确保胶囊形徽章的圆角 */
+.badge-pill.badge-transparent {
+    border-radius: 50rem !important;
+}
+
+/* ========== 标准化页面布局样式 ========== */
+/* 页面头部区域 - 标题与操作按钮在同一行 */
+.page-header-with-actions {
+    /* 基础样式 */
+    position: relative;
+    z-index: 10;
+    margin-top: 2rem !important;     /* 增加顶部间距，与菜单保持距离 */
+    margin-bottom: 1.5rem !important;
+    padding-left: 0 !important;      /* 确保左对齐 */
+    padding-right: 0 !important;     /* 确保右对齐 */
+}
+
+.page-header-with-actions .page-title {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: #212529;
+    margin: 0;
+}
+
+.page-header-with-actions .btn-toolbar {
+    gap: 0.5rem;
+}
+
+.page-header-with-actions .btn-toolbar .btn {
+    white-space: nowrap;
+}
+
+/* 响应式设计 - 移动端优化 */
+@media (max-width: 768px) {
+    /* 移除body的默认间距 */
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    /* 减少导航栏高度，节约空间 */
+    .header-wrapper {
+        height: auto !important;
+        min-height: auto !important;
+    }
+    
+    .top-header {
+        padding: 2px 0 !important; /* 进一步减少导航栏内部填充 */
+    }
+    
+    /* 减少主内容区域顶部间距，缩短菜单到内容的距离 */
+    main.container {
+        margin-top: -20px !important;    /* 使用负值让内容向上移动 */
+        margin-bottom: 1rem !important;  /* 覆盖Bootstrap的mb-5类 */
+        padding-top: 0 !important;       /* 完全移除内部顶部填充 */
+        position: relative !important;   /* 确保负margin生效 */
+        z-index: 10 !important;          /* 确保内容在导航栏下方正确显示 */
+    }
+    
+    /* 减少页面头部的间距，节约移动端空间 */
+    .page-header-with-actions {
+        margin-top: -10px !important;      /* 使用负值进一步向上移动 */
+        margin-bottom: 0.25rem !important; /* 最小化底部间距 */
+    }
+    
+    .page-header-with-actions .row {
+        flex-direction: row !important;     /* 保持水平布局 */
+        align-items: center !important;     /* 垂直居中对齐 */
+        flex-wrap: nowrap !important;       /* 防止换行 */
+    }
+    
+    .page-header-with-actions .col-auto {
+        flex: 0 1 auto !important;          /* 标题只占据必要空间 */
+        min-width: 0 !important;            /* 允许收缩 */
+        max-width: 60% !important;          /* 限制标题最大宽度为60% */
+        overflow: hidden !important;        /* 隐藏溢出内容 */
+    }
+    
+    .page-header-with-actions .col.text-end {
+        text-align: end !important;         /* 保持右对齐 */
+        margin-top: 0 !important;           /* 移除顶部间距 */
+        flex: 1 !important;                 /* 按钮区域占据剩余空间 */
+        min-width: 0 !important;            /* 允许收缩 */
+        width: auto !important;             /* 自动宽度 */
+    }
+    
+    .page-header-with-actions .btn-toolbar {
+        justify-content: flex-end !important;  /* 按钮右对齐 */
+        flex-wrap: nowrap !important;          /* 防止按钮换行 */
+        gap: 0.15rem !important;               /* 进一步减少按钮间距 */
+        width: 100% !important;                /* 占满可用空间 */
+    }
+    
+    .page-header-with-actions .btn-toolbar .btn {
+        width: 2.2rem !important;             /* 固定宽度防止拉伸 */
+        height: 2.2rem !important;            /* 固定高度防止拉伸 */
+        min-width: 2.2rem !important;         /* 最小宽度 */
+        min-height: 2.2rem !important;        /* 最小高度 */
+        max-width: 2.2rem !important;         /* 最大宽度防止拉伸 */
+        max-height: 2.2rem !important;        /* 最大高度防止拉伸 */
+        padding: 0 !important;                /* 移除内边距，通过固定尺寸控制 */
+        font-size: 0.75rem !important;        /* 较小的字体 */
+        border-radius: 1.1rem !important;     /* 胶囊圆角 */
+        flex-shrink: 0 !important;            /* 防止收缩 */
+        flex-grow: 0 !important;              /* 防止扩展 */
+    }
+    
+    /* 确保页面标题区域按钮的图标在移动端正确显示 */
+    .page-header-with-actions .btn-toolbar .btn {
+        display: flex !important;             /* 使用flex布局 */
+        align-items: center !important;       /* 垂直居中 */
+        justify-content: center !important;   /* 水平居中 */
+    }
+    
+    .page-header-with-actions .btn-toolbar .btn i {
+        margin-right: 0 !important;           /* 移除图标右边距 */
+        font-size: 0.9rem !important;         /* 适中的图标大小 */
+    }
+    
+    /* 处理下拉按钮的特殊情况 */
+    .page-header-with-actions .btn-toolbar .btn.dropdown-toggle {
+        width: 2.5rem !important;             /* 下拉按钮固定宽度 */
+        min-width: 2.5rem !important;         /* 最小宽度 */
+        max-width: 2.5rem !important;         /* 最大宽度防止拉伸 */
+        padding: 0 !important;                /* 移除内边距 */
+    }
+    
+    .page-header-with-actions .btn-toolbar .btn.dropdown-toggle::after {
+        margin-left: 0.2rem !important;       /* 箭头与图标的间距 */
+    }
+    
+    .page-header-with-actions .page-title {
+        font-size: 1.2rem !important;      /* 减小标题大小节约空间 */
+        margin-bottom: 0 !important;       /* 移除底部间距 */
+        white-space: nowrap !important;    /* 防止标题换行 */
+        overflow: hidden !important;       /* 隐藏溢出文字 */
+        text-overflow: ellipsis !important;/* 用省略号显示溢出 */
+        line-height: 1.2 !important;       /* 紧凑行高 */
+        width: 100% !important;            /* 占满父容器宽度 */
+    }
+}
+
+/* 重新设计对齐策略：让所有组件都使用container-fluid的15px边距作为基准 */
+.container-fluid .page-header-with-actions {
+    margin-left: 0;
+    margin-right: 0;
+    padding-left: 0; /* 只使用container-fluid的15px */
+    padding-right: 0;
+}
+
+/* 数据列表容器也不添加额外边距 */
+.data-list-container {
+    padding-left: 0; /* 只使用container-fluid的15px */
+    padding-right: 0;
+}
+
+/* 移除容器级别的边距，改由模块级别统一控制 */
+.stats-cards-container {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.filter-search-container {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* 表格区域：只管间距，不管边距（使用container-fluid的15px） */
+.module-data-section {
+    padding-left: 0; /* 只使用container-fluid的15px */
+    padding-right: 0;
+}
+
+/* 确保表格卡片本身不额外增加边距 */
+.module-data-section .card {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+/* 确保统计卡片flex容器不影响左对齐 */
+.stats-cards-container .d-flex {
+    justify-content: flex-start !important; /* 改为左对齐而不是两端对齐 */
+    align-items: stretch;
+}
+
+/* 统计卡片的左边距复位 */
+.stats-cards-container .card:first-child {
+    margin-left: 0 !important;
+}
+
+/* 模块统计区域：只管间距，不管边距（使用container-fluid的15px） */
+.module-stats-section {
+    margin-bottom: 1.5rem;
+    padding-left: 0; /* 只使用container-fluid的15px */
+    padding-right: 0;
+}
+
+/* 筛选器区域：只管间距，不管边距（使用container-fluid的15px） */
+.module-filters-section {
+    padding-left: 0; /* 只使用container-fluid的15px */
+    padding-right: 0;
+    margin-bottom: 1rem;
+}
+
+/* 修正筛选搜索组件的行边距问题 */
+.filter-search-container .row {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+/* 确保筛选搜索容器不再添加额外边距 */
+.filter-search-container {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+/* 模块数据区域标准间距 */
+.module-data-section {
+    margin-bottom: 0;
+}
+
+.badge-muted {
+    background-color: rgba(233, 236, 239, 0.6);
+    color: rgba(108, 117, 125, 0.8);
+    border: 1px solid rgba(233, 236, 239, 0.6);
+}
+
+/* 订单状态样式 - 全局统一，半透明低对比度效果 */
+.order-status-draft { 
+    background-color: rgba(226, 227, 229, var(--badge-bg-opacity)); 
+    color: rgba(73, 80, 87, var(--badge-text-opacity)); 
+    border-color: rgba(226, 227, 229, var(--badge-border-opacity));
+}
+.order-status-pending { 
+    background-color: rgba(255, 243, 205, var(--badge-bg-opacity)); 
+    color: rgba(102, 77, 3, var(--badge-text-opacity)); 
+    border-color: rgba(255, 243, 205, var(--badge-border-opacity));
+}
+.order-status-approved { 
+    background-color: rgba(212, 237, 218, var(--badge-bg-opacity)); 
+    color: rgba(21, 87, 36, var(--badge-text-opacity)); 
+    border-color: rgba(212, 237, 218, var(--badge-border-opacity));
+}
+.order-status-rejected { 
+    background-color: rgba(248, 215, 218, var(--badge-bg-opacity)); 
+    color: rgba(114, 28, 36, var(--badge-text-opacity)); 
+    border-color: rgba(248, 215, 218, var(--badge-border-opacity));
+}
+.order-status-confirmed { 
+    background-color: rgba(212, 237, 218, var(--badge-bg-opacity)); 
+    color: rgba(21, 87, 36, var(--badge-text-opacity)); 
+    border-color: rgba(212, 237, 218, var(--badge-border-opacity));
+}
+.order-status-shipped { 
+    background-color: rgba(204, 231, 255, var(--badge-bg-opacity)); 
+    color: rgba(10, 83, 190, var(--badge-text-opacity)); 
+    border-color: rgba(204, 231, 255, var(--badge-border-opacity));
+}
+.order-status-completed { 
+    background-color: rgba(209, 231, 221, var(--badge-bg-opacity)); 
+    color: rgba(15, 81, 50, var(--badge-text-opacity)); 
+    border-color: rgba(209, 231, 221, var(--badge-border-opacity));
+}
+.order-status-cancelled { 
+    background-color: rgba(248, 215, 218, var(--badge-bg-opacity)); 
+    color: rgba(114, 28, 36, var(--badge-text-opacity)); 
+    border-color: rgba(248, 215, 218, var(--badge-border-opacity));
+}
+
+/* 入库状态样式 - 全局统一，半透明低对比度效果 */
+.inventory-status-pending { 
+    background-color: rgba(255, 243, 205, var(--badge-bg-opacity)); 
+    color: rgba(102, 77, 3, var(--badge-text-opacity)); 
+    border-color: rgba(255, 243, 205, var(--badge-border-opacity));
+}
+.inventory-status-partially_received { 
+    background-color: rgba(204, 231, 255, var(--badge-bg-opacity)); 
+    color: rgba(10, 83, 190, var(--badge-text-opacity)); 
+    border-color: rgba(204, 231, 255, var(--badge-border-opacity));
+}
+.inventory-status-fully_received { 
+    background-color: rgba(209, 237, 255, var(--badge-bg-opacity)); 
+    color: rgba(12, 99, 228, var(--badge-text-opacity)); 
+    border-color: rgba(209, 237, 255, var(--badge-border-opacity));
+}
+
+/* Settlement status badge styles */
+.settlement-status-draft { 
+    background-color: rgba(226, 227, 229, var(--badge-bg-opacity)); 
+    color: rgba(73, 80, 87, var(--badge-text-opacity)); 
+    border-color: rgba(226, 227, 229, var(--badge-border-opacity));
+}
+.settlement-status-pending { 
+    background-color: rgba(255, 243, 205, var(--badge-bg-opacity)); 
+    color: rgba(102, 77, 3, var(--badge-text-opacity)); 
+    border-color: rgba(255, 243, 205, var(--badge-border-opacity));
+}
+.settlement-status-approved { 
+    background-color: rgba(212, 237, 218, var(--badge-bg-opacity)); 
+    color: rgba(21, 87, 36, var(--badge-text-opacity)); 
+    border-color: rgba(212, 237, 218, var(--badge-border-opacity));
+}
+.settlement-status-rejected { 
+    background-color: rgba(248, 215, 218, var(--badge-bg-opacity)); 
+    color: rgba(114, 28, 36, var(--badge-text-opacity)); 
+    border-color: rgba(248, 215, 218, var(--badge-border-opacity));
+}
+.settlement-status-executed { 
+    background-color: rgba(209, 231, 221, var(--badge-bg-opacity)); 
+    color: rgba(15, 81, 50, var(--badge-text-opacity)); 
+    border-color: rgba(209, 231, 221, var(--badge-border-opacity));
+}
+.settlement-status-cancelled { 
+    background-color: rgba(248, 215, 218, var(--badge-bg-opacity)); 
+    color: rgba(114, 28, 36, var(--badge-text-opacity)); 
+    border-color: rgba(248, 215, 218, var(--badge-border-opacity));
+}
+
+/* Stock status badge styles */
+.stock-status-out_of_stock { 
+    background-color: rgba(248, 215, 218, var(--badge-bg-opacity)); 
+    color: rgba(114, 28, 36, var(--badge-text-opacity)); 
+    border-color: rgba(248, 215, 218, var(--badge-border-opacity));
+}
+.stock-status-low_stock { 
+    background-color: rgba(255, 243, 205, var(--badge-bg-opacity)); 
+    color: rgba(102, 77, 3, var(--badge-text-opacity)); 
+    border-color: rgba(255, 243, 205, var(--badge-border-opacity));
+}
+.stock-status-normal { 
+    background-color: rgba(212, 237, 218, var(--badge-bg-opacity)); 
+    color: rgba(21, 87, 36, var(--badge-text-opacity)); 
+    border-color: rgba(212, 237, 218, var(--badge-border-opacity));
+}
+.stock-status-sufficient { 
+    background-color: rgba(209, 231, 221, var(--badge-bg-opacity)); 
+    color: rgba(15, 81, 50, var(--badge-text-opacity)); 
+    border-color: rgba(209, 231, 221, var(--badge-border-opacity));
+}
+
+/* Item count badge styles */
+.badge-count {
+    background: none;
+    color: #6c757d;
+    border: none;
+    font-weight: normal;
+    padding: 0.25em 0.5em;
+    font-size: 0.875em;
+}
+
+/* Filter search component styles */
+.filter-search-container {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
+
+.filter-row {
+    row-gap: 0.5rem;
+    align-items: end; /* 底部对齐，确保按钮和输入框对齐 */
+}
+
+.filter-control {
+    margin-bottom: 0.75rem;
+    min-width: 0; /* 允许flex收缩 */
+}
+
+/* 自适应宽度规则 - 基于内容长度动态调整 */
+.filter-control.adaptive-width {
+    flex: 1 1 auto;
+    min-width: 120px; /* 最小宽度 */
+    max-width: 300px; /* 最大宽度 */
+}
+
+/* 标签自适应 */
+.filter-control .form-label {
+    font-weight: 500;
+    color: #495057;
+    margin-bottom: 0.5rem;
+    white-space: nowrap; /* 标签不换行 */
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 响应式布局优化 */
+@media (max-width: 768px) {
+    .filter-row {
+        flex-direction: column;
+        gap: 0.5rem !important;          /* 减少行间距 */
+    }
+    
+    .filter-control {
+        width: 100% !important;
+        max-width: none !important;
+        margin-bottom: 0.5rem !important; /* 从1rem减少到0.5rem */
+    }
+    
+    /* 移动端禁用JavaScript自适应宽度调整，防止闪烁 */
+    .filter-control.adaptive-width {
+        flex-basis: auto !important;
+        max-width: none !important;
+    }
+    
+    /* 移动端标签间距优化 */
+    .filter-control .form-label {
+        margin-bottom: 0.3rem !important; /* 减少标签与输入框间距 */
+        font-size: 0.9rem !important;     /* 稍微减小标签字体 */
+    }
+    
+    /* 移动端表单控件紧凑化 */
+    .filter-control .form-control,
+    .filter-control .form-select {
+        padding: 0.5rem 0.75rem !important; /* 减少输入框内边距 */
+        font-size: 0.9rem !important;       /* 稍微减小输入框字体 */
+    }
+    
+    .filter-search-container {
+        padding: 1rem 1rem 0.5rem 1rem;    /* 减少底部内边距 */
+    }
+}
+
+/* 中等屏幕优化 */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .filter-control.adaptive-width {
+        min-width: 140px;
+        max-width: 220px;
+    }
+}
+
+/* 大屏幕优化 */
+@media (min-width: 1025px) {
+    .filter-control.adaptive-width {
+        min-width: 160px;
+        max-width: 280px;
+    }
+}
+
+.filter-control .form-control,
+.filter-control .form-select {
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.filter-control .form-control:focus,
+.filter-control .form-select:focus {
+    border-color: #86b7fe;
+    outline: 0;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* 筛选搜索组件 - 动态重置按钮样式 */
+.filter-reset-button {
+    transition: opacity 0.3s ease-in-out, transform 0.2s ease-in-out;
+    display: none; /* 初始隐藏，JavaScript控制显示 */
+}
+
+.filter-reset-button[style*="display: none"] {
+    opacity: 0;
+    transform: scale(0.95);
+    pointer-events: none;
+}
+
+.filter-reset-button:not([style*="display: none"]) {
+    opacity: 1;
+    transform: scale(1);
+}
+
+/* 筛选器选择时的视觉反馈 */
+.filter-control .form-select:not([value=""]),
+.filter-control .form-control:not([value=""]) {
+    border-color: #0d6efd;
+    background-color: rgba(13, 110, 253, 0.04);
+}
+
+/* 自动筛选加载状态 */
+.filter-search-container.loading {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.7;
+    min-height: 120px; /* 保持最小高度 */
+}
+
+.filter-search-container.loading::after {
+    content: '';
+    position: absolute;
+    top: 30px;
+    right: 20px;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #0d6efd;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    z-index: 10;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* 筛选按钮自适应布局 */
+.filter-row {
+    position: relative;
+}
+
+/* 防止筛选模块跳动 */
+.filter-search-container {
+    min-height: 120px; /* 设置最小高度避免高度变化 */
+    transition: none; /* 移除过渡动画 */
+}
+
+.filter-search-container .card-body {
+    padding-bottom: 1rem; /* 固定底部间距 */
+}
+
+.filter-row {
+    min-height: 60px; /* 确保行高度稳定 */
+    align-items: end; /* 底部对齐 */
+}
+
+.filter-control {
+    min-height: 60px; /* 确保控件高度一致 */
+    display: flex;
+    flex-direction: column;
+    justify-content: end; /* 内容底部对齐 */
+}
+
+.filter-buttons-container {
+    order: 999; /* 确保按钮容器始终在最后 */
+}
+
+/* 桌面端：按钮在右侧 */
+@media (min-width: 768px) {
+    .filter-row {
+        align-items: end; /* 底部对齐 */
+    }
+    
+    .filter-buttons-container {
+        flex-shrink: 0; /* 防止按钮被压缩 */
+        margin-left: auto; /* 推到右侧 */
+    }
+    
+    .filter-buttons-container .d-flex {
+        margin-top: 1.9rem; /* 与标签高度对齐 */
+    }
+}
+
+/* 移动端或空间不足时：按钮换行到下方 */
+@media (max-width: 767px) {
+    .filter-buttons-container {
+        order: 1000;
+        width: 100%;
+        margin-top: 0.5rem !important;    /* 从1rem减少到0.5rem */
+    }
+    
+    .filter-buttons-container .d-flex {
+        justify-content: flex-end;
+        margin-top: 0;
+    }
+}
+
+/* 当按钮和筛选器挤在一起时的检测和处理 */
+.filter-row.buttons-wrapped .filter-buttons-container {
+    width: 100% !important;
+    margin-top: 0.5rem !important;      /* 从1rem减少到0.5rem */
+    order: 1000 !important;
+}
+
+.filter-row.buttons-wrapped .filter-buttons-container .d-flex {
+    justify-content: flex-end;
+    margin-top: 0 !important;
+}
+
+/* 按钮样式优化 */
+.filter-search-button,
+.filter-reset-button {
+    white-space: nowrap; /* 防止按钮文字换行 */
+    min-width: 80px; /* 最小宽度 */
+}
+
+/* 筛选器和按钮的间距调整 */
+.filter-control {
+    margin-bottom: 0.5rem;
+}
+
+@media (min-width: 768px) {
+    .filter-control {
+        margin-bottom: 0;
+    }
+}
+
+/* ============================================================================ */
+/* 通用列表组件系统样式 */
+/* ============================================================================ */
+
+/* 数据列表容器 */
+.data-list-container {
+    padding: 1rem;
+}
+
+.data-list-container .page-title-container {
+    margin-bottom: 1.5rem;
+}
+
+.data-list-container .page-title {
+    color: #495057;
+    font-weight: 600;
+    margin-bottom: 0;
+}
+
+/* 统计卡片样式 - 简洁无徽章风格 */
+.stats-cards-container {
+    margin-bottom: 2rem;
+}
+
+.stats-cards-container .d-flex {
+    gap: 1rem;
+    justify-content: space-between;
+}
+
+.stats-cards-container .card {
+    flex: 1;
+    min-width: 200px;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: all 0.2s ease-in-out;
+    background-color: #f8f9fa;
+}
+
+.stats-cards-container .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+}
+
+.stats-cards-container .card.clickable {
+    cursor: pointer;
+}
+
+.stats-cards-container .card.active {
+    border: 1px solid #007bff;
+    box-shadow: 0 4px 15px rgba(0,123,255,0.2);
+}
+
+.stats-cards-container .card-title {
+    font-size: 0.875rem !important;
+    font-weight: 600 !important;
+    margin-bottom: 0.75rem;
+}
+
+.stats-cards-container .card-body span.fs-5 {
+    font-size: 1.1rem !important;
+    font-weight: bold !important;
+}
+
+/* 统计卡片金额显示样式 - 比数量小2号 */
+.stats-cards-container .card-body span[id$="Amount"] {
+    font-size: 0.9rem !important; /* 比数量的1.1rem小2号 */
+    font-weight: normal !important;
+}
+
+/* 金额容器右对齐 - 确保金额和单位都靠右对齐 */
+.stats-cards-container .card-body .d-flex > div:last-child {
+    text-align: right !important;
+    white-space: nowrap; /* 防止换行 */
+    min-width: 0; /* 允许flex收缩 */
+    flex-shrink: 0; /* 不收缩，保持右对齐 */
+}
+
+/* 确保左侧数量部分不占用过多空间 */
+.stats-cards-container .card-body .d-flex > div:first-child {
+    flex: 1;
+    min-width: 0;
+}
+
+/* 金额单位也要小2号 */
+.stats-cards-container .card-body .d-flex > div:last-child .text-muted {
+    font-size: 0.8rem !important;
+}
+
+.stats-cards-container .stats-value {
+    font-size: 1.1rem;
+    font-weight: bold;
+    margin-bottom: 0;
+}
+
+/* 兼容旧的统计卡片样式类名 */
+.stats-card {
+    border: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: all 0.2s ease-in-out;
+    background-color: #f8f9fa;
+}
+
+.stats-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+}
+
+.stats-card.clickable {
+    cursor: pointer;
+}
+
+.stats-card.active {
+    border-left: 4px solid var(--bs-primary);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.stats-card .card-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: #6c757d;
+}
+
+.stats-card .stats-value {
+    font-size: 1.1rem;
+    font-weight: bold;
+    margin-bottom: 0;
+}
+
+/* 不同颜色主题的统计卡片 */
+.stats-card-primary {
+    background-color: #e6f0f5;
+    border-left: 4px solid #0d6efd;
+}
+
+.stats-card-primary .stats-value {
+    color: #0d6efd;
+}
+
+.stats-card-success {
+    background-color: #e6f5ec;
+    border-left: 4px solid #198754;
+}
+
+.stats-card-success .stats-value {
+    color: #198754;
+}
+
+.stats-card-warning {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+}
+
+.stats-card-warning .stats-value {
+    color: #856404;
+}
+
+.stats-card-info {
+    background-color: #e6f5f9;
+    border-left: 4px solid #0dcaf0;
+}
+
+.stats-card-info .stats-value {
+    color: #0dcaf0;
+}
+
+.stats-card-danger {
+    background-color: #f8d7da;
+    border-left: 4px solid #dc3545;
+}
+
+.stats-card-danger .stats-value {
+    color: #dc3545;
+}
+
+/* 
+=============================================================================
+ ⚠️  通用模组CSS保护声明 ⚠️
+=============================================================================
+
+以下CSS规则控制通用列表组件和筛选搜索组件的样式
+被整个系统的多个页面共同使用
+
+🚨 修改保护协议 🚨
+- 这些CSS规则的任何修改都会影响整个系统的外观
+- 禁止随意修改通用组件相关的CSS规则
+- 如需修改，必须：
+  1. 详细分析影响范围和风险
+  2. 获得项目负责人明确同意  
+  3. 进行充分测试验证
+  4. 记录修改原因和影响范围
+
+📋 受保护的CSS类名：
+- .data-list-table*: 通用数据表格样式
+- .filter-search*: 筛选搜索样式
+- .stats-card*: 统计卡片样式
+- .page-header-with-actions*: 页面头部样式
+
+🔒 修改前请三思！
+=============================================================================
+*/
+
+/* 数据表格样式 */
+.data-list-table {
+    font-size: 0.875rem;
+    white-space: nowrap;
+}
+
+.data-list-table th,
+.data-list-table td {
+    padding: 0.75rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.data-list-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #495057;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.data-list-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* 增强的表格斑马纹效果 */
+.data-list-table .table-striped > tbody > tr:nth-of-type(odd) > * {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* 每五行加强一次的斑马纹效果 */
+.data-list-table .table-striped > tbody > tr:nth-of-type(10n+5) > * {
+    background-color: rgba(0, 0, 0, 0.04);
+}
+
+/* 行焦点效果 - 仅应用于报价单页面的data-list-table */
+body:has([data-page="quotation-list"]) .data-list-table .table tbody tr.highlight-row,
+.quotation-list-page .data-list-table .table tbody tr.highlight-row {
+    background-color: rgba(13, 110, 253, 0.08) !important;
+    outline: 1px solid rgba(13, 110, 253, 0.3);
+    box-shadow: 0 0 5px rgba(13, 110, 253, 0.2);
+}
+
+/* 强制移除所有data-list-table中的边框和轮廓效果（除了报价单页面） */
+.data-list-table:not(.quotation-list-page .data-list-table) .table tbody tr,
+.data-list-table:not(.quotation-list-page .data-list-table) .table tbody tr:hover,
+.data-list-table:not(.quotation-list-page .data-list-table) .table tbody tr:focus,
+.data-list-table:not(.quotation-list-page .data-list-table) .table tbody tr:focus-visible,
+.data-list-table:not(.quotation-list-page .data-list-table) .table tbody tr:focus-within,
+.data-list-table:not(.quotation-list-page .data-list-table) .table tbody tr.highlight-row,
+.data-list-table:not(.quotation-list-page .data-list-table) .table tbody tr *,
+.data-list-table:not(.quotation-list-page .data-list-table) .table tbody tr *:focus,
+.data-list-table:not(.quotation-list-page .data-list-table) .table tbody tr *:focus-visible {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    background-color: transparent !important;
+}
+
+/* 通用列表组件额外的焦点样式清除规则 */
+.data-list-table .table tbody tr {
+    /* 防止表格行变成可聚焦元素 */
+    outline: none !important;
+    /* 移除任何可能的焦点样式 */
+    -webkit-tap-highlight-color: transparent !important;
+    -webkit-focus-ring-color: transparent !important;
+}
+
+/* 移除通用列表中链接和其他交互元素的焦点边框（除了报价单页面） */
+.data-list-table:not(.quotation-list-page .data-list-table) .table tbody tr a,
+.data-list-table:not(.quotation-list-page .data-list-table) .table tbody tr button,
+.data-list-table:not(.quotation-list-page .data-list-table) .table tbody tr .badge,
+.data-list-table:not(.quotation-list-page .data-list-table) .table tbody tr span[class*="badge"] {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.data-list-table:not(.quotation-list-page .data-list-table) .table tbody tr a:focus,
+.data-list-table:not(.quotation-list-page .data-list-table) .table tbody tr button:focus,
+.data-list-table:not(.quotation-list-page .data-list-table) .table tbody tr .badge:focus,
+.data-list-table:not(.quotation-list-page .data-list-table) .table tbody tr span[class*="badge"]:focus {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    background-color: inherit !important;
+}
+
+/* 如果表格行有任何高亮类，强制移除其效果（非报价单页面） */
+body:not(.quotation-list-page) .data-list-table .table tbody tr.highlight-row,
+body:not(.quotation-list-page) .data-list-table .table tbody tr[class*="highlight"] {
+    background-color: transparent !important;
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* 最强制的样式重置 - 确保覆盖任何其他样式 */
+.container-fluid.page-with-fixed-nav:not(.quotation-list-page) .data-list-table .table tbody tr {
+    outline: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+.container-fluid.page-with-fixed-nav:not(.quotation-list-page) .data-list-table .table tbody tr.highlight-row {
+    background-color: inherit !important;
+    outline: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+/* 表格响应式样式 - 支持固定高度和容器滚动 */
+.data-list-table .table-responsive {
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    border-radius: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+}
+
+/* 固定高度容器滚动模式 - 可选，通过添加.fixed-height-scroll类激活 */
+.table-responsive.fixed-height-scroll {
+    max-height: 65vh !important; /* 设置最大高度为视口高度的65% */
+    overflow-y: auto !important; /* 添加垂直滚动 */
+    position: relative;
+    scroll-behavior: smooth;
+}
+
+/* 确保在数据列表上下文中也生效 */
+.data-list-container .table-responsive.fixed-height-scroll {
+    max-height: 65vh !important; /* 设置最大高度为视口高度的65% */
+    overflow-y: auto !important; /* 添加垂直滚动 */
+    position: relative;
+    scroll-behavior: smooth;
+}
+
+/* 额外的高优先级选择器以确保生效 */
+div.table-responsive.fixed-height-scroll {
+    max-height: 65vh !important;
+    overflow-y: auto !important;
+    position: relative;
+    scroll-behavior: smooth;
+}
+
+/* 滚动条样式美化 */
+.table-responsive::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
+
+/* 🧪 测试专用：固定高度滚动组件的特殊滚动条样式 */
+.table-responsive.fixed-height-scroll::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+    background: rgba(0, 123, 255, 0.1); /* 淡蓝色背景，表示组件滚动生效 */
+}
+
+.table-responsive.fixed-height-scroll::-webkit-scrollbar-track {
+    background: linear-gradient(90deg, #e3f2fd, #bbdefb);
+    border-radius: 6px;
+    border: 1px solid #90caf9;
+}
+
+.table-responsive.fixed-height-scroll::-webkit-scrollbar-thumb {
+    background: linear-gradient(45deg, #2196f3, #1976d2);
+    border-radius: 6px;
+    border: 2px solid #ffffff;
+    box-shadow: 0 2px 4px rgba(33, 150, 243, 0.3);
+}
+
+.table-responsive.fixed-height-scroll::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(45deg, #1976d2, #1565c0);
+    box-shadow: 0 3px 6px rgba(33, 150, 243, 0.5);
+}
+
+.table-responsive.fixed-height-scroll::-webkit-scrollbar-corner {
+    background: #e3f2fd;
+}
+
+/* 数字对齐 */
+.data-list-table .text-end {
+    text-align: right;
+    font-family: 'Courier New', monospace;
+}
+
+.data-list-table .text-center {
+    text-align: center;
+}
+
+/* 链接样式 */
+.data-list-table a {
+    color: #0d6efd;
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.data-list-table a:hover {
+    color: #0a58ca;
+    text-decoration: underline;
+}
+
+/* 徽章样式 */
+.data-list-table .badge {
+    font-size: 0.75rem;
+    padding: 0.35em 0.65em;
+}
+
+/* 加载状态 */
+.data-list-table .loading-cell {
+    text-align: center;
+    padding: 2rem;
+    color: #6c757d;
+}
+
+.data-list-table .loading-cell .spinner-border {
+    width: 1.5rem;
+    height: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* 空数据状态 */
+.data-list-table .empty-cell {
+    text-align: center;
+    padding: 2rem;
+    color: #6c757d;
+    font-style: italic;
+}
+
+/* 移动端适配 */
+@media (max-width: 991.98px) {
+    .data-list-container {
+        padding: 0.5rem;
+    }
+    
+    /* 优化移动端统计卡片布局 - 紧凑型2x2网格 */
+    .stats-cards-container {
+        margin-bottom: 1.5rem; /* 减少下方间距 */
+    }
+    
+    .stats-cards-container .d-flex {
+        flex-direction: row; /* 改为水平布局 */
+        flex-wrap: wrap; /* 允许换行 */
+        gap: 0.5rem; /* 减少间距 */
+        justify-content: space-between;
+    }
+    
+    .stats-cards-container .card {
+        min-width: auto;
+        flex: 0 0 calc(50% - 0.25rem); /* 每行显示2个，减去间距 */
+        margin-bottom: 0.5rem; /* 减少底部间距 */
+    }
+    
+    /* 统计卡片内容紧凑化 */
+    .stats-cards-container .card-body {
+        padding: 0.75rem 0.5rem; /* 减少内边距 */
+    }
+    
+    .stats-cards-container .card-title {
+        font-size: 0.75rem !important; /* 减小标题字体 */
+        margin-bottom: 0.5rem; /* 减少底部间距 */
+    }
+    
+    .stats-cards-container .card-body span.fs-5 {
+        font-size: 1rem !important; /* 减小数值字体 */
+    }
+    
+    .stats-cards-container .card-body span[id$="Amount"] {
+        font-size: 0.8rem !important; /* 减小金额字体 */
+    }
+    
+    /* 兼容旧版本 */
+    .stats-cards-container .col-md-3,
+    .stats-cards-container .col-md-4,
+    .stats-cards-container .col-md-6 {
+        margin-bottom: 0.5rem; /* 减少间距 */
+        flex: 0 0 calc(50% - 0.25rem); /* 应用2列布局 */
+    }
+    
+    .data-list-table {
+        font-size: 0.8rem;
+        min-width: 800px; /* 确保有最小宽度支持横向滚动 */
+    }
+    
+    .data-list-table th,
+    .data-list-table td {
+        padding: 0.5rem;
+    }
+}
+
+/* 超小屏幕（<576px）进一步优化统计卡片和页面布局 */
+@media (max-width: 575.98px) {
+    /* 进一步减少主内容区域间距 */
+    main.container {
+        margin-top: -30px !important;    /* 使用更大的负值 */
+        margin-bottom: 0.5rem !important; /* 覆盖Bootstrap的mb-5类 */
+        padding-top: 0 !important;       /* 完全移除内部填充 */
+        position: relative !important;   /* 确保负margin生效 */
+        z-index: 10 !important;          /* 确保内容在导航栏下方正确显示 */
+    }
+    
+    .stats-cards-container .card {
+        flex: 0 0 calc(50% - 0.25rem); /* 保持2列布局 */
+    }
+    
+    .stats-cards-container .card-body {
+        padding: 0.5rem 0.4rem; /* 进一步减少内边距 */
+    }
+    
+    .stats-cards-container .card-title {
+        font-size: 0.7rem !important; /* 进一步减小标题 */
+        line-height: 1.2;
+        margin-bottom: 0.4rem;
+    }
+    
+    .stats-cards-container .card-body span.fs-5 {
+        font-size: 0.9rem !important; /* 进一步减小数值 */
+    }
+    
+    .stats-cards-container .card-body span[id$="Amount"] {
+        font-size: 0.75rem !important; /* 进一步减小金额字体 */
+    }
+    
+    /* 页面标题进一步优化 */
+    .page-header-with-actions {
+        margin-top: -15px !important;      /* 使用更大负值 */
+        margin-bottom: 0.1rem !important;  /* 极小化底部间距 */
+    }
+    
+    .page-header-with-actions .page-title {
+        font-size: 1rem !important;        /* 进一步减小标题节约空间 */
+        margin-bottom: 0 !important;       /* 移除底部间距 */
+        white-space: nowrap !important;    /* 防止标题换行 */
+        overflow: hidden !important;       /* 隐藏溢出文字 */
+        text-overflow: ellipsis !important;/* 用省略号显示溢出 */
+        line-height: 1.1 !important;       /* 更紧凑行高 */
+        width: 100% !important;            /* 占满父容器宽度 */
+    }
+    
+    /* 超小屏幕标题容器空间分配 */
+    .page-header-with-actions .col-auto {
+        max-width: 50% !important;          /* 超小屏幕标题最大宽度50% */
+    }
+    
+    .page-header-with-actions .col.text-end {
+        flex: 1 !important;                 /* 按钮区域占据更多剩余空间 */
+    }
+    
+    /* 超小屏幕按钮工具栏间距优化 */
+    .page-header-with-actions .btn-toolbar {
+        gap: 0.1rem !important;             /* 最小化按钮间距 */
+        width: 100% !important;             /* 占满可用空间 */
+    }
+    
+    /* 超小屏幕按钮工具栏优化 */
+    .page-header-with-actions .btn-toolbar .btn {
+        width: 2rem !important;            /* 固定宽度防止拉伸 */
+        height: 2rem !important;           /* 固定高度防止拉伸 */
+        min-width: 2rem !important;        /* 最小宽度 */
+        min-height: 2rem !important;       /* 最小高度 */
+        max-width: 2rem !important;        /* 最大宽度防止拉伸 */
+        max-height: 2rem !important;       /* 最大高度防止拉伸 */
+        padding: 0 !important;             /* 移除内边距 */
+        font-size: 0.7rem !important;      /* 更小的字体 */
+        border-radius: 1rem !important;    /* 胶囊圆角 */
+        flex-shrink: 0 !important;         /* 防止收缩 */
+        flex-grow: 0 !important;           /* 防止扩展 */
+        display: flex !important;          /* flex布局 */
+        align-items: center !important;    /* 垂直居中 */
+        justify-content: center !important;/* 水平居中 */
+    }
+    
+    /* 超小屏幕图标优化 */
+    .page-header-with-actions .btn-toolbar .btn i {
+        margin-right: 0 !important;       /* 移除图标右边距 */
+        font-size: 0.8rem !important;     /* 适中的图标大小 */
+    }
+    
+    /* 超小屏幕下拉按钮处理 */
+    .page-header-with-actions .btn-toolbar .btn.dropdown-toggle {
+        width: 2.2rem !important;         /* 下拉按钮固定宽度 */
+        min-width: 2.2rem !important;     /* 最小宽度 */
+        max-width: 2.2rem !important;     /* 最大宽度防止拉伸 */
+        padding: 0 !important;            /* 移除内边距 */
+    }
+    
+    .page-header-with-actions .btn-toolbar .btn.dropdown-toggle::after {
+        margin-left: 0.15rem !important;  /* 箭头与图标的间距 */
+    }
+}
+
+/* 订单状态徽章样式 - 已移除冗余样式，统一使用CSS变量透明度系统 */
+/* 订单状态徽章现在统一使用 badge-transparent 类和 CSS 变量透明度系统 */
+/* 库存状态徽章同样使用统一的透明度系统 */
+
+/* 报价单编号徽章样式 - 灰色边框胶囊形 */
+.data-list-table .badge.badge-transparent.quotation-number-badge,
+.badge.badge-transparent.quotation-number-badge {
+    background-color: rgba(248, 249, 250, var(--badge-bg-opacity)) !important; 
+    color: rgba(73, 80, 87, var(--badge-text-opacity)) !important; 
+    border-color: rgba(222, 226, 230, var(--badge-border-opacity)) !important;
+    font-family: 'Helvetica Neue', sans-serif;
+    font-weight: 500;
+    border-radius: 50rem !important;
+    border: 1px solid !important;
+    padding: 0.35em 0.65em !important;
+    font-size: 0.75rem !important;
+}
+
+/* 链接内的报价单编号徽章 - 确保链接样式不覆盖徽章样式 */
+.data-list-table a .badge.badge-transparent.quotation-number-badge,
+a .badge.badge-transparent.quotation-number-badge,
+a:hover .badge.badge-transparent.quotation-number-badge,
+a:visited .badge.badge-transparent.quotation-number-badge,
+a:focus .badge.badge-transparent.quotation-number-badge {
+    background-color: rgba(248, 249, 250, var(--badge-bg-opacity)) !important; 
+    color: rgba(73, 80, 87, var(--badge-text-opacity)) !important; 
+    border-color: rgba(222, 226, 230, var(--badge-border-opacity)) !important;
+    text-decoration: none !important;
+}
+
+/* 项目阶段徽章样式 - 全局统一，半透明低对比度效果 */
+.badge.badge-transparent.project-stage-discover {
+    background-color: rgba(207, 226, 255, var(--badge-bg-opacity)) !important;
+    color: rgba(9, 70, 185, var(--badge-text-opacity)) !important;
+    border-color: rgba(207, 226, 255, var(--badge-border-opacity)) !important;
+}
+.badge.badge-transparent.project-stage-embed {
+    background-color: rgba(212, 237, 218, var(--badge-bg-opacity)) !important;
+    color: rgba(21, 87, 36, var(--badge-text-opacity)) !important;
+    border-color: rgba(212, 237, 218, var(--badge-border-opacity)) !important;
+}
+.badge.badge-transparent.project-stage-pre_tender {
+    background-color: rgba(207, 244, 252, var(--badge-bg-opacity)) !important;
+    color: rgba(5, 148, 192, var(--badge-text-opacity)) !important;
+    border-color: rgba(207, 244, 252, var(--badge-border-opacity)) !important;
+}
+.badge.badge-transparent.project-stage-tendering {
+    background-color: rgba(255, 243, 205, var(--badge-bg-opacity)) !important;
+    color: rgba(102, 77, 3, var(--badge-text-opacity)) !important;
+    border-color: rgba(255, 243, 205, var(--badge-border-opacity)) !important;
+}
+.badge.badge-transparent.project-stage-awarded {
+    background-color: rgba(254, 240, 219, var(--badge-bg-opacity)) !important;
+    color: rgba(108, 59, 14, var(--badge-text-opacity)) !important;
+    border-color: rgba(254, 240, 219, var(--badge-border-opacity)) !important;
+}
+.badge.badge-transparent.project-stage-quoted {
+    background-color: rgba(232, 222, 248, var(--badge-bg-opacity)) !important;
+    color: rgba(82, 38, 152, var(--badge-text-opacity)) !important;
+    border-color: rgba(232, 222, 248, var(--badge-border-opacity)) !important;
+}
+.badge.badge-transparent.project-stage-signed {
+    background-color: rgba(209, 249, 232, var(--badge-bg-opacity)) !important;
+    color: rgba(14, 122, 82, var(--badge-text-opacity)) !important;
+    border-color: rgba(209, 249, 232, var(--badge-border-opacity)) !important;
+}
+.badge.badge-transparent.project-stage-lost {
+    background-color: rgba(248, 215, 218, var(--badge-bg-opacity)) !important;
+    color: rgba(114, 28, 36, var(--badge-text-opacity)) !important;
+    border-color: rgba(248, 215, 218, var(--badge-border-opacity)) !important;
+}
+.badge.badge-transparent.project-stage-paused {
+    background-color: rgba(233, 236, 239, var(--badge-bg-opacity)) !important;
+    color: rgba(73, 80, 87, var(--badge-text-opacity)) !important;
+    border-color: rgba(233, 236, 239, var(--badge-border-opacity)) !important;
+}
+
+/* 报告来源徽章样式 - 半透明效果，沿用来源的专有颜色 */
+.badge.badge-transparent.report-source-marketing {
+    background-color: rgba(255, 107, 53, var(--badge-bg-opacity)) !important;
+    color: rgba(180, 48, 24, var(--badge-text-opacity)) !important;
+    border-color: rgba(255, 107, 53, var(--badge-border-opacity)) !important;
+}
+.badge.badge-transparent.report-source-channel {
+    background-color: rgba(91, 192, 222, var(--badge-bg-opacity)) !important;
+    color: rgba(41, 128, 147, var(--badge-text-opacity)) !important;
+    border-color: rgba(91, 192, 222, var(--badge-border-opacity)) !important;
+}
+.badge.badge-transparent.report-source-sales {
+    background-color: rgba(11, 110, 253, var(--badge-bg-opacity)) !important;
+    color: rgba(9, 70, 185, var(--badge-text-opacity)) !important;
+    border-color: rgba(11, 110, 253, var(--badge-border-opacity)) !important;
+}
+.badge.badge-transparent.report-source-unknown {
+    background-color: rgba(108, 117, 125, var(--badge-bg-opacity)) !important;
+    color: rgba(73, 80, 87, var(--badge-text-opacity)) !important;
+    border-color: rgba(108, 117, 125, var(--badge-border-opacity)) !important;
+}
+
+/* 项目类型徽章样式 - 轻背景深边框效果 */
+.data-list-table .badge.badge-transparent.project-type-channel_follow,
+.badge.badge-transparent.project-type-channel_follow {
+    background-color: rgba(209, 236, 241, var(--badge-bg-opacity)) !important;
+    color: rgba(23, 162, 184, var(--badge-text-opacity)) !important;
+    border-color: rgba(23, 162, 184, var(--badge-border-opacity)) !important;
+    border-radius: 50rem !important;
+    border: 1px solid !important;
+    padding: 0.35em 0.65em !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+}
+.data-list-table .badge.badge-transparent.project-type-sales_focus,
+.badge.badge-transparent.project-type-sales_focus {
+    background-color: rgba(212, 237, 218, var(--badge-bg-opacity)) !important;
+    color: rgba(21, 87, 36, var(--badge-text-opacity)) !important;
+    border-color: rgba(21, 87, 36, var(--badge-border-opacity)) !important;
+    border-radius: 50rem !important;
+    border: 1px solid !important;
+    padding: 0.35em 0.65em !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+}
+.data-list-table .badge.badge-transparent.project-type-business_opportunity,
+.badge.badge-transparent.project-type-business_opportunity {
+    background-color: rgba(248, 215, 218, var(--badge-bg-opacity)) !important;
+    color: rgba(114, 28, 36, var(--badge-text-opacity)) !important;
+    border-color: rgba(114, 28, 36, var(--badge-border-opacity)) !important;
+    border-radius: 50rem !important;
+    border: 1px solid !important;
+    padding: 0.35em 0.65em !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+}
+
+/* ============================================================================ */
+/* 列表图标和计数样式测试 */
+/* ============================================================================ */
+
+/* 测试：修改列表图标样式（用于验证统一模块是否生效） */
+.data-list-table-header .fas.fa-table {
+    color: #e74c3c !important; /* 红色图标 */
+    font-size: 1.2em !important;
+    transform: rotate(5deg) !important; /* 轻微旋转 */
+    transition: all 0.3s ease !important;
+}
+
+.data-list-table-header .fas.fa-table:hover {
+    transform: rotate(-5deg) scale(1.1) !important;
+    color: #c0392b !important;
+}
+
+/* 标准列表项计数样式 - 淡蓝色文字样式 */
+.list-item-count-text {
+    color: #6bb6ff; /* 淡蓝色 */
+    font-size: 0.875rem; /* 与表格内容字体大小一致 */
+    font-weight: 500;
+    margin-left: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+}
+
+.list-item-count-text i {
+    color: #6bb6ff; /* 图标也使用淡蓝色 */
+}
+
+/* 简化列表项计数样式 - 无徽章效果，黑色文字 */
+.list-item-count {
+    background-color: transparent; /* 透明背景 */
+    color: #000000; /* 黑色文字 */
+    font-size: 0.875rem; /* 与表格内容字体大小一致 */
+    font-weight: 500;
+    padding: 0;
+    border-radius: 0; /* 无圆角 */
+    margin-left: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    min-width: auto;
+    justify-content: flex-start;
+    border: none; /* 无边框 */
+    box-shadow: none; /* 无阴影 */
+    transition: none; /* 无过渡效果 */
+}
+
+/* ========================================
+   统一数据列表表格样式
+   ======================================== */
+
+/* 表格容器统一样式 */
+.data-list-table-responsive {
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    border-radius: 8px;
+    overflow-x: auto;
+    width: 100%;
+}
+
+/* 数据列表表格统一样式 */
+.data-list-table {
+    font-size: 0.8rem; /* 统一字体大小 */
+    white-space: nowrap; /* 防止换行 */
+    min-width: 1200px; /* 确保有足够宽度 */
+}
+
+.data-list-table th,
+.data-list-table td {
+    padding: 0.6rem; /* 统一间距 */
+    vertical-align: middle;
+}
+
+/* 数字列统一样式 */
+.data-list-table .number-cell {
+    text-align: right;
+    font-family: 'Courier New', monospace;
+    font-weight: 500;
+}
+
+/* 文本字段统一样式 */
+.data-list-table .text-cell {
+    text-align: left;
+}
+
+/* 规格字段特殊样式 */
+.data-list-table .spec-cell {
+    text-align: left;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 产品名称链接统一样式 */
+.data-list-table .product-name-link,
+.data-list-table .order-link,
+.data-list-table .settlement-order-link {
+    color: #0d6efd;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.data-list-table .product-name-link:hover,
+.data-list-table .order-link:hover,
+.data-list-table .settlement-order-link:hover {
+    color: #0a58ca;
+    text-decoration: underline;
+}
+
+/* 产品选择器中停产产品价格样式 */
+.product-price {
+    color: #28a745;
+    font-weight: 600;
+}
+
+.product-price-discontinued {
+    color: #9ca3af !important;
+    font-weight: 500;
+    text-decoration: line-through;
+}
+
+/* 按钮统一样式 */
+.btn-sm {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+/* 列表项目数量统一样式 */
+.list-item-count-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+    font-weight: normal;
+}
+
+/* 统计面板统一样式 */
+.settlement-statistics-panel .d-flex {
+    gap: 1rem;
+    margin-bottom: 2rem;
+    justify-content: space-between;
+}
+
+.settlement-statistics-panel .card {
+    flex: 1;
+    min-width: 200px;
+    border: none !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.settlement-statistics-panel .card-title {
+    font-size: 0.875rem !important;
+    font-weight: 600 !important;
+    margin-bottom: 0.75rem;
+}
+
+.settlement-statistics-panel .card-body span.fs-5 {
+    font-size: 1.1rem !important;
+    font-weight: normal !important;
+}
+
+/* 库存数量统一样式 */
+.data-list-table .stock-quantity {
+    font-weight: 600;
+    color: #000 !important; /* 统一黑色 */
+}
+
+/* 加载状态已有独立样式，无需额外hover效果 */
+
+/* 加载状态的计数样式 */
+.list-item-count.loading {
+    background-color: transparent;
+    color: #000000;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+}
+
+/* 列表标题容器样式 */
+.list-title-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.list-title-main {
+    display: flex;
+    align-items: center;
+    flex: 1;
+}
+
+.list-title-stats {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* 不同状态的计数颜色 - 统一黑色文字，无背景 */
+.list-item-count.count-total {
+    background-color: transparent;
+    color: #000000;
+}
+
+.list-item-count.count-filtered {
+    background-color: transparent;
+    color: #000000;
+}
+
+.list-item-count.count-empty {
+    background-color: transparent;
+    color: #000000;
+}
+
+.list-item-count.count-loading {
+    background-color: transparent;
+    color: #000000;
+}
+
+/* 响应式适配 */
+@media (max-width: 767px) {
+    .list-title-container {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .list-item-count {
+        font-size: 0.8rem;
+        padding: 0.2rem 0.6rem;
+        min-width: 2.5rem;
+    }
+}
+
+/* ================================
+   产品徽章样式定义
+   ================================ */
+
+/* 产品类型徽章 - 胶囊型基础样式，采用订单徽章相同的透明度系统 */
+.data-list-table .badge.product-type-badge,
+.badge.product-type-badge {
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    padding: 0.35em 0.65em !important;
+    border-radius: 50rem !important; /* 强制胶囊型 */
+    border: 1px solid !important; /* 添加边框，与订单徽章一致 */
+    transition: all 0.2s ease-in-out;
+    /* 使用与订单徽章相同的CSS变量透明度系统 */
+    --badge-bg-opacity: 0.4;
+    --badge-text-opacity: 0.8;
+    --badge-border-opacity: 0.6;
+}
+
+.badge.product-type-badge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* 产品类型具体颜色定义 - 采用订单徽章相同的CSS变量透明度系统 */
+.data-list-table .badge.product-type-project,
+.badge.product-type-project {
+    background-color: rgba(204, 231, 255, var(--badge-bg-opacity)) !important; /* 蓝色系背景 */
+    color: rgba(10, 83, 190, var(--badge-text-opacity)) !important; /* 蓝色系文字 */
+    border-color: rgba(204, 231, 255, var(--badge-border-opacity)) !important; /* 蓝色系边框 */
+}
+
+.data-list-table .badge.product-type-channel,
+.badge.product-type-channel {
+    background-color: rgba(212, 237, 218, var(--badge-bg-opacity)) !important; /* 绿色系背景 */
+    color: rgba(21, 87, 36, var(--badge-text-opacity)) !important; /* 绿色系文字 */
+    border-color: rgba(212, 237, 218, var(--badge-border-opacity)) !important; /* 绿色系边框 */
+}
+
+.data-list-table .badge.product-type-third-party,
+.badge.product-type-third-party {
+    background-color: rgba(226, 227, 229, var(--badge-bg-opacity)) !important; /* 灰色系背景 */
+    color: rgba(73, 80, 87, var(--badge-text-opacity)) !important; /* 灰色系文字 */
+    border-color: rgba(226, 227, 229, var(--badge-border-opacity)) !important; /* 灰色系边框 */
+}
+
+.data-list-table .badge.product-type-unknown,
+.badge.product-type-unknown {
+    background-color: rgba(226, 227, 229, var(--badge-bg-opacity)) !important; /* 灰色系背景 */
+    color: rgba(73, 80, 87, var(--badge-text-opacity)) !important; /* 灰色系文字 */
+    border-color: rgba(226, 227, 229, var(--badge-border-opacity)) !important; /* 灰色系边框 */
+}
+
+/* 产品状态徽章 - 胶囊型基础样式，采用订单徽章相同的透明度系统 */
+.data-list-table .badge.product-status-badge,
+.badge.product-status-badge {
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    padding: 0.35em 0.65em !important;
+    border-radius: 50rem !important; /* 强制胶囊型 */
+    border: 1px solid !important; /* 添加边框，与订单徽章一致 */
+    transition: all 0.2s ease-in-out;
+    /* 使用与订单徽章相同的CSS变量透明度系统 */
+    --badge-bg-opacity: 0.4;
+    --badge-text-opacity: 0.8;
+    --badge-border-opacity: 0.6;
+}
+
+.badge.product-status-badge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* 产品状态具体颜色定义 - 采用订单徽章相同的CSS变量透明度系统 */
+.data-list-table .badge.product-status-active,
+.badge.product-status-active {
+    background-color: rgba(212, 237, 218, var(--badge-bg-opacity)) !important; /* 绿色系背景 */
+    color: rgba(21, 87, 36, var(--badge-text-opacity)) !important; /* 绿色系文字 */
+    border-color: rgba(212, 237, 218, var(--badge-border-opacity)) !important; /* 绿色系边框 */
+}
+
+.data-list-table .badge.product-status-discontinued,
+.badge.product-status-discontinued {
+    background-color: rgba(248, 215, 218, var(--badge-bg-opacity)) !important; /* 红色系背景 */
+    color: rgba(114, 28, 36, var(--badge-text-opacity)) !important; /* 红色系文字 */
+    border-color: rgba(248, 215, 218, var(--badge-border-opacity)) !important; /* 红色系边框 */
+}
+
+/* 停产产品价格字段样式 */
+.form-control.discontinued-price {
+    color: #999999 !important;
+    background-color: #f5f5f5 !important;
+    text-decoration: line-through;
+    opacity: 0.8;
+    cursor: not-allowed;
+}
+
+.form-control.discontinued-price:focus {
+    color: #999999 !important;
+    background-color: #f5f5f5 !important;
+    border-color: #cccccc !important;
+    box-shadow: 0 0 0 0.2rem rgba(153, 153, 153, 0.25) !important;
+}
+
+.data-list-table .badge.product-status-upcoming,
+.badge.product-status-upcoming {
+    background-color: rgba(255, 243, 205, var(--badge-bg-opacity)) !important; /* 橙色系背景 */
+    color: rgba(102, 77, 3, var(--badge-text-opacity)) !important; /* 橙色系文字 */
+    border-color: rgba(255, 243, 205, var(--badge-border-opacity)) !important; /* 橙色系边框 */
+}
+
+.data-list-table .badge.product-status-unknown,
+.badge.product-status-unknown {
+    background-color: rgba(226, 227, 229, var(--badge-bg-opacity)) !important; /* 灰色系背景 */
+    color: rgba(73, 80, 87, var(--badge-text-opacity)) !important; /* 灰色系文字 */
+    border-color: rgba(226, 227, 229, var(--badge-border-opacity)) !important; /* 灰色系边框 */
+}
+
+/* 厂商徽章 - 矩形型，采用订单徽章相同的透明度系统 */
+.data-list-table .badge.vendor-badge,
+.badge.vendor-badge {
+    font-size: 0.65rem !important;
+    font-weight: 500 !important;
+    padding: 0.25em 0.5em !important;
+    border-radius: 4px !important; /* 强制矩形 */
+    border: 1px solid !important; /* 添加边框，与订单徽章一致 */
+    transition: all 0.2s ease-in-out;
+    margin-left: 0.25rem;
+    /* 使用与订单徽章相同的CSS变量透明度系统 */
+    --badge-bg-opacity: 0.4;
+    --badge-text-opacity: 0.8;
+    --badge-border-opacity: 0.6;
+    background-color: rgba(204, 231, 255, var(--badge-bg-opacity)) !important; /* 蓝色系背景 */
+    color: rgba(10, 83, 190, var(--badge-text-opacity)) !important; /* 蓝色系文字 */
+    border-color: rgba(204, 231, 255, var(--badge-border-opacity)) !important; /* 蓝色系边框 */
+}
+
+.badge.vendor-badge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* 品牌徽章 - 矩形型，采用订单徽章相同的透明度系统 */
+.data-list-table .badge.brand-badge,
+.badge.brand-badge {
+    font-size: 0.65rem !important;
+    font-weight: 500 !important;
+    padding: 0.25em 0.5em !important;
+    border-radius: 4px !important; /* 强制矩形 */
+    border: 1px solid !important; /* 添加边框，与订单徽章一致 */
+    transition: all 0.2s ease-in-out;
+    /* 使用与订单徽章相同的CSS变量透明度系统 */
+    --badge-bg-opacity: 0.4;
+    --badge-text-opacity: 0.8;
+    --badge-border-opacity: 0.6;
+    background-color: rgba(204, 231, 255, var(--badge-bg-opacity)) !important; /* 蓝色系背景 */
+    color: rgba(10, 83, 190, var(--badge-text-opacity)) !important; /* 蓝色系文字 */
+    border-color: rgba(204, 231, 255, var(--badge-border-opacity)) !important; /* 蓝色系边框 */
+}
+
+.badge.brand-badge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* 移动端适配 */
+@media (max-width: 767px) {
+    .badge.product-type-badge,
+    .badge.product-status-badge {
+        font-size: 0.7rem;
+        padding: 0.3em 0.6em;
+    }
+    
+    .badge.vendor-badge,
+    .badge.brand-badge {
+        font-size: 0.6rem;
+        padding: 0.2em 0.4em;
+    }
+}
+
+/* ================================
+   通用列表移动端优化样式
+   ================================ */
+
+/* 移动端数据卡片布局 */
+@media (max-width: 768px) {
+    /* 隐藏桌面端表格，显示移动端卡片 */
+    .data-list-table-responsive {
+        display: none !important;
+    }
+    
+    /* 显示移动端卡片容器 */
+    .product-list-mobile,
+    .data-list-mobile {
+        display: block !important;
+    }
+    
+    /* 通用数据卡片基础样式 */
+    .data-card-mobile,
+    .product-card-mobile {
+        background: #fff;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        margin-bottom: 0.75rem;
+        padding: 1rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        transition: box-shadow 0.2s ease;
+    }
+    
+    .data-card-mobile:hover,
+    .product-card-mobile:hover {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+    
+    /* 卡片头部区域 */
+    .card-header-mobile,
+    .product-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+        gap: 0.5rem;
+    }
+    
+    .card-title-mobile,
+    .product-name {
+        flex: 1;
+        min-width: 0; /* 允许收缩 */
+    }
+    
+    .card-title-mobile a,
+    .product-name a {
+        display: block;
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: #0d6efd;
+        text-decoration: none;
+        line-height: 1.3;
+        margin-bottom: 0.25rem;
+        word-break: break-word;
+    }
+    
+    .card-title-mobile a:hover,
+    .product-name a:hover {
+        color: #0a58ca;
+        text-decoration: underline;
+    }
+    
+    .card-id,
+    .product-id {
+        font-size: 0.75rem;
+        color: #6c757d;
+        font-weight: 400;
+    }
+    
+    /* 徽章区域 */
+    .card-badges-mobile,
+    .product-badges {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        align-items: flex-end;
+        flex-shrink: 0;
+    }
+    
+    .card-badges-mobile .badge,
+    .product-badges .badge {
+        font-size: 0.65rem !important;
+        padding: 0.25em 0.5em !important;
+        white-space: nowrap;
+    }
+    
+    /* 卡片详情区域 */
+    .card-details-mobile,
+    .product-details {
+        border-top: 1px solid #f1f3f4;
+        padding-top: 0.75rem;
+    }
+    
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+        font-size: 0.85rem;
+    }
+    
+    .detail-row:last-child {
+        margin-bottom: 0;
+    }
+    
+    .detail-row .label {
+        color: #6c757d;
+        font-weight: 500;
+        flex-shrink: 0;
+        margin-right: 0.5rem;
+    }
+    
+    .detail-row .value {
+        color: #495057;
+        text-align: right;
+        word-break: break-word;
+    }
+    
+    .detail-row .value.price {
+        color: #28a745;
+        font-weight: 600;
+        font-family: 'Courier New', monospace;
+    }
+    
+    /* 规格显示优化 */
+    .detail-row .value.spec {
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    /* 品牌和厂商徽章组合 */
+    .brand-with-vendor {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        justify-content: flex-end;
+    }
+    
+    .brand-with-vendor .vendor-badge {
+        font-size: 0.6rem !important;
+        padding: 0.2em 0.4em !important;
+    }
+}
+
+/* 桌面端隐藏移动端卡片 */
+@media (min-width: 769px) {
+    .product-list-mobile,
+    .data-list-mobile {
+        display: none !important;
+    }
+    
+    .data-list-table-responsive {
+        display: block !important;
+    }
+}
+
+/* 移动端加载状态样式 */
+@media (max-width: 768px) {
+    .product-list-mobile .loading-card,
+    .data-list-mobile .loading-card {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        margin-bottom: 0.75rem;
+        padding: 2rem;
+        text-align: center;
+        color: #6c757d;
+    }
+    
+    .product-list-mobile .empty-card,
+    .data-list-mobile .empty-card {
+        background: #fff;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 3rem 1rem;
+        text-align: center;
+        color: #6c757d;
+        font-style: italic;
+    }
+}
+
+/* 移动端无限滚动适配 */
+@media (max-width: 768px) {
+    .product-list-mobile .infinite-scroll-loading,
+    .product-list-mobile .infinite-scroll-end,
+    .data-list-mobile .infinite-scroll-loading,
+    .data-list-mobile .infinite-scroll-end {
+        padding: 1rem;
+        text-align: center;
+        margin: 0.5rem 0;
+        border-radius: 8px;
+        background: #f8f9fa;
+    }
+    
+    .product-list-mobile .infinite-scroll-loading,
+    .data-list-mobile .infinite-scroll-loading {
+        color: #007bff;
+    }
+    
+    .product-list-mobile .infinite-scroll-end,
+    .data-list-mobile .infinite-scroll-end {
+        color: #28a745;
+    }
+}
+
+/* ================================
+   结算情况徽章样式定义（结算单列表）
+   ================================ */
+
+/* 结算情况徽章 - 胶囊型基础样式，采用CSS变量透明度系统 */
+.data-list-table .badge.settlement-situation-badge,
+.badge.settlement-situation-badge {
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    padding: 0.35em 0.65em !important;
+    border-radius: 50rem !important; /* 强制胶囊型 */
+    border: 1px solid !important; /* 添加边框，与订单徽章一致 */
+    transition: all 0.2s ease-in-out;
+    /* 使用与订单徽章相同的CSS变量透明度系统 */
+    --badge-bg-opacity: 0.4;
+    --badge-text-opacity: 0.8;
+    --badge-border-opacity: 0.6;
+}
+
+/* 结算情况具体颜色定义 - 采用CSS变量透明度系统 */
+.data-list-table .badge.settlement-situation-fully,
+.badge.settlement-situation-fully {
+    background-color: rgba(204, 231, 255, var(--badge-bg-opacity)) !important; /* 蓝色系背景 */
+    color: rgba(10, 83, 190, var(--badge-text-opacity)) !important; /* 蓝色系文字 */
+    border-color: rgba(204, 231, 255, var(--badge-border-opacity)) !important; /* 蓝色系边框 */
+}
+
+.data-list-table .badge.settlement-situation-partial,
+.badge.settlement-situation-partial {
+    background-color: rgba(255, 243, 205, var(--badge-bg-opacity)) !important; /* 黄色系背景 */
+    color: rgba(102, 77, 3, var(--badge-text-opacity)) !important; /* 黄色系文字 */
+    border-color: rgba(255, 243, 205, var(--badge-border-opacity)) !important; /* 黄色系边框 */
+}
+
+.data-list-table .badge.settlement-situation-pending,
+.badge.settlement-situation-pending {
+    background-color: rgba(248, 215, 218, var(--badge-bg-opacity)) !important; /* 红色系背景 */
+    color: rgba(114, 28, 36, var(--badge-text-opacity)) !important; /* 红色系文字 */
+    border-color: rgba(248, 215, 218, var(--badge-border-opacity)) !important; /* 红色系边框 */
+}
+
+.data-list-table .badge.settlement-situation-unknown,
+.badge.settlement-situation-unknown {
+    background-color: rgba(226, 227, 229, var(--badge-bg-opacity)) !important; /* 灰色系背景 */
+    color: rgba(73, 80, 87, var(--badge-text-opacity)) !important; /* 灰色系文字 */
+    border-color: rgba(226, 227, 229, var(--badge-border-opacity)) !important; /* 灰色系边框 */
+}
+
+/* ================================
+   结算状态徽章样式定义（结算明细列表）
+   ================================ */
+
+/* 结算状态徽章 - 胶囊型基础样式，采用CSS变量透明度系统 */
+.data-list-table .badge.settlement-detail-badge,
+.badge.settlement-detail-badge {
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    padding: 0.35em 0.65em !important;
+    border-radius: 50rem !important; /* 强制胶囊型 */
+    border: 1px solid !important; /* 添加边框，与订单徽章一致 */
+    transition: all 0.2s ease-in-out;
+    /* 使用与订单徽章相同的CSS变量透明度系统 */
+    --badge-bg-opacity: 0.4;
+    --badge-text-opacity: 0.8;
+    --badge-border-opacity: 0.6;
+}
+
+/* 结算状态具体颜色定义 - 采用CSS变量透明度系统 */
+.data-list-table .badge.settlement-detail-settled,
+.badge.settlement-detail-settled {
+    background-color: rgba(204, 231, 255, var(--badge-bg-opacity)) !important; /* 蓝色系背景 */
+    color: rgba(10, 83, 190, var(--badge-text-opacity)) !important; /* 蓝色系文字 */
+    border-color: rgba(204, 231, 255, var(--badge-border-opacity)) !important; /* 蓝色系边框 */
+}
+
+.data-list-table .badge.settlement-detail-pending,
+.badge.settlement-detail-pending {
+    background-color: rgba(255, 243, 205, var(--badge-bg-opacity)) !important; /* 黄色系背景 */
+    color: rgba(102, 77, 3, var(--badge-text-opacity)) !important; /* 黄色系文字 */
+    border-color: rgba(255, 243, 205, var(--badge-border-opacity)) !important; /* 黄色系边框 */
+}
+
+.data-list-table .badge.settlement-detail-unknown,
+.badge.settlement-detail-unknown {
+    background-color: rgba(226, 227, 229, var(--badge-bg-opacity)) !important; /* 灰色系背景 */
+    color: rgba(73, 80, 87, var(--badge-text-opacity)) !important; /* 灰色系文字 */
+    border-color: rgba(226, 227, 229, var(--badge-border-opacity)) !important; /* 灰色系边框 */
+}
+
+/* ================================
+   客户状态徽章样式定义（客户列表）
+   ================================ */
+
+/* 客户状态徽章 - 胶囊型基础样式，采用CSS变量透明度系统 */
+.data-list-table .badge.customer-status-badge,
+.badge.customer-status-badge {
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    padding: 0.35em 0.65em !important;
+    border-radius: 50rem !important; /* 强制胶囊型 */
+    border: 1px solid !important; /* 添加边框，与订单徽章一致 */
+    transition: all 0.2s ease-in-out;
+    /* 使用与订单徽章相同的CSS变量透明度系统 */
+    --badge-bg-opacity: 0.4;
+    --badge-text-opacity: 0.8;
+    --badge-border-opacity: 0.6;
+}
+
+/* 客户状态具体颜色定义 - 采用CSS变量透明度系统 */
+.data-list-table .badge.customer-status-active,
+.badge.customer-status-active {
+    background-color: rgba(212, 237, 218, var(--badge-bg-opacity)) !important; /* 绿色系背景 */
+    color: rgba(21, 87, 36, var(--badge-text-opacity)) !important; /* 绿色系文字 */
+    border-color: rgba(212, 237, 218, var(--badge-border-opacity)) !important; /* 绿色系边框 */
+}
+
+.data-list-table .badge.customer-status-inactive,
+.badge.customer-status-inactive {
+    background-color: rgba(226, 227, 229, var(--badge-bg-opacity)) !important; /* 灰色系背景 */
+    color: rgba(73, 80, 87, var(--badge-text-opacity)) !important; /* 灰色系文字 */
+    border-color: rgba(226, 227, 229, var(--badge-border-opacity)) !important; /* 灰色系边框 */
+}
+
+.data-list-table .badge.customer-status-unknown,
+.badge.customer-status-unknown {
+    background-color: rgba(226, 227, 229, var(--badge-bg-opacity)) !important; /* 灰色系背景 */
+    color: rgba(73, 80, 87, var(--badge-text-opacity)) !important; /* 灰色系文字 */
+    border-color: rgba(226, 227, 229, var(--badge-border-opacity)) !important; /* 灰色系边框 */
+}
+
+/* 深色模式适配 - 暂时禁用以确保产品徽章颜色正常显示 */
+/* @media (prefers-color-scheme: dark) {
+    .badge.product-type-badge,
+    .badge.product-status-badge,
+    .badge.vendor-badge,
+    .badge.brand-badge {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+        border-color: currentColor !important;
+    }
+} */
+
+/* ==================== 阶段统计组件样式 ==================== */
+
+/* 阶段统计容器 */
+.stage-analytics-wrapper {
+    background: #fff;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* 统计标题区域 */
+.stage-analytics-wrapper .analytics-header {
+    border-bottom: 1px solid #e9ecef;
+    padding-bottom: 0.75rem;
+    margin-bottom: 1rem !important;
+}
+
+.stage-analytics-wrapper .analytics-title {
+    color: #495057;
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin: 0;
+}
+
+.stage-analytics-wrapper .analytics-title i {
+    color: #6c757d;
+    opacity: 0.8;
+}
+
+/* 指标切换按钮组 */
+.stage-analytics-wrapper .analytics-switches {
+    display: flex;
+    align-items: center;
+}
+
+.stage-analytics-wrapper .analytics-switches .btn-group {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.stage-analytics-wrapper .analytics-switches .btn {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-color: #007bff;
+    transition: all 0.15s ease-in-out;
+}
+
+.stage-analytics-wrapper .analytics-switches .btn-outline-primary {
+    color: #007bff;
+    background-color: transparent;
+}
+
+.stage-analytics-wrapper .analytics-switches .btn-outline-primary:hover {
+    color: #fff;
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+.stage-analytics-wrapper .analytics-switches .btn-outline-primary.active {
+    color: #fff;
+    background-color: #007bff;
+    border-color: #007bff;
+    box-shadow: 0 2px 4px rgba(0, 123, 255, 0.25);
+}
+
+/* 图表容器 */
+.stage-analytics-wrapper .analytics-chart-container {
+    position: relative;
+    min-height: 300px;
+    background-color: #fafbfc;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+    overflow: hidden;
+}
+
+.stage-analytics-wrapper .chart-wrapper {
+    width: 100%;
+    height: 100%;
+    min-height: inherit;
+}
+
+/* 加载状态 */
+.stage-analytics-wrapper .loading-overlay {
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 6px;
+    z-index: 10;
+}
+
+.stage-analytics-wrapper .loading-overlay .spinner-border {
+    width: 2rem;
+    height: 2rem;
+    border-width: 0.2em;
+}
+
+/* 错误和无数据状态 */
+.stage-analytics-wrapper .error-message,
+.stage-analytics-wrapper .no-data-message {
+    background-color: rgba(248, 249, 250, 0.95);
+    border-radius: 6px;
+    z-index: 10;
+}
+
+.stage-analytics-wrapper .error-message .text-center,
+.stage-analytics-wrapper .no-data-message .text-center {
+    color: #6c757d;
+}
+
+.stage-analytics-wrapper .error-message i,
+.stage-analytics-wrapper .no-data-message i {
+    color: #adb5bd;
+}
+
+.stage-analytics-wrapper .error-text {
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+/* 阶段徽章样式一致性 - 与项目阶段徽章保持一致 */
+.stage-analytics-badge {
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border: 1px solid transparent;
+}
+
+/* 项目阶段徽章样式（与现有项目模块保持一致） */
+.stage-analytics-badge.stage-discover {
+    background-color: rgba(25, 135, 84, 0.1);
+    color: rgba(25, 135, 84, 1);
+    border-color: rgba(25, 135, 84, 0.2);
+}
+
+.stage-analytics-badge.stage-embed {
+    background-color: rgba(25, 135, 84, 0.25);
+    color: rgba(25, 135, 84, 1);
+    border-color: rgba(25, 135, 84, 0.3);
+}
+
+.stage-analytics-badge.stage-pre_tender {
+    background-color: rgba(25, 135, 84, 0.5);
+    color: white;
+    border-color: rgba(25, 135, 84, 0.6);
+}
+
+.stage-analytics-badge.stage-tendering {
+    background-color: rgba(25, 135, 84, 0.75);
+    color: white;
+    border-color: rgba(25, 135, 84, 0.8);
+}
+
+.stage-analytics-badge.stage-awarded {
+    background-color: rgba(25, 135, 84, 1);
+    color: white;
+    border-color: rgba(25, 135, 84, 1);
+}
+
+.stage-analytics-badge.stage-quoted {
+    background-color: rgba(13, 110, 253, 0.75);
+    color: white;
+    border-color: rgba(13, 110, 253, 0.8);
+}
+
+.stage-analytics-badge.stage-signed {
+    background-color: rgba(13, 110, 253, 1);
+    color: white;
+    border-color: rgba(13, 110, 253, 1);
+}
+
+.stage-analytics-badge.stage-lost {
+    background-color: rgba(220, 53, 69, 1);
+    color: white;
+    border-color: rgba(220, 53, 69, 1);
+}
+
+.stage-analytics-badge.stage-paused {
+    background-color: rgba(108, 117, 125, 1);
+    color: white;
+    border-color: rgba(108, 117, 125, 1);
+}
+
+.stage-analytics-badge.stage-unset {
+    background-color: rgba(108, 117, 125, 0.5);
+    color: rgba(73, 80, 87, 1);
+    border-color: rgba(108, 117, 125, 0.3);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .stage-analytics-wrapper {
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .stage-analytics-wrapper .analytics-header {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 0.75rem;
+    }
+    
+    .stage-analytics-wrapper .analytics-switches {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .stage-analytics-wrapper .analytics-chart-container {
+        min-height: 280px;
+    }
+    
+    .stage-analytics-wrapper .analytics-switches .btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .stage-analytics-wrapper .analytics-chart-container {
+        min-height: 250px;
+    }
+    
+    .stage-analytics-wrapper .analytics-switches .btn {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.85rem;
+    }
+}
+
+/* ========== 用户管理徽章样式 ========== */
+
+/* 用户状态徽章样式 - 状态区分颜色 */
+.badge.badge-transparent.user-status-active {
+    background-color: rgba(212, 237, 218, var(--badge-bg-opacity)) !important;
+    color: rgba(21, 87, 36, var(--badge-text-opacity)) !important;
+    border-color: rgba(21, 87, 36, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.user-status-inactive {
+    background-color: rgba(248, 215, 218, var(--badge-bg-opacity)) !important;
+    color: rgba(114, 28, 36, var(--badge-text-opacity)) !important;
+    border-color: rgba(114, 28, 36, var(--badge-border-opacity)) !important;
+}
+
+/* 用户角色徽章样式 - 统一中灰色 */
+.badge.badge-transparent[class*="user-role-"] {
+    background-color: rgba(108, 117, 125, var(--badge-bg-opacity)) !important;
+    color: rgba(33, 37, 41, var(--badge-text-opacity)) !important;
+    border-color: rgba(108, 117, 125, var(--badge-border-opacity)) !important;
+}
+
+/* ========== 审批相关徽章样式 ========== */
+
+/* 审批状态徽章样式 - 使用统一的透明度系统 */
+.badge.badge-transparent.approval-status-pending {
+    background-color: rgba(255, 193, 7, var(--badge-bg-opacity)) !important;
+    color: rgba(33, 37, 41, var(--badge-text-opacity)) !important;
+    border-color: rgba(255, 193, 7, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.approval-status-approved {
+    background-color: rgba(25, 135, 84, var(--badge-bg-opacity)) !important;
+    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    border-color: rgba(25, 135, 84, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.approval-status-rejected {
+    background-color: rgba(220, 53, 69, var(--badge-bg-opacity)) !important;
+    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    border-color: rgba(220, 53, 69, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.approval-status-draft {
+    background-color: rgba(108, 117, 125, var(--badge-bg-opacity)) !important;
+    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    border-color: rgba(108, 117, 125, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.approval-status-cancelled {
+    background-color: rgba(108, 117, 125, var(--badge-bg-opacity)) !important;
+    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    border-color: rgba(108, 117, 125, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.approval-status-unknown {
+    background-color: rgba(108, 117, 125, var(--badge-bg-opacity)) !important;
+    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    border-color: rgba(108, 117, 125, var(--badge-border-opacity)) !important;
+}
+
+/* 审批编号徽章样式 - 橙色主题 */
+.badge.badge-transparent.approval-code-badge {
+    background-color: rgba(255, 140, 0, var(--badge-bg-opacity)) !important;
+    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    border-color: rgba(255, 140, 0, var(--badge-border-opacity)) !important;
+    font-weight: 500;
+}
+
+/* 业务对象徽章样式 */
+.badge.badge-transparent.business-object-project {
+    background-color: rgba(25, 135, 84, var(--badge-bg-opacity)) !important;
+    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    border-color: rgba(25, 135, 84, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.business-object-customer {
+    background-color: rgba(23, 162, 184, var(--badge-bg-opacity)) !important;
+    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    border-color: rgba(23, 162, 184, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.business-object-pricing {
+    background-color: rgba(13, 110, 253, var(--badge-bg-opacity)) !important;
+    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    border-color: rgba(13, 110, 253, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.business-object-order {
+    background-color: rgba(23, 162, 184, var(--badge-bg-opacity)) !important;
+    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    border-color: rgba(23, 162, 184, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.business-object-none {
+    background-color: rgba(108, 117, 125, var(--badge-bg-opacity)) !important;
+    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    border-color: rgba(108, 117, 125, var(--badge-border-opacity)) !important;
+}
+
+/* ========== 增强数据列表组件功能 ========== */
+
+/* 增强斑马线效果 - 默认启用 */
+.data-list-table.table-striped > tbody > tr:nth-of-type(odd) > td {
+    background-color: rgba(0, 0, 0, 0.025) !important;
+}
+
+.data-list-table.table-striped > tbody > tr:nth-of-type(even) > td {
+    background-color: rgba(255, 255, 255, 1) !important;
+}
+
+/* 每五行增强效果已移除 - 避免不必要的视觉干扰 */
+
+/* hover效果增强 */
+.data-list-table.table-striped > tbody > tr:hover > td {
+    background-color: rgba(13, 110, 253, 0.08) !important;
+}
+
+/* 内部滚动容器样式 */
+.data-list-table-responsive.fixed-height-scroll {
+    max-height: 600px;
+    overflow-y: auto;
+    position: relative;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+}
+
+/* 固定表头 */
+.data-list-table-responsive.fixed-height-scroll .data-list-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #f8f9fa !important;
+    border-bottom: 2px solid #dee2e6;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* 无限滚动容器 */
+.infinite-scroll-container {
+    position: relative;
+}
+
+/* 无限滚动加载指示器 */
+.infinite-scroll-loading {
+    background-color: rgba(248, 249, 250, 0.95);
+    border-top: 1px solid #dee2e6;
+    animation: fadeInOut 2s ease-in-out infinite;
+}
+
+.infinite-scroll-end {
+    background-color: rgba(212, 237, 218, 0.3);
+    border-top: 1px solid #d1ecf1;
+    font-size: 0.875rem;
+}
+
+/* 加载动画 */
+@keyframes fadeInOut {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
+
+/* 滚动条样式优化 */
+.data-list-table-responsive::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.data-list-table-responsive::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.data-list-table-responsive::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+    transition: background 0.3s ease;
+}
+
+.data-list-table-responsive::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* 响应式优化 */
+@media (max-width: 768px) {
+    .data-list-table-responsive.fixed-height-scroll {
+        max-height: 400px;
+    }
+    
+    /* 移动端每五行增强效果已移除 */
 } 

@@ -1,4 +1,5 @@
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, url_for
+from types import SimpleNamespace
 from flask_login import login_required, current_user
 from app.decorators import permission_required
 from app.permissions import has_permission
@@ -7,6 +8,7 @@ from app.models.project import Project
 from app.models.product import Product
 from app.models.user import User, Affiliation
 from app.utils.access_control import get_viewable_data
+from app.components.stage_analytics import StageAnalyticsComponent
 from sqlalchemy import func, and_, or_, extract
 from datetime import datetime, timedelta
 from app import db
@@ -17,15 +19,81 @@ logger = logging.getLogger(__name__)
 
 product_analysis = Blueprint('product_analysis', __name__)
 
+def _calculate_product_analysis_stats(base_query, current_month=None):
+    """
+    模组化的产品分析统计计算函数
+    
+    参数:
+    - base_query: 基础查询对象（已应用权限和筛选条件）
+    - current_month: 本月开始时间（可选，用于计算本月新增）
+    
+    返回: 包含各项统计数据的字典
+    """
+    try:
+        # 计算总体统计
+        total_stats = base_query.with_entities(
+            func.sum(QuotationDetail.total_price).label('total_amount'),
+            func.sum(QuotationDetail.quantity).label('total_quantity'),
+            func.count(QuotationDetail.id).label('record_count')
+        ).first()
+        
+        total_amount = float(total_stats.total_amount) if total_stats.total_amount else 0
+        total_quantity = int(total_stats.total_quantity) if total_stats.total_quantity else 0
+        
+        # 计算平均单价（每个单位的价格，不需要除以10000）
+        avg_unit_price = (total_amount / total_quantity) if total_quantity > 0 else 0
+        
+        # 计算本月新增数据（如果提供了current_month）
+        monthly_quantity = 0
+        monthly_amount = 0
+        if current_month:
+            monthly_stats = base_query.filter(
+                QuotationDetail.created_at >= current_month
+            ).with_entities(
+                func.sum(QuotationDetail.total_price).label('monthly_amount'),
+                func.sum(QuotationDetail.quantity).label('monthly_quantity')
+            ).first()
+            
+            monthly_quantity = int(monthly_stats.monthly_quantity) if monthly_stats.monthly_quantity else 0
+            monthly_amount = float(monthly_stats.monthly_amount) if monthly_stats.monthly_amount else 0
+        
+        return {
+            'total_amount': total_amount,           # 总金额（原始金额，元）
+            'total_quantity': total_quantity,       # 总数量
+            'avg_unit_price': avg_unit_price,       # 平均单价（元/个）
+            'monthly_quantity': monthly_quantity,   # 本月新增数量
+            'monthly_amount': monthly_amount,       # 本月新增金额（原始金额，元）
+            'record_count': int(total_stats.record_count) if total_stats.record_count else 0
+        }
+        
+    except Exception as e:
+        logger.error(f"统计计算失败: {e}")
+        return {
+            'total_amount': 0,
+            'total_quantity': 0,
+            'avg_unit_price': 0,
+            'monthly_quantity': 0,
+            'monthly_amount': 0,
+            'record_count': 0
+        }
+
 def apply_permission_based_filters(query, current_user, quotation_alias=Quotation, project_alias=Project):
     """
     基于四级权限系统应用数据过滤
     """
-    if has_permission('product', 'admin'):
-        return query
+    # 如果没有用户，返回空查询
+    if not current_user:
+        return query.filter(False)
+    
+    # 检查是否是管理员或CEO（使用传入的用户对象）
+    if (hasattr(current_user, 'role') and 
+        current_user.role in ['admin', 'CEO'] and 
+        hasattr(current_user, 'has_permission')):
+        if current_user.has_permission('product', 'admin'):
+            return query
     
     # 检查用户是否有报价单查看权限
-    if not current_user.has_permission('quotation', 'view'):
+    if not (hasattr(current_user, 'has_permission') and current_user.has_permission('quotation', 'view')):
         # 如果没有权限，返回空查询
         return query.filter(False)
     
@@ -108,64 +176,315 @@ def apply_permission_based_filters(query, current_user, quotation_alias=Quotatio
             # 如果没有任何权限，返回空查询
             return query.filter(False)
 
-# 阶段顺序定义 - 与项目管理模块保持一致
-STAGE_ORDER = [
-    'discover', 'embed', 'pre_tender', 'tendering', 'awarded', 'quoted', 'signed', 'lost', 'paused', 'unset'
-]
-
-# 阶段颜色配置 - 使用项目管理的标准颜色
-STAGE_COLORS_COUNT = {
-    'discover': 'rgba(2, 103, 5, 0.05)',      # 026705 透明度 5%
-    'embed': 'rgba(2, 103, 5, 0.2)',         # 026705 透明度 20%
-    'pre_tender': 'rgba(2, 103, 5, 0.3)',    # 026705 透明度 30%
-    'tendering': 'rgba(2, 103, 5, 0.5)',     # 026705 透明度 50%
-    'awarded': 'rgba(2, 103, 5, 0.7)',       # 026705 透明度 70%
-    'quoted': 'rgba(2, 103, 5, 0.8)',        # 026705 透明度 80%
-    'signed': 'rgba(2, 103, 5, 1)',          # 026705 透明度 100%
-    'lost': 'rgba(108, 3, 3, 1)',            # 6C0303 透明度 100%
-    'paused': 'rgba(189, 194, 189, 1)',      # BDC2BD 透明度 100%
-    'unset': 'rgba(189, 194, 189, 0.5)'      # BDC2BD 透明度 50%
-}
-
-STAGE_COLORS_AMOUNT = {
-    'discover': 'rgba(7, 70, 160, 0.05)',    # 0746A0 透明度 5%
-    'embed': 'rgba(7, 70, 160, 0.2)',        # 0746A0 透明度 20%
-    'pre_tender': 'rgba(7, 70, 160, 0.3)',   # 0746A0 透明度 30%
-    'tendering': 'rgba(7, 70, 160, 0.5)',    # 0746A0 透明度 50%
-    'awarded': 'rgba(7, 70, 160, 0.7)',      # 0746A0 透明度 70%
-    'quoted': 'rgba(7, 70, 160, 0.8)',       # 0746A0 透明度 80%
-    'signed': 'rgba(7, 70, 160, 1)',         # 0746A0 透明度 100%
-    'lost': 'rgba(108, 3, 3, 1)',            # 6C0303 透明度 100%
-    'paused': 'rgba(189, 194, 189, 1)',      # BDC2BD 透明度 100%
-    'unset': 'rgba(189, 194, 189, 0.5)'      # BDC2BD 透明度 50%
-}
-
-# 兼容性颜色配置
-STAGE_COLORS = STAGE_COLORS_COUNT
+# 阶段配置现在统一由 stage_configs.py 管理
 
 def get_stage_label(stage_key):
     """获取阶段中文标签"""
     return project_stage_label(stage_key, 'zh')
+
+# 创建阶段统计组件实例
+def create_stage_analytics_component():
+    """创建产品分析阶段统计组件"""
+    # 数据源配置
+    data_source_config = {
+        'primary_table': Project,
+        'join_tables': [
+            {
+                'table': Quotation,
+                'join_on': 'Quotation.project_id == Project.id'
+            },
+            {
+                'table': QuotationDetail, 
+                'join_on': 'QuotationDetail.quotation_id == Quotation.id'
+            },
+            {
+                'table': User,
+                'join_on': 'Quotation.owner_id == User.id'
+            }
+        ],
+        'aggregate_fields': {
+            'quantity': 'func.sum(QuotationDetail.quantity)',
+            'amount': 'func.sum(QuotationDetail.total_price)'
+        },
+        'filter_fields': {
+            'category': {
+                'type': 'subquery',
+                'main_table': QuotationDetail,
+                'main_fields': ['product_name', 'product_model'],
+                'subquery': {
+                    'table': Product,
+                    'fields': ['product_name', 'model'],
+                    'condition': {'field': 'category'}
+                }
+            },
+            'product_name': {
+                'type': 'direct',
+                'table': QuotationDetail,
+                'field': 'product_name'
+            },
+            'product_model': {
+                'type': 'direct', 
+                'table': QuotationDetail,
+                'field': 'product_model'
+            }
+        }
+    }
+    
+    # 权限配置
+    permission_config = {
+        'filter_function': apply_permission_based_filters
+    }
+    
+    return StageAnalyticsComponent(
+        stage_config_name='project',
+        data_source_config=data_source_config,
+        permission_config=permission_config
+    )
 
 @product_analysis.route('/analysis')
 @login_required
 @permission_required('quotation', 'view')
 def analysis():
     """产品分析主页面"""
-    # 获取所有产品类别、名称和型号供筛选使用
-    categories = db.session.query(Product.category).distinct().filter(
-        Product.category.isnot(None)
-    ).order_by(Product.category).all()
+    # 获取基础查询，应用权限过滤
+    base_query = db.session.query(
+        QuotationDetail.product_name,
+        QuotationDetail.product_model,
+        QuotationDetail.product_desc
+    ).join(
+        Quotation, QuotationDetail.quotation_id == Quotation.id
+    ).join(
+        Project, Quotation.project_id == Project.id
+    ).join(
+        User, Quotation.owner_id == User.id
+    )
     
-    product_names = db.session.query(Product.product_name).distinct().filter(
-        Product.product_name.isnot(None)
-    ).order_by(Product.product_name).all()
+    # 应用权限过滤（与主查询保持一致）
+    base_query = apply_permission_based_filters(base_query, current_user)
     
-    product_models = db.session.query(Product.model).distinct().filter(
-        Product.model.isnot(None)
-    ).order_by(Product.model).all()
+    # 从实际可访问的报价单明细中获取筛选选项
+    # 通过连接Product表获取产品类别
+    try:
+        categories_query = base_query.join(
+            Product, and_(
+                QuotationDetail.product_name == Product.product_name,
+                QuotationDetail.product_model == Product.model
+            )
+        ).with_entities(Product.category).distinct().filter(
+            Product.category.isnot(None),
+            Product.category != '',  # 排除空字符串
+            Product.category != ' '   # 排除空格字符串
+        ).order_by(Product.category)
+        
+        categories = categories_query.all()
+        logger.info(f"✅ 从报价单明细中获取到 {len(categories)} 个产品类别")
+    except Exception as e:
+        logger.warning(f"⚠️ 连接Product表获取类别失败: {str(e)}, 使用空列表")
+        categories = []
+    
+    # 获取实际在报价单中使用的产品名称
+    product_names = base_query.with_entities(QuotationDetail.product_name).distinct().filter(
+        QuotationDetail.product_name.isnot(None),
+        QuotationDetail.product_name != '',  # 排除空字符串
+        QuotationDetail.product_name != ' '   # 排除空格字符串
+    ).order_by(QuotationDetail.product_name).all()
+    
+    # 获取实际在报价单中使用的产品型号
+    product_models = base_query.with_entities(QuotationDetail.product_model).distinct().filter(
+        QuotationDetail.product_model.isnot(None),
+        QuotationDetail.product_model != '',  # 排除空字符串
+        QuotationDetail.product_model != ' '   # 排除空格字符串
+    ).order_by(QuotationDetail.product_model).all()
+    
+    # 记录调试信息
+    logger.info(f"🔍 产品型号筛选选项: {[m[0] for m in product_models[:5]]}...")
+    
+    # 使用模组化函数计算初始统计数据
+    from datetime import datetime
+    current_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    # 创建基础查询用于统计计算
+    base_stats_query = db.session.query(QuotationDetail).join(
+        Quotation, QuotationDetail.quotation_id == Quotation.id
+    ).join(
+        Project, Quotation.project_id == Project.id
+    ).join(
+        User, Quotation.owner_id == User.id
+    )
+    
+    # 应用权限过滤
+    base_stats_query = apply_permission_based_filters(base_stats_query, current_user)
+    
+    # 使用模组化函数计算统计数据
+    stats_data = _calculate_product_analysis_stats(base_stats_query, current_month)
+    
+    # 构建筛选配置
+    filter_config = {
+        'action_url': request.url,
+        'form_id': 'productAnalysisFilterForm',
+        'reset_url': request.path,
+        'realtime_search': False,
+        'auto_submit': True,
+        'ajax_mode': True,
+        'ajax_endpoint': url_for('product_analysis.products_list_ajax'),
+        'ajax_target': '#productAnalysisTableBody',
+        'ajax_columns': 13,
+        'dynamic_reset_button': True,
+        'adaptive_width': True,
+        'adaptive_button_layout': True,
+        'search_delay': 300,
+        
+        'search_field': {
+            'name': 'search',
+            'label': '搜索',
+            'placeholder': '产品名称、型号、描述或MN号',
+            'value': request.args.get('search', ''),
+            'col_width': 3
+        },
+        
+        'filter_fields': [
+            {
+                'name': 'category',
+                'label': '产品类别',
+                'all_option_text': '全部类别',
+                'current_value': request.args.get('category', ''),
+                'col_width': 3,
+                'options': [{'value': c[0], 'label': c[0], 'translate': False} for c in categories if c[0] and c[0].strip()]
+            },
+            {
+                'name': 'product_name',
+                'label': '产品名称',
+                'all_option_text': '全部产品',
+                'current_value': request.args.get('product_name', ''),
+                'col_width': 3,
+                'options': [{'value': p[0], 'label': p[0], 'translate': False} for p in product_names if p[0] and p[0].strip()]
+            },
+            {
+                'name': 'product_model',
+                'label': '产品型号',
+                'all_option_text': '全部型号',
+                'current_value': request.args.get('product_model', ''),
+                'col_width': 3,
+                'options': [{'value': m[0], 'label': m[0], 'translate': False} for m in product_models if m[0] and m[0].strip()]
+            }
+        ],
+        
+        'search_button_text': '搜索',
+        'reset_button_text': '重置'
+    }
+    
+    # 构建统一的list_config配置
+    list_config = {
+        'module_name': 'product_analysis',
+        'title': '植入产品分析',
+        'ajax_mode': True,
+        
+        # 统计卡片配置（产品分析模块：手动转换为万元以兼容通用模组）
+        'stats': {
+            'cards': [
+                {
+                    'id': 'total_amount',
+                    'title': '总金额',
+                    'icon': 'fas fa-dollar-sign',
+                    'value': 1,  # 数量固定为1，重点是金额
+                    'amount': round(stats_data['total_amount'] / 10000, 2),  # 转换为万元
+                    'unit': '项',
+                    'amount_unit': '万元',  # 通用模组将自动处理语言感知切换
+                    'color': 'primary',
+                    'clickable': False,
+                    'data_key': 'total_amount'
+                },
+                {
+                    'id': 'total_quantity',
+                    'title': '产品数量',
+                    'icon': 'fas fa-boxes',
+                    'value': stats_data['total_quantity'],
+                    'unit': '个',
+                    'color': 'success',
+                    'clickable': False,
+                    'data_key': 'total_quantity'
+                },
+                {
+                    'id': 'monthly_increase',
+                    'title': '本月新增',
+                    'icon': 'fas fa-chart-line',
+                    'value': stats_data['monthly_quantity'],  # 本月新增数量
+                    'amount': round(stats_data['monthly_amount'] / 10000, 2),  # 转换为万元
+                    'unit': '个',
+                    'amount_unit': '万元',  # 通用模组将自动处理语言感知切换
+                    'color': 'warning',
+                    'clickable': False,
+                    'data_key': 'monthly_increase'
+                },
+                {
+                    'id': 'avg_unit_price',
+                    'title': '平均单价',
+                    'icon': 'fas fa-calculator',
+                    'value': 1,  # 数量固定为1，重点是金额
+                    'amount': round(stats_data['avg_unit_price'] / 10000, 4),  # 转换为万元，保留4位小数
+                    'unit': '项',
+                    'amount_unit': '万元',  # 通用模组将自动处理语言感知切换
+                    'color': 'info',
+                    'clickable': False,
+                    'data_key': 'avg_unit_price'
+                }
+            ]
+        },
+        
+        # 筛选配置
+        'filter': filter_config,
+        
+        # 表格配置
+        'table': {
+            'ajax_target': 'productAnalysisTableBody',
+            'title': '产品明细列表',
+            'icon': 'fas fa-table',
+            'fixed_height_scroll': True,   # 启用蓝色滚动条
+            'enhanced_striping': True,     # 启用增强斑马纹
+            'use_custom_rows': True,
+            'custom_rows_template': 'product_analysis/product_analysis_rows_simple.html',
+            'columns': [
+                {'key': 'product_name', 'label': '产品名称', 'width': '150px'},
+                {'key': 'product_model', 'label': '型号/规格', 'width': '200px'},
+                {'key': 'quantity', 'label': '数量', 'width': '80px', 'align': 'center'},
+                {'key': 'discount', 'label': '折扣', 'width': '80px', 'align': 'center'},
+                {'key': 'unit_price', 'label': '单价', 'width': '100px', 'align': 'right'},
+                {'key': 'total_price', 'label': '合计', 'width': '100px', 'align': 'right'},
+                {'key': 'product_mn', 'label': 'MN号', 'width': '120px'},
+                {'key': 'owner_name', 'label': '拥有人', 'width': '100px'},
+                {'key': 'project_name', 'label': '项目名称', 'width': '150px'},
+                {'key': 'current_stage', 'label': '当前阶段', 'width': '100px', 'align': 'center'},
+                {'key': 'quotation_number', 'label': '报价单编号', 'width': '120px'},
+                {'key': 'updated_at', 'label': '更新时间', 'width': '140px'},
+                {'key': 'created_at', 'label': '创建时间', 'width': '140px'}
+            ]
+        },
+        
+        # 无限滚动配置（使用标准格式）
+        'infinite_scroll': {
+            'enabled': True,
+            'page_size': 50,
+            'scroll_threshold': 100,
+            'loading_text': '正在加载更多产品数据...',
+            'no_more_text': '已加载全部产品数据'
+        },
+        
+        # 阶段统计组件配置
+        'stage_analytics': {
+            'container_id': 'stageAnalyticsContainer',
+            'chart_id': 'stageAnalyticsChart',
+            'api_endpoint': url_for('product_analysis.api_stage_statistics_api'),
+            'title': '阶段分布统计',
+            'icon': 'fas fa-chart-bar',
+            'chart_type': 'bar',
+            'switchable': True,
+            'filter_integration': True,
+            'height': '350px'
+        }
+    }
     
     return render_template('product_analysis/analysis.html',
+                         list_config=list_config,
                          categories=[c[0] for c in categories],
                          product_names=[p[0] for p in product_names],
                          product_models=[m[0] for m in product_models])
@@ -241,9 +560,7 @@ def get_analysis_data():
             QuotationDetail.unit_price,
             QuotationDetail.total_price,
             QuotationDetail.product_mn,
-            User.username.label('owner_name'),
-            User.real_name.label('owner_real_name'),
-            User.company_name.label('company_name'),
+            User,  # 获取完整的User对象
             Project.id.label('project_id'),
             Project.project_name,
             Project.current_stage,
@@ -279,10 +596,10 @@ def get_analysis_data():
                 )
             )
         
-        if product_name:
+        if product_name and product_name.strip():
             query = query.filter(QuotationDetail.product_name == product_name)
         
-        if product_model:
+        if product_model and product_model.strip():
             query = query.filter(QuotationDetail.product_model == product_model)
         
         # 获取总数（用于分页）
@@ -340,8 +657,8 @@ def get_analysis_data():
         total_amount = float(stats_result.total_amount) if stats_result.total_amount else 0
         total_quantity = int(stats_result.total_quantity) if stats_result.total_quantity else 0
         
-        # 计算平均单价
-        avg_unit_price = (total_amount / total_quantity) if total_quantity > 0 else 0
+        # 计算平均单价（转换为万元）
+        avg_unit_price = (total_amount / 10000 / total_quantity) if total_quantity > 0 else 0
         
         # 计算本月新增数量 - 使用单独的查询
         current_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -377,163 +694,32 @@ def get_analysis_data():
         logger.error(f"获取产品分析数据失败: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@product_analysis.route('/api/stage_statistics')
-@login_required
-def get_stage_statistics():
-    """获取阶段统计数据API"""
-    try:
-        # 获取筛选参数
-        category = request.args.get('category')
-        product_name = request.args.get('product_name')
-        product_model = request.args.get('product_model')
-        
-        # 基础查询
-        query = db.session.query(
-            Project.current_stage,
-            func.sum(QuotationDetail.quantity).label('total_quantity'),
-            func.sum(QuotationDetail.total_price).label('total_amount'),
-            func.count(QuotationDetail.id).label('record_count')
-        ).join(
-            Quotation, QuotationDetail.quotation_id == Quotation.id
-        ).join(
-            Project, Quotation.project_id == Project.id
-        ).join(
-            User, Quotation.owner_id == User.id
-        )
-        
-        # 应用基于权限系统的数据过滤
-        query = apply_permission_based_filters(query, current_user)
-        
-        # 应用筛选条件
-        if category:
-            # 使用子查询获取指定类别的产品，避免因Product表重复记录导致的重复统计
-            category_products = db.session.query(
-                Product.product_name, 
-                Product.model
-            ).filter(
-                Product.category == category
-            ).distinct().subquery()
-            
-            query = query.filter(
-                and_(
-                    QuotationDetail.product_name == category_products.c.product_name,
-                    QuotationDetail.product_model == category_products.c.model
-                )
-            )
-        
-        if product_name:
-            query = query.filter(QuotationDetail.product_name == product_name)
-        
-        if product_model:
-            query = query.filter(QuotationDetail.product_model == product_model)
-        
-        # 按阶段分组
-        results = query.group_by(Project.current_stage).all()
-        
-        # 构建查询结果的字典
-        stage_dict = {}
-        for result in results:
-            stage = result.current_stage or 'unset'
-            stage_dict[stage] = {
-                'stage': stage,
-                'name': get_stage_label(stage),
-                'quantity': int(result.total_quantity) if result.total_quantity else 0,
-                'amount': float(result.total_amount) if result.total_amount else 0,
-                'count': int(result.record_count) if result.record_count else 0,
-                'color_count': STAGE_COLORS_COUNT.get(stage, STAGE_COLORS_COUNT['unset']),
-                'color_amount': STAGE_COLORS_AMOUNT.get(stage, STAGE_COLORS_AMOUNT['unset'])
-            }
-        
-        # 按照STAGE_ORDER顺序排序，只包含有数据的阶段
-        stage_data = []
-        for stage in STAGE_ORDER:
-            if stage in stage_dict:
-                stage_item = stage_dict[stage]
-                stage_item['order'] = STAGE_ORDER.index(stage)  # 添加排序字段
-                stage_data.append(stage_item)
-        
-        return jsonify({
-            'success': True,
-            'data': stage_data,
-            'colors': {
-                'count': STAGE_COLORS_COUNT,
-                'amount': STAGE_COLORS_AMOUNT
-            },
-            'stage_order': STAGE_ORDER  # 返回阶段顺序供前端使用
-        })
-        
-    except Exception as e:
-        logger.error(f"获取阶段统计数据失败: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'message': f'获取阶段统计数据失败: {str(e)}'
-        }), 500
+# 创建并注册阶段统计组件API端点
+stage_analytics_component = create_stage_analytics_component()
+stage_analytics_component.create_api_endpoint(
+    product_analysis, 
+    '/api/stage_statistics',
+    permission_decorator=login_required
+)
 
-def get_monthly_increase(category=None, product_name=None, product_model=None):
-    """获取本月新增产品数量"""
-    try:
-        # 获取当前月份的开始时间
-        current_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        
-        # 构建基础查询 - 避免因Product表重复记录导致的重复统计
-        query = db.session.query(func.sum(QuotationDetail.quantity)).join(
-            Quotation, QuotationDetail.quotation_id == Quotation.id
-        ).join(
-            Project, Quotation.project_id == Project.id
-        ).filter(
-            QuotationDetail.created_at >= current_month  # 修改：筛选本月新增的产品明细
-        )
-        
-        # 应用基于权限系统的数据过滤
-        query = apply_permission_based_filters(query, current_user)
-        
-        # 应用筛选条件
-        if category:
-            # 使用子查询获取指定类别的产品，避免因Product表重复记录导致的重复统计
-            category_products = db.session.query(
-                Product.product_name, 
-                Product.model
-            ).filter(
-                Product.category == category
-            ).distinct().subquery()
-            
-            query = query.filter(
-                and_(
-                    QuotationDetail.product_name == category_products.c.product_name,
-                    QuotationDetail.product_model == category_products.c.model
-                )
-            )
-        if product_name:
-            query = query.filter(QuotationDetail.product_name == product_name)
-        if product_model:
-            query = query.filter(QuotationDetail.product_model == product_model)
-        
-        result = query.scalar()
-        return int(result) if result else 0
-        
-    except Exception as e:
-        logger.error(f"获取本月新增数量时出错: {str(e)}")
-        return 0
 
-@product_analysis.route('/api/monthly_increase_data')
+@product_analysis.route('/api/products/filter')
 @login_required
 @permission_required('quotation', 'view')
-def get_monthly_increase_data():
-    """获取本月新增产品明细数据"""
+def products_list_ajax():
+    """植入产品分析AJAX筛选端点"""
     try:
         # 获取筛选参数
-        category = request.args.get('category')
-        product_name = request.args.get('product_name')
-        product_model = request.args.get('product_model')
+        search = request.args.get('search', '').strip()
+        category = request.args.get('category', '').strip()
+        product_name = request.args.get('product_name', '').strip()
+        product_model = request.args.get('product_model', '').strip()
         
         # 获取分页参数
-        page = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 50))
+        offset = request.args.get('offset', 0, type=int)
+        limit = request.args.get('limit', 50, type=int)
         
-        # 获取当前月份的开始时间
-        current_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        
-        # 构建基础查询 - 只查询本月新增的数据
+        # 构建基础查询 - 避免因Product表重复记录导致的重复统计
         query = db.session.query(
             QuotationDetail.id,
             QuotationDetail.product_name,
@@ -544,9 +730,7 @@ def get_monthly_increase_data():
             QuotationDetail.unit_price,
             QuotationDetail.total_price,
             QuotationDetail.product_mn,
-            User.username.label('owner_name'),
-            User.real_name.label('owner_real_name'),
-            User.company_name.label('company_name'),
+            User,  # 获取完整的User对象
             Project.id.label('project_id'),
             Project.project_name,
             Project.current_stage,
@@ -560,12 +744,24 @@ def get_monthly_increase_data():
             Project, Quotation.project_id == Project.id
         ).join(
             User, Quotation.owner_id == User.id
-        ).filter(
-            QuotationDetail.created_at >= current_month  # 只查询本月新增的产品明细
         )
         
         # 应用基于权限系统的数据过滤
         query = apply_permission_based_filters(query, current_user)
+        
+        # 应用搜索过滤
+        if search:
+            search_filter = or_(
+                QuotationDetail.product_name.ilike(f'%{search}%'),
+                QuotationDetail.product_model.ilike(f'%{search}%'),
+                QuotationDetail.product_desc.ilike(f'%{search}%'),
+                QuotationDetail.product_mn.ilike(f'%{search}%'),
+                Project.project_name.ilike(f'%{search}%'),
+                Quotation.quotation_number.ilike(f'%{search}%'),
+                User.username.ilike(f'%{search}%'),
+                User.real_name.ilike(f'%{search}%')
+            )
+            query = query.filter(search_filter)
         
         # 应用筛选条件
         if category:
@@ -584,76 +780,104 @@ def get_monthly_increase_data():
                 )
             )
         
-        if product_name:
+        if product_name and product_name.strip():
             query = query.filter(QuotationDetail.product_name == product_name)
         
-        if product_model:
+        if product_model and product_model.strip():
             query = query.filter(QuotationDetail.product_model == product_model)
         
         # 获取总数（用于分页）
         total_count = query.count()
         
-        # 计算分页信息
-        total_pages = (total_count + per_page - 1) // per_page
-        has_next = page < total_pages
-        has_prev = page > 1
+        # 执行分页查询 - 默认按更新时间降序排序
+        try:
+            results = query.order_by(QuotationDetail.updated_at.desc()).offset(offset).limit(limit).all()
+            logger.info(f"植入产品分析查询成功: 总计 {total_count} 条，offset={offset}, limit={limit}, 返回 {len(results)} 条")
+        except Exception as e:
+            logger.warning(f"使用updated_at排序失败: {str(e)}, 尝试使用id排序")
+            try:
+                # 回滚失败的事务
+                db.session.rollback()
+                results = query.order_by(QuotationDetail.id.desc()).offset(offset).limit(limit).all()
+                logger.info(f"植入产品分析查询(id排序)成功: 总计 {total_count} 条，offset={offset}, limit={limit}, 返回 {len(results)} 条")
+            except Exception as e2:
+                logger.error(f"产品分析查询失败: {str(e2)}")
+                # 回滚失败的事务
+                db.session.rollback()
+                results = []
         
-        # 执行分页查询 - 按创建时间降序排序
-        results = query.order_by(QuotationDetail.created_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
+        # 使用模板渲染表格行HTML
         
-        # 格式化数据
-        data = []
-        for row in results:
-            item = {
-                'id': row.id,
-                'product_name': row.product_name,
-                'product_model': row.product_model,
-                'product_desc': row.product_desc,
-                'quantity': row.quantity,
-                'discount': f"{row.discount * 100:.1f}%" if row.discount else "100.0%",
-                'unit_price': float(row.unit_price) if row.unit_price else 0,
-                'total_price': float(row.total_price) if row.total_price else 0,
-                'product_mn': row.product_mn,
-                'owner_name': row.owner_name,
-                'owner_real_name': row.owner_real_name,
-                'company_name': row.company_name,
-                'project_id': row.project_id,
-                'project_name': row.project_name,
-                'current_stage': row.current_stage,
-                'quotation_id': row.quotation_id,
-                'quotation_number': row.quotation_number,
-                'updated_at': row.updated_at.isoformat() if row.updated_at else None,
-                'created_at': row.created_at.isoformat() if row.created_at else None
-            }
-            data.append(item)
+        if not results:
+            html = '<tr><td colspan="13" class="text-center py-4">暂无符合条件的数据</td></tr>'
+        else:
+            # 创建简单的数据结构供模板使用
+            formatted_results = []
+            for row in results:
+                # 使用命名空间对象，更简单可靠
+                # 注意：现在row[9]是完整的User对象，row[10]开始是project_id等
+                formatted_row = SimpleNamespace(
+                    id=row[0],
+                    product_name=row[1],
+                    product_model=row[2],
+                    product_desc=row[3],
+                    quantity=row[4],
+                    discount=row[5],
+                    unit_price=row[6],
+                    total_price=row[7],
+                    product_mn=row[8],
+                    owner=row[9],  # 完整的User对象
+                    project_id=row[10],
+                    project_name=row[11],
+                    current_stage=row[12],
+                    current_stage_label=get_stage_label(row[12] or 'unset'),
+                    quotation_id=row[13],
+                    quotation_number=row[14],
+                    updated_at=row[15],
+                    created_at=row[16]
+                )
+                formatted_results.append(formatted_row)
+            
+            # 使用行模板渲染HTML，确保徽章样式一致
+            html = render_template('product_analysis/product_analysis_rows_simple.html', items=formatted_results)
+            logger.info(f"✅ 模板渲染成功，生成了 {len(formatted_results)} 行数据")
         
-        # 计算统计信息
-        total_amount = sum(item['total_price'] for item in data)
-        total_quantity = sum(item['quantity'] for item in data)
-        avg_unit_price = total_amount / total_quantity if total_quantity > 0 else 0
+        # 使用模组化函数计算统计信息
+        current_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        ajax_stats_data = _calculate_product_analysis_stats(query, current_month)
+        
+        # 计算是否还有更多数据
+        has_more = (offset + len(results)) < total_count
         
         return jsonify({
             'success': True,
-            'data': data,
+            'html': html,
+            'has_more': has_more,
+            'total_count': total_count,
+            'loaded_count': offset + len(results),
             'statistics': {
-                'total_amount': total_amount,
-                'total_count': total_quantity,
-                'monthly_increase': total_quantity,  # 本月新增就是当前查询的总数量
-                'avg_unit_price': avg_unit_price
-            },
-            'pagination': {
-                'page': page,
-                'per_page': per_page,
-                'total_count': total_count,
-                'total_pages': total_pages,
-                'has_next': has_next,
-                'has_prev': has_prev
+                # 使用模组化统计计算结果，转换为万元以兼容通用模组
+                # 总项目数
+                'total_count': ajax_stats_data['record_count'],
+                'total_amount': round(ajax_stats_data['total_amount'] / 10000, 2),  # 转换为万元
+                
+                # 本月新增（包含数量和金额）
+                'monthly_increase_count': ajax_stats_data['monthly_quantity'],
+                'monthly_increase_amount': round(ajax_stats_data['monthly_amount'] / 10000, 2),  # 转换为万元
+                
+                # 平均单价
+                'avg_unit_price_count': 1,  # 固定显示1个单位
+                'avg_unit_price_amount': round(ajax_stats_data['avg_unit_price'] / 10000, 4)  # 转换为万元，保留4位小数
             }
         })
         
     except Exception as e:
-        logger.error(f"获取本月新增产品明细数据失败: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"植入产品分析AJAX筛选失败: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False, 
+            'error': f'筛选失败: {str(e)}',
+            'html': '<tr><td colspan="13" class="text-center py-4 text-danger">加载失败，请刷新页面重试</td></tr>'
+        }), 500
 
 @product_analysis.route('/api/export_analysis')
 @login_required

@@ -1,0 +1,90 @@
+{% from 'macros/ui_helpers.html' import render_product_type_badge, render_product_status_badge, render_vendor_badge %}
+{% for product in (products if products is defined else items) %}
+<div class="product-card-mobile">
+    <div class="product-header">
+        <div class="product-name">
+            <a href="{{ url_for('product_route.view_product_detail', id=product.id) }}">
+                {{ product.product_name or '-' }}
+            </a>
+            <span class="product-id">#{{ product.id }}</span>
+        </div>
+        <div class="product-badges">
+            {% if product.type %}
+                {{ render_product_type_badge(product.type) }}
+            {% endif %}
+            {{ render_product_status_badge(product.status) }}
+        </div>
+    </div>
+    
+    <div class="product-details">
+        {% if product.product_mn %}
+        <div class="detail-row">
+            <span class="label">{{ _('型号') }}:</span>
+            <span class="value">{{ product.product_mn }}</span>
+        </div>
+        {% endif %}
+        
+        {% if product.category %}
+        <div class="detail-row">
+            <span class="label">{{ _('类别') }}:</span>
+            <span class="value">{{ product.category }}</span>
+        </div>
+        {% endif %}
+        
+        {% if product.model %}
+        <div class="detail-row">
+            <span class="label">{{ _('规格型号') }}:</span>
+            <span class="value">{{ product.model }}</span>
+        </div>
+        {% endif %}
+        
+        {% if product.specification %}
+        <div class="detail-row">
+            <span class="label">{{ _('规格') }}:</span>
+            <span class="value spec" title="{{ product.specification }}">
+                {% if product.specification|length > 25 %}
+                    {{ product.specification[:25] }}...
+                {% else %}
+                    {{ product.specification }}
+                {% endif %}
+            </span>
+        </div>
+        {% endif %}
+        
+        {% if product.brand %}
+        <div class="detail-row">
+            <span class="label">{{ _('品牌') }}:</span>
+            <span class="value">
+                <div class="brand-with-vendor">
+                    <span>{{ product.brand }}</span>
+                    {{ render_vendor_badge(product.is_vendor_product) }}
+                </div>
+            </span>
+        </div>
+        {% endif %}
+        
+        {% if product.unit %}
+        <div class="detail-row">
+            <span class="label">{{ _('单位') }}:</span>
+            <span class="value">{{ product.unit }}</span>
+        </div>
+        {% endif %}
+        
+        <div class="detail-row">
+            <span class="label">{{ _('零售价') }}:</span>
+            <span class="value price">
+                {% if product.retail_price %}
+                    ¥{{ "%.2f"|format(product.retail_price) }}
+                {% else %}
+                    -
+                {% endif %}
+            </span>
+        </div>
+        
+        <div class="detail-row">
+            <span class="label">{{ _('创建时间') }}:</span>
+            <span class="value">{{ product.created_at.strftime('%Y-%m-%d') if product.created_at else '-' }}</span>
+        </div>
+    </div>
+</div>
+{% endfor %}

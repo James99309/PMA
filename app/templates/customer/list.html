@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_owner, render_date, render_datetime, render_button, render_confirm_cancel %}
+{% from 'macros/ui_helpers.html' import render_owner, render_date, render_datetime, render_button, render_confirm_cancel, render_data_list, render_customer_status_badge, render_company_type_badge, render_industry_badge %}
+{% from 'macros/filter_search.html' import render_filter_search_form %}
 {% import 'macros/ui_helpers.html' as ui %}
 
 {% block title %}{{ _('客户管理') }}{% endblock %}
@@ -11,42 +12,45 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row page-title-container">
-        <div class="col-12">
-            <h1 class="page-title">{{ _('客户列表') }}</h1>
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 标准化页面头部区域：标题与操作按钮在同一行 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">{{ _('客户管理') }}</h1>
+            </div>
+            <div class="col text-end">
+                <!-- 操作按钮组 -->
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    {% if current_user.role == 'admin' %}
+                        {{ render_button(_('智能合并'), url_for('customer.customer_merge_tool'), color='warning', attrs='title="智能检测并合并重复的客户数据"') }}
+                    {% endif %}
+                    {{ render_button(_('添加企业'), url_for('customer.add_company'), color='primary') }}
+                    {% if has_permission('customer', 'import') %}
+                    <div class="dropdown">
+                        {{ render_button(_('导入数据'), '#', color='auxiliary', extra_class='dropdown-toggle', attrs='id="importDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false"') }}
+                        <ul class="dropdown-menu" aria-labelledby="importDropdownBtn">
+                            <li><a class="dropdown-item" href="#" id="importCustomers">{{ _('导入客户') }}</a></li>
+                            <li><a class="dropdown-item" href="#" id="importContacts">{{ _('导入联系人') }}</a></li>
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
         </div>
     </div>
-    <!-- 添加刷新关系按钮 -->
-    <div class="row mb-2">
-        <div class="col-12 text-end">
-            <!-- 已删除刷新联系人关系按钮和说明 -->
-        </div>
-    </div>
-    <!-- 删除原有的企业列表标题 -->
-    <!-- <div class="row mb-3">
-        <div class="col">
-            <h2 class="text-primary">企业列表</h2>
-        </div>
-        <div class="col text-end"> ... </div>
-    </div> -->
+    
+    <!-- 使用通用列表组件（不显示页面级标题） -->
+    {{ render_data_list(list_config) }}
 
+    <!-- 额外功能区域 - 联系人搜索 -->
     <div class="row mb-3">
         <div class="col-12">
             <div class="card">
                 <div class="card-body">
-                    <!-- 搜索和筛选区域 -->
-                    <div class="row mb-3">
+                    <div class="row">
                         <div class="col-md-4">
-                            <div class="position-relative">
-                                <input type="text" class="form-control" id="companySearch" placeholder="{{ _('搜索企业名称...') }}" autocomplete="off">
-                                <span class="position-absolute top-50 end-0 translate-middle-y pe-3" id="searchCompany">
-                                    <i class="fas fa-search search-icon"></i>
-                                </span>
-                                <div id="companySearchResults" class="dropdown-menu w-100" style="max-height: 300px; overflow-y: auto; left: 0; top: 100%; margin-top: 2px;"></div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
+                            <!-- 联系人搜索功能 -->
                             <div class="position-relative">
                                 <input type="text" class="form-control" id="contactSearch" placeholder="{{ _('搜索联系人...') }}" autocomplete="off">
                                 <span class="position-absolute top-50 end-0 translate-middle-y pe-3" id="searchContact">
@@ -55,83 +59,8 @@
                                 <div id="contactSearchResults" class="dropdown-menu w-100" style="max-height: 300px; overflow-y: auto; left: 0; top: 100%; margin-top: 2px;"></div>
                             </div>
                         </div>
-                        <div class="col-md-4 text-end d-none d-lg-block">
-                            {% if current_user.role == 'admin' %}
-                                {{ render_button(_('智能合并'), url_for('customer.customer_merge_tool'), color='warning', icon='fas fa-compress-arrows-alt', extra_class='me-2', attrs='title="智能检测并合并重复的客户数据"') }}
-                            {% endif %}
-                            {{ render_button(_('添加企业'), url_for('customer.add_company'), color='primary', extra_class='me-2') }}
-                            {% if has_permission('customer', 'import') %}
-                            <div class="dropdown d-inline-block">
-                                {{ render_button(_('导入数据'), '#', color='auxiliary', extra_class='dropdown-toggle', attrs='id="importDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false"') }}
-                                <ul class="dropdown-menu" aria-labelledby="importDropdownBtn">
-                                    <li><a class="dropdown-item" href="#" id="importCustomers">{{ _('导入客户') }}</a></li>
-                                    <li><a class="dropdown-item" href="#" id="importContacts">{{ _('导入联系人') }}</a></li>
-                                </ul>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    
-                    <!-- 筛选器区域 -->
-                    <div class="row" id="filterRow">
-                        <div class="col-12">
-                            <div class="card bg-light border-0">
-                                <div class="card-body py-2">
-                                    <div class="d-flex flex-wrap align-items-end gap-3">
-                                        <div class="form-group mb-0">
-                                            <label class="form-label small mb-1">{{ _('客户负责人') }}</label>
-                                            <select class="form-select form-select-sm" id="ownerFilter" style="min-width: 120px;">
-                                                <option value="">{{ _('全部') }}</option>
-                                                {% for user in all_users if user.id in unique_owner_ids %}
-                                                <option value="{{ user.id }}" {% if user.id|string == owner_filter %}selected{% endif %}>
-                                                    {{ user.real_name or user.username }}
-                                                </option>
-                                                {% endfor %}
-                                            </select>
-                                        </div>
-                                        <div class="form-group mb-0">
-                                            <label class="form-label small mb-1">{{ _('企业类型') }}</label>
-                                            <select class="form-select form-select-sm" id="companyTypeFilter" style="min-width: 120px;">
-                                                <option value="">{{ _('全部') }}</option>
-                                                {% for value, label in COMPANY_TYPE_OPTIONS %}
-                                                <option value="{{ value }}">{{ label }}</option>
-                                                {% endfor %}
-                                            </select>
-                                        </div>
-                                        <div class="form-group mb-0">
-                                            <label class="form-label small mb-1">{{ _('行业') }}</label>
-                                            <select class="form-select form-select-sm" id="industryFilter" style="min-width: 120px;">
-                                                <option value="">{{ _('全部') }}</option>
-                                                {% for value, label in INDUSTRY_OPTIONS %}
-                                                <option value="{{ value }}">{{ label }}</option>
-                                                {% endfor %}
-                                            </select>
-                                        </div>
-                                        <div class="form-group mb-0">
-                                            <label class="form-label small mb-1">{{ _('国家') }}</label>
-                                            <select class="form-select form-select-sm" id="countryFilter" style="min-width: 120px;">
-                                                <option value="">{{ _('全部') }}</option>
-                                                {% for value, label in COUNTRY_OPTIONS %}
-                                                <option value="{{ value }}">{{ label }}</option>
-                                                {% endfor %}
-                                            </select>
-                                        </div>
-                                        <div class="form-group mb-0">
-                                            <label class="form-label small mb-1">{{ _('状态') }}</label>
-                                            <select class="form-select form-select-sm" id="statusFilter" style="min-width: 120px;">
-                                                <option value="">{{ _('全部') }}</option>
-                                                {% for value, label in STATUS_OPTIONS %}
-                                                <option value="{{ value }}">{{ label }}</option>
-                                                {% endfor %}
-                                            </select>
-                                        </div>
-                                        <div class="form-group mb-0">
-                                            <label class="form-label small mb-1" style="visibility: hidden;">{{ _('操作') }}</label>
-                                            {{ render_button(_('清空筛选'), '#', color='secondary', icon='fas fa-times', size='sm', extra_class='btn-outline-secondary', attrs='id="clearFilters"') }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                        <div class="col-md-8">
+                            <p class="text-muted mb-0 mt-2">{{ _('在此搜索联系人以快速查找相关客户信息') }}</p>
                         </div>
                     </div>
                 </div>
@@ -200,253 +129,14 @@
         {%- endif %}
     </div>
 
-    <!-- 移动端卡片视图 - 仅在小屏幕显示 -->
-    <div class="d-block d-lg-none">
-        {% if companies|length == 0 %}
-        <div class="alert alert-info text-center">
-            {{ _('暂无可见企业数据。') }}{% if has_permission('customer', 'create') %}{{ _('您可以点击右上角"添加企业"新建自己的客户。') }}{% endif %}
-        </div>
-        {% endif %}
-        
-        {% for company in companies %}
-        <div class="card mb-3 shadow-sm">
-            <div class="card-body p-3">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="badge bg-info">{{ company.company_code }}</span>
-                    <span class="badge {% if company.status == 'active' %}bg-success{% else %}bg-secondary{% endif %}">
-                        {{ company.status|status_label }}
-                    </span>
-                </div>
-                <h5 class="card-title mb-2">
-                    <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="text-decoration-none text-dark">
-                        {{ company.company_name }}
-                    </a>
-                    {% if company.owner_id != current_user.id and current_user.id in company.contact_owner_ids %}
-                    <span class="badge bg-info ms-1" style="font-size: 0.6em;">{{ _('已创建联系人') }}</span>
-                    {% endif %}
-                </h5>
-                <div class="small text-muted mb-2">
-                    {{ company.company_type|company_type_label }} · {{ company.industry|industry_label }}
-                </div>
-                <div class="small mb-1">
-                    <i class="fas fa-map-marker-alt text-secondary me-1"></i>
-                    {{ country_code_to_name[company.country] if company.country in country_code_to_name else company.country }} {{ company.region }}
-                </div>
-                {% if company.address %}
-                <div class="small mb-1">
-                    <i class="fas fa-location-arrow text-secondary me-1"></i>{{ company.address }}
-                </div>
-                {% endif %}
-                <div class="small text-muted mt-2">
-                    <i class="fas fa-user me-1"></i>{{ render_owner(company.owner) }}
-                    <span class="mx-1">·</span>
-                    <i class="fas fa-clock me-1"></i>{{ render_date(company.updated_at) }}
-                </div>
-                {% if company.notes %}
-                <div class="mt-2 small">
-                    <i class="fas fa-sticky-note text-muted me-1"></i>{{ company.notes }}
-                </div>
-                {% endif %}
-            </div>
-        </div>
-        {% endfor %}
-    </div>
 
-    <!-- PC端表格视图 - 仅在大屏幕显示 -->
-    <div class="card d-none d-lg-block">
-        <div class="card-body p-0">
-            {# 插入筛选条宏调用 #}
-            <div class="d-flex justify-content-end align-items-center px-3 py-2">
-                {{ render_button(_('批量删除'), '#', color='danger', icon='fas fa-trash', size='sm', extra_class='btn-outline-danger', attrs='id="batchDeleteBtn" style="display: none;"') }}
-            </div>
-            <div class="table-responsive">
-                <table class="table table-striped table-hover align-middle" style="table-layout: auto; min-width: 1400px; font-size: 14px;">
-                    {% set fields = [
-                      {'name': 'owner', 'label': _('客户负责人'), 'sortable': True},
-                      {'name': 'company_name', 'label': _('企业名称'), 'sortable': True},
-                      {'name': 'company_type', 'label': _('企业类型'), 'sortable': True},
-                      {'name': 'industry', 'label': _('行业'), 'sortable': True},
-                      {'name': 'country', 'label': _('国家'), 'sortable': True},
-                      {'name': 'region', 'label': _('区域'), 'sortable': True},
-                      {'name': 'address', 'label': _('地址'), 'sortable': True},
-                      {
-                        'name': 'status',
-                        'label': _('状态'),
-                        'sortable': True,
-                        'filterable': True,
-                        'options': status_options,
-                        'selected': request.args.getlist('status')
-                      },
-                      {'name': 'updated_at', 'label': _('更新时间'), 'sortable': True},
-                      {'name': 'created_at', 'label': _('创建时间'), 'sortable': True},
-                    ] %}
-                    <thead>
-                      <tr class="bg-light text-dark">
-                        {% if has_permission('customer', 'delete') %}
-                        <th class="px-3 py-3" style="width: 40px;">
-                          <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="selectAll">
-                          </div>
-                        </th>
-                        {% endif %}
-                        {% for field in fields %}
-                          {% if field.sortable %}
-                            {% set current_sort = sort_field %}
-                            {% set current_order = sort_order %}
-                            {% set new_order = 'asc' if current_sort != field.name or current_order == 'desc' else 'desc' %}
-                            <th class="px-3 py-3 sortable" style="cursor: pointer;">
-                              <a href="{{ url_for('customer.list_companies',
-                                search=search_term,
-                                sort=field.name,
-                                order=new_order,
-                                owner=owner_filter,
-                                only_mine=only_mine) }}" class="text-decoration-none text-dark">
-                                {{ field.label }}
-                                {% if current_sort == field.name %}
-                                  {% if current_order == 'asc' %}
-                                    <i class="fas fa-sort-up"></i>
-                                  {% else %}
-                                    <i class="fas fa-sort-down"></i>
-                                  {% endif %}
-                                {% else %}
-                                  <i class="fas fa-sort text-muted"></i>
-                                {% endif %}
-                              </a>
-                            </th>
-                          {% else %}
-                            <th class="px-3 py-3">{{ field.label }}</th>
-                          {% endif %}
-                        {% endfor %}
-                      </tr>
-                    </thead>
-                    <tbody id="companyTableBody">
-                        {% if companies|length == 0 %}
-                        <tr id="emptyDataRow">
-                            <td colspan="100" class="text-center text-muted py-5">
-                                {{ _('暂无可见企业数据。') }}{% if has_permission('customer', 'create') %}{{ _('您可以点击右上角"添加企业"新建自己的客户。') }}{% endif %}
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr id="emptyDataRow" class="d-none">
-                            <td colspan="100" class="text-center text-muted py-5">
-                                {{ _('暂无可见企业数据。') }}{% if has_permission('customer', 'create') %}{{ _('您可以点击右上角"添加企业"新建自己的客户。') }}{% endif %}
-                            </td>
-                        </tr>
-                        {% endif %}
-                        {% include 'customer/company_rows.html' %}
-                    </tbody>
-                </table>
-            </div>
-            
-            <!-- 加载更多指示器 -->
-            <div class="row mt-3">
-                <div class="col-12 text-center">
-                    <div id="loadingIndicator" class="d-none">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">{{ _('加载中...') }}</span>
-                        </div>
-                        <p class="text-muted mt-2">{{ _('加载更多数据...') }}</p>
-                    </div>
-                    <div id="noMoreData" class="d-none">
-                        <p class="text-muted">{{ _('没有更多数据了') }}</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
 <!-- 添加Font Awesome图标库 -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 
-<!-- 添加自定义样式 -->
+<!-- 客户模块特定样式 -->
 <style>
-    /* 表格基础样式 - 应用于所有表格单元格 */
-    .table {
-        min-width: 1400px;
-    }
-    .table th,
-    .table td {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: 200px;
-        position: relative;
-        vertical-align: middle !important;
-        height: 50px;
-        padding: 0.5rem 0.75rem;
-    }
-    
-    /* 统一表头样式和垂直对齐 */
-    .table th {
-        font-weight: 600;
-        background-color: #f8f9fa;
-        position: relative;
-        vertical-align: middle !important;
-        height: 55px;
-        padding: 0.5rem 0.75rem;
-    }
-    
-    /* 调整企业代码徽章样式，确保水平对齐 */
-    .table td .badge {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 70px;
-        height: 24px;
-        margin: 0;
-        vertical-align: middle;
-    }
-    
-    /* 排序表头样式 */
-    .table th a.text-dark {
-        text-decoration: none;
-        display: flex;
-        align-items: center;
-        height: 100%;
-        color: #333 !important;
-    }
-    
-    .table th a.text-dark:hover {
-        color: #0d6efd !important;
-    }
-    
-    .table th a.current-sort {
-        color: #0d6efd !important;
-        font-weight: 700;
-    }
-    
-    .table th a.current-sort i {
-        color: #0d6efd !important;
-    }
-    
-    /* 统一排序图标样式 */
-    .fa-sort, .fa-sort-up, .fa-sort-down {
-        margin-left: 5px;
-        width: 10px;
-        text-align: center;
-    }
-
-    /* 确保所有表头列对齐一致 */
-    .table thead tr th {
-        border-bottom: 2px solid #dee2e6;
-        vertical-align: middle !important;
-    }
-    
-    .table-responsive {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        position: relative;
-    }
-    
-    .btn-group-sm > .btn {
-        padding: .25rem .5rem;
-    }
-    
-    /* 表格行样式 */
-    .table tr {
-        height: 50px;
-    }
+    /* 客户模块特定样式 - 不影响通用列表组件 */
     
     /* 禁用按钮样式 */
     .btn.disabled, .btn:disabled {
@@ -458,16 +148,6 @@
     /* 禁用按钮悬停提示 */
     [title] {
         position: relative;
-    }
-
-    /* 无权限企业样式 */
-    .no-permission-company {
-        opacity: 0.85;
-        background-color: #f8f9fa;
-    }
-    
-    .no-permission-company:hover {
-        background-color: #f0f0f0;
     }
     
     /* 下拉菜单样式优化 */
@@ -659,15 +339,9 @@
                             <span class="text-muted">批量操作:</span>
                         </div>
                         <div class="mb-2">
-                            <button type="button" class="btn btn-outline-primary btn-sm me-2" id="applyRecommendedActions">
-                                <i class="fas fa-magic"></i> 应用智能推荐
-                            </button>
-                            <button type="button" class="btn btn-outline-success btn-sm me-2" id="keepAllConflicts">
-                                <i class="fas fa-plus"></i> 全部导入为新用户
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary btn-sm" id="ignoreAllConflicts">
-                                <i class="fas fa-times"></i> 全部忽略不导入
-                            </button>
+                            {{ render_button('应用智能推荐', '#', color='primary', size='sm', type='button', icon='fas fa-magic', extra_class='me-2', attrs='id="applyRecommendedActions"') }}
+                            {{ render_button('全部导入为新用户', '#', color='success', size='sm', type='button', icon='fas fa-plus', extra_class='me-2', attrs='id="keepAllConflicts"') }}
+                            {{ render_button('全部忽略不导入', '#', color='secondary', size='sm', type='button', icon='fas fa-times', attrs='id="ignoreAllConflicts"') }}
                         </div>
                     </div>
                 </div>
@@ -697,9 +371,9 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-primary" id="parseExcelBtn">解析文件</button>
-                <button type="button" class="btn btn-success" id="importBtn" style="display: none;">确认导入</button>
+                {{ render_button('取消', '#', color='secondary', size='sm', type='button', attrs='data-bs-dismiss="modal"') }}
+                {{ render_button('解析文件', '#', color='primary', size='sm', type='button', attrs='id="parseExcelBtn"') }}
+                {{ render_button('确认导入', '#', color='success', size='sm', type='button', attrs='id="importBtn" style="display: none;"') }}
             </div>
         </div>
     </div>
@@ -811,12 +485,8 @@
                             <span class="text-muted">批量操作:</span>
                         </div>
                         <div class="mb-2">
-                            <button type="button" class="btn btn-outline-primary btn-sm me-2" id="overrideAllConflicts">
-                                <i class="fas fa-sync-alt"></i> 全部覆盖
-                            </button>
-                            <button type="button" class="btn btn-outline-success btn-sm" id="keepAllContactConflicts">
-                                <i class="fas fa-check"></i> 全部保留现有数据
-                            </button>
+                            {{ render_button('全部覆盖', '#', color='primary', size='sm', type='button', icon='fas fa-sync-alt', extra_class='me-2', attrs='id="overrideAllConflicts"') }}
+                            {{ render_button('全部保留现有数据', '#', color='success', size='sm', type='button', icon='fas fa-check', attrs='id="keepAllContactConflicts"') }}
                         </div>
                     </div>
                 </div>
@@ -869,9 +539,9 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-primary" id="parseContactExcelBtn">解析文件</button>
-                <button type="button" class="btn btn-success" id="importContactBtn" style="display: none;">确认导入</button>
+                {{ render_button('取消', '#', color='secondary', size='sm', type='button', attrs='data-bs-dismiss="modal"') }}
+                {{ render_button('解析文件', '#', color='primary', size='sm', type='button', attrs='id="parseContactExcelBtn"') }}
+                {{ render_button('确认导入', '#', color='success', size='sm', type='button', attrs='id="importContactBtn" style="display: none;"') }}
             </div>
         </div>
     </div>
@@ -887,9 +557,6 @@ document.addEventListener('DOMContentLoaded', function() {
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
-    
-    // 初始化企业搜索自动完成
-    initCompanySearch();
     
     // 初始化联系人搜索自动完成
     initContactSearch();
@@ -1603,147 +1270,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// 企业搜索功能
-function initCompanySearch() {
-    const companyInput = document.getElementById('companySearch');
-    const companyResults = document.getElementById('companySearchResults');
-    const companySearchBtn = document.getElementById('searchCompany');
-    let companyDebounceTimer;
-    
-    // 输入事件处理
-    companyInput.addEventListener('input', function() {
-        clearTimeout(companyDebounceTimer);
-        const keyword = this.value.trim();
-        
-        // 如果输入为空，隐藏结果
-        if (keyword.length < 1) {
-            companyResults.classList.remove('show');
-            return;
-        }
-        
-        // 设置延迟，避免频繁请求
-        companyDebounceTimer = setTimeout(function() {
-            // 发送AJAX请求
-            fetch(`/customer/api/company/search?keyword=${encodeURIComponent(keyword)}`, {
-                headers: {
-                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
-                }
-            })
-                .then(response => response.json())
-                .then(data => {
-                    // 清空结果容器
-                    companyResults.innerHTML = '';
-                    
-                    // 添加标题
-                    const headerDiv = document.createElement('div');
-                    headerDiv.className = 'suggestions-header';
-                    headerDiv.textContent = '企业搜索结果';
-                    companyResults.appendChild(headerDiv);
-                    
-                    // 添加结果项
-                    data.results.forEach(company => {
-                        const item = document.createElement('div');
-                        item.className = 'dropdown-item company-search-item';
-                        
-                        // 创建内容区
-                        const contentDiv = document.createElement('div');
-                        contentDiv.style.display = 'inline';
-                        
-                        // 添加企业名称
-                        const nameSpan = document.createElement('span');
-                        nameSpan.className = 'company-name';
-                        nameSpan.textContent = company.name;
-                        contentDiv.appendChild(nameSpan);
-                        
-                        // 添加地区信息
-                        if (company.location || (company.country && company.region)) {
-                            const locationSpan = document.createElement('span');
-                            locationSpan.className = 'company-location';
-                            const locationText = company.location || 
-                                                 ((company.country || '') + 
-                                                 (company.region ? ' ' + company.region : ''));
-                            locationSpan.textContent = ` | ${locationText}`;
-                            contentDiv.appendChild(locationSpan);
-                        }
-                        
-                        // 添加拥有者信息
-                        if (company.owner_name) {
-                            const ownerSpan = document.createElement('span');
-                            ownerSpan.className = 'company-owner';
-                            ownerSpan.textContent = ` | ${company.owner_name}`;
-                            contentDiv.appendChild(ownerSpan);
-                        }
-                        
-                        // 添加企业访问权限视觉提示
-                        if (!company.has_permission) {
-                            const permissionBadge = document.createElement('span');
-                            permissionBadge.className = 'badge bg-secondary ms-2';
-                            permissionBadge.textContent = '只读';
-                            contentDiv.appendChild(permissionBadge);
-                        }
-                        
-                        // 添加点击事件处理，点击搜索结果项直接跳转到企业详情页
-                        item.addEventListener('click', function() {
-                            window.location.href = `/customer/${company.id}/view`;
-                        });
-                        
-                        item.appendChild(contentDiv);
-                        companyResults.appendChild(item);
-                    });
-                    
-                    // 添加提示信息
-                    if (data.results.length > 0) {
-                        const noticeDiv = document.createElement('div');
-                        noticeDiv.className = 'reference-notice';
-                        noticeDiv.textContent = '点击企业名称可直接查看详情';
-                        companyResults.appendChild(noticeDiv);
-                    } else {
-                        const noticeDiv = document.createElement('div');
-                        noticeDiv.className = 'reference-notice';
-                        noticeDiv.textContent = '没有找到匹配的企业';
-                        companyResults.appendChild(noticeDiv);
-                    }
-                    
-                    // 显示下拉列表
-                    companyResults.classList.add('show');
-                })
-                .catch(error => {
-                    console.error('搜索企业出错:', error);
-                    companyResults.classList.remove('show');
-                });
-        }, 200);
-    });
-    
-    // 处理点击事件
-    companySearchBtn.addEventListener('click', function() {
-        const searchTerm = companyInput.value.trim();
-        if (searchTerm) {
-            window.location.href = `/customer/?search=${encodeURIComponent(searchTerm)}`;
-        }
-    });
-    
-    // 处理回车键
-    companyInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            companySearchBtn.click();
-        }
-    });
-    
-    // 处理焦点事件
-    companyInput.addEventListener('focus', function() {
-        if (this.value.trim().length >= 1) {
-            companyResults.classList.add('show');
-        }
-    });
-    
-    // 点击其他区域隐藏结果
-    document.addEventListener('click', function(event) {
-        if (!companyInput.contains(event.target) && 
-            !companyResults.contains(event.target)) {
-            companyResults.classList.remove('show');
-        }
-    });
-}
 
 // 联系人搜索功能
 function initContactSearch() {
@@ -2630,227 +2156,12 @@ function initializeBatchDeleteLogic() {
 
 <!-- 筛选功能JavaScript -->
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // 获取筛选器元素
-    const ownerFilter = document.getElementById('ownerFilter');
-    const companyTypeFilter = document.getElementById('companyTypeFilter');
-    const industryFilter = document.getElementById('industryFilter');
-    const countryFilter = document.getElementById('countryFilter');
-    const statusFilter = document.getElementById('statusFilter');
-    const clearFiltersBtn = document.getElementById('clearFilters');
-    
-    // 应用筛选
-    function applyFilters() {
-        const params = new URLSearchParams(window.location.search);
-        
-        // 清除之前的筛选参数
-        params.delete('owner_filter');
-        params.delete('company_type');
-        params.delete('industry');
-        params.delete('country');
-        params.delete('status_filter');
-        
-        // 添加新的筛选参数
-        if (ownerFilter && ownerFilter.value) params.set('owner_filter', ownerFilter.value);
-        if (companyTypeFilter && companyTypeFilter.value) params.set('company_type', companyTypeFilter.value);
-        if (industryFilter && industryFilter.value) params.set('industry', industryFilter.value);
-        if (countryFilter && countryFilter.value) params.set('country', countryFilter.value);
-        if (statusFilter && statusFilter.value) params.set('status_filter', statusFilter.value);
-        
-        // 重置分页
-        params.delete('offset');
-        
-        // 跳转到新URL
-        window.location.search = params.toString();
-    }
-    
-    // 清空筛选
-    function clearFilters() {
-        const params = new URLSearchParams(window.location.search);
-        
-        // 清除筛选参数
-        params.delete('owner_filter');
-        params.delete('company_type');
-        params.delete('industry');
-        params.delete('country');
-        params.delete('status_filter');
-        params.delete('offset');
-        
-        // 跳转到新URL
-        window.location.search = params.toString();
-    }
-    
-    // 为筛选器添加事件监听
-    if (ownerFilter) ownerFilter.addEventListener('change', applyFilters);
-    if (companyTypeFilter) companyTypeFilter.addEventListener('change', applyFilters);
-    if (industryFilter) industryFilter.addEventListener('change', applyFilters);
-    if (countryFilter) countryFilter.addEventListener('change', applyFilters);
-    if (statusFilter) statusFilter.addEventListener('change', applyFilters);
-    if (clearFiltersBtn) clearFiltersBtn.addEventListener('click', clearFilters);
-    
-    // 根据URL参数设置筛选器的初始值
-    const urlParams = new URLSearchParams(window.location.search);
-    if (ownerFilter && urlParams.get('owner_filter')) {
-        ownerFilter.value = urlParams.get('owner_filter');
-    }
-    if (companyTypeFilter && urlParams.get('company_type')) {
-        companyTypeFilter.value = urlParams.get('company_type');
-    }
-    if (industryFilter && urlParams.get('industry')) {
-        industryFilter.value = urlParams.get('industry');
-    }
-    if (countryFilter && urlParams.get('country')) {
-        countryFilter.value = urlParams.get('country');
-    }
-    if (statusFilter && urlParams.get('status_filter')) {
-        statusFilter.value = urlParams.get('status_filter');
-    }
-});
+// 遗留筛选器代码已移除，现在使用通用筛选搜索组件
 </script>
 
 <!-- 滚动加载相关JavaScript -->
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // 滚动加载相关变量
-    let currentOffset = {{ offset + companies|length }};
-    let isLoading = false;
-    let hasMore = {{ has_more|tojson }};
-    const limit = {{ limit }};
-    
-    // 获取当前URL参数
-    function getCurrentParams() {
-        const url = new URL(window.location.href);
-        return {
-            search: url.searchParams.get('search') || '',
-            sort: url.searchParams.get('sort') || 'updated_at',
-            order: url.searchParams.get('order') || 'desc',
-            owner_filter: url.searchParams.get('owner_filter') || '',
-            company_type: url.searchParams.get('company_type') || '',
-            industry: url.searchParams.get('industry') || '',
-            country: url.searchParams.get('country') || '',
-            status_filter: url.searchParams.get('status_filter') || ''
-        };
-    }
-    
-    // 加载更多数据
-    function loadMoreData() {
-        if (isLoading || !hasMore) return;
-        
-        isLoading = true;
-        document.getElementById('loadingIndicator').classList.remove('d-none');
-        
-        const params = getCurrentParams();
-        const url = new URL('{{ url_for("customer.load_more_companies") }}', window.location.origin);
-        url.searchParams.set('offset', currentOffset);
-        url.searchParams.set('limit', limit);
-        url.searchParams.set('search', params.search);
-        url.searchParams.set('sort', params.sort);
-        url.searchParams.set('order', params.order);
-        if (params.owner_filter) url.searchParams.set('owner_filter', params.owner_filter);
-        if (params.company_type) url.searchParams.set('company_type', params.company_type);
-        if (params.industry) url.searchParams.set('industry', params.industry);
-        if (params.country) url.searchParams.set('country', params.country);
-        if (params.status_filter) url.searchParams.set('status_filter', params.status_filter);
-        
-        fetch(url)
-            .then(response => response.json())
-            .then(data => {
-                const tableBody = document.getElementById('companyTableBody');
-                const emptyRow = document.getElementById('emptyDataRow');
-                
-                // 如果是第一次加载且没有数据，显示空数据提示
-                if (currentOffset === 0 && data.html.trim() === '') {
-                    if (emptyRow) {
-                        emptyRow.classList.remove('d-none');
-                    }
-                } else {
-                    // 隐藏空数据行，添加新数据
-                    if (emptyRow) {
-                        emptyRow.classList.add('d-none');
-                    }
-                    tableBody.insertAdjacentHTML('beforeend', data.html);
-                }
-                
-                currentOffset = data.loaded_count; // 更新当前偏移量
-                hasMore = data.has_more;
-                
-                // 重新初始化新加载内容的批量删除逻辑
-                initializeBatchDeleteLogic();
-                
-                if (!hasMore) {
-                    document.getElementById('noMoreData').classList.remove('d-none');
-                }
-            })
-            .catch(error => {
-                console.error('加载数据失败:', error);
-                // 可以在这里添加用户友好的错误提示
-            })
-            .finally(() => {
-                isLoading = false;
-                document.getElementById('loadingIndicator').classList.add('d-none');
-            });
-    }
-    
-    // 重置列表数据
-    function resetListData() {
-        const tableBody = document.getElementById('companyTableBody');
-        tableBody.innerHTML = '';
-        currentOffset = 0;
-        hasMore = true;
-        document.getElementById('noMoreData').classList.add('d-none');
-        
-        // 滚动到页面顶部
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        
-        // 加载第一批数据
-        loadMoreData();
-    }
-    
-    // 滚动监听
-    let scrollTimer;
-    window.addEventListener('scroll', function() {
-        clearTimeout(scrollTimer);
-        scrollTimer = setTimeout(function() {
-            // 当滚动到距离底部800px时开始加载
-            if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 800) {
-                loadMoreData();
-            }
-        }, 100);
-    });
-    
-    
-    // 更新搜索功能，适应滚动加载
-    const companyInput = document.getElementById('companySearch');
-    const companySearchBtn = document.getElementById('searchCompany');
-    
-    if (companySearchBtn) {
-        companySearchBtn.addEventListener('click', function() {
-            const searchTerm = companyInput.value.trim();
-            const url = new URL(window.location.href);
-            if (searchTerm) {
-                url.searchParams.set('search', searchTerm);
-            } else {
-                url.searchParams.delete('search');
-            }
-            // 移除offset参数，从头开始加载
-            url.searchParams.delete('offset');
-            window.location.href = url.toString();
-        });
-    }
-    
-    if (companyInput) {
-        companyInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                companySearchBtn.click();
-            }
-        });
-        
-        // 设置搜索框的当前值
-        {% if search_term %}
-        companyInput.value = '{{ search_term }}';
-        {% endif %}
-    }
-});
+// 遗留滚动加载代码已移除，现在使用通用数据列表组件
 
 // 批量删除确认流程
 let batchDeleteQueue = [];
@@ -3066,15 +2377,9 @@ function showBatchDeleteResults() {
                 <div id="batchDeleteModalBody"></div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="cancelBatchDelete()">
-                    <i class="fas fa-times"></i> 取消全部
-                </button>
-                <button type="button" class="btn btn-warning" onclick="skipBatchDelete()">
-                    <i class="fas fa-forward"></i> 跳过此项
-                </button>
-                <button type="button" class="btn btn-danger" onclick="executeBatchDelete()">
-                    <i class="fas fa-trash"></i> 确认删除
-                </button>
+                {{ render_button('取消全部', '#', color='secondary', size='sm', type='button', icon='fas fa-times', onclick='cancelBatchDelete()') }}
+                {{ render_button('跳过此项', '#', color='warning', size='sm', type='button', icon='fas fa-forward', onclick='skipBatchDelete()') }}
+                {{ render_button('确认删除', '#', color='danger', size='sm', type='button', icon='fas fa-trash', onclick='executeBatchDelete()') }}
             </div>
         </div>
     </div>
@@ -3109,6 +2414,32 @@ window.i18nTexts = {
 };
 </script>
 
+<!-- 引入标准筛选搜索组件JavaScript -->
+<script src="{{ url_for('static', filename='js/filter-search.js') }}"></script>
+
 <!-- 引入客户账户选择器JavaScript -->
 <script src="{{ url_for('static', filename='js/customer_account_selector.js') }}"></script>
+
+<!-- 引入通用列表组件JavaScript -->
+<script src="{{ url_for('static', filename='js/data-list.js') }}"></script>
+
+<!-- 初始化通用列表组件 -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 配置客户数据列表
+    const customerListConfig = {
+        module_name: '{{ list_config.module_name }}',
+        ajax_mode: {{ 'true' if list_config.ajax_mode else 'false' }},
+        ajax_endpoint: '{{ list_config.table.ajax_endpoint }}',
+        ajax_target: '#{{ list_config.table.ajax_target }}',
+        stats: {{ list_config.stats | tojson | safe }},
+        filter: {{ list_config.filter | tojson | safe }},
+        table: {{ list_config.table | tojson | safe }},
+        infinite_scroll: {{ list_config.infinite_scroll | tojson | safe }}
+    };
+    
+    // 初始化数据列表
+    setupDataList(customerListConfig);
+});
+</script>
 {% endblock %}

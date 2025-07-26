@@ -40,7 +40,12 @@ def get_viewable_data(model_class, user, special_filters=None):
     
     # 管理员可以查看所有数据
     if user.role == 'admin':
-        return model_class.query.filter(*special_filters)
+        # 为Company模型添加is_deleted过滤条件，确保管理员也不会看到已删除的客户
+        base_filters = []
+        if model_class.__name__ == 'Company':
+            base_filters.append(model_class.is_deleted == False)
+        all_filters = base_filters + (special_filters if special_filters else [])
+        return model_class.query.filter(*all_filters)
     
     # 营销总监特殊处理：可以查看销售重点和渠道跟进项目 - 优化为单个OR查询
     if user.role and user.role.strip() == 'sales_director' and model_class.__name__ == 'Project':
@@ -89,7 +94,7 @@ def get_viewable_data(model_class, user, special_filters=None):
         user_role = user.role.strip() if user.role else ''
         
         # 营销总监、渠道经理、商务助理、财务总监可以查看所有订单
-        if user_role in ['sales_director', 'channel_manager', 'business_admin', 'finance_director']:
+        if user_role in ['sales_director', 'channel_manager', 'business_admin', 'finance_director', 'finace_director']:
             return model_class.query.filter(*special_filters if special_filters else [])
         
         # 产品经理、解决方案经理可以查看所有订单（只读权限）
@@ -317,6 +322,16 @@ def get_viewable_data(model_class, user, special_filters=None):
     
     # 客户特殊权限处理 - 基于权限管理系统
     if model_class.__name__ in ['Company', 'Contact']:
+        # 管理员已经在前面处理过，不应该进入这个逻辑
+        # 但为了防止意外，再次检查管理员权限
+        if user.role == 'admin':
+            # 为Company模型添加is_deleted过滤条件，确保管理员也不会看到已删除的客户
+            base_filters = []
+            if model_class.__name__ == 'Company':
+                base_filters.append(model_class.is_deleted == False)
+            all_filters = base_filters + (special_filters if special_filters else [])
+            return model_class.query.filter(*all_filters)
+        
         # 检查用户是否有客户模块的查看权限
         if not user.has_permission('customer', 'view'):
             # 如果没有客户查看权限，返回空查询

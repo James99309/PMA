@@ -1,0 +1,11 @@
+{% from 'macros/ui_helpers.html' import render_table_cell %}
+
+{% for project in projects %}
+<tr>
+    {% for column in table_columns %}
+    <td {% if column.get('align') %}class="text-{{ column.align }}"{% endif %}>
+        {{ render_table_cell(project, column) }}
+    </td>
+    {% endfor %}
+</tr>
+{% endfor %}

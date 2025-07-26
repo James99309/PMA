@@ -214,7 +214,7 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
                 <form action="{{ url_for('product_management.apply_product', id=dev_product.id) }}" method="post">
-                    <button type="submit" class="btn btn-success">确认申请</button>
+                    {{ render_button('确认申请', '#', color='success', type='submit') }}
                 </form>
             </div>
         </div>
@@ -235,7 +235,7 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
                 <form action="{{ url_for('product_management.approve_product', id=dev_product.id) }}" method="post">
-                    <button type="submit" class="btn btn-success">确认入库</button>
+                    {{ render_button('确认入库', '#', color='success', type='submit') }}
                 </form>
             </div>
         </div>

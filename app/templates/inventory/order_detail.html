@@ -1,134 +1,131 @@
 {% extends "base.html" %}
-{% from "macros/ui_helpers.html" import render_button %}
+{% from 'macros/ui_helpers.html' import render_button, render_order_status_badge, render_inventory_status_badge, render_item_count_badge %}
+{% from 'macros/approval_flow.html' import render_complete_approval_section, render_approval_control_section %}
+
+{% block title %}订单处理 - {{ order.order_number }}{% endblock %}
 
 {% block head %}
 {{ super() }}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
+<!-- 审批流程标准化样式和脚本 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_flow.css') }}">
+<script src="{{ url_for('static', filename='js/approval_flow.js') }}"></script>
+<script src="{{ url_for('static', filename='js/approval_flow_utils.js') }}"></script>
+<script>
+// 设置CSRF令牌
+document.addEventListener('DOMContentLoaded', function() {
+    setGlobalCSRFToken('{{ csrf_token() }}');
+});
+</script>
 <style>
-.container.page-with-fixed-nav {
-    margin-top: 72px !important;
-}
-@media (max-width: 991.98px) {
     .container.page-with-fixed-nav {
-        margin-top: 120px !important;
+        margin-top: 72px !important;
     }
-}
+    @media (max-width: 991.98px) {
+        .container.page-with-fixed-nav {
+            margin-top: 120px !important;
+        }
+    }
 
-.order-status-draft { color: #6c757d; }
-.order-status-confirmed { color: #007bff; }
-.order-status-shipped { color: #ffc107; }
-.order-status-completed { color: #28a745; }
-.order-status-cancelled { color: #dc3545; }
+    .order-card {
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        border: none;
+    }
 
-.order-type-purchase { color: #007bff; }
-.order-type-sale { color: #28a745; }
+    /* 表格样式 - 参考结算单处理页面 */
+    .table-responsive {
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        overflow-x: auto; /* 允许左右滚动 */
+        width: 100%;
+    }
 
-.info-card {
-    background: linear-gradient(135deg, #007bff, #0056b3);
-    color: white;
-    border: none;
-    border-radius: 8px;
-}
+    /* 调整表格样式 */
+    .table {
+        font-size: 0.8rem; /* 字体缩小 */
+        white-space: nowrap; /* 防止换行 */
+        min-width: 1200px; /* 确保有足够宽度 */
+    }
 
-.detail-card {
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
+    .table th,
+    .table td {
+        padding: 0.6rem; /* 调整间距 */
+        vertical-align: middle;
+    }
 
-.total-summary {
-    background: linear-gradient(135deg, #ffc107, #e0a800);
-    color: #212529;
-    border: none;
-    border-radius: 8px;
-    font-weight: bold;
-}
+    /* 各字段宽度分配 */
+    .table th:nth-child(1), .table td:nth-child(1) { min-width: 180px; } /* 产品名称 */
+    .table th:nth-child(2), .table td:nth-child(2) { min-width: 120px; } /* 产品型号 */
+    .table th:nth-child(3), .table td:nth-child(3) { min-width: 100px; } /* 品牌 */
+    .table th:nth-child(4), .table td:nth-child(4) { min-width: 80px; } /* 订购数量 */
+    .table th:nth-child(5), .table td:nth-child(5) { min-width: 80px; } /* 已入库 */
+    .table th:nth-child(6), .table td:nth-child(6) { min-width: 80px; } /* 待入库 */
+    .table th:nth-child(7), .table td:nth-child(7) { min-width: 60px; } /* 单位 */
+    .table th:nth-child(8), .table td:nth-child(8) { min-width: 100px; } /* 单价 */
+    .table th:nth-child(9), .table td:nth-child(9) { min-width: 100px; } /* 当前库存 */
+    .table th:nth-child(10), .table td:nth-child(10) { min-width: 100px; } /* 入库状态 */
+    .table th:nth-child(11), .table td:nth-child(11) { min-width: 140px; } /* 操作 */
 
-.total-amount {
-    font-size: 1.5rem;
-    color: #dc3545;
-    font-weight: bold;
-}
+    /* 数字样式 */
+    .number-cell {
+        text-align: right;
+        font-family: 'Courier New', monospace;
+        font-weight: 500;
+    }
 
-/* 总计区域样式 */
-.order-summary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 8px;
-    padding: 20px;
-    margin-top: 20px;
-}
+    .stock-status {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
 
-.summary-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-}
+    .stock-sufficient {
+        background-color: #d1edff;
+        color: #0c63e4;
+    }
 
-.summary-item:last-child {
-    margin-bottom: 0;
-    font-size: 1.2em;
-    font-weight: bold;
-    border-top: 1px solid rgba(255,255,255,0.3);
-    padding-top: 10px;
-}
+    .stock-insufficient {
+        background-color: #fff3cd;
+        color: #664d03;
+    }
 
-.summary-label {
-    font-weight: 500;
-}
+    .stock-unknown {
+        background-color: #e2e3e5;
+        color: #383d41;
+    }
 
-.summary-value {
-    font-family: 'Roboto Mono', monospace;
-    font-weight: bold;
-}
+    .company-selector {
+        background: linear-gradient(135deg, #007bff, #0056b3);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
 
-.timeline {
-    position: relative;
-    padding-left: 30px;
-}
+    /* 统一字体大小 */
+    .company-selector .form-select,
+    .company-selector .btn,
+    .btn.btn-secondary,
+    .btn.btn-primary {
+        font-size: 0.875rem;
+    }
 
-.timeline::before {
-    content: '';
-    position: absolute;
-    left: 15px;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: #dee2e6;
-}
+    /* 入库按钮样式 - 移除悬停动画 */
+    .receive-btn {
+        transition: none !important;
+    }
+    
+    .receive-btn:hover {
+        transform: none !important;
+    }
 
-.timeline-item {
-    position: relative;
-    margin-bottom: 20px;
-}
 
-.timeline-marker {
-    position: absolute;
-    left: -22px;
-    top: 5px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    border: 2px solid #fff;
-    box-shadow: 0 0 0 2px #dee2e6;
-}
 
-.timeline-content {
-    background: #f8f9fa;
-    padding: 15px;
-    border-radius: 8px;
-    border-left: 3px solid #007bff;
-}
-
-.timeline-title {
-    margin-bottom: 5px;
-    color: #495057;
-}
-
-.timeline-text {
-    margin-bottom: 5px;
-    color: #6c757d;
-}
+    /* 订单详情页面特有的样式 */
 </style>
 {% endblock %}
 
@@ -139,18 +136,18 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
                 <h2 class="mb-0">
-                    <i class="fas fa-file-invoice me-2"></i>订单详情
+                    <i class="fas fa-shopping-cart me-2"></i>订单处理 - {{ order.order_number }}
                 </h2>
                 <div>
                     {{ render_button('返回订单列表', href=url_for('inventory.order_list'), color='secondary', icon='fas fa-arrow-left') }}
                     {% if order.status == 'draft' %}
                     {{ render_button('编辑订单', href=url_for('inventory.edit_order', id=order.id), color='warning', icon='fas fa-edit') }}
                     {% endif %}
-                    {% if order.status == 'approved' %}
-                    {{ render_button('导出PDF', href=url_for('inventory.export_order_pdf', id=order.id), color='info', icon='fas fa-file-pdf') }}
+                    {% if order.status in ['approved', 'confirmed'] and order.inventory_status != 'fully_received' %}
+                    {{ render_button('全部入库', type='button', onclick='batchReceiveAll()', color='success', icon='fas fa-check-double', extra_class='batch-receive-btn') }}
                     {% endif %}
-                    {% if order.status in ['draft', 'rejected'] %}
-                    {{ render_button('删除订单', href='#', color='danger', icon='fas fa-trash', onclick='deleteOrder()') }}
+                    {% if order.status in ['approved', 'confirmed', 'shipped', 'completed'] %}
+                    {{ render_button('导出订单', href=url_for('inventory.export_order_pdf', order_id=order.id), color='info', icon='fas fa-file-pdf', extra_class='export-order-btn') }}
                     {% endif %}
                 </div>
             </div>
@@ -158,94 +155,88 @@
     </div>
 
     <!-- 订单基本信息 -->
-    <div class="card info-card mb-4">
-        <div class="card-body">
-            <h5 class="card-title text-white mb-3">
-                <i class="fas fa-info-circle me-2"></i>订单基本信息
+    <div class="card order-card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-info-circle me-2"></i>订单信息
             </h5>
+        </div>
+        <div class="card-body">
             <div class="row">
-                <div class="col-md-4 mb-3">
-                    <label class="form-label text-white-50">订单号</label>
-                    <div class="text-white fw-bold">{{ order.order_number }}</div>
-                </div>
-                <div class="col-md-4 mb-3">
-                    <label class="form-label text-white-50">订单状态</label>
-                    <div>
-                        {% if order.status == 'draft' %}
-                        <span class="badge rounded-pill bg-secondary">草稿</span>
-                        {% elif order.status == 'pending' %}
-                        <span class="badge rounded-pill bg-warning text-dark">审批中</span>
-                        {% elif order.status == 'approved' %}
-                        <span class="badge rounded-pill bg-success">审批通过</span>
-                        {% elif order.status == 'rejected' %}
-                        <span class="badge rounded-pill bg-danger">审批拒绝</span>
-                        {% elif order.status == 'confirmed' %}
-                        <span class="badge rounded-pill bg-primary">已确认</span>
-                        {% elif order.status == 'shipped' %}
-                        <span class="badge rounded-pill bg-info">已发货</span>
-                        {% elif order.status == 'completed' %}
-                        <span class="badge rounded-pill bg-success">已完成</span>
-                        {% elif order.status == 'cancelled' %}
-                        <span class="badge rounded-pill bg-dark">已取消</span>
-                        {% else %}
-                        <span class="badge rounded-pill bg-light text-dark">{{ order.status }}</span>
-                        {% endif %}
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label class="form-label text-muted">订单号</label>
+                        <div class="h6 mb-0">{{ order.order_number }}</div>
                     </div>
                 </div>
-                <div class="col-md-4 mb-3">
-                    <label class="form-label text-white-50">目标公司</label>
-                    <div class="text-white fw-bold">{{ order.company.company_name if order.company else '-' }}</div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label class="form-label text-muted">订单公司</label>
+                        <div class="h6 mb-0">{{ order.company.company_name if order.company else '无公司' }}</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label class="form-label text-muted">订单日期</label>
+                        <div class="h6 mb-0">{{ order.formatted_order_date }}</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label class="form-label text-muted">预期日期</label>
+                        <div class="h6 mb-0">{{ order.formatted_expected_date or '-' }}</div>
+                    </div>
                 </div>
             </div>
             <div class="row">
-                <div class="col-md-3 mb-3">
-                    <label class="form-label text-white-50">订单日期</label>
-                    <div class="text-white">{{ order.formatted_order_date }}</div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label class="form-label text-muted">总数量</label>
+                        <div class="h6 mb-0">{{ order.total_quantity or 0 }}</div>
+                    </div>
                 </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label text-white-50">预期到货时间</label>
-                    <div class="text-white">{{ order.formatted_expected_date or '-' }}</div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label class="form-label text-muted">总金额</label>
+                        <div class="h6 mb-0">¥{{ "%.2f"|format(order.total_amount or 0) }}</div>
+                    </div>
                 </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label text-white-50">创建人</label>
-                    <div class="text-white">{{ order.created_by.real_name if order.created_by and order.created_by.real_name else (order.created_by.username if order.created_by else '-') }}</div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label class="form-label text-muted">订单状态</label>
+                        <div>
+                            {{ render_order_status_badge(order.status) }}
+                        </div>
+                    </div>
                 </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label text-white-50">创建时间</label>
-                    <div class="text-white">{{ order.created_at.strftime('%Y-%m-%d %H:%M') if order.created_at else '-' }}</div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label class="form-label text-muted">入库状态</label>
+                        <div>
+                            {{ render_inventory_status_badge(order.inventory_status) }}
+                        </div>
+                    </div>
                 </div>
             </div>
-            {% if order.payment_terms or order.delivery_address or order.description %}
+            {% if order.description %}
             <div class="row">
-                {% if order.payment_terms %}
-                <div class="col-md-4 mb-3">
-                    <label class="form-label text-white-50">付款条件</label>
-                    <div class="text-white">{{ order.payment_terms }}</div>
+                <div class="col-12">
+                    <div class="mb-0">
+                        <label class="form-label text-muted">订单说明</label>
+                        <div class="h6 mb-0">{{ order.description }}</div>
+                    </div>
                 </div>
-                {% endif %}
-                {% if order.delivery_address %}
-                <div class="col-md-4 mb-3">
-                    <label class="form-label text-white-50">交付地址</label>
-                    <div class="text-white">{{ order.delivery_address }}</div>
-                </div>
-                {% endif %}
-                {% if order.description %}
-                <div class="col-md-4 mb-3">
-                    <label class="form-label text-white-50">订单说明</label>
-                    <div class="text-white">{{ order.description }}</div>
-                </div>
-                {% endif %}
             </div>
             {% endif %}
         </div>
     </div>
 
-    <!-- 产品明细 -->
-    <div class="card detail-card mb-4">
+    <!-- 订单明细列表 -->
+    <div class="card order-card">
         <div class="card-header">
             <h5 class="mb-0">
-                <i class="fas fa-list me-2"></i>产品明细
-                <span class="badge bg-secondary ms-2">共 {{ order.details|length }} 项</span>
+                <i class="fas fa-list me-2"></i>订单明细列表
+                {{ render_item_count_badge(order.details|length) }}
             </h5>
         </div>
         <div class="card-body p-0">
@@ -253,294 +244,357 @@
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>序号</th>
                             <th>产品名称</th>
                             <th>产品型号</th>
                             <th>品牌</th>
+                            <th>订购数量</th>
+                            <th>已入库</th>
+                            <th>待入库</th>
                             <th>单位</th>
-                            <th>数量</th>
                             <th>单价</th>
-                            <th>折扣率</th>
-                            <th>小计</th>
-                            <th>备注</th>
+                            <th>当前库存</th>
+                            <th>入库状态</th>
+                            <th>操作</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for detail in order.details %}
-                        <tr>
-                            <td>{{ loop.index }}</td>
-                            <td>{{ detail.product_name }}</td>
-                            <td>{{ detail.product_model or '-' }}</td>
-                            <td>{{ detail.brand or '-' }}</td>
-                            <td>{{ detail.unit or '-' }}</td>
-                            <td class="text-center">{{ detail.quantity }}</td>
-                            <td class="text-end">¥{{ "%.2f"|format(detail.unit_price or 0) }}</td>
-                            <td class="text-center">{{ "%.1f"|format((detail.discount or 1) * 100) }}%</td>
-                            <td class="text-end fw-bold">¥{{ "%.2f"|format(detail.total_price or 0) }}</td>
-                            <td>{{ detail.notes or '-' }}</td>
-                        </tr>
-                        {% endfor %}
+                        {% if order.details %}
+                            {% for detail in order.details %}
+                            <tr id="detail-row-{{ detail.id }}">
+                                <td {% if detail.product_desc and detail.product_desc|length > 20 %}title="完整规格: {{ detail.product_desc }}"{% endif %}>
+                                    <strong>{{ detail.product_name }}</strong>
+                                    {% if detail.product_desc %}
+                                    <br><small class="text-muted">
+                                        {% if detail.product_desc|length > 20 %}
+                                            <span class="text-truncate d-inline-block" style="max-width: 200px;" title="{{ detail.product_desc }}">{{ detail.product_desc[:20] }}...</span>
+                                        {% else %}
+                                            {{ detail.product_desc }}
+                                        {% endif %}
+                                    </small>
+                                    {% endif %}
+                                </td>
+                                <td>{{ detail.product_model or '-' }}</td>
+                                <td>{{ detail.brand or '-' }}</td>
+                                <td class="number-cell">{{ detail.quantity }}</td>
+                                <td class="number-cell">{{ detail.received_quantity }}</td>
+                                <td class="number-cell">{{ detail.remaining_quantity }}</td>
+                                <td>{{ detail.unit or '件' }}</td>
+                                <td class="number-cell">¥{{ "%.2f"|format(detail.unit_price or 0) }}</td>
+                                <td class="number-cell" id="current-stock-{{ detail.id }}">
+                                    <span class="text-muted">查询中...</span>
+                                </td>
+                                <td>
+                                    {% if order.status in ['approved', 'confirmed', 'shipped', 'completed'] %}
+                                        {{ render_inventory_status_badge(detail.inventory_status) }}
+                                    {% else %}
+                                        <span class="badge bg-light text-muted px-2 py-1">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if order.status in ['approved', 'confirmed'] and detail.remaining_quantity > 0 %}
+                                        <button class="btn btn-sm btn-primary receive-btn" data-detail-id="{{ detail.id }}" onclick="receiveItem({{ detail.id }})">
+                                            <i class="fas fa-plus me-1"></i>入库
+                                        </button>
+                                    {% elif detail.remaining_quantity == 0 %}
+                                        <div class="text-center">
+                                            <span class="text-success fw-bold">
+                                                <i class="fas fa-check-circle me-1"></i>已入库
+                                            </span>
+                                        </div>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="11" class="text-center py-4">
+                                    <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
+                                    <p class="text-muted mb-0">暂无订单明细</p>
+                                </td>
+                            </tr>
+                        {% endif %}
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- 订单总计 -->
-    <div class="order-summary">
-        <div class="summary-item">
-            <span class="summary-label">总数量：</span>
-            <span class="summary-value">{{ order.total_quantity or 0 }}</span>
-        </div>
-        <div class="summary-item">
-            <span class="summary-label">产品种类：</span>
-            <span class="summary-value">{{ order.details|length }}</span>
-        </div>
-        <div class="summary-item">
-            <span class="summary-label">订单总额：</span>
-            <span class="summary-value">¥ {{ "%.2f"|format(order.total_amount or 0) }}</span>
-        </div>
-    </div>
-
-    <!-- 审批模块 - 使用与项目审批完全相同的实现 -->
-    {% set approval_instance = get_object_approval_instance('purchase_order', order.id) %}
-    {% if not approval_instance and order.status == 'draft' %}
-    <!-- 提交审批表单 -->
-    <div class="card mt-4">
-        <div class="card-header">
-            <h5 class="mb-0">
-                <i class="fas fa-clipboard-check me-2"></i>审批流程
-            </h5>
-        </div>
-        <div class="card-body">
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle me-2"></i>
-                该订单尚未提交审批，请选择审批流程模板并提交审批。
-            </div>
-            
-            {% set available_templates = get_available_templates('purchase_order', order.id) %}
-            {% if available_templates %}
-            <form method="POST" action="{{ url_for('inventory.submit_order_approval', id=order.id) }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div class="row">
-                <div class="col-md-8">
-                        <label for="template_id" class="form-label">选择审批流程模板</label>
-                        <select class="form-select" id="template_id" name="template_id" required>
-                            <option value="">请选择审批流程模板</option>
-                            {% for template in available_templates %}
-                            <option value="{{ template.id }}">{{ template.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-4 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-paper-plane me-2"></i>提交审批
-                        </button>
-                    </div>
-                </div>
-            </form>
-            {% else %}
-            <div class="alert alert-warning">
-                <i class="fas fa-exclamation-triangle me-2"></i>
-                暂无可用的审批流程模板，请联系管理员配置订单审批流程。
-            </div>
-            {% endif %}
-        </div>
-    </div>
-    {% elif order.status != 'draft' and not approval_instance %}
-    <!-- 其他状态但无审批实例 -->
-    <div class="card mt-4">
-        <div class="card-header">
-            <h5 class="mb-0">
-                <i class="fas fa-clipboard-check me-2"></i>审批流程
-            </h5>
-        </div>
-        <div class="card-body">
-            <div class="alert alert-secondary">
-                <i class="fas fa-info-circle me-2"></i>
-                当前订单状态：
-                {% if order.status == 'approved' %}
-                <span class="badge bg-success ms-2">审批已通过</span>
-                {% elif order.status == 'rejected' %}
-                <span class="badge bg-danger ms-2">审批已拒绝</span>
-                {% elif order.status == 'confirmed' %}
-                <span class="badge bg-primary ms-2">已确认</span>
-                {% elif order.status == 'shipped' %}
-                <span class="badge bg-info ms-2">已发货</span>
-                {% elif order.status == 'completed' %}
-                <span class="badge bg-success ms-2">已完成</span>
-                {% elif order.status == 'cancelled' %}
-                <span class="badge bg-dark ms-2">已取消</span>
-                {% endif %}
-                
-                <!-- 管理员退回按钮 - 只有管理员可以看到，且仅限于已通过的订单 -->
-                {% if current_user.role == 'admin' and order.status == 'approved' %}
-                <div class="mt-3">
-                    {{ render_button(_('退回审批'), type='button', color='warning', size='sm', icon='fas fa-undo', attrs='onclick="showRollbackModal()"') }}
-                    <small class="text-muted ms-2">管理员权限：将已通过的订单退回到草稿状态</small>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-    {% else %}
-    <!-- 显示审批流程 - 使用与项目审批完全相同的宏 -->
-    {% from 'macros/approval_macros.html' import render_approval_section %}
-    {{ render_approval_section('purchase_order', order.id, approval_instance, current_user) }}
-    {% endif %}
-
-
+    <!-- 标准化审批流程区域 -->
+    {{ render_complete_approval_section('order', order.id, order.status, current_user.id, order.created_by.id, 'approvalFlowSection', {
+        'description': '订单创建完成，可以提交审批流程。',
+        'warning': '提交后订单将进入审批流程，无法直接修改。'
+    }) }}
 </div>
 
-<!-- 删除确认模态框 -->
-<div class="modal fade" id="deleteModal" tabindex="-1">
+<!-- 入库操作模态框 -->
+<div class="modal fade" id="receiveModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">确认删除订单</h5>
+                <h5 class="modal-title">产品入库</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p>确定要删除订单 <strong>{{ order.order_number }}</strong> 吗？</p>
-                <p class="text-danger">此操作不可撤销！删除后将无法恢复订单数据。</p>
+                <form id="receiveForm">
+                    <input type="hidden" id="detailId" name="detail_id">
+                    <div class="mb-3">
+                        <label for="productName" class="form-label">产品名称</label>
+                        <input type="text" class="form-control" id="productName" readonly>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <label for="maxQuantity" class="form-label">待入库数量</label>
+                            <input type="number" class="form-control" id="maxQuantity" readonly>
+                        </div>
+                        <div class="col-6">
+                            <label for="receiveQuantity" class="form-label">入库数量</label>
+                            <input type="number" class="form-control" id="receiveQuantity" readonly>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            确认将全部待入库数量进行入库操作
+                        </small>
+                    </div>
+                </form>
             </div>
             <div class="modal-footer">
-                {{ render_button('取消', type='button', color='secondary', attrs='data-bs-dismiss="modal"') }}
-                {{ render_button('确认删除', type='button', color='danger', attrs='id="confirmDelete"') }}
+                {{ render_button('取消', type='button', onclick='', color='secondary', attrs='data-bs-dismiss="modal"') }}
+                {{ render_button('确认入库', type='button', onclick='confirmReceive()', color='primary', icon='fas fa-check') }}
             </div>
         </div>
     </div>
 </div>
-
-<!-- 管理员退回确认模态框 -->
-{% if current_user.role == 'admin' and order.status == 'approved' %}
-<div class="modal fade" id="rollbackModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>
-                    确认退回订单审批
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-warning">
-                    <i class="fas fa-shield-alt me-2"></i>
-                    <strong>管理员操作</strong>：您即将将已通过的订单审批退回到草稿状态
-                </div>
-                <p>确定要退回订单 <strong>{{ order.order_number }}</strong> 的审批吗？</p>
-                <p class="text-danger">
-                    <i class="fas fa-exclamation-circle me-1"></i>
-                    <strong>注意：</strong>此操作将：
-                </p>
-                <ul class="text-danger">
-                    <li>将订单状态重置为草稿</li>
-                    <li>清除所有审批记录（不留痕迹）</li>
-                    <li>需要重新提交审批</li>
-                </ul>
-                
-                <div class="mb-3">
-                    <label for="rollbackReason" class="form-label">退回原因（可选）：</label>
-                    <textarea class="form-control" id="rollbackReason" rows="3" placeholder="请说明退回原因..."></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                {{ render_button('取消', type='button', color='secondary', attrs='data-bs-dismiss="modal"') }}
-                {{ render_button('确认退回', type='button', color='warning', icon='fas fa-undo', attrs='onclick="confirmRollback()"') }}
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
 
 <script>
-function deleteOrder() {
-    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
-    modal.show();
-    
-    document.getElementById('confirmDelete').onclick = function() {
-        fetch(`/inventory/orders/{{ order.id }}/delete`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token() }}'
-            }
-        })
+// 页面加载完成后获取库存信息
+document.addEventListener('DOMContentLoaded', function() {
+    // 获取当前库存信息
+    {% if order.details %}
+    {% for detail in order.details %}
+    getCurrentStock({{ detail.id }}, {{ detail.product_id }}, {{ order.company_id }});
+    {% endfor %}
+    {% endif %}
+});
+
+// 获取当前库存
+function getCurrentStock(detailId, productId, companyId) {
+    fetch(`/inventory/api/company/${companyId}/product/${productId}/stock`)
         .then(response => response.json())
         .then(data => {
+            const stockCell = document.getElementById(`current-stock-${detailId}`);
             if (data.success) {
-                window.location.href = '{{ url_for("inventory.order_list") }}';
+                stockCell.innerHTML = `<span class="number-cell">${data.stock}</span>`;
             } else {
-                alert('删除失败：' + data.message);
+                stockCell.innerHTML = `<span class="text-danger">获取失败</span>`;
             }
         })
         .catch(error => {
-            alert('删除失败：' + error.message);
+            const stockCell = document.getElementById(`current-stock-${detailId}`);
+            stockCell.innerHTML = `<span class="text-danger">网络错误</span>`;
         });
-        
-        modal.hide();
-    };
 }
 
-// 管理员订单退回功能
-{% if current_user.role == 'admin' and order.status == 'approved' %}
-function showRollbackModal() {
-    const modal = new bootstrap.Modal(document.getElementById('rollbackModal'));
+// 单项入库
+function receiveItem(detailId) {
+    // 获取详情信息
+    const row = document.getElementById(`detail-row-${detailId}`);
+    const productName = row.cells[0].textContent;
+    const remainingQty = parseInt(row.cells[5].textContent);
+    
+    // 设置模态框内容
+    document.getElementById('detailId').value = detailId;
+    document.getElementById('productName').value = productName;
+    document.getElementById('maxQuantity').value = remainingQty;
+    document.getElementById('receiveQuantity').value = remainingQty;
+    
+    // 显示模态框
+    const modal = new bootstrap.Modal(document.getElementById('receiveModal'));
     modal.show();
 }
 
-function confirmRollback() {
-    const reason = document.getElementById('rollbackReason').value;
-    const button = document.getElementById('confirmRollback');
-    const originalText = button.innerHTML;
+
+// 确认入库
+function confirmReceive() {
+    const detailId = document.getElementById('detailId').value;
+    const quantity = parseInt(document.getElementById('receiveQuantity').value);
     
-    // 显示处理中状态
-    button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>处理中...';
-    button.disabled = true;
+    // 关闭模态框
+    const modal = bootstrap.Modal.getInstance(document.getElementById('receiveModal'));
+    modal.hide();
     
-    fetch('/approval/rollback-order/{{ order.id }}', {
+    // 执行入库
+    performReceive(detailId, quantity);
+}
+
+// 执行入库操作
+function performReceive(detailId, quantity) {
+    console.log('开始执行入库操作:', { detail_id: detailId, quantity: quantity });
+    
+    fetch('/inventory/orders/receive', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token() }}'
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
         },
         body: JSON.stringify({
-            reason: reason
+            detail_id: detailId,
+            quantity: quantity
         })
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('入库API响应状态:', response.status);
+        if (!response.ok) {
+            return response.text().then(text => {
+                console.error('入库API错误响应:', text);
+                throw new Error(`HTTP ${response.status}: ${text}`);
+            });
+        }
+        return response.json();
+    })
     .then(data => {
+        console.log('入库API成功响应:', data);
         if (data.success) {
-            // 成功：刷新页面显示新状态
-            alert('成功：' + data.message);
-            window.location.reload();
+            // 刷新页面显示最新状态
+            location.reload();
         } else {
-            alert('退回失败：' + data.message);
-            // 恢复按钮状态
-            button.innerHTML = originalText;
-            button.disabled = false;
+            alert('入库失败：' + data.message);
         }
     })
     .catch(error => {
-        alert('退回失败：' + error.message);
-        // 恢复按钮状态
-        button.innerHTML = originalText;
-        button.disabled = false;
+        console.error('入库操作失败:', error);
+        alert('入库失败：' + error.message);
     });
-    
-    // 关闭模态框
-    const modal = bootstrap.Modal.getInstance(document.getElementById('rollbackModal'));
-    modal.hide();
 }
 
-// 绑定确认按钮事件
-document.addEventListener('DOMContentLoaded', function() {
-    const confirmBtn = document.getElementById('confirmRollback');
-    if (confirmBtn) {
-        confirmBtn.onclick = confirmRollback;
+// 批量全部入库
+function batchReceiveAll() {
+    if (confirm('确定要将所有待入库产品全部入库吗？')) {
+        console.log('开始执行批量入库操作');
+        
+        fetch('/inventory/orders/{{ order.id }}/receive_all', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => {
+            console.log('批量入库API响应状态:', response.status);
+            if (!response.ok) {
+                return response.text().then(text => {
+                    console.error('批量入库API错误响应:', text);
+                    throw new Error(`HTTP ${response.status}: ${text}`);
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('批量入库API成功响应:', data);
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('批量入库失败：' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('批量入库操作失败:', error);
+            alert('批量入库失败：' + error.message);
+        });
     }
+}
+
+// 页面加载时根据订单状态自动显示相应的审批UI
+document.addEventListener('DOMContentLoaded', function() {
+    // 设置当前订单ID供动态更新使用
+    window.currentOrderId = {{ order.id }};
+    
+    // 使用标准化的自动显示功能
+    autoShowApprovalUI('order', {{ order.id }}, '{{ order.status }}');
+    
+    // 从管理器获取已创建的审批流程实例
+    setTimeout(function() {
+        window.approvalFlowInstance = getApprovalFlowInstance('order', {{ order.id }});
+        console.log('设置全局审批流程实例:', window.approvalFlowInstance);
+    }, 100);
+    
+    // 监听审批完成事件，刷新订单信息
+    setupApprovalEventListeners();
 });
-{% endif %}
+
+// 设置审批事件监听器
+function setupApprovalEventListeners() {
+    // 监听审批通过事件 - 直接刷新整个页面
+    document.addEventListener('approval_approved', function(event) {
+        console.log('审批通过事件:', event.detail);
+        // 显示加载提示
+        showUpdateNotification('审批已通过，正在刷新页面...');
+        // 延迟刷新整个页面，确保后端状态已更新
+        setTimeout(function() {
+            location.reload();
+        }, 1500);
+    });
+    
+    // 监听审批提交事件 - 直接刷新整个页面
+    document.addEventListener('approval_submitted', function(event) {
+        console.log('审批提交事件:', event.detail);
+        // 显示加载提示
+        showUpdateNotification('审批已提交，正在刷新页面...');
+        // 延迟刷新整个页面，确保后端状态已更新
+        setTimeout(function() {
+            location.reload();
+        }, 1500);
+    });
+    
+    // 监听审批召回事件 - 直接刷新整个页面
+    document.addEventListener('approval_recalled', function(event) {
+        console.log('审批召回事件:', event.detail);
+        // 显示加载提示
+        showUpdateNotification('审批已召回，正在刷新页面...');
+        // 延迟刷新整个页面，确保后端状态已更新
+        setTimeout(function() {
+            location.reload();
+        }, 1500);
+    });
+    
+    // 监听审批重新提交事件 - 直接刷新整个页面
+    document.addEventListener('approval_resubmitted', function(event) {
+        console.log('审批重新提交事件:', event.detail);
+        // 显示加载提示
+        showUpdateNotification('审批已重新提交，正在刷新页面...');
+        // 延迟刷新整个页面，确保后端状态已更新
+        setTimeout(function() {
+            location.reload();
+        }, 1500);
+    });
+}
+
+
+// 显示更新通知
+function showUpdateNotification(message) {
+    // 创建通知元素
+    const notification = document.createElement('div');
+    notification.className = 'alert alert-success alert-dismissible fade show';
+    notification.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 1050; max-width: 300px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);';
+    notification.innerHTML = `
+        <i class="fas fa-check-circle me-2"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    // 添加到页面
+    document.body.appendChild(notification);
+    
+    // 3秒后自动消失
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.remove();
+        }
+    }, 3000);
+}
 </script>
-{% endblock %} 
+{% endblock %}

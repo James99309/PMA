@@ -1,0 +1,955 @@
+{# 
+  通用产品明细管理组件模板宏
+  支持报价单、采购单、销售单等多种业务场景
+  
+  作者: Claude AI
+  版本: 1.0.0
+#}
+
+{# 
+  渲染产品明细表格
+  参数:
+  - config: 产品明细配置对象
+  - data: 现有产品明细数据(可选)
+  - readonly: 是否只读模式(默认false)
+  - show_component_badge: 是否显示通用组件标识(默认true)
+#}
+{% macro render_product_detail_table(config, data=None, readonly=False, show_component_badge=True) %}
+<div class="product-detail-container" data-config='{{ config | tojson }}'>
+    <!-- 产品明细标题区域 -->
+    <div class="product-detail-header mb-3">
+        <div class="d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+                <h5 class="mb-0 me-2">{{ _('产品明细') }}</h5>
+                {# 通用组件徽章已移除 #}
+            </div>
+            {% if not readonly %}
+            <div class="product-detail-actions">
+                <small class="text-muted">
+                    <i class="fas fa-info-circle me-1"></i>
+                    {% if config.manual_input and config.manual_input.enabled %}
+                    {{ _('点击产品名称选择产品，支持搜索、四级联动和手动输入') }}
+                    {% else %}
+                    {{ _('点击产品名称选择产品，支持搜索和四级联动') }}
+                    {% endif %}
+                </small>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- 产品明细表格 -->
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover" id="{{ config.table_id | default('productTable') }}">
+            <thead class="table-light">
+                <tr>
+                    {% for column in config.columns %}
+                    <th style="width: {{ column.width | default('auto') }}">
+                        {{ column.label if column.label else '' }}
+                        {% if column.required %}
+                        <span class="text-danger">*</span>
+                        {% endif %}
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                <!-- 动态生成的产品明细行 -->
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- 添加产品按钮 -->
+    {% if not readonly %}
+    <div class="text-end mt-3">
+        {% from 'macros/ui_helpers.html' import render_button %}
+        <span id="{{ config.add_button_id | default('addProduct') }}">
+            {{ render_button(_('添加产品'), color='primary', size='md', icon='fas fa-plus', type='button', extra_class='add-product-btn') }}
+        </span>
+    </div>
+    {% endif %}
+    
+    <!-- 货币选择和总计区域 -->
+    <div class="currency-and-total-container mt-4 mb-5">
+        <div class="row justify-content-end align-items-end">
+            <!-- 货币选择器 -->
+            <div class="col-md-3">
+                <label for="{{ config.currency_selector_id | default('currencySelector') }}" class="form-label">{{ _('货币类型') }}</label>
+                <select class="form-select" id="{{ config.currency_selector_id | default('currencySelector') }}" name="currency">
+                    <!-- 选项将由JavaScript动态生成 -->
+                </select>
+            </div>
+            
+            <!-- 总计金额 -->
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-group-text">{{ _('总计金额') }}</span>
+                    <input type="text" class="form-control text-end" id="{{ config.grand_total_id | default('grandTotal') }}" readonly>
+                    <span class="input-group-text currency-symbol" id="currencySymbol">¥</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 隐藏字段：存储产品明细数据 -->
+    <input type="hidden" id="productDetailsData" name="product_details" value='{{ data | tojson if data else "[]" }}'>
+    
+    <!-- 数据属性：用于JavaScript初始化 -->
+    <div id="productDetailConfig" 
+         data-config='{{ config | tojson }}'
+         data-existing-data='{{ data | tojson if data else "[]" }}'
+         data-readonly="{{ readonly | lower }}"
+         style="display: none;"></div>
+</div>
+
+<!-- 引入必要的CSS -->
+<style>
+    .product-detail-container {
+        margin: 1rem 0;
+    }
+    
+    /* 产品明细表格标准样式 */
+    .product-detail-container .table-responsive {
+        overflow-x: auto;
+        margin-bottom: 1rem;
+    }
+    
+    .product-detail-container .table {
+        min-width: 1440px; /* 确保表格有足够的最小宽度 */
+        table-layout: fixed; /* 使用固定布局以确保列宽设置生效 */
+        margin-bottom: 0;
+    }
+    
+    .product-detail-container .table th,
+    .product-detail-container .table td {
+        white-space: nowrap; /* 防止内容换行 */
+        overflow: hidden;
+        text-overflow: ellipsis; /* 超出部分显示省略号 */
+        padding: 0.5rem 0.25rem; /* 紧凑的内边距 */
+        vertical-align: middle;
+    }
+    
+    /* 表格单元格中的表单控件标准样式 */
+    .product-detail-container .table .form-control {
+        width: 100%;
+        min-width: 100%;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+        min-height: 30px;
+        border-radius: 0.25rem;
+        border: 1px solid #ced4da;
+    }
+    
+    .product-detail-container .table .form-control:focus {
+        border-color: #6f42c1;
+        box-shadow: 0 0 0 0.2rem rgba(111, 66, 193, 0.25);
+    }
+    
+    /* 数字输入框样式 */
+    .product-detail-container .table input[type="number"] {
+        text-align: right;
+        font-family: 'Roboto Mono', monospace;
+    }
+    
+    /* 产品名称容器样式 */
+    .product-detail-container .product-name-container {
+        position: relative;
+        width: 100%;
+    }
+    
+    .product-detail-container .product-name-container::after {
+        content: '▼';
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 12px;
+        color: #666;
+        pointer-events: none;
+    }
+    
+    /* 货币选择和总计区域样式 */
+    .product-detail-container .currency-and-total-container {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .product-detail-container .currency-and-total-container .form-label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0.5rem;
+    }
+    
+    .product-detail-container .currency-and-total-container .input-group-text {
+        background-color: #f8f9fa;
+        color: #212529;
+        border-color: #ced4da;
+        font-weight: 600;
+        border-right: 1px solid #ced4da;
+    }
+    
+    .product-detail-container .currency-and-total-container .form-control[readonly] {
+        background-color: #ffffff;
+        color: #212529;
+        font-weight: 600;
+        font-size: 1.1rem;
+        text-align: right;
+        border-color: #ced4da;
+        border-left: none;
+    }
+    
+    .product-detail-container .currency-and-total-container .input-group {
+        border-radius: 0.375rem;
+        overflow: hidden;
+    }
+    
+    .product-detail-container .currency-and-total-container .input-group-text:first-child {
+        border-top-left-radius: 0.375rem;
+        border-bottom-left-radius: 0.375rem;
+    }
+    
+    .product-detail-container .currency-and-total-container .form-control:last-child {
+        border-top-right-radius: 0.375rem;
+        border-bottom-right-radius: 0.375rem;
+    }
+    
+    /* 货币选择器样式 */
+    .product-detail-container .currency-and-total-container .form-select {
+        border-color: #ced4da;
+        color: #212529;
+        background-color: #ffffff;
+        font-weight: 500;
+    }
+    
+    .product-detail-container .currency-and-total-container .form-select:focus {
+        border-color: #6f42c1;
+        box-shadow: 0 0 0 0.2rem rgba(111, 66, 193, 0.25);
+    }
+    
+    /* 产品明细标题区域样式 */
+    .product-detail-header {
+        padding: 0.75rem 1rem;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        margin-bottom: 1rem;
+    }
+    
+    .product-detail-header h5 {
+        color: #495057;
+        font-weight: 600;
+    }
+    
+    /* 通用组件徽章样式 */
+    .universal-component-badge {
+        background: linear-gradient(135deg, #17a2b8 0%, #138496 100%) !important;
+        color: white;
+        font-size: 0.75rem;
+        padding: 0.35rem 0.65rem;
+        border-radius: 1rem;
+        box-shadow: 0 2px 4px rgba(23, 162, 184, 0.3);
+        transition: all 0.3s ease;
+        cursor: help;
+        animation: subtle-pulse 2s infinite;
+    }
+    
+    .universal-component-badge:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(23, 162, 184, 0.4);
+    }
+    
+    .universal-component-badge i {
+        font-size: 0.7rem;
+        opacity: 0.9;
+    }
+    
+    /* 微妙的脉冲动画 */
+    @keyframes subtle-pulse {
+        0%, 100% { 
+            opacity: 1; 
+            transform: scale(1);
+        }
+        50% { 
+            opacity: 0.95; 
+            transform: scale(1.02);
+        }
+    }
+    
+    /* 操作提示样式 */
+    .product-detail-actions {
+        opacity: 0.7;
+    }
+    
+    .product-detail-actions:hover {
+        opacity: 1;
+    }
+    
+    .product-detail-container .table {
+        margin-bottom: 0;
+        font-size: 0.875rem;
+    }
+    
+    .product-detail-container .table th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        border-color: #dee2e6;
+        padding: 0.75rem 0.5rem;
+        white-space: nowrap;
+    }
+    
+    .product-detail-container .table td {
+        padding: 0.5rem;
+        vertical-align: middle;
+    }
+    
+    .product-detail-container .form-control {
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+        font-size: 0.875rem;
+        padding: 0.375rem 0.5rem;
+    }
+    
+    .product-detail-container .form-control:focus {
+        border-color: #80bdff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+    
+    .product-detail-container .currency-input,
+    .product-detail-container .number-input {
+        text-align: right;
+    }
+    
+    .product-detail-container .btn-sm {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+    
+    .product-detail-container .currency-and-total-container {
+        border-top: 2px solid #dee2e6;
+        padding-top: 1rem;
+        margin-bottom: 2rem !important; /* 确保底部有足够间距，防止滚动时重叠 */
+    }
+    
+    .product-detail-container .currency-and-total-container .input-group-text {
+        background-color: #e9ecef;
+        font-weight: 600;
+    }
+    
+    .product-detail-container .currency-and-total-container .form-control {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        text-align: right;
+    }
+    
+    /* 货币选择器样式 */
+    .product-detail-container .currency-and-total-container .form-select {
+        font-size: 0.875rem;
+    }
+    
+    /* 错误状态样式 */
+    .product-detail-container .is-invalid {
+        border-color: #dc3545;
+    }
+    
+    .product-detail-container .invalid-feedback {
+        display: block;
+        font-size: 0.75rem;
+        color: #dc3545;
+        margin-top: 0.25rem;
+    }
+    
+    /* 只读模式样式 */
+    .product-detail-container.readonly .form-control {
+        background-color: #f8f9fa;
+        border-color: #e9ecef;
+    }
+    
+    .product-detail-container.readonly .btn {
+        display: none;
+    }
+    
+    /* 手动输入功能相关样式 */
+    .manual-input-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .manual-input-form {
+        position: relative;
+        z-index: 10001;
+    }
+    
+    .manual-input-form .card {
+        max-width: 90vw;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        border: none;
+        border-radius: 10px;
+    }
+    
+    .manual-input-form .card-header {
+        background: linear-gradient(135deg, #6c63ff 0%, #5a54d7 100%);
+        color: white;
+        border-radius: 10px 10px 0 0;
+        padding: 1rem 1.5rem;
+        position: relative;
+    }
+    
+    .manual-input-form .card-header h5 {
+        margin: 0;
+        font-weight: 600;
+    }
+    
+    .manual-input-form .btn-close {
+        position: absolute;
+        top: 50%;
+        right: 1.5rem;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: white;
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 0;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: background-color 0.2s;
+    }
+    
+    .manual-input-form .btn-close:hover {
+        background-color: rgba(255, 255, 255, 0.2);
+    }
+    
+    .manual-input-form .btn-close::before {
+        content: "×";
+        font-size: 1.5rem;
+        line-height: 1;
+    }
+    
+    .manual-input-form .card-body {
+        padding: 1.5rem;
+    }
+    
+    .manual-input-form .form-label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0.5rem;
+    }
+    
+    .manual-input-form .form-control,
+    .manual-input-form .form-select {
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    
+    .manual-input-form .form-control:focus,
+    .manual-input-form .form-select:focus {
+        border-color: #6c63ff;
+        box-shadow: 0 0 0 0.2rem rgba(108, 99, 255, 0.25);
+    }
+    
+    .manual-input-form .card-footer {
+        background-color: #f8f9fa;
+        border-radius: 0 0 10px 10px;
+        padding: 1rem 1.5rem;
+    }
+    
+    /* 临时产品标识样式 */
+    .temp-product-indicator {
+        display: inline-block;
+        background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+        color: white;
+        font-size: 0.7rem;
+        padding: 2px 8px;
+        border-radius: 12px;
+        margin-left: 8px;
+        font-weight: 600;
+        box-shadow: 0 2px 4px rgba(255, 152, 0, 0.3);
+        animation: gentle-pulse 2s infinite;
+    }
+    
+    .temp-product-indicator.position-after-price {
+        margin-left: 8px;
+    }
+    
+    .temp-product-indicator.position-before-model {
+        margin-right: 8px;
+        order: -1;
+    }
+    
+    /* 微妙的脉冲动画 */
+    @keyframes gentle-pulse {
+        0%, 100% { 
+            opacity: 1; 
+            transform: scale(1);
+        }
+        50% { 
+            opacity: 0.9; 
+            transform: scale(1.05);
+        }
+    }
+    
+    /* 手动输入字段样式 */
+    .manual-input-field {
+        background-color: #fef7e0 !important;
+        border-left: 4px solid #ffc107 !important;
+    }
+    
+    .manual-input-field:focus {
+        background-color: #fef7e0 !important;
+        border-color: #ffc107 !important;
+        box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25) !important;
+    }
+    
+    /* 临时产品可编辑字段样式 - 橘色主题 */
+    .temp-product-editable {
+        background-color: #fff8f0 !important;
+        border: 2px solid #ff9800 !important;
+        color: #e65100 !important;
+        font-weight: 500;
+    }
+    
+    .temp-product-editable:focus {
+        background-color: #fff3e0 !important;
+        border-color: #f57c00 !important;
+        box-shadow: 0 0 0 0.2rem rgba(255, 152, 0, 0.25) !important;
+        color: #bf360c !important;
+    }
+    
+    .temp-product-editable::placeholder {
+        color: #ff8a65 !important;
+        opacity: 0.7;
+    }
+    
+    /* 临时产品可编辑字段在表格中的样式 */
+    .product-detail-container .table .temp-product-editable {
+        background-color: #fff8f0 !important;
+        border: 2px solid #ff9800 !important;
+        border-radius: 4px !important;
+    }
+    
+    .product-detail-container .table .temp-product-editable:focus {
+        border-color: #f57c00 !important;
+        box-shadow: 0 0 0 0.15rem rgba(255, 152, 0, 0.2) !important;
+    }
+    
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+        .manual-input-form .card {
+            width: 95vw;
+            margin: 1rem;
+        }
+        
+        .manual-input-form .card-header,
+        .manual-input-form .card-body,
+        .manual-input-form .card-footer {
+            padding: 1rem;
+        }
+        
+        .manual-input-form .btn-close {
+            right: 1rem;
+        }
+    }
+</style>
+{% endmacro %}
+
+{# 
+  渲染报价单产品明细配置
+  这是一个预设的报价单配置，可以直接使用
+#}
+{% macro get_quotation_detail_config() %}
+{% set config = {
+    "table_id": "quotationProductTable",
+    "add_button_id": "addQuotationProduct", 
+    "grand_total_id": "quotationGrandTotal",
+    "api_endpoints": {
+        "categories": url_for('quotation.get_product_categories'),
+        "productsByCategory": url_for('quotation.get_products_by_category'),
+        "productModels": url_for('quotation.get_product_models'),
+        "productSpecs": url_for('quotation.get_product_specs'),
+        "productSearch": url_for('quotation.get_products')
+    },
+    "calculation_rules": {
+        "discount_type": "percentage",
+        "currency": "CNY",
+        "decimal_places": 2,
+        "auto_calculate": true
+    },
+    "columns": [
+        {
+            "key": "product_name",
+            "label": "产品名称",
+            "type": "product-selector",
+            "required": true,
+            "width": "200px"
+        },
+        {
+            "key": "product_model", 
+            "label": "产品型号",
+            "type": "text",
+            "readonly": true,
+            "width": "150px"
+        },
+        {
+            "key": "product_desc",
+            "label": "规格",
+            "type": "text", 
+            "readonly": true,
+            "width": "120px"
+        },
+        {
+            "key": "brand",
+            "label": "品牌",
+            "type": "text",
+            "readonly": true,
+            "width": "100px"
+        },
+        {
+            "key": "unit",
+            "label": "单位", 
+            "type": "text",
+            "readonly": true,
+            "width": "80px"
+        },
+        {
+            "key": "quantity",
+            "label": "数量",
+            "type": "number", 
+            "required": true,
+            "width": "80px"
+        },
+        {
+            "key": "market_price",
+            "label": "市场价",
+            "type": "currency",
+            "width": "100px"
+        },
+        {
+            "key": "discount",
+            "label": "折扣率(%)",
+            "type": "percentage",
+            "width": "100px"
+        },
+        {
+            "key": "unit_price", 
+            "label": "单价",
+            "type": "currency",
+            "readonly": false,
+            "width": "100px"
+        },
+        {
+            "key": "total_price",
+            "label": "小计", 
+            "type": "currency",
+            "readonly": true,
+            "width": "100px"
+        },
+        {
+            "key": "actions",
+            "label": "操作",
+            "type": "actions",
+            "width": "80px"
+        }
+    ],
+    "field_mapping": {
+        "product_name": "product_name",
+        "product_model": "product_model", 
+        "product_desc": "product_desc",
+        "brand": "brand",
+        "unit": "unit",
+        "quantity": "quantity",
+        "market_price": "market_price",
+        "discount": "discount", 
+        "unit_price": "unit_price",
+        "total_price": "total_price",
+        "product_mn": "product_mn",
+        "currency": "currency"
+    },
+    "currency_config": {
+        "supported_currencies": [
+            {"code": "USD", "name": "美元", "symbol": "$"},
+            {"code": "CNY", "name": "人民币", "symbol": "¥"},
+            {"code": "SGD", "name": "新加坡元", "symbol": "S$"},
+            {"code": "MYR", "name": "马来西亚林吉特", "symbol": "RM"},
+            {"code": "IDR", "name": "印尼盾", "symbol": "Rp"},
+            {"code": "THB", "name": "泰铢", "symbol": "฿"}
+        ],
+        "base_currency": "CNY",
+        "default_rates": {
+            "CNY": 1.0,
+            "USD": 0.14,
+            "SGD": 0.19,
+            "MYR": 0.65,
+            "IDR": 2100.0,
+            "THB": 5.0
+        }
+    },
+    "currency_selector_id": "currencySelector",
+    "currency_symbol_id": "currencySymbol",
+    "validators": {
+        "quantity": "val => val > 0",
+        "market_price": "val => val >= 0",
+        "discount": "val => val >= 0 && val <= 200"
+    }
+} %}
+{{ config | tojson }}
+{% endmacro %}
+
+{# 
+  渲染采购单产品明细配置 
+  这是一个预设的采购单配置示例
+#}
+{% macro get_purchase_detail_config() %}
+{% set config = {
+    "table_id": "purchaseProductTable",
+    "add_button_id": "addPurchaseProduct",
+    "grand_total_id": "purchaseGrandTotal", 
+    "api_endpoints": {
+        "categories": url_for('purchase.get_product_categories'),
+        "productsByCategory": url_for('purchase.get_products_by_category'),
+        "productModels": url_for('purchase.get_product_models'),
+        "productSpecs": url_for('purchase.get_product_specs'),
+        "productSearch": url_for('purchase.get_products')
+    },
+    "calculation_rules": {
+        "discount_type": "fixed",
+        "currency": "USD",
+        "decimal_places": 2,
+        "auto_calculate": true,
+        "include_tax": true
+    },
+    "columns": [
+        {
+            "key": "product_name",
+            "label": "产品名称", 
+            "type": "product-selector",
+            "required": true,
+            "width": "200px"
+        },
+        {
+            "key": "supplier",
+            "label": "供应商",
+            "type": "supplier-selector",
+            "required": true,
+            "width": "150px"
+        },
+        {
+            "key": "quantity",
+            "label": "采购数量",
+            "type": "number",
+            "required": true, 
+            "width": "100px"
+        },
+        {
+            "key": "unit_price",
+            "label": "采购单价",
+            "type": "currency",
+            "required": true,
+            "width": "120px"
+        },
+        {
+            "key": "discount",
+            "label": "折扣金额",
+            "type": "currency",
+            "width": "100px"
+        },
+        {
+            "key": "tax_amount",
+            "label": "税费",
+            "type": "currency",
+            "readonly": true,
+            "width": "100px"
+        },
+        {
+            "key": "total_price",
+            "label": "小计",
+            "type": "currency", 
+            "readonly": true,
+            "width": "120px"
+        },
+        {
+            "key": "actions",
+            "label": "操作",
+            "type": "actions",
+            "width": "80px"
+        }
+    ]
+} %}
+{{ config | tojson }}
+{% endmacro %}
+
+{# 
+  渲染简单的产品明细显示（只读模式）
+  用于详情页面等只需要显示而不需要编辑的场景
+#}
+{% macro render_product_detail_readonly(items, config=None) %}
+{% if not config %}
+    {% set config = {
+        "show_total": true,
+        "currency": "CNY"
+    } %}
+{% endif %}
+
+<div class="product-detail-readonly">
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead class="table-light">
+                <tr>
+                    <th>{{ _('产品名称') }}</th>
+                    <th>{{ _('型号') }}</th>
+                    <th>{{ _('规格') }}</th>
+                    <th>{{ _('品牌') }}</th>
+                    <th>{{ _('单位') }}</th>
+                    <th class="text-end">{{ _('数量') }}</th>
+                    <th class="text-end">{{ _('单价') }}</th>
+                    <th class="text-end">{{ _('小计') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td>{{ item.product_name }}</td>
+                    <td>{{ item.product_model }}</td>
+                    <td>{{ item.product_desc }}</td>
+                    <td>{{ item.brand }}</td>
+                    <td>{{ item.unit }}</td>
+                    <td class="text-end">{{ item.quantity }}</td>
+                    <td class="text-end">¥{{ "%.2f"|format(item.unit_price or 0) }}</td>
+                    <td class="text-end">¥{{ "%.2f"|format(item.total_price or 0) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% if config.show_total and items %}
+            <tfoot class="table-light">
+                <tr>
+                    <th colspan="7" class="text-end">{{ _('总计') }}:</th>
+                    <th class="text-end">
+                        ¥{{ "%.2f"|format(items | sum(attribute='total_price') or 0) }}
+                    </th>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+</div>
+
+<style>
+    .product-detail-readonly .table {
+        font-size: 0.875rem;
+        margin-bottom: 0;
+    }
+    
+    .product-detail-readonly .table th {
+        border-color: #dee2e6;
+        background-color: #f8f9fa;
+        font-weight: 600;
+    }
+    
+    .product-detail-readonly .table td {
+        border-color: #dee2e6;
+        padding: 0.75rem 0.5rem;
+    }
+    
+    .product-detail-readonly .table tfoot th {
+        background-color: #e9ecef;
+        font-weight: 700;
+        border-top: 2px solid #dee2e6;
+    }
+    
+    /* 手动输入选项样式 */
+    .manual-input-option {
+        border-left: 4px solid #ff9800 !important;
+        background: linear-gradient(135deg, #fff8e1 0%, #fffbf3 100%) !important;
+    }
+    
+    .manual-input-option:hover {
+        background: linear-gradient(135deg, #fff3c4 0%, #fff8e1 100%) !important;
+        border-left-color: #f57c00 !important;
+    }
+    
+    .manual-input-info .product-name {
+        color: #f57c00 !important;
+        font-weight: 600;
+    }
+    
+    .manual-input-info .product-name i {
+        margin-right: 8px;
+        color: #ff9800;
+    }
+    
+    .manual-input-info .product-details {
+        color: #bf6000 !important;
+        font-size: 0.875rem;
+    }
+</style>
+{% endmacro %}
+
+{# 
+  产品明细JavaScript初始化脚本
+  在使用产品明细组件的页面中调用此宏
+#}
+{% macro init_product_detail_scripts() %}
+<script src="{{ url_for('static', filename='js/product-selector.js') }}"></script>
+<script src="{{ url_for('static', filename='js/product-detail-manager.js') }}"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 查找所有产品明细容器
+    const containers = document.querySelectorAll('.product-detail-container');
+    
+    containers.forEach(container => {
+        const configElement = container.querySelector('[data-config]');
+        if (!configElement) return;
+        
+        try {
+            // 解析配置
+            const config = JSON.parse(configElement.dataset.config);
+            const existingData = JSON.parse(configElement.dataset.existingData || '[]');
+            const readonly = configElement.dataset.readonly === 'true';
+            
+            if (readonly) {
+                container.classList.add('readonly');
+                return; // 只读模式不需要初始化交互功能
+            }
+            
+            // 设置表格选择器
+            config.tableSelector = '#' + (config.table_id || 'productTable');
+            config.addButtonSelector = '#' + (config.add_button_id || 'addProduct');
+            
+            // 初始化产品明细管理器
+            const manager = new ProductDetailManager(config);
+            
+            // 加载现有数据
+            if (existingData && existingData.length > 0) {
+                manager.setAllData(existingData);
+            }
+            
+            // 保存到全局对象，方便外部访问
+            window.productDetailManager = manager;
+            
+            console.log('产品明细管理器初始化完成:', config.table_id);
+            
+        } catch (error) {
+            console.error('产品明细管理器初始化失败:', error);
+        }
+    });
+});
+</script>
+{% endmacro %}

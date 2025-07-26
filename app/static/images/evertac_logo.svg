@@ -1,0 +1,25 @@
+<svg width="240" height="50" viewBox="0 0 240 50" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#4A90A4;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#5DA0B4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7FC7D9;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- EVERTAC文字 -->
+  <text x="5" y="30" 
+        font-family="Arial, Helvetica, sans-serif" 
+        font-size="28" 
+        font-weight="bold" 
+        fill="url(#logoGradient)"
+        letter-spacing="2px">EVERTAC</text>
+  
+  <!-- SOLUTIONS文字 -->
+  <text x="8" y="45" 
+        font-family="Arial, Helvetica, sans-serif" 
+        font-size="10" 
+        font-weight="normal" 
+        fill="#333"
+        letter-spacing="1px">SOLUTIONS</text>
+</svg>

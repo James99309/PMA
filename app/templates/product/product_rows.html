@@ -1,0 +1,44 @@
+{% from 'macros/ui_helpers.html' import render_product_type_badge, render_product_status_badge, render_vendor_badge %}
+{% for product in products %}
+<tr>
+    <td>{{ product.id }}</td>
+    <td>
+        {% if product.type %}
+            {{ render_product_type_badge(product.type) }}
+        {% else %}
+            -
+        {% endif %}
+    </td>
+    <td class="text-cell">{{ product.category or '-' }}</td>
+    <td class="text-cell">{{ product.product_mn or '-' }}</td>
+    <td class="product-name-link">
+        <a href="{{ url_for('product_route.view_product_detail', id=product.id) }}">
+            {{ product.product_name or '-' }}
+        </a>
+    </td>
+    <td class="text-cell">{{ product.model or '-' }}</td>
+    <td class="spec-cell" title="{{ product.specification or '' }}">
+        {% if product.specification and product.specification|length > 30 %}
+            {{ product.specification[:30] }}...
+        {% else %}
+            {{ product.specification or '-' }}
+        {% endif %}
+    </td>
+    <td class="text-cell">
+        {{ product.brand or '-' }}
+        {{ render_vendor_badge(product.is_vendor_product) }}
+    </td>
+    <td class="text-cell">{{ product.unit or '-' }}</td>
+    <td class="number-cell">
+        {% if product.retail_price %}
+            ¥{{ "%.2f"|format(product.retail_price) }}
+        {% else %}
+            -
+        {% endif %}
+    </td>
+    <td>
+        {{ render_product_status_badge(product.status) }}
+    </td>
+    <td>{{ product.created_at.strftime('%Y-%m-%d %H:%M') if product.created_at else '-' }}</td>
+</tr>
+{% endfor %}

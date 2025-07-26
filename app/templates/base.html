@@ -206,9 +206,9 @@
 </head>
 <body>
     <!-- 双层导航栏：上排为logo和系统名称，下排为菜单 -->
-    <div class="header-wrapper" style="background: linear-gradient(135deg, #000000, #1a1a1a); z-index: 1040; position: fixed; top: 0; width: 100%; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+    <div class="header-wrapper navbar-glass-morphism" style="z-index: 1040; position: fixed; top: 0; width: 100%;">
         <!-- 上排：Logo + 系统名称 + 语言切换 + 账户头像 -->
-        <div class="top-header" style="background: transparent; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+        <div class="top-header" style="background: transparent; padding: 8px 0;">
             <div class="container d-flex align-items-center justify-content-between">
                 <div class="d-flex align-items-center">
                     <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" class="main-logo" style="max-height: 32px; width: auto; margin-right: 12px; object-fit: contain;">
@@ -216,6 +216,32 @@
                 </div>
                 
                 {% if current_user.is_authenticated or session.get('user_id') %}
+                <!-- 移动端和桌面端语言切换和账户头像 -->
+                <div class="d-flex align-items-center">
+                    <!-- 移动端语言切换器 -->
+                    <div class="d-lg-none dropdown me-2">
+                        <button class="btn btn-link text-white p-1" type="button" id="mobileLanguageDropdownTop" data-bs-toggle="dropdown" aria-expanded="false" title="切换语言" style="font-size: 0.8rem;">
+                            <i class="fas fa-globe" style="font-size: 0.8rem;"></i>
+                            <span class="ms-1 d-none d-sm-inline" id="mobileCurrentLanguageTop" style="font-size: 0.8rem;">简体中文</span>
+                            <i class="fas fa-caret-down ms-1" style="font-size: 0.7rem;"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="mobileLanguageDropdownTop" style="font-size: 0.8rem;">
+                            <li>
+                                <a class="dropdown-item mobile-language-option" href="#" data-lang="zh" style="font-size: 0.8rem;">
+                                    <i class="fas fa-check me-2" style="visibility: hidden;" id="mobile-top-check-zh"></i>
+                                    简体中文
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item mobile-language-option" href="#" data-lang="en" style="font-size: 0.8rem;">
+                                    <i class="fas fa-check me-2" style="visibility: hidden;" id="mobile-top-check-en"></i>
+                                    English
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                
                 <!-- 桌面端语言切换和账户头像 -->
                 <div class="d-none d-lg-flex align-items-center">
                     <!-- 语言切换器 - 字体比菜单小2号 -->
@@ -271,7 +297,7 @@
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item" href="{{ url_for('approval.center') }}">
+                                <a class="dropdown-item" href="{{ url_for('approval.center', from_notification=1) }}">
                                     <i class="fas fa-clipboard-check me-2"></i> {{ _('审批中心') }}
                                     {% if pending_count > 0 %}
                                     <span class="badge bg-danger ms-1">{{ pending_count }}</span>
@@ -447,17 +473,9 @@
                                 {% endif %}
                                 {% if has_permission('dictionary_management', 'view') %}
                                 <li><hr class="dropdown-divider my-1"></li>
-                                <li><details>
-                                    <summary class="nav-link text-sm py-2" style="display:flex;align-items:center;justify-content:space-between;">
-                                        <span>{{ _('字典管理') }}</span>
-                                        <svg class="ms-1" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                    </summary>
-                                    <ul class="list-unstyled ps-3 mb-0">
-                                        <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.manage_roles' else '' }}" href="{{ url_for('user.manage_roles') }}">{{ _('角色字典') }}</a></li>
-                                        <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.manage_companies' else '' }}" href="{{ url_for('user.manage_companies') }}">{{ _('企业字典') }}</a></li>
-                                        <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.manage_departments' else '' }}" href="{{ url_for('user.manage_departments') }}">{{ _('部门字典') }}</a></li>
-                                    </ul>
-                                </details></li>
+                                <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.manage_roles' else '' }}" href="{{ url_for('user.manage_roles') }}">{{ _('角色字典') }}</a></li>
+                                <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.manage_companies' else '' }}" href="{{ url_for('user.manage_companies') }}">{{ _('企业字典') }}</a></li>
+                                <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.manage_departments' else '' }}" href="{{ url_for('user.manage_departments') }}">{{ _('部门字典') }}</a></li>
                                 {% endif %}
                             </ul>
                         </details>
@@ -574,31 +592,6 @@
                 <!-- 移动端用户账户和语言切换 - 移到菜单最后 -->
                 {% if current_user.is_authenticated or session.get('user_id') %}
                 <div class="d-lg-none border-top border-light-subtle mt-2 pt-2">
-                    <!-- 移动端语言切换 -->
-                    <div class="px-3 pb-2">
-                        <div class="dropdown">
-                            <button class="btn btn-link text-white p-0 w-100 text-start" type="button" id="mobileLanguageDropdown" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 0.9rem;">
-                                <i class="fas fa-globe me-2"></i>
-                                <span id="mobileCurrentLanguage">简体中文</span>
-                                <i class="fas fa-caret-down float-end mt-1"></i>
-                            </button>
-                            <ul class="dropdown-menu w-100" aria-labelledby="mobileLanguageDropdown">
-                                <li>
-                                    <a class="dropdown-item mobile-language-option" href="#" data-lang="zh">
-                                        <i class="fas fa-check me-2" style="visibility: hidden;" id="mobile-check-zh"></i>
-                                        简体中文
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item mobile-language-option" href="#" data-lang="en">
-                                        <i class="fas fa-check me-2" style="visibility: hidden;" id="mobile-check-en"></i>
-                                        English
-                                    </a>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                    
                     <!-- 移动端账户头像和功能 -->
                     <div class="border-top border-light-subtle pt-2 pb-1 px-2 user-info-mobile text-white" style="font-size: 0.95rem;">
                         <div class="d-flex align-items-center justify-content-between px-2 py-2">
@@ -613,7 +606,7 @@
                                 <a href="{{ url_for('notification.center') }}" class="text-white me-3 position-relative" title="{{ _('通知中心') }}">
                                     <i class="fas fa-bell"></i>
                                 </a>
-                                <a href="{{ url_for('approval.center') }}" class="text-white me-3 position-relative" title="{{ _('审批中心') }}">
+                                <a href="{{ url_for('approval.center', from_notification=1) }}" class="text-white me-3 position-relative" title="{{ _('审批中心') }}">
                                     <i class="fas fa-tasks"></i>
                                     {% set pending_count = get_pending_approval_count() %}
                                     {% if pending_count > 0 %}
@@ -643,12 +636,20 @@
     .navbar-dark .navbar-toggler-icon {
         background-image: url("data:image/svg+xml;charset=utf8,%3Csvg viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath stroke='rgba%28255,255,255,1%29' stroke-width='2' stroke-linecap='round' stroke-miterlimit='10' d='M4 7h22M4 15h22M4 23h22'/%3E%3C/svg%3E");
     }
-    .navbar-nav .nav-link.active, .navbar-nav .nav-link:focus {
+    /* 激活状态（选中的菜单项） */
+    .navbar-nav .nav-link.active {
         color: #167ac6 !important;
         font-weight: bold !important;
         border-left: 0;
         border-bottom: 3px solid #167ac6;
         background: none !important;
+    }
+    
+    /* 焦点状态（点击时不显示特殊样式） */
+    .navbar-nav .nav-link:focus {
+        outline: none !important;
+        box-shadow: none !important;
+        border: none !important;
     }
     .navbar-nav .nav-link {
         font-family: 'Microsoft YaHei', Arial, sans-serif;
@@ -660,21 +661,37 @@
     }
     /* 响应式菜单选中样式：移动端为左侧竖线，PC端为底部横线 */
     @media (max-width: 991.98px) {
-        .main-menu-list .nav-link.active, .main-menu-list .nav-link:focus {
+        /* 移动端激活状态（选中的菜单项） */
+        .main-menu-list .nav-link.active {
             border-left: 4px solid #167ac6 !important;
             border-bottom: none !important;
             color: #167ac6 !important;
             font-weight: bold !important;
             background: none !important;
         }
+        
+        /* 移动端焦点状态（点击时不显示特殊样式） */
+        .main-menu-list .nav-link:focus {
+            outline: none !important;
+            box-shadow: none !important;
+            border: none !important;
+        }
     }
     @media (min-width: 992px) {
-        .main-menu-list .nav-link.active, .main-menu-list .nav-link:focus {
+        /* 桌面端激活状态（选中的菜单项） */
+        .main-menu-list .nav-link.active {
             border-left: none !important;
             border-bottom: 3px solid #167ac6 !important;
             color: #167ac6 !important;
             font-weight: bold !important;
             background: none !important;
+        }
+        
+        /* 桌面端焦点状态（点击时不显示特殊样式） */
+        .main-menu-list .nav-link:focus {
+            outline: none !important;
+            box-shadow: none !important;
+            border: none !important;
         }
     }
     /* 主内容区顶部padding，避免菜单遮挡 - 双层导航栏需要更多空间 */
@@ -947,12 +964,12 @@
                     }
                     
                     // 更新移动端语言切换器显示
-                    const mobileCurrentLanguage = document.getElementById('mobileCurrentLanguage');
-                    if (mobileCurrentLanguage) {
+                    const mobileCurrentLanguageTop = document.getElementById('mobileCurrentLanguageTop');
+                    if (mobileCurrentLanguageTop) {
                         if (currentLang === 'en') {
-                            mobileCurrentLanguage.textContent = 'English';
+                            mobileCurrentLanguageTop.textContent = 'English';
                         } else {
-                            mobileCurrentLanguage.textContent = '简体中文';
+                            mobileCurrentLanguageTop.textContent = '简体中文';
                         }
                     }
                     
@@ -969,9 +986,9 @@
                     document.querySelectorAll('.mobile-language-option i').forEach(icon => {
                         icon.style.visibility = 'hidden';
                     });
-                    const mobileCheckIcon = document.getElementById(`mobile-check-${currentLang}`);
-                    if (mobileCheckIcon) {
-                        mobileCheckIcon.style.visibility = 'visible';
+                    const mobileTopCheckIcon = document.getElementById(`mobile-top-check-${currentLang}`);
+                    if (mobileTopCheckIcon) {
+                        mobileTopCheckIcon.style.visibility = 'visible';
                     }
                     
                     // 更新用户菜单中的选中状态图标（如果存在）
@@ -1092,6 +1109,47 @@
             });
         }
     </script>
+    
+    <!-- 导航栏毛玻璃滚动效果 -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const navbar = document.querySelector('.navbar-glass-morphism');
+        if (!navbar) return;
+        
+        let lastScrollTop = 0;
+        const scrollThreshold = 50;
+        
+        function updateNavbarOnScroll() {
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            
+            // 添加滚动类来增强毛玻璃效果
+            if (scrollTop > scrollThreshold) {
+                navbar.classList.add('navbar-scrolled');
+            } else {
+                navbar.classList.remove('navbar-scrolled');
+            }
+            
+            lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
+        }
+        
+        // 使用 requestAnimationFrame 优化性能
+        let ticking = false;
+        function requestTick() {
+            if (!ticking) {
+                requestAnimationFrame(updateNavbarOnScroll);
+                ticking = true;
+                setTimeout(() => { ticking = false; }, 10);
+            }
+        }
+        
+        // 监听滚动事件
+        window.addEventListener('scroll', requestTick, { passive: true });
+        
+        // 初始检查
+        updateNavbarOnScroll();
+    });
+    </script>
+    
     {% block scripts %}{% endblock %}
 </body>
 </html>

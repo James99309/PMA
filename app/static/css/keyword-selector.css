@@ -1,0 +1,305 @@
+/*!
+ * 关键词查询选择组件样式
+ */
+
+/* 主容器 */
+.keyword-selector {
+    position: relative;
+    width: 100%;
+}
+
+/* 输入框包装器 */
+.keyword-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+/* 输入框样式 */
+.keyword-input {
+    width: 100%;
+    padding-right: 30px; /* 为清除按钮留空间 */
+}
+
+/* 清除按钮 */
+.keyword-clear-btn {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    font-size: 18px;
+    color: #999;
+    cursor: pointer;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.keyword-clear-btn:hover {
+    background-color: #f5f5f5;
+    color: #666;
+}
+
+/* 下拉框 */
+.keyword-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* 加载状态 */
+.keyword-loading {
+    padding: 12px 16px;
+    text-align: center;
+    color: #666;
+    font-size: 14px;
+}
+
+.keyword-loading i {
+    margin-right: 5px;
+}
+
+/* 结果列表 */
+.keyword-results {
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+/* 结果项 */
+.keyword-result-item {
+    padding: 10px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.2s ease;
+}
+
+.keyword-result-item:last-child {
+    border-bottom: none;
+}
+
+.keyword-result-item:hover,
+.keyword-result-item.active {
+    background-color: #f8f9fa;
+}
+
+.keyword-result-item.active {
+    background-color: #e3f2fd;
+}
+
+/* 主标签 */
+.result-main-label {
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 2px;
+}
+
+/* 副标签 */
+.result-sub-label {
+    font-size: 12px;
+    color: #666;
+    line-height: 1.4;
+}
+
+/* 无结果提示 */
+.keyword-no-results {
+    padding: 16px;
+    text-align: center;
+    color: #999;
+    font-style: italic;
+}
+
+/* 多选模式：已选择项目 */
+.keyword-selected-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+    min-height: 0;
+}
+
+/* 已选择项目标签 */
+.keyword-selected-tag {
+    display: inline-flex;
+    align-items: center;
+    background-color: #e3f2fd;
+    color: #1976d2;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    gap: 4px;
+}
+
+/* 标签移除按钮 */
+.tag-remove {
+    background: none;
+    border: none;
+    color: #1976d2;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 0;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.tag-remove:hover {
+    background-color: #1976d2;
+    color: white;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .keyword-dropdown {
+        position: fixed;
+        top: auto;
+        left: 10px;
+        right: 10px;
+        bottom: 10px;
+        max-height: 50vh;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+    }
+    
+    .keyword-result-item {
+        padding: 12px 16px;
+    }
+    
+    .result-main-label {
+        font-size: 14px;
+    }
+    
+    .result-sub-label {
+        font-size: 11px;
+    }
+}
+
+/* 深色主题支持 */
+@media (prefers-color-scheme: dark) {
+    .keyword-dropdown {
+        background: #2d2d2d;
+        border-color: #555;
+        color: #fff;
+    }
+    
+    .keyword-result-item {
+        border-bottom-color: #444;
+        color: #fff;
+    }
+    
+    .keyword-result-item:hover,
+    .keyword-result-item.active {
+        background-color: #404040;
+    }
+    
+    .keyword-result-item.active {
+        background-color: #1565c0;
+    }
+    
+    .result-sub-label {
+        color: #ccc;
+    }
+    
+    .keyword-no-results {
+        color: #999;
+    }
+    
+    .keyword-loading {
+        color: #ccc;
+    }
+}
+
+/* 聚焦状态样式 */
+.keyword-selector .keyword-input:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* 禁用状态 */
+.keyword-selector.disabled {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.keyword-selector.disabled .keyword-input {
+    background-color: #f8f9fa;
+    cursor: not-allowed;
+}
+
+/* 错误状态 */
+.keyword-selector.error .keyword-input {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
+/* 成功状态 */
+.keyword-selector.success .keyword-input {
+    border-color: #28a745;
+    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+}
+
+/* 小尺寸变体 */
+.keyword-selector.size-sm .keyword-input {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+.keyword-selector.size-sm .keyword-result-item {
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
+/* 大尺寸变体 */
+.keyword-selector.size-lg .keyword-input {
+    padding: 0.75rem 1rem;
+    font-size: 1.125rem;
+}
+
+.keyword-selector.size-lg .keyword-result-item {
+    padding: 12px 20px;
+    font-size: 15px;
+}
+
+/* 自定义滚动条 */
+.keyword-dropdown::-webkit-scrollbar,
+.keyword-results::-webkit-scrollbar {
+    width: 6px;
+}
+
+.keyword-dropdown::-webkit-scrollbar-track,
+.keyword-results::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.keyword-dropdown::-webkit-scrollbar-thumb,
+.keyword-results::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.keyword-dropdown::-webkit-scrollbar-thumb:hover,
+.keyword-results::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}

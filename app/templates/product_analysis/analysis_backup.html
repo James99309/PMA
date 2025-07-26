@@ -1,0 +1,1156 @@
+{% extends "base.html" %}
+
+{% block title %}产品分析{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+    /* 参考产品库的表格样式 */
+    .table-container {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+    }
+
+    /* 表头容器 - 固定不滚动 */
+    .header-container {
+        position: relative;
+        overflow: hidden;
+        background-color: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .header-scroll {
+        overflow-x: hidden;
+        overflow-y: hidden;
+    }
+
+    /* 表体容器 - 可滚动 */
+    .body-container {
+        position: relative;
+        overflow-x: auto;
+        overflow-y: auto;
+        max-height: 600px;
+        background-color: #fff;
+    }
+
+    .body-scroll {
+        overflow-x: auto;
+        overflow-y: auto;
+        margin-right: 0px;
+    }
+
+    /* 统一表格行高度 */
+    .analysis-table tr {
+        height: 42px;
+        box-sizing: border-box;
+    }
+
+    /* 表格样式 */
+    .analysis-table {
+        width: 100%;
+        min-width: 1500px;
+        font-size: 0.875rem; /* 使用标准字体大小 */
+        margin-bottom: 0;
+        table-layout: fixed;
+        border-collapse: collapse;
+        background-color: #fff; /* 确保背景为白色 */
+    }
+
+    /* 表格单元格样式 */
+    .analysis-table th,
+    .analysis-table td {
+        padding: 0.75rem; /* 增加内边距使其更像项目列表 */
+        text-align: left !important;
+        vertical-align: middle;
+        box-sizing: border-box;
+        height: 48px; /* 增加行高 */
+        white-space: nowrap;
+        /* 移除垂直分割线 */
+        border-right: none;
+    }
+
+    .analysis-table td {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        border-bottom: 1px solid #dee2e6;
+        cursor: default; /* 改为默认光标 */
+    }
+
+    /* 表格行样式 - 使用与项目列表一致的条纹效果 */
+    .analysis-table tbody tr:nth-child(odd) {
+        background-color: #f8f9fa; /* 浅灰色背景 */
+    }
+
+    .analysis-table tbody tr:nth-child(even) {
+        background-color: #ffffff; /* 白色背景 */
+    }
+
+    .analysis-table tbody tr:hover {
+        background-color: #e3f2fd !important; /* 悬停时的蓝色背景 */
+    }
+
+    /* 表头样式 */
+    .analysis-table th {
+        height: 48px;
+        white-space: nowrap;
+        cursor: pointer;
+        font-weight: 600;
+        background-color: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+        color: #495057;
+        /* 移除垂直分割线 */
+        border-right: none;
+    }
+
+    /* 调整特定列的宽度 - 确保表头和表体完全一致 */
+    .analysis-table .col-name { 
+        width: 150px; 
+        min-width: 150px; 
+        max-width: 150px; 
+    }
+    .analysis-table .col-model { 
+        width: 120px; 
+        min-width: 120px; 
+        max-width: 120px; 
+    }
+    .analysis-table .col-desc { 
+        width: 200px; 
+        min-width: 200px; 
+        max-width: 200px; 
+    }
+    .analysis-table .col-quantity { 
+        width: 80px; 
+        min-width: 80px; 
+        max-width: 80px; 
+        text-align: center !important; /* 数量居中对齐 */
+    }
+    .analysis-table .col-discount { 
+        width: 80px; 
+        min-width: 80px; 
+        max-width: 80px; 
+        text-align: center !important; /* 折扣居中对齐 */
+    }
+    .analysis-table .col-price { 
+        width: 100px; 
+        min-width: 100px; 
+        max-width: 100px; 
+        text-align: right !important; /* 价格右对齐 */
+    }
+    .analysis-table .col-total { 
+        width: 120px; 
+        min-width: 120px; 
+        max-width: 120px; 
+        text-align: right !important; /* 合计右对齐 */
+    }
+    .analysis-table .col-mn { 
+        width: 120px; 
+        min-width: 120px; 
+        max-width: 120px; 
+    }
+    .analysis-table .col-owner { 
+        width: 100px; 
+        min-width: 100px; 
+        max-width: 100px; 
+    }
+    .analysis-table .col-project { 
+        width: 180px; 
+        min-width: 180px; 
+        max-width: 180px; 
+    }
+    .analysis-table .col-stage { 
+        width: 100px; 
+        min-width: 100px; 
+        max-width: 100px; 
+        text-align: center !important; /* 阶段居中对齐 */
+    }
+    .analysis-table .col-quotation { 
+        width: 120px; 
+        min-width: 120px; 
+        max-width: 120px; 
+    }
+    .analysis-table .col-date { 
+        width: 150px; 
+        min-width: 150px; 
+        max-width: 150px; 
+    }
+
+    /* 美化滚动条 */
+    .body-container::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    .body-container::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+
+    .body-container::-webkit-scrollbar-thumb {
+        background: #ccc;
+        border-radius: 4px;
+    }
+
+    .body-container::-webkit-scrollbar-thumb:hover {
+        background: #999;
+    }
+
+    /* 分页控件样式优化 */
+    .table-header-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        border-radius: 0.375rem 0.375rem 0 0;
+    }
+
+    .table-header-left {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .table-header-right {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .pagination-controls {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .pagination-info {
+        font-size: 0.875rem;
+        color: #6c757d;
+        white-space: nowrap;
+    }
+
+    .pagination-sm .page-link {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    /* 移动端优化 */
+    @media (max-width: 991.98px) {
+        .table-header-controls {
+            flex-direction: column;
+            gap: 0.75rem;
+            align-items: stretch;
+        }
+
+        .table-header-left,
+        .table-header-right {
+            justify-content: center;
+        }
+
+        .pagination-controls {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+        }
+        
+        .card-body {
+            padding: 0.75rem;
+        }
+        
+        .shadow-sm {
+            box-shadow: 0 .125rem .25rem rgba(0,0,0,.075)!important;
+            border-radius: 0.5rem;
+            border: none;
+        }
+
+        /* 移动端卡片样式优化 */
+        .mobile-card {
+            margin-bottom: 1rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            background: #fff;
+            box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+            transition: box-shadow 0.15s ease-in-out;
+        }
+
+        .mobile-card:hover {
+            box-shadow: 0 0.25rem 0.5rem rgba(0,0,0,0.1);
+        }
+
+        .mobile-card-header {
+            padding: 0.75rem;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            border-radius: 0.5rem 0.5rem 0 0;
+        }
+
+        .mobile-card-body {
+            padding: 0.75rem;
+        }
+
+        .mobile-card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            color: #495057;
+        }
+
+        .mobile-card-subtitle {
+            font-size: 0.875rem;
+            color: #6c757d;
+            margin-bottom: 0;
+        }
+
+        .mobile-card-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.25rem 0;
+            border-bottom: 1px solid #f8f9fa;
+        }
+
+        .mobile-card-row:last-child {
+            border-bottom: none;
+        }
+
+        .mobile-card-label {
+            font-size: 0.875rem;
+            color: #6c757d;
+            font-weight: 500;
+        }
+
+        .mobile-card-value {
+            font-size: 0.875rem;
+            color: #495057;
+            text-align: right;
+            max-width: 60%;
+            word-break: break-word;
+        }
+
+        /* 移动端分页优化 */
+        .mobile-pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+        }
+
+        .mobile-pagination .pagination {
+            margin-bottom: 0;
+        }
+
+        .mobile-pagination .pagination-info {
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+    }
+
+    /* 统计卡片样式 - 模仿项目统计风格 */
+    .stats-card {
+        border: none;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        transition: all 0.2s ease-in-out;
+        background-color: #f8f9fa;
+    }
+
+    .stats-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+    }
+
+    .stats-card .card-body {
+        padding: 0.75rem;
+    }
+
+    .stats-card .card-title {
+        margin-bottom: 0;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #6c757d;
+    }
+
+    .stats-value {
+        font-size: 1rem;
+        font-weight: bold;
+        color: #007bff;
+        margin-bottom: 0;
+    }
+
+    .stats-label {
+        color: #6c757d;
+        font-size: 0.7rem;
+        margin-top: 0.25rem;
+    }
+
+
+    /* 不同统计卡片的颜色主题 */
+    .stats-card.total-amount {
+        background-color: #e6f0f5;
+        border-left: 4px solid #0d6efd;
+    }
+
+    .stats-card.total-amount .stats-value {
+        color: #0d6efd;
+    }
+
+    .stats-card.total-quantity {
+        background-color: #e6f5ec;
+        border-left: 4px solid #198754;
+    }
+
+    .stats-card.total-quantity .stats-value {
+        color: #198754;
+    }
+
+    .stats-card.monthly-increase {
+        background-color: #fff3cd;
+        border-left: 4px solid #ffc107;
+    }
+
+    .stats-card.monthly-increase .stats-value {
+        color: #856404;
+    }
+
+
+    .stats-card.avg-price {
+        background-color: #e6f5f9;
+        border-left: 4px solid #0dcaf0;
+    }
+
+    .stats-card.avg-price .stats-value {
+        color: #0dcaf0;
+    }
+
+    /* 图表容器样式 */
+    .chart-container {
+        position: relative;
+        height: 300px;
+        width: 100%;
+    }
+
+    /* 图表切换器样式 */
+    .chart-toggle-dot {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        margin: 0 8px;
+        border-radius: 50%;
+        border: 2px solid #1890ff;
+        background: #fff;
+        cursor: pointer;
+        transition: background 0.3s, box-shadow 0.3s;
+        box-shadow: 0 0 0 0 rgba(24,144,255,0.2);
+        position: relative;
+        top: -10px;
+    }
+
+    .chart-toggle-dot.active {
+        background: #1890ff;
+        box-shadow: 0 0 0 6px rgba(24,144,255,0.12);
+        border-color: #1890ff;
+        animation: dotPulse 0.4s;
+    }
+
+    .chart-toggle-dot:hover {
+        box-shadow: 0 0 0 4px rgba(24,144,255,0.08);
+    }
+
+    @keyframes dotPulse {
+        0% {
+            box-shadow: 0 0 0 0 rgba(24,144,255,0.7);
+        }
+        70% {
+            box-shadow: 0 0 0 10px rgba(24,144,255,0);
+        }
+        100% {
+            box-shadow: 0 0 0 0 rgba(24,144,255,0);
+        }
+    }
+
+    /* 排序相关样式 */
+    .sortable {
+        cursor: pointer;
+        user-select: none;
+        position: relative;
+        transition: background-color 0.2s;
+    }
+
+    .sortable:hover {
+        background-color: #f8f9fa;
+    }
+
+    .sort-icon {
+        margin-left: 5px;
+        color: #ccc;
+        font-size: 0.8em;
+        transition: color 0.2s;
+    }
+
+    .sortable:hover .sort-icon {
+        color: #666;
+    }
+
+    .sortable.sort-asc .sort-icon {
+        color: #007bff;
+        transform: rotate(0deg);
+    }
+
+    .sortable.sort-desc .sort-icon {
+        color: #007bff;
+        transform: rotate(180deg);
+    }
+
+    .sortable.sort-asc .sort-icon::before {
+        content: "\f0de"; /* fa-sort-up */
+    }
+
+    .sortable.sort-desc .sort-icon::before {
+        content: "\f0dd"; /* fa-sort-down */
+    }
+
+    /* 徽章样式 - 使用与项目列表一致的Bootstrap样式 */
+    .badge-owner {
+        /* 使用Bootstrap标准徽章样式 */
+    }
+
+    .badge-stage {
+        /* 使用Bootstrap标准徽章样式 */
+    }
+
+    .badge-quotation {
+        /* 使用Bootstrap标准徽章样式 */
+    }
+
+    /* 链接样式 */
+    .project-link {
+        color: #1976d2;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s ease;
+    }
+
+    .project-link:hover {
+        color: #0d47a1;
+        text-decoration: underline;
+    }
+
+    .quotation-link {
+        color: #1976d2;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s ease;
+    }
+
+    .quotation-link:hover {
+        color: #0d47a1;
+        text-decoration: underline;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row page-title-container">
+        <div class="col-12">
+            <h1 class="page-title">产品分析</h1>
+        </div>
+    </div>
+
+    <!-- 筛选器 -->
+    {% set category_options = [] %}
+    {% for category in categories %}
+        {% set _ = category_options.append({'value': category, 'label': category, 'translate': False}) %}
+    {% endfor %}
+    
+    {% set product_name_options = [] %}
+    {% for name in product_names %}
+        {% set _ = product_name_options.append({'value': name, 'label': name, 'translate': False}) %}
+    {% endfor %}
+    
+    {% set product_model_options = [] %}
+    {% for model in product_models %}
+        {% set _ = product_model_options.append({'value': model, 'label': model, 'translate': False}) %}
+    {% endfor %}
+    
+    {% set filter_config = {
+        'action_url': url_for('product_analysis.analysis'),
+        'form_id': 'productAnalysisFilterForm',
+        'reset_url': url_for('product_analysis.analysis'),
+        
+        'search_field': {
+            'name': 'search',
+            'label': '搜索',
+            'placeholder': '产品名称、型号、描述或MN号',
+            'value': '',
+            'col_width': 3
+        },
+        
+        'filter_fields': [
+            {
+                'name': 'category',
+                'label': '产品类别',
+                'all_option_text': '全部类别',
+                'current_value': '',
+                'col_width': 3,
+                'options': category_options
+            },
+            {
+                'name': 'product_name',
+                'label': '产品名称',
+                'all_option_text': '全部产品',
+                'current_value': '',
+                'col_width': 3,
+                'options': product_name_options
+            },
+            {
+                'name': 'product_model',
+                'label': '产品型号',
+                'all_option_text': '全部型号',
+                'current_value': '',
+                'col_width': 3,
+                'options': product_model_options
+            }
+        ],
+        
+        'search_button_text': '搜索',
+        'reset_button_text': '重置'
+    } %}
+    
+    <!-- 统计卡片 -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card stats-card total-amount">
+                <div class="card-body text-center">
+                    <div class="card-title">
+                        <i class="fas fa-dollar-sign me-1"></i> 总金额
+                    </div>
+                    <div class="stats-value" id="totalAmount">¥0</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card stats-card total-quantity">
+                <div class="card-body text-center">
+                    <div class="card-title">
+                        <i class="fas fa-boxes me-1"></i> 产品数量
+                    </div>
+                    <div class="stats-value" id="totalQuantity">0</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card stats-card monthly-increase">
+                <div class="card-body text-center">
+                    <div class="card-title">
+                        <i class="fas fa-chart-line me-1"></i> 本月新增
+                    </div>
+                    <div class="stats-value" id="monthlyIncrease">0</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card stats-card avg-price">
+                <div class="card-body text-center">
+                    <div class="card-title">
+                        <i class="fas fa-calculator me-1"></i> 平均单价
+                    </div>
+                    <div class="stats-value" id="avgUnitPrice">¥0</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图表区域 -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="card-title text-primary mb-3">阶段分布统计</h6>
+                    <div id="stageChart" style="height: 350px; min-height: 250px;">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                            <p class="mt-2">正在加载图表数据...</p>
+                        </div>
+                    </div>
+                    <!-- 切换器 -->
+                    <div class="text-center mt-2">
+                        <span class="chart-toggle-dot active" data-chart-type="quantity" title="数量分布"></span>
+                        <span class="chart-toggle-dot" data-chart-type="amount" title="金额分布"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 数据表格 -->
+    <div class="card">
+        <div class="card-header">
+            <i class="fas fa-table"></i> 产品明细列表
+        </div>
+        <div class="card-body p-0">
+            <!-- 筛选器移到这里 -->
+            <div class="p-3 border-bottom">
+                {% from 'macros/filter_search.html' import render_filter_search_form %}
+                {{ render_filter_search_form(filter_config) }}
+            </div>
+            
+            <div class="table-responsive">
+                <table class="table table-striped table-hover mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th style="width: 150px;">产品名称</th>
+                            <th style="width: 120px;">产品型号</th>
+                            <th style="width: 200px;">产品描述</th>
+                            <th style="width: 80px;" class="text-center">数量</th>
+                            <th style="width: 80px;" class="text-center">折扣</th>
+                            <th style="width: 100px;" class="text-end">单价</th>
+                            <th style="width: 100px;" class="text-end">合计</th>
+                            <th style="width: 120px;">MN号</th>
+                            <th style="width: 100px;">拥有人</th>
+                            <th style="width: 150px;">项目名称</th>
+                            <th style="width: 100px;" class="text-center">当前阶段</th>
+                            <th style="width: 120px;">报价单编号</th>
+                            <th style="width: 140px;">更新时间</th>
+                            <th style="width: 140px;">创建时间</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productAnalysisTableBody">
+                        <!-- 表格内容将通过AJAX动态加载 -->
+                        <tr>
+                            <td colspan="14" class="text-center py-4">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">加载中...</span>
+                                </div>
+                                <div class="mt-2">正在加载数据...</div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 加载中提示 -->
+<div id="loadingOverlay" class="loading-overlay" style="display: none;">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">加载中...</span>
+    </div>
+</div>
+
+<!-- 引入必要的JavaScript库 -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<script src="{{ url_for('static', filename='js/filter-search.js') }}"></script>
+<script>
+let stageChart = null;
+let currentChartType = 'quantity';
+let stageData = null;
+
+// 阶段颜色配置 - 从后端API获取
+let STAGE_COLORS_COUNT = {};
+let STAGE_COLORS_AMOUNT = {};
+
+// 植入产品分析筛选配置
+const productAnalysisConfig = {
+    form_id: 'productAnalysisFilterForm',
+    search_field_id: 'search',
+    realtime_search: false,
+    auto_submit: true,
+    dynamic_reset_button: true,
+    search_delay: 300,
+    ajax_endpoint: '{{ url_for("product_analysis.products_list_ajax") }}',
+    ajax_target: '#productAnalysisTableBody',
+    ajax_columns: 14,
+    filter_fields: [
+        { name: 'category' },
+        { name: 'product_name' },
+        { name: 'product_model' }
+    ],
+    // 自定义成功回调，用于更新统计卡片
+    onSuccess: function(data) {
+        updateStatisticsFromAjax(data);
+        // 标记初始加载已完成，防止后续冲突
+        if (!isInitialLoadCompleted) {
+            isInitialLoadCompleted = true;
+            console.log('筛选系统接管数据加载，初始加载标记为已完成');
+        }
+    }
+};
+
+// 控制初始加载状态的标志
+let isInitialLoadCompleted = false;
+
+// 更新统计卡片数据
+function updateStatisticsFromAjax(data) {
+    if (data && data.statistics) {
+        const stats = data.statistics;
+        
+        // 更新总金额
+        document.getElementById('totalAmount').textContent = '¥' + (stats.total_amount || 0).toLocaleString();
+        
+        // 更新产品数量
+        document.getElementById('totalQuantity').textContent = (stats.total_quantity || 0).toLocaleString();
+        
+        // 更新本月新增
+        document.getElementById('monthlyIncrease').textContent = (stats.monthly_increase || 0).toLocaleString();
+        
+        // 更新平均单价
+        document.getElementById('avgUnitPrice').textContent = '¥' + (stats.avg_unit_price || 0).toLocaleString();
+    }
+}
+
+// 加载阶段统计数据
+function loadStageStatistics() {
+    const form = document.getElementById('productAnalysisFilterForm');
+    const formData = new FormData(form);
+    const params = new URLSearchParams(formData);
+    
+    fetch(`/product_analysis/api/stage_statistics?${params.toString()}`)
+        .then(response => response.json())
+        .then(response => {
+            if (response.success) {
+                stageData = response.data;
+                
+                // 更新颜色配置
+                if (response.colors) {
+                    STAGE_COLORS_COUNT = response.colors.count || {};
+                    STAGE_COLORS_AMOUNT = response.colors.amount || {};
+                }
+                
+                renderStageChart(stageData, currentChartType);
+            } else {
+                console.error('加载阶段统计数据失败:', response.message);
+            }
+        })
+        .catch(error => {
+            console.error('加载阶段统计数据失败:', error);
+        });
+}
+
+// 渲染阶段分布图表（柱状图）
+function renderStageChart(data, chartType) {
+    const chartContainer = document.getElementById('stageChart');
+    if (!chartContainer || !data || !data.length) {
+        console.log('没有阶段数据或图表容器不存在');
+        return;
+    }
+    
+    // 定义阶段顺序 - 与后端保持一致
+    const stageOrder = ['discover', 'embed', 'pre_tender', 'tendering', 'awarded', 'quoted', 'signed', 'lost', 'paused', 'unset'];
+    
+    // 按照预定义顺序排序数据
+    const sortedData = [...data].sort((a, b) => {
+        const orderA = a.order !== undefined ? a.order : stageOrder.indexOf(a.stage_key || a.stage || '');
+        const orderB = b.order !== undefined ? b.order : stageOrder.indexOf(b.stage_key || b.stage || '');
+        return orderA - orderB;
+    });
+    
+    // 过滤掉数量和金额都为0的阶段
+    const filteredData = sortedData.filter(item => {
+        return (chartType === 'quantity' && item.quantity > 0) || 
+               (chartType === 'amount' && item.amount > 0);
+    });
+    
+    if (filteredData.length === 0) {
+        chartContainer.innerHTML = '<div class="text-center py-4"><p class="text-muted">暂无数据</p></div>';
+        return;
+    }
+    
+    // 销毁现有图表
+    if (stageChart) {
+        stageChart.dispose();
+    }
+    
+    // 初始化图表
+    stageChart = echarts.init(chartContainer);
+    
+    // 准备数据 - 将金额转换为万元
+    const categories = filteredData.map(item => item.name || item.stage_name);
+    let values, displayValues;
+    
+    if (chartType === 'quantity') {
+        values = filteredData.map(item => item.quantity || 0);
+        displayValues = values.map(val => val + '个');
+    } else {
+        // 金额以万为单位，保留1位小数
+        values = filteredData.map(item => Math.round((item.amount || 0) / 10000 * 10) / 10);
+        displayValues = values.map(val => val.toFixed(1) + '万');
+    }
+    
+    const colors = filteredData.map(item => {
+        if (chartType === 'quantity') {
+            return item.color_count || item.color || '#5470c6';
+        } else {
+            return item.color_amount || item.color || '#91cc75';
+        }
+    });
+    
+    // 图表配置
+    const option = {
+        title: {
+            text: chartType === 'quantity' ? '产品分布统计（数量）' : '产品分布统计（金额）',
+            left: 'center',
+            top: '5%',
+            textStyle: {
+                fontSize: 16,
+                fontWeight: 'bold',
+                color: '#333'
+            }
+        },
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'shadow'
+            },
+            formatter: function(params) {
+                const item = params[0];
+                const originalData = filteredData[item.dataIndex];
+                const value = originalData[chartType === 'quantity' ? 'quantity' : 'amount'];
+                
+                if (chartType === 'quantity') {
+                    return `${item.name}: ${value}个`;
+                } else {
+                    const wanValue = (value / 10000).toFixed(1);
+                    return `${item.name}: ${wanValue}万元`;
+                }
+            }
+        },
+        grid: {
+            left: '5%',
+            right: '5%',
+            bottom: '25%',
+            top: '20%',
+            containLabel: true
+        },
+        xAxis: {
+            type: 'category',
+            data: categories,
+            axisLabel: {
+                rotate: 0,
+                fontSize: 12,
+                color: '#666',
+                interval: 0,
+                margin: 10,
+                formatter: function(value) {
+                    return value && value.length > 8 ? value.substring(0, 6) + '...' : value;
+                }
+            },
+            axisTick: {
+                alignWithLabel: true
+            },
+            axisLine: {
+                lineStyle: {
+                    color: '#ddd'
+                }
+            }
+        },
+        yAxis: {
+            type: 'value',
+            name: chartType === 'quantity' ? '数量(个)' : '金额(万元)',
+            nameTextStyle: {
+                color: '#666',
+                fontSize: 12
+            },
+            axisLabel: {
+                formatter: function(value) {
+                    if (chartType === 'amount') {
+                        return value.toFixed(0) + '万';
+                    }
+                    return value;
+                },
+                color: '#666',
+                fontSize: 11
+            },
+            splitLine: {
+                lineStyle: {
+                    color: '#f0f0f0',
+                    type: 'dashed'
+                }
+            },
+            axisLine: {
+                lineStyle: {
+                    color: '#ddd'
+                }
+            }
+        },
+        series: [{
+            name: chartType === 'quantity' ? '数量' : '金额',
+            type: 'bar',
+            data: values.map((value, index) => ({
+                value: value,
+                itemStyle: {
+                    color: colors[index],
+                    borderRadius: [3, 3, 0, 0]
+                }
+            })),
+            barWidth: '60%',
+            label: {
+                show: true,
+                position: 'top',
+                formatter: function(params) {
+                    return displayValues[params.dataIndex];
+                },
+                color: '#333',
+                fontSize: 11,
+                fontWeight: 'bold',
+                distance: 5
+            },
+            emphasis: {
+                itemStyle: {
+                    shadowBlur: 10,
+                    shadowOffsetX: 0,
+                    shadowColor: 'rgba(0, 0, 0, 0.3)'
+                }
+            }
+        }],
+        animationDuration: 1000,
+        animationEasing: 'cubicOut'
+    };
+    
+    // 设置图表选项
+    stageChart.setOption(option);
+    
+    // 响应式调整
+    window.addEventListener('resize', function() {
+        if (stageChart) {
+            stageChart.resize();
+        }
+    });
+}
+
+// 绑定图表切换器事件
+function bindChartToggleEvents() {
+    $('.chart-toggle-dot').on('click', function() {
+        const chartType = $(this).data('chart-type');
+        
+        // 更新切换器状态
+        $('.chart-toggle-dot').removeClass('active');
+        $(this).addClass('active');
+        
+        // 更新当前图表类型
+        currentChartType = chartType;
+        
+        // 更新图表标题
+        const title = chartType === 'quantity' ? '各阶段数量分布' : '各阶段金额分布';
+        $('.card-title').first().text(title);
+        
+        // 重新渲染图表
+        if (stageData) {
+            renderStageChart(stageData, chartType);
+        }
+    });
+}
+
+// 手动触发初始数据加载
+function triggerInitialLoad() {
+    // 防止在筛选过程中重复调用
+    if (isInitialLoadCompleted) {
+        console.log('初始加载已完成，跳过重复调用');
+        return;
+    }
+    
+    console.log('触发初始数据加载');
+    
+    // 获取表单数据
+    const form = document.getElementById('productAnalysisFilterForm');
+    const formData = new FormData(form);
+    const params = new URLSearchParams(formData);
+    params.append('offset', '0');
+    params.append('limit', '20');
+    
+    // 显示加载状态
+    const targetElement = document.querySelector('#productAnalysisTableBody');
+    if (targetElement) {
+        targetElement.innerHTML = `
+            <tr>
+                <td colspan="14" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <div class="mt-2">正在加载数据...</div>
+                </td>
+            </tr>
+        `;
+    }
+    
+    // 发送AJAX请求
+    fetch(`${productAnalysisConfig.ajax_endpoint}?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            console.log('初始数据加载成功:', data);
+            if (data.success) {
+                // 更新表格内容
+                if (targetElement) {
+                    targetElement.innerHTML = data.html || '<tr><td colspan="14" class="text-center py-4">暂无数据</td></tr>';
+                }
+                
+                // 更新统计信息
+                if (productAnalysisConfig.onSuccess && typeof productAnalysisConfig.onSuccess === 'function') {
+                    productAnalysisConfig.onSuccess(data);
+                }
+                
+                // 标记初始加载已完成
+                isInitialLoadCompleted = true;
+                console.log('初始加载完成，后续由筛选系统接管');
+            } else {
+                console.error('数据加载失败:', data.error);
+                if (targetElement) {
+                    targetElement.innerHTML = `<tr><td colspan="14" class="text-center py-4 text-danger">加载失败: ${data.error || '未知错误'}</td></tr>`;
+                }
+            }
+        })
+        .catch(error => {
+            console.error('AJAX请求失败:', error);
+            if (targetElement) {
+                targetElement.innerHTML = `<tr><td colspan="14" class="text-center py-4 text-danger">加载失败: ${error.message}</td></tr>`;
+            }
+        });
+}
+
+// 页面初始化
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 植入产品分析页面初始化开始');
+    
+    // 初始化通用筛选搜索功能
+    setupFilterSearch(productAnalysisConfig);
+    
+    // 等待筛选搜索初始化完成后，通过标准AJAX系统进行初始数据加载
+    setTimeout(() => {
+        if (!isInitialLoadCompleted) {
+            console.log('🔄 通过标准筛选系统触发初始数据加载');
+            // 使用通用AJAX筛选功能进行初始加载
+            performGenericAjaxFilter(productAnalysisConfig);
+        } else {
+            console.log('✅ 初始加载已完成，跳过重复加载');
+        }
+    }, 800);
+    
+    // 初始化阶段统计数据
+    loadStageStatistics();
+    
+    // 绑定图表切换事件
+    bindChartToggleEvents();
+    
+    // 监听通用筛选完成事件，同时更新图表
+    document.addEventListener('filterComplete', function(event) {
+        console.log('📊 筛选完成，更新阶段统计图表');
+        loadStageStatistics();
+    });
+    
+    console.log('✅ 植入产品分析页面初始化完成');
+});
+</script>
+{% endblock %} 

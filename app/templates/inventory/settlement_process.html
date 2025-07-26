@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button %}
+{% from 'macros/ui_helpers.html' import render_button, render_item_count_badge %}
 
 {% block title %}结算处理 - {{ settlement_order.order_number }}{% endblock %}
 
@@ -33,7 +33,7 @@
     .table {
         font-size: 0.8rem; /* 字体缩小 */
         white-space: nowrap; /* 防止换行 */
-        min-width: 1200px; /* 确保有足够宽度 */
+        min-width: 1050px; /* 确保有足够宽度 */
     }
 
     .table th,
@@ -45,13 +45,13 @@
     /* 各字段宽度分配 */
     .table th:nth-child(1), .table td:nth-child(1) { min-width: 180px; } /* 产品名称 */
     .table th:nth-child(2), .table td:nth-child(2) { min-width: 120px; } /* 产品型号 */
-    .table th:nth-child(3), .table td:nth-child(3) { min-width: 150px; } /* 规格说明 */
-    .table th:nth-child(4), .table td:nth-child(4) { min-width: 100px; } /* 品牌 */
-    .table th:nth-child(5), .table td:nth-child(5) { min-width: 120px; } /* 产品MN */
-    .table th:nth-child(6), .table td:nth-child(6) { min-width: 80px; } /* 需求数量 */
-    .table th:nth-child(7), .table td:nth-child(7) { min-width: 60px; } /* 单位 */
-    .table th:nth-child(8), .table td:nth-child(8) { min-width: 100px; } /* 当前库存 */
-    .table th:nth-child(9), .table td:nth-child(9) { min-width: 100px; } /* 库存状态 */
+    .table th:nth-child(3), .table td:nth-child(3) { min-width: 100px; } /* 品牌 */
+    .table th:nth-child(4), .table td:nth-child(4) { min-width: 120px; } /* 产品MN */
+    .table th:nth-child(5), .table td:nth-child(5) { min-width: 80px; } /* 需求数量 */
+    .table th:nth-child(6), .table td:nth-child(6) { min-width: 60px; } /* 单位 */
+    .table th:nth-child(7), .table td:nth-child(7) { min-width: 100px; } /* 当前库存 */
+    .table th:nth-child(8), .table td:nth-child(8) { min-width: 100px; } /* 库存状态 */
+    .table th:nth-child(9), .table td:nth-child(9) { min-width: 140px; } /* 结算目标公司 */
     .table th:nth-child(10), .table td:nth-child(10) { min-width: 120px; } /* 操作 */
 
     /* 数字样式 */
@@ -170,26 +170,42 @@
         <div class="card-body">
             <h5 class="mb-3">
                 <i class="fas fa-building me-2"></i>选择结算库存公司
+                {% if settlement_order.settlement_status == 'fully_settled' %}
+                    <span class="badge bg-success ms-2">已完全结算</span>
+                {% endif %}
             </h5>
-            <div class="row align-items-center">
-                <div class="col-md-8">
-                    <select class="form-select form-select-lg" id="selectedCompanyId" onchange="loadCompanyInventory()">
-                        <option value="">请选择要结算的库存公司</option>
-                        {% for company in companies %}
-                        <option value="{{ company.id }}" 
-                                {% if selected_company_id and selected_company_id|string == company.id|string %}selected
-                                {% elif not selected_company_id and settlement_order.distributor_id == company.id %}selected{% endif %}>
-                            {{ company.company_name }}
-                        </option>
-                        {% endfor %}
-                    </select>
+            {% if settlement_order.settlement_status == 'fully_settled' %}
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle me-2"></i>
+                    该结算单已完全结算，所有产品都已处理完毕，无需进一步操作。
                 </div>
-                <div class="col-md-4 text-end">
-                    <button class="btn btn-light btn-lg" onclick="refreshInventory()" id="refreshBtn" disabled>
-                        <i class="fas fa-sync-alt me-2"></i>刷新库存
-                    </button>
+            {% else %}
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <select class="form-select form-select-lg" id="selectedCompanyId" onchange="handleCompanyChange()">
+                            <option value="">请选择要结算的库存公司</option>
+                            {% for company in companies %}
+                            <option value="{{ company.id }}" 
+                                    data-original="{% if settlement_order.distributor_id == company.id or settlement_order.dealer_id == company.id %}true{% else %}false{% endif %}"
+                                    {% if selected_company_id and selected_company_id|string == company.id|string %}selected
+                                    {% elif not selected_company_id and (settlement_order.distributor_id == company.id or settlement_order.dealer_id == company.id) %}selected{% endif %}>
+                                {{ company.company_name }}
+                                {% if settlement_order.distributor_id == company.id %}
+                                    <span class="text-muted">(结算单分销商)</span>
+                                {% elif settlement_order.dealer_id == company.id %}
+                                    <span class="text-muted">(结算单经销商)</span>
+                                {% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <button class="btn btn-light btn-lg" onclick="refreshInventory()" id="refreshBtn" disabled>
+                            <i class="fas fa-sync-alt me-2"></i>刷新库存
+                        </button>
+                    </div>
                 </div>
-            </div>
+            {% endif %}
         </div>
     </div>
 
@@ -198,7 +214,7 @@
         <div class="card-header">
             <h5 class="mb-0">
                 <i class="fas fa-list me-2"></i>结算明细
-                <span class="badge bg-secondary ms-2">共 {{ settlement_order.details|length }} 项</span>
+                {{ render_item_count_badge(settlement_order.details|length) }}
             </h5>
         </div>
         <div class="card-body p-0">
@@ -208,7 +224,6 @@
                         <tr>
                             <th>产品名称</th>
                             <th>产品型号</th>
-                            <th>规格说明</th>
                             <th>品牌</th>
                             <th>产品MN</th>
                             <th>需求数量</th>
@@ -229,7 +244,6 @@
                                 {% endif %}
                             </td>
                             <td>{{ detail.product_model or '-' }}</td>
-                            <td>{{ detail.product_desc or '-' }}</td>
                             <td>{{ detail.brand or '-' }}</td>
                             <td>{{ detail.product_mn or '-' }}</td>
                             <td class="number-cell">
@@ -237,26 +251,38 @@
                             </td>
                             <td>{{ detail.unit or '件' }}</td>
                             <td class="stock-cell number-cell" data-detail-id="{{ detail.id }}">
-                                <span class="text-muted">请选择公司</span>
+                                {% if detail.settlement_status == 'settled' %}
+                                    <span class="text-success fw-bold">{{ detail.quantity }} 件已结算</span>
+                                {% else %}
+                                    <span class="text-muted">请选择公司</span>
+                                {% endif %}
                             </td>
                             <td class="status-cell" data-detail-id="{{ detail.id }}">
-                                <span class="stock-status stock-unknown">
-                                    <i class="fas fa-question-circle me-1"></i>未知
-                                </span>
+                                {% if detail.settlement_status == 'settled' %}
+                                    <span class="stock-status stock-sufficient">
+                                        <i class="fas fa-check-circle me-1"></i>已结算
+                                    </span>
+                                {% else %}
+                                    <span class="stock-status stock-unknown">
+                                        <i class="fas fa-question-circle me-1"></i>未知
+                                    </span>
+                                {% endif %}
                             </td>
                             <td class="company-cell" data-detail-id="{{ detail.id }}">
-                                {% if detail.settlement_status == 'completed' %}
-                                    <span class="badge bg-success">{{ detail.settlement_company.company_name if detail.settlement_company else '未知公司' }}</span>
+                                {% if detail.settlement_status == 'settled' %}
+                                    <span class="text-success fw-bold">{{ detail.settlement_company.company_name if detail.settlement_company else '未知公司' }}</span>
                                 {% else %}
                                     <span class="text-muted">待结算</span>
                                 {% endif %}
                             </td>
                             <td class="action-cell" data-detail-id="{{ detail.id }}">
-                                {% if detail.settlement_status == 'completed' %}
-                                    <span class="badge bg-success">
-                                        <i class="fas fa-check me-1"></i>已结算
-                                        <br><small>{{ detail.settlement_date.strftime('%Y-%m-%d %H:%M') if detail.settlement_date else '' }}</small>
-                                    </span>
+                                {% if detail.settlement_status == 'settled' %}
+                                    <div class="text-center">
+                                        <span class="text-success fw-bold">
+                                            <i class="fas fa-check-circle me-1"></i>已结算
+                                        </span>
+                                        <br><small class="text-muted">{{ detail.settlement_date.strftime('%Y-%m-%d %H:%M') if detail.settlement_date else '' }}</small>
+                                    </div>
                                 {% else %}
                                     <button class="btn btn-sm btn-outline-secondary settle-btn" data-detail-id="{{ detail.id }}" disabled>
                                         <i class="fas fa-ban me-1"></i>请选择公司
@@ -271,10 +297,10 @@
         </div>
     </div>
 
-    <!-- 全部结算按钮 -->
-    <button id="settleAllBtn" class="btn btn-success btn-lg settle-all-btn" onclick="settleAll()" style="display: none;">
-        <i class="fas fa-check-double me-2"></i>全部结算
-    </button>
+    <!-- 全部结算按钮 - 只在非完全结算状态下显示 -->
+    {% if settlement_order.settlement_status != 'fully_settled' %}
+    {{ render_button('全部结算', '#', color='success', size='lg', type='button', icon='fas fa-check-double', attrs='id="settleAllBtn" onclick="settleAll()" style="display: none;"', extra_class='settle-all-btn') }}
+    {% endif %}
 </div>
 {% endblock %}
 
@@ -283,13 +309,31 @@
 <script>
 let currentCompanyId = null;
 let inventoryData = {};
+let originalCompanyId = null;
+let isFirstLoad = true;
+const isFullySettled = '{{ settlement_order.settlement_status }}' === 'fully_settled';
 
 // 页面加载完成后自动加载默认选中的公司库存
 document.addEventListener('DOMContentLoaded', function() {
-    const defaultCompanyId = document.getElementById('selectedCompanyId').value;
-    if (defaultCompanyId) {
-        loadCompanyInventory();
+    // 如果已经完全结算，则不需要加载库存数据
+    if (isFullySettled) {
+        console.log('结算单已完全结算，跳过库存加载');
+        return;
     }
+    
+    const companySelect = document.getElementById('selectedCompanyId');
+    if (companySelect) {
+        const defaultCompanyId = companySelect.value;
+        if (defaultCompanyId) {
+            originalCompanyId = defaultCompanyId;
+            loadCompanyInventory();
+        }
+    }
+    
+    // 初始化完成
+    setTimeout(() => {
+        isFirstLoad = false;
+    }, 1000);
     
     // 添加结算按钮事件监听
     document.addEventListener('click', function(e) {
@@ -302,6 +346,54 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+function handleCompanyChange() {
+    // 如果已完全结算，不允许更改公司
+    if (isFullySettled) {
+        return;
+    }
+    
+    const companySelect = document.getElementById('selectedCompanyId');
+    const selectedCompanyId = companySelect.value;
+    
+    // 如果是首次加载，直接加载库存
+    if (isFirstLoad) {
+        loadCompanyInventory();
+        return;
+    }
+    
+    // 如果没有选择公司，直接处理
+    if (!selectedCompanyId) {
+        loadCompanyInventory();
+        return;
+    }
+    
+    // 检查是否选择了与结算单不同的公司
+    const selectedOption = companySelect.options[companySelect.selectedIndex];
+    const isOriginalCompany = selectedOption.getAttribute('data-original') === 'true';
+    
+    if (!isOriginalCompany && originalCompanyId) {
+        // 显示警告提示
+        const result = confirm(
+            '⚠️ 注意：您正在更改结算库存公司！\n\n' +
+            '当前结算单将结算到新选择的库存公司下，而不是原始的结算公司。\n\n' +
+            '这意味着：\n' +
+            '• 库存将从新公司扣减\n' +
+            '• 结算记录将关联到新公司\n' +
+            '• 此操作会影响结算数据的归属\n\n' +
+            '确定要继续更改吗？'
+        );
+        
+        if (!result) {
+            // 用户取消，恢复原来的选择
+            companySelect.value = originalCompanyId || '';
+            return;
+        }
+    }
+    
+    // 继续加载新公司的库存
+    loadCompanyInventory();
+}
 
 function loadCompanyInventory() {
     const companyId = document.getElementById('selectedCompanyId').value;
@@ -402,6 +494,13 @@ function showLoadingState() {
     const rows = document.querySelectorAll('.detail-row');
     rows.forEach(row => {
         const detailId = row.dataset.detailId;
+        
+        // 检查是否已结算，已结算的明细不应该显示加载状态
+        const isSettled = row.querySelector('.text-success.fw-bold') && row.querySelector('.fas.fa-check-circle');
+        if (isSettled) {
+            return; // 跳过已结算的明细
+        }
+        
         const stockCell = row.querySelector(`.stock-cell[data-detail-id="${detailId}"]`);
         const statusCell = row.querySelector(`.status-cell[data-detail-id="${detailId}"]`);
         const actionCell = row.querySelector(`.action-cell[data-detail-id="${detailId}"]`);
@@ -416,6 +515,13 @@ function resetInventoryDisplay() {
     const rows = document.querySelectorAll('.detail-row');
     rows.forEach(row => {
         const detailId = row.dataset.detailId;
+        
+        // 检查是否已结算，已结算的明细不应该被重置
+        const isSettled = row.querySelector('.text-success.fw-bold') && row.querySelector('.fas.fa-check-circle');
+        if (isSettled) {
+            return; // 跳过已结算的明细
+        }
+        
         const stockCell = row.querySelector(`.stock-cell[data-detail-id="${detailId}"]`);
         const statusCell = row.querySelector(`.status-cell[data-detail-id="${detailId}"]`);
         const actionCell = row.querySelector(`.action-cell[data-detail-id="${detailId}"]`);
@@ -429,6 +535,11 @@ function resetInventoryDisplay() {
 }
 
 function updateInventoryDisplay() {
+    // 如果已完全结算，不需要更新库存显示
+    if (isFullySettled) {
+        return;
+    }
+    
     const rows = document.querySelectorAll('.detail-row');
     let hasSettleable = false;
     
@@ -442,11 +553,9 @@ function updateInventoryDisplay() {
         const actionCell = row.querySelector(`.action-cell[data-detail-id="${detailId}"]`);
         
         // 检查是否已结算
-        const isSettled = row.querySelector('.badge.bg-success');
+        const isSettled = row.querySelector('.text-success.fw-bold') && row.querySelector('.fas.fa-check-circle');
         if (isSettled) {
-            // 已结算的产品不显示库存状态，只保持原有显示
-            stockCell.innerHTML = '<span class="text-muted">-</span>';
-            statusCell.innerHTML = '<span class="badge bg-success"><i class="fas fa-check me-1"></i>已结算</span>';
+            // 已结算的产品保持原有显示
             return; // 跳过已结算的产品
         }
         
@@ -525,59 +634,93 @@ function bindSettleButtonEvents() {
 }
 
 function handleSettleClick(event) {
-    const button = event.target;
+    event.preventDefault();
+    event.stopPropagation();
+    
+    const button = event.target.closest('.settle-btn');
+    if (!button) return;
+    
     const detailId = button.getAttribute('data-detail-id');
     if (detailId) {
-        settleProduct(detailId);
+        // 检查按钮是否已被禁用（防止重复点击）
+        if (button.disabled) return;
+        
+        // 暂时禁用按钮
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>处理中...';
+        
+        settleProduct(detailId).finally(() => {
+            // 恢复按钮状态（如果操作失败）
+            if (!button.closest('.detail-row').querySelector('.text-success.fw-bold')) {
+                button.disabled = false;
+                button.innerHTML = '<i class="fas fa-check me-1"></i>结算';
+            }
+        });
     }
 }
 
-function settleProduct(detailId) {
-    if (!currentCompanyId) {
-        alert('请先选择结算库存公司');
-        return;
-    }
-    
-    const row = document.querySelector(`.detail-row[data-detail-id="${detailId}"]`);
-    const productMn = row.dataset.productMn || '';
-    const neededQuantity = parseInt(row.dataset.quantity);
-    
-    // 查找库存
-    let currentStock = 0;
-    if (productMn) {
-        for (const [productName, inventory] of Object.entries(inventoryData)) {
-            if (inventory.product_mn === productMn) {
-                currentStock = inventory.quantity;
-                break;
-    }
+async function settleProduct(detailId) {
+    try {
+        // 如果已完全结算，不允许继续结算
+        if (isFullySettled) {
+            alert('该结算单已完全结算，无法继续操作');
+            return;
         }
-    }
-    
-    let confirmMessage = '确定要将此产品结算到当前选择的公司吗？';
-    if (currentStock < neededQuantity && currentStock > 0) {
-        confirmMessage = `当前库存 ${currentStock} 件，需要结算 ${neededQuantity} 件。\n将进行部分结算（${currentStock} 件），剩余 ${neededQuantity - currentStock} 件保持未结算状态。\n确定继续吗？`;
-    } else if (currentStock === 0) {
-        alert('该产品库存为0，无法结算');
-        return;
-    }
-    
-    const confirmation = confirm(confirmMessage);
-    if (!confirmation) return;
-    
-    // 发送结算请求
-    fetch('/inventory/api/settle_product_to_company', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCSRFToken()
-        },
-        body: JSON.stringify({
-            detail_id: detailId,
-            company_id: currentCompanyId
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
+        
+        if (!currentCompanyId) {
+            alert('请先选择结算库存公司');
+            return;
+        }
+        
+        const row = document.querySelector(`.detail-row[data-detail-id="${detailId}"]`);
+        
+        // 检查是否已结算
+        const isSettled = row.querySelector('.text-success.fw-bold') && row.querySelector('.fas.fa-check-circle');
+        if (isSettled) {
+            alert('该产品已经结算过了');
+            return;
+        }
+        
+        const productMn = row.dataset.productMn || '';
+        const neededQuantity = parseInt(row.dataset.quantity);
+        
+        // 查找库存
+        let currentStock = 0;
+        if (productMn) {
+            for (const [productName, inventory] of Object.entries(inventoryData)) {
+                if (inventory.product_mn === productMn) {
+                    currentStock = inventory.quantity;
+                    break;
+                }
+            }
+        }
+        
+        let confirmMessage = '确定要将此产品结算到当前选择的公司吗？';
+        if (currentStock < neededQuantity && currentStock > 0) {
+            confirmMessage = `当前库存 ${currentStock} 件，需要结算 ${neededQuantity} 件。\n将进行部分结算（${currentStock} 件），剩余 ${neededQuantity - currentStock} 件保持未结算状态。\n确定继续吗？`;
+        } else if (currentStock === 0) {
+            alert('该产品库存为0，无法结算');
+            return;
+        }
+        
+        const confirmation = confirm(confirmMessage);
+        if (!confirmation) return;
+        
+        // 发送结算请求
+        const response = await fetch('/inventory/api/settle_product_to_company', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            },
+            body: JSON.stringify({
+                detail_id: detailId,
+                company_id: currentCompanyId
+            })
+        });
+        
+        const data = await response.json();
+        
         if (data.success) {
             alert(data.message);
             // 动态更新页面状态，不重新加载
@@ -585,14 +728,19 @@ function settleProduct(detailId) {
         } else {
             alert('结算失败：' + data.message);
         }
-    })
-    .catch(error => {
+    } catch (error) {
         console.error('结算失败:', error);
         alert('结算失败，请稍后重试');
-    });
+    }
 }
 
 function settleAll() {
+    // 如果已完全结算，不允许继续结算
+    if (isFullySettled) {
+        alert('该结算单已完全结算，无法继续操作');
+        return;
+    }
+    
     if (!currentCompanyId) {
         alert('请先选择结算公司');
         return;
@@ -611,7 +759,7 @@ function settleAll() {
         const neededQuantity = parseInt(row.dataset.quantity);
         
         // 检查是否已结算
-        const isSettled = row.querySelector('.badge.bg-success');
+        const isSettled = row.querySelector('.text-success.fw-bold') && row.querySelector('.fas.fa-check-circle');
         if (isSettled) return;
         
         // 查找库存
@@ -681,26 +829,28 @@ function updateRowAfterSettlement(detailId, settlementInfo) {
     
     // 更新结算目标公司
     if (companyCell) {
-        companyCell.innerHTML = `<span class="badge bg-success">${settlementInfo.company_name}</span>`;
+        companyCell.innerHTML = `<span class="text-success fw-bold">${settlementInfo.company_name}</span>`;
     }
     
-    // 更新库存显示（已结算的不显示库存状态）
+    // 更新库存显示（已结算的显示结算数量）
     if (stockCell) {
-        stockCell.innerHTML = '<span class="text-muted">-</span>';
+        stockCell.innerHTML = `<span class="text-success fw-bold">${settlementInfo.settled_quantity} 件已结算</span>`;
     }
     
     // 更新状态
     if (statusCell) {
-        statusCell.innerHTML = '<span class="badge bg-success"><i class="fas fa-check me-1"></i>已结算</span>';
+        statusCell.innerHTML = '<span class="stock-status stock-sufficient"><i class="fas fa-check-circle me-1"></i>已结算</span>';
     }
     
     // 更新操作按钮
     if (actionCell) {
         actionCell.innerHTML = `
-            <span class="badge bg-success">
-                <i class="fas fa-check me-1"></i>已结算
-                <br><small>${settlementInfo.settlement_date}</small>
-            </span>
+            <div class="text-center">
+                <span class="text-success fw-bold">
+                    <i class="fas fa-check-circle me-1"></i>已结算
+                </span>
+                <br><small class="text-muted">${settlementInfo.settlement_date}</small>
+            </div>
         `;
     }
     
@@ -708,8 +858,13 @@ function updateRowAfterSettlement(detailId, settlementInfo) {
     if (settlementInfo.is_partial && settlementInfo.quantity_remaining > 0) {
         // 部分结算后需要重新加载页面，但保持当前选择的公司
         const selectedCompanyId = currentCompanyId;
+        
+        // 显示部分结算提示
         setTimeout(() => {
-            window.location.href = window.location.href + '?selected_company=' + selectedCompanyId;
+            alert(`部分结算完成，页面将刷新以显示剩余明细`);
+            // 使用replace避免在浏览器历史中添加新记录，并防止重复提示
+            const currentUrl = window.location.href.split('?')[0];
+            window.location.replace(currentUrl + '?selected_company=' + selectedCompanyId);
         }, 1000);
         return;
     }

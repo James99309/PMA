@@ -14,6 +14,7 @@ class ApprovalStatus(Enum):
     PENDING = "pending"    # 审批中
     APPROVED = "approved"  # 已通过
     REJECTED = "rejected"  # 已拒绝
+    RECALLED = "recalled"  # 已召回
 
 
 class ApprovalAction(Enum):

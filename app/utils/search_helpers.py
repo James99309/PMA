@@ -13,6 +13,55 @@ from app.utils.access_control import get_viewable_data
 
 logger = logging.getLogger(__name__)
 
+def get_project_permissions(project_id: int, user) -> Dict[str, bool]:
+    """
+    获取用户对特定项目的权限信息
+    
+    参数:
+        project_id: 项目ID
+        user: 用户对象
+    
+    返回:
+        包含权限信息的字典: {'edit': bool, 'view': bool}
+    """
+    try:
+        from app.models.project import Project
+        
+        if not user:
+            return {'edit': False, 'view': False}
+        
+        project = db.session.get(Project, project_id)
+        if not project:
+            return {'edit': False, 'view': False}
+        
+        # 管理员拥有所有权限，直接返回
+        if user.role == 'admin':
+            return {'edit': True, 'view': True}
+        
+        # 检查编辑权限
+        can_edit = user.has_permission('project', 'edit')
+        if can_edit:
+            # 进一步检查是否有权限编辑这个特定项目
+            from app.utils.access_control import get_editable_data
+            edit_query = get_editable_data(Project, user)
+            can_edit = edit_query.filter(Project.id == project_id).first() is not None
+        
+        # 检查查看权限
+        can_view = user.has_permission('project', 'view')
+        if can_view:
+            # 进一步检查是否有权限查看这个特定项目
+            view_query = get_viewable_data(Project, user)
+            can_view = view_query.filter(Project.id == project_id).first() is not None
+        
+        return {
+            'edit': can_edit,
+            'view': can_view
+        }
+        
+    except Exception as e:
+        logger.error(f"获取项目权限时出错: {str(e)}")
+        return {'edit': False, 'view': False}
+
 def fuzzy_search_field(
     model_class,
     search_fields: Union[str, List[str]],
@@ -193,6 +242,9 @@ def search_projects_by_name(query_term: str, user=None, limit: int = 10) -> List
                 # 获取当前语言
                 lang_code = get_current_language()
                 
+                # 获取项目权限信息
+                permissions = get_project_permissions(result['id'], user)
+                    
                 enhanced_result = {
                     'id': result['id'],
                     'project_name': result['project_name'],
@@ -203,7 +255,8 @@ def search_projects_by_name(query_term: str, user=None, limit: int = 10) -> List
                     'current_stage_display': project_stage_label(result.get('current_stage', ''), lang_code),
                     'owner_id': result.get('owner_id'),
                     'owner_name': owner_name,
-                    'company_name': company_name
+                    'company_name': company_name,
+                    'permissions': permissions
                 }
                 
                 enhanced_results.append(enhanced_result)
@@ -290,6 +343,9 @@ def search_projects_without_quotations(query_term: str, user=None, limit: int = 
                 # 获取当前语言
                 lang_code = get_current_language()
                 
+                # 获取项目权限信息
+                permissions = get_project_permissions(project.id, user)
+                
                 result = {
                     'id': project.id,
                     'project_name': project.project_name,
@@ -300,7 +356,8 @@ def search_projects_without_quotations(query_term: str, user=None, limit: int = 
                     'current_stage_display': project_stage_label(project.current_stage or '', lang_code),
                     'owner_id': project.owner_id,
                     'owner_name': owner_name,
-                    'company_name': company_name
+                    'company_name': company_name,
+                    'permissions': permissions
                 }
                 
                 results.append(result)

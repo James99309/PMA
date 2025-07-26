@@ -1,0 +1,472 @@
+/* 审批流程图标准化样式 */
+
+/* 审批流程图容器 */
+.approval-flow-container {
+    padding: 40px 20px;
+    overflow-x: auto;
+}
+
+.approval-flow {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    position: relative;
+    padding: 0 40px;
+    min-height: 120px;
+}
+
+.approval-stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    z-index: 2;
+}
+
+.approval-stage.current {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+/* 阶段圆圈样式 */
+.stage-circle {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: bold;
+    margin-bottom: 8px;
+    position: relative;
+    transition: all 0.3s ease;
+    background: white;
+    z-index: 3;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* 外圈动画效果 */
+.stage-circle::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    transition: all 0.3s ease;
+    z-index: -1;
+    opacity: 0;
+}
+
+/* 当前阶段的外圈效果 */
+.stage-circle.current::before {
+    background-color: rgba(255, 193, 7, 0.2);
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+}
+
+/* 可审批阶段的外圈效果 */
+.stage-circle.can-approve::before {
+    background-color: rgba(255, 193, 7, 0.15);
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+    animation: pulseOuter 2s infinite;
+}
+
+@keyframes pulseOuter {
+    0% { 
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0.15;
+    }
+    50% { 
+        transform: translate(-50%, -50%) scale(1.1);
+        opacity: 0.25;
+    }
+    100% { 
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0.15;
+    }
+}
+
+/* 阶段状态样式 */
+.stage-circle.pending {
+    background-color: #f8f9fa;
+    border: 2px solid #dee2e6;
+    color: #6c757d;
+}
+
+/* 当前阶段 - 有权限审批 */
+.stage-circle.current.can-approve {
+    background-color: #ffc107;
+    border: 2px solid #e0a800;
+    color: white;
+    box-shadow: 0 0 12px rgba(255, 193, 7, 0.4);
+}
+
+/* 当前阶段 - 观察模式（无权限审批） */
+.stage-circle.current:not(.can-approve) {
+    background: #007bff;
+    border: 2px solid #0056b3;
+    color: #ffffff;
+    font-weight: bold;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+/* 观察模式的外圈透明动画效果 */
+.stage-circle.current:not(.can-approve)::before {
+    background-color: transparent;
+    border: 2px solid rgba(0, 123, 255, 0.3);
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+    animation: observerOuterPulse 2s infinite;
+}
+
+@keyframes observerOuterPulse {
+    0% { 
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0.3;
+        border-color: rgba(0, 123, 255, 0.3);
+    }
+    50% { 
+        transform: translate(-50%, -50%) scale(1.1);
+        opacity: 0.6;
+        border-color: rgba(0, 123, 255, 0.5);
+    }
+    100% { 
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0.3;
+        border-color: rgba(0, 123, 255, 0.3);
+    }
+}
+
+.stage-circle.approved {
+    background-color: #0d6efd;
+    border: 2px solid #0b5ed7;
+    color: white;
+}
+
+.stage-circle.completed {
+    background-color: #198754;
+    border: 2px solid #157347;
+    color: white;
+}
+
+.stage-circle.rejected {
+    background-color: #dc3545;
+    border: 2px solid #b02a37;
+    color: white;
+}
+
+/* 阶段信息样式 */
+.stage-info {
+    text-align: center;
+    font-size: 0.8rem;
+    min-height: 60px;
+}
+
+.stage-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: #333;
+    font-size: 0.85rem;
+}
+
+.stage-approver {
+    color: #666;
+    margin-bottom: 2px;
+    font-size: 0.75rem;
+}
+
+.stage-dates {
+    color: #999;
+    font-size: 0.7rem;
+    line-height: 1.2;
+}
+
+/* 进度线段样式 */
+.progress-segment {
+    position: absolute;
+    top: 16px; /* 32px圆圈高度的一半 */
+    height: 2px;
+    z-index: 1;
+    transition: all 0.3s ease;
+}
+
+/* 鼠标悬停效果 */
+.approval-stage:hover .stage-circle {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.approval-stage:hover .stage-circle::before {
+    background-color: rgba(33, 150, 243, 0.15);
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+}
+
+/* 可审批阶段的特殊悬停效果 */
+.approval-stage.can-approve:hover .stage-circle {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 6px 16px rgba(255, 193, 7, 0.3);
+}
+
+.approval-stage.can-approve:hover .stage-circle::before {
+    background-color: rgba(255, 193, 7, 0.3);
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 1;
+}
+
+/* 点击动画效果 */
+.stage-circle.clicking {
+    animation: clickPulse 0.6s ease-out;
+}
+
+@keyframes clickPulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.stage-circle.clicking::before {
+    animation: clickOuterPulse 0.6s ease-out;
+}
+
+@keyframes clickOuterPulse {
+    0% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0.3;
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1.5);
+        opacity: 0.6;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0.3;
+    }
+}
+
+/* 审批评语气泡图标 */
+.approval-comment-icon {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 8px;
+    width: 20px;
+    height: 20px;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1000;
+    font-size: 0.7rem;
+    transition: transform 0.3s ease;
+}
+
+.approval-comment-icon:hover {
+    transform: translateX(-50%) scale(1.1);
+}
+
+.approval-comment-icon.approved {
+    border-color: #198754;
+    color: #198754;
+}
+
+.approval-comment-icon.rejected {
+    border-color: #dc3545;
+    color: #dc3545;
+}
+
+/* 审批评语气泡展开内容 */
+.approval-comment-bubble {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 8px;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 8px 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    min-width: 200px;
+    max-width: 400px;
+    z-index: 1001;
+    font-size: 0.8rem;
+    display: none;
+    cursor: pointer;
+    white-space: normal;
+    word-wrap: break-word;
+    line-height: 1.4;
+}
+
+.approval-comment-bubble::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 6px solid #dee2e6;
+}
+
+.approval-comment-bubble::after {
+    content: '';
+    position: absolute;
+    top: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 5px solid #fff;
+}
+
+.approval-comment-bubble.show {
+    display: block;
+    animation: bubbleShow 0.3s ease-out;
+}
+
+.approval-comment-bubble.approved {
+    border-color: #198754;
+    background: #f8fff9;
+}
+
+.approval-comment-bubble.rejected {
+    border-color: #dc3545;
+    background: #fff8f8;
+}
+
+.approval-comment-bubble.approved::before {
+    border-bottom-color: #198754;
+}
+
+.approval-comment-bubble.rejected::before {
+    border-bottom-color: #dc3545;
+}
+
+@keyframes bubbleShow {
+    0% {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-10px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+.approval-comment-preview {
+    color: #6c757d;
+    font-size: 0.75rem;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.approval-comment-full {
+    color: #495057;
+    line-height: 1.4;
+    white-space: normal;
+}
+
+/* 审批确认模态框样式 */
+.approval-modal .modal-header {
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    color: white;
+    border-bottom: none;
+}
+
+.approval-modal .modal-header .btn-close {
+    filter: invert(1);
+}
+
+.approval-modal .stage-info {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.approval-modal .stage-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.5rem;
+}
+
+.approval-modal .stage-meta {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.approval-modal .approval-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+.approval-modal .btn-approve {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    border: none;
+    color: white;
+    min-width: 100px;
+}
+
+.approval-modal .btn-reject {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+    border: none;
+    color: white;
+    min-width: 100px;
+}
+
+.approval-modal .btn-approve:hover,
+.approval-modal .btn-reject:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.approval-modal .comment-label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.5rem;
+}
+
+.approval-modal .form-control {
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.approval-modal .form-control:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}

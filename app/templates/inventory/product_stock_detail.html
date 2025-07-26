@@ -1,0 +1,431 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button, render_stock_status_badge, render_item_count_badge %}
+
+{% block title %}产品库存详情{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+    .container.page-with-fixed-nav {
+        margin-top: 72px !important;
+    }
+    @media (max-width: 991.98px) {
+        .container.page-with-fixed-nav {
+            margin-top: 120px !important;
+        }
+    }
+
+    .detail-card {
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        border: none;
+    }
+
+    .info-section {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+
+    .stock-quantity {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #28a745;
+    }
+
+    .company-stock-item {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .company-stock-item:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        transform: translateY(-1px);
+    }
+
+    .stock-status-normal { color: #28a745; }
+    .stock-status-low { color: #ffc107; }
+    .stock-status-out { color: #dc3545; }
+
+    .transaction-item {
+        border-left: 4px solid #dee2e6;
+        padding-left: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .transaction-in { border-left-color: #28a745; }
+    .transaction-out { border-left-color: #dc3545; }
+    .transaction-settlement { border-left-color: #ffc107; }
+    .transaction-adjustment { border-left-color: #17a2b8; }
+
+    /* 产品图片样式 */
+    .product-image-container {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        text-align: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .product-image {
+        max-width: 100%;
+        max-height: 300px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .no-image-placeholder {
+        width: 200px;
+        height: 200px;
+        background: #e9ecef;
+        border: 2px dashed #ced4da;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+        color: #6c757d;
+    }
+
+    .edit-min-stock {
+        cursor: pointer;
+        border: 1px dashed #6c757d;
+        padding: 2px 4px;
+        border-radius: 3px;
+        transition: all 0.3s ease;
+    }
+
+    .edit-min-stock:hover {
+        background-color: #f8f9fa;
+        border-color: #007bff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4 page-with-fixed-nav">
+    <!-- 页面标题 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="mb-0">
+                    <i class="fas fa-boxes me-2"></i>产品库存详情
+                </h2>
+                <div>
+                    {{ render_button('返回库存列表', href=url_for('inventory.stock_list'), color='secondary', icon='fas fa-arrow-left') }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- 产品基本信息 -->
+        <div class="col-lg-4">
+            <div class="card detail-card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>产品信息
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- 产品图片区域 -->
+                    <div class="product-image-container">
+                        {% if product and product.image_path %}
+                            <img src="{{ url_for('static', filename='uploads/products/' + product.image_path) }}" 
+                                 alt="{{ product.product_name }}" 
+                                 class="product-image">
+                            <p class="text-muted mt-2 mb-0">{{ product.product_name }}</p>
+                        {% else %}
+                            <div class="no-image-placeholder">
+                                <div>
+                                    <i class="fas fa-image fa-3x mb-2"></i>
+                                    <p class="mb-0">暂无产品图片</p>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="info-section">
+                        <h6>基本信息</h6>
+                        <p><strong>产品名称：</strong>{{ product.product_name }}</p>
+                        <p><strong>产品编码：</strong>{{ product.product_code or '-' }}</p>
+                        <p><strong>产品MN：</strong>{{ product.product_mn or '-' }}</p>
+                        <p><strong>型号规格：</strong>{{ product.model or '-' }}</p>
+                        <p><strong>品牌：</strong>{{ product.brand or '-' }}</p>
+                        <p><strong>单位：</strong>{{ product.unit or '-' }}</p>
+                    </div>
+                    
+                    {% if product and product.specification %}
+                    <div class="info-section">
+                        <h6>规格说明</h6>
+                        <p>{{ product.specification }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 库存汇总信息 -->
+        <div class="col-lg-8">
+            <div class="card detail-card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>库存汇总
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center mb-4">
+                        <div class="col-md-4">
+                            <div class="info-section">
+                                <h6>总库存数量</h6>
+                                <div class="stock-quantity">{{ total_quantity }}</div>
+                                <small class="text-muted">{{ product.unit or '件' }}</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-section">
+                                <h6>分布公司数</h6>
+                                <div class="stock-quantity text-info">{{ total_companies }}</div>
+                                <small class="text-muted">家公司</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-section">
+                                <h6>整体状态</h6>
+                                {% if total_quantity == 0 %}
+                                    {{ render_stock_status_badge('out_of_stock') }}
+                                {% elif total_quantity > 100 %}
+                                    {{ render_stock_status_badge('sufficient') }}
+                                {% else %}
+                                    {{ render_stock_status_badge('normal') }}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6>各公司库存分布</h6>
+                    {% for inventory in inventories %}
+                    <div class="company-stock-item">
+                        <div class="row align-items-center">
+                            <div class="col-md-4">
+                                <h6 class="mb-1">{{ inventory.company.company_name }}</h6>
+                                <small class="text-muted">{{ inventory.company.company_code or '-' }}</small>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <div class="fw-bold 
+                                        {% if inventory.quantity == 0 %}stock-status-out
+                                        {% elif inventory.quantity <= inventory.min_stock %}stock-status-low
+                                        {% else %}stock-status-normal
+                                        {% endif %}">
+                                        {{ inventory.quantity }}
+                                    </div>
+                                    <small class="text-muted">{{ inventory.unit or product.unit or '件' }}</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <small class="text-muted">最低库存</small>
+                                    <div class="edit-min-stock" 
+                                         data-inventory-id="{{ inventory.id }}" 
+                                         data-current-value="{{ inventory.min_stock }}"
+                                         onclick="editMinStock(this)"
+                                         title="点击编辑最低库存">
+                                        {{ inventory.min_stock }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    {% if inventory.quantity == 0 %}
+                                        {{ render_stock_status_badge('out_of_stock') }}
+                                    {% elif inventory.quantity <= inventory.min_stock %}
+                                        {{ render_stock_status_badge('low_stock') }}
+                                    {% else %}
+                                        {{ render_stock_status_badge('normal') }}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <a href="{{ url_for('inventory.stock_detail', id=inventory.id) }}" 
+                                       class="btn btn-sm btn-outline-primary" title="查看详情">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% if inventory.location %}
+                        <div class="row mt-2">
+                            <div class="col-12">
+                                <small class="text-muted">
+                                    <i class="fas fa-map-marker-alt me-1"></i>存储位置：{{ inventory.location }}
+                                </small>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- 库存变动记录 -->
+            <div class="card detail-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history me-2"></i>库存变动记录
+                        {{ render_item_count_badge(50, "最近", "条") }}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if transactions %}
+                        {% for transaction in transactions %}
+                        <div class="transaction-item transaction-{{ transaction.transaction_type }}">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="mb-1">
+                                        {% if transaction.transaction_type == 'in' %}
+                                            <i class="fas fa-arrow-up text-success me-1"></i>入库
+                                        {% elif transaction.transaction_type == 'out' %}
+                                            <i class="fas fa-arrow-down text-danger me-1"></i>出库
+                                        {% elif transaction.transaction_type == 'settlement' %}
+                                            <i class="fas fa-calculator text-warning me-1"></i>结算出库
+                                        {% else %}
+                                            <i class="fas fa-edit text-info me-1"></i>调整
+                                        {% endif %}
+                                        - {{ transaction.inventory.company.company_name }}
+                                    </h6>
+                                    <p class="mb-1">
+                                        <strong>数量变动：</strong>
+                                        <span class="{% if transaction.quantity > 0 %}text-success{% else %}text-danger{% endif %}">
+                                            {{ '+' if transaction.quantity > 0 else '' }}{{ transaction.quantity }}
+                                        </span>
+                                        （{{ transaction.quantity_before }} → {{ transaction.quantity_after }}）
+                                    </p>
+                                    {% if transaction.description %}
+                                    <p class="mb-1"><strong>说明：</strong>{{ transaction.description }}</p>
+                                    {% endif %}
+                                    {% if transaction.created_by %}
+                                    <small class="text-muted">操作人：{{ transaction.created_by.username }}</small>
+                                    {% endif %}
+                                </div>
+                                <div class="text-end">
+                                    <small class="text-muted">{{ transaction.transaction_date.strftime('%Y-%m-%d %H:%M') }}</small>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">暂无库存变动记录</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑最低库存模态框 -->
+<div class="modal fade" id="editMinStockModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">编辑最低库存</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editMinStockForm">
+                    <input type="hidden" id="inventoryId" name="inventory_id">
+                    <div class="mb-3">
+                        <label for="minStock" class="form-label">最低库存数量</label>
+                        <input type="number" class="form-control" id="minStock" name="min_stock" min="0" required>
+                        <div class="form-text">设置低于此数量时的库存预警</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveMinStock()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function editMinStock(element) {
+    const inventoryId = element.dataset.inventoryId;
+    const currentValue = element.dataset.currentValue;
+    
+    document.getElementById('inventoryId').value = inventoryId;
+    document.getElementById('minStock').value = currentValue;
+    
+    const modal = new bootstrap.Modal(document.getElementById('editMinStockModal'));
+    modal.show();
+}
+
+function saveMinStock() {
+    const form = document.getElementById('editMinStockForm');
+    const formData = new FormData(form);
+    
+    // 添加CSRF token
+    formData.append('csrf_token', '{{ csrf_token() }}');
+    
+    fetch('{{ url_for("inventory.update_min_stock") }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 更新页面显示
+            const inventoryId = document.getElementById('inventoryId').value;
+            const newValue = document.getElementById('minStock').value;
+            const element = document.querySelector(`[data-inventory-id="${inventoryId}"]`);
+            element.textContent = newValue;
+            element.dataset.currentValue = newValue;
+            
+            // 关闭模态框
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editMinStockModal'));
+            modal.hide();
+            
+            // 显示成功消息
+            showAlert('最低库存更新成功', 'success');
+        } else {
+            showAlert(data.message || '更新失败', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('网络错误，请重试', 'danger');
+    });
+}
+
+function showAlert(message, type) {
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    // 在页面顶部显示警告
+    const container = document.querySelector('.container.page-with-fixed-nav');
+    container.insertAdjacentHTML('afterbegin', alertHtml);
+    
+    // 3秒后自动消失
+    setTimeout(() => {
+        const alert = container.querySelector('.alert');
+        if (alert) {
+            alert.remove();
+        }
+    }, 3000);
+}
+</script>
+
+{% endblock %} 

@@ -144,9 +144,19 @@ def add_dictionary(dict_type):
         sort_order=max_order + 10
     )
     
-    # 对企业字典处理厂商标记
-    if dict_type == 'company' and 'is_vendor' in data:
-        new_dict.is_vendor = data.get('is_vendor', False)
+    # 对企业字典处理厂商标记和详细信息
+    if dict_type == 'company':
+        if 'is_vendor' in data:
+            new_dict.is_vendor = data.get('is_vendor', False)
+        
+        # 处理企业详细信息字段
+        detail_fields = ['address', 'postal_code', 'phone', 'fax', 'email', 'website']
+        for field in detail_fields:
+            if field in data:
+                value = data[field].strip() if data[field] else None
+                if value == '':
+                    value = None
+                setattr(new_dict, field, value)
     
     db.session.add(new_dict)
     try:
@@ -188,9 +198,19 @@ def edit_dictionary(dict_type):
         dict_item.value = data['value']
     if 'is_active' in data:
         dict_item.is_active = data['is_active']
-    # 对企业字典处理厂商标记
-    if dict_type == 'company' and 'is_vendor' in data:
-        dict_item.is_vendor = data.get('is_vendor', False)
+    # 对企业字典处理厂商标记和详细信息
+    if dict_type == 'company':
+        if 'is_vendor' in data:
+            dict_item.is_vendor = data.get('is_vendor', False)
+        
+        # 处理企业详细信息字段
+        detail_fields = ['address', 'postal_code', 'phone', 'fax', 'email', 'website']
+        for field in detail_fields:
+            if field in data:
+                value = data[field].strip() if data[field] else None
+                if value == '':
+                    value = None
+                setattr(dict_item, field, value)
         
     try:
         db.session.commit()
@@ -315,4 +335,202 @@ def delete_dictionary(dict_type):
             success=False,
             code=500,
             message=f"删除失败: {str(e)}"
-        ) 
+        )
+
+@api_v1_bp.route('/dictionary/company/<int:company_id>/upload_asset', methods=['POST'])
+@flexible_auth
+def upload_company_asset(company_id):
+    """上传企业资产（Logo或邮件签名）"""
+    try:
+        # 获取企业字典项
+        company = Dictionary.query.filter_by(id=company_id, type='company').first()
+        if not company:
+            return api_response(
+                success=False,
+                code=404,
+                message="企业不存在"
+            ), 404
+        
+        # 获取上传文件
+        file = request.files.get('file')
+        asset_type = request.form.get('asset_type')
+        
+        if not file or not asset_type:
+            return api_response(
+                success=False,
+                code=400,
+                message="缺少必要参数"
+            ), 400
+        
+        # 验证文件类型
+        allowed_types = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/gif']
+        file_type = file.content_type
+        
+        if file_type not in allowed_types:
+            return api_response(
+                success=False,
+                code=400,
+                message="不支持的文件类型，请使用PNG、JPG、SVG或GIF格式"
+            ), 400
+        
+        # 读取文件数据
+        file_data = file.read()
+        
+        # 验证文件大小
+        max_size = 5 * 1024 * 1024 if asset_type == 'logo' else 3 * 1024 * 1024
+        if len(file_data) > max_size:
+            size_limit = "5MB" if asset_type == 'logo' else "3MB"
+            return api_response(
+                success=False,
+                code=400,
+                message=f"文件大小不能超过{size_limit}"
+            ), 400
+        
+        # 上传资产
+        if asset_type == 'logo':
+            success = company.update_logo(file_data, file.filename)
+        elif asset_type == 'signature':
+            success = company.update_email_signature(file_data, file.filename)
+        else:
+            return api_response(
+                success=False,
+                code=400,
+                message="不支持的资产类型"
+            ), 400
+        
+        if not success:
+            return api_response(
+                success=False,
+                code=500,
+                message="上传失败"
+            ), 500
+        
+        db.session.commit()
+        
+        asset_name = "Logo" if asset_type == 'logo' else "邮件签名"
+        return api_response(
+            success=True,
+            message=f"{asset_name}上传成功"
+        )
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"上传企业资产失败 (企业ID: {company_id}): {str(e)}")
+        return api_response(
+            success=False,
+            code=500,
+            message=f"上传失败: {str(e)}"
+        ), 500
+
+@api_v1_bp.route('/dictionary/company/<int:company_id>/delete_asset', methods=['POST'])
+@flexible_auth
+def delete_company_asset(company_id):
+    """删除企业资产（Logo或邮件签名）"""
+    try:
+        # 获取企业字典项
+        company = Dictionary.query.filter_by(id=company_id, type='company').first()
+        if not company:
+            return api_response(
+                success=False,
+                code=404,
+                message="企业不存在"
+            ), 404
+        
+        asset_type = request.form.get('asset_type')
+        if not asset_type:
+            return api_response(
+                success=False,
+                code=400,
+                message="缺少资产类型参数"
+            ), 400
+        
+        # 删除资产
+        if asset_type == 'logo':
+            success = company.clear_logo()
+        elif asset_type == 'signature':
+            success = company.clear_email_signature()
+        else:
+            return api_response(
+                success=False,
+                code=400,
+                message="不支持的资产类型"
+            ), 400
+        
+        if not success:
+            return api_response(
+                success=False,
+                code=500,
+                message="删除失败"
+            ), 500
+        
+        db.session.commit()
+        
+        asset_name = "Logo" if asset_type == 'logo' else "邮件签名"
+        return api_response(
+            success=True,
+            message=f"{asset_name}删除成功"
+        )
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"删除企业资产失败 (企业ID: {company_id}): {str(e)}")
+        return api_response(
+            success=False,
+            code=500,
+            message=f"删除失败: {str(e)}"
+        ), 500
+
+@api_v1_bp.route('/dictionary/company/<int:company_id>/get_asset', methods=['GET'])
+@flexible_auth
+def get_company_asset(company_id):
+    """获取企业资产（Logo或邮件签名）"""
+    try:
+        # 获取企业字典项
+        company = Dictionary.query.filter_by(id=company_id, type='company').first()
+        if not company:
+            return api_response(
+                success=False,
+                code=404,
+                message="企业不存在"
+            ), 404
+        
+        asset_type = request.args.get('type')
+        if not asset_type:
+            return api_response(
+                success=False,
+                code=400,
+                message="缺少资产类型参数"
+            ), 400
+        
+        # 获取资产
+        if asset_type == 'logo':
+            asset_url = company.logo_data_url
+        elif asset_type == 'signature':
+            asset_url = company.email_signature_data_url
+        else:
+            return api_response(
+                success=False,
+                code=400,
+                message="不支持的资产类型"
+            ), 400
+        
+        if not asset_url:
+            return api_response(
+                success=False,
+                code=404,
+                message="资产不存在"
+            ), 404
+        
+        return api_response(
+            success=True,
+            message="获取成功",
+            data=asset_url
+        )
+        
+    except Exception as e:
+        logger.error(f"获取企业资产失败 (企业ID: {company_id}): {str(e)}")
+        return api_response(
+            success=False,
+            code=500,
+            message=f"获取失败: {str(e)}"
+        ), 500 

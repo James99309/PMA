@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
+from flask_babel import gettext as _, ngettext
 from app.models.quotation import Quotation, QuotationDetail
 from app.models.project import Project
 from app.models.customer import Company, Contact
@@ -6,9 +7,11 @@ from app.models.product import Product  # 添加产品模型导入
 from app.models.user import User  # 添加User模型导入
 from datetime import datetime
 from sqlalchemy import or_, func
+from sqlalchemy.orm import joinedload
 from app import db
 from flask_login import login_required, current_user
 from app.decorators import permission_required, permission_required_with_approval_context  # 添加权限装饰器导入
+from app.extensions import csrf
 from app.utils.access_control import get_viewable_data, can_edit_data, can_view_project, can_change_quotation_owner
 import logging
 from decimal import Decimal
@@ -70,7 +73,6 @@ def list_quotations():
             debug_logger.info(f"📊 get_viewable_data返回的报价单数量: {base_count}")
             
             # 检查数据库中的总数
-            from sqlalchemy import func
             total_count = db.session.query(func.count(Quotation.id)).scalar()
             debug_logger.info(f"📊 数据库中报价单总数: {total_count}")
             
@@ -90,14 +92,9 @@ def list_quotations():
         # 标记是否已经JOIN了Project表
         project_joined = False
         
-        # 搜索过滤 - 在报价单编号或描述中搜索
+        # 搜索过滤 - 在报价单编号中搜索
         if search:
-            query = query.filter(
-                or_(
-                    Quotation.quotation_number.ilike(f'%{search}%'),
-                    Quotation.description.ilike(f'%{search}%')
-                )
-            )
+            query = query.filter(Quotation.quotation_number.ilike(f'%{search}%'))
         
         # 项目名称搜索
         if project_search:
@@ -269,6 +266,228 @@ def list_quotations():
         # 按标签排序
         project_stage_options.sort(key=lambda x: x['label'])
         
+        # 计算统计数据
+        stats_query = get_viewable_data(Quotation, current_user)
+        total_stats_count = stats_query.count()
+        
+        # 计算金额统计（转换为万元）
+        total_amount_query = stats_query.with_entities(func.sum(Quotation.amount)).scalar()
+        total_stats_amount = round((total_amount_query or 0) / 10000, 2)
+        
+        # 按状态统计
+        approved_stats = stats_query.filter(Quotation.approval_status == 'approved')
+        approved_count = approved_stats.count()
+        approved_amount_query = approved_stats.with_entities(func.sum(Quotation.amount)).scalar()
+        approved_amount = round((approved_amount_query or 0) / 10000, 2)
+        
+        pending_stats = stats_query.filter(Quotation.approval_status.in_(['pending', 'in_progress']))
+        pending_count = pending_stats.count()
+        pending_amount_query = pending_stats.with_entities(func.sum(Quotation.amount)).scalar()
+        pending_amount = round((pending_amount_query or 0) / 10000, 2)
+        
+        draft_stats = stats_query.filter(Quotation.approval_status == 'draft')
+        draft_count = draft_stats.count()
+        draft_amount_query = draft_stats.with_entities(func.sum(Quotation.amount)).scalar()
+        draft_amount = round((draft_amount_query or 0) / 10000, 2)
+        
+        # 构建标准化筛选配置
+        filter_config = {
+            'action_url': url_for('quotation.list_quotations'),
+            'form_id': 'quotationFilterForm',
+            'reset_url': url_for('quotation.list_quotations'),
+            
+            'search_field': {
+                'name': 'search',
+                'label': '搜索',
+                'placeholder': '报价单编号或项目名称',
+                'value': search,
+                'col_width': 4
+            },
+            
+            'filter_fields': [
+                {
+                    'name': 'owner_filter',
+                    'label': '负责人',
+                    'all_option_text': '全部负责人',
+                    'current_value': owner_filter if owner_filter and request.args else '',
+                    'col_width': 2,
+                    'options': [
+                        {'value': str(user.id), 'label': user.real_name or user.username}
+                        for user in available_users
+                    ]
+                },
+                {
+                    'name': 'project_type_filter',
+                    'label': '项目类型',
+                    'all_option_text': '全部类型',
+                    'current_value': project_type_filter if project_type_filter and request.args else '',
+                    'col_width': 2,
+                    'options': project_type_options
+                },
+                {
+                    'name': 'project_stage_filter',
+                    'label': '项目阶段',
+                    'all_option_text': '全部阶段',
+                    'current_value': project_stage_filter if project_stage_filter and request.args else '',
+                    'col_width': 2,
+                    'options': project_stage_options
+                }
+            ],
+            
+            # 启用自动提交和其他筛选功能
+            'auto_submit': True,
+            'ajax_mode': True,
+            'dynamic_reset_button': True,
+            'adaptive_width': True,
+            'adaptive_button_layout': True,
+            
+            'search_button_text': '搜索',
+            'reset_button_text': '重置'
+        }
+        
+        # 通用列表组件配置
+        list_config = {
+            'module_name': 'quotation',
+            'title': None,  # 页面级标题由模板控制，此处不显示
+            'ajax_mode': True,
+            
+            # 无限滚动配置
+            'infinite_scroll': {
+                'enabled': True,
+                'page_size': 60,
+                'scroll_threshold': 100,
+                'container_selector': '.table-responsive'
+            },
+            
+            # 统计卡片配置
+            'stats': {
+                'cards': [
+                    {
+                        'id': 'total',
+                        'title': '全部报价单',
+                        'icon': 'fas fa-file-invoice-dollar',
+                        'value': total_stats_count,
+                        'amount': total_stats_amount,
+                        'unit': '份',
+                        'amount_unit': '万元',
+                        'color': 'primary',
+                        'clickable': True,
+                        'click_params': {},
+                        'data_key': 'total'
+                    },
+                    {
+                        'id': 'approved',
+                        'title': '已批准',
+                        'icon': 'fas fa-check-circle',
+                        'value': approved_count,
+                        'amount': approved_amount,
+                        'unit': '份',
+                        'amount_unit': '万元',
+                        'color': 'success',
+                        'clickable': True,
+                        'click_params': {'approval_status': 'approved'},
+                        'data_key': 'approved'
+                    },
+                    {
+                        'id': 'pending',
+                        'title': '待审批',
+                        'icon': 'fas fa-clock',
+                        'value': pending_count,
+                        'amount': pending_amount,
+                        'unit': '份',
+                        'amount_unit': '万元',
+                        'color': 'warning',
+                        'clickable': True,
+                        'click_params': {'approval_status': 'pending'},
+                        'data_key': 'pending'
+                    },
+                    {
+                        'id': 'draft',
+                        'title': '草稿',
+                        'icon': 'fas fa-edit',
+                        'value': draft_count,
+                        'amount': draft_amount,
+                        'unit': '份',
+                        'amount_unit': '万元',
+                        'color': 'secondary',
+                        'clickable': True,
+                        'click_params': {'approval_status': 'draft'},
+                        'data_key': 'draft'
+                    }
+                ]
+            },
+            
+            # 筛选配置
+            'filter': filter_config,
+            
+            # 表格配置
+            'table': {
+                'ajax_target': 'quotationTableBody',
+                'title': '报价单列表',
+                'icon': 'fas fa-table',
+                'fixed_height_scroll': True,     # 启用固定高度滚动（蓝色滚动条）
+                'enhanced_striping': True,       # 启用增强斑马纹效果
+                'columns': [
+                    {
+                        'key': 'quotation_number',
+                        'label': '报价单编号',
+                        'type': 'link',
+                        'url_template': '/quotations/{id}',
+                        'width': '160px',
+                        'render': 'render_quotation_number'
+                    },
+                    {
+                        'key': 'owner',
+                        'label': '拥有人',
+                        'type': 'text',
+                        'width': '100px'
+                    },
+                    {
+                        'key': 'project_name',
+                        'label': '关联项目',
+                        'type': 'text',
+                        'width': '200px'
+                    },
+                    {
+                        'key': 'amount',
+                        'label': '总价',
+                        'type': 'number',
+                        'format': 'currency',
+                        'align': 'end',
+                        'width': '120px'
+                    },
+                    {
+                        'key': 'project_stage',
+                        'label': '阶段',
+                        'type': 'text',
+                        'width': '100px',
+                        'render': 'render_project_stage'
+                    },
+                    {
+                        'key': 'project_type',
+                        'label': '类型',
+                        'type': 'text',
+                        'width': '100px',
+                        'render': 'render_project_type'
+                    },
+                    {
+                        'key': 'updated_at',
+                        'label': '更新时间',
+                        'type': 'date',
+                        'format': '%Y-%m-%d',
+                        'width': '120px'
+                    },
+                    {
+                        'key': 'created_at',
+                        'label': '创建时间',
+                        'type': 'date',
+                        'format': '%Y-%m-%d',
+                        'width': '120px'
+                    }
+                ]
+            }
+        }
+        
         return render_template('quotation/list.html', 
                               quotations=quotations, 
                               sort_field=sort_field, 
@@ -284,7 +503,9 @@ def list_quotations():
                               available_users=available_users,
                               owner_filter=owner_filter,
                               project_type_filter=project_type_filter,
-                              project_stage_filter=project_stage_filter)
+                              project_stage_filter=project_stage_filter,
+                              filter_config=filter_config,
+                              list_config=list_config)
                               
     except Exception as e:
         logger.error(f"加载报价单列表时出错: {str(e)}", exc_info=True)
@@ -296,6 +517,61 @@ def list_quotations():
         except Exception as rollback_error:
             logger.error(f"数据库事务回滚失败: {str(rollback_error)}")
         
+        # 创建错误时的默认配置
+        error_filter_config = {
+            'action_url': url_for('quotation.list_quotations'),
+            'form_id': 'quotationFilterForm',
+            'reset_url': url_for('quotation.list_quotations'),
+            'search_field': {
+                'name': 'search',
+                'label': '搜索',
+                'placeholder': '报价单编号或项目名称',
+                'value': '',
+                'col_width': 4
+            },
+            'filter_fields': [],
+            'search_button_text': '搜索',
+            'reset_button_text': '重置'
+        }
+        
+        error_list_config = {
+            'module_name': 'quotation',
+            'title': '报价单列表',
+            'ajax_mode': True,
+            'stats': {
+                'cards': [
+                    {
+                        'id': 'total',
+                        'title': '全部报价单',
+                        'icon': 'fas fa-file-invoice-dollar',
+                        'value': 0,
+                        'amount': 0,
+                        'unit': '份',
+                        'amount_unit': '万元',
+                        'color': 'primary',
+                        'clickable': False,
+                        'data_key': 'total'
+                    }
+                ]
+            },
+            'filter': error_filter_config,
+            'table': {
+                'ajax_target': 'quotationTableBody',
+                'title': '报价单列表',
+                'icon': 'fas fa-table',
+                'columns': [
+                    {'key': 'quotation_number', 'label': '报价单编号', 'type': 'text'},
+                    {'key': 'owner', 'label': '拥有人', 'type': 'text'},
+                    {'key': 'project_name', 'label': '关联项目', 'type': 'text'},
+                    {'key': 'amount', 'label': '总价', 'type': 'number'},
+                    {'key': 'project_stage', 'label': '阶段', 'type': 'text'},
+                    {'key': 'project_type', 'label': '类型', 'type': 'text'},
+                    {'key': 'updated_at', 'label': '更新时间', 'type': 'date'},
+                    {'key': 'created_at', 'label': '创建时间', 'type': 'date'}
+                ]
+            }
+        }
+        
         flash(f'加载报价单失败：{str(e)}', 'danger')
         return render_template('quotation/list.html', 
                               quotations=[], 
@@ -305,171 +581,215 @@ def list_quotations():
                               project_type_options=[],
                               project_stage_options=[],
                               available_users=[],
-                              project_search='')
+                              project_search='',
+                              offset=0,
+                              limit=20,
+                              has_more=False,
+                              total_count=0,
+                              owner_filter='',
+                              project_type_filter='',
+                              project_stage_filter='',
+                              filter_config=error_filter_config,
+                              list_config=error_list_config)
 
-@quotation.route('/api/load-more', methods=['GET'])
+@quotation.route('/api/quotations/filter', methods=['GET'])
 @login_required
 @permission_required('quotation', 'view')
-def load_more_quotations():
-    """为滚动加载提供的API端点"""
+def quotations_list_ajax():
+    """报价单列表AJAX筛选API"""
     try:
-        # 获取搜索参数  
-        project_search = request.args.get('project', '')
+        current_app.logger.info("AJAX端点被调用")
         
-        # 滚动加载参数
+        # 获取搜索和筛选参数
+        search = request.args.get('search', '').strip()
+        owner_filter = request.args.get('owner_filter', '')
+        project_type_filter = request.args.get('project_type_filter', '')
+        project_stage_filter = request.args.get('project_stage_filter', '')
+        
+        # 分页参数 - 默认60条支持无限滚动
         offset = request.args.get('offset', 0, type=int)
-        limit = request.args.get('limit', 20, type=int)
+        limit = request.args.get('limit', 60, type=int)
         
-        # 限制每次加载数量的范围
-        if limit not in [10, 20, 30, 50]:
-            limit = 20
+        # 限制每次加载数量范围
+        if limit > 100:
+            limit = 100  # 最大100条防止性能问题
         
-        # 获取排序参数
-        sort_field = request.args.get('sort', 'created_at')
-        sort_order = request.args.get('order', 'desc')
+        current_app.logger.info(f"筛选参数: search={search}, owner_filter={owner_filter}, project_type_filter={project_type_filter}")
         
-        # 使用访问控制函数构建查询
-        query = get_viewable_data(Quotation, current_user)
-        # 🔍 调试: 检查系统级权限的查询结果
-        if current_user.username == 'liuwei':  # 临时调试代码
-            import logging
-            debug_logger = logging.getLogger('quotation_debug')
-            debug_logger.setLevel(logging.INFO)
-            
-            # 检查权限级别
-            perm_level = current_user.get_permission_level('quotation')
-            debug_logger.info(f"🔍 用户 {current_user.username} 的quotation权限级别: {perm_level}")
-            
-            # 检查基础查询结果
-            base_count = query.count()
-            debug_logger.info(f"📊 get_viewable_data返回的报价单数量: {base_count}")
-            
-            # 检查数据库中的总数
-            from sqlalchemy import func
-            total_count = db.session.query(func.count(Quotation.id)).scalar()
-            debug_logger.info(f"📊 数据库中报价单总数: {total_count}")
-            
-            if perm_level == 'system' and base_count != total_count:
-                debug_logger.warning(f"⚠️ 权限异常: 系统级权限应该看到所有{total_count}个报价单，但只返回了{base_count}个")
-
+        # 基础查询
+        try:
+            query = get_viewable_data(Quotation, current_user)
+            current_app.logger.info("基础查询创建成功")
+        except Exception as e:
+            current_app.logger.error(f"基础查询创建失败: {e}")
+            raise
         
-        # 标记是否已经JOIN了Project表
-        project_joined = False
+        # 应用搜索条件
+        if search:
+            try:
+                query = query.join(Project, Quotation.project_id == Project.id)
+                query = query.filter(
+                    or_(
+                        Quotation.quotation_number.ilike(f'%{search}%'),
+                        Project.project_name.ilike(f'%{search}%')
+                    )
+                )
+                current_app.logger.info(f"应用搜索条件: {search}")
+            except Exception as e:
+                current_app.logger.error(f"应用搜索条件失败: {e}")
+                # 继续执行，不中断
         
-        # 项目名称搜索
-        if project_search:
-            query = query.join(Project)
-            query = query.filter(Project.project_name.like(f'%{project_search}%'))
-            project_joined = True
-        
-        # 筛选条件
-        owner_filter = request.args.get('owner_filter')
-        project_type_filter = request.args.get('project_type_filter')
-        project_stage_filter = request.args.get('project_stage_filter')
-        
+        # 应用筛选条件
         if owner_filter:
-            query = query.filter(Quotation.owner_id == owner_filter)
+            try:
+                query = query.filter(Quotation.owner_id == owner_filter)
+                current_app.logger.info(f"应用负责人筛选: {owner_filter}")
+            except Exception as e:
+                current_app.logger.error(f"应用负责人筛选失败: {e}")
         
-        # 项目类型筛选
         if project_type_filter:
-            if not project_joined:
-                query = query.join(Project, Quotation.project_id == Project.id)
-                project_joined = True
-            
-            if project_type_filter == 'channel_follow':
-                query = query.filter(Project.project_type.in_(['channel_follow', '渠道跟进']))
-            elif project_type_filter == 'sales_focus':
-                query = query.filter(Project.project_type.in_(['sales_focus', '销售重点']))
-            elif project_type_filter == 'marketing_focus':
-                query = query.filter(Project.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进']))
-            else:
+            try:
+                # 如果还没有JOIN Project表，先JOIN
+                if not search:  # 如果没有搜索，则还没有JOIN
+                    query = query.join(Project, Quotation.project_id == Project.id)
                 query = query.filter(Project.project_type == project_type_filter)
+                current_app.logger.info(f"应用项目类型筛选: {project_type_filter}")
+            except Exception as e:
+                current_app.logger.error(f"应用项目类型筛选失败: {e}")
         
-        # 项目阶段筛选
         if project_stage_filter:
-            if not project_joined:
-                query = query.join(Project, Quotation.project_id == Project.id)
-                project_joined = True
-            query = query.filter(Project.current_stage == project_stage_filter)
+            try:
+                # 如果还没有JOIN Project表，先JOIN
+                if not search and not project_type_filter:  # 如果前面都没有JOIN
+                    query = query.join(Project, Quotation.project_id == Project.id)
+                query = query.filter(Project.current_stage == project_stage_filter)
+                current_app.logger.info(f"应用项目阶段筛选: {project_stage_filter}")
+            except Exception as e:
+                current_app.logger.error(f"应用项目阶段筛选失败: {e}")
         
-        # 处理排序
-        if sort_field == 'project_name':
-            if not project_joined:
-                query = query.join(Project, Quotation.project_id == Project.id)
-                project_joined = True
-            if sort_order == 'desc':
-                query = query.order_by(Project.project_name.desc())
-            else:
-                query = query.order_by(Project.project_name.asc())
-        elif sort_field == 'project_stage':
-            if not project_joined:
-                query = query.join(Project, Quotation.project_id == Project.id)
-                project_joined = True
-            if sort_order == 'desc':
-                query = query.order_by(Project.current_stage.desc())
-            else:
-                query = query.order_by(Project.current_stage.asc())
-        elif sort_field == 'project_type':
-            if not project_joined:
-                query = query.join(Project, Quotation.project_id == Project.id)
-                project_joined = True
-            if sort_order == 'desc':
-                query = query.order_by(Project.project_type.desc())
-            else:
-                query = query.order_by(Project.project_type.asc())
-        elif sort_field == 'owner_id':
-            if sort_order == 'desc':
-                query = query.order_by(Quotation.owner_id.desc())
-            else:
-                query = query.order_by(Quotation.owner_id.asc())
-        else:
-            # 其他字段直接使用
-            if hasattr(Quotation, sort_field):
-                sort_attr = getattr(Quotation, sort_field)
-                if sort_order == 'desc':
-                    query = query.order_by(sort_attr.desc())
-                else:
-                    query = query.order_by(sort_attr.asc())
+        # 预加载关联数据
+        query = query.options(
+            joinedload(Quotation.project),
+            joinedload(Quotation.owner)
+        )
         
-        # 获取总记录数
+        # 计算总数
         total_count = query.count()
         
-        # 滚动加载查询
-        quotations = query.offset(offset).limit(limit).all()
-        
-        # 计算是否还有更多数据
-        has_more = (offset + limit) < total_count
-        
-        # 预加载所有报价单的所有者信息
-        owner_ids = [quotation.owner_id for quotation in quotations if quotation.owner_id]
-        if owner_ids:
-            owners = {user.id: user for user in User.query.filter(User.id.in_(owner_ids)).all()}
-            for quotation in quotations:
-                if quotation.owner_id and quotation.owner_id in owners:
-                    quotation.owner = owners[quotation.owner_id]
+        # 获取报价单数据（应用分页）
+        try:
+            quotations = query.order_by(Quotation.updated_at.desc()).offset(offset).limit(limit).all()
+            current_app.logger.info(f"查询到 {len(quotations)} 条报价单 (总数: {total_count})")
+        except Exception as e:
+            current_app.logger.error(f"查询报价单失败: {e}")
+            raise
         
         # 渲染HTML片段
-        html = render_template('quotation/quotation_rows.html', 
-                              quotations=quotations,
-                              sort_field=sort_field,
-                              sort_order=sort_order)
+        try:
+            html = render_template('quotation/quotation_rows.html', quotations=quotations)
+            current_app.logger.info("模板渲染成功")
+        except Exception as e:
+            current_app.logger.error(f"模板渲染失败: {e}")
+            html = f'<tr><td colspan="8" class="text-center text-muted">渲染失败: {str(e)}</td></tr>'
+        
+        # 计算统计数据 - 应用相同的筛选条件
+        try:
+            stats_query = get_viewable_data(Quotation, current_user)
+            stats_joined = False
+            
+            # 应用相同的筛选条件到统计查询
+            if search:
+                stats_query = stats_query.join(Project, Quotation.project_id == Project.id)
+                stats_joined = True
+                stats_query = stats_query.filter(
+                    or_(
+                        Quotation.quotation_number.ilike(f'%{search}%'),
+                        Project.project_name.ilike(f'%{search}%')
+                    )
+                )
+            
+            if owner_filter:
+                stats_query = stats_query.filter(Quotation.owner_id == owner_filter)
+            
+            if project_type_filter:
+                if not stats_joined:
+                    stats_query = stats_query.join(Project, Quotation.project_id == Project.id)
+                    stats_joined = True
+                stats_query = stats_query.filter(Project.project_type == project_type_filter)
+            
+            if project_stage_filter:
+                if not stats_joined:
+                    stats_query = stats_query.join(Project, Quotation.project_id == Project.id)
+                    stats_joined = True
+                stats_query = stats_query.filter(Project.current_stage == project_stage_filter)
+            
+            # 基于筛选后的数据计算统计
+            total_stats_count = stats_query.count()
+            total_amount_query = stats_query.with_entities(func.sum(Quotation.amount)).scalar()
+            total_stats_amount = round((total_amount_query or 0) / 10000, 2)
+            
+            # 按审核状态统计 - 使用正确的字段名 approval_status
+            approved_count = stats_query.filter(Quotation.approval_status.in_(['discover_approved', 'embed_approved', 'pre_tender_approved', 'tendering_approved', 'awarded_approved', 'quoted_approved', 'signed_approved'])).count()
+            approved_amount_query = stats_query.filter(Quotation.approval_status.in_(['discover_approved', 'embed_approved', 'pre_tender_approved', 'tendering_approved', 'awarded_approved', 'quoted_approved', 'signed_approved'])).with_entities(func.sum(Quotation.amount)).scalar()
+            approved_amount = round((approved_amount_query or 0) / 10000, 2)
+            
+            pending_count = stats_query.filter(Quotation.approval_status == 'pending').count()
+            pending_amount_query = stats_query.filter(Quotation.approval_status == 'pending').with_entities(func.sum(Quotation.amount)).scalar()
+            pending_amount = round((pending_amount_query or 0) / 10000, 2)
+            
+            rejected_count = stats_query.filter(Quotation.approval_status == 'rejected').count()
+            rejected_amount_query = stats_query.filter(Quotation.approval_status == 'rejected').with_entities(func.sum(Quotation.amount)).scalar()
+            rejected_amount = round((rejected_amount_query or 0) / 10000, 2)
+            
+            current_app.logger.info(f"筛选后统计数据: 总数={total_stats_count}, 总金额={total_stats_amount}万元")
+            
+        except Exception as e:
+            current_app.logger.error(f"统计数据计算失败: {e}")
+            # 使用默认值
+            total_stats_count = total_count
+            total_stats_amount = 0
+            approved_count = approved_amount = 0
+            pending_count = pending_amount = 0
+            rejected_count = rejected_amount = 0
         
         return jsonify({
+            'success': True,
             'html': html,
-            'has_more': has_more,
             'total_count': total_count,
-            'loaded_count': offset + len(quotations)
+            'loaded_count': offset + len(quotations),
+            'has_more': (offset + len(quotations)) < total_count,
+            'statistics': {
+                'total': total_stats_count,
+                'total_amount': total_stats_amount,
+                'approved': approved_count,
+                'approved_amount': approved_amount,
+                'pending': pending_count,
+                'pending_amount': pending_amount,
+                'rejected': rejected_count,
+                'rejected_amount': rejected_amount
+            }
         })
         
     except Exception as e:
-        logger.error(f"加载更多报价单时出错: {str(e)}", exc_info=True)
+        current_app.logger.error(f"报价单AJAX筛选失败: {str(e)}", exc_info=True)
         return jsonify({
-            'html': '',
-            'has_more': False,
+            'success': False,
+            'message': f'加载失败: {str(e)}',
+            'html': '<tr><td colspan="8" class="text-center text-muted">加载失败，请刷新重试</td></tr>',
             'total_count': 0,
             'loaded_count': 0,
-            'error': str(e)
-        })
+            'has_more': False,
+            'statistics': {
+                'total': 0,
+                'total_amount': 0,
+                'approved': 0,
+                'approved_amount': 0,
+                'pending': 0,
+                'pending_amount': 0,
+                'rejected': 0,
+                'rejected_amount': 0
+            }
+        }), 500
 
 @quotation.route('/create', methods=['GET', 'POST'])
 @login_required
@@ -539,14 +859,19 @@ def create_quotation():
                         'message': f'总金额格式错误: {str(e)}'
                     }), 400
                 
+                # 获取项目的完整信息（从项目表获取最新数据）
+                project_stage = project.current_stage or ''
+                project_type = project.project_type or ''
+                current_app.logger.debug(f'从项目表获取信息: 项目名称={project.project_name}, 阶段={project_stage}, 类型={project_type}')
+                
                 # 创建新报价单
                 quotation = Quotation(
                     project_id=project_id,
                     contact_id=None,
                     amount=total_amount,
-                    project_stage=data.get('project_stage', ''),
-                    project_type=data.get('project_type', ''),
-                    currency=data.get('currency', 'CNY'),  # 添加货币字段
+                    project_stage=project_stage,  # 从项目表获取最新阶段
+                    project_type=project_type,    # 从项目表获取最新类型
+                    currency=data.get('currency', 'CNY'),
                     owner_id=current_user.id
                 )
                 db.session.add(quotation)
@@ -653,19 +978,25 @@ def create_quotation():
                             current_app.logger.warning(f"{error_msg}: {str(e)}")
                             detail_errors.append(error_msg)
                         
+                        # 调试日志：记录JSON明细字段值
+                        product_model_value = detail.get('product_model', '')
+                        brand_value = detail.get('brand', '')
+                        product_mn_value = detail.get('product_mn', '')
+                        current_app.logger.debug(f'JSON明细第 {index+1} 行字段值: product_name="{product_name}", product_model="{product_model_value}", brand="{brand_value}", product_mn="{product_mn_value}"')
+                        
                         # 创建新明细
                         new_detail = QuotationDetail(
                             product_name=product_name,
-                            product_model=detail.get('product_model', ''),
+                            product_model=product_model_value,
                             product_desc=detail.get('product_desc', ''),
-                            brand=detail.get('brand', ''),
+                            brand=brand_value,
                             unit=detail.get('unit', ''),
                             quantity=quantity,
                             discount=discount,
                             market_price=market_price,
                             unit_price=unit_price,
                             total_price=total_price,
-                            product_mn=detail.get('product_mn', ''),
+                            product_mn=product_mn_value,
                             currency=data.get('currency', 'CNY')  # 添加明细货币字段
                         )
                         
@@ -680,16 +1011,33 @@ def create_quotation():
                         detail_errors.append(error_msg)
                 
                 try:
-                    # 计算植入总额
+                    # 执行完整的数据计算和同步
+                    # 1. 计算植入总额合计（基于产品明细的植入小计）
                     quotation.calculate_implant_total_amount()
+                    current_app.logger.debug(f'植入总额计算完成: {quotation.implant_total_amount}')
                     
+                    # 2. 生成产品签名（用于变更检测）
+                    import hashlib
+                    import json
+                    signature_data = []
+                    for detail in quotation.details:
+                        signature_data.append({
+                            'product_name': detail.product_name,
+                            'product_model': detail.product_model,
+                            'quantity': detail.quantity,
+                            'unit_price': detail.unit_price
+                        })
+                    signature_json = json.dumps(signature_data, sort_keys=True)
+                    quotation.product_signature = hashlib.md5(signature_json.encode()).hexdigest()[:16]
+                    current_app.logger.debug(f'产品签名生成完成: {quotation.product_signature}')
+                    
+                    # 3. 手动更新时间戳
+                    quotation.updated_at = datetime.utcnow()
+                    
+                    # 4. 提交数据库更改
                     current_app.logger.info('准备提交所有更改到数据库...')
                     db.session.commit()
-                    current_app.logger.info('数据库更改提交成功')
-                    
-                    # 手动更新时间戳，确保updated_at字段正确
-                    quotation.updated_at = datetime.utcnow()
-                    db.session.commit()
+                    current_app.logger.info(f'报价单数据保存完成: 总额={quotation.amount}, 植入总额={quotation.implant_total_amount}')
                     
                     # 记录创建历史
                     try:
@@ -747,14 +1095,13 @@ def create_quotation():
                     except Exception as notify_err:
                         logger.warning(f"启动异步通知失败: {str(notify_err)}")
                     
-                    # 移除flash消息，直接跳转（提升用户体验）
-                    # flash('报价单创建成功！', 'success')
-                    
-                    # 处理返回URL
-                    if return_to and 'project/view' in return_to:
-                        return redirect(return_to)
-                    else:
-                        return redirect(url_for('quotation.list_quotations'))
+                    # 返回JSON响应供前端处理跳转
+                    return jsonify({
+                        'status': 'success',
+                        'message': '报价单创建成功！',
+                        'redirect_url': url_for('quotation.view_quotation', id=quotation.id),
+                        'quotation_id': quotation.id
+                    })
                 except Exception as commit_error:
                     db.session.rollback()
                     error_type = type(commit_error).__name__
@@ -766,106 +1113,9 @@ def create_quotation():
                         'message': f'保存失败: {error_type} - {str(commit_error)}'
                     }), 500
             else:
-                # 传统表单提交的处理逻辑保留
-                # 创建报价单
-                quotation = Quotation(
-                    project_id=request.form.get('project_id'),
-                    contact_id=None,
-                    currency=request.form.get('currency', 'CNY'),  # 添加货币字段
-                    owner_id=current_user.id  # 设置当前用户为所有者
-                )
-                db.session.add(quotation)
-                
-                # 创建报价单明细
-                product_names = request.form.getlist('product_name[]')
-                product_models = request.form.getlist('product_model[]')
-                product_descs = request.form.getlist('product_spec[]')
-                brands = request.form.getlist('product_brand[]')
-                units = request.form.getlist('product_unit[]')
-                discounts = request.form.getlist('discount_rate[]')
-                market_prices = request.form.getlist('product_price[]')
-                quantities = request.form.getlist('quantity[]')
-                product_mns = request.form.getlist('product_mn[]')  # 添加MN号字段
-                
-                total_amount = 0.0
-                for i in range(len(product_names)):
-                    # 清理价格字符串中的千位分隔符
-                    cleaned_price = market_prices[i].replace(',', '') if market_prices[i] else '0'
-                    cleaned_discount = discounts[i].replace(',', '') if discounts[i] else '0'
-                    cleaned_quantity = quantities[i].replace(',', '') if quantities[i] else '0'
-                    
-                    market_price = float(cleaned_price)
-                    discount = float(cleaned_discount)
-                    quantity = float(cleaned_quantity)
-                    discounted_price = market_price * (discount / 100)  # 修正：折扣率应该是discount/100而不是1-discount/100
-                    subtotal = discounted_price * quantity  # 计算小计
-                    total_amount += subtotal  # 累加总金额
-                    
-                    detail = QuotationDetail(
-                        product_name=product_names[i],
-                        product_model=product_models[i],
-                        product_desc=product_descs[i],
-                        brand=brands[i],
-                        unit=units[i],
-                        discount=discount/100,  # 存储为小数形式
-                        market_price=market_price,
-                        quantity=quantity,
-                        unit_price=discounted_price,
-                        total_price=subtotal,
-                        product_mn=product_mns[i] if i < len(product_mns) else '',  # 添加MN号
-                        currency=request.form.get('currency', 'CNY')  # 添加明细货币字段
-                    )
-                    
-                    # 计算植入小计
-                    detail.calculate_prices()
-                    
-                    quotation.details.append(detail)
-                
-                # 更新报价单总金额
-                quotation.amount = total_amount
-                
-                # 计算植入总额
-                quotation.calculate_implant_total_amount()
-                # 手动更新时间戳，确保updated_at字段正确
-                quotation.updated_at = datetime.utcnow()
-                db.session.commit()
-                
-                # 记录创建历史
-                try:
-                    from app.utils.change_tracker import ChangeTracker
-                    ChangeTracker.log_create(quotation)
-                except Exception as track_err:
-                    current_app.logger.warning(f"记录报价单创建历史失败: {str(track_err)}")
-                
-                # 注意：项目金额更新交由SQLAlchemy事件监听器处理，此处无需手动更新
-                current_app.logger.info('项目报价金额将由事件监听器自动更新')
-                
-                # 触发报价单创建通知
-                try:
-                    from app.utils.notification_helpers import trigger_event_notification
-                    from flask import url_for
-                    trigger_event_notification(
-                        event_key='quotation_created',
-                        target_user_id=quotation.owner_id,
-                        context={
-                            'quotation': quotation,
-                            'create_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                            'quotation_url': url_for('quotation.view_quotation', id=quotation.id, _external=True),
-                            'current_year': datetime.now().year
-                        }
-                    )
-                    # 通知解决方案经理
-                    notify_solution_managers_quotation_created(quotation)
-                except Exception as notify_err:
-                    logger.warning(f"触发报价单创建通知失败: {str(notify_err)}")
-                
-                flash('报价单创建成功！', 'success')
-                
-                # 处理返回URL
-                if return_to and 'project/view' in return_to:
-                    return redirect(return_to)
-                else:
-                    return redirect(url_for('quotation.list_quotations'))
+                # 不再支持传统表单格式，只支持JSON格式提交
+                current_app.logger.warning('收到传统表单提交请求，但系统已统一使用JSON格式')
+                raise ValueError('系统已升级为统一数据格式，请使用现代浏览器或刷新页面重试')
         except Exception as e:
             db.session.rollback()
             current_app.logger.exception(f'处理POST请求时发生错误: {type(e).__name__}')
@@ -885,9 +1135,8 @@ def create_quotation():
     subquery = db.session.query(Quotation.project_id).distinct()
     projects = get_viewable_data(Project, current_user).filter(~Project.id.in_(subquery)).all()
     
-    # 创建一个新的空报价单对象
-    quotation = Quotation()
-    quotation.details = []
+    # 创建一个新的空报价单对象用于模板显示
+    quotation = None  # 创建模式下设为None，让模板正确识别
     
     # 如果有预设的项目ID，设置默认选中项目
     selected_project = None
@@ -913,8 +1162,10 @@ def create_quotation():
                          quotation=quotation,
                          preset_project_id=preset_project_id,
                          selected_project=selected_project,
+                         currency_options=get_currency_type_options(),
                          return_to=return_to,
                          default_currency=default_currency,
+                         quotation_details_json="[]",
                          CURRENCY_TYPE_OPTIONS=get_currency_type_options())
 
 @quotation.route('/get_project/<int:project_id>')
@@ -954,6 +1205,9 @@ def get_project(project_id):
 @login_required
 @permission_required('quotation', 'edit')  # 添加编辑权限装饰器
 def edit_quotation(id):
+    # 获取返回URL参数
+    return_to = request.args.get('return_to')
+    
     try:
         quotation = Quotation.query.get_or_404(id)
         
@@ -1000,21 +1254,99 @@ def edit_quotation(id):
         # 准备报价单详情的JSON数据，以便在模板中使用
         quotation_details = []
         for detail in quotation.details:
-            quotation_details.append({
-                'product_name': detail.product_name,
-                'product_model': detail.product_model,
-                'product_desc': detail.product_desc,
-                'brand': detail.brand,
-                'unit': detail.unit,
-                'market_price': detail.market_price,
-                'discount_rate': detail.discount_rate,
-                'unit_price': detail.unit_price,
-                'quantity': detail.quantity,
-                'subtotal': detail.subtotal,
-                'product_mn': detail.product_mn if hasattr(detail, 'product_mn') else ''
-            })
+            try:
+                # 检查是否为临时产品
+                product_mn = str(getattr(detail, 'product_mn', '') or '')
+                is_temp_product = product_mn.startswith('TEMP_')
+                
+                # 安全地获取所有字段，确保没有None或Undefined值，并强制类型转换
+                detail_data = {
+                    'product_name': str(detail.product_name or ''),
+                    'product_model': str(detail.product_model or ''),
+                    'product_desc': str(detail.product_desc or ''),
+                    'brand': str(detail.brand or ''),
+                    'unit': str(detail.unit or '个'),
+                    'market_price': float(detail.market_price or 0),
+                    'discount_rate': float(getattr(detail, 'discount_rate', detail.discount * 100 if detail.discount is not None else 100.0)),
+                    'unit_price': float(detail.unit_price or 0),
+                    'quantity': int(detail.quantity or 1),
+                    'subtotal': float(detail.total_price or 0),
+                    'product_mn': product_mn,
+                    'is_temp': is_temp_product,  # 添加临时产品标识
+                    'status': 'temp' if is_temp_product else 'regular'  # 添加状态标识
+                }
+                
+                # 如果是临时产品，添加调试日志
+                if is_temp_product:
+                    current_app.logger.info(f"编辑页面检测到临时产品: {detail.product_name}, MN: {product_mn}")
+                    # 确保单价和小计正确传递
+                    detail_data['total_price'] = detail_data['subtotal']
+                quotation_details.append(detail_data)
+            except (TypeError, ValueError, AttributeError) as detail_error:
+                current_app.logger.error(f"处理明细项时出错: {detail_error}")
+                current_app.logger.error(f"问题明细: {detail}")
+                # 添加一个安全的默认明细项
+                quotation_details.append({
+                    'product_name': '数据错误',
+                    'product_model': '',
+                    'product_desc': '',
+                    'brand': '',
+                    'unit': '个',
+                    'market_price': 0.0,
+                    'discount_rate': 100.0,
+                    'unit_price': 0.0,
+                    'quantity': 1,
+                    'subtotal': 0.0,
+                    'product_mn': ''
+                })
         
-        quotation_details_json = json.dumps(quotation_details)
+        import json
+        
+        def safe_serialize_check(obj, path="root"):
+            """递归检查对象的可序列化性"""
+            try:
+                if obj is None:
+                    return True
+                elif isinstance(obj, (str, int, float, bool)):
+                    return True
+                elif isinstance(obj, (list, tuple)):
+                    for i, item in enumerate(obj):
+                        safe_serialize_check(item, f"{path}[{i}]")
+                    return True
+                elif isinstance(obj, dict):
+                    for key, value in obj.items():
+                        safe_serialize_check(value, f"{path}.{key}")
+                    return True
+                else:
+                    current_app.logger.error(f"🚨 发现不可序列化对象在 {path}: {obj} (类型: {type(obj).__name__})")
+                    return False
+            except Exception as e:
+                current_app.logger.error(f"🚨 检查序列化时出错在 {path}: {e}")
+                return False
+        
+        try:
+            # 先检查数据结构
+            current_app.logger.info("开始检查quotation_details的序列化安全性")
+            safe_serialize_check(quotation_details, "quotation_details")
+            
+            quotation_details_json = json.dumps(quotation_details)
+            current_app.logger.info("✅ JSON序列化成功")
+        except (TypeError, ValueError) as e:
+            current_app.logger.error(f"❌ JSON序列化错误: {str(e)}")
+            current_app.logger.error(f"错误类型: {type(e).__name__}")
+            
+            # 逐个检查每个明细项，找出有问题的字段
+            for i, detail_dict in enumerate(quotation_details):
+                current_app.logger.error(f"检查明细 {i}: 开始检查字段")
+                for key, value in detail_dict.items():
+                    current_app.logger.error(f"  字段 {key}: {repr(value)} (类型: {type(value).__name__})")
+                    try:
+                        json.dumps(value)
+                    except (TypeError, ValueError) as field_error:
+                        current_app.logger.error(f"  ❌ 字段 {key} 序列化失败: {field_error}")
+            
+            # 提供一个安全的默认值
+            quotation_details_json = '[]'
         
         # 获取所有项目
         projects = get_viewable_data(Project, current_user).all()
@@ -1044,7 +1376,12 @@ def edit_quotation(id):
                 currency = request.form.get('currency', 'CNY')
                 quotation.currency = currency
                 
-                event.remove(QuotationDetail, 'after_delete', update_quotation_product_signature)
+                # 安全地移除事件监听器，避免重复触发
+                try:
+                    event.remove(QuotationDetail, 'after_delete', update_quotation_product_signature)
+                except Exception:
+                    # 如果监听器不存在，忽略错误
+                    pass
                 
                 try:
                     # 先移除旧的明细
@@ -1052,46 +1389,96 @@ def edit_quotation(id):
                         db.session.delete(detail)
                     quotation.details.clear()
                     
-                    # 获取表单数据
-                    product_names = request.form.getlist('product_name[]')
-                    product_models = request.form.getlist('product_model[]')
-                    product_descs = request.form.getlist('product_spec[]')
-                    brands = request.form.getlist('product_brand[]')
-                    units = request.form.getlist('product_unit[]')
-                    discounts = request.form.getlist('discount_rate[]')
-                    market_prices = request.form.getlist('product_price[]')
-                    quantities = request.form.getlist('quantity[]')
-                    product_mns = request.form.getlist('product_mn[]')  # 添加MN号字段
+                    # 获取产品明细数据 - 支持JSON格式和传统表单格式
+                    import json
+                    product_details_json = request.form.get('product_details')
+                    
+                    if product_details_json:
+                        # 新版：从JSON字段获取数据
+                        try:
+                            product_details = json.loads(product_details_json)
+                            if not product_details:
+                                raise ValueError('请至少添加一个产品')
+                        except json.JSONDecodeError as e:
+                            raise ValueError(f'产品数据格式错误：{str(e)}')
+                    else:
+                        # 旧版：从传统表单字段获取数据（兼容性支持）
+                        product_names = request.form.getlist('product_name[]')
+                        product_models = request.form.getlist('product_model[]')
+                        product_descs = request.form.getlist('product_spec[]')
+                        brands = request.form.getlist('product_brand[]')
+                        units = request.form.getlist('product_unit[]')
+                        discounts = request.form.getlist('discount_rate[]')
+                        market_prices = request.form.getlist('product_price[]')
+                        quantities = request.form.getlist('quantity[]')
+                        product_mns = request.form.getlist('product_mn[]')
+                        
+                        # 验证是否有产品明细
+                        if not product_names:
+                            raise ValueError('请至少添加一个产品')
+                        
+                        # 验证所有列表长度是否一致
+                        lists_length = [len(x) for x in [
+                            product_names, product_models, product_descs, brands,
+                            units, discounts, market_prices, quantities
+                        ]]
+                        if len(set(lists_length)) > 1:
+                            raise ValueError('产品数据不完整，请检查后重试')
+                        
+                        # 转换为JSON格式以便统一处理
+                        product_details = []
+                        for i in range(len(product_names)):
+                            product_details.append({
+                                'product_name': product_names[i],
+                                'product_model': product_models[i],
+                                'product_desc': product_descs[i] if i < len(product_descs) else '',
+                                'brand': brands[i] if i < len(brands) else '',
+                                'unit': units[i] if i < len(units) else '',
+                                'discount': float(discounts[i]) if i < len(discounts) and discounts[i] else 100,
+                                'market_price': float(market_prices[i]) if i < len(market_prices) and market_prices[i] else 0,
+                                'quantity': int(quantities[i]) if i < len(quantities) and quantities[i] else 1,
+                                'product_mn': product_mns[i] if i < len(product_mns) else ''
+                            })
                     
                     # 获取报价单货币，用于明细记录
                     detail_currency = request.form.get('currency', 'CNY')
                     
-                    # 验证是否有产品明细
-                    if not product_names:
-                        raise ValueError('请至少添加一个产品')
-                    
-                    # 验证所有列表长度是否一致
-                    lists_length = [len(x) for x in [
-                        product_names, product_models, product_descs, brands,
-                        units, discounts, market_prices, quantities
-                    ]]
-                    if len(set(lists_length)) > 1:
-                        raise ValueError('产品数据不完整，请检查后重试')
-                    
                     total_amount = 0.0
-                    for i in range(len(product_names)):
+                    for i, detail_data in enumerate(product_details):
                         try:
                             # 验证必填字段
-                            if not product_names[i].strip():
+                            product_name = str(detail_data.get('product_name', '')).strip()
+                            product_model = str(detail_data.get('product_model', '')).strip()
+                            
+                            if not product_name:
                                 raise ValueError(f'第 {i+1} 行产品名称不能为空')
-                            if not product_models[i].strip():
-                                raise ValueError(f'第 {i+1} 行产品型号不能为空')
+                            
+                            # 编辑模式下，如果product_model为空，尝试从原有数据获取或使用默认值
+                            if not product_model:
+                                # 尝试从原有明细中找到对应的产品型号
+                                if i < len(quotation.details):
+                                    original_detail = quotation.details[i]
+                                    if original_detail.product_model:
+                                        product_model = original_detail.product_model
+                                        current_app.logger.info(f'第 {i+1} 行使用原有产品型号: {product_model}')
+                                    else:
+                                        # 如果原有数据也没有型号，使用默认值
+                                        product_model = 'N/A'
+                                        current_app.logger.info(f'第 {i+1} 行使用默认产品型号: {product_model}')
+                                else:
+                                    # 新增行且没有型号，使用默认值
+                                    product_model = 'N/A'
+                                    current_app.logger.info(f'第 {i+1} 行（新增）使用默认产品型号: {product_model}')
                             
                             # 清理并验证数值字段
                             try:
-                                market_price = float(market_prices[i].replace(',', '') if market_prices[i] else '0')
-                                discount = float(discounts[i].replace(',', '') if discounts[i] else '0')
-                                quantity = int(quantities[i].replace(',', '') if quantities[i] else '0')
+                                market_price_str = str(detail_data.get('market_price', '0')).replace(',', '')
+                                discount_str = str(detail_data.get('discount', '100')).replace(',', '')
+                                quantity_str = str(detail_data.get('quantity', '1')).replace(',', '')
+                                
+                                market_price = float(market_price_str) if market_price_str else 0
+                                discount = float(discount_str) if discount_str else 100
+                                quantity = int(float(quantity_str)) if quantity_str else 1
                                 
                                 if market_price < 0:
                                     raise ValueError(f'第 {i+1} 行市场价格不能为负数')
@@ -1099,30 +1486,47 @@ def edit_quotation(id):
                                     raise ValueError(f'第 {i+1} 行折扣率不能为负数')
                                 if quantity <= 0:
                                     raise ValueError(f'第 {i+1} 行数量必须大于0')
-                            except ValueError as e:
+                            except (ValueError, TypeError) as e:
                                 if str(e).startswith('第'):
                                     raise e
                                 raise ValueError(f'第 {i+1} 行数据格式错误：{str(e)}')
                             
-                            # 计算价格
-                            discounted_price = market_price * (discount / 100)
-                            subtotal = discounted_price * quantity
+                            # 获取单价（如果前端提供了的话，优先使用；否则根据市场价和折扣率计算）
+                            unit_price_str = str(detail_data.get('unit_price', '0')).replace(',', '')
+                            provided_unit_price = float(unit_price_str) if unit_price_str else 0
+                            
+                            # 如果前端提供了单价且大于0，使用它；否则根据市场价和折扣率计算
+                            if provided_unit_price > 0:
+                                discounted_price = provided_unit_price
+                            else:
+                                discounted_price = market_price * (discount / 100)
+                            
+                            # 获取小计（如果前端提供了的话，优先使用；否则计算）
+                            total_price_str = str(detail_data.get('total_price', '0')).replace(',', '')
+                            provided_total_price = float(total_price_str) if total_price_str else 0
+                            
+                            # 如果前端提供了小计且大于0，使用它；否则计算
+                            if provided_total_price > 0:
+                                subtotal = provided_total_price
+                            else:
+                                subtotal = discounted_price * quantity
+                            
                             total_amount += subtotal
                             
                             # 创建明细记录
                             detail = QuotationDetail(
-                                product_name=product_names[i].strip(),
-                                product_model=product_models[i].strip(),
-                                product_desc=product_descs[i].strip() if product_descs[i] else None,
-                                brand=brands[i].strip() if brands[i] else None,
-                                unit=units[i].strip() if units[i] else None,
+                                product_name=product_name,
+                                product_model=product_model,
+                                product_desc=str(detail_data.get('product_desc', '')).strip() or None,
+                                brand=str(detail_data.get('brand', '')).strip() or None,
+                                unit=str(detail_data.get('unit', '')).strip() or None,
                                 discount=discount/100,
                                 market_price=market_price,
                                 quantity=quantity,
                                 unit_price=discounted_price,
                                 total_price=subtotal,
-                                product_mn=product_mns[i] if i < len(product_mns) else '',  # 添加MN号
-                                currency=detail_currency  # 添加货币字段
+                                product_mn=str(detail_data.get('product_mn', '')).strip() or None,
+                                currency=detail_currency
                             )
                             
                             # 计算植入小计
@@ -1142,10 +1546,17 @@ def edit_quotation(id):
                     quotation.updated_at = datetime.utcnow()
                     
                 finally:
-                    # 重新注册事件监听器
-                    event.listen(QuotationDetail, 'after_insert', update_quotation_product_signature)
-                    event.listen(QuotationDetail, 'after_update', update_quotation_product_signature)
-                    event.listen(QuotationDetail, 'after_delete', update_quotation_product_signature)
+                    # 安全地重新注册事件监听器
+                    try:
+                        if not event.contains(QuotationDetail, 'after_insert', update_quotation_product_signature):
+                            event.listen(QuotationDetail, 'after_insert', update_quotation_product_signature)
+                        if not event.contains(QuotationDetail, 'after_update', update_quotation_product_signature):
+                            event.listen(QuotationDetail, 'after_update', update_quotation_product_signature)
+                        if not event.contains(QuotationDetail, 'after_delete', update_quotation_product_signature):
+                            event.listen(QuotationDetail, 'after_delete', update_quotation_product_signature)
+                    except Exception:
+                        # 忽略重新注册时的错误
+                        pass
                     
                     # 在重新注册事件监听器后立即进行签名检测和状态处理
                     try:
@@ -1166,9 +1577,13 @@ def edit_quotation(id):
                         current_app.logger.debug(f"产品签名更新: {old_product_signature} -> {new_product_signature}, 变化: {product_details_changed}")
                         
                         # 临时再次禁用事件监听器，避免在提交时触发
-                        event.remove(QuotationDetail, 'after_insert', update_quotation_product_signature)
-                        event.remove(QuotationDetail, 'after_update', update_quotation_product_signature)
-                        event.remove(QuotationDetail, 'after_delete', update_quotation_product_signature)
+                        try:
+                            event.remove(QuotationDetail, 'after_insert', update_quotation_product_signature)
+                            event.remove(QuotationDetail, 'after_update', update_quotation_product_signature)
+                            event.remove(QuotationDetail, 'after_delete', update_quotation_product_signature)
+                        except Exception:
+                            # 如果监听器不存在，忽略错误
+                            pass
                         
                     except Exception as signature_error:
                         current_app.logger.error(f"处理产品签名和确认状态时出错: {str(signature_error)}")
@@ -1188,31 +1603,99 @@ def edit_quotation(id):
                 db.session.commit()
                 
                 flash('报价单更新成功！', 'success')
-                return redirect(url_for('quotation.list_quotations'))
+                return redirect(url_for('quotation.view_quotation', id=quotation.id))
                 
             except ValueError as e:
                 db.session.rollback()
                 flash(str(e), 'error')
-                return render_template('quotation/edit.html', 
+                return render_template('quotation/edit_new.html', 
                                      quotation=quotation,
-                                     other_projects=projects,
+                                     projects=projects,
                                      today_date=datetime.now().strftime('%Y-%m-%d'),
-                                     quotation_details_json=quotation_details_json)
+                                     quotation_details_json=quotation_details_json,
+                                     currency_options=get_currency_type_options(),
+                                     return_to=return_to)
             except Exception as e:
                 db.session.rollback()
                 flash(f'报价单更新失败：{str(e)}', 'danger')
-                return render_template('quotation/edit.html', 
+                return render_template('quotation/edit_new.html', 
                                      quotation=quotation,
-                                     other_projects=projects,
+                                     projects=projects,
                                      today_date=datetime.now().strftime('%Y-%m-%d'),
-                                     quotation_details_json=quotation_details_json)
+                                     quotation_details_json=quotation_details_json,
+                                     currency_options=get_currency_type_options(),
+                                     return_to=return_to)
         
-        # GET请求
-        return render_template('quotation/edit.html', 
-                            quotation=quotation,
-                            other_projects=projects,
-                            today_date=datetime.now().strftime('%Y-%m-%d'),
-                            quotation_details_json=quotation_details_json)
+        # GET请求 - 在渲染模板前检查所有对象
+        try:
+            current_app.logger.info("准备渲染编辑模板，检查传递的数据")
+            
+            # 检查quotation对象
+            current_app.logger.info(f"quotation对象: {quotation}")
+            current_app.logger.info(f"quotation类型: {type(quotation)}")
+            
+            # 检查projects对象
+            current_app.logger.info(f"projects数量: {len(projects) if projects else 'None'}")
+            
+            # 检查currency_options
+            currency_options = get_currency_type_options()
+            current_app.logger.info(f"currency_options类型: {type(currency_options)}")
+            
+            # 安全检查quotation_details_json
+            current_app.logger.info(f"quotation_details_json长度: {len(quotation_details_json)}")
+            
+            # 添加缺失的default_currency变量
+            default_currency = 'CNY'
+            try:
+                from app.models.product import Product
+                reference_product = Product.query.get(1)
+                if reference_product and reference_product.currency:
+                    default_currency = reference_product.currency
+            except Exception as e:
+                current_app.logger.warning(f"获取默认货币时出错: {str(e)}")
+            
+            # 创建一个安全的quotation对象，保持属性访问方式
+            class SafeQuotation:
+                def __init__(self, original_quotation):
+                    self.id = original_quotation.id
+                    self.quotation_number = getattr(original_quotation, 'quotation_number', None)
+                    self.project_id = original_quotation.project_id
+                    self.amount = float(original_quotation.amount or 0)
+                    self.currency = str(original_quotation.currency or 'CNY')
+                    self.details = original_quotation.details  # 保留明细数据
+                    self.project = original_quotation.project  # 保留项目数据
+            
+            # 在创建SafeQuotation之前检查原始对象
+            current_app.logger.info(f"原始quotation.quotation_number: {getattr(quotation, 'quotation_number', 'MISSING')}")
+            current_app.logger.info(f"原始quotation.project: {getattr(quotation, 'project', 'MISSING')}")
+            if hasattr(quotation, 'project') and quotation.project:
+                current_app.logger.info(f"原始quotation.project.owner: {getattr(quotation.project, 'owner', 'MISSING')}")
+            
+            safe_quotation = SafeQuotation(quotation)
+            
+            # 测试最简单的模板渲染
+            try:
+                simple_data = {
+                    'quotation': safe_quotation,  # 使用对象而非字典
+                    'projects': projects,
+                    'today_date': datetime.now().strftime('%Y-%m-%d'),
+                    'quotation_details_json': quotation_details_json,
+                    'currency_options': get_currency_type_options(),
+                    'default_currency': default_currency,
+                    'existing_details': quotation_details,  # 添加现有明细数据
+                    'return_to': return_to or ''
+                }
+                current_app.logger.info("尝试渲染简化数据")
+                return render_template('quotation/edit_new.html', **simple_data)
+            except Exception as simple_error:
+                current_app.logger.error(f"简化数据渲染也失败: {simple_error}")
+                # 如果连简化数据都失败，可能是模板本身的问题
+                # 尝试渲染一个更基础的模板
+                return f"<h1>编辑报价单 {quotation.id}</h1><p>模板渲染错误: {simple_error}</p>"
+        except Exception as render_error:
+            current_app.logger.error(f"模板渲染失败: {render_error}")
+            current_app.logger.error(f"render_error类型: {type(render_error)}")
+            raise render_error
         
     except Exception as e:
         flash(f'加载报价单失败：{str(e)}', 'danger')
@@ -1575,13 +2058,13 @@ def get_products():
         
         # 根据查询类型执行不同的查询
         if query_type == 'exact':
-            # 精确匹配产品名称
+            # 精确匹配产品名称，包括停产产品
             products = Product.query.filter_by(
                 product_name=product_name,
-            ).filter(Product.status != '停产').all()
+            ).all()
         else:
-            # 模糊搜索
-            query = Product.query.filter(Product.status != '停产')
+            # 模糊搜索，包括停产产品
+            query = Product.query
             if term:
                 search_term = f'%{term}%'
                 query = query.filter(
@@ -1612,7 +2095,9 @@ def get_products():
                     'specification': p.specification,
                     'brand': p.brand,
                     'unit': p.unit,
-                    'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0
+                    'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
+                    'status': p.status,  # 添加产品状态
+                    'currency': p.currency or 'CNY'  # 添加货币信息
                 }
                 result.append(product_dict)
                 logger.debug(f'成功处理产品: {p.product_name}')
@@ -1631,11 +2116,12 @@ def get_products():
         }), 500
 
 @quotation.route('/products/categories', methods=['GET'])
+@login_required
+@permission_required('quotation', 'view')
 def get_product_categories():
     """获取去重后的产品类别列表，按每个类别下最小产品ID升序排列"""
     try:
         logger.debug('正在获取产品类别列表...')
-        from sqlalchemy import func
         # 查询每个类别下ID最小的产品ID
         min_id_per_category = db.session.query(
             Product.category,
@@ -1657,8 +2143,10 @@ def get_product_categories():
         }), 500
 
 @quotation.route('/products/by-category', methods=['GET'])
+@login_required
+@permission_required('quotation', 'view')
 def get_products_by_category():
-    """获取指定类别的产品列表"""
+    """获取指定类别的产品列表，包括停产产品"""
     try:
         category = request.args.get('category', '')
         logger.debug(f'正在获取类别 "{category}" 的产品列表...')
@@ -1666,10 +2154,10 @@ def get_products_by_category():
         if not category:
             return jsonify([])
         
-        # 查询指定类别的产品，添加按ID排序
+        # 查询指定类别的产品，包括停产产品，添加按ID排序
         products = Product.query.filter_by(
             category=category
-        ).filter(Product.status != '停产').order_by(Product.id).all()  # 添加按ID排序
+        ).order_by(Product.id).all()  # 移除停产过滤，包括所有产品
         
         logger.debug(f'找到 {len(products)} 个产品')
         
@@ -1690,6 +2178,7 @@ def get_products_by_category():
                     'unit': p.unit,
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
                     'product_mn': p.product_mn,
+                    'status': p.status,  # 添加产品状态
                     'currency': p.currency or 'CNY'  # 添加货币字段
                 }
                 result.append(product_dict)
@@ -1708,6 +2197,8 @@ def get_products_by_category():
         }), 500
 
 @quotation.route('/products/models', methods=['GET'])
+@login_required
+@permission_required('quotation', 'view')
 def get_product_models():
     """获取指定类别和产品名称的型号列表"""
     try:
@@ -1718,11 +2209,11 @@ def get_product_models():
         if not category or not product_name:
             return jsonify([])
         
-        # 查询指定类别和产品名称的产品
+        # 查询指定类别和产品名称的产品（包括停产产品）
         products = Product.query.filter_by(
             category=category,
             product_name=product_name
-        ).filter(Product.status != '停产').order_by(Product.id).all()
+        ).order_by(Product.id).all()
         
         logger.debug(f'找到 {len(products)} 个产品')
         
@@ -1743,7 +2234,8 @@ def get_product_models():
                     'unit': p.unit,
                     'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
                     'product_mn': p.product_mn,
-                    'currency': p.currency or 'CNY'  # 添加货币字段
+                    'currency': p.currency or 'CNY',  # 添加货币字段
+                    'status': p.status  # 添加产品状态字段
                 }
                 result.append(product_dict)
                 logger.debug(f'成功处理产品: {p.product_name}, 型号: {p.model}, 货币: {p.currency}')
@@ -1761,6 +2253,8 @@ def get_product_models():
         }), 500
 
 @quotation.route('/products/specs', methods=['GET'])
+@login_required
+@permission_required('quotation', 'view')
 def get_product_specs():
     """获取指定类别、产品名称和型号的规格列表"""
     try:
@@ -1827,6 +2321,340 @@ def get_product_specs():
             'error': '获取产品规格列表失败',
             'message': str(e)
         }), 500
+
+
+@quotation.route('/products/temp', methods=['GET'])
+@login_required
+@permission_required('quotation', 'create')
+def get_temp_products():
+    """
+    获取临时产品列表 - 报价单模块专用端点
+    """
+    try:
+        from app.models.temp_product import TempProduct
+        
+        category = request.args.get('category')
+        limit = request.args.get('limit', 20, type=int)
+        
+        # 构建查询
+        query = TempProduct.query.filter_by(
+            created_by=current_user.id,
+            is_deleted=False
+        )
+        
+        if category:
+            query = query.filter_by(category=category)
+        
+        # 按使用次数和更新时间排序
+        products = query.order_by(
+            TempProduct.usage_count.desc(),
+            TempProduct.updated_at.desc()
+        ).limit(limit).all()
+        
+        # 按产品名称分组组织临时产品
+        product_groups = {}
+        for product in products:
+            product_name = product.product_name
+            if product_name not in product_groups:
+                product_groups[product_name] = []
+            
+            product_groups[product_name].append({
+                'id': product.id,
+                'product_name': product.product_name,
+                'product_model': product.product_model,
+                'product_desc': product.product_desc,
+                'brand': product.brand,
+                'unit': product.unit,
+                'category': product.category,
+                'category_path': product.category_path,
+                'market_price': product.reference_price or 0,  # 使用参考价格作为市场价
+                'retail_price': product.reference_price or 0,  # 使用参考价格
+                'reference_price': product.reference_price or 0,  # 显示参考价格
+                'product_mn': product.product_mn,  # 实际MN号
+                'mn': product.product_mn,  # 兼容性字段
+                'currency': 'CNY',
+                'status': 'temp',
+                'is_temp': True,
+                'usage_count': product.usage_count,
+                'created_at': product.created_at.isoformat(),
+                'last_used_at': product.last_used_at.isoformat() if product.last_used_at else None
+            })
+        
+        # 返回分组后的结果，每个产品名称下的型号按使用次数排序
+        result = []
+        for product_name in sorted(product_groups.keys()):
+            models = sorted(product_groups[product_name], 
+                          key=lambda x: (x['usage_count'], x['created_at']), 
+                          reverse=True)
+            result.extend(models)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f'获取临时产品列表失败: {str(e)}')
+        return jsonify({
+            'error': '获取临时产品列表失败',
+            'message': str(e)
+        }), 500
+
+
+@quotation.route('/products/temp/by_category_product', methods=['GET'])
+@login_required
+@permission_required('quotation', 'create')
+def get_temp_products_by_category_product():
+    """
+    根据类别和产品名称获取临时产品列表
+    支持层级查询：类别→产品名称→型号
+    """
+    try:
+        from app.models.temp_product import TempProduct
+        
+        category = request.args.get('category')
+        product_name = request.args.get('product_name')
+        limit = request.args.get('limit', 20, type=int)
+        
+        # 构建查询
+        query = TempProduct.query.filter_by(
+            created_by=current_user.id,
+            is_deleted=False
+        )
+        
+        if category:
+            query = query.filter_by(category=category)
+        
+        if product_name:
+            query = query.filter_by(product_name=product_name)
+        
+        # 按使用次数和更新时间排序
+        products = query.order_by(
+            TempProduct.usage_count.desc(),
+            TempProduct.updated_at.desc()
+        ).limit(limit).all()
+        
+        # 如果是查询特定产品名称下的型号，返回型号列表
+        if product_name:
+            result = []
+            for product in products:
+                result.append({
+                    'id': product.id,
+                    'product_name': product.product_name,
+                    'product_model': product.product_model,
+                    'product_desc': product.product_desc,
+                    'brand': product.brand,
+                    'unit': product.unit,
+                    'category': product.category,
+                    'category_path': product.category_path,
+                    'market_price': product.reference_price or 0,
+                    'retail_price': product.reference_price or 0,
+                    'reference_price': product.reference_price or 0,
+                    'currency': 'CNY',
+                    'status': 'temp',
+                    'is_temp': True,
+                    'usage_count': product.usage_count,
+                    'product_mn': product.product_mn,  # 实际MN号
+                    'mn': product.product_mn,  # 兼容性字段
+                    'created_at': product.created_at.isoformat(),
+                    'last_used_at': product.last_used_at.isoformat() if product.last_used_at else None
+                })
+            return jsonify(result)
+        
+        # 如果只查询类别，返回该类别下的产品名称分组
+        product_names = {}
+        for product in products:
+            name = product.product_name
+            if name not in product_names:
+                product_names[name] = {
+                    'product_name': name,
+                    'category': product.category,
+                    'temp_models': [],
+                    'total_usage': 0
+                }
+            
+            product_names[name]['temp_models'].append({
+                'id': product.id,
+                'product_model': product.product_model,
+                'usage_count': product.usage_count,
+                'reference_price': product.reference_price or 0
+            })
+            product_names[name]['total_usage'] += product.usage_count
+        
+        # 返回产品名称列表，按总使用次数排序
+        result = []
+        for name in sorted(product_names.keys(), 
+                          key=lambda x: product_names[x]['total_usage'], 
+                          reverse=True):
+            result.append(product_names[name])
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f'获取分类临时产品列表失败: {str(e)}')
+        return jsonify({
+            'error': '获取分类临时产品列表失败',
+            'message': str(e)
+        }), 500
+
+
+@quotation.route('/products/temp/save', methods=['POST'])
+@csrf.exempt
+@login_required
+@permission_required('quotation', 'create')
+def save_temp_product():
+    """
+    保存临时产品 - 报价单模块专用端点
+    """
+    try:
+        from app.models.temp_product import TempProduct
+        from app import db
+        from datetime import datetime
+        
+        data = request.get_json()
+        
+        # 验证必需字段
+        required_fields = ['product_name', 'product_model', 'product_desc', 'brand', 'unit']
+        missing_fields = [field for field in required_fields if not data.get(field, '').strip()]
+        
+        if missing_fields:
+            return jsonify({
+                'success': False,
+                'message': f'缺少必需字段: {", ".join(missing_fields)}'
+            }), 400
+        
+        # 检查是否已存在相同型号和产品名称的组合
+        existing = TempProduct.query.filter_by(
+            product_name=data['product_name'].strip(),
+            product_model=data['product_model'].strip(),
+            created_by=current_user.id,
+            is_deleted=False
+        ).first()
+        
+        if existing:
+            # 更新现有产品
+            existing.product_desc = data['product_desc'].strip()
+            existing.brand = data['brand'].strip()
+            existing.unit = data['unit'].strip()
+            existing.category = data.get('category', '').strip()
+            existing.category_path = data.get('category_path', '').strip()
+            # 更新参考价格（使用unit_price或reference_price）
+            reference_price = data.get('unit_price') or data.get('reference_price')
+            if reference_price is not None and reference_price != '':
+                try:
+                    existing.reference_price = float(reference_price)
+                except (ValueError, TypeError):
+                    existing.reference_price = 0
+            existing.increment_usage()
+            
+            product = existing
+            action = 'updated'
+        else:
+            # 创建新产品 - 确保正确保存参考价格
+            reference_price = data.get('unit_price') or data.get('reference_price') or 0
+            try:
+                reference_price = float(reference_price) if reference_price != '' else 0
+            except (ValueError, TypeError):
+                reference_price = 0
+                
+            product = TempProduct(
+                product_name=data['product_name'].strip(),
+                product_model=data['product_model'].strip(),
+                product_desc=data['product_desc'].strip(),
+                brand=data['brand'].strip(),
+                unit=data['unit'].strip(),
+                category=data.get('category', '').strip(),
+                category_path=data.get('category_path', '').strip(),
+                reference_price=reference_price,
+                created_by=current_user.id,
+                usage_count=1,
+                last_used_at=datetime.utcnow()
+            )
+            
+            # 如果前端已经提供了MN号，直接使用；否则生成新的MN号
+            if data.get('product_mn'):
+                product.product_mn = data['product_mn'].strip()
+                logger.info(f"使用前端提供的MN号: {product.product_mn}")
+            else:
+                # 生成唯一的MN号
+                product.generate_mn()
+                logger.info(f"后端生成MN号: {product.product_mn}")
+            
+            db.session.add(product)
+            action = 'created'
+        
+        db.session.commit()
+        
+        logger.info(f"临时产品{action}: {product.product_model} by user {current_user.id}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'临时产品已{action}',
+            'product': {
+                'id': product.id,
+                'product_name': product.product_name,
+                'product_model': product.product_model,
+                'reference_price': product.reference_price or 0,
+                'usage_count': product.usage_count,
+                'is_temp': True,
+                'status': 'temp'
+            }
+        })
+        
+    except Exception as e:
+        if 'db' in locals():
+            db.session.rollback()
+        logger.error(f'保存临时产品失败: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'保存临时产品失败: {str(e)}'
+        }), 500
+
+
+@quotation.route('/products/temp/<int:product_id>/increment', methods=['POST'])
+@csrf.exempt
+@login_required
+@permission_required('quotation', 'create')
+def increment_temp_product_usage(product_id):
+    """
+    增加临时产品使用次数
+    """
+    try:
+        from app.models.temp_product import TempProduct
+        from app import db
+        from datetime import datetime
+        
+        # 查找临时产品
+        temp_product = TempProduct.query.filter_by(
+            id=product_id,
+            created_by=current_user.id,
+            is_deleted=False
+        ).first()
+        
+        if not temp_product:
+            return jsonify({
+                'success': False,
+                'message': '临时产品不存在或无权限访问'
+            }), 404
+        
+        # 增加使用次数
+        temp_product.increment_usage()
+        db.session.commit()
+        
+        logger.info(f"临时产品使用次数已更新: {temp_product.product_model} -> {temp_product.usage_count}")
+        
+        return jsonify({
+            'success': True,
+            'message': '使用次数已更新',
+            'usage_count': temp_product.usage_count
+        })
+        
+    except Exception as e:
+        if 'db' in locals():
+            db.session.rollback()
+        logger.error(f'更新临时产品使用次数失败: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'更新使用次数失败: {str(e)}'
+        }), 500
+
 
 @quotation.route('/<int:id>/detail')
 @login_required
@@ -2116,17 +2944,21 @@ def save_quotation(id):
                 'message': f'总金额格式错误: {str(amount_error)}'
             }), 400
         
-        # 更新报价单基本信息
+        # 更新报价单基本信息 - 直接使用前端传来的总金额
         quotation.amount = total_amount
         quotation.currency = data.get('currency', 'CNY')  # 添加货币字段更新
         # 手动更新时间戳，确保updated_at字段正确
         quotation.updated_at = datetime.utcnow()
-        current_app.logger.debug(f'更新报价单总金额: {total_amount}, 货币: {quotation.currency}')
+        current_app.logger.info(f'直接保存前端总金额到报价单: {total_amount}, 货币: {quotation.currency}')
         
         # 临时禁用事件监听器，避免删除重建过程中触发不必要的签名变化
-        event.remove(QuotationDetail, 'after_insert', update_quotation_product_signature)
-        event.remove(QuotationDetail, 'after_update', update_quotation_product_signature)
-        event.remove(QuotationDetail, 'after_delete', update_quotation_product_signature)
+        try:
+            event.remove(QuotationDetail, 'after_insert', update_quotation_product_signature)
+            event.remove(QuotationDetail, 'after_update', update_quotation_product_signature)
+            event.remove(QuotationDetail, 'after_delete', update_quotation_product_signature)
+        except Exception:
+            # 如果监听器不存在，忽略错误
+            pass
         
         try:
             # 先删除原有明细项
@@ -2180,10 +3012,10 @@ def save_quotation(id):
                         current_app.logger.warning(error_msg)
                         detail_errors.append(error_msg)
                         continue
-                    # 安全地获取数值字段
+                    # 安全地获取数值字段 - 直接使用前端数据
                     try:
                         market_price = float(detail.get('market_price', 0))
-                        current_app.logger.debug(f'第 {index+1} 行市场价格: {market_price}')
+                        current_app.logger.info(f'第 {index+1} 行 - 直接保存前端市场价格: {market_price}')
                     except (ValueError, TypeError) as e:
                         market_price = 0
                         error_msg = f"第 {index+1} 行市场价格格式无效"
@@ -2221,7 +3053,7 @@ def save_quotation(id):
                     
                     try:
                         unit_price = float(detail.get('unit_price', 0))
-                        current_app.logger.debug(f'第 {index+1} 行单价: {unit_price}')
+                        current_app.logger.info(f'第 {index+1} 行 - 直接保存前端单价: {unit_price}')
                         
                         if unit_price < 0:
                             unit_price = 0
@@ -2236,7 +3068,7 @@ def save_quotation(id):
                     
                     try:
                         total_price = float(detail.get('total_price', 0))
-                        current_app.logger.debug(f'第 {index+1} 行小计: {total_price}')
+                        current_app.logger.info(f'第 {index+1} 行 - 直接保存前端小计: {total_price}')
                         
                         if total_price < 0:
                             total_price = 0
@@ -2244,13 +3076,21 @@ def save_quotation(id):
                             current_app.logger.warning(error_msg)
                             detail_errors.append(error_msg)
                     except (ValueError, TypeError) as e:
-                        # 如果小计无效，从单价和数量重新计算
+                        # 保持原有逻辑：如果小计无效，从单价和数量重新计算
                         total_price = unit_price * quantity
                         error_msg = f"第 {index+1} 行小计格式无效，已重新计算为: {total_price}"
                         current_app.logger.warning(f"{error_msg}: {str(e)}")
                         detail_errors.append(error_msg)
                     
-                    # 创建新明细
+                    # 检查是否为临时产品并设置标识
+                    product_mn = detail.get('product_mn', '')
+                    if detail.get('is_temp') or detail.get('temp_product_id') or detail.get('status') == 'temp':
+                        # 为临时产品添加特殊前缀标识
+                        if not product_mn.startswith('TEMP_'):
+                            product_mn = f"TEMP_{detail.get('temp_product_id', 'MANUAL')}"
+                        current_app.logger.info(f'第 {index+1} 行 - 检测到临时产品，标识: {product_mn}')
+                    
+                    # 创建新明细 - 直接保存前端数据，不进行重新计算
                     new_detail = QuotationDetail(
                         quotation_id=id,
                         product_name=product_name,
@@ -2260,17 +3100,17 @@ def save_quotation(id):
                         unit=detail.get('unit', ''),
                         quantity=quantity,
                         discount=discount,
-                        market_price=market_price,
-                        unit_price=unit_price,
-                        total_price=total_price,
-                        product_mn=detail.get('product_mn', ''),
-                        currency=data.get('currency', 'CNY')  # 添加明细货币字段
+                        market_price=market_price,  # 直接使用前端的市场价格
+                        unit_price=unit_price,     # 直接使用前端的单价
+                        total_price=total_price,   # 直接使用前端的小计
+                        product_mn=product_mn,     # 包含临时产品标识的料号
+                        currency=data.get('currency', 'CNY')
                     )
                     
-                    # 计算植入小计
-                    new_detail.calculate_prices()
+                    # 只计算植入小计，不修改其他价格字段
+                    new_detail.calculate_implant_subtotal_only()
                     
-                    current_app.logger.debug(f'创建第 {index+1} 行明细项')
+                    current_app.logger.debug(f'创建第 {index+1} 行明细项 - 市场价: {market_price}, 单价: {unit_price}, 小计: {total_price}')
                     quotation.details.append(new_detail)
                 except Exception as item_error:
                     error_msg = f"处理第 {index+1} 行明细时出错: {str(item_error)}"
@@ -2322,10 +3162,14 @@ def save_quotation(id):
         finally:
             # 确保事件监听器在任何情况下都能恢复
             try:
-                event.listen(QuotationDetail, 'after_insert', update_quotation_product_signature)
-                event.listen(QuotationDetail, 'after_update', update_quotation_product_signature)
-                event.listen(QuotationDetail, 'after_delete', update_quotation_product_signature)
-                current_app.logger.debug("事件监听器已恢复")
+                # 安全地重新注册事件监听器
+                if not event.contains(QuotationDetail, 'after_insert', update_quotation_product_signature):
+                    event.listen(QuotationDetail, 'after_insert', update_quotation_product_signature)
+                if not event.contains(QuotationDetail, 'after_update', update_quotation_product_signature):
+                    event.listen(QuotationDetail, 'after_update', update_quotation_product_signature)
+                if not event.contains(QuotationDetail, 'after_delete', update_quotation_product_signature):
+                    event.listen(QuotationDetail, 'after_delete', update_quotation_product_signature)
+                current_app.logger.debug("事件监听器已安全恢复")
             except Exception as restore_error:
                 current_app.logger.error(f"恢复事件监听器时出错: {str(restore_error)}")
         
@@ -2680,10 +3524,10 @@ def export_pdf(quotation_id):
             flash('权限不足，无法导出该报价单', 'danger')
             return redirect(url_for('quotation.list_quotations'))
         
-        from app.services.pdf_generator import PDFGenerator
+        from app.services.evertac_quotation_pdf_generator import EvertacQuotationPDFGenerator
         
         # 生成PDF
-        pdf_generator = PDFGenerator()
+        pdf_generator = EvertacQuotationPDFGenerator()
         pdf_result = pdf_generator.generate_quotation_pdf(quotation)
         pdf_content = pdf_result['content']
         filename = pdf_result['filename']
@@ -2695,13 +3539,53 @@ def export_pdf(quotation_id):
         response.headers['Content-Type'] = 'application/pdf'
         # 使用URL编码处理中文文件名
         encoded_filename = quote(filename.encode('utf-8'))
-        response.headers['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{encoded_filename}'
+        # 改为inline显示，让PDF在浏览器中直接打开
+        response.headers['Content-Disposition'] = f'inline; filename*=UTF-8\'\'{encoded_filename}'
         
         return response
         
     except Exception as e:
         logger.error(f"导出报价单PDF失败: {str(e)}", exc_info=True)
         flash(f'导出PDF失败：{str(e)}', 'danger')
+        return redirect(url_for('quotation.view_quotation', id=quotation_id))
+
+@quotation.route('/download_pdf/<int:quotation_id>')
+@login_required
+@permission_required('quotation', 'view')
+def download_pdf(quotation_id):
+    """下载报价单PDF"""
+    try:
+        # 查找报价单
+        quotation = Quotation.query.get_or_404(quotation_id)
+        
+        # 检查查看权限
+        if not can_view_quotation(current_user, quotation):
+            flash('权限不足，无法下载该报价单', 'danger')
+            return redirect(url_for('quotation.list_quotations'))
+        
+        from app.services.evertac_quotation_pdf_generator import EvertacQuotationPDFGenerator
+        
+        # 生成PDF
+        pdf_generator = EvertacQuotationPDFGenerator()
+        pdf_result = pdf_generator.generate_quotation_pdf(quotation)
+        pdf_content = pdf_result['content']
+        filename = pdf_result['filename']
+        
+        # 返回PDF文件（下载）
+        from flask import make_response
+        from urllib.parse import quote
+        response = make_response(pdf_content)
+        response.headers['Content-Type'] = 'application/pdf'
+        # 使用URL编码处理中文文件名
+        encoded_filename = quote(filename.encode('utf-8'))
+        # 使用attachment强制下载
+        response.headers['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{encoded_filename}'
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"下载报价单PDF失败: {str(e)}", exc_info=True)
+        flash(f'下载PDF失败：{str(e)}', 'danger')
         return redirect(url_for('quotation.view_quotation', id=quotation_id))
 
 @quotation.route('/export_excel/<int:quotation_id>')
@@ -2720,9 +3604,50 @@ def export_excel(quotation_id):
         
         from app.services.excel_generator import ExcelGenerator
         
-        # 生成Excel
+        # 获取导出信息参数（如果有的话）
+        export_info = None
+        customer_id = request.args.get('customer_id')
+        contact_id = request.args.get('contact_id')
+        notes = request.args.get('notes', '')
+        
+        if customer_id or notes:
+            # 构建导出信息
+            export_info = {
+                'notes': notes
+            }
+            
+            # 获取客户信息
+            if customer_id:
+                try:
+                    from app.models.customer import Company
+                    customer = Company.query.get(int(customer_id))
+                    if customer:
+                        export_info['customer'] = {
+                            'id': customer.id,
+                            'company_name': customer.company_name,
+                            'address': customer.address
+                        }
+                except (ValueError, TypeError):
+                    pass
+            
+            # 获取联系人信息
+            if contact_id:
+                try:
+                    from app.models.customer import Contact
+                    contact = Contact.query.get(int(contact_id))
+                    if contact:
+                        export_info['contact'] = {
+                            'id': contact.id,
+                            'name': contact.name,
+                            'phone': contact.phone,
+                            'email': contact.email
+                        }
+                except (ValueError, TypeError):
+                    pass
+        
+        # 生成Excel（传递export_info参数，与PDF保持一致）
         excel_generator = ExcelGenerator()
-        excel_content = excel_generator.generate_quotation_excel(quotation, current_user)
+        excel_content = excel_generator.generate_quotation_excel(quotation, current_user, export_info)
         
         # 设置文件名：报价单编号 & 项目名称
         project_name = quotation.project.project_name if quotation.project else "未知项目"
@@ -2746,15 +3671,69 @@ def export_excel(quotation_id):
         flash(f'导出Excel失败：{str(e)}', 'danger')
         return redirect(url_for('quotation.view_quotation', id=quotation_id))
 
+@quotation.route('/export_pdf_with_info', methods=['POST'])
+@login_required
+@permission_required('quotation', 'view')
+def export_pdf_with_info():
+    """导出带有补充信息的报价单PDF"""
+    try:
+        # 获取请求数据
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': '请求数据格式错误'
+            }), 400
+        
+        quotation_id = data.get('quotation_id')
+        export_info = data.get('export_info', {})
+        
+        # 添加调试日志
+        logger.info(f"🚀 PDF导出请求: quotation_id={quotation_id}")
+        logger.info(f"📦 导出信息: {export_info}")
+        
+        if not quotation_id:
+            return jsonify({
+                'success': False,
+                'message': '缺少报价单ID'
+            }), 400
+        
+        # 查找报价单
+        quotation = Quotation.query.get_or_404(quotation_id)
+        
+        # 检查查看权限
+        if not can_view_quotation(current_user, quotation):
+            return jsonify({
+                'success': False,
+                'message': '权限不足，无法导出该报价单'
+            }), 403
+        
+        from app.services.evertac_quotation_pdf_generator import EvertacQuotationPDFGenerator
+        
+        # 生成PDF
+        pdf_generator = EvertacQuotationPDFGenerator()
+        pdf_result = pdf_generator.generate_quotation_pdf(quotation, export_info)
+        pdf_content = pdf_result['content']
+        filename = pdf_result['filename']
+        
+        # 返回PDF文件
+        from flask import make_response
+        from urllib.parse import quote
+        response = make_response(pdf_content)
+        response.headers['Content-Type'] = 'application/pdf'
+        # 使用URL编码处理中文文件名
         encoded_filename = quote(filename.encode('utf-8'))
-        response.headers['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{encoded_filename}'
+        # 改为inline显示，让PDF在浏览器中直接打开
+        response.headers['Content-Disposition'] = f'inline; filename*=UTF-8\'\'{encoded_filename}'
         
         return response
         
     except Exception as e:
-        logger.error(f"导出报价单Excel失败: {str(e)}", exc_info=True)
-        flash(f'导出Excel失败：{str(e)}', 'danger')
-        return redirect(url_for('quotation.view_quotation', id=quotation_id))
+        logger.error(f"导出带补充信息的报价单PDF失败: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'导出PDF失败：{str(e)}'
+        }), 500
 
 
 @quotation.route('/debug/permissions')
@@ -2765,7 +3744,6 @@ def debug_permissions():
         return "Access denied", 403
     
     from app.utils.access_control import get_viewable_data
-    from sqlalchemy import func
     
     # 收集调试信息
     debug_info = {
@@ -2817,3 +3795,4 @@ def debug_permissions():
     }
     
     return jsonify(debug_info)
+

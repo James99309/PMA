@@ -1,0 +1,223 @@
+{% from 'macros/ui_helpers.html' import render_button %}
+
+{#
+导出信息补充模态框组件
+支持客户选择、联系人选择、备注编辑等功能
+可复用于任何导出模块
+#}
+
+{% macro render_export_info_modal(config) %}
+{#
+config 参数说明:
+- modal_id: 模态框ID (必需)
+- title: 模态框标题 (默认: "补充导出信息")
+- export_type: 导出类型 (如: "PDF", "Excel")
+- customer_config: 客户选择配置
+  - endpoint: 客户搜索API端点
+  - enabled: 是否启用客户选择 (默认: true)
+  - required: 是否必填 (默认: false)
+  - placeholder: 占位文本
+- contact_config: 联系人选择配置  
+  - endpoint: 联系人搜索API端点
+  - enabled: 是否启用联系人选择 (默认: true)
+  - required: 是否必填 (默认: false)
+  - depends_on_customer: 是否依赖客户选择 (默认: true)
+- notes_config: 备注配置
+  - enabled: 是否启用备注编辑 (默认: true)
+  - default_content: 默认备注内容
+  - placeholder: 占位文本
+  - max_length: 最大长度 (默认: 1000)
+- callback_config: 回调配置
+  - on_confirm: 确认回调函数名
+  - on_cancel: 取消回调函数名
+#}
+
+{% set modal_id = config.modal_id %}
+{% set title = config.title or "补充导出信息" %}
+{% set export_type = config.export_type or "文件" %}
+
+<div class="modal fade" id="{{ modal_id }}" tabindex="-1" aria-labelledby="{{ modal_id }}Label" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="{{ modal_id }}Label">
+                    <i class="fas fa-file-export me-2"></i>{{ title }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <form id="{{ modal_id }}Form" class="export-info-form">
+                    {% if config.customer_config and config.customer_config.enabled != false %}
+                    <!-- 客户选择区域 -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            {{ _('报价客户') }}
+                            {% if config.customer_config.required %}
+                                <span class="text-danger">*</span>
+                            {% endif %}
+                        </label>
+                        <div id="{{ modal_id }}CustomerSelector" class="keyword-selector-container"></div>
+                        <div class="form-text">{{ config.customer_config.help_text or _('选择报价单对应的客户公司') }}</div>
+                    </div>
+                    {% endif %}
+
+                    {% if config.contact_config and config.contact_config.enabled != false %}
+                    <!-- 联系人选择区域 -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            {{ _('联系人') }}
+                            {% if config.contact_config.required %}
+                                <span class="text-danger">*</span>
+                            {% endif %}
+                        </label>
+                        <div id="{{ modal_id }}ContactSelector" class="keyword-selector-container"></div>
+                        <div class="form-text">{{ config.contact_config.help_text or _('选择客户的联系人') }}</div>
+                    </div>
+                    {% endif %}
+
+                    {% if config.notes_config and config.notes_config.enabled != false %}
+                    <!-- 备注编辑区域 -->
+                    <div class="mb-4">
+                        <label for="{{ modal_id }}Notes" class="form-label fw-bold">
+                            {{ _('备注信息') }}
+                        </label>
+                        <textarea id="{{ modal_id }}Notes" 
+                                  class="form-control" 
+                                  rows="6"
+                                  maxlength="{{ config.notes_config.max_length or 1000 }}"
+                                  placeholder="{{ config.notes_config.placeholder or _('请输入备注信息...') }}">{{ config.notes_config.default_content or '' }}</textarea>
+                        <div class="d-flex justify-content-between mt-1">
+                            <div class="form-text">{{ config.notes_config.help_text or _('这些信息将显示在导出文件的备注区域') }}</div>
+                            <small class="text-muted">
+                                <span id="{{ modal_id }}NotesCount">{{ (config.notes_config.default_content or '') | length }}</span>/{{ config.notes_config.max_length or 1000 }}
+                            </small>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- 选项区域 -->
+                    {% if config.options %}
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            {{ _('导出选项') }}
+                        </label>
+                        {% for option in config.options %}
+                        <div class="form-check">
+                            <input class="form-check-input" 
+                                   type="checkbox" 
+                                   id="{{ modal_id }}Option{{ loop.index }}"
+                                   name="export_options"
+                                   value="{{ option.value }}"
+                                   {% if option.checked %}checked{% endif %}>
+                            <label class="form-check-label" for="{{ modal_id }}Option{{ loop.index }}">
+                                {{ option.label }}
+                                {% if option.description %}
+                                    <small class="text-muted d-block">{{ option.description }}</small>
+                                {% endif %}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <!-- 预览区域 -->
+                    {% if config.preview_enabled %}
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            {{ _('信息预览') }}
+                        </label>
+                        <div id="{{ modal_id }}Preview" class="export-preview border rounded p-3 bg-light">
+                            <div class="preview-loading text-center text-muted">
+                                <i class="fas fa-spinner fa-spin me-1"></i>{{ _('请选择客户和联系人') }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </form>
+            </div>
+            <div class="modal-footer">
+                <div class="d-flex justify-content-between w-100">
+                    <div class="export-info-status">
+                        <!-- 状态信息显示区域 -->
+                    </div>
+                    <div class="button-group">
+                        {{ render_button(_('取消'), color='secondary', size='md', type='button', onclick='closeExportInfoModal("' + modal_id + '")') }}
+                        {{ render_button(_('确认并导出'), color='primary', size='md', type='button', onclick='confirmExportInfo("' + modal_id + '")') }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 相关脚本 -->
+<script>
+// 导出信息模态框配置
+window.exportInfoModalConfigs = window.exportInfoModalConfigs || {};
+window.exportInfoModalConfigs['{{ modal_id }}'] = {
+    modalId: '{{ modal_id }}',
+    customerConfig: {{ (config.customer_config or {}) | tojson | safe }},
+    contactConfig: {{ (config.contact_config or {}) | tojson | safe }},
+    notesConfig: {{ (config.notes_config or {}) | tojson | safe }},
+    callbackConfig: {{ (config.callback_config or {}) | tojson | safe }},
+    previewEnabled: {{ (config.preview_enabled or false) | tojson | safe }}
+};
+</script>
+
+{% endmacro %}
+
+
+{#
+简化版导出信息模态框
+适用于只需要备注编辑的场景
+#}
+{% macro render_simple_export_modal(modal_id, title="导出设置", export_type="文件", default_notes="", callback_function="") %}
+    {{ render_export_info_modal({
+        'modal_id': modal_id,
+        'title': title,
+        'export_type': export_type,
+        'customer_config': {'enabled': false},
+        'contact_config': {'enabled': false},
+        'notes_config': {
+            'enabled': true,
+            'default_content': default_notes,
+            'placeholder': '请输入备注信息...'
+        },
+        'callback_config': {
+            'on_confirm': callback_function
+        }
+    }) }}
+{% endmacro %}
+
+
+{#
+完整版导出信息模态框
+包含所有功能
+#}
+{% macro render_full_export_modal(modal_id, title="补充导出信息", export_type="PDF") %}
+    {{ render_export_info_modal({
+        'modal_id': modal_id,
+        'title': title,
+        'export_type': export_type,
+        'customer_config': {
+            'enabled': true,
+            'endpoint': '/api/export-helpers/customers/search',
+            'placeholder': '输入公司名称搜索...',
+            'help_text': '选择报价单对应的客户公司'
+        },
+        'contact_config': {
+            'enabled': true,
+            'endpoint': '/api/export-helpers/contacts/search',
+            'placeholder': '点击展开联系人列表或输入搜索...',
+            'depends_on_customer': true,
+            'help_text': '选择客户的联系人'
+        },
+        'notes_config': {
+            'enabled': true,
+            'default_content': '交付条款：项目现场交付\n交付时间：合同签订后 4-6 周\n质保：12个月标准质保\n付款条款：合同签订后30天内付款\n其他：价格有效期30天',
+            'placeholder': '请输入备注信息...',
+            'max_length': 2000
+        },
+        'preview_enabled': true
+    }) }}
+{% endmacro %}

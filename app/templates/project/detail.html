@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_currency_with_symbol, render_quotation_number, render_project_stage, render_project_rating, render_rating_input, render_confirmation_badge, render_report_source_badge, render_product_situation_badge, render_industry_badge %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_currency_with_symbol, render_quotation_number, render_project_stage, render_project_rating, render_rating_input, render_confirmation_badge, render_report_source_badge, render_product_situation_badge, render_industry_badge, render_button %}
 {% import 'macros/ui_helpers.html' as ui %}
 {% from 'macros/approval_macros.html' import render_approval_timeline, render_approval_form, render_start_approval_button, render_approval_section %}
 {% from 'macros/ui_modals.html' import render_change_project_owner_modal %}
@@ -209,7 +209,7 @@
                         <div class="col-md-6">
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>{{ _('项目类型') }}</strong></div>
-                                <div class="col-md-8">{% if project.project_type %}{{ render_project_type(project.project_type, current_language) }}{% else %}<span class="badge bg-secondary rounded-pill" style="font-size: 0.75rem; padding: 0.35em 0.65em;">{{ _('无') }}</span>{% endif %}</div>
+                                <div class="col-md-8">{% if project.project_type %}{{ render_project_type(project.project_type) }}{% else %}<span class="badge bg-secondary rounded-pill" style="font-size: 0.75rem; padding: 0.35em 0.65em;">{{ _('无') }}</span>{% endif %}</div>
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>{{ _('拥有人') }}：</strong></div>
@@ -447,8 +447,8 @@
                                             {% endif %}
                                             <div class="reply-form mt-2" id="reply-form-{{ action.id }}" style="display:none">
                                                 <textarea class="form-control mb-2" rows="2" placeholder="{{ _('输入回复内容...') }}"></textarea>
-                                                <button class="btn btn-primary btn-sm submit-reply">{{ _('提交') }}</button>
-                                                <button class="btn btn-secondary btn-sm cancel-reply">{{ _('取消') }}</button>
+                                                {{ render_button(_('提交'), '#', color='primary', size='sm', type='button', extra_class='submit-reply') }}
+                                                {{ render_button(_('取消'), '#', color='secondary', size='sm', type='button', extra_class='cancel-reply') }}
                                             </div>
                                             <button class="btn btn-link btn-sm mt-1 p-0 show-reply-form-btn" data-action-id="{{ action.id }}">{{ _('回复') }}</button>
                                         </div>
@@ -503,7 +503,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                {{ render_button('关闭', '#', color='secondary', size='sm', type='button', attrs='data-bs-dismiss="modal"') }}
             </div>
         </div>
     </div>

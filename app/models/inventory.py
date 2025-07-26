@@ -149,6 +149,26 @@ class PurchaseOrder(db.Model):
     @property
     def formatted_expected_date(self):
         return self.expected_date.strftime('%Y-%m-%d') if self.expected_date else ''
+    
+    @property
+    def inventory_status(self):
+        """计算入库状态"""
+        # 只有审核通过的订单才有入库状态
+        if self.status not in ['approved', 'confirmed', 'shipped', 'completed']:
+            return None  # 未审核通过的订单没有入库状态
+        
+        if not self.details:
+            return 'pending'  # 待入库
+        
+        total_quantity = sum(detail.quantity for detail in self.details)
+        total_received = sum(detail.received_quantity for detail in self.details)
+        
+        if total_received == 0:
+            return 'pending'  # 待入库
+        elif total_received >= total_quantity:
+            return 'fully_received'  # 全部入库
+        else:
+            return 'partially_received'  # 部分入库
 
 class PurchaseOrderDetail(db.Model):
     """订货单明细表"""
@@ -181,4 +201,19 @@ class PurchaseOrderDetail(db.Model):
         """计算总价"""
         if self.unit_price and self.quantity and self.discount:
             return float(self.unit_price) * self.quantity * float(self.discount)
-        return 0 
+        return 0
+    
+    @property
+    def inventory_status(self):
+        """计算单项入库状态"""
+        if self.received_quantity == 0:
+            return 'pending'  # 待入库
+        elif self.received_quantity >= self.quantity:
+            return 'fully_received'  # 全部入库
+        else:
+            return 'partially_received'  # 部分入库
+    
+    @property
+    def remaining_quantity(self):
+        """剩余未入库数量"""
+        return max(0, self.quantity - self.received_quantity) 

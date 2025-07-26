@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button, render_item_count_badge %}
+
+{% block title %}库存关联结算记录{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+    .container.page-with-fixed-nav {
+        margin-top: 72px !important;
+    }
+    @media (max-width: 991.98px) {
+        .container.page-with-fixed-nav {
+            margin-top: 120px !important;
+        }
+    }
+
+    .detail-card {
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        border: none;
+    }
+
+    .settlement-item {
+        border-left: 4px solid #dee2e6;
+        padding-left: 1rem;
+        margin-bottom: 1rem;
+        background: #f8f9fa;
+        border-radius: 0 8px 8px 0;
+        padding: 1rem;
+    }
+
+    .settlement-pending { border-left-color: #17a2b8; }
+    .settlement-partially_settled { border-left-color: #ffc107; }
+    .settlement-fully_settled { border-left-color: #28a745; }
+
+    .info-section {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4 page-with-fixed-nav">
+    <!-- 页面标题 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="mb-0">
+                    <i class="fas fa-calculator me-2"></i>库存关联结算记录
+                </h2>
+                <div>
+                    {{ render_button('关闭', type='button', color='secondary', icon='fas fa-times', onclick='window.close()') }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 库存基本信息 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card detail-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>库存信息
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="info-section">
+                                <h6>产品信息</h6>
+                                <p><strong>产品名称：</strong>{{ inventory.product.product_name }}</p>
+                                <p><strong>型号规格：</strong>{{ inventory.product.model or '-' }}</p>
+                                <p><strong>MN号：</strong>{{ inventory.product.product_mn or '-' }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-section">
+                                <h6>公司信息</h6>
+                                <p><strong>公司名称：</strong>{{ inventory.company.company_name }}</p>
+                                <p><strong>公司编码：</strong>{{ inventory.company.company_code or '-' }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-section">
+                                <h6>当前库存</h6>
+                                <p><strong>库存数量：</strong>{{ inventory.quantity }} {{ inventory.unit or inventory.product.unit or '件' }}</p>
+                                <p><strong>存储位置：</strong>{{ inventory.location or '-' }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 关联结算记录 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card detail-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list me-2"></i>关联结算记录
+                        {{ render_item_count_badge(settlement_records|length, "", "条记录") }}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if settlement_records %}
+                        {% for record in settlement_records %}
+                        {% set settlement = record.settlement_order %}
+                        {% set detail = record.settlement_detail %}
+                        {% set transaction = record.transaction %}
+                        <div class="settlement-item settlement-{{ settlement.settlement_status }}">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <h6 class="mb-2">
+                                        {% if settlement.settlement_status == 'fully_settled' %}
+                                            <i class="fas fa-check-circle text-success me-1"></i>完全结算
+                                        {% elif settlement.settlement_status == 'partially_settled' %}
+                                            <i class="fas fa-clock text-warning me-1"></i>部分结算
+                                        {% else %}
+                                            <i class="fas fa-hourglass-half text-info me-1"></i>待结算
+                                        {% endif %}
+                                        - 结算单号：{{ settlement.order_number }}
+                                    </h6>
+                                    
+                                    <!-- 当前产品的结算详情 -->
+                                    <div class="mb-2">
+                                        <p class="mb-1">
+                                            <strong>产品：</strong>{{ detail.product_name }}
+                                        </p>
+                                        <p class="mb-1">
+                                            <strong>结算数量：</strong>
+                                            <span class="text-danger">{{ detail.quantity }}</span> {{ detail.unit or inventory.unit or inventory.product.unit or '件' }}
+                                        </p>
+                                        {% if detail.unit_price %}
+                                        <p class="mb-1">
+                                            <strong>单价：</strong>¥{{ "%.2f"|format(detail.unit_price|float) }}
+                                        </p>
+                                        {% endif %}
+                                        {% if detail.total_price %}
+                                        <p class="mb-1">
+                                            <strong>小计：</strong>¥{{ "%.2f"|format(detail.total_price|float) }}
+                                        </p>
+                                        {% endif %}
+                                        <p class="mb-1">
+                                            <strong>结算状态：</strong>
+                                            {% if detail.settlement_status == 'settled' %}
+                                                <span class="badge bg-success">已结算</span>
+                                            {% elif detail.settlement_status == 'pending' %}
+                                                <span class="badge bg-warning">待结算</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{{ detail.settlement_status or '未知' }}</span>
+                                            {% endif %}
+                                        </p>
+                                        <p class="mb-1">
+                                            <strong>库存变动：</strong>
+                                            <span class="text-danger">{{ transaction.quantity }}</span> {{ inventory.unit or inventory.product.unit or '件' }}
+                                            <small class="text-muted">({{ transaction.transaction_date.strftime('%Y-%m-%d %H:%M') }})</small>
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <div class="mb-2">
+                                        <small class="text-muted">结算进度</small><br>
+                                        {% if settlement.settlement_status == 'fully_settled' %}
+                                            <strong class="text-success">完全结算</strong>
+                                        {% elif settlement.settlement_status == 'partially_settled' %}
+                                            <strong class="text-warning">部分结算</strong>
+                                        {% else %}
+                                            <strong class="text-info">待结算</strong>
+                                        {% endif %}
+                                        {% set total_details = settlement.details|length %}
+                                        {% set settled_details = settlement.details|selectattr('settlement_status', 'equalto', 'settled')|list|length %}
+                                        <br><small class="text-muted">{{ settled_details }}/{{ total_details }} 已结算</small>
+                                    </div>
+                                    <div class="mb-2">
+                                        <small class="text-muted">创建时间</small><br>
+                                        <strong>{{ settlement.created_at.strftime('%Y-%m-%d %H:%M') }}</strong>
+                                    </div>
+                                    {% if settlement.created_by %}
+                                    <div class="mb-2">
+                                        <small class="text-muted">创建人</small><br>
+                                        <strong>{{ settlement.created_by.username }}</strong>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <div class="mt-3">
+                                        {% if settlement.settlement_status == 'fully_settled' %}
+                                            <span class="badge bg-success">完全结算</span>
+                                        {% elif settlement.settlement_status == 'partially_settled' %}
+                                            <span class="badge bg-warning">部分结算</span>
+                                        {% else %}
+                                            <span class="badge bg-info">待结算</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-calculator fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">暂无关联结算记录</h5>
+                            <p class="text-muted">该库存项目还没有任何结算记录</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+// 如果是在弹窗中打开，添加关闭按钮功能
+document.addEventListener('DOMContentLoaded', function() {
+    // 检测是否在弹窗中
+    if (window.opener) {
+        document.title = '库存关联结算记录 - {{ inventory.product.product_name }}';
+    }
+});
+</script>
+{% endblock %}

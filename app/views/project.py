@@ -22,8 +22,9 @@ import os
 from flask_wtf.csrf import CSRFProtect
 from app.models.action import Action, ActionReply
 from app.models.projectpm_stage_history import ProjectStageHistory  # 导入阶段历史记录模型
-from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS, INDUSTRY_OPTIONS, get_industry_options, get_project_type_options, get_report_source_options, get_product_situation_options, get_project_stage_options
+from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS, INDUSTRY_OPTIONS, get_industry_options, get_project_type_options, get_report_source_options, get_product_situation_options, get_project_stage_options, get_default_currency, get_currency_symbol, get_amount_unit_config
 from sqlalchemy import or_, func
+from sqlalchemy.orm import joinedload
 from app.utils.notification_helpers import trigger_event_notification
 from app.services.event_dispatcher import notify_project_created, notify_project_status_updated
 from app.helpers.project_helpers import is_project_editable
@@ -121,8 +122,8 @@ def list_projects():
     # 检查是否需要保持面板打开
     keep_panel = request.args.get('keep_panel', 'false') == 'true'
     
-    # 使用数据访问控制
-    query = get_viewable_data(Project, current_user)
+    # 使用数据访问控制，预加载owner关系
+    query = get_viewable_data(Project, current_user).options(joinedload(Project.owner))
     
     # 只看自己和账户过滤逻辑已移除
     
@@ -270,6 +271,262 @@ def list_projects():
         html = render_template('project/list_partial.html', projects=projects, search_term=search, Quotation=Quotation, filter_params=filter_params)
         return jsonify({'success': True, 'html': html})
     
+    # 构建通用组件配置
+    total_value = sum(p.quotation_customer or 0 for p in projects)
+    active_count = sum(1 for p in projects if p.is_active)
+    inactive_count = len(projects) - active_count
+    
+    # 按项目阶段统计数据
+    stage_stats = _calculate_project_stage_stats(projects)
+    
+    # 获取系统货币符号
+    default_currency = get_default_currency()
+    currency_symbol = get_currency_symbol(default_currency)
+    
+    # 统计卡片配置（使用通用模组的语言感知功能）
+    stats_config = {
+        'cards': [
+            {
+                'id': 'total',
+                'title': '全部项目',
+                'icon': 'fas fa-project-diagram',
+                'value': len(projects),
+                'amount': round(total_value / 10000, 2),  # 转换为万元以兼容通用模组
+                'unit': '个',
+                'amount_unit': '万元',  # 将由通用模组自动处理语言感知
+                'color': 'primary',
+                'data_key': 'total'
+            },
+            _create_stage_card('discover', '发现', 'fas fa-search', stage_stats, currency_symbol, 'info'),
+            _create_stage_card('embed', '植入', 'fas fa-seedling', stage_stats, currency_symbol, 'success'),
+            _create_stage_card('pre_tender', '招标前', 'fas fa-clipboard-list', stage_stats, currency_symbol, 'warning'),
+            _create_stage_card('tendering', '招标中', 'fas fa-gavel', stage_stats, currency_symbol, 'warning'),
+            _create_stage_card('awarded', '中标', 'fas fa-trophy', stage_stats, currency_symbol, 'success'),
+            _create_stage_card('signed', '签约', 'fas fa-handshake', stage_stats, currency_symbol, 'primary'),
+            _create_stage_card('lost', '失败', 'fas fa-times-circle', stage_stats, currency_symbol, 'danger'),
+            _create_stage_card('paused', '搁置', 'fas fa-pause-circle', stage_stats, currency_symbol, 'secondary')
+        ]
+    }
+    
+    # 筛选搜索配置
+    filter_config = {
+        'action_url': url_for('project.list_projects'),
+        'form_id': 'projectFilterForm',
+        'reset_url': url_for('project.list_projects'),
+        'search_field': {
+            'name': 'search',
+            'label': '搜索',
+            'placeholder': '项目名称或客户名称',
+            'value': search,
+            'col_width': 4
+        },
+        'filter_fields': [
+            {
+                'name': 'owner_id',
+                'label': '拥有人',
+                'all_option_text': '全部拥有人',
+                'current_value': request.args.get('owner_id', ''),
+                'col_width': 2,
+                'options': _get_project_owner_options(current_user)
+            },
+            {
+                'name': 'vendor_sales_manager_id',
+                'label': '厂商负责人',
+                'all_option_text': '全部负责人',
+                'current_value': request.args.get('vendor_sales_manager_id', ''),
+                'col_width': 2,
+                'options': _get_vendor_manager_options(current_user)
+            },
+            {
+                'name': 'is_active',
+                'label': '活跃状态',
+                'all_option_text': '全部状态',
+                'current_value': request.args.get('is_active', ''),
+                'col_width': 2,
+                'options': [
+                    {'value': 'true', 'label': '活跃', 'translate': True},
+                    {'value': 'false', 'label': '非活跃', 'translate': True}
+                ]
+            },
+            {
+                'name': 'industry',
+                'label': '行业',
+                'all_option_text': '全部行业',
+                'current_value': request.args.get('industry', ''),
+                'col_width': 2,
+                'options': [
+                    {'value': k, 'label': v, 'translate': False}
+                    for k, v in get_industry_options()
+                ]
+            },
+            {
+                'name': 'report_source',
+                'label': '来源',
+                'all_option_text': '全部来源',
+                'current_value': request.args.get('report_source', ''),
+                'col_width': 2,
+                'options': [
+                    {'value': k, 'label': v, 'translate': False}
+                    for k, v in get_report_source_options()
+                ]
+            },
+            {
+                'name': 'current_stage',
+                'label': '项目阶段',
+                'all_option_text': '全部阶段',
+                'current_value': request.args.get('current_stage', ''),
+                'col_width': 3,
+                'options': [
+                    {'value': 'discover', 'label': '发现', 'translate': True},
+                    {'value': 'embed', 'label': '植入', 'translate': True},
+                    {'value': 'pre_tender', 'label': '招标前', 'translate': True},
+                    {'value': 'tendering', 'label': '招标中', 'translate': True},
+                    {'value': 'awarded', 'label': '中标', 'translate': True},
+                    {'value': 'quoted', 'label': '批价', 'translate': True},
+                    {'value': 'signed', 'label': '签约', 'translate': True},
+                    {'value': 'lost', 'label': '失败', 'translate': True},
+                    {'value': 'paused', 'label': '搁置', 'translate': True}
+                ]
+            },
+            {
+                'name': 'project_type',
+                'label': '项目类型',
+                'all_option_text': '全部类型',
+                'current_value': request.args.get('project_type', ''),
+                'col_width': 2,
+                'options': [
+                    {'value': k, 'label': v, 'translate': False}
+                    for k, v in get_project_type_options()
+                ]
+            }
+        ],
+        'search_button_text': '搜索',
+        'reset_button_text': '重置',
+        # 添加关键配置，与报价单模块保持一致
+        'auto_submit': True,           # 启用自动提交，确保初始数据加载
+        'ajax_mode': True,            # 启用AJAX模式
+        'dynamic_reset_button': True,  # 启用动态重置按钮
+        'adaptive_width': True,        # 启用自适应宽度
+        'adaptive_button_layout': True # 启用自适应按钮布局
+    }
+    
+    # 表格配置
+    table_config = {
+        'ajax_target': 'projectTableBody',
+        'title': '项目列表',
+        'icon': 'fas fa-table',
+        'show_header': True,
+        'enhanced_striping': True,  # 启用增强斑马线
+        'fixed_height_scroll': True,  # 启用列表内滚动
+        'columns': [
+            {
+                'key': 'owner', 
+                'label': '拥有者', 
+                'type': 'custom',
+                'render': 'render_owner',
+                'width': '120px'
+            },
+            {
+                'key': 'vendor_sales_manager', 
+                'label': '厂商负责人', 
+                'type': 'custom',
+                'render': 'render_owner',
+                'width': '120px'
+            },
+            {
+                'key': 'authorization_code', 
+                'label': '授权编号', 
+                'type': 'custom',
+                'render': 'render_authorization_code',
+                'width': '120px'
+            },
+            {
+                'key': 'project_name', 
+                'label': '项目名称', 
+                'type': 'link',
+                'url_template': '/project/view/{id}',
+                'width': '200px'
+            },
+            {
+                'key': 'is_active', 
+                'label': '活跃状态', 
+                'type': 'custom',
+                'render': 'render_status_badge',
+                'width': '80px'
+            },
+            {
+                'key': 'current_stage', 
+                'label': '当前阶段', 
+                'type': 'custom',
+                'render': 'render_project_stage',
+                'width': '120px'
+            },
+            {
+                'key': 'project_type', 
+                'label': '项目类型', 
+                'type': 'custom',
+                'render': 'render_project_type',
+                'width': '100px'
+            },
+            {
+                'key': 'quotation_customer', 
+                'label': '报价', 
+                'type': 'number',
+                'format': 'currency',
+                'width': '120px', 
+                'align': 'end'
+            },
+            {
+                'key': 'industry', 
+                'label': '行业', 
+                'type': 'custom',
+                'render': 'render_industry_badge',
+                'width': '100px'
+            },
+            {
+                'key': 'report_source', 
+                'label': '来源', 
+                'type': 'custom',
+                'render': 'render_report_source_badge',
+                'width': '100px'
+            },
+            {
+                'key': 'updated_at', 
+                'label': '更新时间', 
+                'type': 'date',
+                'format': '%Y-%m-%d %H:%M',
+                'width': '150px'
+            },
+            {
+                'key': 'created_at', 
+                'label': '创建时间', 
+                'type': 'date',
+                'format': '%Y-%m-%d %H:%M',
+                'width': '150px'
+            }
+        ]
+    }
+    
+    # 通用列表配置
+    list_config = {
+        'module_name': 'project',
+        'title': None,  # 页面级标题由模板控制，此处不显示
+        'ajax_mode': True,  # 启用AJAX模式
+        'ajax_endpoint': url_for('project.project_list_ajax'),  # AJAX端点
+        
+        # 无限滚动配置
+        'infinite_scroll': {
+            'enabled': True,
+            'page_size': 30,
+            'scroll_threshold': 100,
+            'container_selector': '.table-responsive'
+        },
+        
+        'stats': stats_config,
+        'filter': filter_config,
+        'table': table_config,
+    }
+
     # 传递keep_panel参数到模板
     return render_template(
         'project/list.html', 
@@ -280,8 +537,273 @@ def list_projects():
         keep_panel=keep_panel,
         INDUSTRY_OPTIONS=get_industry_options(),
         PROJECT_TYPE_OPTIONS=get_project_type_options(),
-        REPORT_SOURCE_OPTIONS=get_report_source_options()
+        REPORT_SOURCE_OPTIONS=get_report_source_options(),
+        list_config=list_config
     )
+
+@project.route('/api/projects/filter', methods=['GET'])
+@login_required
+@permission_required('project', 'view')
+def project_list_ajax():
+    """项目列表AJAX筛选API"""
+    try:
+        current_app.logger.info("项目AJAX端点被调用")
+        
+        # 获取搜索和筛选参数
+        search = request.args.get('search', '').strip()
+        owner_id = request.args.get('owner_id', '')
+        vendor_sales_manager_id = request.args.get('vendor_sales_manager_id', '')
+        is_active = request.args.get('is_active', '')
+        industry = request.args.get('industry', '')
+        report_source = request.args.get('report_source', '')
+        current_stage = request.args.get('current_stage', '')
+        project_type = request.args.get('project_type', '')
+        
+        # 分页参数 - 默认30条支持无限滚动
+        offset = request.args.get('offset', 0, type=int)
+        limit = request.args.get('limit', 30, type=int)
+        
+        # 限制每次加载数量范围
+        if limit > 100:
+            limit = 100  # 最大100条防止性能问题
+        
+        current_app.logger.info(f"筛选参数: search={search}, owner_id={owner_id}, current_stage={current_stage}")
+        
+        # 基础查询
+        try:
+            query = get_viewable_data(Project, current_user)
+            # 预加载关联数据
+            query = query.options(
+                joinedload(Project.owner),
+                joinedload(Project.vendor_sales_manager)
+            )
+            current_app.logger.info("基础查询创建成功")
+        except Exception as e:
+            current_app.logger.error(f"基础查询创建失败: {e}")
+            raise
+        
+        # 应用搜索条件
+        if search:
+            try:
+                query = query.filter(
+                    or_(
+                        Project.project_name.ilike(f'%{search}%'),
+                        Project.authorization_code.ilike(f'%{search}%')
+                    )
+                )
+                current_app.logger.info(f"应用搜索条件: {search}")
+            except Exception as e:
+                current_app.logger.error(f"应用搜索条件失败: {e}")
+        
+        # 应用筛选条件
+        if owner_id:
+            try:
+                query = query.filter(Project.owner_id == owner_id)
+                current_app.logger.info(f"应用拥有人筛选: {owner_id}")
+            except Exception as e:
+                current_app.logger.error(f"应用拥有人筛选失败: {e}")
+        
+        if vendor_sales_manager_id:
+            try:
+                query = query.filter(Project.vendor_sales_manager_id == vendor_sales_manager_id)
+                current_app.logger.info(f"应用厂商负责人筛选: {vendor_sales_manager_id}")
+            except Exception as e:
+                current_app.logger.error(f"应用厂商负责人筛选失败: {e}")
+        
+        if is_active:
+            try:
+                is_active_value = is_active.lower() == 'true'
+                query = query.filter(Project.is_active == is_active_value)
+                current_app.logger.info(f"应用活跃状态筛选: {is_active}")
+            except Exception as e:
+                current_app.logger.error(f"应用活跃状态筛选失败: {e}")
+        
+        if industry:
+            try:
+                query = query.filter(Project.industry == industry)
+                current_app.logger.info(f"应用行业筛选: {industry}")
+            except Exception as e:
+                current_app.logger.error(f"应用行业筛选失败: {e}")
+        
+        if report_source:
+            try:
+                query = query.filter(Project.report_source == report_source)
+                current_app.logger.info(f"应用来源筛选: {report_source}")
+            except Exception as e:
+                current_app.logger.error(f"应用来源筛选失败: {e}")
+        
+        if current_stage:
+            try:
+                query = query.filter(Project.current_stage == current_stage)
+                current_app.logger.info(f"应用项目阶段筛选: {current_stage}")
+            except Exception as e:
+                current_app.logger.error(f"应用项目阶段筛选失败: {e}")
+        
+        if project_type:
+            try:
+                query = query.filter(Project.project_type == project_type)
+                current_app.logger.info(f"应用项目类型筛选: {project_type}")
+            except Exception as e:
+                current_app.logger.error(f"应用项目类型筛选失败: {e}")
+        
+        # 计算总数
+        total_count = query.count()
+        
+        # 获取项目数据（应用分页）
+        try:
+            projects = query.order_by(Project.updated_at.desc()).offset(offset).limit(limit).all()
+            current_app.logger.info(f"查询到 {len(projects)} 条项目 (总数: {total_count})")
+        except Exception as e:
+            current_app.logger.error(f"查询项目失败: {e}")
+            raise
+        
+        # 使用标准通用组件方式渲染HTML片段
+        try:
+            # 获取表格配置（与主列表页面保持一致）
+            table_columns = [
+                {
+                    'key': 'owner', 
+                    'label': '拥有者', 
+                    'type': 'custom',
+                    'render': 'render_owner',
+                    'width': '120px'
+                },
+                {
+                    'key': 'vendor_sales_manager', 
+                    'label': '厂商负责人', 
+                    'type': 'custom',
+                    'render': 'render_owner',
+                    'width': '120px'
+                },
+                {
+                    'key': 'authorization_code', 
+                    'label': '授权编号', 
+                    'type': 'custom',
+                    'render': 'render_authorization_code',
+                    'width': '120px'
+                },
+                {
+                    'key': 'project_name', 
+                    'label': '项目名称', 
+                    'type': 'link',
+                    'url_template': '/project/view/{id}',
+                    'width': '200px'
+                },
+                {
+                    'key': 'is_active', 
+                    'label': '活跃状态', 
+                    'type': 'custom',
+                    'render': 'render_status_badge',
+                    'width': '80px'
+                },
+                {
+                    'key': 'current_stage', 
+                    'label': '当前阶段', 
+                    'type': 'custom',
+                    'render': 'render_project_stage',
+                    'width': '120px'
+                },
+                {
+                    'key': 'project_type', 
+                    'label': '项目类型', 
+                    'type': 'custom',
+                    'render': 'render_project_type',
+                    'width': '100px'
+                },
+                {
+                    'key': 'quotation_customer', 
+                    'label': '报价', 
+                    'type': 'number',
+                    'format': 'currency',
+                    'width': '120px', 
+                    'align': 'end'
+                },
+                {
+                    'key': 'industry', 
+                    'label': '行业', 
+                    'type': 'custom',
+                    'render': 'render_industry_badge',
+                    'width': '100px'
+                },
+                {
+                    'key': 'report_source', 
+                    'label': '来源', 
+                    'type': 'custom',
+                    'render': 'render_report_source_badge',
+                    'width': '100px'
+                },
+                {
+                    'key': 'updated_at', 
+                    'label': '更新时间', 
+                    'type': 'date',
+                    'format': '%Y-%m-%d %H:%M',
+                    'width': '150px'
+                },
+                {
+                    'key': 'created_at', 
+                    'label': '创建时间', 
+                    'type': 'date',
+                    'format': '%Y-%m-%d %H:%M',
+                    'width': '150px'
+                }
+            ]
+            
+            # 使用模板渲染（通过标准通用组件方式）
+            html = render_template('project/project_rows_standard.html', 
+                                 projects=projects, 
+                                 table_columns=table_columns)
+            current_app.logger.info("标准组件模板渲染成功")
+        except Exception as e:
+            current_app.logger.error(f"标准组件模板渲染失败: {e}")
+            html = f'<tr><td colspan="12" class="text-center text-muted">渲染失败: {str(e)}</td></tr>'
+        
+        # 计算统计数据 - 应用相同的筛选条件（不包含current_stage筛选，以显示各阶段统计）
+        try:
+            statistics = _calculate_project_stats_with_filters(
+                current_user=current_user,
+                search=search,
+                owner_id=owner_id,
+                vendor_sales_manager_id=vendor_sales_manager_id,
+                is_active=is_active,
+                industry=industry,
+                report_source=report_source,
+                project_type=project_type
+                # 注意：不传入current_stage，以便统计所有阶段
+            )
+            
+        except Exception as e:
+            current_app.logger.error(f"计算统计数据失败: {e}")
+            statistics = {
+                'total': 0,
+                'total_amount': 0,
+                'discover': 0,
+                'embed': 0,
+                'pre_tender': 0,
+                'tendering': 0,
+                'awarded': 0,
+                'quoted': 0,
+                'signed': 0,
+                'lost': 0,
+                'paused': 0
+            }
+        
+        # 返回JSON响应
+        return jsonify({
+            'success': True,
+            'html': html,
+            'has_more': (offset + limit) < total_count,
+            'total_count': total_count,
+            'loaded_count': offset + len(projects),
+            'statistics': statistics
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"项目列表AJAX请求失败: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'html': f'<tr><td colspan="11" class="text-center text-danger">加载失败: {str(e)}</td></tr>'
+        }), 500
 
 @project.route('/view/<int:project_id>')
 @permission_required_with_approval_context('project', 'view')
@@ -2226,3 +2748,201 @@ def get_project_latest_quotation_api(project_id):
 
 # 项目评分相关API端点已迁移到新的评分系统
 # 请使用 app/views/project_scoring_api.py 中的新API
+
+def _get_project_owner_options(current_user):
+    """获取项目拥有人筛选选项 - 只查询实际存在的拥有者"""
+    try:
+        # 获取当前用户可见的项目中的所有拥有者ID
+        unique_owner_ids_query = get_viewable_data(Project, current_user)\
+            .filter(Project.owner_id.isnot(None))\
+            .with_entities(Project.owner_id.distinct())
+        
+        unique_owner_ids = {row[0] for row in unique_owner_ids_query.all()}
+        
+        if not unique_owner_ids:
+            return []
+        
+        # 只查询需要的用户，避免加载所有用户
+        available_users = User.query.filter(
+            User.id.in_(unique_owner_ids),
+            User._is_active == True
+        ).order_by(User.real_name, User.username).all()
+        
+        return [
+            {'value': str(user.id), 'label': user.real_name or user.username, 'translate': False}
+            for user in available_users
+        ]
+        
+    except Exception as e:
+        current_app.logger.error(f"获取项目拥有人选项失败: {e}")
+        return []
+
+def _format_currency_amount(amount, currency_symbol='¥'):
+    """格式化金额，添加千位分隔符"""
+    try:
+        # 保留两位小数
+        formatted = f"{amount:.2f}"
+        # 分割整数和小数部分
+        parts = formatted.split('.')
+        # 为整数部分添加千位分隔符
+        parts[0] = f"{int(parts[0]):,}"
+        # 重新组合
+        return f"{currency_symbol}{'.'.join(parts)}"
+    except (ValueError, TypeError):
+        return f"{currency_symbol}0.00"
+
+def _create_stage_card(stage_key, title, icon, stage_stats, currency_symbol, color):
+    """创建阶段统计卡片配置（简化版，依赖通用模组的语言感知功能）"""
+    stage_data = stage_stats.get(stage_key, {'count': 0, 'amount': 0})
+    return {
+        'id': stage_key,
+        'title': title,
+        'icon': icon,
+        'value': stage_data['count'],
+        'amount': stage_data['amount'],  # stage_stats已经转换为万元，无需再次转换
+        'unit': '个',
+        'amount_unit': '万元',  # 将由通用模组自动处理语言感知
+        'color': color,
+        'data_key': stage_key
+    }
+
+def _get_vendor_manager_options(current_user):
+    """获取厂商负责人筛选选项 - 只查询实际存在的负责人"""
+    try:
+        # 获取当前用户可见的项目中的所有厂商负责人ID
+        unique_manager_ids_query = get_viewable_data(Project, current_user)\
+            .filter(Project.vendor_sales_manager_id.isnot(None))\
+            .with_entities(Project.vendor_sales_manager_id.distinct())
+        
+        unique_manager_ids = {row[0] for row in unique_manager_ids_query.all()}
+        
+        if not unique_manager_ids:
+            return []
+        
+        # 只查询需要的用户，避免加载所有用户
+        available_managers = User.query.filter(
+            User.id.in_(unique_manager_ids),
+            User._is_active == True
+        ).order_by(User.real_name, User.username).all()
+        
+        return [
+            {'value': str(user.id), 'label': user.real_name or user.username, 'translate': False}
+            for user in available_managers
+        ]
+        
+    except Exception as e:
+        current_app.logger.error(f"获取厂商负责人选项失败: {e}")
+        return []
+
+def _calculate_project_stage_stats(projects):
+    """计算项目阶段统计数据（包含数量和金额）"""
+    stage_stats = {}
+    
+    # 定义所有可能的阶段
+    all_stages = ['discover', 'embed', 'pre_tender', 'tendering', 'awarded', 'quoted', 'signed', 'lost', 'paused']
+    
+    # 初始化所有阶段计数和金额为0
+    for stage in all_stages:
+        stage_stats[stage] = {'count': 0, 'amount': 0}
+    
+    # 统计各阶段项目数量和金额
+    for project in projects:
+        stage = project.current_stage
+        if stage in stage_stats:
+            stage_stats[stage]['count'] += 1
+            stage_stats[stage]['amount'] += (project.quotation_customer or 0)
+    
+    # 转换金额为万元并保留两位小数
+    for stage in all_stages:
+        stage_stats[stage]['amount'] = round(stage_stats[stage]['amount'] / 10000, 2)
+    
+    return stage_stats
+
+def _calculate_project_stats_with_filters(current_user, search=None, owner_id=None, vendor_sales_manager_id=None, 
+                                        is_active=None, industry=None, report_source=None, current_stage=None, 
+                                        project_type=None):
+    """计算带筛选条件的项目统计数据"""
+    try:
+        # 基础查询
+        query = get_viewable_data(Project, current_user)
+        
+        # 应用搜索条件
+        if search:
+            query = query.filter(
+                or_(
+                    Project.project_name.ilike(f'%{search}%'),
+                    Project.authorization_code.ilike(f'%{search}%')
+                )
+            )
+        
+        # 应用筛选条件
+        if owner_id:
+            query = query.filter(Project.owner_id == owner_id)
+        
+        if vendor_sales_manager_id:
+            query = query.filter(Project.vendor_sales_manager_id == vendor_sales_manager_id)
+        
+        if is_active:
+            is_active_value = is_active.lower() == 'true'
+            query = query.filter(Project.is_active == is_active_value)
+        
+        if industry:
+            query = query.filter(Project.industry == industry)
+        
+        if report_source:
+            query = query.filter(Project.report_source == report_source)
+        
+        if project_type:
+            query = query.filter(Project.project_type == project_type)
+        
+        # 不应用current_stage筛选到基础查询，因为我们需要统计所有阶段
+        base_projects = query.all()
+        
+        # 计算总体统计
+        total_count = len(base_projects)
+        total_amount = sum(p.quotation_customer or 0 for p in base_projects) / 10000
+        
+        # 计算各阶段统计
+        stage_stats = _calculate_project_stage_stats(base_projects)
+        
+        # 构建统计数据
+        statistics = {
+            'total': total_count,
+            'total_amount': round(total_amount, 2),
+            'discover': stage_stats.get('discover', {'count': 0, 'amount': 0})['count'],
+            'discover_amount': stage_stats.get('discover', {'count': 0, 'amount': 0})['amount'],
+            'embed': stage_stats.get('embed', {'count': 0, 'amount': 0})['count'],
+            'embed_amount': stage_stats.get('embed', {'count': 0, 'amount': 0})['amount'],
+            'pre_tender': stage_stats.get('pre_tender', {'count': 0, 'amount': 0})['count'],
+            'pre_tender_amount': stage_stats.get('pre_tender', {'count': 0, 'amount': 0})['amount'],
+            'tendering': stage_stats.get('tendering', {'count': 0, 'amount': 0})['count'],
+            'tendering_amount': stage_stats.get('tendering', {'count': 0, 'amount': 0})['amount'],
+            'awarded': stage_stats.get('awarded', {'count': 0, 'amount': 0})['count'],
+            'awarded_amount': stage_stats.get('awarded', {'count': 0, 'amount': 0})['amount'],
+            'quoted': stage_stats.get('quoted', {'count': 0, 'amount': 0})['count'],
+            'quoted_amount': stage_stats.get('quoted', {'count': 0, 'amount': 0})['amount'],
+            'signed': stage_stats.get('signed', {'count': 0, 'amount': 0})['count'],
+            'signed_amount': stage_stats.get('signed', {'count': 0, 'amount': 0})['amount'],
+            'lost': stage_stats.get('lost', {'count': 0, 'amount': 0})['count'],
+            'lost_amount': stage_stats.get('lost', {'count': 0, 'amount': 0})['amount'],
+            'paused': stage_stats.get('paused', {'count': 0, 'amount': 0})['count'],
+            'paused_amount': stage_stats.get('paused', {'count': 0, 'amount': 0})['amount']
+        }
+        
+        return statistics
+        
+    except Exception as e:
+        current_app.logger.error(f"计算项目统计数据失败: {e}")
+        return {
+            'total': 0,
+            'total_amount': 0,
+            'discover': 0,
+            'embed': 0,
+            'pre_tender': 0,
+            'tendering': 0,
+            'awarded': 0,
+            'quoted': 0,
+            'signed': 0,
+            'lost': 0,
+            'paused': 0
+        }

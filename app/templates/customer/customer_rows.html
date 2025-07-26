@@ -1,0 +1,45 @@
+{% from 'macros/ui_helpers.html' import render_owner, render_customer_status_badge, render_company_type_badge, render_industry_badge %}
+{% for company in items %}
+<tr>
+    <td class="px-3">{{ render_owner(company.owner) if company.owner else '-' }}</td>
+    <td class="px-3">
+        <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="text-decoration-none">
+            {{ company.company_name }}
+        </a>
+    </td>
+    <td class="px-3">{{ render_company_type_badge(company.company_type) if company.company_type else '-' }}</td>
+    <td class="px-3">{{ render_industry_badge(company.industry) if company.industry else '-' }}</td>
+    <td class="px-3">{{ render_customer_status_badge(company.status) if company.status else '-' }}</td>
+    <td class="px-3">
+        {% if company.country %}
+            {{ company.country }}
+            {% if company.region %} {{ company.region }}{% endif %}
+        {% else %}
+            -
+        {% endif %}
+    </td>
+    <td class="px-3">{{ company.address or '-' }}</td>
+    <td class="px-3">
+        {% if company.updated_at %}
+            {% if company.updated_at.strftime %}
+                {{ company.updated_at.strftime('%Y-%m-%d') }}
+            {% else %}
+                {{ company.updated_at }}
+            {% endif %}
+        {% else %}
+            -
+        {% endif %}
+    </td>
+    <td class="px-3">
+        {% if company.created_at %}
+            {% if company.created_at.strftime %}
+                {{ company.created_at.strftime('%Y-%m-%d') }}
+            {% else %}
+                {{ company.created_at }}
+            {% endif %}
+        {% else %}
+            -
+        {% endif %}
+    </td>
+</tr>
+{% endfor %}

@@ -212,7 +212,8 @@ class SettlementOrder(db.Model):
     total_discount_rate = Column(Float, default=1.0, comment='结算总折扣率')
     
     # 状态信息
-    status = Column(String(20), default='draft', comment='结算单状态')
+    status = Column(String(20), default='draft', comment='结算单审批状态')
+    settlement_status = Column(String(20), default='pending', comment='结算状态: pending, partially_settled, fully_settled')
     
     # 审批相关
     approved_by = Column(Integer, ForeignKey('users.id'), nullable=True, comment='批准人')
@@ -276,6 +277,38 @@ class SettlementOrder(db.Model):
     def discount_percentage(self):
         """折扣率百分比"""
         return round((self.total_discount_rate or 1.0) * 100, 2)
+    
+    def update_settlement_status(self):
+        """根据明细状态更新结算单的settlement_status字段"""
+        if not self.details:
+            self.settlement_status = 'pending'
+            return
+        
+        total_details = len(self.details)
+        settled_details = len([d for d in self.details if d.settlement_status == 'settled'])
+        
+        # 根据明细状态计算结算单状态
+        if settled_details == 0:
+            self.settlement_status = 'pending'
+        elif settled_details == total_details:
+            self.settlement_status = 'fully_settled'
+        else:
+            self.settlement_status = 'partially_settled'
+    
+    def get_dynamic_settlement_status(self):
+        """基于明细状态动态计算结算状态（保持向后兼容）"""
+        if not self.details:
+            return 'pending'
+        
+        total_details = len(self.details)
+        settled_details = len([d for d in self.details if d.settlement_status == 'settled'])
+        
+        if settled_details == 0:
+            return 'pending'
+        elif settled_details == total_details:
+            return 'fully_settled'
+        else:
+            return 'partially_settled'
     
     @property
     def status_label(self):

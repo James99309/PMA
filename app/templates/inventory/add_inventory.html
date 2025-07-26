@@ -246,6 +246,74 @@ input[type="number"].quantity {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+
+/* 确保页面有足够的底部空间 */
+.container.page-with-fixed-nav {
+    padding-bottom: 250px !important; /* 为下拉菜单提供足够空间 */
+    min-height: calc(100vh - 72px) !important;
+}
+
+@media (max-width: 991.98px) {
+    .container.page-with-fixed-nav {
+        padding-bottom: 200px !important;
+        min-height: calc(100vh - 120px) !important;
+    }
+}
+
+/* 产品菜单定位优化 */
+.product-menu-container {
+    position: absolute !important;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    z-index: 9999 !important;
+    display: flex;
+    max-width: 85vw;
+    max-height: 350px; /* 与JavaScript预估值一致 */
+    font-size: 0.875rem; /* 统一字体大小 */
+}
+
+/* 当菜单在页面底部时，向上显示 */
+.product-menu-container.show-above {
+    transform: translateY(-100%);
+}
+
+/* 确保菜单内容可滚动 */
+.menu-list {
+    width: 200px;
+    max-height: 350px; /* 与容器高度一致 */
+    overflow-y: auto;
+    border-right: 1px solid #dee2e6;
+}
+
+.menu-list:last-child {
+    border-right: none;
+}
+
+.spec-list {
+    width: 300px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .product-menu-container {
+        max-width: 95vw;
+        flex-direction: column;
+        max-height: 300px;
+        font-size: 0.8rem; /* 移动端进一步缩小字体 */
+    }
+    
+    .menu-list,
+    .spec-list {
+        width: 100%;
+        max-height: 100px;
+    }
+    
+    .container.page-with-fixed-nav {
+        padding-bottom: 180px !important;
+    }
+}
 </style>
 {% endblock %}
 
@@ -270,6 +338,7 @@ input[type="number"].quantity {
     </div>
 
     <form method="post" action="{{ url_for('inventory.add_inventory_bulk') }}" id="inventoryForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <!-- 选择公司 -->
         <div class="card mb-3">
             <div class="card-body company-selector">
@@ -413,6 +482,16 @@ $(document).ready(function() {
         
         // 为新行初始化自动完成功能
         initializeProductAutocomplete();
+        
+        // 滚动到新行，确保可见
+        setTimeout(function() {
+            var $newInput = $newRow.find('.product-name');
+            $('html, body').animate({
+                scrollTop: $newInput.offset().top - 100
+            }, 300);
+            // 自动聚焦到新行的产品名称输入框
+            $newInput.focus();
+        }, 100);
     });
     
     // 删除行按钮
@@ -446,6 +525,27 @@ $(document).ready(function() {
         }
 
         return true;
+    });
+    
+    // 窗口大小改变时重新定位菜单（使用节流优化性能）
+    var repositionTimeout;
+    $(window).on('resize scroll', function() {
+        var $menu = $('.product-menu-container');
+        if ($menu.length > 0) {
+            clearTimeout(repositionTimeout);
+            repositionTimeout = setTimeout(function() {
+                var $targetInput = $menu.data('target-input');
+                if ($targetInput && $targetInput.length > 0) {
+                    var offset = $targetInput.offset();
+                    var height = $targetInput.outerHeight();
+                    
+                    $menu.css({
+                        top: (offset.top + height) + 'px',
+                        left: offset.left + 'px'
+                    });
+                }
+            }, 25); // 25ms延迟，保持响应性
+        }
     });
 });
 
@@ -485,15 +585,31 @@ function initializeProductAutocomplete() {
             
             $menu.append($categories).append($products).append($models).append($specs);
             
-            // 定位菜单
-            var pos = $input.offset();
-            $menu.css({
-                top: pos.top + $input.outerHeight() + 'px',
-                left: pos.left + 'px'
-            });
-            
             // 添加到页面
             $('body').append($menu);
+            
+            // 立即定位菜单，使用基础方法
+            setTimeout(function() {
+                var offset = $input.offset();
+                var height = $input.outerHeight();
+                
+                $menu.css({
+                    position: 'absolute',
+                    top: (offset.top + height) + 'px',
+                    left: offset.left + 'px',
+                    'z-index': 9999
+                });
+                
+                // 调试模式
+                if (window.location.search.includes('debug=1')) {
+                    console.log('简化定位:', {
+                        inputOffset: offset,
+                        inputHeight: height,
+                        menuTop: offset.top + height,
+                        menuLeft: offset.left
+                    });
+                }
+            }, 5);
             
             // 记住当前输入框
             $menu.data('target-input', $input);
@@ -757,6 +873,86 @@ function loadSpecsByModel(productName, model, category, $models, $specs) {
             $specs.html('<div class="menu-loading">加载失败</div>');
         }
     });
+}
+
+function repositionMenu($menu, $input) {
+    if (!$menu || !$input || $input.length === 0) return;
+    
+    // 使用jQuery的offset方法，但在absolute定位下使用
+    $menu.css('position', 'absolute');
+    
+    var inputOffset = $input.offset();
+    var inputHeight = $input.outerHeight();
+    var inputWidth = $input.outerWidth();
+    var menuHeight = Math.min(350, $menu.outerHeight() || 350);
+    var windowHeight = $(window).height();
+    var scrollTop = $(window).scrollTop();
+    
+    // 计算输入框相对于视口的位置
+    var inputTopInViewport = inputOffset.top - scrollTop;
+    var spaceBelow = windowHeight - inputTopInViewport - inputHeight;
+    var spaceAbove = inputTopInViewport;
+    
+    var menuTop, showAbove = false;
+    
+    // 如果下方空间不够，且上方空间充足，则向上显示
+    if (spaceBelow < menuHeight && spaceAbove > menuHeight) {
+        menuTop = inputOffset.top - menuHeight - 1;
+        showAbove = true;
+        $menu.addClass('show-above');
+    } else {
+        // 默认向下显示，紧贴输入框下方
+        menuTop = inputOffset.top + inputHeight;
+        $menu.removeClass('show-above');
+    }
+    
+    // 水平位置对齐输入框左边缘
+    var menuLeft = inputOffset.left;
+    var menuWidth = Math.min(900, $menu.outerWidth() || 900);
+    var windowWidth = $(window).width();
+    
+    // 边界检测
+    if (menuLeft + menuWidth > windowWidth - 20) {
+        var rightAlignLeft = inputOffset.left + inputWidth - menuWidth;
+        if (rightAlignLeft >= 20) {
+            menuLeft = rightAlignLeft;
+        } else {
+            menuLeft = windowWidth - menuWidth - 20;
+        }
+    }
+    if (menuLeft < 20) {
+        menuLeft = 20;
+    }
+    
+    // 确保菜单不会超出页面顶部
+    if (menuTop < scrollTop + 10) {
+        menuTop = scrollTop + 10;
+    }
+    
+    var finalTop = Math.round(menuTop);
+    var finalLeft = Math.round(menuLeft);
+    
+    $menu.css({
+        position: 'absolute',
+        top: finalTop + 'px',
+        left: finalLeft + 'px',
+        'z-index': 9999
+    });
+    
+    // 调试模式：显示定位信息
+    if (window.location.search.includes('debug=1')) {
+        console.log('定位调试:', {
+            inputOffset: inputOffset,
+            inputHeight: inputHeight,
+            finalTop: finalTop,
+            finalLeft: finalLeft,
+            menuHeight: menuHeight
+        });
+        $input.css('border', '3px solid red');
+        setTimeout(function() {
+            $input.css('border', '');
+        }, 3000);
+    }
 }
 
 function selectProduct(product) {

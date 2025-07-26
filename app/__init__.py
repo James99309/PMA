@@ -6,6 +6,7 @@ from app.extensions import db, migrate, login_manager, jwt, csrf, babel
 import os
 from flask_login import login_required, current_user, logout_user
 from app.models import User
+from app.models.temp_product import TempProduct
 from app.routes.product import bp as product_bp
 from app.routes.product_code import product_code_bp
 from app.routes.product_management import product_management_bp
@@ -15,7 +16,7 @@ from app.utils import version_check
 import datetime
 from app.utils.filters import project_type_style, project_stage_style, format_date, format_datetime, format_currency
 from app.utils.dictionary_helpers import (
-    project_type_label, project_stage_label, project_type_label_i18n, project_stage_label_i18n, report_source_label, authorization_status_label, company_type_label, product_situation_label, industry_label, status_label, brand_status_label, reporting_source_label, share_permission_label, user_label, get_role_display_name
+    project_type_label, project_stage_label, project_type_label_i18n, project_stage_label_i18n, report_source_label, authorization_status_label, company_type_label, product_situation_label, industry_label, status_label, brand_status_label, reporting_source_label, share_permission_label, user_label, get_role_display_name, get_amount_unit_config, get_currency_symbol, get_default_currency
 )
 from app.utils.access_control import can_edit_company_info, can_edit_data, can_change_company_owner, can_start_approval
 from sqlalchemy.exc import OperationalError
@@ -131,6 +132,11 @@ def create_app(config_class=Config):
             logger.debug(f'CSRF exempt Approval API path: {request.path}, Method: {request.method}')
             return True
             
+        # 库存管理审批API路径豁免
+        if request.path.startswith('/inventory/api/approval/'):
+            logger.debug(f'CSRF exempt Inventory Approval API path: {request.path}, Method: {request.method}')
+            return True
+            
         # 审批操作路径豁免（包括审批通过/拒绝操作）
         if request.path.startswith('/approval/approve/') or request.path.startswith('/approval/process/'):
             logger.debug(f'CSRF exempt Approval Action path: {request.path}, Method: {request.method}')
@@ -237,6 +243,7 @@ def create_app(config_class=Config):
     from app.models.dictionary import Dictionary
     from app.models.projectpm_statistics import ProjectStatistics
     from app.models.change_log import ChangeLog
+    from app.models.company_asset import CompanyAsset
 
     # 导入所有视图
     from app.views import main, customer, project, auth, user_bp
@@ -255,6 +262,12 @@ def create_app(config_class=Config):
     
     # 导入汇率API
     from app.api.v1.exchange_rate import exchange_rate_bp
+    
+    # 导入临时产品API蓝图
+    from app.api.v1.temp_products import temp_products_bp
+    
+    # 导入导出辅助API蓝图
+    from app.api.v1.export_helpers import export_helpers_api
     
     # 导入语言切换蓝图
     from app.views.language import language_bp
@@ -302,6 +315,14 @@ def create_app(config_class=Config):
     # 注册汇率API蓝图
     app.register_blueprint(exchange_rate_bp)
     csrf.exempt(exchange_rate_bp)
+    
+    # 注册临时产品API蓝图
+    app.register_blueprint(temp_products_bp)
+    csrf.exempt(temp_products_bp)
+    
+    # 注册导出辅助API蓝图
+    app.register_blueprint(export_helpers_api)
+    csrf.exempt(export_helpers_api)
     
     # 注册语言切换蓝图
     from app.views.language import language_bp
@@ -665,6 +686,10 @@ def create_app(config_class=Config):
     app.register_blueprint(projectpm_statistics, url_prefix='/projectpm/statistics')
 
     app.jinja_env.globals['get_role_display_name'] = get_role_display_name
+    # 注册语言感知的货币单位相关函数
+    app.jinja_env.globals['get_amount_unit_config'] = get_amount_unit_config
+    app.jinja_env.globals['get_currency_symbol'] = get_currency_symbol
+    app.jinja_env.globals['get_default_currency'] = get_default_currency
 
     # 注册全局权限函数上下文处理器
     from app.context_processors import inject_permission_functions

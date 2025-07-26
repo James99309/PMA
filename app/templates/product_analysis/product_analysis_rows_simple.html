@@ -1,0 +1,76 @@
+{% from 'macros/ui_helpers.html' import render_project_stage, render_quotation_number, render_owner %}
+
+{% for row in items %}
+<tr>
+    <td title="{{ row.product_name or '-' }}">
+        {% if row.product_name and row.product_name|length > 20 %}
+            {{ row.product_name[:20] }}...
+        {% else %}
+            {{ row.product_name or '-' }}
+        {% endif %}
+    </td>
+    <td title="型号: {{ row.product_model or '-' }}{% if row.product_desc %} | 规格: {{ row.product_desc }}{% endif %}">
+        <div>
+            <div style="font-weight: 500;">
+                {% if row.product_model and row.product_model|length > 30 %}
+                    {{ row.product_model[:30] }}...
+                {% else %}
+                    {{ row.product_model or '-' }}
+                {% endif %}
+            </div>
+            {% if row.product_desc %}
+                <div class="text-muted" style="font-size: 0.75rem; line-height: 1.2;">
+                    {% if row.product_desc|length > 25 %}
+                        {{ row.product_desc[:25] }}...
+                    {% else %}
+                        {{ row.product_desc }}
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </td>
+    <td class="text-center">{{ row.quantity or 0 }}</td>
+    <td class="text-center">{{ "{:.1f}%".format((row.discount * 100) if row.discount else 100.0) }}</td>
+    <td class="text-end">¥{{ "{:,.2f}".format(row.unit_price or 0) }}</td>
+    <td class="text-end">¥{{ "{:,.2f}".format(row.total_price or 0) }}</td>
+    <td title="{{ row.product_mn or '-' }}">
+        {% if row.product_mn and row.product_mn|length > 15 %}
+            {{ row.product_mn[:15] }}...
+        {% else %}
+            {{ row.product_mn or '-' }}
+        {% endif %}
+    </td>
+    <td>
+        {{ render_owner(row.owner) }}
+    </td>
+    <td>
+        <a href="{{ url_for('project.view_project', project_id=row.project_id) }}" class="text-decoration-none" title="{{ row.project_name or '-' }}">
+            {% if row.project_name and row.project_name|length > 20 %}
+                {{ row.project_name[:20] }}...
+            {% else %}
+                {{ row.project_name or '-' }}
+            {% endif %}
+        </a>
+    </td>
+    <td class="text-center">
+        {% if row.current_stage_label %}
+            {{ render_project_stage(row.current_stage_label) }}
+        {% else %}
+            <span class="badge badge-pill badge-transparent badge-muted">
+                未设置
+            </span>
+        {% endif %}
+    </td>
+    <td>
+        {% if row.quotation_id and row.quotation_number %}
+            <a href="{{ url_for('quotation.view_quotation', id=row.quotation_id) }}" class="text-decoration-none">
+                {{ render_quotation_number(row.quotation_number) }}
+            </a>
+        {% else %}
+            {{ render_quotation_number(None) }}
+        {% endif %}
+    </td>
+    <td>{{ row.updated_at.strftime('%Y-%m-%d %H:%M') if row.updated_at else '-' }}</td>
+    <td>{{ row.created_at.strftime('%Y-%m-%d %H:%M') if row.created_at else '-' }}</td>
+</tr>
+{% endfor %}

@@ -1,17 +1,20 @@
 {% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button %}
 
 {% block title %}版本管理 - PMA系统{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <div class="page-header">
-                <h1 class="page-title">
-                    <i class="fas fa-code-branch"></i> 版本管理
-                </h1>
-                <div class="page-options">
-                    <button class="btn btn-primary" onclick="showCreateVersionModal()">
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 标准化页面头部区域：标题与操作按钮在同一行 - 使用page-header-with-actions模组 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">版本管理</h1>
+            </div>
+            <div class="col text-end">
+                <!-- 操作按钮组 -->
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    <button class="btn btn-primary me-2" onclick="showCreateVersionModal()">
                         <i class="fas fa-plus"></i> 创建新版本
                     </button>
                     <button class="btn btn-secondary" onclick="refreshVersionCheck()">

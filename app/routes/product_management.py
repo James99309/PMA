@@ -188,61 +188,494 @@ def save_product_pdf(file):
 @login_required
 @permission_required('product_code', 'view')
 def index():
-    # 获取用户的权限等级
-    from app.models.role_permissions import RolePermission
-    from app.models.user import Permission
-    
-    # 如果是管理员，可以查看所有研发产品
-    if current_user.role == 'admin':
-        dev_products = DevProduct.query.options(
+    try:
+        # 获取搜索和筛选参数
+        search = request.args.get('search', '').strip()
+        category_filter = request.args.get('category_filter', '')
+        status_filter = request.args.get('status_filter', '')
+        creator_filter = request.args.get('creator_filter', '')
+        
+        # 获取用户的权限等级
+        from app.models.role_permissions import RolePermission
+        from app.models.user import Permission, User
+        
+        # 构建基础查询
+        query = DevProduct.query.options(
             joinedload(DevProduct.category),
-            joinedload(DevProduct.subcategory)
+            joinedload(DevProduct.subcategory),
+            joinedload(DevProduct.creator)
+        )
+        
+        # 权限控制
+        if current_user.role != 'admin':
+            # 检查用户权限等级
+            permission_level = 'personal'  # 默认个人级别
+            
+            # 检查角色权限
+            role_permission = RolePermission.query.filter_by(
+                role=current_user.role, 
+                module='product_code'
+            ).first()
+            if role_permission:
+                permission_level = role_permission.permission_level
+            
+            # 根据权限等级限制查询范围
+            if permission_level == 'system':
+                # 系统级权限：查看所有产品 - 不添加额外限制
+                pass
+            elif permission_level == 'company':
+                # 公司级权限：查看同公司的产品
+                query = query.join(DevProduct.creator).filter(
+                    DevProduct.creator.has(company=current_user.company)
+                )
+            elif permission_level == 'department':
+                # 部门级权限：查看同部门的产品
+                query = query.join(DevProduct.creator).filter(
+                    DevProduct.creator.has(department=current_user.department)
+                )
+            else:
+                # 个人级权限：只能查看自己创建的产品
+                query = query.filter_by(created_by=current_user.id)
+        
+        # 应用搜索筛选
+        if search:
+            query = query.filter(
+                db.or_(
+                    DevProduct.model.ilike(f'%{search}%'),
+                    DevProduct.mn_code.ilike(f'%{search}%'),
+                    DevProduct.description.ilike(f'%{search}%')
+                )
+            )
+        
+        if category_filter:
+            query = query.filter(DevProduct.category_id == category_filter)
+        
+        if status_filter:
+            query = query.filter(DevProduct.status == status_filter)
+        
+        if creator_filter:
+            query = query.filter(DevProduct.created_by == creator_filter)
+        
+        # 获取总数据
+        total_products = query.count()
+        products = query.order_by(DevProduct.created_at.desc()).all()
+        
+        # 获取分类列表用于筛选
+        categories = ProductCategory.query.all()
+        
+        # 获取实际存在的产品分类（基于当前权限范围内的数据）
+        actual_categories = db.session.query(ProductCategory).join(
+            DevProduct, DevProduct.category_id == ProductCategory.id
+        ).filter(DevProduct.id.in_([p.id for p in query.all()])).distinct().all()
+        
+        # 获取实际存在的创建者列表（基于当前权限范围内的数据）
+        creators = User.query.filter(
+            User.id.in_([p.created_by for p in query.all() if p.created_by])
         ).all()
-    else:
-        # 检查用户权限等级
-        permission_level = 'personal'  # 默认个人级别
         
-        # 检查角色权限
-        role_permission = RolePermission.query.filter_by(
-            role=current_user.role, 
-            module='product_code'
-        ).first()
-        if role_permission:
-            permission_level = role_permission.permission_level
+        # 获取实际存在的状态选项（基于当前权限范围内的数据）
+        actual_statuses = db.session.query(DevProduct.status).filter(
+            DevProduct.id.in_([p.id for p in query.all()])
+        ).distinct().all()
         
-        # 注意：个人权限目前不支持权限等级，只使用角色权限的等级
+        status_options = []
+        for status_tuple in actual_statuses:
+            status = status_tuple[0]
+            if status:  # 确保状态不为空
+                status_options.append({
+                    'value': status, 
+                    'label': status, 
+                    'translate': False
+                })
         
-        # 根据权限等级获取数据
-        if permission_level == 'system':
-            # 系统级权限：查看所有产品
-            dev_products = DevProduct.query.options(
-                joinedload(DevProduct.category),
-                joinedload(DevProduct.subcategory)
-            ).all()
-        elif permission_level == 'company':
-            # 公司级权限：查看同公司的产品
-            dev_products = DevProduct.query.options(
-                joinedload(DevProduct.category),
-                joinedload(DevProduct.subcategory)
-            ).join(DevProduct.creator).filter(
-                DevProduct.creator.has(company=current_user.company)
-            ).all()
-        elif permission_level == 'department':
-            # 部门级权限：查看同部门的产品
-            dev_products = DevProduct.query.options(
-                joinedload(DevProduct.category),
-                joinedload(DevProduct.subcategory)
-            ).join(DevProduct.creator).filter(
-                DevProduct.creator.has(department=current_user.department)
-            ).all()
-        else:
-            # 个人级权限：只能查看自己创建的产品
-            dev_products = DevProduct.query.options(
-                joinedload(DevProduct.category),
-                joinedload(DevProduct.subcategory)
-            ).filter_by(created_by=current_user.id).all()
-    
-    return render_template('product_management/index.html', dev_products=dev_products)
+        # 计算统计数据（基于当前权限范围）
+        all_products_count = query.count()
+        development_products = query.filter(DevProduct.status == '研发中').count()
+        completed_products = query.filter(DevProduct.status == '已入库').count()
+        research_products = query.filter(DevProduct.status == '调研中').count()
+        planning_products = query.filter(DevProduct.status == '立项中').count()
+        
+        # 筛选配置
+        filter_config = {
+            'action_url': url_for('product_management.index'),
+            'form_id': 'productFilterForm',
+            'reset_url': url_for('product_management.index'),
+            'search_field': {
+                'name': 'search',
+                'label': '搜索',
+                'placeholder': '产品型号、MN编码或描述',
+                'value': search,
+                'col_width': 4
+            },
+            'filter_fields': [
+                {
+                    'name': 'category_filter',
+                    'label': '产品分类',
+                    'all_option_text': '全部分类',
+                    'current_value': category_filter,
+                    'col_width': 2,
+                    'options': [
+                        {'value': str(cat.id), 'label': cat.name, 'translate': False}
+                        for cat in actual_categories
+                    ]
+                },
+                {
+                    'name': 'status_filter',
+                    'label': '产品状态',
+                    'all_option_text': '全部状态',
+                    'current_value': status_filter,
+                    'col_width': 2,
+                    'options': status_options
+                },
+                {
+                    'name': 'creator_filter',
+                    'label': '创建者',
+                    'all_option_text': '全部创建者',
+                    'current_value': creator_filter,
+                    'col_width': 2,
+                    'options': [
+                        {'value': str(user.id), 'label': user.real_name or user.username, 'translate': False}
+                        for user in creators
+                    ]
+                }
+            ],
+            'search_button_text': '搜索',
+            'reset_button_text': '重置'
+        }
+        
+        # 通用列表组件配置
+        list_config = {
+            'module_name': 'product_management',
+            'title': '研发产品库',
+            'ajax_mode': True,
+            
+            # 统计卡片配置
+            'stats': {
+                'cards': [
+                    {
+                        'id': 'total',
+                        'title': '全部产品',
+                        'icon': 'fas fa-cube',
+                        'value': all_products_count,
+                        'unit': '个',
+                        'color': 'primary',
+                        'clickable': True,
+                        'click_params': {},  # 清空筛选条件显示全部
+                        'data_key': 'total'
+                    },
+                    {
+                        'id': 'development',
+                        'title': '研发中',
+                        'icon': 'fas fa-cogs',
+                        'value': development_products,
+                        'unit': '个',
+                        'color': 'warning',
+                        'clickable': True,
+                        'click_params': {'status_filter': '研发中'},
+                        'data_key': 'development'
+                    },
+                    {
+                        'id': 'completed',
+                        'title': '已入库',
+                        'icon': 'fas fa-check-circle',
+                        'value': completed_products,
+                        'unit': '个',
+                        'color': 'success',
+                        'clickable': True,
+                        'click_params': {'status_filter': '已入库'},
+                        'data_key': 'completed'
+                    }
+                ]
+            },
+            
+            # 筛选配置
+            'filter': filter_config,
+            
+            # 表格配置
+            'table': {
+                'ajax_target': 'productTableBody',
+                'title': '产品列表',
+                'icon': 'fas fa-table',
+                'show_header': True,
+                'enhanced_striping': True,  # 启用增强斑马纹
+                'ajax_endpoint': url_for('product_management.products_list_ajax'),
+                'columns': [
+                    {
+                        'key': 'category',
+                        'label': '产品分类',
+                        'type': 'text',
+                        'width': '120px'
+                    },
+                    {
+                        'key': 'subcategory',
+                        'label': '子分类',
+                        'type': 'text',
+                        'width': '120px'
+                    },
+                    {
+                        'key': 'model',
+                        'label': '产品型号',
+                        'type': 'link',
+                        'url_template': '/product-management/{id}',
+                        'width': '150px'
+                    },
+                    {
+                        'key': 'mn_code',
+                        'label': 'MN编码',
+                        'type': 'text',
+                        'width': '120px'
+                    },
+                    {
+                        'key': 'status',
+                        'label': '产品状态',
+                        'type': 'badge',
+                        'render': 'render_dev_product_status_badge',
+                        'width': '100px'
+                    },
+                    {
+                        'key': 'creator',
+                        'label': '创建者',
+                        'type': 'text',
+                        'width': '100px'
+                    },
+                    {
+                        'key': 'created_at',
+                        'label': '创建时间',
+                        'type': 'date',
+                        'format': '%Y-%m-%d',
+                        'width': '120px'
+                    }
+                ]
+            }
+        }
+        
+        return render_template('product_management/index.html',
+                              products=products,
+                              list_config=list_config)
+                              
+    except Exception as e:
+        logger.error(f"加载研发产品库列表时出错: {str(e)}", exc_info=True)
+        
+        # 创建错误时的默认配置
+        error_list_config = {
+            'module_name': 'product_management',
+            'title': '研发产品库',
+            'ajax_mode': False,
+            'stats': {
+                'cards': [
+                    {
+                        'id': 'total',
+                        'title': '全部产品',
+                        'icon': 'fas fa-cube',
+                        'value': 0,
+                        'unit': '个',
+                        'color': 'primary',
+                        'clickable': False,
+                        'data_key': 'total'
+                    }
+                ]
+            },
+            'filter': {
+                'action_url': url_for('product_management.index'),
+                'form_id': 'productFilterForm',
+                'reset_url': url_for('product_management.index'),
+                'search_field': {
+                    'name': 'search',
+                    'label': '搜索',
+                    'placeholder': '产品型号、MN编码或描述',
+                    'value': '',
+                    'col_width': 4
+                },
+                'filter_fields': [],
+                'search_button_text': '搜索',
+                'reset_button_text': '重置'
+            },
+            'table': {
+                'columns': [],
+                'actions': [
+                    {
+                        'text': '新增产品',
+                        'href': url_for('product_management.new_product'),
+                        'color': 'primary',
+                        'icon': 'fas fa-plus'
+                    }
+                ]
+            }
+        }
+        
+        return render_template('product_management/index.html',
+                              products=[],
+                              list_config=error_list_config)
+
+# AJAX筛选端点
+@product_management_bp.route('/api/products/filter', methods=['GET'])
+@login_required
+@permission_required('product_code', 'view')
+def products_list_ajax():
+    """研发产品库列表AJAX筛选API"""
+    try:
+        # 获取搜索和筛选参数
+        search = request.args.get('search', '').strip()
+        category_filter = request.args.get('category_filter', '')
+        status_filter = request.args.get('status_filter', '')
+        creator_filter = request.args.get('creator_filter', '')
+        
+        # 分页参数
+        offset = request.args.get('offset', 0, type=int)
+        limit = request.args.get('limit', 50, type=int)
+        
+        # 限制每次加载数量范围
+        limit = max(10, min(limit, 100))
+        
+        from app.models.role_permissions import RolePermission
+        from app.models.user import User
+        
+        # 构建基础查询
+        query = DevProduct.query.options(
+            joinedload(DevProduct.category),
+            joinedload(DevProduct.subcategory),
+            joinedload(DevProduct.creator)
+        )
+        
+        # 权限控制
+        if current_user.role != 'admin':
+            permission_level = 'personal'
+            role_permission = RolePermission.query.filter_by(
+                role=current_user.role, 
+                module='product_code'
+            ).first()
+            if role_permission:
+                permission_level = role_permission.permission_level
+            
+            if permission_level == 'system':
+                pass
+            elif permission_level == 'company':
+                query = query.join(DevProduct.creator).filter(
+                    DevProduct.creator.has(company=current_user.company)
+                )
+            elif permission_level == 'department':
+                query = query.join(DevProduct.creator).filter(
+                    DevProduct.creator.has(department=current_user.department)
+                )
+            else:
+                query = query.filter_by(created_by=current_user.id)
+        
+        # 应用搜索筛选
+        if search:
+            query = query.filter(
+                db.or_(
+                    DevProduct.model.ilike(f'%{search}%'),
+                    DevProduct.mn_code.ilike(f'%{search}%'),
+                    DevProduct.description.ilike(f'%{search}%')
+                )
+            )
+        
+        if category_filter:
+            query = query.filter(DevProduct.category_id == category_filter)
+        
+        if status_filter:
+            query = query.filter(DevProduct.status == status_filter)
+        
+        if creator_filter:
+            query = query.filter(DevProduct.created_by == creator_filter)
+        
+        # 获取总数和分页数据
+        total_count = query.count()
+        products = query.order_by(DevProduct.created_at.desc()).offset(offset).limit(limit).all()
+        
+        # 为统计数据创建基础查询（不包含分页）
+        base_query = DevProduct.query.options(
+            joinedload(DevProduct.category),
+            joinedload(DevProduct.subcategory),
+            joinedload(DevProduct.creator)
+        )
+        
+        # 应用相同的权限控制
+        if current_user.role != 'admin':
+            permission_level = 'personal'
+            role_permission = RolePermission.query.filter_by(
+                role=current_user.role, 
+                module='product_code'
+            ).first()
+            if role_permission:
+                permission_level = role_permission.permission_level
+            
+            if permission_level == 'system':
+                pass
+            elif permission_level == 'company':
+                base_query = base_query.join(DevProduct.creator).filter(
+                    DevProduct.creator.has(company=current_user.company)
+                )
+            elif permission_level == 'department':
+                base_query = base_query.join(DevProduct.creator).filter(
+                    DevProduct.creator.has(department=current_user.department)
+                )
+            else:
+                base_query = base_query.filter_by(created_by=current_user.id)
+        
+        # 渲染HTML片段
+        html_rows = []
+        for product in products:
+            # 格式化产品数据
+            creator_name = '-'
+            if product.creator:
+                creator_name = product.creator.real_name or product.creator.username
+            
+            created_at = product.created_at.strftime('%Y-%m-%d') if product.created_at else '-'
+            
+            # 产品状态徽章
+            status_badge = ''
+            if product.status:
+                status_map = {
+                    '调研中': '<span class="badge badge-pill badge-transparent product-status-research">调研中</span>',
+                    '立项中': '<span class="badge badge-pill badge-transparent product-status-planning">立项中</span>',
+                    '研发中': '<span class="badge badge-pill badge-transparent product-status-development">研发中</span>',
+                    '已入库': '<span class="badge badge-pill badge-transparent product-status-completed">已入库</span>',
+                    '已停产': '<span class="badge badge-pill badge-transparent product-status-discontinued">已停产</span>'
+                }
+                status_badge = status_map.get(product.status, f'<span class="badge badge-pill badge-transparent badge-muted">{product.status}</span>')
+            else:
+                status_badge = '<span class="badge badge-pill badge-transparent badge-muted">未设置</span>'
+            
+            html_row = f"""
+            <tr>
+                <td>{product.category.name if product.category else '-'}</td>
+                <td>{product.subcategory.name if product.subcategory else '-'}</td>
+                <td><a href="/product-management/{product.id}" class="text-primary text-decoration-none">{product.model}</a></td>
+                <td><code class="text-muted">{product.mn_code or ''}</code></td>
+                <td>{status_badge}</td>
+                <td>{creator_name}</td>
+                <td class="text-muted">{created_at}</td>
+            </tr>
+            """
+            html_rows.append(html_row)
+        
+        # 计算是否还有更多数据
+        has_more = (offset + limit) < total_count
+        
+        return jsonify({
+            'success': True,
+            'html': '\n'.join(html_rows),
+            'has_more': has_more,
+            'total_count': total_count,
+            'loaded_count': offset + len(products),
+            'statistics': {
+                'total': base_query.count(),
+                'development': base_query.filter(DevProduct.status == '研发中').count(),
+                'completed': base_query.filter(DevProduct.status == '已入库').count()
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"AJAX筛选产品列表时出错: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': '加载产品列表失败',
+            'html': '<tr><td colspan="7" class="text-center text-muted py-4">加载数据时出错</td></tr>',
+            'has_more': False,
+            'total_count': 0,
+            'loaded_count': 0
+        }), 500
 
 # 新增产品
 @product_management_bp.route('/new', methods=['GET'])

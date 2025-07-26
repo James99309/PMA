@@ -1,0 +1,74 @@
+{% from 'macros/ui_helpers.html' import render_button %}
+
+{# 
+筛选搜索表单组件
+参数:
+- config: 配置对象，包含所有筛选和搜索的配置信息
+#}
+{% macro render_filter_search_form(config) %}
+<div class="filter-search-container">
+    <form method="GET" action="{{ config.action_url }}" id="{{ config.form_id or 'filterForm' }}">
+        <div class="row filter-row">
+            
+            {# 文本搜索框 #}
+            {% if config.search_field %}
+            {% set adaptive_class = 'adaptive-width' if config.search_field.get('adaptive', true) else '' %}
+            <div class="col-md-{{ config.search_field.col_width or 'auto' }} filter-control {{ adaptive_class }}">
+                <label for="{{ config.search_field.name }}" class="form-label" 
+                       title="{{ _(config.search_field.label) }}">
+                    {{ _(config.search_field.label) }}
+                </label>
+                <input type="text" 
+                       class="form-control" 
+                       id="{{ config.search_field.name }}" 
+                       name="{{ config.search_field.name }}"
+                       placeholder="{{ _(config.search_field.placeholder) }}" 
+                       value="{{ config.search_field.value or '' }}"
+                       title="{{ _(config.search_field.placeholder) }}">
+            </div>
+            {% endif %}
+            
+            {# 动态筛选字段 #}
+            {% for filter_field in config.filter_fields %}
+            {% set adaptive_class = 'adaptive-width' if filter_field.get('adaptive', true) else '' %}
+            <div class="col-md-{{ filter_field.col_width or 'auto' }} filter-control {{ adaptive_class }}">
+                <label for="{{ filter_field.name }}" class="form-label"
+                       title="{{ _(filter_field.label) }}">
+                    {{ _(filter_field.label) }}
+                </label>
+                <select class="form-select" id="{{ filter_field.name }}" name="{{ filter_field.name }}"
+                        title="{{ _(filter_field.all_option_text) }}">
+                    <option value="" {% if not filter_field.current_value %}selected{% endif %}>{{ _(filter_field.all_option_text) }}</option>
+                    {% for option in filter_field.options %}
+                    <option value="{{ option.value }}" 
+                            {% if filter_field.current_value|string == option.value|string %}selected{% endif %}
+                            title="{{ _(option.label) if option.translate else option.label }}">
+                        {{ _(option.label) if option.translate else option.label }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endfor %}
+            
+            
+            {# 自适应按钮布局容器 #}
+            <div class="col-md-auto ms-auto filter-buttons-container">
+                <div class="d-flex gap-2 mt-2 mt-md-0">
+                    {{ render_button(_(config.search_button_text or '搜索'), 
+                                   type='submit', 
+                                   color='primary', 
+                                   icon='fas fa-search',
+                                   extra_class='filter-search-button') }}
+                    {{ render_button(_(config.reset_button_text or '重置'), 
+                                   type='button', 
+                                   onclick='resetFiltersEnhanced("' + config.reset_url + '", window.filterSearchConfig)', 
+                                   color='secondary', 
+                                   icon='fas fa-undo',
+                                   extra_class='filter-reset-button') }}
+                </div>
+            </div>
+            
+        </div>
+    </form>
+</div>
+{% endmacro %}

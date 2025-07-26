@@ -1,0 +1,2326 @@
+<!-- 项目统计总览面板 -->
+<div id="projectStatisticsPanel" class="project-statistics-panel collapse show">
+    <div class="card">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+                <span><i class="fas fa-chart-bar me-1"></i> {{ _('项目统计总览') }}</span>
+            </div>
+            <!-- 删除时间周期切换按钮组 -->
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <!-- 加载中提示 -->
+                <div id="statisticsLoading" class="col-12 text-center py-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">{{ _('加载中') }}...</span>
+                    </div>
+                    <p class="mt-2">{{ _('正在加载统计数据') }}...</p>
+                </div>
+                
+                <!-- 统计内容容器 -->
+                <div id="statisticsCards" class="col-12 d-none">
+                    <!-- 第一行：核心选项卡 - 有效项目、业务推进、签约、失败、搁置 -->
+                    <div class="d-flex flex-wrap gap-2 mb-2" style="justify-content: space-between;">
+                        <!-- 有效项目总览卡片 -->
+                        <div style="flex: 1; min-width: 160px;">
+                            <div class="card border-0 shadow-sm h-100 bg-light" id="validProjectsCard" style="cursor:pointer;" onclick="filterValidProjects()">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-primary mb-1" style="font-size: 0.85rem;">
+                                        <i class="fas fa-project-diagram me-1"></i> {{ _('有效项目') }}
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="{{ _('有效项目总数和总金额（排除签约、失败、搁置状态，包含所有授权状态）') }}"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="validProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="validProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 业务推进卡片 -->
+                        <div style="flex: 1; min-width: 160px;">
+                            <div class="card border-0 shadow-sm h-100 bg-info bg-opacity-10" id="updatedProjectsCard" style="cursor:pointer;" onclick="filterUpdatedProjects()">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-info mb-1" style="font-size: 0.85rem;">
+                                        <i class="fas fa-chart-line me-1"></i> {{ _('业务推进') }}
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="本月内项目状态有推进的统计"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="updatedProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="updatedProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 签约项目卡片 -->
+                        <div style="flex: 1; min-width: 160px;">
+                            <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10" id="signedProjectsCard" style="cursor:pointer;" onclick="filterSignedProjects()">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-success mb-1" style="font-size: 0.85rem;">
+                                        <i class="fas fa-file-signature me-1"></i> {{ _('签约') }}
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="当前已签约的项目统计"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="signedProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="signedProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 失败阶段卡片 -->
+                        <div style="flex: 1; min-width: 160px;">
+                            <div class="card border-0 shadow-sm h-100 bg-danger bg-opacity-10" id="lostProjectsCard" style="cursor:pointer;" onclick="filterLostProjects()">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-danger mb-1" style="font-size: 0.85rem;">
+                                        <i class="fas fa-times-circle me-1"></i> {{ _('失败') }}
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="当前处于失败状态的项目统计"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="lostProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="lostProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 搁置阶段卡片 -->
+                        <div style="flex: 1; min-width: 160px;">
+                            <div class="card border-0 shadow-sm h-100 bg-secondary bg-opacity-10" id="pausedProjectsCard" style="cursor:pointer;" onclick="filterPausedProjects()">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-secondary mb-1" style="font-size: 0.85rem;">
+                                        <i class="fas fa-pause-circle me-1"></i> {{ _('搁置') }}
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="当前处于搁置状态的项目统计"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="pausedProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="pausedProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 第二行：阶段流程选项卡 - 发现、植入、招标前、招标中、中标、批价 -->
+                    <div class="d-flex flex-wrap gap-2 mb-3" style="justify-content: space-between;">
+                        <!-- 发现阶段卡片 -->
+                        <div style="flex: 1; min-width: 160px;">
+                            <div class="card border-0 shadow-sm h-100 bg-primary bg-opacity-10" id="discoverProjectsCard" style="cursor:pointer;" onclick="filterDiscoverProjects()">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-primary mb-1" style="font-size: 0.85rem;">
+                                        <i class="fas fa-search me-1"></i> {{ _('发现') }}
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="当前处于发现阶段的项目统计"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="discoverProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="discoverProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 植入阶段卡片 -->
+                        <div style="flex: 1; min-width: 160px;">
+                            <div class="card border-0 shadow-sm h-100 bg-info bg-opacity-10" id="embedProjectsCard" style="cursor:pointer;" onclick="filterEmbedProjects()">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-info mb-1" style="font-size: 0.85rem;">
+                                        <i class="fas fa-seedling me-1"></i> {{ _('植入') }}
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="当前处于植入阶段的项目统计"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="embedProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="embedProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 招标前阶段卡片 -->
+                        <div style="flex: 1; min-width: 160px;">
+                            <div class="card border-0 shadow-sm h-100 bg-warning bg-opacity-10" id="preTenderProjectsCard" style="cursor:pointer;" onclick="filterPreTenderProjects()">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-warning mb-1" style="font-size: 0.85rem;">
+                                        <i class="fas fa-clock me-1"></i> {{ _('招标前') }}
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="当前处于招标前阶段的项目统计"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="preTenderProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="preTenderProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 招标中项目卡片 -->
+                        <div style="flex: 1; min-width: 160px;">
+                            <div class="card border-0 shadow-sm h-100 bg-warning bg-opacity-10" id="tenderingProjectsCard" style="cursor:pointer;" onclick="filterTenderingProjects()">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-warning mb-1" style="font-size: 0.85rem;">
+                                        <i class="fas fa-file-contract me-1"></i> {{ _('招标中') }}
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="当前处于招标阶段的项目统计"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="tenderingProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="tenderingProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 中标项目卡片 -->
+                        <div style="flex: 1; min-width: 160px;">
+                            <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10" id="wonProjectsCard" style="cursor:pointer;" onclick="filterWonProjects()">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-success mb-1" style="font-size: 0.85rem;">
+                                        <i class="fas fa-award me-1"></i> {{ _('中标') }}
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="当前中标阶段的项目统计"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="wonProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="wonProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 批价项目卡片 -->
+                        <div style="flex: 1; min-width: 160px;">
+                            <div class="card border-0 shadow-sm h-100 bg-secondary bg-opacity-10" id="quotedProjectsCard" style="cursor:pointer;" onclick="filterQuotedProjects()">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-secondary mb-1" style="font-size: 0.85rem;">
+                                        <i class="fas fa-file-invoice-dollar me-1"></i> {{ _('批价') }}
+                                        <i class="fas fa-info-circle text-muted ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="当前批价阶段的项目统计"></i>
+                                    </h6>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="quotedProjectsCount">0</span>
+                                            <span class="text-muted ms-1 small">项</span>
+                                        </div>
+                                        <div>
+                                            <span class="fs-6 fw-bold" id="quotedProjectsAmount">0</span>
+                                            <span class="text-muted ms-1 small">万元</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 阶段分布和趋势统计 - 水平布局 -->
+                    <div class="row">
+                        <!-- 左侧阶段分布区域 (40%) -->
+                        <div class="col-md-5">
+                            <div class="card border-0 shadow-sm mb-2">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title text-primary mb-2" style="font-size: 0.9rem;">{{ _('阶段分布统计') }}</h6>
+                                    <div id="stageDistributionChart" style="height: 240px; min-height: 200px;">
+                                        <div class="text-center py-3">
+                                            <div class="spinner-border text-primary" role="status" style="width: 1.5rem; height: 1.5rem;">
+                                                <span class="visually-hidden">加载中...</span>
+                                            </div>
+                                            <p class="mt-2 small">正在加载图表数据...</p>
+                                        </div>
+                                    </div>
+                                    <!-- 切换器 -->
+                                    <div class="text-center mt-1">
+                                        <span class="chart-toggle-dot active" data-chart-type="count" title="项目数量分布" style="width: 8px; height: 8px;"></span>
+                                        <span class="chart-toggle-dot" data-chart-type="amount" title="项目金额分布" style="width: 8px; height: 8px;"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 右侧趋势区域 (60%) -->
+                        <div class="col-md-7">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-body py-2">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="card-title text-primary mb-0" style="font-size: 0.9rem;">{{ _('阶段趋势分析') }}</h6>
+                                        <div>
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <button type="button" class="btn btn-outline-primary trend-period-btn active" data-period="week" style="font-size: 0.75rem; padding: 0.2rem 0.4rem;">周趋势</button>
+                                                <button type="button" class="btn btn-outline-primary trend-period-btn" data-period="month" style="font-size: 0.75rem; padding: 0.2rem 0.4rem;">月趋势</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 趋势图表容器 -->
+                                    <div id="stageTrendChart" style="height: 220px; min-height: 180px;">
+                                        <div class="text-center py-3">
+                                            <div class="spinner-border text-primary" role="status" style="width: 1.5rem; height: 1.5rem;">
+                                                <span class="visually-hidden">加载中...</span>
+                                            </div>
+                                            <p class="mt-2 small">正在加载趋势数据...</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 阶段切换器 -->
+                                    <div class="text-center mt-2">
+                                        <div id="stageTrendToggle" class="stage-toggle-container">
+                                            <!-- 动态生成阶段切换点 -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 错误提示 -->
+                <div id="statisticsError" class="col-12 d-none">
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <span id="errorMessage">加载统计数据失败</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<style>
+/* 项目统计面板样式 */
+.project-statistics-panel {
+    margin-bottom: 20px;
+}
+
+
+
+.project-statistics-panel .card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transition: all 0.2s ease-in-out;
+}
+
+.project-statistics-panel .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+}
+
+.project-statistics-panel .card-header {
+    padding: 0.75rem 1rem;
+}
+
+.project-statistics-panel .period-btn,
+.project-statistics-panel .trend-period-btn {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.project-statistics-panel .period-btn.active,
+.project-statistics-panel .trend-period-btn.active {
+    background-color: white;
+    color: #0d6efd;
+}
+
+/* 统计卡片样式 */
+.project-statistics-panel .card-body {
+    padding: 1rem;
+}
+
+.project-statistics-panel .card-title {
+    margin-bottom: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+/* 数字格式化 */
+.project-statistics-panel .fs-5 {
+    font-size: 1.25rem!important;
+}
+
+/* 动画效果 */
+.project-statistics-panel.collapsing {
+    transition: height .35s ease;
+}
+
+/* 图表切换点样式 */
+.chart-toggle-dot {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    margin: 0 8px;
+    border-radius: 50%;
+    border: 2px solid #1890ff;
+    background: #fff;
+    cursor: pointer;
+    transition: background 0.3s, box-shadow 0.3s;
+    box-shadow: 0 0 0 0 rgba(24,144,255,0.2);
+    position: relative;
+    top: -10px;
+}
+.chart-toggle-dot.active {
+    background: #1890ff;
+    box-shadow: 0 0 0 6px rgba(24,144,255,0.12);
+    border-color: #1890ff;
+    animation: dotPulse 0.4s;
+}
+
+/* 阶段切换点样式 */
+.stage-toggle-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+}
+.stage-toggle-dot {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.3s, box-shadow 0.3s;
+    box-shadow: 0 0 0 0 rgba(24,144,255,0.2);
+    position: relative;
+    border: 2px solid transparent;
+}
+.stage-toggle-dot.active {
+    transform: scale(1.2);
+    box-shadow: 0 0 0 4px rgba(24,144,255,0.12);
+    animation: dotPulse 0.4s;
+    border-color: #fff;
+}
+.stage-toggle-dot:hover {
+    transform: scale(1.1);
+}
+
+.stage-toggle-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 5px;
+    cursor: pointer;
+}
+
+.stage-toggle-label {
+    font-size: 11px;
+    margin-top: 4px;
+    white-space: nowrap;
+    transition: all 0.3s;
+}
+
+.stage-toggle-label.active {
+    font-weight: bold;
+}
+
+@keyframes dotPulse {
+    0% { box-shadow: 0 0 0 0 rgba(24,144,255,0.2); }
+    70% { box-shadow: 0 0 0 8px rgba(24,144,255,0.12); }
+    100% { box-shadow: 0 0 0 0 rgba(24,144,255,0.2); }
+}
+
+/* 趋势图控制样式 */
+.trend-controls {
+    margin-top: 5px;
+    padding: 5px;
+    display: none; /* 隐藏控制按钮 */
+}
+
+.trend-controls button {
+    display: none; /* 隐藏控制按钮 */
+}
+
+/* 确保ECharts滚动条可见 */
+.project-statistics-panel .card-body .datazoom-slider-horizontal {
+    height: 25px !important;
+    margin-top: 10px;
+}
+
+/* 图表区域增加过渡效果 */
+#stageTrendChart {
+    transition: all 0.3s ease;
+}
+
+/* 添加账户选择器相关CSS样式 */
+.account-selector .dropdown-toggle {
+    min-width: 120px;
+    text-align: left;
+}
+
+.account-selector .dropdown-menu {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* 点击反馈效果 */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(0.98); }
+    100% { transform: scale(1); }
+}
+
+.pulse-effect {
+    animation: pulse 0.3s ease-in-out;
+}
+
+/* 卡片过滤激活状态 */
+.card.active-filter {
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.15) !important;
+}
+
+/* 有效项目卡片激活样式 */
+#validProjectsCard.active-filter {
+    background-color: #e6f0f5 !important;
+    border-left: 4px solid #0d6efd !important;
+}
+
+/* 招标中项目卡片激活样式 */
+#tenderingProjectsCard.active-filter {
+    background-color: #fff8e6 !important;
+    border-left: 4px solid #ffc107 !important;
+}
+
+/* 中标项目卡片激活样式 */
+#wonProjectsCard.active-filter {
+    background-color: #e6f5ec !important;
+    border-left: 4px solid #198754 !important;
+}
+
+/* 业务推进卡片激活样式 */
+#updatedProjectsCard.active-filter {
+    background-color: #e6f5f9 !important;
+    border-left: 4px solid #0dcaf0 !important;
+}
+
+/* 阶段选项卡选中状态样式 */
+.stage-card-selected {
+    border-left: 4px solid #0d6efd !important;
+    background-color: rgba(13, 110, 253, 0.05) !important;
+    transform: translateX(2px);
+    transition: all 0.3s ease;
+}
+
+/* 各个阶段卡片的选中状态样式 */
+#discoverProjectsCard.stage-card-selected {
+    border-left: 4px solid #0d6efd !important;
+    background-color: rgba(13, 110, 253, 0.08) !important;
+}
+
+#embedProjectsCard.stage-card-selected {
+    border-left: 4px solid #0dcaf0 !important;
+    background-color: rgba(13, 202, 240, 0.08) !important;
+}
+
+#preTenderProjectsCard.stage-card-selected {
+    border-left: 4px solid #ffc107 !important;
+    background-color: rgba(255, 193, 7, 0.08) !important;
+}
+
+#tenderingProjectsCard.stage-card-selected {
+    border-left: 4px solid #ffc107 !important;
+    background-color: rgba(255, 193, 7, 0.08) !important;
+}
+
+#wonProjectsCard.stage-card-selected {
+    border-left: 4px solid #198754 !important;
+    background-color: rgba(25, 135, 84, 0.08) !important;
+}
+
+#quotedProjectsCard.stage-card-selected {
+    border-left: 4px solid #6c757d !important;
+    background-color: rgba(108, 117, 125, 0.08) !important;
+}
+
+#signedProjectsCard.stage-card-selected {
+    border-left: 4px solid #198754 !important;
+    background-color: rgba(25, 135, 84, 0.08) !important;
+}
+
+#lostProjectsCard.stage-card-selected {
+    border-left: 4px solid #dc3545 !important;
+    background-color: rgba(220, 53, 69, 0.08) !important;
+}
+
+#pausedProjectsCard.stage-card-selected {
+    border-left: 4px solid #6c757d !important;
+    background-color: rgba(108, 117, 125, 0.08) !important;
+}
+
+/* 点击动画效果 */
+.pulse-effect {
+    animation: pulse 0.3s ease-in-out;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.02);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* 统计卡片样式优化 */
+.project-statistics-panel .card-title {
+    font-size: 0.875rem !important; /* 让标题字体变小 */
+    font-weight: 600 !important;
+}
+
+.project-statistics-panel .card-body span.fs-5 {
+    font-size: 1.1rem !important; /* 稍微减小数字字体大小 */
+    font-weight: normal !important; /* 移除粗体 */
+}
+
+.project-statistics-panel .card-body .text-muted {
+    font-size: 0.8rem !important; /* 单位文字更小 */
+}
+</style>
+
+<!-- 统计脚本在此处 -->
+<script>
+/**
+ * 显示所有项目，不应用任何过滤
+ */
+function showAllProjects() {
+    console.log("显示所有项目");
+    // 使用AJAX重新加载页面，显示所有项目的原始顺序
+    reloadProjectsWithFilter({});
+}
+
+/**
+ * 清除客户端过滤，显示所有项目
+ */
+function clearClientSideFilter() {
+    console.log("清除客户端过滤，显示所有项目");
+    
+    // 获取所有表格行和移动端卡片 - 使用多种选择器确保兼容性
+    const tableRows1 = document.querySelectorAll('.table tbody tr');
+    const tableRows2 = document.querySelectorAll('#projectTable tbody tr');
+    const tableRows3 = document.querySelectorAll('#project-table-container tbody tr');
+    const mobileCards = document.querySelectorAll('.d-block.d-lg-none .card');
+    
+    // 合并所有表格行
+    const allTableRows = new Set([...tableRows1, ...tableRows2, ...tableRows3]);
+    
+    console.log(`找到表格行数量 - .table: ${tableRows1.length}, #projectTable: ${tableRows2.length}, #project-table-container: ${tableRows3.length}, 合并后: ${allTableRows.size}`);
+    console.log(`找到移动卡片数量: ${mobileCards.length}`);
+    
+    // 显示所有表格行
+    allTableRows.forEach(row => {
+        row.classList.remove('filtered');
+        row.style.display = '';
+    });
+    
+    // 显示所有移动端卡片
+    mobileCards.forEach(card => {
+        card.classList.remove('filtered');
+        card.style.display = '';
+    });
+    
+    console.log(`已显示所有项目 - 表格行: ${allTableRows.size}, 移动卡片: ${mobileCards.length}`);
+    
+    // 检查当前是否为"全部项目"状态，如果是则保持，否则恢复"有效项目"标题
+    const validProjectsCard = document.getElementById('validProjectsCard');
+    const titleElement = validProjectsCard?.querySelector('.card-title');
+    const isShowingAllProjects = titleElement?.textContent?.includes('全部项目');
+    
+    if (isShowingAllProjects) {
+        // 如果当前显示"全部项目"，保持标题不变，只重新计算统计
+        calculateAndUpdateAllProjectsStats();
+    } else {
+        // 否则恢复"有效项目"标题
+        restoreValidProjectsCardTitle();
+    }
+    
+    // 触发按钮状态更新
+    if (typeof triggerFilterStatusUpdate === 'function') {
+        triggerFilterStatusUpdate();
+    }
+}
+
+/**
+ * 恢复有效项目卡片的原始标题
+ */
+function restoreValidProjectsCardTitle() {
+    const card = document.getElementById('validProjectsCard');
+    if (!card) return;
+    
+    // 恢复标题为"有效项目"和原始tooltip
+    const titleElement = card.querySelector('.card-title');
+    if (titleElement) {
+        titleElement.innerHTML = '<i class="fas fa-project-diagram me-1"></i> 有效项目' + 
+                               '<i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip" title="有效项目总数和总金额（排除签约、失败、搁置状态，包含所有授权状态）"></i>';
+    }
+    
+    // 重新初始化tooltip
+    if (typeof initializeTooltips === 'function') {
+        setTimeout(initializeTooltips, 100);
+    }
+}
+
+/**
+ * 过滤有效项目函数，点击有效项目卡片时触发
+ * 有效项目定义为：排除签约、失败、搁置阶段的项目（不限制授权状态）
+ */
+function filterValidProjects() {
+    console.log("有效项目筛选函数被调用");
+    
+    const card = document.getElementById('validProjectsCard');
+    if (!card) return;
+    
+    // 检查是否已经激活，如果已激活则释放过滤，显示所有项目
+    if (card.classList.contains('active-filter')) {
+        console.log("取消有效项目筛选，显示所有项目");
+        
+        // 清除所有卡片状态
+        clearAllCardActiveStates();
+        
+        // 更新有效项目卡片标题为"全部项目"
+        updateValidProjectsCardToAll();
+        
+        // 清除客户端过滤，显示所有项目
+        clearClientSideFilter();
+        
+        // 更新URL参数
+        updateURLParams({});
+            return;
+        }
+        
+    console.log("应用有效项目筛选");
+    
+    // 清除所有其他卡片的激活状态
+    clearAllCardActiveStates();
+    
+    // 激活有效项目卡片
+        card.classList.add('active-filter');
+    
+    // 统计过滤前的项目数量 - 使用多种选择器确保兼容性
+    const allRows1 = document.querySelectorAll('.table tbody tr');
+    const allRows2 = document.querySelectorAll('#projectTable tbody tr');
+    const allRows3 = document.querySelectorAll('#project-table-container tbody tr');
+    const allCards = document.querySelectorAll('.d-block.d-lg-none .card');
+    
+    const totalRows = Math.max(allRows1.length, allRows2.length, allRows3.length);
+    console.log(`过滤前项目数量 - 表格行(.table): ${allRows1.length}, (#projectTable): ${allRows2.length}, (#project-table-container): ${allRows3.length}, 最大值: ${totalRows}, 移动卡片: ${allCards.length}`);
+    
+    // 更新卡片标题为"有效项目"
+    updateValidProjectsCardToActive();
+    
+    // 应用有效业务过滤：只排除签约、失败、搁置，不限制授权状态
+    clientSideFilter({
+        stageNot: ['lost', 'paused', 'signed']
+    });
+    
+    // 统计过滤后的项目数量
+    setTimeout(() => {
+        const visibleRows1 = document.querySelectorAll('.table tbody tr:not([style*="display: none"])');
+        const visibleRows2 = document.querySelectorAll('#projectTable tbody tr:not([style*="display: none"])');
+        const visibleRows3 = document.querySelectorAll('#project-table-container tbody tr:not([style*="display: none"])');
+        const visibleCards = document.querySelectorAll('.d-block.d-lg-none .card:not([style*="display: none"])');
+        
+        const maxVisibleRows = Math.max(visibleRows1.length, visibleRows2.length, visibleRows3.length);
+        console.log(`过滤后项目数量 - 表格行(.table): ${visibleRows1.length}, (#projectTable): ${visibleRows2.length}, (#project-table-container): ${visibleRows3.length}, 最大值: ${maxVisibleRows}, 移动卡片: ${visibleCards.length}`);
+        
+        // 检查被过滤掉的项目
+        const hiddenRows1 = document.querySelectorAll('.table tbody tr[style*="display: none"]');
+        const hiddenRows2 = document.querySelectorAll('#projectTable tbody tr[style*="display: none"]');
+        const hiddenRows3 = document.querySelectorAll('#project-table-container tbody tr[style*="display: none"]');
+        const hiddenCards = document.querySelectorAll('.d-block.d-lg-none .card[style*="display: none"]');
+        
+        const maxHiddenRows = Math.max(hiddenRows1.length, hiddenRows2.length, hiddenRows3.length);
+        console.log(`被过滤项目数量 - 表格行(.table): ${hiddenRows1.length}, (#projectTable): ${hiddenRows2.length}, (#project-table-container): ${hiddenRows3.length}, 最大值: ${maxHiddenRows}, 移动卡片: ${hiddenCards.length}`);
+        
+        // 检查一些被过滤的项目的阶段信息 - 使用找到项目最多的选择器
+        let targetHiddenRows = hiddenRows1;
+        if (hiddenRows2.length > targetHiddenRows.length) targetHiddenRows = hiddenRows2;
+        if (hiddenRows3.length > targetHiddenRows.length) targetHiddenRows = hiddenRows3;
+        
+        targetHiddenRows.forEach((row, index) => {
+            if (index < 5) { // 只检查前5个
+                const hasDeletePermission = row.querySelector('td:first-child .form-check-input') !== null;
+                const stageColumnIndex = hasDeletePermission ? 7 : 6;
+                const stageCell = row.querySelector(`td:nth-child(${stageColumnIndex})`);
+                const authColumnIndex = hasDeletePermission ? 4 : 3;
+                const authCell = row.querySelector(`td:nth-child(${authColumnIndex})`);
+                
+                if (stageCell && authCell) {
+                    console.log(`被过滤项目 ${index + 1} - 阶段: "${stageCell.textContent.trim()}", 授权: "${authCell.textContent.trim()}"`);
+                }
+            }
+        });
+        
+        // 更新有效项目卡片的数量显示
+        updateValidProjectsCardStats(maxVisibleRows);
+    }, 100);
+    
+    // 更新URL参数（移除授权过滤条件）
+    updateURLParams({
+        filter_stage_not: 'lost,paused,signed'
+    });
+}
+
+/**
+ * 清除所有卡片的激活状态
+ */
+function clearAllCardActiveStates() {
+    const allCards = [
+        'validProjectsCard', 'updatedProjectsCard', 'signedProjectsCard', 
+        'lostProjectsCard', 'pausedProjectsCard', 'discoverProjectsCard', 
+        'embedProjectsCard', 'preTenderProjectsCard', 'tenderingProjectsCard', 
+        'wonProjectsCard', 'quotedProjectsCard'
+    ];
+    
+    allCards.forEach(cardId => {
+        const card = document.getElementById(cardId);
+    if (card) {
+            card.classList.remove('active-filter');
+            card.classList.remove('stage-card-selected');
+        }
+    });
+}
+
+/**
+ * 更新URL参数但不刷新页面
+ */
+function updateURLParams(params) {
+        const currentUrl = new URL(window.location.href);
+    const urlParams = new URLSearchParams(currentUrl.search);
+    
+    // 清除所有过滤参数，避免冲突
+    const filterKeys = Array.from(urlParams.keys()).filter(key => key.startsWith('filter_'));
+    filterKeys.forEach(key => urlParams.delete(key));
+    
+    // 设置新的参数
+    Object.keys(params).forEach(key => {
+        if (params[key] !== null && params[key] !== undefined && params[key] !== '') {
+            urlParams.set(key, params[key]);
+        }
+    });
+    
+    // 更新URL
+    const newUrl = `${currentUrl.pathname}?${urlParams.toString()}`;
+    window.history.replaceState({}, '', newUrl);
+}
+
+/**
+ * 过滤发现阶段项目函数
+ */
+function filterDiscoverProjects() {
+    filterProjectsByStage('discover', 'discoverProjectsCard');
+}
+
+/**
+ * 过滤植入阶段项目函数
+ */
+function filterEmbedProjects() {
+    filterProjectsByStage('embed', 'embedProjectsCard');
+}
+
+/**
+ * 过滤招标前阶段项目函数
+ */
+function filterPreTenderProjects() {
+    filterProjectsByStage('pre_tender', 'preTenderProjectsCard');
+}
+
+/**
+ * 过滤失败阶段项目函数
+ */
+function filterLostProjects() {
+    const card = document.getElementById('lostProjectsCard');
+    if (!card) return;
+    
+    // 检查是否已经激活，如果已激活则释放过滤，回到有效项目状态
+    if (card.classList.contains('active-filter')) {
+        console.log("取消失败项目筛选，回到有效项目状态");
+        
+        // 清除所有卡片状态
+        clearAllCardActiveStates();
+        
+        // 激活有效项目卡片并应用有效项目过滤
+        const validCard = document.getElementById('validProjectsCard');
+        if (validCard) {
+            validCard.classList.add('active-filter');
+            updateValidProjectsCardToActive();
+            
+            // 应用有效业务过滤：只排除签约、失败、搁置，不限制授权状态
+            clientSideFilter({
+                stageNot: ['lost', 'paused', 'signed']
+            });
+            
+            // 更新URL参数
+            updateURLParams({
+                filter_stage_not: 'lost,paused,signed'
+            });
+        }
+        return;
+    }
+    
+    console.log("应用失败项目筛选");
+    
+    // 清除所有卡片状态（包括有效项目卡片）
+    clearAllCardActiveStates();
+    
+    // 激活当前卡片，使用stage-card-selected类显示竖线
+    card.classList.add('active-filter');
+    card.classList.add('stage-card-selected');
+    
+    // 使用客户端过滤显示失败阶段项目
+    clientSideFilter({
+        currentStage: 'lost'
+    });
+    
+    // 更新URL参数
+    updateURLParams({
+        filter_current_stage: 'lost'
+    });
+}
+
+/**
+ * 过滤搁置阶段项目函数
+ */
+function filterPausedProjects() {
+    const card = document.getElementById('pausedProjectsCard');
+    if (!card) return;
+    
+    // 检查是否已经激活，如果已激活则释放过滤，回到有效项目状态
+    if (card.classList.contains('active-filter')) {
+        console.log("取消搁置项目筛选，回到有效项目状态");
+        
+        // 清除所有卡片状态
+        clearAllCardActiveStates();
+        
+        // 激活有效项目卡片并应用有效项目过滤
+        const validCard = document.getElementById('validProjectsCard');
+        if (validCard) {
+            validCard.classList.add('active-filter');
+            updateValidProjectsCardToActive();
+            
+            // 应用有效业务过滤：只排除签约、失败、搁置，不限制授权状态
+            clientSideFilter({
+                stageNot: ['lost', 'paused', 'signed']
+            });
+            
+            // 更新URL参数
+            updateURLParams({
+                filter_stage_not: 'lost,paused,signed'
+            });
+        }
+            return;
+        }
+        
+    console.log("应用搁置项目筛选");
+    
+    // 清除所有卡片状态（包括有效项目卡片）
+    clearAllCardActiveStates();
+    
+    // 激活当前卡片，使用stage-card-selected类显示竖线
+        card.classList.add('active-filter');
+    card.classList.add('stage-card-selected');
+    
+    // 使用客户端过滤显示搁置阶段项目
+    clientSideFilter({
+        currentStage: 'paused'
+    });
+    
+    // 更新URL参数
+    updateURLParams({
+        filter_current_stage: 'paused'
+    });
+}
+
+/**
+ * 过滤签约项目函数
+ */
+function filterSignedProjects() {
+    const card = document.getElementById('signedProjectsCard');
+    if (!card) return;
+    
+    // 检查是否已经激活，如果已激活则释放过滤，回到有效项目状态
+    if (card.classList.contains('active-filter')) {
+        console.log("取消签约项目筛选，回到有效项目状态");
+        
+        // 清除所有卡片状态
+        clearAllCardActiveStates();
+        
+        // 激活有效项目卡片并应用有效项目过滤
+        const validCard = document.getElementById('validProjectsCard');
+        if (validCard) {
+            validCard.classList.add('active-filter');
+            updateValidProjectsCardToActive();
+            
+            // 应用有效业务过滤：只排除签约、失败、搁置，不限制授权状态
+            clientSideFilter({
+                stageNot: ['lost', 'paused', 'signed']
+            });
+            
+            // 更新URL参数
+            updateURLParams({
+                filter_stage_not: 'lost,paused,signed'
+            });
+        }
+        return;
+    }
+    
+    console.log("应用签约项目筛选");
+    
+    // 清除所有卡片状态（包括有效项目卡片）
+    clearAllCardActiveStates();
+    
+    // 激活当前卡片，使用stage-card-selected类显示竖线
+    card.classList.add('active-filter');
+    card.classList.add('stage-card-selected');
+    
+    // 使用客户端过滤显示签约阶段项目
+    clientSideFilter({
+        currentStage: 'signed'
+    });
+    
+    // 更新URL参数
+    updateURLParams({
+        filter_current_stage: 'signed'
+    });
+}
+
+/**
+ * 通用阶段筛选函数
+ */
+function filterProjectsByStage(stage, cardId) {
+    const card = document.getElementById(cardId);
+    if (!card) return;
+    
+    // 添加动画效果
+        card.classList.add('pulse-effect');
+        setTimeout(() => {
+            card.classList.remove('pulse-effect');
+        }, 300);
+        
+    // 检查当前是否已经应用了该阶段过滤
+    const isCurrentlyFiltered = card.classList.contains('active-filter');
+    
+    // 如果已经应用了过滤，则释放过滤，回到有效项目状态
+    if (isCurrentlyFiltered) {
+        console.log(`取消${stage}阶段筛选，回到有效项目状态`);
+        
+        // 清除所有卡片的激活状态
+        clearAllCardActiveStates();
+        
+        // 激活有效项目卡片并应用有效项目过滤
+        const validCard = document.getElementById('validProjectsCard');
+        if (validCard) {
+            validCard.classList.add('active-filter');
+            updateValidProjectsCardToActive();
+            
+            // 应用有效业务过滤：只排除签约、失败、搁置，不限制授权状态
+            clientSideFilter({
+                stageNot: ['lost', 'paused', 'signed']
+            });
+            
+            // 更新URL参数
+            updateURLParams({
+                filter_stage_not: 'lost,paused,signed'
+            });
+        }
+            return;
+        }
+        
+    console.log(`应用${stage}阶段筛选`);
+    
+    // 清除所有卡片的激活状态（包括有效项目卡片）
+    clearAllCardActiveStates();
+    
+    // 添加当前卡片的选中状态
+    card.classList.add('stage-card-selected');
+        card.classList.add('active-filter');
+    
+    // 应用阶段过滤
+    clientSideFilter({
+        currentStage: stage
+    });
+    
+    // 更新URL参数（不包含有效业务过滤）
+    updateURLParams({
+        filter_current_stage: stage
+    });
+}
+
+/**
+ * 过滤招标中项目函数，点击招标中卡片时触发
+ */
+function filterTenderingProjects() {
+    filterProjectsByStage('tendering', 'tenderingProjectsCard');
+}
+
+/**
+ * 过滤中标项目函数，点击中标卡片时触发
+ */
+function filterWonProjects() {
+    filterProjectsByStage('awarded', 'wonProjectsCard');
+}
+
+/**
+ * 过滤业务推进项目函数
+ */
+function filterUpdatedProjects() {
+    const card = document.getElementById('updatedProjectsCard');
+    if (!card) return;
+    
+    // 检查是否已经激活，如果已激活则释放过滤，回到有效项目状态
+    if (card.classList.contains('active-filter')) {
+        console.log("取消业务推进项目筛选，回到有效项目状态");
+        
+        // 清除所有卡片状态
+        clearAllCardActiveStates();
+        
+        // 激活有效项目卡片并应用有效项目过滤
+        const validCard = document.getElementById('validProjectsCard');
+        if (validCard) {
+            validCard.classList.add('active-filter');
+            updateValidProjectsCardToActive();
+            
+            // 应用有效业务过滤：只排除签约、失败、搁置，不限制授权状态
+            clientSideFilter({
+                stageNot: ['lost', 'paused', 'signed']
+            });
+            
+            // 更新URL参数
+            updateURLParams({
+                filter_stage_not: 'lost,paused,signed'
+            });
+        }
+        return;
+    }
+    
+    console.log("应用业务推进项目筛选");
+    
+    // 清除所有卡片状态（包括有效项目卡片）
+    clearAllCardActiveStates();
+    
+    // 激活当前卡片
+    card.classList.add('active-filter');
+    
+    // 使用客户端过滤显示本月有阶段变更的项目
+    clientSideFilter({
+        updatedThisMonth: true
+    });
+    
+    // 更新URL参数
+    updateURLParams({
+        filter_updated_this_month: '1'
+    });
+}
+
+/**
+ * 过滤批价项目函数，点击批价卡片时触发
+ */
+function filterQuotedProjects() {
+    filterProjectsByStage('quoted', 'quotedProjectsCard');
+}
+
+/**
+ * 恢复所有记录显示的函数，在释放筛选时调用
+ */
+function restoreAllRecords() {
+    console.log("restoreAllRecords函数被调用"); // 调试日志
+    // 获取所有表格行和移动端卡片
+    const tableRows = document.querySelectorAll('.table tbody tr');
+    const mobileCards = document.querySelectorAll('.d-block.d-lg-none .card');
+    const tableBody = document.querySelector('.table tbody');
+    const mobileContainer = document.querySelector('.d-block.d-lg-none');
+    
+    // 按更新时间降序排序的函数
+    const sortByUpdatedAtDesc = (a, b) => {
+        // 尝试从元素中获取更新时间
+        const getUpdatedAt = (el) => {
+            // 从表格行中提取更新时间（假设在倒数第二列）
+            if (!el.classList.contains('card')) {
+                // PC端表格视图
+                const cells = el.querySelectorAll('td');
+                if (cells.length > 2) {
+                    const updatedAtCell = cells[cells.length - 2]; // 倒数第二列是更新时间
+                    if (updatedAtCell) {
+                        const dateText = updatedAtCell.textContent.trim();
+                        if (dateText) {
+                            return new Date(dateText).getTime();
+                        }
+                    }
+                }
+            } else {
+                // 移动端卡片视图
+                const updatedAtText = el.textContent.match(/更新: (\d{4}-\d{2}-\d{2})/);
+                if (updatedAtText && updatedAtText[1]) {
+                    return new Date(updatedAtText[1]).getTime();
+                }
+            }
+            return 0; // 默认时间戳
+        };
+        
+        const updatedAtA = getUpdatedAt(a);
+        const updatedAtB = getUpdatedAt(b);
+        return updatedAtB - updatedAtA; // 降序排列（新到旧）
+    };
+    
+    // 复制所有行和卡片到数组
+    const allRows = Array.from(tableRows);
+    const allCards = Array.from(mobileCards);
+    
+    // 按更新时间排序
+    allRows.sort(sortByUpdatedAtDesc);
+    allCards.sort(sortByUpdatedAtDesc);
+    
+    // 重新排列表格行
+    if (tableBody) {
+        // 清空表格
+        while (tableBody.firstChild) {
+            tableBody.removeChild(tableBody.firstChild);
+        }
+        
+        // 添加所有行
+        allRows.forEach(row => {
+            row.classList.remove('filtered');
+            row.style.display = '';
+            tableBody.appendChild(row);
+        });
+    }
+    
+    // 重新排列移动端卡片
+    if (mobileContainer) {
+        // 保存所有非卡片元素
+        const nonCardElements = Array.from(mobileContainer.children).filter(el => 
+            !el.classList.contains('card')
+        );
+        
+        // 清空容器
+        while (mobileContainer.firstChild) {
+            mobileContainer.removeChild(mobileContainer.firstChild);
+        }
+        
+        // 首先添加非卡片元素
+        nonCardElements.forEach(el => {
+            mobileContainer.appendChild(el);
+        });
+        
+        // 添加所有卡片
+        allCards.forEach(card => {
+            card.classList.remove('filtered');
+            card.style.display = '';
+            mobileContainer.appendChild(card);
+        });
+    }
+    
+    // 确保没有其他筛选状态
+    const activeFilters = document.querySelectorAll('.active-filter');
+    activeFilters.forEach(filter => {
+        filter.classList.remove('active-filter');
+    });
+    
+    // 应用空筛选条件，确保所有记录显示
+    clientSideFilter({});
+    
+    // 触发按钮状态更新
+    triggerFilterStatusUpdate();
+}
+
+/**
+ * 使用AJAX重新加载项目列表
+ * @param {Object} filters - 过滤参数
+ */
+function reloadProjectsWithFilter(filters) {
+    // 显示加载状态
+    const tableContainer = document.querySelector('#project-table-container tbody');
+    if (tableContainer) {
+        tableContainer.innerHTML = '<tr><td colspan="20" class="text-center"><i class="fas fa-spinner fa-spin"></i> 加载中...</td></tr>';
+    }
+    
+    // 构建URL参数
+    const urlParams = new URLSearchParams();
+    
+    // 添加过滤参数
+    for (const [key, value] of Object.entries(filters)) {
+        if (value) {
+            urlParams.append(key, value);
+        }
+    }
+    
+    // 保持分页参数
+    const currentUrl = new URL(window.location);
+    const page = currentUrl.searchParams.get('page');
+    const per_page = currentUrl.searchParams.get('per_page');
+    if (page) urlParams.append('page', page);
+    if (per_page) urlParams.append('per_page', per_page);
+    
+    // 发送AJAX请求
+    const ajaxUrl = window.location.pathname + '?' + urlParams.toString();
+    
+    fetch(ajaxUrl, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.text())
+    .then(html => {
+        // 解析响应HTML
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        
+        // 更新表格内容
+        const newTableBody = doc.querySelector('#project-table-container tbody');
+        if (newTableBody && tableContainer) {
+            tableContainer.innerHTML = newTableBody.innerHTML;
+        }
+        
+        // 更新分页
+        const newPagination = doc.querySelector('.pagination-container');
+        const currentPagination = document.querySelector('.pagination-container');
+        if (newPagination && currentPagination) {
+            currentPagination.innerHTML = newPagination.innerHTML;
+        }
+        
+        // 更新URL（不刷新页面）
+        if (urlParams.toString()) {
+            history.pushState(null, '', ajaxUrl);
+        } else {
+            // 如果没有过滤参数，返回基本URL
+            history.pushState(null, '', window.location.pathname);
+        }
+        
+        console.log('项目列表已重新加载，过滤参数:', filters);
+    })
+    .catch(error => {
+        console.error('加载项目列表失败:', error);
+        if (tableContainer) {
+            tableContainer.innerHTML = '<tr><td colspan="20" class="text-center text-danger">加载失败，请刷新页面重试</td></tr>';
+        }
+    });
+}
+
+// 页面加载时检查URL并设置卡片状态
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('=== 页面初始化开始 ===');
+    console.log('当前URL:', window.location.href);
+    console.log('URL search参数:', window.location.search);
+    
+    const validProjectsCard = document.getElementById('validProjectsCard');
+    const tenderingProjectsCard = document.getElementById('tenderingProjectsCard');
+    const wonProjectsCard = document.getElementById('wonProjectsCard');
+    const quotedProjectsCard = document.getElementById('quotedProjectsCard');
+    const updatedProjectsCard = document.getElementById('updatedProjectsCard');
+    
+    // 新增的阶段卡片
+    const discoverProjectsCard = document.getElementById('discoverProjectsCard');
+    const embedProjectsCard = document.getElementById('embedProjectsCard');
+    const preTenderProjectsCard = document.getElementById('preTenderProjectsCard');
+    const signedProjectsCard = document.getElementById('signedProjectsCard');
+    const lostProjectsCard = document.getElementById('lostProjectsCard');
+    const pausedProjectsCard = document.getElementById('pausedProjectsCard');
+    
+    // 获取URL参数
+    const params = new URLSearchParams(window.location.search);
+    const hasAuthFilter = params.get('filter_has_authorization') === '1';
+    const stageNotFilter = params.get('filter_stage_not') === 'lost,paused,signed';
+    const currentStageFilter = params.get('filter_current_stage');
+    const updatedThisMonthFilter = params.get('filter_updated_this_month') === '1';
+    
+    console.log('页面初始化检查 - URL参数:', {
+        hasAuthFilter,
+        stageNotFilter,
+        currentStageFilter,
+        updatedThisMonthFilter
+    });
+    
+    // 检查当前页面的项目数量
+    const tableRows = document.querySelectorAll('.table tbody tr');
+    const mobileCards = document.querySelectorAll('.d-block.d-lg-none .card');
+    console.log('页面当前显示的项目数量 - 表格行:', tableRows.length, '移动卡片:', mobileCards.length);
+    
+    // 设置有效项目卡片状态 - 只有在URL中明确包含阶段过滤参数时才激活
+    if (validProjectsCard) {
+        // 检查是否有有效项目的过滤参数（只需要排除阶段过滤）
+        const hasValidProjectFilter = stageNotFilter && params.has('filter_stage_not');
+        
+        console.log('有效项目过滤检查:', hasValidProjectFilter);
+        
+        if (hasValidProjectFilter) {
+            // 如果有有效项目过滤参数，激活有效项目卡片
+            validProjectsCard.classList.add('active-filter');
+            console.log('激活有效项目卡片');
+        } else {
+            // 否则取消激活状态，确保页面初始状态为显示所有项目
+            validProjectsCard.classList.remove('active-filter');
+            console.log('取消有效项目卡片激活，显示所有项目');
+        }
+    }
+    
+    // 移除所有阶段卡片的选中状态
+    const allStageCards = [tenderingProjectsCard, wonProjectsCard, quotedProjectsCard, 
+                          discoverProjectsCard, embedProjectsCard, preTenderProjectsCard, 
+                          signedProjectsCard, lostProjectsCard, pausedProjectsCard, updatedProjectsCard];
+    
+    allStageCards.forEach(card => {
+        if (card) {
+            card.classList.remove('active-filter');
+            card.classList.remove('stage-card-selected');
+        }
+    });
+    
+    // 根据URL参数设置对应的卡片选中状态
+    if (currentStageFilter) {
+        const stageToCardMap = {
+            'tendering': tenderingProjectsCard,
+            'awarded': wonProjectsCard,
+            'quoted': quotedProjectsCard,
+            'discover': discoverProjectsCard,
+            'embed': embedProjectsCard,
+            'pre_tender': preTenderProjectsCard,
+            'signed': signedProjectsCard,
+            'lost': lostProjectsCard,
+            'paused': pausedProjectsCard
+        };
+        
+        const selectedCard = stageToCardMap[currentStageFilter];
+        if (selectedCard) {
+            selectedCard.classList.add('active-filter');
+            selectedCard.classList.add('stage-card-selected');
+        }
+    }
+    
+    // 设置业务推进卡片状态
+    if (updatedProjectsCard) {
+        if (updatedThisMonthFilter) {
+            updatedProjectsCard.classList.add('active-filter');
+        }
+    }
+    
+    // 如果页面初始加载时没有任何过滤参数，确保有效项目卡片显示为"全部项目"
+    if (!params.has('filter_stage_not') && !params.has('filter_current_stage') && !params.has('filter_has_authorization') && !params.has('filter_updated_this_month')) {
+        console.log('页面初始加载无过滤参数，设置为全部项目状态');
+        if (validProjectsCard) {
+            updateValidProjectsCardToAll();
+            // 确保清除任何可能的客户端过滤
+            clearClientSideFilter();
+        }
+        } else {
+        // 如果有过滤参数，则需要根据实际显示的项目数量更新统计
+        console.log('页面初始加载有过滤参数，计算过滤后的统计');
+        setTimeout(() => {
+            const visibleRows = document.querySelectorAll('.table tbody tr:not([style*="display: none"])');
+            const visibleCards = document.querySelectorAll('.d-block.d-lg-none .card:not([style*="display: none"])');
+            
+            const visibleCount = Math.max(visibleRows.length, visibleCards.length);
+            console.log('过滤后可见项目数量:', visibleCount);
+            
+            // 更新有效项目卡片的统计数量
+            if (validProjectsCard && validProjectsCard.classList.contains('active-filter')) {
+                updateValidProjectsCardStats(visibleCount);
+            }
+        }, 500);
+    }
+    
+    console.log('=== 页面初始化完成 ===');
+    
+    // 添加调试信息，检查项目数量和过滤状态
+    setTimeout(() => {
+        console.log('=== 统计仪表盘调试信息 ===');
+        
+        // 检查所有项目行
+        const allTableRows = document.querySelectorAll('.table tbody tr');
+        const allMobileCards = document.querySelectorAll('.d-block.d-lg-none .card');
+        
+        console.log('总项目行数:', allTableRows.length);
+        console.log('总移动卡片数:', allMobileCards.length);
+        
+        // 检查可见的项目
+        const visibleTableRows = document.querySelectorAll('.table tbody tr:not([style*="display: none"]):not(.filtered)');
+        const visibleMobileCards = document.querySelectorAll('.d-block.d-lg-none .card:not([style*="display: none"]):not(.filtered)');
+        
+        console.log('可见项目行数:', visibleTableRows.length);
+        console.log('可见移动卡片数:', visibleMobileCards.length);
+        
+        // 检查有效项目卡片的显示
+        const validProjectsCard = document.getElementById('validProjectsCard');
+        const validProjectsCount = document.getElementById('validProjectsCount');
+        
+        if (validProjectsCard && validProjectsCount) {
+            console.log('有效项目卡片标题:', validProjectsCard.querySelector('.card-title')?.textContent);
+            console.log('有效项目卡片显示数量:', validProjectsCount.textContent);
+            console.log('有效项目卡片是否激活:', validProjectsCard.classList.contains('active-filter'));
+        }
+        
+        // 检查URL参数
+        const currentUrl = new URL(window.location.href);
+        const urlParams = new URLSearchParams(currentUrl.search);
+        console.log('当前URL参数:', Object.fromEntries(urlParams.entries()));
+        
+        // 检查被过滤的项目
+        const filteredTableRows = document.querySelectorAll('.table tbody tr.filtered');
+        const hiddenTableRows = document.querySelectorAll('.table tbody tr[style*="display: none"]');
+        
+        console.log('被.filtered类标记的项目行数:', filteredTableRows.length);
+        console.log('被style隐藏的项目行数:', hiddenTableRows.length);
+        
+        // 如果项目数量不匹配，强制重新计算
+        const expectedCount = Math.max(allTableRows.length, allMobileCards.length);
+        const displayedCount = parseInt(validProjectsCount?.textContent || '0');
+        
+        if (expectedCount !== displayedCount) {
+            console.warn('项目数量不匹配！预期:', expectedCount, '显示:', displayedCount);
+            console.log('强制重新计算全部项目统计...');
+            
+            // 清除所有过滤
+            allTableRows.forEach(row => {
+                row.style.display = '';
+                row.classList.remove('filtered');
+            });
+            allMobileCards.forEach(card => {
+                card.style.display = '';
+                card.classList.remove('filtered');
+            });
+            
+            // 重新计算统计
+            calculateAndUpdateAllProjectsStats();
+        }
+        
+        console.log('=== 调试信息结束 ===');
+    }, 2000); // 延迟2秒确保所有数据都已加载
+});
+
+// 添加页面加载时检查卡片状态的函数
+document.addEventListener('DOMContentLoaded', function() {
+    // 只有当URL中明确包含对应的过滤参数时才检查并激活卡片
+    const params = new URLSearchParams(window.location.search);
+    
+    console.log('第二个DOMContentLoaded - 检查卡片状态');
+    
+    // 检查有效项目卡片（只有URL中明确包含阶段过滤参数时才激活）
+    if (params.has('filter_stage_not')) {
+        checkCardActiveState('validProjectsCard', ['filter_stage_not'], ['lost,paused,signed']);
+    }
+    
+    // 检查招标中卡片
+    if (params.has('filter_current_stage')) {
+    checkCardActiveState('tenderingProjectsCard', ['filter_current_stage'], ['tendering']);
+    
+    // 检查中标卡片
+    checkCardActiveState('wonProjectsCard', ['filter_current_stage'], ['awarded']);
+    }
+    
+    // 检查业务推进卡片
+    if (params.has('filter_updated_this_month')) {
+    checkCardActiveState('updatedProjectsCard', ['filter_updated_this_month'], ['1']);
+    }
+    
+    console.log('第二个DOMContentLoaded - 卡片状态检查完成');
+});
+
+/**
+ * 客户端过滤函数，处理各种过滤条件
+ * @param {Object} filters - 过滤条件对象
+ */
+function clientSideFilter(filters) {
+    console.log("clientSideFilter 被调用，过滤条件:", JSON.stringify(filters));
+    
+    // 获取所有表格行和移动端卡片
+    const tableRows = document.querySelectorAll('.table tbody tr');
+    const mobileCards = document.querySelectorAll('.d-block.d-lg-none .card');
+    const tableBody = document.querySelector('.table tbody');
+    const mobileContainer = document.querySelector('.d-block.d-lg-none');
+    
+    console.log(`找到的元素 - 表格行: ${tableRows.length}, 移动卡片: ${mobileCards.length}`);
+    
+    // 如果没有过滤条件，则直接恢复所有行和卡片的显示
+    if (!filters || Object.keys(filters).length === 0) {
+        // 按更新时间对所有行和卡片进行排序
+        const sortByUpdatedAtDesc = (a, b) => {
+            // 尝试从元素中获取更新时间
+            const getUpdatedAt = (el) => {
+                // 从表格行中提取更新时间（假设在倒数第二列）
+                if (!el.classList.contains('card')) {
+                    // PC端表格视图
+                    const cells = el.querySelectorAll('td');
+                    if (cells.length > 2) {
+                        const updatedAtCell = cells[cells.length - 2]; // 倒数第二列是更新时间
+                        if (updatedAtCell) {
+                            const dateText = updatedAtCell.textContent.trim();
+                            if (dateText) {
+                                return new Date(dateText).getTime();
+                            }
+                        }
+                    }
+                } else {
+                    // 移动端卡片视图
+                    const updatedAtText = el.textContent.match(/更新: (\d{4}-\d{2}-\d{2})/);
+                    if (updatedAtText && updatedAtText[1]) {
+                        return new Date(updatedAtText[1]).getTime();
+                    }
+                }
+                return 0; // 默认时间戳
+            };
+            
+            const updatedAtA = getUpdatedAt(a);
+            const updatedAtB = getUpdatedAt(b);
+            return updatedAtB - updatedAtA; // 降序排列（新到旧）
+        };
+        
+        // 复制所有行和卡片到数组
+        const allRows = Array.from(tableRows);
+        const allCards = Array.from(mobileCards);
+        
+        // 按更新时间排序
+        allRows.sort(sortByUpdatedAtDesc);
+        allCards.sort(sortByUpdatedAtDesc);
+        
+        // 重新排列表格行
+        if (tableBody) {
+            // 清空表格
+            while (tableBody.firstChild) {
+                tableBody.removeChild(tableBody.firstChild);
+            }
+            
+            // 添加所有行
+            allRows.forEach(row => {
+                row.classList.remove('filtered');
+                row.style.display = '';
+                tableBody.appendChild(row);
+            });
+        }
+        
+        // 重新排列移动端卡片
+        if (mobileContainer) {
+            // 保存所有非卡片元素
+            const nonCardElements = Array.from(mobileContainer.children).filter(el => 
+                !el.classList.contains('card')
+            );
+            
+            // 清空容器
+            while (mobileContainer.firstChild) {
+                mobileContainer.removeChild(mobileContainer.firstChild);
+            }
+            
+            // 首先添加非卡片元素
+            nonCardElements.forEach(el => {
+                mobileContainer.appendChild(el);
+            });
+            
+            // 添加所有卡片
+            allCards.forEach(card => {
+                card.classList.remove('filtered');
+                card.style.display = '';
+                mobileContainer.appendChild(card);
+            });
+        }
+        
+        // 触发list.html中的按钮状态更新
+        triggerFilterStatusUpdate();
+        return;
+    }
+    
+    // 用于存储筛选后的行和卡片
+    const matchedRows = [];
+    const filteredRows = [];
+    const matchedCards = [];
+    const filteredCards = [];
+    
+    // 过滤表格行
+    tableRows.forEach(row => {
+        let shouldFilter = false;
+        
+        // 检查"有授权"过滤条件
+        if (filters.hasAuthorization) {
+            console.log("有授权过滤条件已激活");
+            // 根据是否有删除权限确定授权编号列的位置
+            const hasDeletePermission = row.querySelector('td:first-child .form-check-input') !== null;
+            const authColumnIndex = hasDeletePermission ? 4 : 3; // 如果有删除权限列，授权在第4列，否则在第3列
+            const authCell = row.querySelector(`td:nth-child(${authColumnIndex})`);
+            
+            console.log(`授权过滤调试 - 删除权限: ${hasDeletePermission}, 授权列索引: ${authColumnIndex}, 找到授权单元格: ${!!authCell}`);
+            
+            if (authCell) {
+                const authText = authCell.textContent.trim();
+                console.log(`授权过滤调试 - 授权单元格内容: "${authText}"`);
+                
+                // 检查是否有授权编号（不含"未申请"或"审批中"等标记）
+                const hasNoAuth = authText.includes('未申请') || 
+                                 authText.includes('审批中') ||
+                                 authText.includes('已驳回');
+                
+                console.log(`授权过滤调试 - 是否无授权: ${hasNoAuth}`);
+                
+                if (hasNoAuth) {
+                    shouldFilter = true;
+                    console.log(`授权过滤调试 - 项目被过滤（无授权）`);
+                } else {
+                    console.log(`授权过滤调试 - 项目通过授权检查`);
+                }
+            } else {
+                console.log(`授权过滤调试 - 未找到授权单元格，项目被过滤`);
+                shouldFilter = true;
+            }
+        }
+        
+        // 检查"阶段不在"过滤条件
+        if (filters.stageNot && filters.stageNot.length) {
+            console.log(`阶段不在过滤条件已激活 - 排除阶段: ${filters.stageNot.join(', ')}`);
+            // 根据是否有删除权限确定阶段列的位置
+            const hasDeletePermission = row.querySelector('td:first-child .form-check-input') !== null;
+            const stageColumnIndex = hasDeletePermission ? 7 : 6; // 如果有删除权限列，阶段在第7列，否则在第6列
+            const stageCell = row.querySelector(`td:nth-child(${stageColumnIndex})`);
+            
+            console.log(`阶段不在过滤调试 - 删除权限: ${hasDeletePermission}, 阶段列索引: ${stageColumnIndex}, 找到阶段单元格: ${!!stageCell}`);
+            
+            if (stageCell) {
+                const stageName = stageCell.textContent.trim();
+                console.log(`阶段不在过滤调试 - 阶段单元格内容: "${stageName}"`);
+                
+                const shouldExclude = filters.stageNot.some(stage => {
+                    if (stage === 'lost') return stageName.includes('失败');
+                    if (stage === 'paused') return stageName.includes('搁置');
+                    if (stage === 'signed') return stageName.includes('签约');
+                    return false;
+                });
+                
+                console.log(`阶段不在过滤调试 - 是否应排除: ${shouldExclude}`);
+                
+                if (shouldExclude) {
+                    shouldFilter = true;
+                    console.log(`阶段不在过滤调试 - 项目被过滤（阶段在排除列表中）`);
+                } else {
+                    console.log(`阶段不在过滤调试 - 项目通过阶段检查`);
+                }
+            } else {
+                console.log(`阶段不在过滤调试 - 未找到阶段单元格`);
+            }
+        }
+        
+        // 检查"当前阶段"过滤条件
+        if (filters.currentStage) {
+            // 根据是否有删除权限确定阶段列的位置
+            const hasDeletePermission = row.querySelector('td:first-child .form-check-input') !== null;
+            const stageColumnIndex = hasDeletePermission ? 7 : 6; // 如果有删除权限列，阶段在第7列，否则在第6列
+            const stageCell = row.querySelector(`td:nth-child(${stageColumnIndex})`);
+            
+            console.log(`阶段过滤调试 - 目标阶段: ${filters.currentStage}, 删除权限: ${hasDeletePermission}, 列索引: ${stageColumnIndex}`);
+            
+            if (stageCell) {
+                const stageName = stageCell.textContent.trim();
+                console.log(`阶段过滤调试 - 实际阶段文本: "${stageName}"`);
+                
+                let match = false;
+                
+                if (filters.currentStage === 'discover' && stageName.includes('发现')) {
+                    match = true;
+                } else if (filters.currentStage === 'embed' && stageName.includes('植入')) {
+                    match = true;
+                } else if (filters.currentStage === 'pre_tender' && stageName.includes('招标前')) {
+                    match = true;
+                } else if (filters.currentStage === 'tendering' && stageName.includes('招标中')) {
+                    match = true;
+                } else if (filters.currentStage === 'awarded' && stageName.includes('中标')) {
+                    match = true;
+                } else if (filters.currentStage === 'quoted' && stageName.includes('批价')) {
+                    match = true;
+                } else if (filters.currentStage === 'signed' && stageName.includes('签约')) {
+                    match = true;
+                } else if (filters.currentStage === 'lost' && stageName.includes('失败')) {
+                    match = true;
+                } else if (filters.currentStage === 'paused' && stageName.includes('搁置')) {
+                    match = true;
+                }
+                
+                console.log(`阶段过滤调试 - 匹配结果: ${match}, 是否过滤: ${!match}`);
+                
+                if (!match) {
+                    shouldFilter = true;
+                }
+            } else {
+                console.log('阶段过滤调试 - 未找到阶段单元格');
+            }
+        }
+        
+        // 检查"本月更新"过滤条件
+        if (filters.updatedThisMonth) {
+            // 对PC端表格行，使用更精确的单元格选择策略
+            const updatedAtCell = row.querySelector('td:nth-last-child(2)'); // 倒数第二列是更新时间
+            
+            if (updatedAtCell) {
+                const dateText = updatedAtCell.textContent.trim();
+                console.log("PC表格行更新时间单元格内容:", dateText);
+                
+                if (dateText) {
+                    // 解析日期
+                    try {
+                        const updatedDate = new Date(dateText);
+                        const now = new Date();
+                        
+                        // 检查是否为本月更新
+                        const isCurrentMonth = updatedDate.getMonth() === now.getMonth() && 
+                                             updatedDate.getFullYear() === now.getFullYear();
+                        
+                        console.log("PC表格行更新时间检查:", dateText, 
+                            "原始日期对象:", updatedDate,
+                            "是否本月:", isCurrentMonth, 
+                            "更新月份:", updatedDate.getMonth() + 1, 
+                            "当前月份:", now.getMonth() + 1);
+                        
+                        if (!isCurrentMonth) {
+                            shouldFilter = true;
+                        }
+                    } catch (e) {
+                        console.error("PC表格行日期解析错误:", dateText, e);
+                        shouldFilter = true;
+                    }
+                } else {
+                    // 如果没有更新日期，则过滤掉
+                    console.warn("PC表格行更新时间单元格存在但内容为空");
+                    shouldFilter = true;
+                }
+            } else {
+                // 如果找不到更新时间单元格，则过滤掉
+                console.warn("未找到PC表格行更新时间单元格");
+                shouldFilter = true;
+            }
+        }
+        
+        // 根据筛选结果，将行分到匹配或过滤集合中
+        if (shouldFilter) {
+            row.classList.add('filtered');
+            filteredRows.push(row);
+            console.log(`项目被过滤 - 总计被过滤数: ${filteredRows.length}`);
+        } else {
+            row.classList.remove('filtered');
+            matchedRows.push(row);
+            console.log(`项目匹配 - 总计匹配数: ${matchedRows.length}`);
+        }
+    });
+    
+    // 过滤移动端卡片
+    mobileCards.forEach(card => {
+        let shouldFilter = false;
+        
+        // 检查"有授权"过滤条件
+        if (filters.hasAuthorization) {
+            const authBadge = card.querySelector('.badge:first-child');
+            if (authBadge) {
+                // 检查是否有授权编号（不含"未申请"或"审批中"等标记）
+                const hasNoAuth = authBadge.textContent.includes('未申请') || 
+                                 authBadge.textContent.includes('审批中') ||
+                                 authBadge.textContent.includes('已驳回');
+                if (hasNoAuth) {
+                    shouldFilter = true;
+                }
+            }
+        }
+        
+        // 检查"阶段不在"过滤条件
+        if (filters.stageNot && filters.stageNot.length) {
+            const stageBadge = card.querySelector('.badge:nth-child(2)');
+            if (stageBadge) {
+                const stageName = stageBadge.textContent.trim();
+                if (filters.stageNot.some(stage => {
+                    if (stage === 'lost') return stageName.includes('失败');
+                    if (stage === 'paused') return stageName.includes('搁置');
+                    if (stage === 'signed') return stageName.includes('签约');
+                    return false;
+                })) {
+                    shouldFilter = true;
+                }
+            }
+        }
+        
+        // 检查"当前阶段"过滤条件
+        if (filters.currentStage) {
+            const stageBadge = card.querySelector('.badge:nth-child(2)');
+            if (stageBadge) {
+                const stageName = stageBadge.textContent.trim();
+                let match = false;
+                
+                if (filters.currentStage === 'discover' && stageName.includes('发现')) {
+                    match = true;
+                } else if (filters.currentStage === 'embed' && stageName.includes('植入')) {
+                    match = true;
+                } else if (filters.currentStage === 'pre_tender' && stageName.includes('招标前')) {
+                    match = true;
+                } else if (filters.currentStage === 'tendering' && stageName.includes('招标中')) {
+                    match = true;
+                } else if (filters.currentStage === 'awarded' && stageName.includes('中标')) {
+                    match = true;
+                } else if (filters.currentStage === 'quoted' && stageName.includes('批价')) {
+                    match = true;
+                } else if (filters.currentStage === 'signed' && stageName.includes('签约')) {
+                    match = true;
+                } else if (filters.currentStage === 'lost' && stageName.includes('失败')) {
+                    match = true;
+                } else if (filters.currentStage === 'paused' && stageName.includes('搁置')) {
+                    match = true;
+                }
+                
+                if (!match) {
+                    shouldFilter = true;
+                }
+            }
+        }
+        
+        // 检查"本月更新"过滤条件
+        if (filters.updatedThisMonth) {
+            // 首先尝试找到更新日期的DOM元素
+            let dateElement = card.querySelector('.small.text-muted:last-child');
+            let dateText = '';
+            
+            if (dateElement) {
+                dateText = dateElement.textContent.trim();
+                console.log("移动卡片找到更新日期元素:", dateText);
+                
+                // 使用正则提取日期部分
+                const dateMatch = dateText.match(/更新:\s*(\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?)/);
+                if (dateMatch && dateMatch[1]) {
+                    dateText = dateMatch[1].trim();
+                }
+            }
+            
+            // 如果找不到更新日期元素，尝试从整个卡片文本中匹配
+            if (!dateText) {
+                const updatedTextMatch = card.textContent.match(/更新:\s*(\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?)/);
+                if (updatedTextMatch && updatedTextMatch[1]) {
+                    dateText = updatedTextMatch[1].trim();
+                }
+                console.log("从卡片文本中提取的更新日期:", dateText);
+            }
+            
+            if (dateText) {
+                // 解析日期
+                try {
+                    const updatedDate = new Date(dateText);
+                    const now = new Date();
+                    
+                    // 检查是否为本月更新
+                    const isCurrentMonth = updatedDate.getMonth() === now.getMonth() && 
+                                         updatedDate.getFullYear() === now.getFullYear();
+                    
+                    console.log("移动卡片更新时间检查:", dateText, 
+                        "原始日期对象:", updatedDate,
+                        "是否本月:", isCurrentMonth, 
+                        "更新月份:", updatedDate.getMonth() + 1, 
+                        "当前月份:", now.getMonth() + 1);
+                    
+                    if (!isCurrentMonth) {
+                        shouldFilter = true;
+                    }
+                } catch (e) {
+                    console.error("移动卡片日期解析错误:", dateText, e);
+                    shouldFilter = true;
+                }
+            } else {
+                // 如果没有找到更新日期，则过滤掉
+                console.warn("移动卡片未找到更新日期");
+                shouldFilter = true;
+            }
+        }
+        
+        // 根据筛选结果，将卡片分到匹配或过滤集合中
+        if (shouldFilter) {
+            card.classList.add('filtered');
+            filteredCards.push(card);
+        } else {
+            card.classList.remove('filtered');
+            matchedCards.push(card);
+        }
+    });
+    
+    // 重新排列表格行：匹配的行在前，被过滤的行不显示
+    if (tableBody) {
+        // 清空表格
+        while (tableBody.firstChild) {
+            tableBody.removeChild(tableBody.firstChild);
+        }
+        
+        // 添加匹配的行
+        matchedRows.forEach(row => {
+            tableBody.appendChild(row);
+            row.style.display = '';
+        });
+        
+        // 被过滤的行不显示，但仍保留在DOM中
+        filteredRows.forEach(row => {
+            row.style.display = 'none';
+            tableBody.appendChild(row);
+        });
+    }
+    
+    // 重新排列移动端卡片：匹配的卡片在前，被过滤的卡片不显示
+    if (mobileContainer) {
+        // 保存所有非卡片元素
+        const nonCardElements = Array.from(mobileContainer.children).filter(el => 
+            !el.classList.contains('card')
+        );
+        
+        // 清空容器
+        while (mobileContainer.firstChild) {
+            mobileContainer.removeChild(mobileContainer.firstChild);
+        }
+        
+        // 首先添加非卡片元素（如警告、提示等）
+        nonCardElements.forEach(el => {
+            mobileContainer.appendChild(el);
+        });
+        
+        // 添加匹配的卡片
+        matchedCards.forEach(card => {
+            mobileContainer.appendChild(card);
+            card.style.display = '';
+        });
+        
+        // 被过滤的卡片不显示，但仍保留在DOM中
+        filteredCards.forEach(card => {
+            card.style.display = 'none';
+            mobileContainer.appendChild(card);
+        });
+    }
+    
+    // 更新按钮状态
+    triggerFilterStatusUpdate();
+}
+
+/**
+ * 触发list.html中的过滤状态更新函数
+ */
+function triggerFilterStatusUpdate() {
+    // 如果主页面中定义了更新函数，调用它
+    if (typeof window.updateClearButtonState === 'function') {
+        setTimeout(window.updateClearButtonState, 0);
+    } else {
+        // 如果没有定义，则使用自定义事件通知
+        document.dispatchEvent(new CustomEvent('filterStatusChanged'));
+    }
+}
+
+/**
+ * 清除所有统计卡片筛选
+ * 这个函数可以从外部调用，用于重置所有卡片状态
+ */
+function clearAllCardFilters() {
+    // 使用统一的清除函数
+    clearAllCardActiveStates();
+    
+    // 恢复所有记录显示
+    clientSideFilter({});
+    
+    // 更新URL参数但不刷新页面
+    updateURLParams({});
+}
+
+// 将清除函数暴露给全局，以便主页面可以调用
+window.clearAllCardFilters = clearAllCardFilters;
+
+// 将恢复函数暴露给全局，以便主页面可以调用
+window.restoreAllRecords = restoreAllRecords;
+
+/**
+ * 检查URL参数并设置阶段卡片的选中状态
+ */
+function checkAndSetStageCardSelection() {
+    const currentUrl = new URL(window.location.href);
+    const params = new URLSearchParams(currentUrl.search);
+    const currentStage = params.get('filter_current_stage');
+    
+    // 阶段到卡片ID的映射
+    const stageToCardMap = {
+        'discover': 'discoverProjectsCard',
+        'embed': 'embedProjectsCard',
+        'pre_tender': 'preTenderProjectsCard',
+        'tendering': 'tenderingProjectsCard',
+        'awarded': 'wonProjectsCard',
+        'quoted': 'quotedProjectsCard',
+        'signed': 'signedProjectsCard',
+        'lost': 'lostProjectsCard',
+        'paused': 'pausedProjectsCard'
+    };
+    
+    // 移除所有阶段卡片的选中状态
+    Object.values(stageToCardMap).forEach(cardId => {
+        const card = document.getElementById(cardId);
+        if (card) {
+            card.classList.remove('stage-card-selected');
+        }
+    });
+    
+    // 如果URL中有当前阶段参数，设置对应卡片为选中状态
+    if (currentStage && stageToCardMap[currentStage]) {
+        const selectedCard = document.getElementById(stageToCardMap[currentStage]);
+        if (selectedCard) {
+            selectedCard.classList.add('stage-card-selected');
+        }
+    }
+}
+
+// 页面加载完成后检查并设置选中状态
+document.addEventListener('DOMContentLoaded', function() {
+    // 延迟执行，确保所有元素都已渲染
+    setTimeout(checkAndSetStageCardSelection, 100);
+});
+
+// 将函数暴露给全局，以便外部调用
+window.checkAndSetStageCardSelection = checkAndSetStageCardSelection;
+
+/**
+ * 更新有效项目卡片标题为"全部项目"
+ */
+function updateValidProjectsCardToAll() {
+    const card = document.getElementById('validProjectsCard');
+    if (!card) return;
+    
+    // 更新标题和tooltip
+    const titleElement = card.querySelector('.card-title');
+    if (titleElement) {
+        titleElement.innerHTML = '<i class="fas fa-list me-1"></i> 全部项目' + 
+                               '<i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip" title="全部项目总数和总金额（包含所有状态和授权状态）"></i>';
+    }
+    
+    // 重新初始化tooltip
+    if (typeof initializeTooltips === 'function') {
+        setTimeout(initializeTooltips, 100);
+    }
+    
+    // 重新计算并显示所有项目的统计
+    calculateAndUpdateAllProjectsStats();
+}
+
+/**
+ * 更新有效项目卡片的统计数据
+ */
+function updateValidProjectsCardStats(count) {
+    const countElement = document.getElementById('validProjectsCount');
+    if (countElement) {
+        countElement.textContent = count;
+    }
+    
+    // 计算过滤后项目的总金额
+    calculateFilteredProjectsAmount();
+}
+
+/**
+ * 计算并更新全部项目的统计数据
+ */
+function calculateAndUpdateAllProjectsStats() {
+    // 获取所有项目行（包括可能被过滤隐藏的）
+    const allRows = document.querySelectorAll('.table tbody tr');
+    const allCards = document.querySelectorAll('.d-block.d-lg-none .card');
+    
+    // 确保显示所有行和卡片
+    allRows.forEach(row => {
+        row.style.display = '';
+        row.classList.remove('filtered');
+    });
+    allCards.forEach(card => {
+        card.style.display = '';
+        card.classList.remove('filtered');
+    });
+    
+    let totalCount = Math.max(allRows.length, allCards.length);
+    let totalAmount = 0;
+    
+    console.log('计算全部项目统计 - 行数:', allRows.length, '卡片数:', allCards.length, '总数:', totalCount);
+    
+    // 从表格行中计算总金额
+    allRows.forEach(row => {
+        const hasDeletePermission = row.querySelector('td:first-child .form-check-input') !== null;
+        const quotationColumnIndex = hasDeletePermission ? 9 : 8; // 报价列的位置
+        const quotationCell = row.querySelector(`td:nth-child(${quotationColumnIndex})`);
+        
+        if (quotationCell) {
+            const quotationText = quotationCell.textContent.trim();
+            // 提取数字（去除逗号和货币符号）
+            const amount = parseFloat(quotationText.replace(/[,，元]/g, '')) || 0;
+            totalAmount += amount;
+        }
+    });
+    
+    console.log('全部项目统计结果 - 数量:', totalCount, '总金额:', totalAmount, '万元:', (totalAmount / 10000).toFixed(1));
+    
+    // 更新显示
+    const countElement = document.getElementById('validProjectsCount');
+    const amountElement = document.getElementById('validProjectsAmount');
+    
+    if (countElement) {
+        countElement.textContent = totalCount;
+    }
+    
+    if (amountElement) {
+        // 转换为万元并格式化
+        const amountInWan = totalAmount / 10000;
+        amountElement.textContent = amountInWan.toFixed(1);
+    }
+}
+
+/**
+ * 计算过滤后项目的总金额
+ */
+function calculateFilteredProjectsAmount() {
+    // 获取可见的项目行
+    const visibleRows = document.querySelectorAll('.table tbody tr:not([style*="display: none"])');
+    let totalAmount = 0;
+    
+    visibleRows.forEach(row => {
+        const hasDeletePermission = row.querySelector('td:first-child .form-check-input') !== null;
+        const quotationColumnIndex = hasDeletePermission ? 9 : 8; // 报价列的位置
+        const quotationCell = row.querySelector(`td:nth-child(${quotationColumnIndex})`);
+        
+        if (quotationCell) {
+            const quotationText = quotationCell.textContent.trim();
+            // 提取数字（去除逗号和货币符号）
+            const amount = parseFloat(quotationText.replace(/[,，元]/g, '')) || 0;
+            totalAmount += amount;
+        }
+    });
+    
+    // 更新金额显示
+    const amountElement = document.getElementById('validProjectsAmount');
+    if (amountElement) {
+        // 转换为万元并格式化
+        const amountInWan = totalAmount / 10000;
+        amountElement.textContent = amountInWan.toFixed(1);
+    }
+}
+
+/**
+ * 清除所有卡片的激活状态
+ */
+function clearAllCardActiveStates() {
+    const allCards = [
+        'validProjectsCard', 'updatedProjectsCard', 'signedProjectsCard', 
+        'lostProjectsCard', 'pausedProjectsCard', 'discoverProjectsCard', 
+        'embedProjectsCard', 'preTenderProjectsCard', 'tenderingProjectsCard', 
+        'wonProjectsCard', 'quotedProjectsCard'
+    ];
+    
+    allCards.forEach(cardId => {
+        const card = document.getElementById(cardId);
+        if (card) {
+            card.classList.remove('active-filter');
+            card.classList.remove('stage-card-selected');
+        }
+    });
+}
+
+/**
+ * 更新有效项目卡片标题为"有效项目"
+ */
+function updateValidProjectsCardToActive() {
+    const card = document.getElementById('validProjectsCard');
+    if (!card) return;
+    
+    // 更新标题和tooltip为"有效项目"
+    const titleElement = card.querySelector('.card-title');
+    if (titleElement) {
+        titleElement.innerHTML = '<i class="fas fa-project-diagram me-1"></i> 有效项目' + 
+                               '<i class="fas fa-info-circle text-muted ms-1" data-bs-toggle="tooltip" title="有效项目总数和总金额（排除签约、失败、搁置状态，包含所有授权状态）"></i>';
+    }
+    
+    // 重新初始化tooltip
+    if (typeof initializeTooltips === 'function') {
+        setTimeout(initializeTooltips, 100);
+    }
+}
+</script> 
+
+<!-- 添加tooltip初始化 -->
+<script>
+// 页面加载完成后初始化tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    // 初始化所有tooltip
+    initializeTooltips();
+});
+
+/**
+ * 初始化或重新初始化所有tooltips
+ */
+function initializeTooltips() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        // 如果已经有tooltip实例，先销毁
+        const existingTooltip = bootstrap.Tooltip.getInstance(tooltipTriggerEl);
+        if (existingTooltip) {
+            existingTooltip.dispose();
+        }
+        // 创建新的tooltip实例
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+}
+</script> 

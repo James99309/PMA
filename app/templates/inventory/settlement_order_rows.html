@@ -1,0 +1,19 @@
+{% from 'macros/ui_helpers.html' import render_settlement_situation_badge %}
+{% for order in settlement_orders %}
+<tr>
+    <td>
+        <a href="{{ url_for('inventory.settlement_process', order_number=order.order_number) }}" 
+           class="settlement-order-link">
+            {{ order.order_number }}
+        </a>
+    </td>
+    <td>{{ order.project.project_name if order.project else '无项目' }}</td>
+    <td>{{ order.dealer.company_name if order.dealer else '无公司' }}</td>
+    <td class="number-cell">{{ order.details|length }}</td>
+    <td class="number-cell">¥{{ order.formatted_total_amount }}</td>
+    <td>
+        {{ render_settlement_situation_badge(order.settlement_status) }}
+    </td>
+    <td>{{ order.created_at.strftime('%Y-%m-%d %H:%M') if order.created_at else '-' }}</td>
+</tr>
+{% endfor %}

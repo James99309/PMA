@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, render_template_string
 from flask_login import current_user, login_required
 from flask_babel import gettext as _, ngettext
 from app.models.customer import Company, Contact, COMPANY_TYPES
@@ -12,7 +12,11 @@ from datetime import datetime
 import difflib
 import json
 import re
+import logging
 from app.utils.dictionary_helpers import get_company_type_options, get_industry_options, get_status_options, get_country_options, COMPANY_TYPE_LABELS, INDUSTRY_LABELS, STATUS_LABELS, COUNTRY_LABELS
+
+# 设置日志记录器
+logger = logging.getLogger(__name__)
 from app.utils.access_control import (
     get_viewable_data, can_edit_data, 
     can_view_company, can_edit_company_info, can_edit_company_sharing, can_delete_company,
@@ -295,6 +299,266 @@ def list_companies():
     # 获取实际存在的筛选器选项（基于当前可见数据）
     company_type_options, industry_options, status_options, country_options = get_existing_filter_options(all_viewable_companies)
     
+    # 计算统计数据
+    all_companies_query = get_viewable_data(Company, current_user)
+    total_companies = all_companies_query.count()
+    
+    # 活跃企业统计
+    active_companies = all_companies_query.filter(Company.status == 'active').count()
+    
+    # 企业类型统计
+    direct_customers = all_companies_query.filter(Company.company_type == 'direct_customer').count()
+    partners = all_companies_query.filter(Company.company_type == 'partner').count()
+    
+    # 我的企业统计（当前用户负责的）
+    my_companies = all_companies_query.filter(Company.owner_id == current_user.id).count()
+    
+    # 构建标准化筛选配置
+    filter_config = {
+        'action_url': url_for('customer.list_companies'),
+        'form_id': 'customerFilterForm',
+        'reset_url': url_for('customer.list_companies'),
+        
+        'search_field': {
+            'name': 'search',
+            'label': '搜索',
+            'placeholder': '企业名称或客户信息',
+            'value': search,
+            'col_width': 4
+        },
+        
+        'filter_fields': [
+            {
+                'name': 'owner_filter',
+                'label': '客户负责人', 
+                'all_option_text': '全部负责人',
+                'current_value': owner_filter,
+                'col_width': 2,
+                'options': [
+                    {
+                        'value': str(user.id), 
+                        'label': user.real_name or user.username,
+                        'translate': False
+                    }
+                    for user in all_users if user.id in unique_owner_ids
+                ]
+            },
+            {
+                'name': 'company_type',
+                'label': '企业类型',
+                'all_option_text': '全部类型',
+                'current_value': company_type_filter,
+                'col_width': 2,
+                'options': [
+                    {
+                        'value': value,
+                        'label': label,
+                        'translate': False
+                    }
+                    for value, label in company_type_options
+                ]
+            },
+            {
+                'name': 'industry',
+                'label': '行业',
+                'all_option_text': '全部行业',
+                'current_value': industry_filter,
+                'col_width': 2,
+                'options': [
+                    {
+                        'value': value,
+                        'label': label,
+                        'translate': False
+                    }
+                    for value, label in industry_options
+                ]
+            },
+            {
+                'name': 'country',
+                'label': '国家',
+                'all_option_text': '全部国家',
+                'current_value': country_filter,
+                'col_width': 2,
+                'options': [
+                    {
+                        'value': value,
+                        'label': label,
+                        'translate': False
+                    }
+                    for value, label in country_options
+                ]
+            },
+            {
+                'name': 'status_filter',
+                'label': '状态',
+                'all_option_text': '全部状态',
+                'current_value': status_filter,
+                'col_width': 2,
+                'options': [
+                    {
+                        'value': value,
+                        'label': label,
+                        'translate': False
+                    }
+                    for value, label in status_options
+                ]
+            }
+        ],
+        
+        'search_button_text': '搜索',
+        'reset_button_text': '重置',
+        
+        # 筛选行为配置
+        'auto_submit': True,                    # 启用自动筛选
+        'dynamic_reset_button': True,           # 启用动态重置按钮
+        'adaptive_width': True,                 # 启用自适应宽度
+        'adaptive_button_layout': True,         # 启用自适应按钮布局
+        'search_delay': 300                     # 搜索延迟时间
+    }
+    
+    # 通用列表组件配置
+    list_config = {
+        'module_name': 'customer',
+        'title': None,  # 页面级标题由模板控制，此处不显示
+        'ajax_mode': True,
+        
+        # 无限滚动配置
+        'infinite_scroll': {
+            'enabled': True,
+            'page_size': 20,
+            'scroll_threshold': 100  # 距离底部100px时开始加载
+        },
+        
+        # 统计卡片配置
+        'stats': {
+            'cards': [
+                {
+                    'id': 'total',
+                    'title': '全部企业',
+                    'icon': 'fas fa-building',
+                    'value': total_companies,
+                    'unit': '家',
+                    'color': 'primary',
+                    'clickable': True,
+                    'click_params': {},
+                    'data_key': 'total'
+                },
+                {
+                    'id': 'active',
+                    'title': '活跃企业',
+                    'icon': 'fas fa-check-circle',
+                    'value': active_companies,
+                    'unit': '家',
+                    'color': 'success',
+                    'clickable': True,
+                    'click_params': {'status_filter': 'active'},
+                    'data_key': 'active'
+                },
+                {
+                    'id': 'direct_customer',
+                    'title': '直接客户',
+                    'icon': 'fas fa-user-tie',
+                    'value': direct_customers,
+                    'unit': '家',
+                    'color': 'info',
+                    'clickable': True,
+                    'click_params': {'company_type': 'direct_customer'},
+                    'data_key': 'direct_customer'
+                },
+                {
+                    'id': 'my_companies',
+                    'title': '我的企业',
+                    'icon': 'fas fa-user',
+                    'value': my_companies,
+                    'unit': '家',
+                    'color': 'warning',
+                    'clickable': True,
+                    'click_params': {'owner_filter': str(current_user.id)},
+                    'data_key': 'my_companies'
+                }
+            ]
+        },
+        
+        # 筛选配置  
+        'filter': filter_config,
+        
+        # 表格配置
+        'table': {
+            'ajax_endpoint': url_for('customer.companies_list_ajax'),
+            'ajax_target': 'customerTableBody',
+            'title': '企业列表',
+            'icon': 'fas fa-table',
+            'enhanced_striping': True,      # 启用增强斑马线效果
+            'fixed_height_scroll': True,    # 启用固定高度滚动
+            'columns': [
+                {
+                    'key': 'owner',
+                    'label': '客户负责人',
+                    'type': 'badge',
+                    'render': 'render_owner',
+                    'width': '120px'
+                },
+                {
+                    'key': 'company_name',
+                    'label': '企业名称',
+                    'type': 'link',
+                    'url_template': '/customer/{id}/view',
+                    'width': '200px'
+                },
+                {
+                    'key': 'company_type',
+                    'label': '企业类型',
+                    'type': 'badge',
+                    'render': 'render_company_type_badge',
+                    'width': '120px'
+                },
+                {
+                    'key': 'industry',
+                    'label': '行业',
+                    'type': 'badge',
+                    'render': 'render_industry_badge',
+                    'width': '120px'
+                },
+                {
+                    'key': 'status',
+                    'label': '状态',
+                    'type': 'badge',
+                    'render': 'render_status_badge',
+                    'width': '100px'
+                },
+                {
+                    'key': 'country_region',
+                    'label': '国家/地区',
+                    'type': 'text',
+                    'width': '150px'
+                },
+                {
+                    'key': 'address',
+                    'label': '地址',
+                    'type': 'text',
+                    'width': '200px'
+                },
+                {
+                    'key': 'updated_at',
+                    'label': '更新时间',
+                    'type': 'date',
+                    'format': '%Y-%m-%d',
+                    'width': '120px'
+                },
+                {
+                    'key': 'created_at',
+                    'label': '创建时间',
+                    'type': 'date',
+                    'format': '%Y-%m-%d',
+                    'width': '120px'
+                }
+            ]
+        },
+        
+        # 移动端模板配置
+        'mobile_template': 'customer/customer_cards.html'
+    }
+    
     return render_template('customer/list.html', 
                           companies=companies, 
                           total_count=total_count,
@@ -311,7 +575,118 @@ def list_companies():
                           COMPANY_TYPE_OPTIONS=company_type_options,
                           INDUSTRY_OPTIONS=industry_options,
                           STATUS_OPTIONS=status_options,
-                          COUNTRY_OPTIONS=country_options)
+                          COUNTRY_OPTIONS=country_options,
+                          filter_config=filter_config,
+                          list_config=list_config)
+
+@customer.route('/api/companies/filter', methods=['GET'])
+@login_required
+@permission_required('customer', 'view')
+def companies_list_ajax():
+    """客户列表AJAX筛选API"""
+    try:
+        # 获取搜索和筛选参数
+        search = request.args.get('search', '').strip()
+        owner_filter = request.args.get('owner_filter', '')
+        company_type_filter = request.args.get('company_type', '')
+        industry_filter = request.args.get('industry', '')
+        country_filter = request.args.get('country', '')
+        status_filter = request.args.get('status_filter', '')
+        
+        # 分页参数
+        offset = request.args.get('offset', 0, type=int)
+        limit = request.args.get('limit', 20, type=int)
+        
+        # 基础查询
+        query = get_viewable_data(Company, current_user)
+        
+        # 应用搜索条件
+        if search:
+            query = query.filter(Company.company_name.ilike(f'%{search}%'))
+        
+        # 应用筛选条件
+        if owner_filter:
+            query = query.filter(Company.owner_id == owner_filter)
+        if company_type_filter:
+            query = query.filter(Company.company_type == company_type_filter)
+        if industry_filter:
+            query = query.filter(Company.industry == industry_filter)
+        if country_filter:
+            query = query.filter(Company.country == country_filter)
+        if status_filter:
+            query = query.filter(Company.status == status_filter)
+        
+        # 排序
+        query = query.order_by(Company.updated_at.desc())
+        
+        # 获取总数
+        total_count = query.count()
+        
+        # 分页查询
+        companies = query.offset(offset).limit(limit).all()
+        
+        # 预加载所有者信息
+        owner_ids = [company.owner_id for company in companies if company.owner_id]
+        if owner_ids:
+            owners = {user.id: user for user in User.query.filter(User.id.in_(owner_ids)).all()}
+            for company in companies:
+                if company.owner_id and company.owner_id in owners:
+                    company.owner = owners[company.owner_id]
+        
+        # 使用通用组件的响应式渲染逻辑（与页面初始化保持一致）
+        from app.utils.mobile_helpers import is_mobile_request
+        from flask import render_template
+        
+        if is_mobile_request():
+            # 移动端：渲染卡片内容（不包含容器，因为容器已存在）
+            companies_html = render_template('customer/customer_cards.html', items=companies)
+        else:
+            # 桌面端：渲染表格行
+            companies_html = render_template('customer/customer_rows.html', items=companies)
+        
+        # 计算统计数据 - 基于当前筛选条件的结果
+        # 重新构建基础查询以获取筛选后的统计数据
+        base_filtered_query = get_viewable_data(Company, current_user)
+        
+        # 应用相同的筛选条件
+        if search:
+            base_filtered_query = base_filtered_query.filter(Company.company_name.ilike(f'%{search}%'))
+        if owner_filter:
+            base_filtered_query = base_filtered_query.filter(Company.owner_id == owner_filter)
+        if company_type_filter:
+            base_filtered_query = base_filtered_query.filter(Company.company_type == company_type_filter)
+        if industry_filter:
+            base_filtered_query = base_filtered_query.filter(Company.industry == industry_filter)
+        if country_filter:
+            base_filtered_query = base_filtered_query.filter(Company.country == country_filter)
+        if status_filter:
+            base_filtered_query = base_filtered_query.filter(Company.status == status_filter)
+        
+        statistics = {
+            'total': base_filtered_query.count(),
+            'active': base_filtered_query.filter(Company.status == 'active').count(),
+            'direct_customer': base_filtered_query.filter(Company.company_type == 'direct_customer').count(),
+            'my_companies': base_filtered_query.filter(Company.owner_id == current_user.id).count()
+        }
+        
+        # 计算是否还有更多数据（用于无限滚动）
+        has_more = (offset + len(companies)) < total_count
+        
+        return jsonify({
+            'success': True,
+            'html': companies_html,
+            'total_count': total_count,
+            'loaded_count': len(companies),
+            'has_more': has_more,
+            'statistics': statistics
+        })
+        
+    except Exception as e:
+        logger.error(f"客户列表AJAX筛选失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'加载失败: {str(e)}'
+        }), 500
 
 @customer.route('/api/load-more', methods=['GET'])
 @permission_required('customer', 'view')

@@ -30,6 +30,7 @@ from decimal import Decimal, InvalidOperation
 from flask_login import login_required, current_user
 from datetime import datetime
 from sqlalchemy import func, and_, or_
+from flask import url_for
 from app.decorators import permission_required  # 添加权限装饰器导入
 import os
 import uuid
@@ -222,7 +223,238 @@ def product_list():
     can_edit_product = current_user.has_permission('product', 'edit')
     can_delete_product = current_user.has_permission('product', 'delete')
     
+    # 获取筛选参数
+    search = request.args.get('search', '').strip()
+    product_type = request.args.get('product_type', '').strip()
+    category = request.args.get('category', '').strip()
+    brand = request.args.get('brand', '').strip()
+    status = request.args.get('status', '').strip()
+    
+    # 构建查询
+    query = Product.query
+    
+    # 产品停产状态过滤：只有产品经理、解决方案经理和管理员可以查看停产产品
+    if current_user.role not in ['admin', 'product_manager', 'solution_manager']:
+        query = query.filter(Product.status == 'active')
+    
+    # 应用搜索条件（搜索产品名称、MN、型号）
+    if search:
+        search_term = f'%{search}%'
+        query = query.filter(
+            or_(
+                Product.product_name.ilike(search_term),
+                Product.product_mn.ilike(search_term),
+                Product.model.ilike(search_term)
+            )
+        )
+    
+    # 应用筛选条件
+    if product_type:
+        query = query.filter(Product.type == product_type)
+    if category:
+        query = query.filter(Product.category == category)
+    if brand:
+        query = query.filter(Product.brand == brand)
+    if status:
+        query = query.filter(Product.status == status)
+    
+    # 执行查询
+    products = query.order_by(Product.id.asc()).all()
+    
+    # 统计数据
+    total_count = len(products)
+    active_count = len([p for p in products if p.status == 'active'])
+    discontinued_count = len([p for p in products if p.status == 'discontinued'])
+    upcoming_count = len([p for p in products if p.status == 'upcoming'])
+    
+    # 计算总价值
+    total_value = sum([(p.retail_price or 0) for p in products])
+    
+    # 获取筛选选项数据
+    product_types = db.session.query(Product.type).distinct().filter(
+        Product.type.isnot(None), Product.type != ''
+    ).all()
+    product_types = [{'value': t[0], 'label': t[0]} for t in product_types if t[0]]
+    
+    categories = db.session.query(Product.category).distinct().filter(
+        Product.category.isnot(None), Product.category != ''
+    ).all()
+    categories = [{'value': c[0], 'label': c[0]} for c in categories if c[0]]
+    
+    brands = db.session.query(Product.brand).distinct().filter(
+        Product.brand.isnot(None), Product.brand != ''
+    ).all()
+    brands = [{'value': b[0], 'label': b[0]} for b in brands if b[0]]
+    
+    status_options = [
+        {'value': 'active', 'label': '生产中'},
+        {'value': 'discontinued', 'label': '已停产'},
+        {'value': 'upcoming', 'label': '待上市'}
+    ]
+    
+    # 构建筛选配置
+    filter_config = {
+        'action_url': url_for('product_route.product_list'),
+        'form_id': 'productFilterForm',
+        'reset_url': url_for('product_route.product_list'),
+        'realtime_search': False,
+        'auto_submit': True,                    # 启用自动筛选
+        'ajax_mode': True,                      # 启用AJAX模式
+        'ajax_endpoint': url_for('product_route.product_list_ajax'),
+        'ajax_target': '#productTableBody',
+        'ajax_columns': 12,
+        'dynamic_reset_button': True,           # 启用动态重置按钮
+        'adaptive_width': True,
+        'adaptive_button_layout': True,
+        'search_delay': 300,
+        
+        'search_field': {
+            'name': 'search',
+            'label': '搜索',
+            'placeholder': '产品名称、MN号或型号',
+            'value': search,
+            'col_width': 4
+        },
+        
+        'filter_fields': [
+            {
+                'name': 'product_type',
+                'label': '产品类型',
+                'all_option_text': '全部类型',
+                'current_value': product_type,
+                'col_width': 2,
+                'options': product_types
+            },
+            {
+                'name': 'category',
+                'label': '产品类别',
+                'all_option_text': '全部类别',
+                'current_value': category,
+                'col_width': 2,
+                'options': categories
+            },
+            {
+                'name': 'brand',
+                'label': '品牌',
+                'all_option_text': '全部品牌',
+                'current_value': brand,
+                'col_width': 2,
+                'options': brands
+            },
+            {
+                'name': 'status',
+                'label': '状态',
+                'all_option_text': '全部状态',
+                'current_value': status,
+                'col_width': 2,
+                'options': status_options
+            }
+        ],
+        
+        'search_button_text': '搜索',
+        'reset_button_text': '重置'
+    }
+    
+    # 构建统一的 list_config 配置
+    list_config = {
+        'module_name': 'product',
+        'title': '产品库管理',
+        'ajax_mode': True,
+        
+        # 移动端模板配置（确保初始化和AJAX使用相同模板）
+        'mobile_template': 'product/product_cards.html',
+        
+        # 无限滚动配置（产品数量通常较少，暂时禁用）
+        'infinite_scroll': {
+            'enabled': False,
+            'page_size': 50,
+            'scroll_threshold': 100,
+            'container_selector': '.table-responsive'
+        },
+        
+        # 统计卡片配置
+        'stats': {
+            'cards': [
+                {
+                    'id': 'total',
+                    'title': '总产品数',
+                    'icon': 'fas fa-cube',
+                    'value': total_count,
+                    'amount': float(total_value / 10000) if total_value > 0 else 0,  # 万元
+                    'unit': '个',
+                    'amount_unit': '万元',
+                    'color': 'primary',
+                    'clickable': False,
+                    'data_key': 'total'
+                },
+                {
+                    'id': 'active',
+                    'title': '生产中',
+                    'icon': 'fas fa-play-circle',
+                    'value': active_count,
+                    'unit': '个',
+                    'color': 'success',
+                    'clickable': True,
+                    'click_params': {'status': 'active'},
+                    'data_key': 'active'
+                },
+                {
+                    'id': 'discontinued',
+                    'title': '已停产',
+                    'icon': 'fas fa-stop-circle',
+                    'value': discontinued_count,
+                    'unit': '个',
+                    'color': 'danger',
+                    'clickable': True,
+                    'click_params': {'status': 'discontinued'},
+                    'data_key': 'discontinued'
+                },
+                {
+                    'id': 'upcoming',
+                    'title': '待上市',
+                    'icon': 'fas fa-clock',
+                    'value': upcoming_count,
+                    'unit': '个',
+                    'color': 'warning',
+                    'clickable': True,
+                    'click_params': {'status': 'upcoming'},
+                    'data_key': 'upcoming'
+                }
+            ]
+        },
+        
+        # 筛选配置
+        'filter': filter_config,
+        
+        # 表格配置
+        'table': {
+            'ajax_target': 'productTableBody',
+            'title': '产品列表',
+            'icon': 'fas fa-table',
+            'fixed_height_scroll': True,   # 启用蓝色滚动条
+            'enhanced_striping': True,     # 启用增强斑马纹
+            'use_custom_rows': True,
+            'custom_rows_template': 'product/product_rows.html',
+            'columns': [
+                {'key': 'id', 'label': 'ID', 'width': '60px'},
+                {'key': 'type', 'label': '产品类型', 'width': '100px', 'type': 'badge'},
+                {'key': 'category', 'label': '产品类别', 'width': '120px'},
+                {'key': 'product_mn', 'label': 'MN号', 'width': '120px'},
+                {'key': 'product_name', 'label': '产品名称', 'width': '180px', 'type': 'link'},
+                {'key': 'model', 'label': '型号', 'width': '120px'},
+                {'key': 'specification', 'label': '规格', 'width': '150px'},
+                {'key': 'brand', 'label': '品牌', 'width': '100px'},
+                {'key': 'unit', 'label': '单位', 'width': '80px'},
+                {'key': 'retail_price', 'label': '价格', 'width': '100px', 'type': 'currency', 'align': 'right'},
+                {'key': 'status', 'label': '状态', 'width': '100px', 'type': 'badge'},
+                {'key': 'created_at', 'label': '创建时间', 'width': '150px', 'type': 'date'}
+            ]
+        }
+    }
+    
     return render_template('product/index.html', 
+                          list_config=list_config,
+                          products=products,  # 保留用于行模板
                           can_edit_product=can_edit_product,
                           can_delete_product=can_delete_product)
 
@@ -242,6 +474,103 @@ def edit_product_page(id):
     return render_template('product/create.html', product=product)
 
 # API路由
+@bp.route('/products/ajax', methods=['GET'])
+@login_required
+@permission_required('product', 'view')
+def product_list_ajax():
+    """产品列表AJAX端点"""
+    try:
+        # 获取筛选参数
+        search = request.args.get('search', '').strip()
+        product_type = request.args.get('product_type', '').strip()
+        category = request.args.get('category', '').strip()
+        brand = request.args.get('brand', '').strip()
+        status = request.args.get('status', '').strip()
+        
+        # 分页参数（产品库通常不需要分页，加载全部数据）
+        offset = request.args.get('offset', 0, type=int)
+        limit = request.args.get('limit', 1000, type=int)  # 设置较大的限制
+        
+        # 构建查询
+        query = Product.query
+        
+        # 产品停产状态过滤：只有产品经理、解决方案经理和管理员可以查看停产产品
+        if current_user.role not in ['admin', 'product_manager', 'solution_manager']:
+            query = query.filter(Product.status == 'active')
+        
+        # 应用搜索条件（搜索产品名称、MN、型号）
+        if search:
+            search_term = f'%{search}%'
+            query = query.filter(
+                or_(
+                    Product.product_name.ilike(search_term),
+                    Product.product_mn.ilike(search_term),
+                    Product.model.ilike(search_term)
+                )
+            )
+        
+        # 应用筛选条件
+        if product_type:
+            query = query.filter(Product.type == product_type)
+        if category:
+            query = query.filter(Product.category == category)
+        if brand:
+            query = query.filter(Product.brand == brand)
+        if status:
+            query = query.filter(Product.status == status)
+        
+        # 执行查询（加载全部数据，产品数量通常不大）
+        products = query.order_by(Product.id.asc()).all()
+        total_count = len(products)
+        has_more = False  # 产品库不使用无限滚动
+        
+        # 统计数据
+        active_count = len([p for p in products if p.status == 'active'])
+        discontinued_count = len([p for p in products if p.status == 'discontinued'])
+        upcoming_count = len([p for p in products if p.status == 'upcoming'])
+        
+        # 计算总价值
+        total_value = sum([(p.retail_price or 0) for p in products])
+        
+        # 使用统一的移动端检测逻辑（与通用组件保持一致）
+        from app.utils.mobile_helpers import is_mobile_request
+        
+        # 构建产品HTML - 根据设备类型选择模板
+        if is_mobile_request():
+            # 移动端：渲染卡片内容（不包含容器，因为容器已存在）
+            products_html = render_template('product/product_cards.html', 
+                                          products=products,
+                                          can_edit_product=current_user.has_permission('product', 'edit'),
+                                          can_delete_product=current_user.has_permission('product', 'delete'))
+        else:
+            # 桌面端：渲染表格行
+            products_html = render_template('product/product_rows.html', 
+                                          products=products,
+                                          can_edit_product=current_user.has_permission('product', 'edit'),
+                                          can_delete_product=current_user.has_permission('product', 'delete'))
+        
+        return jsonify({
+            'success': True,
+            'html': products_html,
+            'has_more': has_more,
+            'total_count': total_count,
+            'loaded_count': total_count,  # 加载全部数据
+            'statistics': {
+                'total_count': total_count,
+                'total_amount': float(total_value / 10000) if total_value > 0 else 0,
+                'active_count': active_count,
+                'discontinued_count': discontinued_count,
+                'upcoming_count': upcoming_count
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f'获取产品列表AJAX失败: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'获取产品列表失败: {str(e)}'
+        }), 500
+
 @bp.route('/api/products', methods=['GET'])
 @login_required
 @permission_required('product', 'view')  # 添加产品查看权限装饰器
@@ -504,6 +833,70 @@ def get_products_by_name():
                     'currency': p.currency if hasattr(p, 'currency') else 'CNY'  # 添加货币字段
                 }
                 result.append(product_dict)
+            except Exception as e:
+                logger.error(f'处理产品时出错: {p.id} - {str(e)}')
+                continue
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f'获取产品型号列表时出错: {str(e)}')
+        return jsonify({
+            'error': '获取产品型号列表失败',
+            'message': str(e)
+        }), 500
+
+@bp.route('/api/products/models', methods=['GET'])
+@login_required
+@permission_required('product', 'view')  # 添加产品查看权限装饰器
+def get_product_models():
+    """获取指定类别和产品名称的型号列表"""
+    try:
+        category = request.args.get('category', '')
+        product_name = request.args.get('product_name', '')
+        logger.debug(f'正在获取产品型号，类别: "{category}", 产品名称: "{product_name}"')
+        
+        if not category or not product_name:
+            return jsonify([])
+        
+        # 查询指定类别和产品名称的产品（包括停产产品）
+        products = Product.query.filter_by(
+            category=category,
+            product_name=product_name
+        ).order_by(Product.id).all()
+        
+        logger.debug(f'找到 {len(products)} 个产品')
+        
+        def decimal_to_float(obj):
+            if isinstance(obj, Decimal):
+                return float(obj)
+            return obj
+        
+        result = []
+        for p in products:
+            try:
+                product_dict = {
+                    'id': p.id,
+                    'product_name': p.product_name,
+                    'category': p.category,
+                    'model': p.model,
+                    'product_model': p.model,  # 兼容性字段
+                    'product_mn': p.product_mn,
+                    'mn': p.product_mn,  # 兼容性字段
+                    'specification': p.specification,
+                    'product_spec': p.specification,  # 兼容性字段
+                    'product_desc': p.specification,  # 兼容性字段
+                    'spec': p.specification,  # 兼容性字段
+                    'brand': p.brand,
+                    'unit': p.unit,
+                    'retail_price': decimal_to_float(p.retail_price) if p.retail_price else 0,
+                    'market_price': decimal_to_float(p.retail_price) if p.retail_price else 0,  # 兼容性字段
+                    'currency': p.currency if hasattr(p, 'currency') else 'CNY',
+                    'status': p.status,
+                    'product_status': p.status  # 兼容性字段
+                }
+                result.append(product_dict)
+                logger.debug(f'成功处理产品: {p.product_name}, 型号: {p.model}, MN: {p.product_mn}')
             except Exception as e:
                 logger.error(f'处理产品时出错: {p.id} - {str(e)}')
                 continue

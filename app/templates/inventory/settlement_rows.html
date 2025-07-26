@@ -1,0 +1,40 @@
+{% from 'macros/ui_helpers.html' import render_settlement_detail_status_badge %}
+{% for detail in settlement_details %}
+<tr data-status="{{ 'completed' if detail.settlement_status == 'settled' else 'pending' }}" 
+    data-month="{{ detail.settlement_date.strftime('%Y-%m') if detail.settlement_date else '' }}">
+    <td>
+        <a href="#" class="settlement-order-link" onclick="showSettlementDetail('{{ detail.settlement_order.order_number }}')">
+            {{ detail.settlement_order.order_number }}
+        </a>
+    </td>
+    <td>{{ detail.settlement_order.project.project_name if detail.settlement_order.project else '无项目' }}</td>
+    <td>{{ detail.product_name if detail.product_name else '无产品' }}</td>
+    <td>{{ detail.product_model if detail.product_model else '-' }}</td>
+    <td>{{ detail.brand if detail.brand else '-' }}</td>
+    <td>{{ detail.product_mn if detail.product_mn else '-' }}</td>
+    <td class="number-cell">{{ detail.quantity }}</td>
+    <td class="number-cell">{{ "%.2f"|format(detail.unit_price) }}</td>
+    <td class="number-cell">{{ "%.2f"|format(detail.total_price) }}</td>
+    <td>
+        {% if detail.settlement_company %}
+            {{ detail.settlement_company.company_name }}
+        {% else %}
+            <span class="text-muted">未指定</span>
+        {% endif %}
+    </td>
+    <td>
+        {{ render_settlement_detail_status_badge(detail.settlement_status) }}
+    </td>
+    <td>{{ detail.settlement_date.strftime('%Y-%m-%d %H:%M') if detail.settlement_date else '-' }}</td>
+    <td>
+        {% if detail.settlement_status != 'settled' %}
+            <a href="{{ url_for('inventory.settlement_process', order_number=detail.settlement_order.order_number) }}" 
+               class="btn btn-warning btn-sm" title="去结算">
+                <i class="fas fa-arrow-right"></i>
+            </a>
+        {% else %}
+            <span class="text-muted">-</span>
+        {% endif %}
+    </td>
+</tr>
+{% endfor %}

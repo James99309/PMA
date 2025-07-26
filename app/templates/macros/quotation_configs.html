@@ -1,0 +1,218 @@
+{# 报价单统一配置管理器 #}
+
+{# 项目搜索配置生成器 #}
+{% macro project_search_config(mode='create', readonly=false, show_clear_button=true) -%}
+{%- set config = {
+    "input_id": "projectSearch",
+    "input_name": "project_search",
+    "dropdown_id": "projectDropdown",
+    "clear_button_id": "clearProject",
+    "selected_info_id": "selectedProjectInfo",
+    "project_id_field": "projectId",
+    "project_id_name": "project_id",
+    "data_element_id": "projectSearchConfig",
+    "label": "关联项目",
+    "placeholder": "输入项目名称或授权码进行搜索...",
+    "show_component_badge": false,
+    "readonly": readonly,
+    "show_clear_button": show_clear_button,
+    "search_config": {
+        "min_length": 1,
+        "delay": 300,
+        "limit": 10,
+        "include_auth_code": true
+    },
+    "permission_config": {
+        "check_edit": true,
+        "check_view": true,
+        "show_locked": true
+    },
+    "display_config": {
+        "show_owner": true,
+        "show_type": true,
+        "show_stage": true,
+        "show_auth_code": true
+    },
+    "hidden_fields": {},
+    "validation": {
+        "required": true,
+        "validate_on_submit": true
+    }
+} -%}
+
+{%- if mode == 'create' -%}
+    {%- set _ = config.update({
+        "api_endpoints": {
+            "search": "/api/v1/search/projects/without-quotations",
+            "project_detail": "/project/api/project/{id}"
+        }
+    }) -%}
+{%- elif mode == 'edit' -%}
+    {%- set _ = config.update({
+        "api_endpoints": {
+            "search": "/api/v1/search/projects",
+            "project_detail": "/project/api/project/{id}"
+        }
+    }) -%}
+{%- endif -%}
+
+{{- config -}}
+{%- endmacro %}
+
+{# 产品明细配置生成器 #}
+{% macro product_detail_config(mode='create', readonly=false) -%}
+{%- set config = {
+    "table_id": "productTable",
+    "add_button_id": "addProduct", 
+    "grand_total_id": "grandTotal",
+    "apiEndpoints": {
+        "categories": url_for('quotation.get_product_categories'),
+        "productsByCategory": url_for('quotation.get_products_by_category'),
+        "productModels": url_for('quotation.get_product_models'),
+        "productSpecs": url_for('quotation.get_product_specs'),
+        "productSearch": url_for('quotation.get_products')
+    },
+    "calculationRules": {
+        "discountType": "percentage",
+        "currency": "CNY",
+        "decimalPlaces": 2,
+        "autoCalculate": true
+    },
+    "currency_config": {
+        "supported_currencies": [
+            {"code": "USD", "name": "美元", "symbol": "$"},
+            {"code": "CNY", "name": "人民币", "symbol": "¥"},
+            {"code": "SGD", "name": "新加坡元", "symbol": "S$"},
+            {"code": "MYR", "name": "马来西亚林吉特", "symbol": "RM"},
+            {"code": "IDR", "name": "印尼盾", "symbol": "Rp"},
+            {"code": "THB", "name": "泰铢", "symbol": "฿"}
+        ],
+        "base_currency": "CNY",
+        "default_rates": {
+            "CNY": 1.0,
+            "USD": 0.14,
+            "SGD": 0.19,
+            "MYR": 0.65,
+            "IDR": 2100.0,
+            "THB": 5.0
+        }
+    },
+    "currency_selector_id": "currencySelector",
+    "currency_symbol_id": "currencySymbol",
+    "readonly": readonly,
+    "columns": [
+        {
+            "key": "product_name",
+            "label": "产品名称",
+            "type": "product-selector",
+            "required": true,
+            "width": "180px"
+        },
+        {
+            "key": "product_model", 
+            "label": "产品型号",
+            "type": "text",
+            "readonly": true,
+            "width": "150px"
+        },
+        {
+            "key": "product_desc",
+            "label": "产品描述",
+            "type": "text", 
+            "readonly": true,
+            "width": "200px"
+        },
+        {
+            "key": "brand",
+            "label": "品牌",
+            "type": "text",
+            "readonly": true,
+            "width": "120px"
+        },
+        {
+            "key": "unit",
+            "label": "单位", 
+            "type": "text",
+            "readonly": true,
+            "width": "80px"
+        },
+        {
+            "key": "market_price",
+            "label": "市场单价",
+            "type": "currency",
+            "readonly": true,
+            "width": "120px"
+        },
+        {
+            "key": "discount",
+            "label": "折扣率(%)",
+            "type": "percentage",
+            "width": "100px"
+        },
+        {
+            "key": "unit_price", 
+            "label": "单价",
+            "type": "currency",
+            "width": "120px"
+        },
+        {
+            "key": "quantity",
+            "label": "数量",
+            "type": "number", 
+            "required": true,
+            "width": "80px"
+        },
+        {
+            "key": "total_price",
+            "label": "小计", 
+            "type": "currency",
+            "readonly": true,
+            "width": "120px"
+        },
+        {
+            "key": "product_mn",
+            "label": "MN",
+            "type": "text",
+            "readonly": true,
+            "width": "100px"
+        },
+        {
+            "key": "actions",
+            "label": "操作",
+            "type": "actions",
+            "width": "70px"
+        }
+    ],
+    "fieldMapping": {
+        "product_name": "product_name",
+        "product_model": "product_model", 
+        "product_desc": "product_desc",
+        "brand": "brand",
+        "unit": "unit",
+        "quantity": "quantity",
+        "market_price": "market_price",
+        "discount": "discount", 
+        "unit_price": "unit_price",
+        "total_price": "total_price",
+        "product_mn": "product_mn",
+        "currency": "currency"
+    },
+    "validators": {
+        "quantity": "val => val > 0",
+        "market_price": "val => val >= 0",
+        "discount": "val => val >= 0 && val <= 1000"
+    }
+} -%}
+
+{%- if mode == 'edit' -%}
+    {%- set _ = config.update({
+        "callbacks": {
+            "onProductSelect": "handleQuotationProductSelect",
+            "onCalculate": "handleQuotationCalculate",
+            "onError": "handleQuotationError"
+        }
+    }) -%}
+{%- endif -%}
+
+{{- config -}}
+{%- endmacro %}

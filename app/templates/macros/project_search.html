@@ -1,0 +1,521 @@
+{# 
+  通用项目搜索组件
+  支持关键词搜索，权限过滤，分组显示（可编辑、只读、锁定）
+  
+  作者: Claude AI
+  版本: 1.0.0
+#}
+
+{# 
+  渲染项目搜索组件
+  参数:
+  - config: 项目搜索配置对象
+  - selected_project: 已选中的项目信息(可选)
+  - readonly: 是否只读模式(默认false)
+  - required: 是否必填(默认true)
+#}
+{% macro render_project_search(config, selected_project=None, readonly=False, required=True) %}
+<div class="project-search-container" data-config='{{ config | tojson }}'>
+    <!-- 项目搜索标题区域 -->
+    <div class="project-search-header mb-3">
+        <label for="{{ config.input_id | default('projectSearch') }}" class="form-label">
+            {{ config.label | default('关联项目') }}
+            {% if required %}<span class="text-danger">*</span>{% endif %}
+        </label>
+        {# 通用组件徽章已移除 #}
+    </div>
+    
+    <!-- 搜索输入框区域 -->
+    <div class="position-relative">
+        <div class="project-search-wrapper d-flex align-items-center gap-2">
+            <input type="text" 
+                   class="form-control project-search-input flex-grow-1" 
+                   id="{{ config.input_id | default('projectSearch') }}"
+                   name="{{ config.input_name | default('project_search') }}"
+                   placeholder="{{ config.placeholder | default('输入项目名称或授权码进行搜索...') }}"
+                   autocomplete="off"
+                   {% if readonly %}readonly{% endif %}
+                   {% if required %}required{% endif %}
+                   value="{{ selected_project.display_name if selected_project else '' }}">
+            
+            <!-- 独立的清除按钮 -->
+            {% if not readonly %}
+            <button type="button" 
+                    class="btn btn-outline-danger btn-sm clear-project-btn" 
+                    id="{{ config.clear_button_id | default('clearProject') }}"
+                    title="{{ _('清除选择') }}"
+                    style="display: none;">
+                <i class="fas fa-times"></i>
+            </button>
+            {% endif %}
+        </div>
+        
+        <!-- 搜索下拉菜单 -->
+        <div class="project-dropdown" 
+             id="{{ config.dropdown_id | default('projectDropdown') }}"
+             style="display: none;">
+            
+            <!-- 加载中状态 -->
+            <div class="dropdown-loading text-center py-3">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">{{ _('搜索中...') }}</span>
+                </div>
+                <small class="d-block mt-2 text-muted">{{ _('搜索中...') }}</small>
+            </div>
+            
+            <!-- 搜索结果容器 -->
+            <div class="dropdown-results">
+                <!-- 项目列表（统一显示，按权限排序） -->
+                <div class="project-list">
+                    <!-- 动态生成的项目列表 -->
+                </div>
+                
+                <!-- 无结果提示 -->
+                <div class="no-results text-center py-3" style="display: none;">
+                    <i class="fas fa-search text-muted mb-2"></i>
+                    <div class="text-muted">{{ _('没有找到匹配的项目') }}</div>
+                    <small class="text-muted">{{ _('请尝试其他关键词') }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 移除已选中项目信息显示区域，只在输入框中显示项目名称 -->
+    
+    <!-- 隐藏字段：只存储选中的项目ID -->
+    <input type="hidden" 
+           id="{{ config.project_id_field | default('projectId') }}" 
+           name="{{ config.project_id_name | default('project_id') }}" 
+           value="{{ selected_project.id if selected_project else '' }}">
+    
+    <!-- 移除项目阶段、类型等隐藏字段，这些信息在保存时从项目表获取 -->
+    
+    <!-- 数据属性：用于JavaScript初始化 -->
+    <div id="{{ config.data_element_id | default('projectSearchConfig') }}" 
+         data-config='{{ config | tojson }}'
+         data-selected-project='{{ selected_project | tojson if selected_project else "{}" }}'
+         data-readonly="{{ readonly | lower }}"
+         data-required="{{ required | lower }}"
+         style="display: none;"></div>
+</div>
+
+<!-- 引入必要的CSS -->
+<style>
+    /* 项目搜索容器样式 */
+    .project-search-container {
+        position: relative;
+        margin: 1rem 0;
+    }
+    
+    /* 项目搜索标题区域样式 */
+    .project-search-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+    
+    .project-search-header .form-label {
+        margin-bottom: 0;
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    /* 搜索输入框区域样式 */
+    .project-search-wrapper {
+        width: 100%;
+    }
+    
+    .project-search-input {
+        border-radius: 0.375rem;
+        flex-grow: 1;
+    }
+    
+    .project-search-input:focus {
+        border-color: #6f42c1;
+        box-shadow: 0 0 0 0.2rem rgba(111, 66, 193, 0.25);
+    }
+    
+    /* 独立清除按钮样式 */
+    .clear-project-btn {
+        border-radius: 0.375rem;
+        padding: 0.375rem 0.75rem;
+        min-width: 38px;
+        flex-shrink: 0;
+        transition: all 0.2s ease-in-out;
+    }
+    
+    .clear-project-btn:hover {
+        background-color: #dc3545;
+        border-color: #dc3545;
+        color: white;
+        transform: scale(1.05);
+    }
+    
+    .clear-project-btn:active {
+        transform: scale(0.95);
+    }
+    
+    /* 下拉菜单样式 */
+    .project-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        z-index: 1050;
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        max-height: 400px;
+        overflow-y: auto;
+        margin-top: 2px;
+    }
+    
+    /* 加载状态样式 */
+    .dropdown-loading {
+        padding: 1rem;
+    }
+    
+    /* 移除了项目分组样式，因为不再使用分组显示 */
+    
+    /* 项目列表样式 */
+    .project-list {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
+    .project-item {
+        padding: 0.5rem 0.75rem; /* 减少内边距，更紧凑 */
+        border-bottom: 1px solid #f1f3f4;
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+    }
+    
+    .project-item:last-child {
+        border-bottom: none;
+    }
+    
+    .project-item:hover {
+        background-color: #f8f9fa;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    
+    .project-item.active {
+        background-color: #e8f4fd;
+        border-left: 3px solid #1976d2;
+        box-shadow: 0 1px 4px rgba(25,118,210,0.15);
+    }
+    
+    .project-item.locked {
+        cursor: not-allowed;
+        opacity: 0.65;
+        background-color: #fafafa;
+    }
+    
+    .project-item.locked:hover {
+        background-color: #fafafa;
+        box-shadow: none;
+    }
+    
+    /* 专业紧凑的单行布局 */
+    .project-single-line {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        line-height: 1.3; /* 控制行高 */
+    }
+    
+    /* 项目名称区域 */
+    .project-main-section {
+        flex: 1;
+        min-width: 0; /* 允许收缩 */
+    }
+    
+    .project-single-line .project-name {
+        font-weight: 600;
+        color: #1a1a1a;
+        font-size: 0.875rem;
+        margin-bottom: 0.125rem;
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    /* 补充信息区域 */
+    .project-meta-info {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem; /* 紧凑间距 */
+        font-size: 0.75rem;
+        color: #666;
+        line-height: 1.2;
+    }
+    
+    .meta-item {
+        display: flex;
+        align-items: center;
+        white-space: nowrap;
+    }
+    
+    .meta-divider {
+        width: 1px;
+        height: 0.75rem;
+        background-color: #e0e0e0;
+        margin: 0 0.25rem;
+        flex-shrink: 0;
+    }
+    
+    .meta-label {
+        color: #888;
+        margin-right: 0.25rem;
+        font-size: 0.7rem;
+    }
+    
+    .meta-value {
+        color: #555;
+        font-weight: 500;
+    }
+    
+    /* 权限图标区域 */
+    .project-single-line .permission-icon {
+        margin-left: 0.5rem;
+        flex-shrink: 0;
+        font-size: 0.875rem;
+        width: 1.25rem;
+        height: 1.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    /* 隐藏非锁定项目的权限图标 */
+    .project-item:not(.locked) .permission-icon {
+        display: none;
+    }
+    
+    /* 移除了旧的项目信息样式，因为改用单行显示 */
+    
+    /* 权限指示器样式 */
+    .permission-icon {
+        margin-left: auto;
+        font-size: 0.875rem;
+    }
+    
+    .permission-icon.editable {
+        color: #28a745;
+    }
+    
+    .permission-icon.readonly {
+        color: #ffc107;
+    }
+    
+    .permission-icon.locked {
+        color: #6c757d;
+    }
+    
+    /* 确保锁定项目的图标显示 */
+    .project-item.locked .permission-icon.locked {
+        display: block !important;
+    }
+    
+    /* 移除了已选中项目信息样式，因为不再显示该区域 */
+    
+    /* 无结果提示样式 */
+    .no-results {
+        padding: 2rem 1rem;
+        color: #6c757d;
+    }
+    
+    .no-results i {
+        font-size: 2rem;
+        display: block;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* 只读模式样式 */
+    .project-search-container.readonly .project-search-input {
+        background-color: #f8f9fa;
+        border-color: #e9ecef;
+        cursor: not-allowed;
+    }
+    
+    .project-search-container.readonly .clear-project-btn,
+    .project-search-container.readonly .clear-selection-btn {
+        display: none !important;
+    }
+    
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+        .project-dropdown {
+            max-height: 300px;
+        }
+        
+        .project-item {
+            padding: 0.375rem 0.5rem;
+        }
+        
+        .project-meta-info {
+            gap: 0.25rem;
+        }
+        
+        .meta-item {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        .meta-label {
+            display: none; /* 移动端隐藏标签 */
+        }
+        
+        .meta-divider {
+            height: 0.5rem;
+            margin: 0 0.125rem;
+        }
+        
+        .project-single-line .project-name {
+            font-size: 0.8rem;
+        }
+        
+        .project-meta-info {
+            font-size: 0.7rem;
+        }
+        
+        /* 移动端清除按钮调整 */
+        .clear-project-btn {
+            padding: 0.3rem 0.6rem;
+            min-width: 32px;
+        }
+        
+        .project-search-wrapper {
+            gap: 0.5rem;
+        }
+    }
+    
+    /* 微调样式 */
+    @media (min-width: 992px) {
+        .project-item {
+            padding: 0.625rem 1rem;
+        }
+        
+        .project-meta-info {
+            gap: 0.5rem;
+        }
+    }
+</style>
+{% endmacro %}
+
+{# 
+  获取报价单项目搜索配置
+  这是一个预设的报价单配置，可以直接使用
+#}
+{% set QUOTATION_PROJECT_SEARCH_CONFIG = {
+    "input_id": "projectSearch",
+    "input_name": "project_search",
+    "dropdown_id": "projectDropdown",
+    "clear_button_id": "clearProject",
+    "selected_info_id": "selectedProjectInfo",
+    "project_id_field": "projectId",
+    "project_id_name": "project_id",
+    "data_element_id": "projectSearchConfig",
+    "label": "关联项目",
+    "placeholder": "输入项目名称或授权码进行搜索...",
+    "show_component_badge": true,
+    "api_endpoints": {
+        "search": "/api/v1/search/projects/without-quotations",
+        "project_detail": "/project/api/project/{id}"
+    },
+    "search_config": {
+        "min_length": 1,
+        "delay": 300,
+        "limit": 10,
+        "include_auth_code": true
+    },
+    "permission_config": {
+        "check_edit": true,
+        "check_view": true,
+        "show_locked": true
+    },
+    "display_config": {
+        "show_owner": true,
+        "show_type": true,
+        "show_stage": true,
+        "show_auth_code": true
+    },
+    "hidden_fields": {},
+    "validation": {
+        "required": true,
+        "validate_on_submit": true
+    }
+} %}
+
+{# 
+  获取报价单项目搜索配置
+  返回配置字典对象
+#}
+{% macro get_quotation_project_search_config() -%}
+{{ QUOTATION_PROJECT_SEARCH_CONFIG }}
+{%- endmacro %}
+
+{# 
+  项目搜索JavaScript初始化脚本
+  在使用项目搜索组件的页面中调用此宏
+#}
+{% macro init_project_search_scripts() %}
+<script src="{{ url_for('static', filename='js/project-search.js') }}"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 项目搜索组件初始化开始');
+    
+    // 查找所有项目搜索容器
+    const containers = document.querySelectorAll('.project-search-container');
+    console.log('🔍 找到项目搜索容器数量:', containers.length);
+    
+    containers.forEach((container, index) => {
+        console.log(`🔍 处理容器 ${index + 1}:`, container);
+        
+        // 直接从容器获取配置
+        if (!container.dataset.config) {
+            console.warn(`❌ 容器 ${index + 1} 没有 data-config 属性`);
+            return;
+        }
+        
+        try {
+            // 解析配置
+            const config = JSON.parse(container.dataset.config);
+            console.log('📋 解析的配置:', config);
+            
+            // 查找数据元素获取其他配置
+            const configElement = container.querySelector(`#${config.data_element_id || 'projectSearchConfig'}`);
+            console.log('🔍 配置元素:', configElement);
+            
+            const selectedProject = configElement ? JSON.parse(configElement.dataset.selectedProject || '{}') : {};
+            const readonly = configElement ? configElement.dataset.readonly === 'true' : false;
+            const required = configElement ? configElement.dataset.required === 'true' : true;
+            
+            if (readonly) {
+                container.classList.add('readonly');
+                return; // 只读模式不需要初始化交互功能
+            }
+            
+            // 初始化项目搜索组件
+            const searcher = new ProjectSearchComponent(config, container);
+            
+            // 设置已选中项目
+            if (selectedProject && selectedProject.id) {
+                searcher.setSelectedProject(selectedProject);
+            }
+            
+            // 保存到全局对象，方便外部访问
+            window.projectSearcher = searcher;
+            
+            console.log('项目搜索组件初始化完成:', config.input_id);
+            
+        } catch (error) {
+            console.error('项目搜索组件初始化失败:', error);
+        }
+    });
+});
+</script>
+{% endmacro %}

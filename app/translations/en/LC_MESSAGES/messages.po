@@ -1988,6 +1988,94 @@ msgid "项目"
 msgstr "Projects"
 
 
+msgid "项目产品"
+msgstr "Project Product"
+
+
+msgid "渠道产品"
+msgstr "Channel Product"
+
+
+msgid "第三方产品"
+msgstr "Third Party Product"
+
+
+msgid "管理员"
+msgstr "Administrator"
+
+
+msgid "业务管理员"
+msgstr "Business Administrator"
+
+
+msgid "财务总监"
+msgstr "Finance Director"
+
+
+msgid "销售总监"
+msgstr "Sales Director"
+
+
+msgid "厂商用户"
+msgstr "Vendor User"
+
+
+msgid "客户销售"
+msgstr "Customer Sales"
+
+
+msgid "产品经理"
+msgstr "Product Manager"
+
+
+msgid "服务经理"
+msgstr "Service Manager"
+
+
+msgid "库存列表"
+msgstr "Inventory List"
+
+
+msgid "批量添加库存"
+msgstr "Batch Add Inventory"
+
+
+msgid "总客户"
+msgstr "Total Customers"
+
+
+msgid "生产中"
+msgstr "In Production"
+
+
+msgid "已停产"
+msgstr "Discontinued"
+
+
+msgid "待上市"
+msgstr "Upcoming"
+
+
+msgid "完全结算"
+msgstr "Fully Settled"
+
+
+msgid "部分结算"
+msgstr "Partially Settled"
+
+
+msgid "待结算"
+msgstr "Pending Settlement"
+
+
+msgid "已结算"
+msgstr "Settled"
+
+
+msgid "已创建联系人"
+msgstr "Contact Created"
+
+
 msgid "请先选择企业（可选）"
 msgstr "Please select a company (optional)"
 
@@ -2087,6 +2175,11 @@ msgstr "Thai Baht"
 msgid "产品明细"
 msgstr "Product Details"
 
+msgid "通用组件"
+msgstr "Generic Component"
+
+msgid "使用通用产品明细组件"
+msgstr "Using generic product detail component"
 
 msgid "表格可横向滚动查看更多内容"
 msgstr "Table can be scrolled horizontally to view more content"
@@ -2097,11 +2190,15 @@ msgstr "Market Unit Price"
 
 
 msgid "折扣率%"
-msgstr "Discount Rate %%"
+msgstr "Discount Rate %"
 
 
 msgid "折扣率"
 msgstr "Discount Rate"
+
+
+msgid "折扣率(%)"
+msgstr "Discount Rate (%)"
 
 
 msgid "已预选项目"
@@ -2275,6 +2372,8 @@ msgstr "Sales Focus"
 msgid "渠道跟进"
 msgstr "Channel Follow-up"
 
+msgid "客户服务"
+msgstr "Service Opportunity"
 
 msgid "概念验证"
 msgstr "Proof of Concept"
@@ -2556,4 +2655,352 @@ msgstr "Order Number"
 
 msgid "供应商/客户"
 msgstr "Supplier/Customer"
+
+
+# 订单状态翻译
+msgid "草稿"
+msgstr "Draft"
+
+msgid "已审批"
+msgstr "Approved"
+
+msgid "已确认"
+msgstr "Confirmed"
+
+msgid "已拒绝"
+msgstr "Rejected"
+
+msgid "已发货"
+msgstr "Shipped"
+
+msgid "已完成"
+msgstr "Completed"
+
+# 入库状态翻译
+msgid "待入库"
+msgstr "Pending Receipt"
+
+msgid "部分入库"
+msgstr "Partially Received"
+
+msgid "全部入库"
+msgstr "Fully Received"
+
+# 结算状态翻译
+msgid "已批准"
+msgstr "Approved"
+
+msgid "已执行"
+msgstr "Executed"
+
+# 库存状态翻译
+msgid "零库存"
+msgstr "Out of Stock"
+
+msgid "低库存"
+msgstr "Low Stock"
+
+msgid "正常库存"
+msgstr "Normal Stock"
+
+msgid "正常"
+msgstr "Normal"
+
+msgid "充足"
+msgstr "Sufficient"
+
+# 筛选搜索组件翻译
+msgid "搜索"
+msgstr "Search"
+
+msgid "重置"
+msgstr "Reset"
+
+msgid "公司"
+msgstr "Company"
+
+msgid "全部公司"
+msgstr "All Companies"
+
+msgid "审批状态"
+msgstr "Approval Status"
+
+msgid "全部状态"
+msgstr "All Status"
+
+msgid "入库状态"
+msgstr "Inventory Status"
+
+msgid "订单号或公司名称"
+msgstr "Order Number or Company Name"
+
+msgid "结算单号、项目名称或产品名称"
+msgstr "Settlement Number, Project Name or Product Name"
+
+msgid "结算单公司"
+msgstr "Settlement Company"
+
+msgid "全部目标公司"
+msgstr "All Target Companies"
+
+msgid "结算目标公司"
+msgstr "Settlement Target Company"
+
+msgid "结算状态"
+msgstr "Settlement Status"
+
+
+msgid "结算公司"
+msgstr "Settlement Company"
+
+
+msgid "Search"
+msgstr "搜索"
+
+msgid "Settlement order number or project name"
+msgstr "结算单编号或项目名称"
+
+msgid "Settlement Company"
+msgstr "结算公司"
+
+msgid "All Companies"
+msgstr "全部公司"
+
+msgid "Settlement Status"
+msgstr "结算状态"
+
+msgid "All Status"
+msgstr "全部状态"
+
+
+
+msgid "搜索"
+msgstr "Search"
+
+msgid "订单号或公司名称"
+msgstr "Order number or company name"
+
+msgid "结算单号、项目名称或产品名称"
+msgstr "Settlement number, project name or product name"
+
+msgid "结算单编号或项目名称"
+msgstr "Settlement order number or project name"
+
+msgid "全部公司"
+msgstr "All Companies"
+
+msgid "全部状态"
+msgstr "All Status"
+
+# 库存管理页面翻译
+msgid "MN号、型号或产品名称"
+msgstr "MN number, model or product name"
+
+msgid "公司"
+msgstr "Company"
+
+msgid "库存状态"
+msgstr "Stock Status"
+
+msgid "全部公司（聚合视图）"
+msgstr "All Companies (Aggregate View)"
+
+# 客户模块翻译
+msgid "全部拥有者"
+msgstr "All Owners"
+
+msgid "全部类型"
+msgstr "All Types"
+
+msgid "全部行业"
+msgstr "All Industries"
+
+msgid "全部国家"
+msgstr "All Countries"
+
+msgid "全部状态"
+msgstr "All Status"
+
+# 产品徽章翻译 / Product Badge Translations
+msgid "项目产品"
+msgstr "Project"
+
+msgid "渠道产品"
+msgstr "Channel"
+
+msgid "第三方产品"
+msgstr "Third Party"
+
+msgid "生产中"
+msgstr "Active"
+
+msgid "已停产"
+msgstr "Discontinued"
+
+msgid "待上市"
+msgstr "Upcoming"
+
+msgid "厂商"
+msgstr "Vendor"
+
+msgid "未知"
+msgstr "Unknown"
+
+
+# 订单模块新增翻译 / Order Module New Translations
+msgid "订单列表"
+msgstr "Order List"
+
+msgid "创建订单"
+msgstr "Create Order"
+
+msgid "导出订单列表"
+msgstr "Export Order List"
+
+msgid "全部订单"
+msgstr "All Orders"
+
+msgid "已入库"
+msgstr "Received"
+
+msgid "单"
+msgstr "orders"
+
+msgid "订单日期"
+msgstr "Order Date"
+
+msgid "预期日期"
+msgstr "Expected Date"
+
+msgid "总数量"
+msgstr "Total Quantity"
+
+msgid "暂无订单数据"
+msgstr "No order data"
+
+msgid "订单列表分页"
+msgstr "Order List Pagination"
+
+msgid "筛选失败"
+msgstr "Filter Failed"
+
+# 结算模块新增翻译 / Settlement Module New Translations
+msgid "结算明细记录"
+msgstr "Settlement Detail Records"
+
+msgid "结算明细列表"
+msgstr "Settlement Detail List"
+
+msgid "暂无结算明细数据"
+msgstr "No settlement detail data"
+
+msgid "确认标记此项为已结算"
+msgstr "Confirm to mark this item as settled"
+
+msgid "操作失败，请重试"
+msgstr "Operation failed, please try again"
+
+msgid "总结算单数"
+msgstr "Total Settlement Orders"
+
+msgid "结算单列表"
+msgstr "Settlement Order List"
+
+msgid "结算单编号"
+msgstr "Settlement Order Number"
+
+msgid "产品数量"
+msgstr "Product Quantity"
+
+msgid "结算情况"
+msgstr "Settlement Status"
+
+msgid "无公司"
+msgstr "No Company"
+
+msgid "暂无结算单记录"
+msgstr "No settlement order records"
+
+msgid "结算明细列表分页"
+msgstr "Settlement Detail List Pagination"
+
+msgid "标记已结算"
+msgstr "Mark as Settled"
+
+msgid "结算时间"
+msgstr "Settlement Time"
+
+msgid "万"
+msgstr "10K"
+
+msgid "条"
+msgstr "items"
+
+msgid "本月结算"
+msgstr "This Month Settlement"
+
+msgid "产品MN"
+msgstr "Product MN"
+
+msgid "导出结算明细"
+msgstr "Export Settlement Details"
+
+msgid "返回结算单列表"
+msgstr "Back to Settlement List"
+
+msgid "导出结算单"
+msgstr "Export Settlement Orders"
+
+
+# 修复缺失的翻译 / Fix Missing Translations
+msgid "总结算"
+msgstr "Total Settlements"
+
+msgid "全部明细"
+msgstr "All Details"
+
+msgid "总金额"
+msgstr "Total Amount"
+
+msgid "订单号"
+msgstr "Order Number"
+
+msgid "型号/规格"
+msgstr "Model/Spec"
+
+msgid "MN号"
+msgstr "MN Number"
+
+msgid "当前库存"
+msgstr "Current Stock"
+
+msgid "最低库存"
+msgstr "Min Stock"
+
+msgid "总库存项目"
+msgstr "Total Stock Items"
+
+msgid "低库存预警"
+msgstr "Low Stock Alert"
+
+msgid "业务管理员"
+msgstr "Business Administrator"
+
+msgid "财务总监"
+msgstr "Finance Director"
+
+msgid "产品经理"
+msgstr "Product Manager"
+
+msgid "服务经理"
+msgstr "Service Manager"
+
+msgid "客户销售"
+msgstr "Customer Sales"
+
+msgid "销售总监"
+msgstr "Sales Director"
+
+msgid "渠道经理"
+msgstr "Channel Manager"
 

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>临时产品保存调试</title>
+    <script>
+        // 模拟前端保存逻辑
+        async function testSaveProduct() {
+            console.log('🧪 开始测试临时产品保存');
+            
+            // 模拟表单数据
+            const formData = new FormData();
+            formData.append('product_name', '测试产品名称');
+            formData.append('product_model', 'TEST123');
+            formData.append('product_desc', '测试产品描述');
+            formData.append('brand', '测试品牌');
+            formData.append('unit', '个');
+            formData.append('category', '基站');  // 关键！
+            
+            // 测试1: 检查FormData内容
+            console.log('📋 FormData内容:');
+            for (let [key, value] of formData.entries()) {
+                console.log(`  ${key}: "${value}"`);
+            }
+            
+            // 测试2: 检查category获取
+            const categoryFromForm = formData.get('category');
+            const categoryParam = '基站';  // 模拟参数
+            const finalCategory = categoryFromForm || categoryParam;
+            
+            console.log('🔧 类别信息分析:', {
+                parameterCategory: categoryParam,
+                formCategory: categoryFromForm,
+                finalCategory: finalCategory
+            });
+            
+            // 测试3: 构造产品数据
+            const productData = {
+                product_name: formData.get('product_name'),
+                product_model: formData.get('product_model'),
+                product_desc: formData.get('product_desc'),
+                brand: formData.get('brand'),
+                unit: formData.get('unit'),
+                category: finalCategory,
+                category_path: finalCategory,
+                unit_price: 0,
+                reference_price: 0,
+                market_price: 0,
+                currency: 'CNY',
+                status: 'temp',
+                is_temp: true
+            };
+            
+            console.log('🔧 构造的产品数据:', productData);
+            
+            // 测试4: 模拟发送到后端
+            try {
+                const response = await fetch('/quotation/products/temp/save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(productData)
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('✅ 保存成功:', result);
+                } else {
+                    console.error('❌ 保存失败:', response.status, response.statusText);
+                    const errorText = await response.text();
+                    console.error('错误详情:', errorText);
+                }
+            } catch (error) {
+                console.error('❌ 网络错误:', error);
+            }
+        }
+        
+        // 测试HTML表单
+        function testHTMLForm() {
+            console.log('🧪 测试HTML表单');
+            
+            const category = '基站';
+            const productName = '测试产品';
+            
+            // 模拟创建表单HTML
+            const formHTML = `
+                <form id="manualProductForm">
+                    <input type="text" name="product_name" value="${productName}" required>
+                    <input type="text" name="product_model" value="TEST456" required>
+                    <textarea name="product_desc" required>测试描述</textarea>
+                    <input type="text" name="brand" value="测试品牌" required>
+                    <select name="unit" required>
+                        <option value="个" selected>个</option>
+                    </select>
+                    <input type="hidden" name="category" value="${category}">
+                </form>
+            `;
+            
+            console.log('📝 生成的表单HTML:');
+            console.log(formHTML);
+            
+            // 检查模板字符串中的category值
+            console.log('🔧 模板中的category值:', category);
+            console.log('🔧 是否为空:', category === '');
+            console.log('🔧 是否为undefined:', category === undefined);
+        }
+        
+        window.onload = function() {
+            console.log('页面加载完成，开始测试...');
+            testHTMLForm();
+            // testSaveProduct(); // 需要在实际环境中运行
+        };
+    </script>
+</head>
+<body>
+    <h1>临时产品保存调试</h1>
+    <p>请打开浏览器控制台查看测试结果</p>
+    <button onclick="testSaveProduct()">测试保存产品</button>
+</body>
+</html>

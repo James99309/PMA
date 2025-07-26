@@ -1,0 +1,94 @@
+{% from 'macros/ui_helpers.html' import render_owner, render_customer_status_badge, render_company_type_badge, render_industry_badge %}
+{% for company in (companies if companies is defined else items) %}
+<div class="customer-card-mobile data-card-mobile">
+    <div class="card-header-mobile">
+        <div class="card-title-mobile">
+            <a href="{{ url_for('customer.view_company', company_id=company.id) }}">
+                {{ company.company_name or '-' }}
+            </a>
+            <span class="card-id">#{{ company.id }}</span>
+        </div>
+        <div class="card-badges-mobile">
+            {% if company.company_type %}
+                {{ render_company_type_badge(company.company_type) }}
+            {% endif %}
+            {% if company.status %}
+                {{ render_customer_status_badge(company.status) }}
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="card-details-mobile">
+        {% if company.owner %}
+        <div class="detail-row">
+            <span class="label">{{ _('负责人') }}:</span>
+            <span class="value">{{ render_owner(company.owner) }}</span>
+        </div>
+        {% endif %}
+        
+        {% if company.industry %}
+        <div class="detail-row">
+            <span class="label">{{ _('行业') }}:</span>
+            <span class="value">{{ render_industry_badge(company.industry) }}</span>
+        </div>
+        {% endif %}
+        
+        {% if company.country or company.province or company.city %}
+        <div class="detail-row">
+            <span class="label">{{ _('地区') }}:</span>
+            <span class="value">
+                {% if company.country %}{{ company.country }}{% endif %}
+                {% if company.province %} {{ company.province }}{% endif %}
+                {% if company.city %} {{ company.city }}{% endif %}
+            </span>
+        </div>
+        {% endif %}
+        
+        {% if company.main_contact_name %}
+        <div class="detail-row">
+            <span class="label">{{ _('主要联系人') }}:</span>
+            <span class="value">{{ company.main_contact_name }}</span>
+        </div>
+        {% endif %}
+        
+        {% if company.main_contact_phone %}
+        <div class="detail-row">
+            <span class="label">{{ _('联系电话') }}:</span>
+            <span class="value">
+                <a href="tel:{{ company.main_contact_phone }}" class="text-decoration-none">
+                    {{ company.main_contact_phone }}
+                </a>
+            </span>
+        </div>
+        {% endif %}
+        
+        {% if company.main_contact_email %}
+        <div class="detail-row">
+            <span class="label">{{ _('邮箱') }}:</span>
+            <span class="value">
+                <a href="mailto:{{ company.main_contact_email }}" class="text-decoration-none">
+                    {{ company.main_contact_email }}
+                </a>
+            </span>
+        </div>
+        {% endif %}
+        
+        {% if company.created_at %}
+        <div class="detail-row">
+            <span class="label">{{ _('创建时间') }}:</span>
+            <span class="value">
+                {% if company.created_at %}
+                    {% if company.created_at.strftime %}
+                        {{ company.created_at.strftime('%Y-%m-%d') }}
+                    {% else %}
+                        {{ company.created_at }}
+                    {% endif %}
+                {% else %}
+                    -
+                {% endif %}
+            </span>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}

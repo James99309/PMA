@@ -152,6 +152,82 @@ def currency_type_label(key, lang='zh'):
     """获取货币类型标签"""
     return CURRENCY_TYPE_LABELS.get(key, {}).get(lang, key)
 
+def get_currency_symbol(currency_code='CNY'):
+    """获取货币符号"""
+    currency_symbols = {
+        'CNY': '¥',
+        'USD': '$',
+        'SGD': 'S$',
+        'MYR': 'RM',
+        'IDR': 'Rp',
+        'THB': '฿'
+    }
+    return currency_symbols.get(currency_code, '¥')  # 默认返回人民币符号
+
+def get_default_currency():
+    """获取系统默认货币"""
+    try:
+        # 尝试从Product表获取默认货币（如报价单模块的逻辑）
+        from app.models.product import Product
+        reference_product = Product.query.filter_by(id=1).first()
+        if reference_product and hasattr(reference_product, 'currency') and reference_product.currency:
+            return reference_product.currency
+    except Exception:
+        pass
+    
+    # 如果没有找到，返回默认的人民币
+    return 'CNY'
+
+def get_amount_unit_config(language=None):
+    """获取基于语言环境的金额单位配置"""
+    if language is None:
+        try:
+            from app.utils.i18n import get_current_language
+            language = get_current_language()
+        except:
+            language = 'zh'  # 默认中文
+    
+    if language == 'zh' or language.startswith('zh'):
+        return {
+            'divisor': 1,           # 大部分模块数据已经是万元，不需要转换
+            'unit': '万元',
+            'decimal_places': 2,
+            'format_type': 'wan'
+        }
+    else:
+        return {
+            'divisor': 100,         # 万元转百万：万元/100 = M
+            'unit': 'M',
+            'decimal_places': 2,
+            'format_type': 'million'
+        }
+
+def format_amount_with_unit(amount, currency_symbol, language=None):
+    """基于语言环境格式化金额显示"""
+    try:
+        unit_config = get_amount_unit_config(language)
+        
+        # 计算显示金额
+        display_amount = amount / unit_config['divisor']
+        
+        # 格式化数字（添加千位分隔符）
+        formatted_number = f"{display_amount:,.{unit_config['decimal_places']}f}"
+        
+        return {
+            'formatted': f"{currency_symbol}{formatted_number}",
+            'unit': unit_config['unit'],
+            'full_display': f"{currency_symbol}{formatted_number}{unit_config['unit']}",
+            'format_type': unit_config['format_type']
+        }
+    except Exception as e:
+        # 错误情况下返回默认格式
+        return {
+            'formatted': f"{currency_symbol}{amount:.2f}",
+            'unit': '万元',
+            'full_display': f"{currency_symbol}{amount:.2f}万元",
+            'format_type': 'wan'
+        }
+
 def get_currency_type_options():
     """获取语言感知的货币类型选项"""
     try:

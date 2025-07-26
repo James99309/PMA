@@ -4,29 +4,28 @@
 {% block title %}企业字典管理 - 项目管理系统{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row page-title-container">
-    <div class="col-12">
-            <h1 class="page-title">企业字典管理</h1>
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 标准化页面头部区域：标题与操作按钮在同一行 - 使用page-header-with-actions模组 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">企业字典管理</h1>
+            </div>
+            <div class="col text-end">
+                <!-- 操作按钮组 -->
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    {{ render_button('新增企业', type='button', color='primary', icon='fas fa-plus', attrs='id="addCompanyBtn"') }}
+                    {{ render_button('返回用户管理', href=url_for('user.list_users'), color='secondary') }}
+                </div>
+            </div>
+        </div>
     </div>
-</div>
-
-<div class="row mb-4">
-    <div class="col-12">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{{ url_for('user.list_users') }}">用户管理</a></li>
-                <li class="breadcrumb-item active" aria-current="page">企业字典管理</li>
-            </ol>
-        </nav>
-    </div>
-</div>
 
 <div class="row mb-4">
     <div class="col-12">
         <div class="card shadow-sm">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                {{ render_button('新增企业', type='button', color='primary', icon='fas fa-plus', attrs='id="addCompanyBtn"') }}
+            <div class="card-header">
+                <h5 class="card-title mb-0">企业列表</h5>
             </div>
             <div class="card-body">
                 <!-- 新增/编辑表单 -->
@@ -53,7 +52,91 @@
                             </div>
                             <small class="form-text text-muted">厂商账户可查看经销商信息</small>
                         </div>
-                        <div class="col-md-4 d-flex align-items-end">
+                        
+                        <!-- 企业详细信息字段 -->
+                        <div class="col-md-12">
+                            <hr class="my-3">
+                            <h6 class="text-muted">企业详细信息（可选）</h6>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="companyAddressInput" class="form-label">详细地址</label>
+                            <textarea class="form-control" id="companyAddressInput" name="address" rows="2" placeholder="详细地址信息"></textarea>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="companyPostalInput" class="form-label">邮政编码</label>
+                            <input type="text" class="form-control" id="companyPostalInput" name="postal_code" placeholder="邮政编码">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="companyPhoneInput" class="form-label">企业电话</label>
+                            <input type="text" class="form-control" id="companyPhoneInput" name="phone" placeholder="企业联系电话">
+                        </div>
+                        
+                        <div class="col-md-3">
+                            <label for="companyFaxInput" class="form-label">传真</label>
+                            <input type="text" class="form-control" id="companyFaxInput" name="fax" placeholder="传真号码">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="companyEmailInput" class="form-label">企业邮箱</label>
+                            <input type="email" class="form-control" id="companyEmailInput" name="email" placeholder="企业官方邮箱">
+                        </div>
+                        <div class="col-md-5">
+                            <label for="companyWebsiteInput" class="form-label">网站地址</label>
+                            <input type="url" class="form-control" id="companyWebsiteInput" name="website" placeholder="https://www.example.com">
+                        </div>
+                        <!-- Logo管理区域 -->
+                        <div class="col-md-12">
+                            <hr class="my-3">
+                            <h6 class="text-muted">企业资产管理（可选）</h6>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">企业Logo</label>
+                            <div class="border rounded-3 p-3 bg-light">
+                                <div id="logo-preview" class="text-center mb-3" style="min-height: 60px;">
+                                    <div class="text-muted">
+                                        <i class="fas fa-image fa-2x mb-2"></i>
+                                        <div>暂无Logo</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="d-grid gap-2">
+                                    <input type="file" class="form-control" id="logo-upload" accept="image/*" style="display: none;">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="document.getElementById('logo-upload').click()">
+                                        <i class="fas fa-upload"></i> 上传Logo
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm d-none" id="delete-logo-btn" onclick="deleteLogo()">
+                                        <i class="fas fa-trash"></i> 删除Logo
+                                    </button>
+                                </div>
+                            </div>
+                            <small class="form-text text-muted">支持PNG、JPG、SVG格式，建议尺寸240x50像素，文件大小不超过5MB</small>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">邮件签名图片</label>
+                            <div class="border rounded-3 p-3 bg-light">
+                                <div id="signature-preview" class="text-center mb-3" style="min-height: 60px;">
+                                    <div class="text-muted">
+                                        <i class="fas fa-signature fa-2x mb-2"></i>
+                                        <div>暂无邮件签名</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="d-grid gap-2">
+                                    <input type="file" class="form-control" id="signature-upload" accept="image/*" style="display: none;">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="document.getElementById('signature-upload').click()">
+                                        <i class="fas fa-upload"></i> 上传签名
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm d-none" id="delete-signature-btn" onclick="deleteSignature()">
+                                        <i class="fas fa-trash"></i> 删除签名
+                                    </button>
+                                </div>
+                            </div>
+                            <small class="form-text text-muted">支持PNG、JPG、SVG格式，建议宽度不超过600像素，文件大小不超过3MB</small>
+                        </div>
+                        
+                        <div class="col-md-12 d-flex justify-content-end">
                             {{ render_button('保存', type='submit', color='success', extra_class='me-2', attrs='id="saveCompanyBtn"') }}
                             {{ render_button('取消', type='button', color='secondary', attrs='id="cancelCompanyBtn"') }}
                         </div>
@@ -65,18 +148,27 @@
                     <table class="table table-bordered table-hover" id="companyTable">
                         <thead class="table-light">
                             <tr>
-                                <th width="6%">ID</th>
-                                <th width="20%">Key（英文标识）</th>
-                                <th width="20%">显示文本</th>
-                                <th width="10%">状态</th>
-                                <th width="10%">厂商</th>
-                                <th width="34%">操作</th>
+                                <th width="5%">ID</th>
+                                <th width="8%">Logo</th>
+                                <th width="15%">Key（英文标识）</th>
+                                <th width="15%">显示文本</th>
+                                <th width="12%">联系信息</th>
+                                <th width="8%">状态</th>
+                                <th width="7%">厂商</th>
+                                <th width="30%">操作</th>
                             </tr>
                         </thead>
                         <tbody id="companyTableBody">
                             {% for company in companies %}
                             <tr>
                                 <td>{{ company.id }}</td>
+                                <td class="text-center">
+                                    {% if company.logo_content %}
+                                    <img src="{{ company.logo_data_url }}" alt="Logo" style="max-width: 40px; max-height: 20px;" class="img-thumbnail">
+                                    {% else %}
+                                    <i class="fas fa-image text-muted"></i>
+                                    {% endif %}
+                                </td>
                                 <td><code>{{ company.key }}</code></td>
                                 <td>
                                     {{ company.value }}
@@ -84,6 +176,20 @@
                                     <span class="badge bg-primary ms-1" title="厂商企业">
                                         <i class="fas fa-industry"></i> 厂商
                                     </span>
+                                    {% endif %}
+                                </td>
+                                <td class="small">
+                                    {% if company.phone %}
+                                    <div><i class="fas fa-phone"></i> {{ company.phone }}</div>
+                                    {% endif %}
+                                    {% if company.email %}
+                                    <div><i class="fas fa-envelope"></i> {{ company.email }}</div>
+                                    {% endif %}
+                                    {% if company.website %}
+                                    <div><i class="fas fa-globe"></i> <a href="{{ company.website }}" target="_blank" class="text-decoration-none">网站</a></div>
+                                    {% endif %}
+                                    {% if not company.phone and not company.email and not company.website %}
+                                    <span class="text-muted">-</span>
                                     {% endif %}
                                 </td>
                                 <td>
@@ -105,7 +211,15 @@
                                             data-id="{{ company.id }}" 
                                             data-key="{{ company.key }}" 
                                             data-value="{{ company.value }}"
-                                            data-vendor="{{ company.is_vendor|default(false)|tojson }}">
+                                            data-vendor="{{ company.is_vendor|default(false)|tojson }}"
+                                            data-address="{{ company.address or '' }}"
+                                            data-postal="{{ company.postal_code or '' }}"
+                                            data-phone="{{ company.phone or '' }}"
+                                            data-fax="{{ company.fax or '' }}"
+                                            data-email="{{ company.email or '' }}"
+                                            data-website="{{ company.website or '' }}"
+                                            data-has-logo="{{ company.logo_content is not none }}"
+                                            data-has-signature="{{ company.email_signature_content is not none }}">
                                         <i class="fas fa-edit"></i> 编辑
                                     </button>
                                     <button class="btn btn-sm btn-warning me-1 toggle-company-btn" data-id="{{ company.id }}" data-status="{{ company.is_active }}">
@@ -179,13 +293,32 @@ document.addEventListener('DOMContentLoaded', function() {
             const companyKey = this.getAttribute('data-key');
             const companyValue = this.getAttribute('data-value');
             const companyVendor = this.getAttribute('data-vendor');
+            const companyAddress = this.getAttribute('data-address');
+            const companyPostal = this.getAttribute('data-postal');
+            const companyPhone = this.getAttribute('data-phone');
+            const companyFax = this.getAttribute('data-fax');
+            const companyEmail = this.getAttribute('data-email');
+            const companyWebsite = this.getAttribute('data-website');
+            const hasLogo = this.getAttribute('data-has-logo') === 'True';
+            const hasSignature = this.getAttribute('data-has-signature') === 'True';
             
-            // 填充表单
+            // 填充基本表单
             companyIdInput.value = companyId;
             companyKeyInput.value = companyKey;
             companyKeyInput.readOnly = true; // 编辑时不允许修改key
             companyValueInput.value = companyValue;
             document.getElementById('companyVendorInput').checked = companyVendor === 'true';
+            
+            // 填充详细信息表单
+            document.getElementById('companyAddressInput').value = companyAddress;
+            document.getElementById('companyPostalInput').value = companyPostal;
+            document.getElementById('companyPhoneInput').value = companyPhone;
+            document.getElementById('companyFaxInput').value = companyFax;
+            document.getElementById('companyEmailInput').value = companyEmail;
+            document.getElementById('companyWebsiteInput').value = companyWebsite;
+            
+            // 加载Logo和邮件签名预览
+            loadAssetPreviews(companyId, hasLogo, hasSignature);
             
             // 显示表单
             companyForm.classList.remove('d-none');
@@ -228,7 +361,13 @@ document.addEventListener('DOMContentLoaded', function() {
             id: companyIdInput.value,
             key: companyKeyInput.value,
             value: companyValueInput.value,
-            is_vendor: document.getElementById('companyVendorInput').checked
+            is_vendor: document.getElementById('companyVendorInput').checked,
+            address: document.getElementById('companyAddressInput').value,
+            postal_code: document.getElementById('companyPostalInput').value,
+            phone: document.getElementById('companyPhoneInput').value,
+            fax: document.getElementById('companyFaxInput').value,
+            email: document.getElementById('companyEmailInput').value,
+            website: document.getElementById('companyWebsiteInput').value
         };
         
         // 发送请求到后端
@@ -322,6 +461,198 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error:', error);
             alert('删除失败，请稍后重试');
         });
+    }
+    
+    // Logo上传处理
+    document.getElementById('logo-upload').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        // 验证文件类型
+        const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/gif'];
+        if (!allowedTypes.includes(file.type)) {
+            alert('不支持的文件类型，请选择PNG、JPG、SVG或GIF格式');
+            return;
+        }
+        
+        // 验证文件大小 (5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            alert('文件大小不能超过5MB');
+            return;
+        }
+        
+        const companyId = companyIdInput.value;
+        if (!companyId) {
+            alert('请先保存企业信息后再上传Logo');
+            return;
+        }
+        
+        uploadAsset('logo', file, companyId);
+    });
+
+    // 邮件签名上传处理
+    document.getElementById('signature-upload').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        // 验证文件类型
+        const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/gif'];
+        if (!allowedTypes.includes(file.type)) {
+            alert('不支持的文件类型，请选择PNG、JPG、SVG或GIF格式');
+            return;
+        }
+        
+        // 验证文件大小 (3MB)
+        if (file.size > 3 * 1024 * 1024) {
+            alert('文件大小不能超过3MB');
+            return;
+        }
+        
+        const companyId = companyIdInput.value;
+        if (!companyId) {
+            alert('请先保存企业信息后再上传邮件签名');
+            return;
+        }
+        
+        uploadAsset('signature', file, companyId);
+    });
+    
+    // 通用资产上传函数
+    function uploadAsset(type, file, companyId) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('asset_type', type);
+        
+        // 显示上传进度
+        const previewId = type === 'logo' ? 'logo-preview' : 'signature-preview';
+        const preview = document.getElementById(previewId);
+        preview.innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">上传中...</span>
+                </div>
+                <div class="mt-2">上传中...</div>
+            </div>
+        `;
+        
+        // 发送AJAX请求
+        fetch(`/api/v1/dictionary/company/${companyId}/upload_asset`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message || '上传成功');
+                // 重新加载预览
+                loadAssetPreviews(companyId, type === 'logo', type === 'signature');
+            } else {
+                alert(data.message || '上传失败');
+                // 恢复原来的预览内容
+                resetPreview(type);
+            }
+        })
+        .catch(error => {
+            console.error('Upload error:', error);
+            alert('上传失败，请重试');
+            resetPreview(type);
+        });
+    }
+    
+    // 删除Logo
+    function deleteLogo() {
+        if (!confirm('确定要删除Logo吗？')) return;
+        
+        const companyId = companyIdInput.value;
+        deleteAsset('logo', companyId);
+    }
+
+    // 删除邮件签名
+    function deleteSignature() {
+        if (!confirm('确定要删除邮件签名吗？')) return;
+        
+        const companyId = companyIdInput.value;
+        deleteAsset('signature', companyId);
+    }
+
+    // 通用资产删除函数
+    function deleteAsset(type, companyId) {
+        const formData = new FormData();
+        formData.append('asset_type', type);
+        
+        fetch(`/api/v1/dictionary/company/${companyId}/delete_asset`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message || '删除成功');
+                resetPreview(type);
+            } else {
+                alert(data.message || '删除失败');
+            }
+        })
+        .catch(error => {
+            console.error('Delete error:', error);
+            alert('删除失败，请重试');
+        });
+    }
+    
+    // 加载资产预览
+    function loadAssetPreviews(companyId, hasLogo, hasSignature) {
+        if (hasLogo) {
+            fetch(`/api/v1/dictionary/company/${companyId}/get_asset?type=logo`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.data) {
+                        document.getElementById('logo-preview').innerHTML = `
+                            <img src="${data.data}" alt="企业Logo" style="max-width: 150px; max-height: 50px;" class="img-thumbnail">
+                        `;
+                        document.getElementById('delete-logo-btn').classList.remove('d-none');
+                    }
+                });
+        }
+        
+        if (hasSignature) {
+            fetch(`/api/v1/dictionary/company/${companyId}/get_asset?type=signature`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.data) {
+                        document.getElementById('signature-preview').innerHTML = `
+                            <img src="${data.data}" alt="邮件签名" style="max-width: 150px; max-height: 50px;" class="img-thumbnail">
+                        `;
+                        document.getElementById('delete-signature-btn').classList.remove('d-none');
+                    }
+                });
+        }
+    }
+    
+    // 重置预览内容
+    function resetPreview(type) {
+        if (type === 'logo') {
+            document.getElementById('logo-preview').innerHTML = `
+                <div class="text-muted">
+                    <i class="fas fa-image fa-2x mb-2"></i>
+                    <div>暂无Logo</div>
+                </div>
+            `;
+            document.getElementById('delete-logo-btn').classList.add('d-none');
+        } else {
+            document.getElementById('signature-preview').innerHTML = `
+                <div class="text-muted">
+                    <i class="fas fa-signature fa-2x mb-2"></i>
+                    <div>暂无邮件签名</div>
+                </div>
+            `;
+            document.getElementById('delete-signature-btn').classList.add('d-none');
+        }
     }
 });
 </script>

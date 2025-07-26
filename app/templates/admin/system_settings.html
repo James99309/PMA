@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button %}
 
 {% block title %}系统参数设置{% endblock %}
 
@@ -41,9 +42,20 @@
 {% endblock %}
 
 {% block content %}
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4 page-title-container">
-        <h2 class="page-title settings-title">系统参数设置</h2>
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 标准化页面头部区域：标题与操作按钮在同一行 - 使用page-header-with-actions模组 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">系统参数设置</h1>
+            </div>
+            <div class="col text-end">
+                <!-- 操作按钮组 -->
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    <!-- 系统参数设置通常没有额外的操作按钮 -->
+                </div>
+            </div>
+        </div>
     </div>
     
     {% with messages = get_flashed_messages(with_categories=true) %}

@@ -669,19 +669,11 @@ input[type="number"].form-control {
                         <label for="expected_date" class="form-label text-white">预期到货时间</label>
                         <input type="date" class="form-control" id="expected_date" name="expected_date">
                     </div>
-                    <div class="col-md-4 mb-3">
-                        <label for="payment_terms" class="form-label text-white">付款条件</label>
-                        <input type="text" class="form-control" id="payment_terms" name="payment_terms" placeholder="如：30天付款">
-                    </div>
                 </div>
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <label for="delivery_address" class="form-label text-white">交付地址</label>
-                        <textarea class="form-control" id="delivery_address" name="delivery_address" rows="2" placeholder="请输入详细的交付地址"></textarea>
-                    </div>
-                    <div class="col-md-6 mb-3">
                         <label for="description" class="form-label text-white">订单说明</label>
-                        <textarea class="form-control" id="description" name="description" rows="2" placeholder="订单备注信息"></textarea>
+                        <textarea class="form-control" id="description" name="description" rows="3" placeholder="订单备注信息"></textarea>
                     </div>
                 </div>
             </div>
@@ -773,38 +765,53 @@ $(document).ready(function() {
     // 数量、折扣率、单价变化时重新计算
     $(document).on('input', '.quantity, .discount-rate, .discounted-price', function() {
         const $row = $(this).closest('tr');
-        console.log('输入事件触发，字段类型:', $(this).attr('class'), '值:', $(this).val());
+        const inputType = $(this).hasClass('quantity') ? 'quantity' : 
+                         $(this).hasClass('discount-rate') ? 'discount' : 'price';
         
-        // 如果是单价变化，重新计算折扣率
-        if ($(this).hasClass('discounted-price')) {
-            const marketPrice = parseFloat($row.find('.product-price').data('raw-value')) || 0;
-            const unitPrice = parseFloat($(this).val()) || 0;
+        console.log('输入事件触发，字段类型:', inputType, '值:', $(this).val());
+        
+        // 获取基础数据
+        const marketPrice = parseFloat($row.find('.product-price').data('raw-value')) || 0;
+        const quantity = parseInt($row.find('.quantity').val()) || 1;
+        const discountRate = parseFloat($row.find('.discount-rate').val()) || 100;
+        const unitPrice = parseFloat($row.find('.discounted-price').val()) || 0;
+        
+        if (inputType === 'discount') {
+            // 折扣率变化：计算新单价和小计
+            const newUnitPrice = marketPrice * (discountRate / 100);
+            const newSubtotal = newUnitPrice * quantity;
             
-            console.log('单价变化事件 - 市场价:', marketPrice, '输入单价:', unitPrice);
+            $row.find('.discounted-price').val(newUnitPrice.toFixed(2)).data('raw-value', newUnitPrice);
+            $row.find('.subtotal').val(formatNumber(newSubtotal.toFixed(2))).data('raw-value', newSubtotal);
             
+            console.log('折扣率变化 - 新单价:', newUnitPrice, '新小计:', newSubtotal);
+            
+        } else if (inputType === 'price') {
+            // 单价变化：计算新折扣率和小计
             if (marketPrice > 0) {
-                const discountRate = (unitPrice / marketPrice * 100).toFixed(1);
-                $row.find('.discount-rate').val(discountRate);
-                console.log('更新折扣率为:', discountRate);
+                const newDiscountRate = (unitPrice / marketPrice * 100);
+                $row.find('.discount-rate').val(newDiscountRate.toFixed(1));
+                console.log('单价变化 - 新折扣率:', newDiscountRate);
             }
             
-            // 更新data属性
+            const newSubtotal = unitPrice * quantity;
             $row.find('.discounted-price').data('raw-value', unitPrice);
+            $row.find('.subtotal').val(formatNumber(newSubtotal.toFixed(2))).data('raw-value', newSubtotal);
             
-            // 计算小计
-            const quantity = parseInt($row.find('.quantity').val()) || 1;
-            const subtotal = unitPrice * quantity;
-            $row.find('.subtotal')
-                .val(formatNumber(subtotal))
-                .data('raw-value', subtotal);
+            console.log('单价变化 - 新小计:', newSubtotal);
             
-            updateGrandTotal();
-            return;
+        } else if (inputType === 'quantity') {
+            // 数量变化：重新计算小计（单价和折扣率不变）
+            const currentUnitPrice = parseFloat($row.find('.discounted-price').val()) || 0;
+            const newSubtotal = currentUnitPrice * quantity;
+            
+            $row.find('.subtotal').val(formatNumber(newSubtotal.toFixed(2))).data('raw-value', newSubtotal);
+            
+            console.log('数量变化 - 新小计:', newSubtotal);
         }
         
-        // 如果是折扣率或数量变化，重新计算单价和小计
-        console.log('触发calculateRowTotal');
-        calculateRowTotal($row);
+        // 更新总计
+        updateGrandTotal();
     });
     
     // 表单提交
@@ -1149,52 +1156,25 @@ $(document).ready(function() {
         console.log('设置完成 - 单价:', price, '小计:', $row.find('.subtotal').val());
     }
     
-    // 计算行价格（采用报价单的逻辑）
-    function calculateRowTotal($row, eventSource) {
+    // 计算行价格（简化版，主要用于初始化）
+    function calculateRowTotal($row) {
         try {
-            console.log('计算行价格');
+            const marketPrice = parseFloat($row.find('.product-price').data('raw-value')) || 0;
+            const discountRate = parseFloat($row.find('.discount-rate').val()) || 100;
+            const quantity = parseInt($row.find('.quantity').val()) || 1;
             
-            // 获取市场价格和其他值
-            var marketPriceStr = $row.find('.product-price').val() || '0';
-            var marketPrice = parseFloat(marketPriceStr.replace(/,/g, '')) || 0;
+            // 计算单价和小计
+            const unitPrice = marketPrice * (discountRate / 100);
+            const subtotal = unitPrice * quantity;
             
-            var discountStr = $row.find('.discount-rate').val() || '100';
-            var discount = parseFloat(discountStr.replace(/,/g, '')) || 100;
+            // 更新字段
+            $row.find('.discounted-price').val(unitPrice.toFixed(2)).data('raw-value', unitPrice);
+            $row.find('.subtotal').val(formatNumber(subtotal.toFixed(2))).data('raw-value', subtotal);
             
-            var quantityStr = $row.find('.quantity').val() || '0';
-            var quantity = parseFloat(quantityStr.replace(/,/g, '')) || 0;
+            // 更新总计
+            updateGrandTotal();
             
-            // 检查事件来源
-            var fromDiscountRate = false;
-            if (eventSource) {
-                fromDiscountRate = $(eventSource).hasClass('discount-rate');
-            }
-            
-            // 获取当前的折后价
-            var discountedPriceStr = $row.find('.discounted-price').val() || '0';
-            var currentDiscountedPrice = parseFloat(discountedPriceStr.replace(/,/g, '')) || 0;
-            
-            // 计算单价 (折后价)
-            var unitPrice = marketPrice * (discount / 100);
-            
-            // 如果价格变更是从折扣率变更触发的，或者单价为0，才更新单价
-            if (fromDiscountRate || currentDiscountedPrice <= 0) {
-                $row.find('.discounted-price').val(formatNumber(unitPrice.toFixed(2)));
-                $row.find('.discounted-price').data('raw-value', unitPrice);
-            } else {
-                // 否则使用输入的折后价
-                unitPrice = currentDiscountedPrice;
-            }
-            
-            // 计算小计
-            var subtotal = unitPrice * quantity;
-            $row.find('.subtotal').val(formatNumber(subtotal.toFixed(2)));
-            $row.find('.subtotal').data('raw-value', subtotal);
-        
-            // 调用总计更新函数
-        updateGrandTotal();
-            
-            console.log('行价格计算完成: 市场价=', marketPrice, '折扣=', discount, '单价=', unitPrice, '数量=', quantity, '小计=', subtotal);
+            console.log('初始化行价格: 市场价=', marketPrice, '折扣=', discountRate, '单价=', unitPrice, '数量=', quantity, '小计=', subtotal);
         } catch (error) {
             console.error('计算行价格时出错:', error);
         }

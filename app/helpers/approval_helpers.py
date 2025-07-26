@@ -2307,39 +2307,62 @@ def get_object_approval_instance(object_type, object_id, include_rejected=False)
     Returns:
         对应的审批实例，如果没有则返回None
     """
-    # 优先查找最新的PENDING实例
-    pending_instance = ApprovalInstance.query.filter_by(
-        object_type=object_type,
-        object_id=object_id,
-        status=ApprovalStatus.PENDING
-    ).order_by(ApprovalInstance.started_at.desc()).first()
+    try:
+        # 强制确保数据库连接正常，多次尝试回滚
+        for i in range(3):  # 尝试3次
+            try:
+                db.session.rollback()
+                break
+            except Exception as e:
+                if i == 2:  # 最后一次尝试失败
+                    current_app.logger.error(f"数据库回滚失败: {e}")
+                continue
+    except Exception:
+        pass
     
-    if pending_instance:
-        return pending_instance
-    
-    # 如果没有PENDING实例，查找最新的APPROVED实例（用于显示审批历史）
-    approved_instance = ApprovalInstance.query.filter_by(
-        object_type=object_type,
-        object_id=object_id,
-        status=ApprovalStatus.APPROVED
-    ).order_by(ApprovalInstance.started_at.desc()).first()
-    
-    if approved_instance:
-        return approved_instance
-    
-    # 如果需要包含被拒绝的实例，返回最新的被拒绝实例
-    if include_rejected:
-        rejected_instance = ApprovalInstance.query.filter_by(
+    try:
+        # 优先查找最新的PENDING实例
+        pending_instance = ApprovalInstance.query.filter_by(
             object_type=object_type,
             object_id=object_id,
-            status=ApprovalStatus.REJECTED
+            status=ApprovalStatus.PENDING
         ).order_by(ApprovalInstance.started_at.desc()).first()
         
-        if rejected_instance:
-            return rejected_instance
-    
-    # 被拒绝或其他情况，允许重新发起审批
-    return None
+        if pending_instance:
+            return pending_instance
+        
+        # 如果没有PENDING实例，查找最新的APPROVED实例（用于显示审批历史）
+        approved_instance = ApprovalInstance.query.filter_by(
+            object_type=object_type,
+            object_id=object_id,
+            status=ApprovalStatus.APPROVED
+        ).order_by(ApprovalInstance.started_at.desc()).first()
+        
+        if approved_instance:
+            return approved_instance
+        
+        # 如果需要包含被拒绝的实例，返回最新的被拒绝实例
+        if include_rejected:
+            rejected_instance = ApprovalInstance.query.filter_by(
+                object_type=object_type,
+                object_id=object_id,
+                status=ApprovalStatus.REJECTED
+            ).order_by(ApprovalInstance.started_at.desc()).first()
+            
+            if rejected_instance:
+                return rejected_instance
+        
+        # 被拒绝或其他情况，允许重新发起审批
+        return None
+        
+    except Exception as e:
+        # 数据库查询失败时，回滚事务并返回None
+        current_app.logger.error(f"获取审批实例失败: {e}")
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return None
 
 
 def cleanup_duplicate_dynamic_templates():
@@ -3248,80 +3271,112 @@ def get_pending_approval_count(user_id=None):
     Returns:
         整数，表示待审批的数量
     """
-    if user_id is None:
-        # 检查用户是否已登录
-        if not current_user.is_authenticated:
-            return 0
-        user_id = current_user.id
-    
-    # 查询当前用户是审批人且处于当前审批步骤的所有实例数量（通用审批系统）
-    # 需要考虑模板快照和当前模板两种情况
-    
-    # 先获取所有待审批的实例
-    base_instances = ApprovalInstance.query.filter(
-        ApprovalInstance.status == ApprovalStatus.PENDING
-    ).all()
-    
-    # 筛选出当前用户是当前步骤审批人的实例
-    general_count = 0
-    for instance in base_instances:
-        current_step_info = instance.get_current_step_info()
-        if current_step_info:
-            # 处理快照数据（字典）
-            if isinstance(current_step_info, dict):
-                current_approver_id = current_step_info.get('approver_user_id')
-            # 处理模板步骤对象
-            else:
-                current_approver_id = current_step_info.approver_user_id
-            
-            if current_approver_id == user_id:
-                general_count += 1
-    
-    # 查询批价单待审批数量
-    pricing_order_count = 0
     try:
-        from app.models.pricing_order import PricingOrder, PricingOrderApprovalRecord
+        # 确保数据库事务状态干净，多次尝试回滚
+        for i in range(3):  # 尝试3次
+            try:
+                db.session.rollback()
+                break
+            except Exception as e:
+                if i == 2:  # 最后一次尝试失败
+                    current_app.logger.error(f"get_pending_approval_count: 数据库回滚失败: {e}")
+                    return 0  # 返回默认值而不是抛出错误
+                continue
         
-        pricing_order_count = PricingOrder.query.join(
-            PricingOrderApprovalRecord,
-            and_(
-                PricingOrderApprovalRecord.pricing_order_id == PricingOrder.id,
-                PricingOrderApprovalRecord.step_order == PricingOrder.current_approval_step
-            )
-        ).filter(
-            PricingOrderApprovalRecord.approver_id == user_id,
-            PricingOrder.status == 'pending'
-        ).count()
-    except Exception as e:
-        # 如果查询出错，忽略批价单数量
-        pricing_order_count = 0
-    
-    # 查询订单待审批数量
-    order_count = 0
-    try:
-        from app.models.inventory import PurchaseOrder
+        if user_id is None:
+            # 检查用户是否已登录
+            if not current_user.is_authenticated:
+                return 0
+            user_id = current_user.id
         
-        order_count = PurchaseOrder.query.join(
-            ApprovalInstance,
-            and_(
-                ApprovalInstance.object_type == 'purchase_order',
-                ApprovalInstance.object_id == PurchaseOrder.id,
+        # 查询当前用户是审批人且处于当前审批步骤的所有实例数量（通用审批系统）
+        # 需要考虑模板快照和当前模板两种情况
+        
+        # 先获取所有待审批的实例 - 添加事务保护
+        base_instances = []
+        try:
+            base_instances = ApprovalInstance.query.filter(
                 ApprovalInstance.status == ApprovalStatus.PENDING
-            )
-        ).join(
-            ApprovalStep,
-            and_(
-                ApprovalStep.process_id == ApprovalInstance.process_id,
-                ApprovalStep.step_order == ApprovalInstance.current_step
-            )
-        ).filter(
-            ApprovalStep.approver_user_id == user_id
-        ).count()
-    except Exception as e:
-        # 如果查询出错，忽略订单数量
+            ).all()
+        except Exception as e:
+            current_app.logger.error(f"get_pending_approval_count: 查询审批实例失败: {e}")
+            # 尝试再次回滚并重试一次
+            try:
+                db.session.rollback()
+                base_instances = ApprovalInstance.query.filter(
+                    ApprovalInstance.status == ApprovalStatus.PENDING
+                ).all()
+            except Exception as e2:
+                current_app.logger.error(f"get_pending_approval_count: 重试查询审批实例仍然失败: {e2}")
+                return 0  # 返回默认值
+        
+        # 筛选出当前用户是当前步骤审批人的实例
+        general_count = 0
+        for instance in base_instances:
+            try:
+                current_step_info = instance.get_current_step_info()
+                if current_step_info:
+                    # 处理快照数据（字典）
+                    if isinstance(current_step_info, dict):
+                        current_approver_id = current_step_info.get('approver_user_id')
+                    # 处理模板步骤对象
+                    else:
+                        current_approver_id = current_step_info.approver_user_id
+                    
+                    if current_approver_id == user_id:
+                        general_count += 1
+            except Exception as e:
+                current_app.logger.error(f"get_pending_approval_count: 处理审批实例 {instance.id} 失败: {e}")
+                continue  # 跳过有问题的实例
+        
+        # 查询批价单待审批数量 - 添加事务保护
+        pricing_order_count = 0
+        try:
+            from app.models.pricing_order import PricingOrder, PricingOrderApprovalRecord
+            
+            pricing_order_count = PricingOrder.query.join(
+                PricingOrderApprovalRecord,
+                and_(
+                    PricingOrderApprovalRecord.pricing_order_id == PricingOrder.id,
+                    PricingOrderApprovalRecord.step_order == PricingOrder.current_approval_step
+                )
+            ).filter(
+                PricingOrderApprovalRecord.approver_id == user_id,
+                PricingOrder.status == 'pending'
+            ).count()
+        except Exception as e:
+            current_app.logger.error(f"get_pending_approval_count: 查询批价单失败: {e}")
+            # 尝试回滚后重试
+            try:
+                db.session.rollback()
+                pricing_order_count = PricingOrder.query.join(
+                    PricingOrderApprovalRecord,
+                    and_(
+                        PricingOrderApprovalRecord.pricing_order_id == PricingOrder.id,
+                        PricingOrderApprovalRecord.step_order == PricingOrder.current_approval_step
+                    )
+                ).filter(
+                    PricingOrderApprovalRecord.approver_id == user_id,
+                    PricingOrder.status == 'pending'
+                ).count()
+            except Exception as e2:
+                current_app.logger.error(f"get_pending_approval_count: 重试查询批价单仍然失败: {e2}")
+                pricing_order_count = 0
+        
+        # 注意：订单审批现在已经使用通用审批系统，不需要单独计算
+        # 避免重复计算，订单审批已经包含在 general_count 中
         order_count = 0
-    
-    return general_count + pricing_order_count + order_count
+        
+        return general_count + pricing_order_count + order_count
+        
+    except Exception as e:
+        # 最外层异常捕获，确保函数不会抛出错误导致模板渲染失败
+        current_app.logger.error(f"get_pending_approval_count: 完全失败: {e}")
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return 0  # 返回默认值
 
 
 def get_workflow_steps(approval_instance):
@@ -4225,3 +4280,526 @@ def get_approval_step_discount_status(pricing_order):
     except Exception as e:
         print(f"获取审批步骤权限状态失败: {str(e)}")
         return {}
+
+def process_approval_stage(stage_id, action, comment=None, processed_by_id=None):
+    """处理审批阶段操作 - 标准化API版本
+    
+    Args:
+        stage_id: 审批阶段/步骤ID
+        action: 审批动作 ('approve', 'reject')
+        comment: 审批意见
+        processed_by_id: 操作人ID
+        
+    Returns:
+        dict: {
+            'success': bool,
+            'message': str,
+            'approval_completed': bool,
+            'final_status': str
+        }
+    """
+    try:
+        from app.models.approval import ApprovalInstance, ApprovalRecord, ApprovalAction, ApprovalStatus
+        from app import db
+        
+        # 注意：这个函数现在主要作为备用，实际的订单审批已经在路由中直接处理
+        # 保留此函数以支持其他可能的调用
+        return {
+            'success': False,
+            'message': '此函数已废弃，请使用路由中的直接审批处理',
+            'approval_completed': False,
+            'final_status': None
+        }
+        
+        # 转换action为枚举
+        if action == 'approve':
+            approval_action = ApprovalAction.APPROVE
+        elif action == 'reject':
+            approval_action = ApprovalAction.REJECT  
+        else:
+            return {
+                'success': False,
+                'message': f'无效的审批动作: {action}',
+                'approval_completed': False,
+                'final_status': None
+            }
+        
+        # 调用现有的审批处理函数
+        success = process_approval(
+            instance_id=target_instance.id,
+            action=approval_action,
+            comment=comment,
+            user_id=processed_by_id
+        )
+        
+        if not success:
+            return {
+                'success': False,
+                'message': '审批处理失败',
+                'approval_completed': False,
+                'final_status': None
+            }
+        
+        # 重新查询实例状态
+        db.session.refresh(target_instance)
+        
+        # 检查审批是否完成
+        approval_completed = target_instance.status != ApprovalStatus.PENDING
+        final_status = None
+        
+        if approval_completed:
+            if target_instance.status == ApprovalStatus.APPROVED:
+                final_status = 'approved'
+            elif target_instance.status == ApprovalStatus.REJECTED:
+                final_status = 'rejected'
+        
+        return {
+            'success': True,
+            'message': '审批处理成功',
+            'approval_completed': approval_completed,
+            'final_status': final_status
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            'success': False,
+            'message': f'处理失败：{str(e)}',
+            'approval_completed': False,
+            'final_status': None
+        }
+
+
+def can_recall_approval(object_type, object_id, user_id):
+    """
+    检查用户是否可以召回审批流程
+    
+    Args:
+        object_type: 对象类型
+        object_id: 对象ID
+        user_id: 用户ID
+        
+    Returns:
+        布尔值，表示是否可以召回
+    """
+    try:
+        # 获取审批实例
+        approval_instance = get_object_approval_instance(object_type, object_id)
+        if not approval_instance:
+            return False
+        
+        # 只有在待审批状态下才能召回
+        if approval_instance.status != ApprovalStatus.PENDING:
+            return False
+            
+        # 只有提交人可以召回
+        if approval_instance.created_by != user_id:
+            return False
+            
+        # 检查是否已经有人审批过（如果已经审批过则不能召回）
+        approved_records = ApprovalRecord.query.filter_by(
+            instance_id=approval_instance.id
+        ).filter(
+            ApprovalRecord.action.in_(['approve', 'reject'])
+        ).first()
+        
+        # 如果已经有审批记录，则不能召回
+        if approved_records:
+            return False
+            
+        return True
+        
+    except Exception as e:
+        current_app.logger.error(f"检查召回权限失败: {str(e)}")
+        return False
+
+
+def recall_approval(object_type, object_id, user_id, reason=None):
+    """
+    召回审批流程
+    
+    Args:
+        object_type: 对象类型
+        object_id: 对象ID  
+        user_id: 召回人ID
+        reason: 召回原因
+        
+    Returns:
+        字典，包含操作结果
+    """
+    try:
+        # 检查召回权限
+        if not can_recall_approval(object_type, object_id, user_id):
+            return {
+                'success': False,
+                'message': '无权限召回或审批流程已无法召回'
+            }
+        
+        # 获取审批实例
+        approval_instance = get_object_approval_instance(object_type, object_id)
+        
+        # 更新审批实例状态为召回（使用REJECTED状态，通过action字段区分）
+        approval_instance.status = ApprovalStatus.REJECTED
+        approval_instance.ended_at = datetime.now()
+        
+        # 添加召回记录
+        recall_record = ApprovalRecord(
+            instance_id=approval_instance.id,
+            step_id=None,  # 召回不属于特定步骤
+            approver_id=user_id,
+            action='recall',
+            comment=reason or '流程召回',
+            timestamp=datetime.now()
+        )
+        
+        db.session.add(recall_record)
+        
+        # 更新业务对象状态为草稿
+        update_business_object_status(object_type, object_id, 'draft')
+        
+        db.session.commit()
+        
+        current_app.logger.info(f"审批流程召回成功: {object_type}#{object_id}, 召回人: {user_id}")
+        
+        return {
+            'success': True,
+            'message': '审批流程召回成功'
+        }
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"召回审批流程失败: {str(e)}")
+        return {
+            'success': False,
+            'message': f'召回失败：{str(e)}'
+        }
+
+
+def can_resubmit_approval(object_type, object_id, user_id):
+    """
+    检查用户是否可以重新提交审批
+    
+    Args:
+        object_type: 对象类型
+        object_id: 对象ID
+        user_id: 用户ID
+        
+    Returns:
+        布尔值，表示是否可以重新提交
+    """
+    try:
+        # 获取审批实例（包含被拒绝的实例）
+        approval_instance = get_object_approval_instance(object_type, object_id, include_rejected=True)
+        if not approval_instance:
+            return True  # 没有审批实例，可以提交
+        
+        # 只有在被拒绝或召回状态下才能重新提交
+        if approval_instance.status != ApprovalStatus.REJECTED:
+            return False
+            
+        # 检查是否是召回状态（通过最后一个记录的action判断）
+        last_record = ApprovalRecord.query.filter_by(
+            instance_id=approval_instance.id
+        ).order_by(ApprovalRecord.timestamp.desc()).first()
+        
+        # 如果最后一个记录是召回或拒绝，才能重新提交
+        if not last_record or last_record.action not in ['recall', 'reject']:
+            return False
+            
+        # 只有提交人可以重新提交
+        if approval_instance.created_by != user_id:
+            return False
+            
+        return True
+        
+    except Exception as e:
+        current_app.logger.error(f"检查重新提交权限失败: {str(e)}")
+        return False
+
+
+def resubmit_approval(object_type, object_id, user_id):
+    """
+    重新提交审批流程
+    
+    Args:
+        object_type: 对象类型
+        object_id: 对象ID
+        user_id: 提交人ID
+        
+    Returns:
+        字典，包含操作结果
+    """
+    try:
+        # 检查重新提交权限
+        if not can_resubmit_approval(object_type, object_id, user_id):
+            return {
+                'success': False,
+                'message': '无权限重新提交或审批流程状态不允许重新提交'
+            }
+        
+        # 获取现有审批实例
+        approval_instance = get_object_approval_instance(object_type, object_id)
+        
+        if approval_instance:
+            # 重置审批实例状态
+            approval_instance.status = ApprovalStatus.PENDING
+            approval_instance.current_step = 1
+            approval_instance.started_at = datetime.now()
+            approval_instance.ended_at = None
+            
+            # 删除所有审批记录（重置审批历史）
+            ApprovalRecord.query.filter_by(instance_id=approval_instance.id).delete()
+            
+            # 添加重新提交记录
+            resubmit_record = ApprovalRecord(
+                instance_id=approval_instance.id,
+                step_id=None,
+                approver_id=user_id,
+                action='resubmit',
+                comment='重新提交审批',
+                timestamp=datetime.now()
+            )
+            
+            db.session.add(resubmit_record)
+        else:
+            # 如果没有审批实例，创建新的
+            # 获取可用的审批模板
+            templates = get_available_templates(object_type)
+            if not templates:
+                return {
+                    'success': False,
+                    'message': '未找到适用的审批流程模板'
+                }
+            
+            # 使用第一个可用模板创建新的审批实例
+            template = templates[0]
+            new_instance = start_approval_process(object_type, object_id, template.id, user_id)
+            
+            if new_instance:
+                # 更新业务对象状态为待审批
+                update_business_object_status(object_type, object_id, 'pending')
+                db.session.commit()
+                
+                return {
+                    'success': True,
+                    'message': '重新提交审批成功'
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': '创建审批实例失败'
+                }
+        
+        # 对于有审批实例的情况，更新业务对象状态为待审批
+        if approval_instance:
+            update_business_object_status(object_type, object_id, 'pending')
+            db.session.commit()
+        
+        current_app.logger.info(f"重新提交审批成功: {object_type}#{object_id}, 提交人: {user_id}")
+        
+        return {
+            'success': True,
+            'message': '重新提交审批成功'
+        }
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"重新提交审批失败: {str(e)}")
+        return {
+            'success': False,
+            'message': f'重新提交失败：{str(e)}'
+        }
+
+
+def update_business_object_status(object_type, object_id, status):
+    """
+    更新业务对象状态
+    
+    Args:
+        object_type: 对象类型
+        object_id: 对象ID
+        status: 新状态
+    """
+    try:
+        if object_type == 'project':
+            from app.models.project import Project
+            obj = Project.query.get(object_id)
+            if obj:
+                obj.status = status
+                
+        elif object_type == 'quotation':
+            from app.models.quotation import Quotation
+            obj = Quotation.query.get(object_id)
+            if obj:
+                obj.status = status
+                
+        elif object_type == 'customer':
+            from app.models.customer import Company
+            obj = Company.query.get(object_id)
+            if obj:
+                obj.status = status
+                
+        elif object_type == 'purchase_order':
+            from app.models.inventory import PurchaseOrder
+            obj = PurchaseOrder.query.get(object_id)
+            if obj:
+                obj.status = status
+                
+        current_app.logger.info(f"业务对象状态更新: {object_type}#{object_id} -> {status}")
+        
+    except Exception as e:
+        current_app.logger.error(f"更新业务对象状态失败: {str(e)}")
+
+
+def get_pricing_order_pending_count(user_id=None):
+    """获取批价单待审批数量
+    
+    Args:
+        user_id: 用户ID，默认为当前登录用户
+        
+    Returns:
+        批价单待审批数量
+    """
+    if user_id is None:
+        user_id = current_user.id
+    
+    try:
+        from app.models.pricing_order import PricingOrder, PricingOrderApprovalRecord
+        from app.models.user import User
+        
+        # 获取用户信息
+        user = User.query.get(user_id)
+        if not user:
+            return 0
+        
+        # 批价单审批数量统计
+        pricing_count = 0
+        
+        # 1. 作为审批人的批价单（通过审批记录表）
+        pricing_approvals = db.session.query(
+            PricingOrderApprovalRecord.pricing_order_id
+        ).filter(
+            PricingOrderApprovalRecord.approver_id == user_id,
+            PricingOrderApprovalRecord.is_current_step == True,
+            PricingOrderApprovalRecord.status == 'pending'
+        ).distinct().all()
+        
+        pricing_order_ids = [r.pricing_order_id for r in pricing_approvals]
+        
+        # 验证批价单是否存在且状态为pending
+        if pricing_order_ids:
+            existing_orders = PricingOrder.query.filter(
+                PricingOrder.id.in_(pricing_order_ids),
+                PricingOrder.status == 'pending'
+            ).count()
+            pricing_count += existing_orders
+        
+        # 2. 商务助理可以看到部门内所有待审批的批价单
+        if user.role == 'business_assistant':
+            department_pricing = PricingOrder.query.filter(
+                PricingOrder.status == 'pending'
+            ).count()
+            # 避免重复计算，取最大值
+            pricing_count = max(pricing_count, department_pricing)
+        
+        return pricing_count
+        
+    except Exception as e:
+        current_app.logger.error(f"获取批价单待审批数量失败: {str(e)}")
+        return 0
+
+
+def get_order_pending_count(user_id=None):
+    """获取订单待审批数量
+    
+    Args:
+        user_id: 用户ID，默认为当前登录用户
+        
+    Returns:
+        订单待审批数量
+    """
+    if user_id is None:
+        user_id = current_user.id
+    
+    try:
+        from app.models.user import User
+        
+        # 获取用户信息
+        user = User.query.get(user_id)
+        if not user:
+            return 0
+        
+        # 订单审批数量统计（使用通用审批系统）
+        order_count = 0
+        
+        # 查询用户作为审批人的订单实例
+        instances = ApprovalInstance.query.filter(
+            ApprovalInstance.object_type == 'purchase_order',
+            ApprovalInstance.status == ApprovalStatus.PENDING
+        ).all()
+        
+        for instance in instances:
+            # 检查用户是否为当前步骤的审批人
+            if can_user_approve(user_id, instance.id):
+                # 验证业务对象是否存在
+                from app.models.inventory import PurchaseOrder
+                order = PurchaseOrder.query.get(instance.object_id)
+                if order and order.status == 'pending':
+                    order_count += 1
+        
+        # 商务助理可以看到部门内所有待审批的订单
+        if user.role == 'business_assistant':
+            # 统计所有pending状态的订单审批实例
+            from app.models.inventory import PurchaseOrder
+            
+            # 获取所有pending的订单实例
+            department_instances = ApprovalInstance.query.filter(
+                ApprovalInstance.object_type == 'purchase_order',
+                ApprovalInstance.status == ApprovalStatus.PENDING
+            ).all()
+            
+            # 验证业务对象存在
+            department_count = 0
+            for instance in department_instances:
+                order = PurchaseOrder.query.get(instance.object_id)
+                if order and order.status == 'pending':
+                    department_count += 1
+            
+            # 避免重复计算，取最大值
+            order_count = max(order_count, department_count)
+        
+        return order_count
+        
+    except Exception as e:
+        current_app.logger.error(f"获取订单待审批数量失败: {str(e)}")
+        return 0
+
+
+def get_tab_counts_for_auto_switch(user_id=None):
+    """获取各个页签的审批数量，用于自动切换到有审批提醒的页签
+    
+    Args:
+        user_id: 用户ID，默认为当前登录用户
+        
+    Returns:
+        dict: 各页签的审批数量 {'pending': 数量, 'pricing_order': 数量, 'order': 数量, 'created': 数量}
+    """
+    if user_id is None:
+        user_id = current_user.id
+    
+    try:
+        return {
+            'pending': get_pending_approval_count(user_id),
+            'pricing_order': get_pricing_order_pending_count(user_id),
+            'order': get_order_pending_count(user_id),
+            'created': get_pending_created_count(user_id)
+        }
+    except Exception as e:
+        current_app.logger.error(f"获取页签计数失败: {str(e)}")
+        return {
+            'pending': 0,
+            'pricing_order': 0,
+            'order': 0,
+            'created': 0
+        }

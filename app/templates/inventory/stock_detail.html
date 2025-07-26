@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button %}
+{% from 'macros/ui_helpers.html' import render_button, render_stock_status_badge, render_item_count_badge %}
 
 {% block title %}库存详情{% endblock %}
 
@@ -77,6 +77,18 @@
         justify-content: center;
         margin: 0 auto;
         color: #6c757d;
+    }
+    .edit-min-stock {
+        cursor: pointer;
+        border: 1px dashed #6c757d;
+        padding: 2px 4px;
+        border-radius: 3px;
+        transition: all 0.3s ease;
+    }
+
+    .edit-min-stock:hover {
+        background-color: #f8f9fa;
+        border-color: #007bff;
     }
 </style>
 {% endblock %}
@@ -162,10 +174,18 @@
                                 <p><strong>单位：</strong>{{ inventory.unit or inventory.product.unit or '-' }}</p>
                             </div>
                             <div class="col-md-3">
-                                <p><strong>最低库存：</strong>{{ inventory.min_stock }}</p>
+                                <p><strong>最低库存：</strong>\n                                    <span class=\"edit-min-stock\" \n                                         data-inventory-id=\"{{ inventory.id }}\" \n                                         data-current-value=\"{{ inventory.min_stock }}\"\n                                         onclick=\"editMinStock(this)\"\n                                         title=\"点击编辑最低库存\">\n                                        {{ inventory.min_stock }}\n                                    </span>\n                                </p>
                             </div>
                             <div class="col-md-3">
-                                <p><strong>最高库存：</strong>{{ inventory.max_stock if inventory.max_stock > 0 else '-' }}</p>
+                                <p><strong>最高库存：</strong>
+                                    <span class="edit-min-stock" 
+                                         data-inventory-id="{{ inventory.id }}" 
+                                         data-current-value="{{ inventory.max_stock or 0 }}"
+                                         onclick="editMaxStock(this)"
+                                         title="点击编辑最高库存">
+                                        {{ inventory.max_stock if inventory.max_stock and inventory.max_stock > 0 else '未设置' }}
+                                    </span>
+                                </p>
                             </div>
                         </div>
                         {% if inventory.notes %}
@@ -180,7 +200,7 @@
                 <div class="card-header">
                     <h5 class="mb-0">
                         <i class="fas fa-history me-2"></i>库存变动记录
-                        <span class="badge bg-secondary ms-2">最近20条</span>
+                        {{ render_item_count_badge(20, "最近", "条") }}
                     </h5>
                 </div>
                 <div class="card-body">
@@ -264,13 +284,13 @@
                     
                     <div class="mb-3">
                         {% if inventory.quantity == 0 %}
-                            <span class="badge bg-danger fs-6">零库存</span>
+                            {{ render_stock_status_badge('out_of_stock') }}
                         {% elif inventory.quantity <= inventory.min_stock %}
-                            <span class="badge bg-warning fs-6">低库存预警</span>
+                            {{ render_stock_status_badge('low_stock') }}
                         {% elif inventory.max_stock > 0 and inventory.quantity >= inventory.max_stock %}
-                            <span class="badge bg-info fs-6">库存充足</span>
+                            {{ render_stock_status_badge('sufficient') }}
                         {% else %}
-                            <span class="badge bg-success fs-6">库存正常</span>
+                            {{ render_stock_status_badge('normal') }}
                         {% endif %}
                     </div>
                     
@@ -294,7 +314,7 @@
                         {{ render_button('入库', href='#', color='success', icon='fas fa-arrow-up', attrs='onclick="showStockAction({}, \'{}\', \'in\')"'.format(inventory.id, inventory.product.product_name)) }}
                         {{ render_button('出库', href='#', color='danger', icon='fas fa-arrow-down', attrs='onclick="showStockAction({}, \'{}\', \'out\')"'.format(inventory.id, inventory.product.product_name)) }}
                         {{ render_button('库存调整', href='#', color='warning', icon='fas fa-adjust', attrs='onclick="showStockAction({}, \'{}\', \'adjustment\')"'.format(inventory.id, inventory.product.product_name)) }}
-                        {{ render_button('查看关联结算', href='#', color='info', icon='fas fa-calculator') }}
+                        {{ render_button('查看关联结算', href='#', color='info', icon='fas fa-calculator', attrs='onclick=\"viewRelatedSettlements()\"') }}
                     </div>
                 </div>
             </div>
@@ -371,14 +391,276 @@ function submitStockAction() {
         return;
     }
     
-    // 这里可以添加AJAX提交逻辑
-    console.log('提交库存操作', Object.fromEntries(formData));
+    // 添加库存ID和CSRF token
+    formData.append('inventory_id', currentInventoryId);
+    formData.append('csrf_token', '{{ csrf_token() }}');
     
-    // 暂时只是关闭模态框和显示消息
-    const modal = bootstrap.Modal.getInstance(document.getElementById('stockActionModal'));
-    modal.hide();
+    // 禁用提交按钮
+    const submitBtn = document.querySelector('#stockActionModal .btn-primary');
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = '处理中...';
     
-    alert('库存操作功能待实现');
+    fetch('{{ url_for("inventory.stock_action") }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 更新页面显示的库存数量
+            updateStockQuantityDisplay(data.new_quantity);
+            
+            // 更新库存状态
+            updateStockStatus(data.new_quantity);
+            
+            // 关闭模态框
+            const modal = bootstrap.Modal.getInstance(document.getElementById('stockActionModal'));
+            modal.hide();
+            
+            // 显示成功消息
+            showAlert(data.message || '库存操作成功', 'success');
+            
+            // 刷新页面以显示最新的变动记录
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            showAlert(data.message || '操作失败', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('网络错误，请重试', 'danger');
+    })
+    .finally(() => {
+        // 恢复提交按钮
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+    });
+}
+
+function updateStockQuantityDisplay(newQuantity) {
+    // 更新侧边栏的库存数量显示
+    const quantityElement = document.querySelector('.stock-quantity');
+    if (quantityElement) {
+        quantityElement.textContent = newQuantity;
+    }
+}
+
+function updateStockStatus(newQuantity) {
+    // 获取最低库存值
+    const minStockElement = document.querySelector('[data-inventory-id]');
+    const minStock = minStockElement ? parseInt(minStockElement.dataset.currentValue) : 0;
+    
+    // 更新库存状态显示
+    const statusElement = document.querySelector('.badge');
+    const quantityElement = document.querySelector('.stock-quantity');
+    
+    if (statusElement && quantityElement) {
+        // 移除旧的状态类
+        quantityElement.classList.remove('stock-status-normal', 'stock-status-low', 'stock-status-out');
+        statusElement.classList.remove('bg-success', 'bg-warning', 'bg-danger', 'bg-info');
+        
+        // 添加新的状态类和文本
+        if (newQuantity == 0) {
+            quantityElement.classList.add('stock-status-out');
+            statusElement.classList.add('bg-danger');
+            statusElement.textContent = '零库存';
+        } else if (newQuantity <= minStock) {
+            quantityElement.classList.add('stock-status-low');
+            statusElement.classList.add('bg-warning');
+            statusElement.textContent = '低库存预警';
+        } else {
+            quantityElement.classList.add('stock-status-normal');
+            statusElement.classList.add('bg-success');
+            statusElement.textContent = '库存正常';
+        }
+    }
+}
+
+function viewRelatedSettlements() {
+    // 打开新窗口或页面显示关联结算
+    const url = '{{ url_for("inventory.view_stock_settlements", inventory_id=inventory.id) }}';
+    window.open(url, '_blank', 'width=1000,height=700,scrollbars=yes,resizable=yes');
+}
+
+function editMaxStock(element) {
+    const inventoryId = element.dataset.inventoryId;
+    const currentValue = element.dataset.currentValue;
+    
+    document.getElementById('maxStockInventoryId').value = inventoryId;
+    document.getElementById('maxStock').value = currentValue;
+    
+    const modal = new bootstrap.Modal(document.getElementById('editMaxStockModal'));
+    modal.show();
+}
+
+function saveMaxStock() {
+    const form = document.getElementById('editMaxStockForm');
+    const formData = new FormData(form);
+    
+    // 添加CSRF token
+    formData.append('csrf_token', '{{ csrf_token() }}');
+    
+    fetch('{{ url_for("inventory.update_max_stock") }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 更新页面显示
+            const inventoryId = document.getElementById('maxStockInventoryId').value;
+            const newValue = document.getElementById('maxStock').value;
+            const element = document.querySelector(`[onclick="editMaxStock(this)"][data-inventory-id="${inventoryId}"]`);
+            
+            if (element) {
+                element.textContent = newValue == 0 ? '未设置' : newValue;
+                element.dataset.currentValue = newValue;
+            }
+            
+            // 更新侧边栏显示
+            const sidebarMaxStock = document.querySelector('.text-start p:nth-child(2)');
+            if (sidebarMaxStock) {
+                sidebarMaxStock.innerHTML = '<strong>最高库存：</strong>' + (newValue == 0 ? '未设置' : newValue);
+            }
+            
+            // 关闭模态框
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editMaxStockModal'));
+            modal.hide();
+            
+            // 显示成功消息
+            showAlert('最高库存更新成功', 'success');
+        } else {
+            showAlert(data.message || '更新失败', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('网络错误，请重试', 'danger');
+    });
 }
 </script>
-{% endblock %} 
+<!-- 编辑最低库存模态框 -->
+<div class="modal fade" id="editMinStockModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">编辑最低库存</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editMinStockForm">
+                    <input type="hidden" id="inventoryId" name="inventory_id">
+                    <div class="mb-3">
+                        <label for="minStock" class="form-label">最低库存数量</label>
+                        <input type="number" class="form-control" id="minStock" name="min_stock" min="0" required>
+                        <div class="form-text">设置低于此数量时的库存预警</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveMinStock()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑最高库存模态框 -->
+<div class="modal fade" id="editMaxStockModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">编辑最高库存</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editMaxStockForm">
+                    <input type="hidden" id="maxStockInventoryId" name="inventory_id">
+                    <div class="mb-3">
+                        <label for="maxStock" class="form-label">最高库存数量</label>
+                        <input type="number" class="form-control" id="maxStock" name="max_stock" min="0" required>
+                        <div class="form-text">设置库存上限，0表示不限制</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveMaxStock()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function editMinStock(element) {
+    const inventoryId = element.dataset.inventoryId;
+    const currentValue = element.dataset.currentValue;
+    
+    document.getElementById('inventoryId').value = inventoryId;
+    document.getElementById('minStock').value = currentValue;
+    
+    const modal = new bootstrap.Modal(document.getElementById('editMinStockModal'));
+    modal.show();
+}
+
+function saveMinStock() {
+    const form = document.getElementById('editMinStockForm');
+    const formData = new FormData(form);
+    
+    // 添加CSRF token
+    formData.append('csrf_token', '{{ csrf_token() }}');
+    
+    fetch('{{ url_for("inventory.update_min_stock") }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 更新页面显示
+            const inventoryId = document.getElementById('inventoryId').value;
+            const newValue = document.getElementById('minStock').value;
+            const element = document.querySelector(`[data-inventory-id="${inventoryId}"]`);
+            element.textContent = newValue;
+            element.dataset.currentValue = newValue;
+            
+            // 关闭模态框
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editMinStockModal'));
+            modal.hide();
+            
+            // 显示成功消息
+            showAlert('最低库存更新成功', 'success');
+        } else {
+            showAlert(data.message || '更新失败', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('网络错误，请重试', 'danger');
+    });
+}
+
+function showAlert(message, type) {
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    // 在页面顶部显示警告
+    const container = document.querySelector('.container.page-with-fixed-nav');
+    container.insertAdjacentHTML('afterbegin', alertHtml);
+    
+    // 3秒后自动消失
+    setTimeout(() => {
+        const alert = container.querySelector('.alert');
+        if (alert) {
+            alert.remove();
+        }
+    }, 3000);
+}
+</script>\n\n{% endblock %}

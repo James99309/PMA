@@ -32,13 +32,16 @@ def get_auth_headers():
 @login_required
 @permission_required('user_management', 'view')
 def list_users():
-    """用户列表页面（显示所有用户，支持搜索、角色、状态过滤）"""
+    """用户列表页面（使用标准组件）"""
     search = request.args.get('search', '')
     role = request.args.get('role', '')
     status = request.args.get('status', '')
+    company = request.args.get('company', '')
 
     # 统一归属过滤
-    query = get_viewable_data(User, current_user)
+    base_query = get_viewable_data(User, current_user)
+    query = base_query
+    
     if search:
         query = query.filter(
             (User.username.like(f'%{search}%')) |
@@ -50,7 +53,16 @@ def list_users():
         query = query.filter(User.role == role)
     if status:
         is_active = True if status == 'active' else False
-        query = query.filter(User.is_active == is_active)
+        query = query.filter(User._is_active == is_active)
+    if company:
+        query = query.filter(User.company_name == company)
+
+    # 获取统计数据
+    total_count = base_query.count()
+    active_count = base_query.filter(User._is_active == True).count()
+    inactive_count = base_query.filter(User._is_active == False).count()
+    admin_count = base_query.filter(User.role == 'admin').count()
+    user_count = base_query.filter(User.role == 'user').count()
 
     # 按更新时间倒序排序，获取所有用户
     try:
@@ -58,53 +70,469 @@ def list_users():
     except Exception as e:
         logger.warning(f"使用updated_at排序失败: {str(e)}, 尝试使用id排序")
         try:
-            # 回滚失败的事务
             db.session.rollback()
             users = query.order_by(User.id.desc()).all()
         except Exception as e2:
             logger.error(f"用户列表查询失败: {str(e2)}")
-            # 回滚失败的事务
             db.session.rollback()
             users = []
 
-    users_data = []
-    for user in users:
-        d = user.to_dict()
-        # 检查用户是否为厂商用户
-        user_obj = User()
-        user_obj.company_name = d['company_name']
-        is_vendor = user_obj.is_vendor_user()
-        
-        users_data.append({
-            'id': d['id'],
-            'is_active': d['is_active'],
-            'real_name': d['real_name'],
-            'username': d['username'],
-            'email': d['email'],
-            'company_name': d['company_name'],
-            'department': d['department'],
-            'is_department_manager': d['is_department_manager'],
-            'role': d['role'],
-            'updated_at': d.get('updated_at'),
-            'created_at': d.get('created_at'),
-            'is_vendor': is_vendor,
-        })
-    
-    # 批量获取企业名称和角色字典映射
+    # 用户数据已通过 datetimeformat 过滤器处理，无需额外转换
+
+    # 批量获取字典映射
     company_dict = {d.key: d.value for d in Dictionary.query.filter_by(type='company').all()}
     role_dict = {d.key: d.value for d in Dictionary.query.filter_by(type='role').all()}
     
-    # 批量获取厂商字典信息
-    vendor_dict = {d.key: d.is_vendor for d in Dictionary.query.filter_by(type='company').all()}
+    # 获取实际存在的筛选选项
+    actual_roles = db.session.query(User.role).filter(
+        User.id.in_([u.id for u in base_query.all()])
+    ).distinct().all()
+    
+    actual_companies = db.session.query(User.company_name).filter(
+        User.id.in_([u.id for u in base_query.all()]),
+        User.company_name.isnot(None)
+    ).distinct().all()
+
+    # 构建筛选配置
+    filter_config = {
+        'action_url': url_for('user.list_users'),
+        'form_id': 'userFilterForm',
+        'reset_url': url_for('user.list_users'),
+        
+        # 自动筛选配置
+        'realtime_search': False,
+        'auto_submit': True,
+        'dynamic_reset_button': True,
+        'adaptive_width': True,
+        'adaptive_button_layout': True,
+        'search_delay': 300,
+        'search_field_id': 'search',  # 添加搜索字段ID
+        
+        'search_field': {
+            'name': 'search',
+            'label': '搜索',
+            'placeholder': '用户名、姓名、邮箱或企业',
+            'value': search,
+            'col_width': 4
+        },
+        
+        'filter_fields': [
+            {
+                'name': 'status',
+                'label': '账号状态',
+                'all_option_text': '全部状态',
+                'current_value': status,
+                'col_width': 2,
+                'options': [
+                    {'value': 'active', 'label': '已激活', 'translate': False},
+                    {'value': 'inactive', 'label': '未激活', 'translate': False}
+                ]
+            },
+            {
+                'name': 'role',
+                'label': '用户角色',
+                'all_option_text': '全部角色',
+                'current_value': role,
+                'col_width': 2,
+                'options': [
+                    {'value': role_tuple[0], 'label': role_dict.get(role_tuple[0], role_tuple[0]), 'translate': False}
+                    for role_tuple in actual_roles if role_tuple[0]
+                ]
+            },
+            {
+                'name': 'company',
+                'label': '企业',
+                'all_option_text': '全部企业',
+                'current_value': company,
+                'col_width': 3,
+                'options': [
+                    {'value': company_tuple[0], 'label': company_dict.get(company_tuple[0], company_tuple[0]), 'translate': False}
+                    for company_tuple in actual_companies if company_tuple[0]
+                ]
+            }
+        ],
+        
+        'search_button_text': '搜索',
+        'reset_button_text': '重置'
+    }
+
+    # 直接使用用户对象，让模板自动访问属性
+    user_items = users
+
+    # 构建列表配置
+    list_config = {
+        'module_name': 'user',
+        'title': '账户管理',
+        'ajax_mode': True,  # 使用AJAX模式
+        
+        # 统计卡片配置
+        'stats': {
+            'cards': [
+                {
+                    'id': 'total',
+                    'title': '全部用户',
+                    'icon': 'fas fa-users',
+                    'value': total_count,
+                    'unit': '个',
+                    'color': 'primary'
+                },
+                {
+                    'id': 'active',
+                    'title': '已激活',
+                    'icon': 'fas fa-user-check',
+                    'value': active_count,
+                    'unit': '个',
+                    'color': 'success'
+                },
+                {
+                    'id': 'inactive',
+                    'title': '未激活',
+                    'icon': 'fas fa-user-times',
+                    'value': inactive_count,
+                    'unit': '个',
+                    'color': 'warning'
+                },
+                {
+                    'id': 'admin',
+                    'title': '管理员',
+                    'icon': 'fas fa-user-shield',
+                    'value': admin_count,
+                    'unit': '个',
+                    'color': 'info'
+                }
+            ]
+        },
+        
+        # 筛选配置（复用现有筛选组件）
+        'filter': filter_config,
+        
+        # 表格配置
+        'table': {
+            'ajax_target': 'userTableBody',
+            'title': '用户列表',
+            'icon': 'fas fa-table',
+            'show_header': True,
+            'enhanced_striping': True,  # 启用斑马线
+            'fixed_height_scroll': False,  # 暂时禁用内部滚动
+            'infinite_scroll': False,  # 暂时禁用无限加载
+            'columns': [
+                {
+                    'key': 'id',
+                    'label': 'ID',
+                    'type': 'text',
+                    'width': '80px'
+                },
+                {
+                    'key': 'username',
+                    'label': '用户名',
+                    'type': 'link',
+                    'url_template': '/user/detail/{id}',
+                    'width': '120px'
+                },
+                {
+                    'key': 'real_name',
+                    'label': '真实姓名',
+                    'type': 'text',
+                    'width': '120px'
+                },
+                {
+                    'key': 'is_active',
+                    'label': '状态',
+                    'type': 'badge',
+                    'render': 'render_user_status_badge',
+                    'width': '100px'
+                },
+                {
+                    'key': 'email',
+                    'label': '邮箱地址',
+                    'type': 'text',
+                    'width': '200px'
+                },
+                {
+                    'key': 'company_name',
+                    'label': '企业名称',
+                    'type': 'text',
+                    'width': '180px'
+                },
+                {
+                    'key': 'department',
+                    'label': '部门',
+                    'type': 'text',
+                    'width': '140px'
+                },
+                {
+                    'key': 'role',
+                    'label': '角色',
+                    'type': 'badge',
+                    'render': 'render_user_role_badge',
+                    'width': '120px',
+                    'align': 'start',
+                    'role_dict': role_dict
+                },
+                {
+                    'key': 'updated_at',
+                    'label': '更新时间',
+                    'type': 'date',
+                    'format': 'datetimeformat',
+                    'width': '160px'
+                },
+                {
+                    'key': 'created_at',
+                    'label': '创建时间',
+                    'type': 'date',
+                    'format': 'datetimeformat',
+                    'width': '160px'
+                }
+            ]
+        }
+    }
 
     return render_template(
         'user/list.html',
-        users=users_data,
-        total=len(users_data),
-        company_dict=company_dict,
-        role_dict=role_dict,
-        vendor_dict=vendor_dict
+        list_config=list_config,
+        items=user_items
     )
+
+@user_bp.route('/api/list_ajax', methods=['GET'])
+@login_required
+@permission_required('user_management', 'view')
+def list_users_ajax():
+    """用户列表AJAX筛选API"""
+    try:
+        # 第一步：测试参数获取
+        search = request.args.get('search', '').strip()
+        status = request.args.get('status', '')
+        offset = request.args.get('offset', 0, type=int)
+        limit = request.args.get('limit', 20, type=int)
+        
+        # 构建查询
+        query = get_viewable_data(User, current_user)
+        
+        # 应用搜索
+        if search:
+            query = query.filter(
+                db.or_(
+                    User.username.ilike(f'%{search}%'),
+                    User.real_name.ilike(f'%{search}%'),
+                    User.company.ilike(f'%{search}%'),
+                    User.email.ilike(f'%{search}%')
+                )
+            )
+        
+        # 应用状态筛选
+        if status == 'active':
+            query = query.filter(User._is_active == True)
+        elif status == 'inactive':
+            query = query.filter(User._is_active == False)
+        
+        # 排序
+        query = query.order_by(User.created_at.desc())
+        
+        # 执行查询
+        total_count = query.count()
+        users = query.offset(offset).limit(limit).all()
+        
+        # 计算是否还有更多数据
+        has_more = (offset + limit) < total_count
+        
+        # 计算统计数据
+        total_query = get_viewable_data(User, current_user)
+        total_users = total_query.count()
+        active_users = total_query.filter(User._is_active == True).count()
+        inactive_users = total_query.filter(User._is_active == False).count()
+        
+        # 第三步：完整渲染
+        html_rows = []
+        for user in users:
+            # 安全访问用户属性
+            real_name = getattr(user, 'real_name', None) or '未设置'
+            email = getattr(user, 'email', None) or '未设置'
+            department = getattr(user, 'department', None) or '未设置'
+            
+            # 处理角色显示 - 直接查询数据库获取中文显示名称并生成徽章
+            role_key = getattr(user, 'role', None)
+            if role_key:
+                # 直接查询数据库，不使用g对象缓存
+                role_dict = Dictionary.query.filter_by(type='role', key=role_key, is_active=True).first()
+                role_display = role_dict.value if role_dict else role_key
+                role_badge = f'<span class="badge badge-pill badge-transparent user-role-{role_key}">{role_display}</span>'
+            else:
+                role_badge = '<span class="badge badge-pill badge-transparent badge-muted">未设置</span>'
+            
+            # 企业名称：检查多种可能的字段名
+            company_name = getattr(user, 'company_name', None) or getattr(user, 'company', None) or '未设置'
+            
+            # 安全访问_is_active属性
+            is_active = getattr(user, '_is_active', True)
+            if is_active:
+                status_badge = '<span class="badge badge-pill badge-transparent user-status-active">激活</span>'
+            else:
+                status_badge = '<span class="badge badge-pill badge-transparent user-status-inactive">禁用</span>'
+            
+            # 处理时间
+            created_at = getattr(user, 'created_at', None)
+            updated_at = getattr(user, 'updated_at', None)
+            
+            if created_at:
+                if isinstance(created_at, (int, float)):
+                    created_time = datetime.fromtimestamp(created_at).strftime('%Y-%m-%d %H:%M')
+                else:
+                    created_time = created_at.strftime('%Y-%m-%d %H:%M')
+            else:
+                created_time = '未知'
+                
+            if updated_at:
+                if isinstance(updated_at, (int, float)):
+                    updated_time = datetime.fromtimestamp(updated_at).strftime('%Y-%m-%d %H:%M')
+                else:
+                    updated_time = updated_at.strftime('%Y-%m-%d %H:%M')
+            else:
+                updated_time = '未知'
+            
+            html_row = f'''
+            <tr>
+                <td>{user.id}</td>
+                <td><a href="/user/detail/{user.id}">{user.username}</a></td>
+                <td>{real_name}</td>
+                <td>{status_badge}</td>
+                <td>{email}</td>
+                <td>{company_name}</td>
+                <td style="text-align: left !important;">{department}</td>
+                <td>{role_badge}</td>
+                <td>{updated_time}</td>
+                <td>{created_time}</td>
+            </tr>
+            '''
+            html_rows.append(html_row)
+        
+        return jsonify({
+            'success': True,
+            'html': '\n'.join(html_rows),
+            'total_count': total_count,
+            'loaded_count': len(users),
+            'has_more': has_more,
+            'statistics': {
+                'total': total_users,
+                'active': active_users,
+                'inactive': inactive_users
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'html': f'<tr><td colspan="9" class="text-center text-danger">错误: {str(e)}</td></tr>'
+        }), 500
+
+@user_bp.route('/api/list_ajax_full', methods=['GET'])
+@login_required
+@permission_required('user_management', 'view')
+def list_users_ajax_full():
+    """用户列表AJAX筛选API"""
+    try:
+        # 获取搜索和筛选参数
+        search = request.args.get('search', '').strip()
+        status = request.args.get('status', '')
+        
+        # 分页参数
+        offset = request.args.get('offset', 0, type=int)
+        limit = request.args.get('limit', 20, type=int)
+        
+        # 构建查询
+        query = get_viewable_data(User, current_user)
+        
+        # 应用搜索
+        if search:
+            query = query.filter(
+                db.or_(
+                    User.username.ilike(f'%{search}%'),
+                    User.real_name.ilike(f'%{search}%'),
+                    User.company.ilike(f'%{search}%'),
+                    User.email.ilike(f'%{search}%')
+                )
+            )
+        
+        # 应用状态筛选
+        if status == 'active':
+            query = query.filter(User._is_active == True)
+        elif status == 'inactive':
+            query = query.filter(User._is_active == False)
+        
+        # 排序
+        query = query.order_by(User.created_at.desc())
+        
+        # 执行查询
+        total_count = query.count()
+        users = query.offset(offset).limit(limit).all()
+        
+        # 计算是否还有更多数据
+        has_more = (offset + limit) < total_count
+        
+        # 计算统计数据
+        total_query = get_viewable_data(User, current_user)
+        total_users = total_query.count()
+        active_users = total_query.filter(User._is_active == True).count()
+        inactive_users = total_query.filter(User._is_active == False).count()
+        
+        # 渲染HTML片段
+        html_rows = []
+        for user in users:
+            # 处理时间显示 - 如果是时间戳，转换为datetime再格式化
+            if user.created_at:
+                if isinstance(user.created_at, (int, float)):
+                    created_time = datetime.fromtimestamp(user.created_at).strftime('%Y-%m-%d %H:%M')
+                else:
+                    created_time = user.created_at.strftime('%Y-%m-%d %H:%M')
+            else:
+                created_time = '未知'
+                
+            if user.updated_at:
+                if isinstance(user.updated_at, (int, float)):
+                    updated_time = datetime.fromtimestamp(user.updated_at).strftime('%Y-%m-%d %H:%M')
+                else:
+                    updated_time = user.updated_at.strftime('%Y-%m-%d %H:%M')
+            else:
+                updated_time = '未知'
+                
+            status_badge = '激活' if user._is_active else '禁用'
+            status_class = 'success' if user._is_active else 'secondary'
+            
+            html_row = f'''
+            <tr>
+                <td>{user.id}</td>
+                <td><a href="/user/detail/{user.id}">{user.username}</a></td>
+                <td>{user.real_name or '未设置'}</td>
+                <td>{user.company or '未设置'}</td>
+                <td>{user.email or '未设置'}</td>
+                <td>{user.role or '未设置'}</td>
+                <td><span class="badge bg-{status_class}">{status_badge}</span></td>
+                <td>{created_time}</td>
+                <td>{updated_time}</td>
+            </tr>
+            '''
+            html_rows.append(html_row)
+        
+        return jsonify({
+            'success': True,
+            'html': '\n'.join(html_rows),
+            'total_count': total_count,
+            'loaded_count': len(users),
+            'has_more': has_more,
+            'statistics': {
+                'total': total_users,
+                'active': active_users,
+                'inactive': inactive_users
+            }
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"用户列表AJAX错误: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'html': f'<tr><td colspan="9" class="text-center text-danger">加载失败: {str(e)}</td></tr>'
+        }), 500
 
 @user_bp.route('/create', methods=['GET', 'POST'])
 @login_required

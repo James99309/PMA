@@ -1,0 +1,30 @@
+{% from 'macros/ui_helpers.html' import render_project_stage, render_owner, render_project_type, render_status_badge, render_authorization_code, render_date, render_currency, render_industry_badge %}
+
+{% for project in projects %}
+<tr>
+    <td>
+        <a href="{{ url_for('project.view_project', project_id=project.id) }}" class="text-decoration-none">
+            {{ project.project_name }}
+        </a>
+    </td>
+    <td>
+        {{ render_owner(project.owner) if project.owner else '' }}
+        <span class="d-none" data-owner-id="{{ project.owner_id }}"></span>
+    </td>
+    <td>
+        {% if project.vendor_sales_manager_id %}
+            {{ render_owner(project.vendor_sales_manager) if project.vendor_sales_manager else '' }}
+            <span class="d-none" data-vendor-sales-manager-id="{{ project.vendor_sales_manager_id }}"></span>
+        {% else %}
+            <span class="text-muted">-</span>
+        {% endif %}
+    </td>
+    <td>{{ render_currency(project.quotation_customer) }}</td>
+    <td>{{ render_authorization_code(project.authorization_code) }}</td>
+    <td>{{ render_status_badge('active' if project.is_active else 'inactive') }}</td>
+    <td>{{ render_project_stage(project.current_stage|project_stage_label(get_current_language())) if project.current_stage else render_project_stage('未设置') }}</td>
+    <td>{{ render_project_type(project.project_type) if project.project_type else '' }}</td>
+    <td>{{ render_industry_badge(project.industry) if project.industry else '-' }}</td>
+    <td>{{ render_date(project.updated_at) }}</td>
+</tr>
+{% endfor %}

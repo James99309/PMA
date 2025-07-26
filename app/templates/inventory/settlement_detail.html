@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button %}
+{% from 'macros/ui_helpers.html' import render_button, render_settlement_status_badge, render_item_count_badge %}
 
 {% block title %}结算详情{% endblock %}
 
@@ -120,7 +120,7 @@
                 <div class="card-header">
                     <h5 class="mb-0">
                         <i class="fas fa-list me-2"></i>结算明细
-                        <span class="badge bg-secondary ms-2">共 {{ settlement_order.details|length }} 项</span>
+                        {{ render_item_count_badge(settlement_order.details|length) }}
                     </h5>
                 </div>
                 <div class="card-body p-0">
@@ -199,17 +199,7 @@
                     <p class="text-muted mb-3">结算总金额</p>
                     
                     <div class="mb-3">
-                        {% if settlement_order.status == 'draft' %}
-                            <span class="badge bg-secondary status-badge">草稿</span>
-                        {% elif settlement_order.status == 'pending' %}
-                            <span class="badge bg-warning status-badge">审批中</span>
-                        {% elif settlement_order.status == 'approved' %}
-                            <span class="badge bg-success status-badge">已批准</span>
-                        {% elif settlement_order.status == 'rejected' %}
-                            <span class="badge bg-danger status-badge">已拒绝</span>
-                        {% else %}
-                            <span class="badge bg-light text-dark status-badge">{{ settlement_order.status }}</span>
-                        {% endif %}
+                        {{ render_settlement_status_badge(settlement_order.status) }}
                     </div>
                     
                     <div class="text-start">

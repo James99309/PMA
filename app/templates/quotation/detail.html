@@ -2,10 +2,13 @@
 {% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_datetime, render_quotation_number, render_currency, render_currency_with_symbol, render_project_stage, render_button, render_confirm_cancel, render_confirmation_badge %}
 {% from 'macros/ui_modals.html' import render_change_owner_modal %}
 {% from 'macros/approval_macros.html' import render_start_approval_button, render_approval_section with context %}
+{% from 'macros/export_info_modal.html' import render_export_info_modal %}
 
 {% block head %}
 <!-- 引入审批时间线样式 -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
+<!-- 引入导出信息补充组件样式 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/keyword-selector.css') }}">
 <style>
 /* 产品明细表格样式 */
 .product-details-table {
@@ -157,34 +160,15 @@
                             </div>
                         </div>
                         <div class="d-flex gap-2 flex-shrink-0">
-                            <!-- 导出按键 -->
-                            <div class="dropdown d-inline-block">
-                                {{ render_button('导出', '#', color='success', icon='fas fa-download', size='sm', extra_class='dropdown-toggle', attrs='id="exportDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false"') }}
-                                <ul class="dropdown-menu" aria-labelledby="exportDropdownBtn">
-                                    <li>
-                                        <a class="dropdown-item" 
-                                           href="{{ url_for('quotation.export_pdf', quotation_id=quotation.id) }}" 
-                                           target="_blank">
-                                            <i class="fas fa-file-pdf text-danger me-2"></i>导出PDF
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" 
-                                           href="{{ url_for('quotation.export_excel', quotation_id=quotation.id) }}" 
-                                           target="_blank">
-                                            <i class="fas fa-file-excel text-success me-2"></i>导出Excel
-                                        </a>
-                                    </li>
-                                </ul>
-                            </div>
+                            <!-- 导出按键 - 去掉图标 -->
+                            {{ render_button('导出', '#', color='success', size='sm', type='button', onclick='showExportInfoModal("quotationExportModal")') }}
                             {% if can_edit_this_quotation %}
-                                {{ render_button('编辑', href=url_for('quotation.edit_quotation', id=quotation.id), color='warning', icon='fas fa-edit', size='sm') }}
-                            {% endif %}
-                            {% if can_edit_this_quotation %}
-                                {{ render_button('复制', color='info', icon='fas fa-copy', size='sm', type='button', attrs='onclick="copyQuotation(' ~ quotation.id ~ ')"') }}
+                                <!-- 编辑按键 - 去掉图标 -->
+                                {{ render_button('编辑', href=url_for('quotation.edit_quotation', id=quotation.id), color='warning', size='sm') }}
                             {% endif %}
                             {% if can_delete_this_quotation %}
-                                {{ render_button('删除', color='danger', icon='fas fa-trash', size='sm', type='button', attrs='onclick="deleteQuotation(' ~ quotation.id ~ ')"') }}
+                                <!-- 删除按键 - 去掉图标 -->
+                                {{ render_button('删除', color='danger', size='sm', type='button', attrs='onclick="deleteQuotation(' ~ quotation.id ~ ')"') }}
                             {% endif %}
                         </div>
                     </div>
@@ -362,6 +346,47 @@
     {% endif %}
 </div>
 
+<!-- 导出信息补充模态框 -->
+{{ render_export_info_modal({
+    'modal_id': 'quotationExportModal',
+    'title': '补充导出信息',
+    'export_type': '',
+    'customer_config': {
+        'enabled': true,
+        'endpoint': '/api/export-helpers/customers/search',
+        'placeholder': '输入公司名称搜索...',
+        'help_text': '选择报价单对应的客户公司'
+    },
+    'contact_config': {
+        'enabled': true,
+        'endpoint': '/api/export-helpers/contacts/search',
+        'placeholder': '点击展开联系人列表或输入搜索...',
+        'depends_on_customer': true,
+        'help_text': '选择客户的联系人'
+    },
+    'notes_config': {
+        'enabled': true,
+        'default_content': '交付条款：项目现场交付\n交付时间：合同签订后 4-6 周\n质保：12个月标准质保\n付款条款：合同签订后30天内付款\n其他：价格有效期30天',
+        'placeholder': '请输入备注信息...',
+        'max_length': 2000
+    },
+    'options': [
+        {
+            'value': 'pdf',
+            'label': '导出PDF',
+            'description': '生成PDF格式的报价单，在新窗口中打开',
+            'checked': true
+        },
+        {
+            'value': 'excel',
+            'label': '导出Excel',
+            'description': '生成Excel格式的报价单，直接下载到本地',
+            'checked': false
+        }
+    ],
+    'preview_enabled': true
+}) }}
+
 <!-- 添加Font Awesome图标库 -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 
@@ -374,6 +399,9 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- 导入导出信息补充功能相关脚本 -->
+<script src="{{ url_for('static', filename='js/keyword-selector.js') }}"></script>
+<script src="{{ url_for('static', filename='js/export-info-modal.js') }}"></script>
 <script>
 // 从HTML data属性获取用户配置
 const userConfigElement = document.getElementById('user-config');
@@ -619,6 +647,302 @@ function showMessage(message, type) {
             messageDiv.parentNode.removeChild(messageDiv);
         }
     }, 3000);
+}
+
+// ==================== 导出信息补充功能 ====================
+
+// 显示导出信息模态框
+function showExportInfoModal(modalId) {
+    console.log('显示导出信息模态框:', modalId);
+    
+    // 初始化模态框
+    if (typeof ExportInfoModal !== 'undefined') {
+        // 确保全局对象存在
+        window.exportInfoModals = window.exportInfoModals || {};
+        
+        // 创建模态框实例
+        window.exportInfoModals[modalId] = new ExportInfoModal(modalId, {
+            customer_config: {
+                enabled: true,
+                required: false,
+                endpoint: '/api/export-helpers/customers/search',
+                placeholder: '输入公司名称搜索...'
+            },
+            contact_config: {
+                enabled: true,
+                required: false,
+                depends_on_customer: true,
+                endpoint: '/api/export-helpers/contacts/search',
+                placeholder: '点击展开联系人列表...'
+            },
+            notes_config: {
+                enabled: true,
+                max_length: 1000,
+                default_content: ''
+            },
+            previewEnabled: true,
+            onConfirm: function(data) {
+                handleExportConfirmation(modalId, data);
+            }
+        });
+        
+        // 显示模态框
+        const modal = new bootstrap.Modal(document.getElementById(modalId));
+        modal.show();
+    } else {
+        console.error('ExportInfoModal 类未定义，请检查 export-info-modal.js 是否正确加载');
+        showMessage('导出功能加载失败，请刷新页面重试', 'error');
+    }
+}
+
+// 处理导出确认
+function handleExportConfirmation(modalId, exportData) {
+    console.log('🚀 处理导出确认:', modalId, exportData);
+    
+    // 获取当前报价单ID
+    const quotationId = '{{ quotation.id }}';
+    
+    if (!quotationId) {
+        console.error('❌ 无法获取报价单ID');
+        showMessage('无法获取报价单ID', 'error');
+        return;
+    }
+    
+    console.log('📋 报价单ID:', quotationId);
+    
+    // 检查选择的导出选项
+    const selectedOptions = exportData.options || [];
+    console.log('✅ 选择的导出选项:', selectedOptions);
+    
+    const exportPdf = selectedOptions.includes('pdf');
+    const exportExcel = selectedOptions.includes('excel');
+    
+    console.log('📄 导出PDF:', exportPdf, '📊 导出Excel:', exportExcel);
+    
+    if (!exportPdf && !exportExcel) {
+        console.error('❌ 没有选择任何导出格式');
+        showMessage('请选择至少一种导出格式', 'error');
+        return;
+    }
+    
+    // 关闭模态框
+    const modal = bootstrap.Modal.getInstance(document.getElementById(modalId));
+    if (modal) {
+        modal.hide();
+    }
+    
+    // 处理PDF导出
+    if (exportPdf) {
+        handlePdfExport(quotationId, exportData);
+    }
+    
+    // 处理Excel导出
+    if (exportExcel) {
+        handleExcelExport(quotationId, exportData);
+    }
+}
+
+// 处理PDF导出（新窗口打开）
+function handlePdfExport(quotationId, exportData) {
+    console.log('📄 开始处理PDF导出');
+    showMessage('正在生成PDF...', 'info');
+    
+    // 准备导出数据
+    const requestData = {
+        quotation_id: quotationId,
+        export_info: {
+            customer: exportData.customer,
+            contact: exportData.contact,
+            notes: exportData.notes || '',
+            options: exportData.options || []
+        }
+    };
+    
+    console.log('📤 发送PDF导出请求:', requestData);
+    console.log('🎯 客户数据详情:', exportData.customer);
+    console.log('👤 联系人数据详情:', exportData.contact);
+    
+    // 发送导出请求
+    fetch('{{ url_for("quotation.export_pdf_with_info") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => {
+        console.log('📥 收到PDF响应:', {
+            status: response.status,
+            statusText: response.statusText,
+            headers: Object.fromEntries(response.headers.entries())
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.blob();
+    })
+    .then(blob => {
+        console.log('🔄 处理PDF blob:', {
+            size: blob.size,
+            type: blob.type
+        });
+        
+        // 检查blob是否有效
+        if (blob.size === 0) {
+            throw new Error('PDF文件为空');
+        }
+        
+        // 创建URL并在新窗口打开
+        const url = window.URL.createObjectURL(blob);
+        console.log('🔗 创建blob URL:', url);
+        
+        // 先测试在控制台中打印URL，让用户可以手动点击测试
+        console.log('🔗 手动测试链接（复制到新标签页）:', url);
+        
+        // 尝试在新窗口打开PDF
+        let success = false;
+        
+        // 方法1: 直接使用window.open打开PDF URL
+        try {
+            console.log('🚀 尝试方法1: 直接window.open');
+            const newWindow = window.open(url, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes,toolbar=yes,menubar=yes,location=yes');
+            
+            if (newWindow && !newWindow.closed) {
+                console.log('✅ 方法1成功: PDF已在新窗口打开');
+                showMessage('PDF已在新窗口中打开', 'success');
+                success = true;
+            } else {
+                throw new Error('新窗口被阻止');
+            }
+        } catch (error) {
+            console.warn('⚠️ 方法1失败:', error.message);
+        }
+        
+        // 方法2: 如果方法1失败，尝试创建链接并点击
+        if (!success) {
+            try {
+                console.log('🚀 尝试方法2: 创建链接点击');
+                const link = document.createElement('a');
+                link.href = url;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                
+                // 添加到DOM并立即点击
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                console.log('✅ 方法2执行完成: 链接已点击');
+                showMessage('PDF已在新标签页中打开', 'success');
+                success = true;
+                
+            } catch (linkError) {
+                console.warn('⚠️ 方法2失败:', linkError.message);
+            }
+        }
+        
+        // 方法3: 如果前两种方法都失败，提供用户手动选择
+        if (!success) {
+            console.warn('⚠️ 所有自动打开方法都失败，显示手动选项');
+            
+            const userChoice = confirm(
+                'PDF已生成完成，但浏览器阻止了自动打开。\n\n' +
+                '点击"确定"：复制链接到剪贴板，您可以手动粘贴到新标签页\n' +
+                '点击"取消"：下载PDF文件到本地'
+            );
+            
+            if (userChoice) {
+                // 尝试复制到剪贴板
+                try {
+                    navigator.clipboard.writeText(url).then(() => {
+                        showMessage('PDF链接已复制到剪贴板，请粘贴到新标签页打开', 'success');
+                    }).catch(() => {
+                        showMessage('请手动复制控制台中的PDF链接', 'info');
+                    });
+                } catch (clipboardError) {
+                    showMessage('请手动复制控制台中的PDF链接', 'info');
+                }
+            } else {
+                // 下载文件
+                const downloadLink = document.createElement('a');
+                downloadLink.href = url;
+                downloadLink.download = `quotation_${quotationId}.pdf`;
+                downloadLink.style.display = 'none';
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+                showMessage('PDF下载已开始', 'success');
+            }
+        }
+        
+        // 延迟清理URL
+        setTimeout(() => {
+            window.URL.revokeObjectURL(url);
+            console.log('🧹 已清理blob URL');
+        }, 60000); // 1分钟后清理
+    })
+    .catch(error => {
+        console.error('❌ 导出PDF失败:', error);
+        showMessage(`导出PDF失败: ${error.message}`, 'error');
+    });
+}
+
+// 处理Excel导出（直接下载）
+function handleExcelExport(quotationId, exportData) {
+    showMessage('正在生成Excel...', 'info');
+    
+    // 构建下载URL
+    const params = new URLSearchParams({
+        quotation_id: quotationId,
+        customer_id: exportData.customer?.id || '',
+        contact_id: exportData.contact?.id || '',
+        notes: exportData.notes || ''
+    });
+    
+    // 创建隐藏的下载链接
+    const downloadUrl = `{{ url_for("quotation.export_excel", quotation_id=quotation.id) }}?${params}`;
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = downloadUrl;
+    a.download = '';  // 让浏览器确定文件名
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+    showMessage('Excel文件已开始下载', 'success');
+}
+
+// 关闭导出信息模态框
+function closeExportInfoModal(modalId) {
+    const modal = bootstrap.Modal.getInstance(document.getElementById(modalId));
+    if (modal) {
+        modal.hide();
+    }
+}
+
+// 确认导出信息
+function confirmExportInfo(modalId) {
+    console.log('🚀 confirmExportInfo 被调用, modalId:', modalId);
+    console.log('🔍 检查全局对象:', window.exportInfoModals);
+    
+    // 获取模态框实例并调用确认方法
+    const modal = window.exportInfoModals ? window.exportInfoModals[modalId] : null;
+    console.log('📋 找到的模态框实例:', modal);
+    
+    if (modal && typeof modal.confirmExport === 'function') {
+        console.log('✅ 调用模态框的confirmExport方法');
+        modal.confirmExport();
+    } else {
+        console.error('❌ 导出模态框实例未找到或方法不存在');
+        console.log('🔧 调试信息:', {
+            modal: modal,
+            confirmExportType: typeof modal?.confirmExport,
+            globalObject: window.exportInfoModals
+        });
+        showMessage('导出功能异常，请重试', 'error');
+    }
 }
 </script>
 {% endblock %} 
