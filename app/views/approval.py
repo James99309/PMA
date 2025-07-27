@@ -1356,14 +1356,22 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
                 'label': '审批编号',
                 'type': 'link',
                 'url_template': '/approval/detail/{id}',
-                'width': '200px',
+                'width': '180px',
                 'render': 'render_approval_code'
+            },
+            {
+                'key': 'related_project',
+                'label': '关联项目',
+                'type': 'link',
+                'url_template': '/project/detail/{project_id}',
+                'width': '200px',
+                'render': 'render_project_link'
             },
             {
                 'key': 'process_name',
                 'label': '流程名称',
                 'type': 'text',
-                'width': '200px'
+                'width': '180px'
             },
             {
                 'key': 'business_info',
@@ -1410,18 +1418,21 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
             'label': '批价单编号',
             'type': 'link',
             'url_template': '/pricing_order/detail/{id}',
-            'width': '200px',
+            'width': '180px',
             'render': 'render_pricing_order_number'
         }
+        # 项目列保持不变，批价单有项目关联
     elif tab == 'order':
         table_config['columns'][0] = {
             'key': 'order_number',
             'label': '订单编号',
             'type': 'link',
             'url_template': '/inventory/order/{id}',
-            'width': '200px'
+            'width': '180px'
         }
-        table_config['columns'][2] = {
+        # 项目列保持不变
+        # 将公司信息移到第3列（业务信息列）
+        table_config['columns'][3] = {
             'key': 'company_name',
             'label': '供应商/客户',
             'type': 'text',
@@ -1582,7 +1593,7 @@ def center_ajax():
         return jsonify({
             'success': False,
             'message': f'数据加载失败: {str(e)}',
-            'html': '<tr><td colspan="7" class="text-center text-danger py-4"><i class="fas fa-exclamation-triangle"></i> 数据加载失败，请刷新页面重试</td></tr>'
+            'html': '<tr><td colspan="8" class="text-center text-danger py-4"><i class="fas fa-exclamation-triangle"></i> 数据加载失败，请刷新页面重试</td></tr>'
         }), 500
 
 
@@ -1618,6 +1629,9 @@ def render_approval_row(item, tab='created'):
     
     # 业务对象信息
     business_info = get_business_object_display(item)
+    
+    # 关联项目信息
+    related_project = get_related_project_display(item)
     
     # 创建人和当前审批人 - 使用render_owner逻辑生成徽章
     def render_user_badge(user):
@@ -1662,6 +1676,7 @@ def render_approval_row(item, tab='created'):
     return f'''
     <tr>
         <td><a href="/approval/detail/{item.id}" class="text-decoration-none">{approval_code}</a></td>
+        <td>{related_project}</td>
         <td>{item.process.name if item.process else '未知流程'}</td>
         <td>{business_info}</td>
         <td>{creator_badge}</td>
@@ -1682,6 +1697,58 @@ def render_order_row(item):
     """渲染订单行HTML"""
     # 这里实现订单特定的行渲染逻辑  
     return render_approval_row(item, 'order')
+
+
+def get_related_project_display(approval_item):
+    """获取审批项关联项目的显示信息"""
+    project = None
+    project_id = None
+    
+    try:
+        # 直接是项目审批
+        if approval_item.object_type == 'project' and approval_item.object_id:
+            from app.helpers.approval_helpers import get_project_by_id
+            project = get_project_by_id(approval_item.object_id)
+            project_id = approval_item.object_id
+            
+        # 报价单审批，获取关联项目
+        elif approval_item.object_type == 'quotation' and approval_item.object_id:
+            from app.helpers.approval_helpers import get_quotation_by_id
+            quotation = get_quotation_by_id(approval_item.object_id)
+            if quotation and quotation.project:
+                project = quotation.project
+                project_id = quotation.project.id
+                
+        # 批价单审批，获取关联项目
+        elif approval_item.object_type == 'pricing_order' and approval_item.object_id:
+            from app.models.pricing_order import PricingOrder
+            pricing_order = PricingOrder.query.get(approval_item.object_id)
+            if pricing_order and pricing_order.project:
+                project = pricing_order.project
+                project_id = pricing_order.project.id
+                
+        # 订单审批，获取关联项目（如果有的话）
+        elif approval_item.object_type == 'purchase_order' and approval_item.object_id:
+            from app.models.inventory import PurchaseOrder
+            purchase_order = PurchaseOrder.query.get(approval_item.object_id)
+            # 订单可能没有直接关联项目，这种情况显示为空
+            
+        # 如果找到项目，返回项目链接
+        if project and project_id:
+            from flask_babel import gettext as _
+            
+            project_name = project.project_name if hasattr(project, 'project_name') and project.project_name else _('未命名项目')
+            
+            # 使用项目名称，如果太长则截断
+            display_text = project_name[:20] + '...' if len(project_name) > 20 else project_name
+            
+            return f'<a href="/project/detail/{project_id}" class="text-decoration-none" title="{project_name}">{display_text}</a>'
+            
+    except Exception as e:
+        current_app.logger.warning(f"获取关联项目失败: {str(e)}")
+    
+    # 没有关联项目或获取失败
+    return '<span class="text-muted">-</span>'
 
 
 def get_business_object_display(approval_item):

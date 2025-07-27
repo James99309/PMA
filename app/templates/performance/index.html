@@ -1,10 +1,27 @@
 {% extends "base.html" %}
-{% block title %}个人绩效统计{% endblock %}
+{% from 'macros/ui_helpers.html' import render_button, render_filter_search_form %}
 
-{% block head %}
+{% block title %}{{ _('个人绩效统计') }}{% endblock %}
+
+{% block styles %}
+{{ super() }}
 <!-- ECharts -->
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.0/dist/echarts.min.js"></script>
 <style>
+    /* 标准化页面头部区域在固定导航下的间距调整 - 与其他模块保持一致 */
+    .page-with-fixed-nav .page-header-with-actions {
+        margin-top: 2rem !important; /* 与其他模块一致：2rem = 32px */
+    }
+    
+    /* 性能监控页面主容器顶部留白，避免被fixed导航遮挡 */
+    .container-fluid.page-with-fixed-nav {
+        margin-top: 72px !important;
+    }
+    @media (max-width: 991.98px) {
+        .container-fluid.page-with-fixed-nav {
+            margin-top: 120px !important;
+        }
+    }
 .performance-card {
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
@@ -504,221 +521,193 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- 页面标题和用户选择器 -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>
-            <i class="fas fa-chart-bar me-2"></i>
-            个人绩效统计 - {{ current_year }}年
-        </h2>
-        
-        <div class="d-flex align-items-center gap-3">
-            <!-- 用户选择器 -->
-            {% if accessible_users|length > 1 %}
-            <div class="user-selector-container">
-                <label for="userSelector" class="form-label mb-1">
-                    <i class="fas fa-user-circle me-2"></i>查看用户：
-                </label>
-                <select id="userSelector" class="form-select user-selector">
-                    {% for user in accessible_users %}
-                    <option value="{{ user.id }}" {% if user.id == selected_user.id %}selected{% endif %}>
-                        {{ user.real_name or user.username }}
-                        {% if user.id == current_user.id %} (我自己){% endif %}
-                    </option>
-                    {% endfor %}
-                </select>
-                <small class="text-muted">可查看 {{ accessible_users|length }} 个用户的绩效数据</small>
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 标准化页面头部区域：标题与操作按钮在同一行 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">{{ _('个人绩效统计') }} - {{ current_year }}{{ _('年') }}</h1>
             </div>
-            {% else %}
-            <div class="current-user-info">
-                <i class="fas fa-user-circle me-2"></i>
-                <strong>{{ selected_user.real_name or selected_user.username }}</strong> 的绩效统计
-            </div>
-            {% endif %}
-            
-            <!-- 操作按钮 -->
-            <div class="btn-group">
-                <button type="button" class="btn btn-outline-primary btn-sm" onclick="refreshStatistics()">
-                    <i class="fas fa-sync-alt"></i> 刷新数据
-                </button>
-                {% if current_user.role == 'admin' or selected_user.id == current_user.id %}
-                <a href="{{ url_for('performance.target_settings', user_id=selected_user.id) }}" class="btn btn-primary btn-sm">
-                    <i class="fas fa-cog"></i> 目标设置
-                </a>
-                {% endif %}
+            <div class="col text-end">
+                <!-- 操作按钮组 -->
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    <!-- 用户选择器 -->
+                    {% if accessible_users|length > 1 %}
+                    <div class="btn-group me-2" role="group">
+                        <select id="userSelector" class="form-select" style="min-width: 200px;">
+                            {% for user in accessible_users %}
+                            <option value="{{ user.id }}" {% if user.id == selected_user.id %}selected{% endif %}>
+                                {{ user.real_name or user.username }}
+                                {% if user.id == current_user.id %} ({{ _('我自己') }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+                    
+                    {{ render_button(_('刷新数据'), onclick='refreshStatistics()', color='outline-primary', icon='fas fa-sync-alt') }}
+                    
+                    {% if current_user.role == 'admin' or selected_user.id == current_user.id %}
+                        {{ render_button(_('目标设置'), href=url_for('performance.target_settings', user_id=selected_user.id), color='primary', icon='fas fa-cog') }}
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
+    
+    <!-- 当前用户信息提示（当只有一个用户时显示） -->
+    {% if accessible_users|length == 1 %}
+    <div class="alert alert-info d-flex align-items-center mb-4">
+        <i class="fas fa-user-circle me-2"></i>
+        <strong>{{ selected_user.real_name or selected_user.username }}</strong> {{ _('的绩效统计') }}
+        <span class="ms-auto text-muted">{{ _('可查看') }} {{ accessible_users|length }} {{ _('个用户的绩效数据') }}</span>
+    </div>
+    {% endif %}
 
-    <!-- 年度汇总指标卡片 - 紧凑风格 -->
-    <div class="d-flex flex-wrap gap-2 mb-2" style="justify-content: space-between;">
+    <!-- 年度汇总指标卡片 - 使用通用统计卡片组件 -->
+    <div class="row g-3 mb-4">
         <!-- 植入额 -->
-        <div style="flex: 1; min-width: 160px;">
-            <div class="card border-0 shadow-sm h-100 bg-primary bg-opacity-10">
-                <div class="card-body py-2">
-                    <h6 class="card-title text-primary mb-1" style="font-size: 0.85rem;">
-                        <i class="fas fa-chart-line me-1"></i> 植入额
-                    </h6>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <span class="fs-6 fw-bold">{{ "{:,.0f}".format(total_actual.implant) }}</span>
-                            <span class="text-muted ms-1 small">{{ display_currency }}</span>
-                        </div>
-                        <div class="text-end">
-                            <span class="fs-6 fw-bold text-{{ 'success' if achievement_rates.implant >= 100 else 'warning' if achievement_rates.implant >= 80 else 'danger' }}">
-                                {{ "%.1f"|format(achievement_rates.implant) }}%
-                            </span>
-                        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stats-card stats-card-primary">
+                <div class="stats-icon">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="stats-details">
+                    <div class="stats-title">{{ _('植入额') }}</div>
+                    <div class="stats-value">{{ "{:,.0f}".format(total_actual.implant) }} <small>{{ display_currency }}</small></div>
+                    <div class="stats-subtitle text-{{ 'success' if achievement_rates.implant >= 100 else 'warning' if achievement_rates.implant >= 80 else 'danger' }}">
+                        {{ _('达成率') }}: {{ "%.1f"|format(achievement_rates.implant) }}%
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- 销售额 -->
-        <div style="flex: 1; min-width: 160px;">
-            <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10">
-                <div class="card-body py-2">
-                    <h6 class="card-title text-success mb-1" style="font-size: 0.85rem;">
-                        <i class="fas fa-dollar-sign me-1"></i> 销售额
-                    </h6>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <span class="fs-6 fw-bold">{{ "{:,.0f}".format(total_actual.sales) }}</span>
-                            <span class="text-muted ms-1 small">{{ display_currency }}</span>
-                        </div>
-                        <div class="text-end">
-                            <span class="fs-6 fw-bold text-{{ 'success' if achievement_rates.sales >= 100 else 'warning' if achievement_rates.sales >= 80 else 'danger' }}">
-                                {{ "%.1f"|format(achievement_rates.sales) }}%
-                            </span>
-                        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stats-card stats-card-success">
+                <div class="stats-icon">
+                    <i class="fas fa-dollar-sign"></i>
+                </div>
+                <div class="stats-details">
+                    <div class="stats-title">{{ _('销售额') }}</div>
+                    <div class="stats-value">{{ "{:,.0f}".format(total_actual.sales) }} <small>{{ display_currency }}</small></div>
+                    <div class="stats-subtitle text-{{ 'success' if achievement_rates.sales >= 100 else 'warning' if achievement_rates.sales >= 80 else 'danger' }}">
+                        {{ _('达成率') }}: {{ "%.1f"|format(achievement_rates.sales) }}%
                     </div>
                 </div>
             </div>
         </div>
+
         <!-- 新增客户 -->
-        <div style="flex: 1; min-width: 160px;">
-            <div class="card border-0 shadow-sm h-100 bg-info bg-opacity-10">
-                <div class="card-body py-2">
-                    <h6 class="card-title text-info mb-1" style="font-size: 0.85rem;">
-                        <i class="fas fa-users me-1"></i> 新增客户
-                    </h6>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <span class="fs-6 fw-bold">{{ total_actual.customers }}</span>
-                            <span class="text-muted ms-1 small">户</span>
-                        </div>
-                        <div class="text-end">
-                            <span class="fs-6 fw-bold text-{{ 'success' if achievement_rates.customers >= 100 else 'warning' if achievement_rates.customers >= 80 else 'danger' }}">
-                                {{ "%.1f"|format(achievement_rates.customers) }}%
-                            </span>
-                        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stats-card stats-card-info">
+                <div class="stats-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="stats-details">
+                    <div class="stats-title">{{ _('新增客户') }}</div>
+                    <div class="stats-value">{{ total_actual.customers }} <small>{{ _('户') }}</small></div>
+                    <div class="stats-subtitle text-{{ 'success' if achievement_rates.customers >= 100 else 'warning' if achievement_rates.customers >= 80 else 'danger' }}">
+                        {{ _('达成率') }}: {{ "%.1f"|format(achievement_rates.customers) }}%
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- 新增项目 -->
-        <div style="flex: 1; min-width: 160px;">
-            <div class="card border-0 shadow-sm h-100 bg-warning bg-opacity-10">
-                <div class="card-body py-2">
-                    <h6 class="card-title text-warning mb-1" style="font-size: 0.85rem;">
-                        <i class="fas fa-project-diagram me-1"></i> 新增项目
-                    </h6>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <span class="fs-6 fw-bold">{{ total_actual.projects }}</span>
-                            <span class="text-muted ms-1 small">项</span>
-                        </div>
-                        <div class="text-end">
-                            <span class="fs-6 fw-bold text-{{ 'success' if achievement_rates.projects >= 100 else 'warning' if achievement_rates.projects >= 80 else 'danger' }}">
-                                {{ "%.1f"|format(achievement_rates.projects) }}%
-                            </span>
-                        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stats-card stats-card-warning">
+                <div class="stats-icon">
+                    <i class="fas fa-project-diagram"></i>
+                </div>
+                <div class="stats-details">
+                    <div class="stats-title">{{ _('新增项目') }}</div>
+                    <div class="stats-value">{{ total_actual.projects }} <small>{{ _('项') }}</small></div>
+                    <div class="stats-subtitle text-{{ 'success' if achievement_rates.projects >= 100 else 'warning' if achievement_rates.projects >= 80 else 'danger' }}">
+                        {{ _('达成率') }}: {{ "%.1f"|format(achievement_rates.projects) }}%
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- 五星项目增量 -->
-        <div style="flex: 1; min-width: 160px;">
-            <div class="card border-0 shadow-sm h-100 bg-danger bg-opacity-10">
-                <div class="card-body py-2">
-                    <h6 class="card-title text-danger mb-1" style="font-size: 0.85rem;">
-                        <i class="fas fa-star me-1"></i> 五星项目增量
-                    </h6>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <span class="fs-6 fw-bold">{{ total_actual.five_star }}</span>
-                            <span class="text-muted ms-1 small">项</span>
-                        </div>
-                        <div class="text-end">
-                            <span class="fs-6 fw-bold text-{{ 'success' if achievement_rates.five_star >= 100 else 'warning' if achievement_rates.five_star >= 80 else 'danger' }}">
-                                {{ "%.1f"|format(achievement_rates.five_star) }}%
-                            </span>
-                        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stats-card stats-card-danger">
+                <div class="stats-icon">
+                    <i class="fas fa-star"></i>
+                </div>
+                <div class="stats-details">
+                    <div class="stats-title">{{ _('五星项目增量') }}</div>
+                    <div class="stats-value">{{ total_actual.five_star }} <small>{{ _('项') }}</small></div>
+                    <div class="stats-subtitle text-{{ 'success' if achievement_rates.five_star >= 100 else 'warning' if achievement_rates.five_star >= 80 else 'danger' }}">
+                        {{ _('达成率') }}: {{ "%.1f"|format(achievement_rates.five_star) }}%
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 主要内容区域 - 新布局 -->
-    <div class="main-content-area">
+    <!-- 主要内容区域 - 使用标准化布局 -->
+    <div class="row g-4 mb-4">
         <!-- 图表区域 -->
-        <div class="chart-section">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0">
-                    <i class="fas fa-chart-area me-2"></i>
-                    月度完成趋势
-                </h5>
-            </div>
-            
-            <!-- 图表容器 -->
-            <div id="performanceTrendChart" class="chart-container"></div>
-            
-            <!-- 统一的指标切换器 -->
-            <div class="mt-3">
-                <div id="performanceTrendToggle" class="metric-toggle-container">
-                    <!-- 动态生成统计方式切换点 -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-area me-2"></i>
+                        {{ _('月度完成趋势') }}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- 图表容器 -->
+                    <div id="performanceTrendChart" class="chart-container"></div>
+                    
+                    <!-- 统一的指标切换器 -->
+                    <div class="mt-3">
+                        <div id="performanceTrendToggle" class="metric-toggle-container">
+                            <!-- 动态生成统计方式切换点 -->
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- 侧边栏区域 -->
-        <div class="sidebar-section">
+        <div class="col-lg-4">
             <!-- 当月进度卡片 -->
-            <div class="current-month-card">
-                <div class="current-month-title">
-                    <i class="fas fa-calendar-check me-2"></i>
-                    {{ current_month }}月 进度追踪
-                </div>
-                <div class="current-month-progress">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-calendar-check me-2"></i>
+                        {{ current_month }}{{ _('月') }} {{ _('进度追踪') }}
+                    </h6>
+                <div class="card-body">
                     {% if yearly_stats and yearly_stats|length >= current_month %}
                         {% set current_stats = yearly_stats[current_month-1] %}
                         {% set current_target = yearly_targets.get(current_month) %}
                         <div class="progress-item">
-                            <span>植入额</span>
+                            <span>{{ _('植入额') }}</span>
                             <div class="progress-value">
                                 <span class="actual-value">{{ "{:,.0f}".format(chart_data.implant_actual[current_month-1]) if chart_data.implant_actual else "0" }}</span>
                                 <span class="percentage">({{ "%.0f"|format(monthly_rates[current_month]['implant']) if monthly_rates.get(current_month) else "0" }}%)</span>
                             </div>
                         </div>
                         <div class="progress-item">
-                            <span>销售额</span>
+                            <span>{{ _('销售额') }}</span>
                             <div class="progress-value">
                                 <span class="actual-value">{{ "{:,.0f}".format(chart_data.sales_actual[current_month-1]) if chart_data.sales_actual else "0" }}</span>
                                 <span class="percentage">({{ "%.0f"|format(monthly_rates[current_month]['sales']) if monthly_rates.get(current_month) else "0" }}%)</span>
                             </div>
                         </div>
                         <div class="progress-item">
-                            <span>新增客户</span>
+                            <span>{{ _('新增客户') }}</span>
                             <div class="progress-value">
                                 <span class="actual-value">{{ (current_stats.new_customers_actual or 0) if current_stats else "0" }}</span>
                                 <span class="percentage">({{ "%.0f"|format(monthly_rates[current_month]['customers']) if monthly_rates.get(current_month) else "0" }}%)</span>
                             </div>
                         </div>
                         <div class="progress-item">
-                            <span>新增项目</span>
+                            <span>{{ _('新增项目') }}</span>
                             <div class="progress-value">
                                 <span class="actual-value">{{ (current_stats.new_projects_actual or 0) if current_stats else "0" }}</span>
                                 <span class="percentage">({{ "%.0f"|format(monthly_rates[current_month]['projects']) if monthly_rates.get(current_month) else "0" }}%)</span>
@@ -727,93 +716,85 @@
                     {% else %}
                         <div class="text-center">
                             <i class="fas fa-chart-line mb-2" style="font-size: 2rem; opacity: 0.7;"></i>
-                            <p class="mb-0">暂无当月数据</p>
+                            <p class="mb-0">{{ _('暂无当月数据') }}</p>
                         </div>
                     {% endif %}
                 </div>
             </div>
 
             <!-- 行业统计卡片 -->
-            <div class="industry-card">
-                <h6 class="mb-3">
-                    <i class="fas fa-industry me-2"></i>
-                    行业分布概览
-                </h6>
-                {% if industry_summary and industry_summary|length > 0 %}
-                    <div class="industry-stats" style="max-height: 300px; overflow-y: auto; padding-right: 15px;">
-                        {% for industry, count in industry_summary.items() %}
-                        <div class="d-flex justify-content-between align-items-center mb-2" style="margin-right: 10px;">
-                            <span class="text-sm">
-                                {% if industry == '未分类' %}
-                                    {{ industry }}
-                                {% else %}
-                                    {% set industry_names = {
-                                        'manufacturing': '制造业',
-                                        'healthcare': '医疗健康',
-                                        'education': '教育',
-                                        'finance': '金融',
-                                        'real_estate': '房地产',
-                                        'retail': '零售',
-                                        'transportation': '交通运输',
-                                        'energy': '能源',
-                                        'technology': '科技',
-                                        'government': '政府',
-                                        'hospitality': '酒店服务',
-                                        'agriculture': '农业'
-                                    } %}
-                                    {{ industry_names.get(industry, industry) }}
-                                {% endif %}
-                            </span>
-                            <span class="fw-bold" style="margin-right: 5px;">
-                                {{ count }}
-                                {% if monthly_industry_stats and monthly_industry_stats.get(current_month) and monthly_industry_stats[current_month].get(industry, 0) > 0 %}
-                                    <span class="text-success">+</span>
-                                {% endif %}
-                            </span>
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-industry me-2"></i>
+                        {{ _('行业分布概览') }}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if industry_summary and industry_summary|length > 0 %}
+                        <div class="industry-stats" style="max-height: 300px; overflow-y: auto;">
+                            {% for industry, count in industry_summary.items() %}
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="text-sm">
+                                    {% if industry == '未分类' %}
+                                        {{ _('未分类') }}
+                                    {% else %}
+                                        {% set industry_names = {
+                                            'manufacturing': _('制造业'),
+                                            'healthcare': _('医疗健康'),
+                                            'education': _('教育'),
+                                            'finance': _('金融'),
+                                            'real_estate': _('房地产'),
+                                            'retail': _('零售'),
+                                            'transportation': _('交通运输'),
+                                            'energy': _('能源'),
+                                            'technology': _('科技'),
+                                            'government': _('政府'),
+                                            'hospitality': _('酒店服务'),
+                                            'agriculture': _('农业')
+                                        } %}
+                                        {{ industry_names.get(industry, industry) }}
+                                    {% endif %}
+                                </span>
+                                <span class="fw-bold">
+                                    {{ count }}
+                                    {% if monthly_industry_stats and monthly_industry_stats.get(current_month) and monthly_industry_stats[current_month].get(industry, 0) > 0 %}
+                                        <span class="text-success">+</span>
+                                    {% endif %}
+                                </span>
+                            </div>
+                            {% endfor %}
                         </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <div class="text-center text-muted py-3">
-                        <i class="fas fa-chart-pie mb-2"></i>
-                        <p class="mb-0 small">暂无行业统计数据</p>
-                    </div>
-                {% endif %}
+                    {% else %}
+                        <div class="text-center text-muted py-3">
+                            <i class="fas fa-chart-pie mb-2"></i>
+                            <p class="mb-0 small">{{ _('暂无行业统计数据') }}</p>
+                        </div>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- 个人绩效成绩统计 -->
-    <div class="performance-detail-section">
-        <div class="section-header-simple">
+    <!-- 个人绩效详细统计 -->
+    <div class="card">
+        <div class="card-header">
             <h5 class="mb-0">
                 <i class="fas fa-table me-2"></i>
-                个人绩效详细统计
+                {{ _('个人绩效详细统计') }}
             </h5>
         </div>
-        <div class="modern-table">
+        <div class="card-body">
             <div class="table-responsive">
-                <table class="table">
-                    <thead style="background: #ffffff; color: #000000;">
+                <table class="table table-hover">
+                    <thead>
                         <tr>
-                            <th style="color: #000000; font-weight: 600; padding: 12px; border-bottom: 2px solid #dee2e6;">
-                                <i class="fas fa-calendar-alt text-primary me-2"></i>月份
-                            </th>
-                            <th style="color: #000000; font-weight: 600; padding: 12px; border-bottom: 2px solid #dee2e6;">
-                                <i class="fas fa-chart-line text-primary me-2"></i>植入额/目标 ({{ display_currency }})
-                            </th>
-                            <th style="color: #000000; font-weight: 600; padding: 12px; border-bottom: 2px solid #dee2e6;">
-                                <i class="fas fa-dollar-sign text-success me-2"></i>销售额/目标 ({{ display_currency }})
-                            </th>
-                            <th style="color: #000000; font-weight: 600; padding: 12px; border-bottom: 2px solid #dee2e6;">
-                                <i class="fas fa-users text-info me-2"></i>新增客户/目标
-                            </th>
-                            <th style="color: #000000; font-weight: 600; padding: 12px; border-bottom: 2px solid #dee2e6;">
-                                <i class="fas fa-project-diagram text-warning me-2"></i>新增项目/目标
-                            </th>
-                            <th style="color: #000000; font-weight: 600; padding: 12px; border-bottom: 2px solid #dee2e6;">
-                                <i class="fas fa-star text-danger me-2"></i>五星项目增量/目标
-                            </th>
+                            <th><i class="fas fa-calendar-alt text-primary me-2"></i>{{ _('月份') }}</th>
+                            <th><i class="fas fa-chart-line text-primary me-2"></i>{{ _('植入额') }}/{{ _('目标') }} ({{ display_currency }})</th>
+                            <th><i class="fas fa-dollar-sign text-success me-2"></i>{{ _('销售额') }}/{{ _('目标') }} ({{ display_currency }})</th>
+                            <th><i class="fas fa-users text-info me-2"></i>{{ _('新增客户') }}/{{ _('目标') }}</th>
+                            <th><i class="fas fa-project-diagram text-warning me-2"></i>{{ _('新增项目') }}/{{ _('目标') }}</th>
+                            <th><i class="fas fa-star text-danger me-2"></i>{{ _('五星项目增量') }}/{{ _('目标') }}</th>
                         </tr>
                     </thead>
                         <tbody>
@@ -825,8 +806,8 @@
                             <tr {{ 'style=background-color: #e3f2fd;' if is_current_month else '' }}>
                                 <td>
                                     <span class="month-label" style="font-weight: {{ 'bold' if is_current_month else 'normal' }}; color: {{ '#007bff' if is_current_month else 'inherit' }};">
-                                        {{ month }}月
-                                        {% if is_current_month %}<i class="fas fa-clock text-primary ms-1" title="当前月份"></i>{% endif %}
+                                        {{ month }}{{ _('月') }}
+                                        {% if is_current_month %}<i class="fas fa-clock text-primary ms-1" title="{{ _('当前月份') }}"></i>{% endif %}
                                     </span>
                                 </td>
                                 
@@ -919,7 +900,7 @@
                             
                             <!-- 汇总行 -->
                             <tr style="background-color: #f8f9fa; border-top: 2px solid #dee2e6; font-weight: 600;">
-                                <td><span class="month-label">年度汇总</span></td>
+                                <td><span class="month-label">{{ _('年度汇总') }}</span></td>
                                 
                                 <!-- 植入额汇总 -->
                                 <td style="text-align: left; padding-left: 12px;">
@@ -1025,18 +1006,18 @@ let currentMetricIndex = 0; // 当前显示的指标索引
 // 定义四个独立指标配置
 const METRIC_TYPES = [
     {
-        name: '植入额',
+        name: '{{ _("植入额") }}',
         color: '#007bff',
         series: [
             {
-                name: '植入额实际',
+                name: '{{ _("植入额实际") }}',
                 data: 'implant_actual',
                 type: 'line',
                 color: '#007bff',
                 lineStyle: { width: 3 }
             },
             {
-                name: '植入额目标',
+                name: '{{ _("植入额目标") }}',
                 data: 'implant_target',
                 type: 'line',
                 color: '#6c757d',
@@ -1049,18 +1030,18 @@ const METRIC_TYPES = [
         }
     },
     {
-        name: '销售额',
+        name: '{{ _("销售额") }}',
         color: '#28a745',
         series: [
             {
-                name: '销售额实际',
+                name: '{{ _("销售额实际") }}',
                 data: 'sales_actual',
                 type: 'line',
                 color: '#28a745',
                 lineStyle: { width: 3 }
             },
             {
-                name: '销售额目标',
+                name: '{{ _("销售额目标") }}',
                 data: 'sales_target',
                 type: 'line',
                 color: '#6c757d',
@@ -1073,49 +1054,49 @@ const METRIC_TYPES = [
         }
     },
     {
-        name: '新增项目',
+        name: '{{ _("新增项目") }}',
         color: '#ffc107',
         series: [
             {
-                name: '新增项目实际',
+                name: '{{ _("新增项目实际") }}',
                 data: 'projects_actual',
                 type: 'line',
                 color: '#ffc107',
                 lineStyle: { width: 3 }
             },
             {
-                name: '新增项目目标',
+                name: '{{ _("新增项目目标") }}',
                 data: 'projects_target',
                 type: 'line',
                 color: '#6c757d',
                 lineStyle: { type: 'dashed', width: 2 }
             }
         ],
-        unit: '个',
+        unit: '{{ _("个") }}',
         yAxisFormatter: function(value) {
             return value;
         }
     },
     {
-        name: '新增客户',
+        name: '{{ _("新增客户") }}',
         color: '#17a2b8',
         series: [
             {
-                name: '新增客户实际',
+                name: '{{ _("新增客户实际") }}',
                 data: 'customers_actual',
                 type: 'line',
                 color: '#17a2b8',
                 lineStyle: { width: 3 }
             },
             {
-                name: '新增客户目标',
+                name: '{{ _("新增客户目标") }}',
                 data: 'customers_target',
                 type: 'line',
                 color: '#6c757d',
                 lineStyle: { type: 'dashed', width: 2 }
             }
         ],
-        unit: '个',
+        unit: '{{ _("个") }}',
         yAxisFormatter: function(value) {
             return value;
         }
@@ -1157,7 +1138,7 @@ function showUserSwitchLoading(userName) {
             '<div class="spinner-border text-primary" role="status">' +
                 '<span class="visually-hidden">加载中...</span>' +
             '</div>' +
-            '<p class="mt-3 mb-0">正在切换到 <strong>' + userName + '</strong> 的绩效数据...</p>' +
+            '<p class="mt-3 mb-0">{{ _("正在切换到") }} <strong>' + userName + '</strong> {{ _("的绩效数据") }}...</p>' +
         '</div>';
     
     // 添加loading样式
@@ -1217,7 +1198,7 @@ function updatePerformanceChart() {
     
     const option = {
         title: {
-            text: metricConfig.name + '月度趋势',
+            text: metricConfig.name + ' {{ _("月度趋势") }}',
             left: 'center',
             textStyle: { 
                 fontSize: 16,
