@@ -29,85 +29,104 @@ def upgrade():
     # 这是修复报价单删除功能的关键字段
     print("🔄 正在为 settlement_orders 表添加 settlement_status 字段...")
     
-    with op.batch_alter_table('settlement_orders', schema=None) as batch_op:
-        batch_op.add_column(sa.Column(
-            'settlement_status', 
-            sa.String(length=20), 
-            nullable=True, 
-            default='pending',
-            comment='结算状态：pending, processing, completed, cancelled'
-        ))
+    # 首先检查字段是否已存在，避免重复添加
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    columns = [col['name'] for col in inspector.get_columns('settlement_orders')]
     
-    print("✅ settlement_orders.settlement_status 字段添加完成")
+    if 'settlement_status' not in columns:
+        with op.batch_alter_table('settlement_orders', schema=None) as batch_op:
+            batch_op.add_column(sa.Column(
+                'settlement_status', 
+                sa.String(length=20), 
+                nullable=True, 
+                default='pending',
+                comment='结算状态：pending, processing, completed, cancelled'
+            ))
+        print("✅ settlement_orders.settlement_status 字段添加完成")
+    else:
+        print("✅ settlement_orders.settlement_status 字段已存在，跳过添加")
     
-    # 2. 为 dictionaries 表添加缺失的公司信息字段
-    print("🔄 正在为 dictionaries 表添加缺失的公司信息字段...")
+    # 2. 检查 dictionaries 表字段完整性（跳过已存在的字段）
+    print("🔄 正在检查 dictionaries 表字段完整性...")
     
-    with op.batch_alter_table('dictionaries', schema=None) as batch_op:
-        # 公司联系信息字段
-        batch_op.add_column(sa.Column('phone', sa.String(50), 
-                                     nullable=True, comment='公司电话'))
-        batch_op.add_column(sa.Column('fax', sa.String(50), 
-                                     nullable=True, comment='公司传真'))
-        batch_op.add_column(sa.Column('email', sa.String(255), 
-                                     nullable=True, comment='公司邮箱'))
-        batch_op.add_column(sa.Column('website', sa.String(255), 
-                                     nullable=True, comment='公司网站'))
-        batch_op.add_column(sa.Column('address', sa.Text(), 
-                                     nullable=True, comment='公司地址'))
-        batch_op.add_column(sa.Column('postal_code', sa.String(20), 
-                                     nullable=True, comment='邮政编码'))
-        
-        # Logo相关字段
-        batch_op.add_column(sa.Column('logo_type', sa.String(50), 
-                                     nullable=True, comment='Logo类型'))
-        batch_op.add_column(sa.Column('logo_size', sa.Integer(), 
-                                     nullable=True, comment='Logo文件大小'))
-        batch_op.add_column(sa.Column('logo_content', sa.Text(), 
-                                     nullable=True, comment='Logo内容（Base64编码）'))
-        batch_op.add_column(sa.Column('logo_filename', sa.String(255), 
-                                     nullable=True, comment='Logo文件名'))
-        
-        # 邮件签名相关字段
-        batch_op.add_column(sa.Column('email_signature_filename', sa.String(255), 
-                                     nullable=True, comment='邮件签名文件名'))
-        batch_op.add_column(sa.Column('email_signature_type', sa.String(50), 
-                                     nullable=True, comment='邮件签名类型'))
-        batch_op.add_column(sa.Column('email_signature_size', sa.Integer(), 
-                                     nullable=True, comment='邮件签名文件大小'))
-        batch_op.add_column(sa.Column('email_signature_content', sa.Text(), 
-                                     nullable=True, comment='邮件签名内容'))
+    dict_columns = [col['name'] for col in inspector.get_columns('dictionaries')]
+    missing_fields = []
     
-    print("✅ dictionaries 表字段添加完成")
+    # 需要检查的字段列表
+    required_fields = [
+        ('phone', sa.String(50)),
+        ('fax', sa.String(50)), 
+        ('email', sa.String(100)),
+        ('website', sa.String(200)),
+        ('address', sa.String(500)),
+        ('postal_code', sa.String(20)),
+        ('logo_type', sa.String(50)),
+        ('logo_size', sa.Integer()),
+        ('logo_content', sa.Text()),
+        ('logo_filename', sa.String(100)),
+        ('email_signature_filename', sa.String(100)),
+        ('email_signature_type', sa.String(50)),
+        ('email_signature_size', sa.Integer()),
+        ('email_signature_content', sa.Text())
+    ]
     
-    # 3. 创建性能优化索引
+    # 检查哪些字段缺失
+    for field_name, field_type in required_fields:
+        if field_name not in dict_columns:
+            missing_fields.append((field_name, field_type))
+    
+    # 只添加缺失的字段
+    if missing_fields:
+        print(f"🔄 发现 {len(missing_fields)} 个缺失字段，正在添加...")
+        with op.batch_alter_table('dictionaries', schema=None) as batch_op:
+            for field_name, field_type in missing_fields:
+                batch_op.add_column(sa.Column(field_name, field_type, nullable=True))
+                print(f"   ✅ 添加字段: {field_name}")
+        print("✅ dictionaries 表缺失字段添加完成")
+    else:
+        print("✅ dictionaries 表所有字段已存在，无需添加")
+    
+    # 3. 创建性能优化索引（跳过已存在的索引）
     print("🔄 正在创建性能优化索引...")
     
+    # 获取现有索引
+    existing_indexes = set()
     try:
-        # 结算相关索引
-        op.create_index('idx_settlement_orders_settlement_status', 
-                       'settlement_orders', ['settlement_status'])
-        
-        # 报价单性能索引
-        op.create_index('idx_quotations_project_id', 'quotations', ['project_id'])
-        op.create_index('idx_quotations_owner_id', 'quotations', ['owner_id'])
-        op.create_index('idx_quotations_created_at', 'quotations', ['created_at'])
-        op.create_index('idx_quotations_amount', 'quotations', ['total_amount'])
-        
-        # 项目性能索引
-        op.create_index('idx_projects_current_stage', 'projects', ['current_stage'])
-        op.create_index('idx_projects_owner_id', 'projects', ['owner_id'])
-        op.create_index('idx_projects_project_type', 'projects', ['project_type'])
-        
-        # 字典表索引
-        op.create_index('idx_dictionaries_company_email', 'dictionaries', ['email'])
-        op.create_index('idx_dictionaries_company_phone', 'dictionaries', ['phone'])
-        
-        print("✅ 性能索引创建完成")
-        
+        for table_name in ['settlement_orders', 'quotations', 'projects', 'dictionaries']:
+            table_indexes = inspector.get_indexes(table_name)
+            for idx in table_indexes:
+                existing_indexes.add(idx['name'])
     except Exception as e:
-        print(f"⚠️ 索引创建警告: {str(e)}")
-        print("⚠️ 部分索引可能已存在，这是正常情况")
+        print(f"⚠️ 获取索引信息警告: {str(e)}")
+    
+    # 需要创建的索引列表
+    indexes_to_create = [
+        ('idx_settlement_orders_settlement_status', 'settlement_orders', ['settlement_status']),
+        ('idx_quotations_project_id', 'quotations', ['project_id']),
+        ('idx_quotations_owner_id', 'quotations', ['owner_id']),
+        ('idx_quotations_created_at', 'quotations', ['created_at']),
+        ('idx_quotations_amount', 'quotations', ['total_amount']),
+        ('idx_projects_current_stage', 'projects', ['current_stage']),
+        ('idx_projects_owner_id', 'projects', ['owner_id']),
+        ('idx_projects_project_type', 'projects', ['project_type']),
+        ('idx_dictionaries_company_email', 'dictionaries', ['email']),
+        ('idx_dictionaries_company_phone', 'dictionaries', ['phone'])
+    ]
+    
+    created_count = 0
+    for idx_name, table_name, columns in indexes_to_create:
+        if idx_name not in existing_indexes:
+            try:
+                op.create_index(idx_name, table_name, columns)
+                print(f"   ✅ 创建索引: {idx_name}")
+                created_count += 1
+            except Exception as e:
+                print(f"   ⚠️ 索引 {idx_name} 创建警告: {str(e)}")
+        else:
+            print(f"   ✅ 索引 {idx_name} 已存在，跳过")
+    
+    print(f"✅ 性能索引检查完成，新创建 {created_count} 个索引")
     
     print("🎉 云端数据库同步迁移完成")
     print("📋 主要修复:")
@@ -121,42 +140,70 @@ def downgrade():
     
     print("⚠️ 开始回滚迁移...")
     
-    # 删除索引
-    try:
-        op.drop_index('idx_dictionaries_company_phone', 'dictionaries')
-        op.drop_index('idx_dictionaries_company_email', 'dictionaries')
-        op.drop_index('idx_projects_project_type', 'projects')
-        op.drop_index('idx_projects_owner_id', 'projects')
-        op.drop_index('idx_projects_current_stage', 'projects')
-        op.drop_index('idx_quotations_amount', 'quotations')
-        op.drop_index('idx_quotations_created_at', 'quotations')
-        op.drop_index('idx_quotations_owner_id', 'quotations')
-        op.drop_index('idx_quotations_project_id', 'quotations')
-        op.drop_index('idx_settlement_orders_settlement_status', 'settlement_orders')
-    except Exception as e:
-        print(f"索引删除警告: {str(e)}")
+    # 获取数据库连接和检查器
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
     
-    # 从 dictionaries 表删除字段
-    print("🔄 正在从 dictionaries 表删除添加的字段...")
-    with op.batch_alter_table('dictionaries', schema=None) as batch_op:
-        batch_op.drop_column('email_signature_content')
-        batch_op.drop_column('email_signature_size')
-        batch_op.drop_column('email_signature_type')
-        batch_op.drop_column('email_signature_filename')
-        batch_op.drop_column('logo_filename')
-        batch_op.drop_column('logo_content')
-        batch_op.drop_column('logo_size')
-        batch_op.drop_column('logo_type')
-        batch_op.drop_column('postal_code')
-        batch_op.drop_column('address')
-        batch_op.drop_column('website')
-        batch_op.drop_column('email')
-        batch_op.drop_column('fax')
-        batch_op.drop_column('phone')
+    # 删除索引（只删除存在的索引）
+    print("🔄 正在删除索引...")
+    indexes_to_drop = [
+        ('idx_dictionaries_company_phone', 'dictionaries'),
+        ('idx_dictionaries_company_email', 'dictionaries'),
+        ('idx_projects_project_type', 'projects'),
+        ('idx_projects_owner_id', 'projects'),
+        ('idx_projects_current_stage', 'projects'),
+        ('idx_quotations_amount', 'quotations'),
+        ('idx_quotations_created_at', 'quotations'),
+        ('idx_quotations_owner_id', 'quotations'),
+        ('idx_quotations_project_id', 'quotations'),
+        ('idx_settlement_orders_settlement_status', 'settlement_orders')
+    ]
     
-    # 从 settlement_orders 表删除字段
-    print("🔄 正在从 settlement_orders 表删除 settlement_status 字段...")
-    with op.batch_alter_table('settlement_orders', schema=None) as batch_op:
-        batch_op.drop_column('settlement_status')
+    for idx_name, table_name in indexes_to_drop:
+        try:
+            # 检查索引是否存在
+            table_indexes = inspector.get_indexes(table_name)
+            index_names = [idx['name'] for idx in table_indexes]
+            
+            if idx_name in index_names:
+                op.drop_index(idx_name, table_name)
+                print(f"   ✅ 删除索引: {idx_name}")
+            else:
+                print(f"   ✅ 索引 {idx_name} 不存在，跳过")
+        except Exception as e:
+            print(f"   ⚠️ 索引 {idx_name} 删除警告: {str(e)}")
+    
+    # 检查并删除 dictionaries 表字段（只删除存在的字段）
+    print("🔄 正在检查并删除 dictionaries 表字段...")
+    dict_columns = [col['name'] for col in inspector.get_columns('dictionaries')]
+    
+    fields_to_remove = [
+        'email_signature_content', 'email_signature_size', 'email_signature_type', 
+        'email_signature_filename', 'logo_filename', 'logo_content', 'logo_size', 
+        'logo_type', 'postal_code', 'address', 'website', 'email', 'fax', 'phone'
+    ]
+    
+    fields_to_drop = [field for field in fields_to_remove if field in dict_columns]
+    
+    if fields_to_drop:
+        print(f"🔄 发现 {len(fields_to_drop)} 个字段需要删除...")
+        with op.batch_alter_table('dictionaries', schema=None) as batch_op:
+            for field in fields_to_drop:
+                batch_op.drop_column(field)
+                print(f"   ✅ 删除字段: {field}")
+        print("✅ dictionaries 表字段删除完成")
+    else:
+        print("✅ dictionaries 表无字段需要删除")
+    
+    # 检查并删除 settlement_orders 表的 settlement_status 字段
+    print("🔄 正在检查并删除 settlement_orders 表字段...")
+    settlement_columns = [col['name'] for col in inspector.get_columns('settlement_orders')]
+    
+    if 'settlement_status' in settlement_columns:
+        with op.batch_alter_table('settlement_orders', schema=None) as batch_op:
+            batch_op.drop_column('settlement_status')
+        print("✅ settlement_orders.settlement_status 字段删除完成")
+    else:
+        print("✅ settlement_orders.settlement_status 字段不存在，跳过删除")
     
     print("✅ 迁移回滚完成")
