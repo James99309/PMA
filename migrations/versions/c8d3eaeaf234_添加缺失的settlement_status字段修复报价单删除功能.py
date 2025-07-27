@@ -93,10 +93,13 @@ def upgrade():
     # 获取现有索引
     existing_indexes = set()
     try:
-        for table_name in ['settlement_orders', 'quotations', 'projects', 'dictionaries']:
-            table_indexes = inspector.get_indexes(table_name)
-            for idx in table_indexes:
-                existing_indexes.add(idx['name'])
+        for table_name in ['settlement_orders', 'quotations', 'projects', 'dictionaries', 'purchase_orders']:
+            try:
+                table_indexes = inspector.get_indexes(table_name)
+                for idx in table_indexes:
+                    existing_indexes.add(idx['name'])
+            except Exception as table_err:
+                print(f"⚠️ 获取表 {table_name} 索引信息警告: {str(table_err)}")
     except Exception as e:
         print(f"⚠️ 获取索引信息警告: {str(e)}")
     
@@ -104,29 +107,50 @@ def upgrade():
     indexes_to_create = [
         ('idx_settlement_orders_settlement_status', 'settlement_orders', ['settlement_status']),
         ('idx_quotations_project_id', 'quotations', ['project_id']),
-        ('idx_quotations_owner_id', 'quotations', ['owner_id']),
+        ('idx_quotations_amount', 'quotations', ['amount']),  # 修正：quotations表的字段是amount
         ('idx_quotations_created_at', 'quotations', ['created_at']),
-        ('idx_quotations_amount', 'quotations', ['total_amount']),
+        ('idx_purchase_orders_total_amount', 'purchase_orders', ['total_amount']),  # 修正：total_amount在purchase_orders表
         ('idx_projects_current_stage', 'projects', ['current_stage']),
-        ('idx_projects_owner_id', 'projects', ['owner_id']),
         ('idx_projects_project_type', 'projects', ['project_type']),
         ('idx_dictionaries_company_email', 'dictionaries', ['email']),
         ('idx_dictionaries_company_phone', 'dictionaries', ['phone'])
     ]
     
     created_count = 0
+    skipped_count = 0
+    failed_count = 0
+    
     for idx_name, table_name, columns in indexes_to_create:
         if idx_name not in existing_indexes:
             try:
-                op.create_index(idx_name, table_name, columns)
-                print(f"   ✅ 创建索引: {idx_name}")
-                created_count += 1
+                # 先检查表是否存在且包含指定字段
+                try:
+                    table_columns = [col['name'] for col in inspector.get_columns(table_name)]
+                    missing_columns = [col for col in columns if col not in table_columns]
+                    
+                    if missing_columns:
+                        print(f"   ⚠️ 索引 {idx_name} 跳过: 表 {table_name} 缺少字段 {missing_columns}")
+                        skipped_count += 1
+                        continue
+                    
+                    # 使用独立事务创建索引，避免失败影响整个迁移
+                    op.create_index(idx_name, table_name, columns)
+                    print(f"   ✅ 创建索引: {idx_name}")
+                    created_count += 1
+                    
+                except Exception as idx_err:
+                    print(f"   ⚠️ 索引 {idx_name} 创建失败: {str(idx_err)}")
+                    failed_count += 1
+                    # 继续处理下一个索引，不中断迁移
+                    
             except Exception as e:
-                print(f"   ⚠️ 索引 {idx_name} 创建警告: {str(e)}")
+                print(f"   ⚠️ 索引 {idx_name} 处理异常: {str(e)}")
+                failed_count += 1
         else:
             print(f"   ✅ 索引 {idx_name} 已存在，跳过")
+            skipped_count += 1
     
-    print(f"✅ 性能索引检查完成，新创建 {created_count} 个索引")
+    print(f"✅ 性能索引检查完成: 新创建 {created_count} 个，跳过 {skipped_count} 个，失败 {failed_count} 个")
     
     print("🎉 云端数据库同步迁移完成")
     print("📋 主要修复:")
@@ -150,12 +174,11 @@ def downgrade():
         ('idx_dictionaries_company_phone', 'dictionaries'),
         ('idx_dictionaries_company_email', 'dictionaries'),
         ('idx_projects_project_type', 'projects'),
-        ('idx_projects_owner_id', 'projects'),
         ('idx_projects_current_stage', 'projects'),
         ('idx_quotations_amount', 'quotations'),
         ('idx_quotations_created_at', 'quotations'),
-        ('idx_quotations_owner_id', 'quotations'),
         ('idx_quotations_project_id', 'quotations'),
+        ('idx_purchase_orders_total_amount', 'purchase_orders'),
         ('idx_settlement_orders_settlement_status', 'settlement_orders')
     ]
     
