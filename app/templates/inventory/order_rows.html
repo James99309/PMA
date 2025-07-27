@@ -1,4 +1,4 @@
-{% from 'macros/ui_helpers.html' import render_order_status_badge, render_inventory_status_badge %}
+{% from 'macros/ui_helpers.html' import render_order_status_badge, render_inventory_status_badge, render_owner %}
 
 {% for order in orders %}
 <tr>
@@ -17,28 +17,6 @@
     </td>
     <td>{{ order.expected_date.strftime('%Y-%m-%d') if order.expected_date else '-' }}</td>
     <td>{{ order.created_at.strftime('%Y-%m-%d %H:%M') if order.created_at else '-' }}</td>
-    <td>{{ order.created_by.username if order.created_by else '-' }}</td>
-    <td>
-        <div class="btn-group" role="group">
-            {% if has_permission('order', 'view') %}
-                <a href="{{ url_for('inventory.order_detail', id=order.id) }}" 
-                   class="btn btn-outline-primary btn-sm" title="查看详情">
-                    <i class="fas fa-eye"></i>
-                </a>
-            {% endif %}
-            {% if has_permission('order', 'edit') and order.status in ['draft', 'pending'] %}
-                <a href="{{ url_for('inventory.edit_order', id=order.id) }}" 
-                   class="btn btn-outline-warning btn-sm" title="编辑">
-                    <i class="fas fa-edit"></i>
-                </a>
-            {% endif %}
-            {% if has_permission('order', 'delete') and order.status == 'draft' %}
-                <button type="button" class="btn btn-outline-danger btn-sm" 
-                        onclick="deleteOrder({{ order.id }}, '{{ order.order_number }}')" title="删除">
-                    <i class="fas fa-trash"></i>
-                </button>
-            {% endif %}
-        </div>
-    </td>
+    <td>{{ render_owner(order.created_by) if order.created_by else '-' }}</td>
 </tr>
 {% endfor %}

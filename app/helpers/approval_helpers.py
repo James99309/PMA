@@ -14,6 +14,24 @@ from app.utils.dictionary_helpers import project_type_label
 from sqlalchemy import and_, or_, desc, asc
 from datetime import datetime
 from flask import url_for
+
+
+def safe_strftime(dt_value, format_str):
+    """安全的日期格式化函数"""
+    if not dt_value:
+        return ''
+    
+    try:
+        if isinstance(dt_value, str):
+            # 如果是字符串，尝试解析
+            dt = datetime.fromisoformat(dt_value.replace('Z', '+00:00'))
+            return dt.strftime(format_str)
+        else:
+            # 如果是datetime对象
+            return dt_value.strftime(format_str)
+    except (ValueError, AttributeError) as e:
+        current_app.logger.warning(f"日期格式化失败: {dt_value}, 错误: {e}")
+        return str(dt_value) if dt_value else ''
 from app.helpers.project_helpers import lock_project, unlock_project
 from app.models.project import Project
 from app.models.quotation import Quotation
@@ -1996,7 +2014,7 @@ def delete_approval_template(template_id):
                 'status': instance.status.value if hasattr(instance.status, 'value') else str(instance.status),
                 'creator': instance.creator.username if instance.creator else '未知',
                 'creator_real_name': instance.creator.real_name if instance.creator and instance.creator.real_name else '',
-                'started_at': instance.started_at.strftime('%Y-%m-%d %H:%M') if instance.started_at else '未知'
+                'started_at': safe_strftime(instance.started_at, '%Y-%m-%d %H:%M') if instance.started_at else '未知'
             }
             instance_details.append(instance_info)
         
@@ -4112,7 +4130,7 @@ def get_pending_created_count(user_id=None):
         # 统计通用审批系统中的未结束流程
         general_pending = ApprovalInstance.query.filter(
             ApprovalInstance.created_by == user_id,
-            ApprovalInstance.status.in_([ApprovalStatus.PENDING, ApprovalStatus.DRAFT])
+            ApprovalInstance.status == ApprovalStatus.PENDING
         ).count()
         
         # 统计批价单中的未结束流程
@@ -4681,8 +4699,7 @@ def get_pricing_order_pending_count(user_id=None):
             PricingOrderApprovalRecord.pricing_order_id
         ).filter(
             PricingOrderApprovalRecord.approver_id == user_id,
-            PricingOrderApprovalRecord.is_current_step == True,
-            PricingOrderApprovalRecord.status == 'pending'
+            PricingOrderApprovalRecord.action.is_(None)  # 未审批的记录
         ).distinct().all()
         
         pricing_order_ids = [r.pricing_order_id for r in pricing_approvals]

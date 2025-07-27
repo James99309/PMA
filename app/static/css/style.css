@@ -580,12 +580,6 @@ a[data-lang].dropdown-item:hover {
     text-decoration: none !important;
 }
 
-.main-nav .dropdown-item.active,
-.navbar .dropdown-item.active,
-.nav-dropdown-item.active {
-    background: linear-gradient(135deg, var(--pa-blue), var(--pa-dark-blue)) !important;
-    color: #fff !important;
-}
 
 .main-nav .dropdown-divider,
 .navbar .dropdown-divider,
@@ -631,10 +625,6 @@ a[data-lang].dropdown-item:hover {
     box-shadow: none !important;
 }
 
-.dropdown-item:not(.main-nav .dropdown-item):not(.navbar .dropdown-item):not(.user-avatar-capsule + .dropdown-menu .dropdown-item):not(a[data-lang].dropdown-item).active {
-    background-color: #0d6efd !important;
-    color: #ffffff !important;
-}
 
 .dropdown-divider:not(.main-nav .dropdown-divider):not(.navbar .dropdown-divider):not(.user-avatar-capsule + .dropdown-menu .dropdown-divider):not(#mainLanguageDropdown + .dropdown-menu .dropdown-divider):not(#mobileLanguageDropdownTop + .dropdown-menu .dropdown-divider) {
     border-color: rgba(0,0,0,0.15) !important;
@@ -3280,6 +3270,68 @@ a:focus .badge.badge-transparent.quotation-number-badge {
     border-color: rgba(226, 227, 229, var(--badge-border-opacity)) !important; /* 灰色系边框 */
 }
 
+/* 研发产品状态徽章 - 胶囊型基础样式，采用订单徽章相同的透明度系统 */
+.data-list-table .badge.dev-product-status-badge,
+.badge.dev-product-status-badge {
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    padding: 0.35em 0.65em !important;
+    border-radius: 50rem !important; /* 强制胶囊型 */
+    border: 1px solid !important; /* 添加边框，与订单徽章一致 */
+    transition: all 0.2s ease-in-out;
+    /* 使用与订单徽章相同的CSS变量透明度系统 */
+    --badge-bg-opacity: 0.4;
+    --badge-text-opacity: 0.8;
+    --badge-border-opacity: 0.6;
+}
+.badge.dev-product-status-badge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* 研发产品状态具体颜色定义 - 采用订单徽章相同的CSS变量透明度系统 */
+.data-list-table .badge.dev-product-status-research,
+.badge.dev-product-status-research {
+    background-color: rgba(226, 227, 229, var(--badge-bg-opacity)) !important; /* 灰色系背景 */
+    color: rgba(73, 80, 87, var(--badge-text-opacity)) !important; /* 灰色系文字 */
+    border-color: rgba(226, 227, 229, var(--badge-border-opacity)) !important; /* 灰色系边框 */
+}
+
+.data-list-table .badge.dev-product-status-setup,
+.badge.dev-product-status-setup {
+    background-color: rgba(209, 236, 241, var(--badge-bg-opacity)) !important; /* 青色系背景 */
+    color: rgba(11, 84, 104, var(--badge-text-opacity)) !important; /* 青色系文字 */
+    border-color: rgba(209, 236, 241, var(--badge-border-opacity)) !important; /* 青色系边框 */
+}
+
+.data-list-table .badge.dev-product-status-development,
+.badge.dev-product-status-development {
+    background-color: rgba(255, 243, 205, var(--badge-bg-opacity)) !important; /* 橙黄色系背景 */
+    color: rgba(102, 77, 3, var(--badge-text-opacity)) !important; /* 橙黄色系文字 */
+    border-color: rgba(255, 243, 205, var(--badge-border-opacity)) !important; /* 橙黄色系边框 */
+}
+
+.data-list-table .badge.dev-product-status-applying,
+.badge.dev-product-status-applying {
+    background-color: rgba(253, 230, 138, var(--badge-bg-opacity)) !important; /* 橙色系背景 */
+    color: rgba(146, 64, 14, var(--badge-text-opacity)) !important; /* 橙色系文字 */
+    border-color: rgba(253, 230, 138, var(--badge-border-opacity)) !important; /* 橙色系边框 */
+}
+
+.data-list-table .badge.dev-product-status-inventoried,
+.badge.dev-product-status-inventoried {
+    background-color: rgba(212, 237, 218, var(--badge-bg-opacity)) !important; /* 绿色系背景 */
+    color: rgba(21, 87, 36, var(--badge-text-opacity)) !important; /* 绿色系文字 */
+    border-color: rgba(212, 237, 218, var(--badge-border-opacity)) !important; /* 绿色系边框 */
+}
+
+.data-list-table .badge.dev-product-status-unknown,
+.badge.dev-product-status-unknown {
+    background-color: rgba(226, 227, 229, var(--badge-bg-opacity)) !important; /* 灰色系背景 */
+    color: rgba(73, 80, 87, var(--badge-text-opacity)) !important; /* 灰色系文字 */
+    border-color: rgba(226, 227, 229, var(--badge-border-opacity)) !important; /* 灰色系边框 */
+}
+
 /* 厂商徽章 - 矩形型，采用订单徽章相同的透明度系统 */
 .data-list-table .badge.vendor-badge,
 .badge.vendor-badge {
@@ -3963,38 +4015,38 @@ a:focus .badge.badge-transparent.quotation-number-badge {
 
 .badge.badge-transparent.approval-status-approved {
     background-color: rgba(25, 135, 84, var(--badge-bg-opacity)) !important;
-    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    color: rgba(5, 27, 16, var(--badge-text-opacity)) !important;
     border-color: rgba(25, 135, 84, var(--badge-border-opacity)) !important;
 }
 
 .badge.badge-transparent.approval-status-rejected {
     background-color: rgba(220, 53, 69, var(--badge-bg-opacity)) !important;
-    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    color: rgba(44, 10, 13, var(--badge-text-opacity)) !important;
     border-color: rgba(220, 53, 69, var(--badge-border-opacity)) !important;
 }
 
 .badge.badge-transparent.approval-status-draft {
     background-color: rgba(108, 117, 125, var(--badge-bg-opacity)) !important;
-    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    color: rgba(21, 23, 25, var(--badge-text-opacity)) !important;
     border-color: rgba(108, 117, 125, var(--badge-border-opacity)) !important;
 }
 
 .badge.badge-transparent.approval-status-cancelled {
     background-color: rgba(108, 117, 125, var(--badge-bg-opacity)) !important;
-    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    color: rgba(21, 23, 25, var(--badge-text-opacity)) !important;
     border-color: rgba(108, 117, 125, var(--badge-border-opacity)) !important;
 }
 
 .badge.badge-transparent.approval-status-unknown {
     background-color: rgba(108, 117, 125, var(--badge-bg-opacity)) !important;
-    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    color: rgba(21, 23, 25, var(--badge-text-opacity)) !important;
     border-color: rgba(108, 117, 125, var(--badge-border-opacity)) !important;
 }
 
 /* 审批编号徽章样式 - 橙色主题 */
 .badge.badge-transparent.approval-code-badge {
     background-color: rgba(255, 140, 0, var(--badge-bg-opacity)) !important;
-    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    color: rgba(51, 38, 1, var(--badge-text-opacity)) !important;
     border-color: rgba(255, 140, 0, var(--badge-border-opacity)) !important;
     font-weight: 500;
 }
@@ -4002,31 +4054,31 @@ a:focus .badge.badge-transparent.quotation-number-badge {
 /* 业务对象徽章样式 */
 .badge.badge-transparent.business-object-project {
     background-color: rgba(25, 135, 84, var(--badge-bg-opacity)) !important;
-    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    color: rgba(5, 27, 16, var(--badge-text-opacity)) !important;
     border-color: rgba(25, 135, 84, var(--badge-border-opacity)) !important;
 }
 
 .badge.badge-transparent.business-object-customer {
     background-color: rgba(23, 162, 184, var(--badge-bg-opacity)) !important;
-    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    color: rgba(4, 32, 36, var(--badge-text-opacity)) !important;
     border-color: rgba(23, 162, 184, var(--badge-border-opacity)) !important;
 }
 
 .badge.badge-transparent.business-object-pricing {
     background-color: rgba(13, 110, 253, var(--badge-bg-opacity)) !important;
-    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    color: rgba(2, 22, 50, var(--badge-text-opacity)) !important;
     border-color: rgba(13, 110, 253, var(--badge-border-opacity)) !important;
 }
 
 .badge.badge-transparent.business-object-order {
     background-color: rgba(23, 162, 184, var(--badge-bg-opacity)) !important;
-    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    color: rgba(4, 32, 36, var(--badge-text-opacity)) !important;
     border-color: rgba(23, 162, 184, var(--badge-border-opacity)) !important;
 }
 
 .badge.badge-transparent.business-object-none {
     background-color: rgba(108, 117, 125, var(--badge-bg-opacity)) !important;
-    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important;
+    color: rgba(21, 23, 25, var(--badge-text-opacity)) !important;
     border-color: rgba(108, 117, 125, var(--badge-border-opacity)) !important;
 }
 

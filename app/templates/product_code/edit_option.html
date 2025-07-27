@@ -1,18 +1,45 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel %}
 
-{% block title %}编辑指标 - {{ option.value }}{% endblock %}
+{% block title %}编辑指标{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    /* 标准化页面头部区域在固定导航下的间距调整 - 与其他模块保持一致 */
+    .page-with-fixed-nav .page-header-with-actions {
+        margin-top: 2rem !important; /* 与其他模块一致：2rem = 32px */
+    }
+    
+    /* 编辑指标页面主容器顶部留白，避免被fixed导航遮挡 */
+    .container-fluid.page-with-fixed-nav {
+        margin-top: 72px !important;
+    }
+    @media (max-width: 991.98px) {
+        .container-fluid.page-with-fixed-nav {
+            margin-top: 120px !important;
+        }
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-4">
-    <h1 class="mt-4">编辑指标</h1>
-    <ol class="breadcrumb mb-4">
-        <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}">首页</a></li>
-        <li class="breadcrumb-item"><a href="{{ url_for('product_code.categories') }}">产品分类</a></li>
-        <li class="breadcrumb-item"><a href="{{ url_for('product_code.subcategory_fields', id=field.subcategory_id) }}">规格管理</a></li>
-        <li class="breadcrumb-item"><a href="{{ url_for('product_code.field_options', id=field.id) }}">指标管理</a></li>
-        <li class="breadcrumb-item active">编辑指标</li>
-    </ol>
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 标准化页面头部区域：标题与操作按钮在同一行 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">编辑指标</h1>
+            </div>
+            <div class="col text-end">
+                <!-- 操作按钮组 -->
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    {{ render_button('返回指标', href=url_for('product_code.field_options', id=field.id), color='secondary', icon='fas fa-arrow-left') }}
+                    {{ render_button('保存指标', type='button', onclick='submitForm()', color='primary', icon='fas fa-save') }}
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="card mb-4">
         <div class="card-header">
@@ -36,7 +63,7 @@
                 </span>
             </div>
 
-            <form method="POST" action="{{ url_for('product_code.edit_option', id=option.id) }}">
+            <form id="editOptionForm" method="POST" action="{{ url_for('product_code.edit_option', id=option.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="mb-3">
                     <label for="value" class="form-label">指标名称 <span class="text-danger">*</span></label>
@@ -55,18 +82,16 @@
                     指标编码由系统自动分配，无法修改。
                 </div>
 
-                <div class="mb-3">
-                    {{ render_button('取消', url_for('product_code.field_options', id=field.id), color='secondary') }}
-                    {{ render_button('保存', None, color='primary', type='submit') }}
-                </div>
             </form>
         </div>
     </div>
 </div>
 
 <script>
-// 检查当前编码是否有效
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('编辑指标页面已加载');
+    
+    // 检查当前编码是否有效
     const code = '{{ option.code | e }}';
     const codeElement = document.getElementById('current-code');
     const warningElement = document.getElementById('invalid-code-warning');
@@ -76,5 +101,22 @@ document.addEventListener('DOMContentLoaded', function() {
         warningElement.style.display = 'inline';
     }
 });
+
+// 提交表单函数
+function submitForm() {
+    const form = document.getElementById('editOptionForm');
+    if (form) {
+        // 简单验证必填字段
+        const valueField = document.getElementById('value');
+        if (!valueField.value.trim()) {
+            alert('请输入指标名称');
+            valueField.focus();
+            return false;
+        }
+        
+        // 提交表单
+        form.submit();
+    }
+}
 </script>
 {% endblock %}

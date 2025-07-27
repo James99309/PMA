@@ -21,6 +21,24 @@ product_code_bp = Blueprint('product_code', __name__, url_prefix='/product-code'
 def categories():
     categories = ProductCategory.query.all()
     
+    # 检查每个分类是否被研发产品使用
+    for category in categories:
+        # 检查研发产品是否使用了此分类（通过category_id或mn_code字段）
+        # 方法1：通过category_id直接检查
+        used_in_dev_by_category = db.session.execute(
+            text("SELECT 1 FROM dev_products WHERE category_id = :category_id LIMIT 1"),
+            {"category_id": category.id}
+        ).first() is not None
+        
+        # 方法2：通过mn_code字段检查（如果mn_code以分类标识符开头）
+        used_in_dev_by_code = db.session.execute(
+            text("SELECT 1 FROM dev_products WHERE mn_code LIKE :pattern LIMIT 1"),
+            {"pattern": f"{category.code_letter}%"}
+        ).first() is not None
+        
+        # 标记分类是否被使用（任一条件满足即认为被使用）
+        category.is_used = used_in_dev_by_category or used_in_dev_by_code
+    
     # 获取已使用的标识符列表
     used_identifiers = [category.code_letter for category in categories]
     
@@ -33,52 +51,82 @@ def categories():
                            available_letters=available_letters)
 
 def generate_unique_letter():
-    """生成一个唯一的分类标识符（优先A-Z字母，然后0-9数字）"""
+    """生成一个唯一的分类标识符（优先A-Z字母，然后1-9数字，排除0）"""
+    import random
+    
     # 获取已使用的标识符列表
     used_identifiers = [category.code_letter for category in ProductCategory.query.all()]
     
     # 可用字母池（A-Z大写字母）
     available_letters = [letter for letter in string.ascii_uppercase if letter not in used_identifiers]
     
-    # 如果还有可用字母，选择首个未使用的字母
+    # 如果还有可用字母，随机选择一个
     if available_letters:
-        available_letters.sort()  # 按字母顺序排序
-        return available_letters[0]  # 返回第一个可用字母
+        return random.choice(available_letters)
     
-    # 如果字母用完，检查数字0-9
-    available_digits = [str(digit) for digit in range(10) if str(digit) not in used_identifiers]
+    # 如果字母用完，检查数字1-9（排除0）
+    available_digits = [str(digit) for digit in range(1, 10) if str(digit) not in used_identifiers]
     
-    # 如果有可用数字，选择首个未使用的数字
+    # 如果有可用数字，随机选择一个
     if available_digits:
-        available_digits.sort()  # 按数字顺序排序
-        return available_digits[0]  # 返回第一个可用数字
+        return random.choice(available_digits)
         
     # 所有可能的标识符都用完了
     return None
 
 def generate_unique_subcategory_letter(category_id):
     """为特定分类下的子类生成唯一标识符"""
+    import random
+    
     # 获取该分类下已使用的子类标识符
     used_identifiers = [subcat.code_letter for subcat in ProductSubcategory.query.filter_by(category_id=category_id).all()]
     
     # 可用字母池（A-Z大写字母）
     available_letters = [letter for letter in string.ascii_uppercase if letter not in used_identifiers]
     
-    # 如果还有可用字母，选择首个未使用的字母
+    # 如果还有可用字母，随机选择一个
     if available_letters:
-        available_letters.sort()  # 按字母顺序排序
-        return available_letters[0]  # 返回第一个可用字母
+        return random.choice(available_letters)
     
-    # 如果字母用完，检查数字0-9
-    available_digits = [str(digit) for digit in range(10) if str(digit) not in used_identifiers]
+    # 如果字母用完，检查数字1-9（排除0）
+    available_digits = [str(digit) for digit in range(1, 10) if str(digit) not in used_identifiers]
     
-    # 如果有可用数字，选择首个未使用的数字
+    # 如果有可用数字，随机选择一个
     if available_digits:
-        available_digits.sort()  # 按数字顺序排序
-        return available_digits[0]  # 返回第一个可用数字
+        return random.choice(available_digits)
         
     # 所有可能的标识符都用完了
     return None
+
+@product_code_bp.route('/api/generate-category-code', methods=['GET'])
+@login_required
+@admin_required
+def generate_category_code():
+    """API端点：为新分类生成唯一标识符"""
+    try:
+        code = generate_unique_letter()
+        if code:
+            return jsonify({'success': True, 'code': code})
+        else:
+            return jsonify({'success': False, 'message': '所有可用标识符都已被使用'})
+    except Exception as e:
+        current_app.logger.error(f"生成分类标识符时发生错误: {str(e)}")
+        return jsonify({'success': False, 'message': f'生成失败: {str(e)}'}), 500
+
+@product_code_bp.route('/api/generate-subcategory-code/<int:category_id>', methods=['GET'])
+@login_required
+@admin_required
+def generate_subcategory_code(category_id):
+    """API端点：为指定分类下的新子类生成唯一标识符"""
+    try:
+        code = generate_unique_subcategory_letter(category_id)
+        if code:
+            return jsonify({'success': True, 'code': code})
+        else:
+            return jsonify({'success': False, 'message': '该分类下所有可用标识符都已被使用'})
+    except Exception as e:
+        current_app.logger.error(f"生成子类标识符时发生错误: {str(e)}")
+        return jsonify({'success': False, 'message': f'生成失败: {str(e)}'}), 500
 
 @product_code_bp.route('/categories/new', methods=['GET', 'POST'])
 @login_required
@@ -230,6 +278,17 @@ def edit_category(id):
 @login_required
 @admin_required
 def delete_category(id):
+    from flask import request
+    from flask_wtf.csrf import validate_csrf
+    from werkzeug.exceptions import BadRequest
+    
+    # 验证CSRF令牌
+    try:
+        validate_csrf(request.form.get('csrf_token'))
+    except BadRequest:
+        flash('安全验证失败，请重新操作', 'danger')
+        return redirect(url_for('product_code.categories'))
+    
     category = ProductCategory.query.get_or_404(id)
     
     # 检查是否有产品编码使用此分类（通过ProductCode表而不是直接查询Product表）
@@ -259,6 +318,26 @@ def category_subcategories(id):
     category = ProductCategory.query.get_or_404(id)
     # 按display_order字段排序
     subcategories = ProductSubcategory.query.filter_by(category_id=id).order_by(ProductSubcategory.display_order).all()
+    
+    # 检查每个子分类是否被研发产品使用
+    for subcategory in subcategories:
+        # 检查研发产品是否使用了此子分类（通过subcategory_id或mn_code字段）
+        # 方法1：通过subcategory_id直接检查
+        used_in_dev_by_subcategory = db.session.execute(
+            text("SELECT 1 FROM dev_products WHERE subcategory_id = :subcategory_id LIMIT 1"),
+            {"subcategory_id": subcategory.id}
+        ).first() is not None
+        
+        # 方法2：通过mn_code字段检查（如果mn_code以分类+子分类标识符开头）
+        pattern = f"{category.code_letter}{subcategory.code_letter}%"
+        used_in_dev_by_code = db.session.execute(
+            text("SELECT 1 FROM dev_products WHERE mn_code LIKE :pattern LIMIT 1"),
+            {"pattern": pattern}
+        ).first() is not None
+        
+        # 标记子分类是否被使用（任一条件满足即认为被使用）
+        subcategory.is_used = used_in_dev_by_subcategory or used_in_dev_by_code
+    
     return render_template('product_code/subcategories.html',
                            category=category,
                            subcategories=subcategories)
@@ -434,6 +513,17 @@ def edit_subcategory(id):
 @login_required
 @admin_required
 def delete_subcategory(id):
+    from flask import request
+    from flask_wtf.csrf import validate_csrf
+    from werkzeug.exceptions import BadRequest
+    
+    # 验证CSRF令牌
+    try:
+        validate_csrf(request.form.get('csrf_token'))
+    except BadRequest:
+        flash('安全验证失败，请重新操作', 'danger')
+        return redirect(url_for('product_code.category_subcategories', id=ProductSubcategory.query.get_or_404(id).category_id))
+    
     subcategory = ProductSubcategory.query.get_or_404(id)
     category_id = subcategory.category_id
     
@@ -464,7 +554,9 @@ def subcategory_fields(id):
     subcategory = ProductSubcategory.query.get_or_404(id)
     
     # 使用正确的字段名查询，只获取类型为 'spec' 的字段
-    fields = ProductCodeField.query.filter_by(subcategory_id=id, field_type='spec').order_by(ProductCodeField.position).all()
+    # 先显示编码规格（按位置排序），再显示非编码规格（按位置排序）
+    fields = ProductCodeField.query.filter_by(subcategory_id=id, field_type='spec')\
+        .order_by(ProductCodeField.use_in_code.desc(), ProductCodeField.position).all()
     
     # 如果没有找到字段，可能是旧版数据库结构，尝试使用category_id
     if not fields:
@@ -472,6 +564,23 @@ def subcategory_fields(id):
         sql = text("SELECT * FROM product_code_fields WHERE subcategory_id = :subcategory_id AND field_type = 'spec' ORDER BY position")
         result = db.session.execute(sql, {"subcategory_id": id})
         fields = [dict(row) for row in result]
+    
+    # 检查每个规格是否被产品编码使用
+    for field in fields:
+        field_id = field.id if hasattr(field, 'id') else field['id']
+        field_name = field.name if hasattr(field, 'name') else field['name']
+        
+        # 检查正式产品是否使用了此规格（product_code_field_values表）
+        used_in_formal = ProductCodeFieldValue.query.filter_by(field_id=field_id).first() is not None
+        
+        # 检查研发产品是否使用了此规格（dev_product_specs表）
+        used_in_dev = db.session.execute(
+            text("SELECT 1 FROM dev_product_specs WHERE field_name = :field_name LIMIT 1"),
+            {"field_name": field_name}
+        ).first() is not None
+        
+        # 只要任何一种产品使用了此规格，就标记为已使用
+        field.is_used = used_in_formal or used_in_dev
     
     return render_template('product_code/fields.html', subcategory=subcategory, fields=fields)
 
@@ -488,19 +597,66 @@ def new_field(id):
             use_in_code=True
         ).count()
         
+        # 获取下一个编码位置
+        next_code_position = active_code_fields_count + 4  # 编码从位置4开始
+        
+        # 获取现有编码字段的总长度
+        existing_code_fields = ProductCodeField.query.filter_by(
+            subcategory_id=id, 
+            use_in_code=True
+        ).all()
+        total_code_length = sum(field.max_length for field in existing_code_fields)
+        
+        # 规格编码允许的最大位置数（位置4-13，共10个位置）
+        max_spec_positions = 10
+        can_add_to_code = active_code_fields_count < max_spec_positions
+        
         if request.method == 'POST':
             name = request.form.get('name')
             description = request.form.get('description')
             is_required = 'is_required' in request.form
             use_in_code = 'use_in_code' in request.form
+            max_length = 1  # 每个规格编码固定1位
             
-            # 自动计算 position 值 - 获取当前子类下最大的 position 值并加1
-            max_position = db.session.query(db.func.max(ProductCodeField.position))\
-                .filter_by(subcategory_id=id).scalar() or 0
-            new_position = max_position + 1
+            # 验证规格位置限制
+            if use_in_code and active_code_fields_count >= max_spec_positions:
+                flash(f'规格编码位置已满（最多{max_spec_positions}个位置），请取消其他规格的编码选择后再添加', 'danger')
+                return render_template('product_code/new_field.html', 
+                                     subcategory=subcategory, 
+                                     active_code_fields_count=active_code_fields_count,
+                                     next_code_position=next_code_position,
+                                     total_code_length=total_code_length,
+                                     can_add_to_code=can_add_to_code,
+                                     max_spec_positions=max_spec_positions,
+                                     form_data={
+                                         'name': name,
+                                         'description': description,
+                                         'is_required': is_required,
+                                         'use_in_code': use_in_code
+                                     })
             
-            # 默认最大长度为1，可根据需求调整
-            max_length = 1
+            # 自动计算 position 值
+            if use_in_code:
+                # 如果纳入编码，计算编码位置：从位置4开始，找到编码字段的最大位置+1
+                max_code_position = db.session.query(db.func.max(ProductCodeField.position))\
+                    .filter_by(subcategory_id=id, use_in_code=True).scalar()
+                
+                if max_code_position is None:
+                    # 没有编码字段，从位置4开始
+                    new_position = 4
+                else:
+                    # 有编码字段，在最大位置+1
+                    new_position = max_code_position + 1
+                    
+                # 确保编码位置不超过13（位置4-13是编码位置范围）
+                if new_position > 13:
+                    flash('编码位置已满（最多10个编码字段，位置4-13），无法添加更多编码规格。', 'error')
+                    return redirect(url_for('product_code.subcategory_fields', id=id))
+            else:
+                # 如果不纳入编码，放在所有字段的最后位置
+                max_position = db.session.query(db.func.max(ProductCodeField.position))\
+                    .filter_by(subcategory_id=id).scalar() or 13
+                new_position = max(max_position + 1, 14)  # 非编码规格从位置14开始
             
             field = ProductCodeField(
                 subcategory_id=id,
@@ -516,13 +672,20 @@ def new_field(id):
             
             try:
                 db.session.commit()
-                flash('规格创建成功', 'success')
+                flash(f'规格创建成功，编码长度：{max_length}位', 'success')
                 return redirect(url_for('product_code.subcategory_fields', id=id))
             except Exception as e:
                 db.session.rollback()
                 flash(f'创建规格失败: {str(e)}', 'danger')
             
-        return render_template('product_code/new_field.html', subcategory=subcategory, active_code_fields_count=active_code_fields_count)
+        return render_template('product_code/new_field.html', 
+                             subcategory=subcategory, 
+                             active_code_fields_count=active_code_fields_count,
+                             next_code_position=next_code_position,
+                             total_code_length=total_code_length,
+                             can_add_to_code=can_add_to_code,
+                             max_spec_positions=max_spec_positions,
+                             form_data={})
     except Exception as e:
         flash(f'添加规格时发生错误: {str(e)}', 'danger')
         return redirect(url_for('product_code.categories'))
@@ -551,15 +714,37 @@ def edit_field(id):
             description = request.form.get('description')
             is_required = 'is_required' in request.form
             use_in_code = 'use_in_code' in request.form
+            max_length = int(request.form.get('max_length', field.max_length))  # 允许修改最大长度
             
-            # 不修改 position，保持原有的位置值
-            # 不修改 max_length，保持原有的长度值
-            # 不修改 field_type，保持为 'spec'
+            # 验证最大长度范围
+            if max_length < 1 or max_length > 10:
+                flash('编码长度必须在1-10之间', 'danger')
+                return render_template('product_code/edit_field.html', 
+                                     field=field, 
+                                     active_code_fields_count=active_code_fields_count)
             
+            # 如果use_in_code状态发生变化，重新计算position
+            if field.use_in_code != use_in_code:
+                if use_in_code:
+                    # 变为纳入编码，分配新的编码位置
+                    code_fields_count = ProductCodeField.query.filter(
+                        ProductCodeField.subcategory_id == field.subcategory_id,
+                        ProductCodeField.use_in_code == True,
+                        ProductCodeField.id != field.id
+                    ).count()
+                    field.position = 4 + code_fields_count
+                else:
+                    # 变为不纳入编码，使用大的position值
+                    max_position = db.session.query(db.func.max(ProductCodeField.position))\
+                        .filter_by(subcategory_id=field.subcategory_id).scalar() or 100
+                    field.position = max_position + 1
+            
+            # 更新字段属性
             field.name = name
             field.description = description
             field.is_required = is_required
             field.use_in_code = use_in_code
+            field.max_length = 1  # 固定为1位
             
             try:
                 db.session.commit()
@@ -578,6 +763,17 @@ def edit_field(id):
 @login_required
 @admin_required
 def delete_field(id):
+    from flask import request
+    from flask_wtf.csrf import validate_csrf
+    from werkzeug.exceptions import BadRequest
+    
+    # 验证CSRF令牌
+    try:
+        validate_csrf(request.form.get('csrf_token'))
+    except BadRequest:
+        flash('安全验证失败，请重新操作', 'danger')
+        return redirect(url_for('product_code.subcategory_fields', id=ProductCodeField.query.get_or_404(id).subcategory_id))
+    
     try:
         field = ProductCodeField.query.get_or_404(id)
         subcategory_id = field.subcategory_id
@@ -613,12 +809,38 @@ def field_options(id):
         return redirect(url_for('product_code.origin_fields'))
     
     options = ProductCodeFieldOption.query.filter_by(field_id=id).all()
+    
+    # 检查每个指标是否被产品编码使用
+    for option in options:
+        # 检查正式产品是否使用了此指标（product_code_field_values表）
+        used_in_formal = ProductCodeFieldValue.query.filter_by(option_id=option.id).first() is not None
+        
+        # 检查研发产品是否使用了此指标（dev_product_specs表 - 通过field_value字段）
+        used_in_dev = db.session.execute(
+            text("SELECT 1 FROM dev_product_specs WHERE field_name = :field_name AND field_value = :field_value LIMIT 1"),
+            {"field_name": field.name, "field_value": option.value}
+        ).first() is not None
+        
+        # 只要任何一种产品使用了此指标，就标记为已使用
+        option.is_used = used_in_formal or used_in_dev
+    
     return render_template('product_code/field_options.html', field=field, options=options)
 
 @product_code_bp.route('/options/<int:id>/delete', methods=['POST'])
 @login_required
 @admin_required
 def delete_option(id):
+    from flask import request
+    from flask_wtf.csrf import validate_csrf
+    from werkzeug.exceptions import BadRequest
+    
+    # 验证CSRF令牌
+    try:
+        validate_csrf(request.form.get('csrf_token'))
+    except BadRequest:
+        flash('安全验证失败，请重新操作', 'danger')
+        return redirect(url_for('product_code.field_options', id=ProductCodeFieldOption.query.get_or_404(id).field_id))
+    
     option = ProductCodeFieldOption.query.get_or_404(id)
     field_id = option.field_id
     
@@ -644,32 +866,43 @@ def new_option(id):
         value = request.form.get('value')
         description = request.form.get('description')
         
-        # 自动生成唯一指标编码
-        # 获取该字段下所有已使用的编码（过滤掉非英文字母数字的无效编码）
+        # 自动生成唯一指标编码（支持可变长度）
+        # 获取字段的最大长度限制
+        field_max_length = field.max_length or 1
+        
+        # 获取该字段下所有已使用的编码
         used_codes = db.session.query(ProductCodeFieldOption.code).filter_by(field_id=id).all()
-        valid_used_codes = []
-        invalid_codes = []
+        valid_used_codes = [code_tuple[0] for code_tuple in used_codes if code_tuple[0]]
         
-        for code_tuple in used_codes:
-            code = code_tuple[0]
-            if code and len(code) == 1 and (code.isalpha() or code.isdigit()) and code.isascii():
-                valid_used_codes.append(code.upper())
-            elif code:
-                invalid_codes.append(code)
+        # 生成可变长度的唯一编码
+        def generate_variable_length_code(max_length, used_codes):
+            import random
+            
+            # 先尝试1位编码
+            for length in range(1, max_length + 1):
+                # 字母A-Z和数字1-9（排除0）
+                chars = string.ascii_uppercase + '123456789'
+                
+                # 随机生成最多1000次尝试避免无限循环
+                max_attempts = 1000
+                attempts = 0
+                
+                while attempts < max_attempts:
+                    # 随机生成编码
+                    code = ''.join(random.choice(chars) for _ in range(length))
+                    if code not in used_codes:
+                        return code
+                    attempts += 1
+                
+                # 如果随机生成失败，回退到系统性遍历（排除0）
+                from itertools import product
+                for combination in product(chars, repeat=length):
+                    code = ''.join(combination)
+                    if code not in used_codes:
+                        return code
+            return None
         
-        # 记录发现的无效编码
-        if invalid_codes:
-            current_app.logger.warning(f"发现无效指标编码 (字段ID: {id}): {invalid_codes}")
-        
-        # 可用字母池 (A-Z)
-        available_letters = [letter for letter in string.ascii_uppercase if letter not in valid_used_codes]
-        
-        # 如果字母用完，使用数字 (0-9)
-        if not available_letters:
-            available_letters = [str(digit) for digit in range(10) if str(digit) not in valid_used_codes]
-        
-        # 如果还有可用字符，随机选择一个
-        code = random.choice(available_letters) if available_letters else None
+        code = generate_variable_length_code(field_max_length, valid_used_codes)
         
         if not code:
             flash('无法生成唯一编码，已达到最大指标数量限制', 'danger')
@@ -794,18 +1027,26 @@ def generate_preview():
     # 合并所有字段
     all_fields = origin_fields + subcategory_fields
     
-    # 按字段ID排序处理所有字段值
-    for field_id_str, field_value in sorted(field_values.items(), key=lambda x: int(x[0])):
-        field_id = int(field_id_str)
-        if field_value:
-            if isinstance(field_value, dict):  # 选项类型
-                option_id = field_value.get('option_id')
-                if option_id:
-                    option = ProductCodeFieldOption.query.get(option_id)
-                    if option:
-                        code_parts.append(option.code)
-            else:  # 自定义值类型
-                code_parts.append(str(field_value))
+    # 按字段位置排序处理所有字段值
+    for field in sorted(all_fields, key=lambda f: f.position):
+        field_id_str = str(field.id)
+        if field_id_str in field_values and field.use_in_code:  # 只有标记为用于编码的字段才参与
+            field_value = field_values[field_id_str]
+            if field_value:
+                if isinstance(field_value, dict):  # 选项类型
+                    option_id = field_value.get('option_id')
+                    if option_id:
+                        option = ProductCodeFieldOption.query.get(option_id)
+                        if option:
+                            # 确保编码长度符合字段限制
+                            code_to_append = option.code[:field.max_length] if option.code else ''
+                            if code_to_append:
+                                code_parts.append(code_to_append)
+                else:  # 自定义值类型
+                    # 确保自定义值长度符合字段限制
+                    custom_code = str(field_value)[:field.max_length]
+                    if custom_code:
+                        code_parts.append(custom_code)
     
     full_code = ''.join(code_parts)
     
@@ -923,6 +1164,19 @@ def origin_fields():
                     field.code = option.code
                 else:
                     field.code = "?"  # 未找到编码时的默认值
+            
+            # 检查该区域编码是否被研发产品使用
+            field_code = getattr(field, 'code', None)
+            if field_code and field_code != "?":
+                # 检查研发产品是否使用了此区域编码（通过mn_code的第3位字符）
+                used_in_dev = db.session.execute(
+                    text("SELECT 1 FROM dev_products WHERE SUBSTRING(mn_code, 3, 1) = :region_code LIMIT 1"),
+                    {"region_code": field_code}
+                ).first() is not None
+                
+                field.is_used = used_in_dev
+            else:
+                field.is_used = False
         
         return render_template('product_code/origin_fields.html', fields=fields)
     except Exception as e:
@@ -969,13 +1223,18 @@ def new_origin_field():
             
             # 生成唯一编码函数（简化版）
             def generate_unique_code(used_codes):
-                for char in string.ascii_uppercase:
+                import random
+                
+                # 字母A-Z和数字1-9（排除0）
+                chars = list(string.ascii_uppercase) + list('123456789')
+                
+                # 随机打乱顺序
+                random.shuffle(chars)
+                
+                # 从打乱的列表中找到第一个未使用的编码
+                for char in chars:
                     if char not in used_codes:
                         return char
-                for num in range(1, 10):
-                    code = str(num)
-                    if code not in used_codes:
-                        return code
                 return None
             
             # 生成编码
@@ -1060,6 +1319,17 @@ def edit_origin_field(id):
 @admin_required
 def delete_origin_field(id):
     """删除销售区域"""
+    from flask import request
+    from flask_wtf.csrf import validate_csrf
+    from werkzeug.exceptions import BadRequest
+    
+    # 验证CSRF令牌
+    try:
+        validate_csrf(request.form.get('csrf_token'))
+    except BadRequest:
+        flash('安全验证失败，请重新操作', 'danger')
+        return redirect(url_for('product_code.origin_fields'))
+    
     field = ProductCodeField.query.get_or_404(id)
     
     # 确保只能删除销售区域

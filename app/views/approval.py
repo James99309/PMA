@@ -96,13 +96,32 @@ def center():
 
 
 
-@approval_bp.route('/detail/<int:instance_id>')
+@approval_bp.route('/detail/<string:instance_id>')
 @login_required
 def detail(instance_id):
     """审批详情视图
     
     显示审批流程的详细信息，包括流程图、当前步骤和所有审批步骤
+    支持普通审批实例（数字ID）和批价单审批（po_数字格式）
     """
+    # 检查是否是批价单审批
+    if isinstance(instance_id, str) and instance_id.startswith('po_'):
+        # 处理批价单审批详情
+        try:
+            pricing_order_id = int(instance_id.split('_')[1])
+            # 重定向到批价单详情页面
+            return redirect(url_for('pricing_order.edit_pricing_order', order_id=pricing_order_id))
+        except (ValueError, IndexError):
+            flash('无效的批价单审批ID', 'danger')
+            return redirect(url_for('approval.center'))
+    
+    # 处理普通审批实例
+    try:
+        instance_id = int(instance_id)
+    except (ValueError, TypeError):
+        flash('无效的审批实例ID', 'danger')
+        return redirect(url_for('approval.center'))
+    
     # 获取审批实例
     instance = get_approval_details(instance_id)
     
@@ -1273,7 +1292,8 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
                 'unit': '项',
                 'color': 'primary',
                 'clickable': True,
-                'click_params': {}
+                'click_params': {},
+                'data_key': 'total'  # 添加data_key用于AJAX更新
             },
             {
                 'id': 'pending',
@@ -1283,7 +1303,8 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
                 'unit': '项',
                 'color': 'warning',
                 'clickable': True,
-                'click_params': {'tab': 'pending'}
+                'click_params': {'tab': 'pending'},
+                'data_key': 'pending'  # 添加data_key用于AJAX更新
             },
             {
                 'id': 'created',
@@ -1293,7 +1314,8 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
                 'unit': '项',
                 'color': 'info',
                 'clickable': True,
-                'click_params': {'tab': 'created'}
+                'click_params': {'tab': 'created'},
+                'data_key': 'created'  # 添加data_key用于AJAX更新
             },
             {
                 'id': 'pricing_order',
@@ -1303,7 +1325,19 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
                 'unit': '项',
                 'color': 'success',
                 'clickable': True,
-                'click_params': {'tab': 'pricing_order'}
+                'click_params': {'tab': 'pricing_order'},
+                'data_key': 'pricing_order'  # 添加data_key用于AJAX更新
+            },
+            {
+                'id': 'order',
+                'title': '订单审批',
+                'icon': 'fas fa-shopping-cart',
+                'value': order_pending_count,
+                'unit': '项',
+                'color': 'danger',
+                'clickable': True,
+                'click_params': {'tab': 'order'},
+                'data_key': 'order'  # 添加data_key用于AJAX更新
             }
         ]
     }
@@ -1517,12 +1551,19 @@ def center_ajax():
         
         # 计算统计数据
         from app.helpers.approval_helpers import get_pending_approval_count, get_pending_created_count, get_pricing_order_pending_count, get_order_pending_count
+        
+        # 获取各项统计数据
+        pending_count = get_pending_approval_count(current_user.id)
+        created_count = get_pending_created_count(current_user.id)
+        pricing_order_count = get_pricing_order_pending_count(current_user.id)
+        order_count = get_order_pending_count(current_user.id)
+        
         statistics = {
-            'total_count': len(items),
-            'pending_count': get_pending_approval_count(current_user.id),
-            'created_count': get_pending_created_count(current_user.id),
-            'pricing_order_count': get_pricing_order_pending_count(current_user.id),
-            'order_count': get_order_pending_count(current_user.id)
+            'total': pending_count + created_count + pricing_order_count + order_count,  # 统计总数
+            'pending': pending_count,
+            'created': created_count,
+            'pricing_order': pricing_order_count,
+            'order': order_count
         }
         
         return jsonify({
@@ -1568,26 +1609,63 @@ def render_approval_row(item, tab='created'):
         status_badge += item.status.name
     status_badge += '</span>'
     
-    # 审批编号
-    approval_code = f'<span class="badge badge-pill badge-transparent approval-code-badge">APV-{item.id:04d}</span>'
+    # 审批编号 - 安全的数字格式化
+    try:
+        approval_id = int(item.id) if item.id else 0
+        approval_code = f'<span class="badge badge-pill badge-transparent approval-code-badge">APV-{approval_id:04d}</span>'
+    except (ValueError, TypeError):
+        approval_code = f'<span class="badge badge-pill badge-transparent approval-code-badge">APV-{item.id}</span>'
     
     # 业务对象信息
     business_info = get_business_object_display(item)
     
-    # 创建人和当前审批人
-    creator_name = item.creator.real_name if item.creator and hasattr(item.creator, 'real_name') and item.creator.real_name else (item.creator.username if item.creator else '未知')
-    approver_name = current_approver.real_name if current_approver and hasattr(current_approver, 'real_name') and current_approver.real_name else (current_approver.username if current_approver else '待分配')
+    # 创建人和当前审批人 - 使用render_owner逻辑生成徽章
+    def render_user_badge(user):
+        """生成用户徽章HTML，匹配render_owner宏的逻辑"""
+        if not user:
+            return '<span class="badge badge-user regular">未知</span>'
+        
+        # 获取显示名称
+        display_name = user.real_name if hasattr(user, 'real_name') and user.real_name else (user.username if hasattr(user, 'username') else '未知')
+        
+        # 判断是否为厂商用户
+        if hasattr(user, 'is_vendor_user') and callable(user.is_vendor_user):
+            try:
+                if user.is_vendor_user():
+                    return f'<span class="badge badge-user vendor rounded-pill">{display_name}</span>'
+                else:
+                    return f'<span class="badge badge-user regular">{display_name}</span>'
+            except:
+                return f'<span class="badge badge-user regular">{display_name}</span>'
+        else:
+            return f'<span class="badge badge-user regular">{display_name}</span>'
     
-    # 发起时间
-    started_time = item.started_at.strftime('%Y-%m-%d %H:%M') if item.started_at else ''
+    creator_badge = render_user_badge(item.creator)
+    approver_badge = render_user_badge(current_approver) if current_approver else '<span class="badge badge-user regular">待分配</span>'
+    
+    # 发起时间 - 安全的日期格式化
+    started_time = ''
+    if item.started_at:
+        try:
+            if isinstance(item.started_at, str):
+                # 如果是字符串，尝试解析
+                from datetime import datetime
+                dt = datetime.fromisoformat(item.started_at.replace('Z', '+00:00'))
+                started_time = dt.strftime('%Y-%m-%d %H:%M')
+            else:
+                # 如果是datetime对象
+                started_time = item.started_at.strftime('%Y-%m-%d %H:%M')
+        except (ValueError, AttributeError) as e:
+            current_app.logger.warning(f"日期格式化失败: {item.started_at}, 错误: {e}")
+            started_time = str(item.started_at) if item.started_at else ''
     
     return f'''
     <tr>
         <td><a href="/approval/detail/{item.id}" class="text-decoration-none">{approval_code}</a></td>
         <td>{item.process.name if item.process else '未知流程'}</td>
         <td>{business_info}</td>
-        <td><span class="badge badge-pill badge-transparent business-object-none">{creator_name}</span></td>
-        <td><span class="badge badge-pill badge-transparent business-object-none">{approver_name}</span></td>
+        <td>{creator_badge}</td>
+        <td>{approver_badge}</td>
         <td>{status_badge}</td>
         <td>{started_time}</td>
     </tr>
@@ -1608,6 +1686,18 @@ def render_order_row(item):
 
 def get_business_object_display(approval_item):
     """获取业务对象显示信息"""
+    # 业务对象类型的中文显示名称映射
+    object_type_display_map = {
+        'project': '项目',
+        'quotation': '报价单',
+        'customer': '客户',
+        'purchase_order': '采购订单',
+        'pricing_order': '批价单',
+        'order': '订单',
+        'inventory': '库存',
+        'settlement': '结算单'
+    }
+    
     if approval_item.object_type == 'project' and approval_item.object_id:
         from app.helpers.approval_helpers import get_project_by_id
         project = get_project_by_id(approval_item.object_id)
@@ -1623,5 +1713,23 @@ def get_business_object_display(approval_item):
         customer = get_customer_by_id(approval_item.object_id)
         if customer and customer.company_name:
             return f'<span class="badge badge-pill badge-transparent business-object-customer">{customer.company_name[:10]}...</span>'
+    elif approval_item.object_type == 'purchase_order' and approval_item.object_id:
+        try:
+            from app.models.inventory import Order
+            order = Order.query.filter_by(id=approval_item.object_id, is_deleted=False).first()
+            if order and order.order_number:
+                return f'<span class="badge badge-pill badge-transparent business-object-order">{order.order_number}</span>'
+        except Exception as e:
+            current_app.logger.warning(f"Failed to get purchase order {approval_item.object_id}: {e}")
+    elif approval_item.object_type == 'pricing_order' and approval_item.object_id:
+        try:
+            from app.models.pricing_order import PricingOrder
+            pricing_order = PricingOrder.query.filter_by(id=approval_item.object_id, is_deleted=False).first()
+            if pricing_order and pricing_order.order_number:
+                return f'<span class="badge badge-pill badge-transparent business-object-pricing">{pricing_order.order_number}</span>'
+        except Exception as e:
+            current_app.logger.warning(f"Failed to get pricing order {approval_item.object_id}: {e}")
     
-    return f'<span class="badge badge-pill badge-transparent business-object-none">{approval_item.object_type or "未知类型"}</span>'
+    # 使用中文显示名称替代技术键值
+    display_name = object_type_display_map.get(approval_item.object_type, approval_item.object_type or "未知类型")
+    return f'<span class="badge badge-pill badge-transparent business-object-none">{display_name}</span>'

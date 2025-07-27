@@ -6,6 +6,21 @@
 {% block styles %}
 {{ super() }}
 <style>
+    /* 标准化页面头部区域在固定导航下的间距调整 - 与其他模块保持一致 */
+    .page-with-fixed-nav .page-header-with-actions {
+        margin-top: 2rem !important; /* 与其他模块一致：2rem = 32px */
+    }
+    
+    /* 新增产品页面主容器顶部留白，避免被fixed导航遮挡 */
+    .container-fluid.page-with-fixed-nav {
+        margin-top: 72px !important;
+    }
+    @media (max-width: 991.98px) {
+        .container-fluid.page-with-fixed-nav {
+            margin-top: 120px !important;
+        }
+    }
+
     .spec-row {
         margin-bottom: 10px;
     }
@@ -193,45 +208,18 @@
         color: #495057;
     }
     
-    /* 指标输入下拉框样式 */
+    /* 指标输入容器样式（简化版，使用原生datalist） */
     .indicator-input-container {
         position: relative;
         width: 100%;
     }
     
-    .indicator-input {
+    .indicator-text-input {
         width: 100%;
-        min-height: 38px;
-        border: 1px solid #ced4da;
-        border-radius: 0.375rem;
-        padding: 0.375rem 0.75rem;
         font-size: 0.875rem;
-        background-color: #fff;
-        cursor: text;
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 0.25rem;
-        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-        position: relative;
     }
     
-    .indicator-input .indicator-text-input {
-        flex: 1;
-        min-width: 100px;
-    }
-    
-    .indicator-input:focus {
-        outline: 0;
-        border-color: #86b7fe;
-        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-    }
-    
-    .indicator-input:hover {
-        border-color: #adb5bd;
-    }
-    
-    .indicator-input.disabled {
+    .indicator-text-input:disabled {
         background-color: #e9ecef;
         cursor: not-allowed;
         color: #6c757d;
@@ -344,16 +332,28 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">新增研发产品</h5>
-                    <a href="{{ url_for('product_management.index') }}" class="btn btn-secondary">
-                        <i class="fas fa-arrow-left"></i> 返回列表
-                    </a>
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 标准化页面头部区域：标题与操作按钮在同一行 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">新增研发产品</h1>
+            </div>
+            <div class="col text-end">
+                <!-- 操作按钮组 -->
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    {{ render_button('返回列表', href=url_for('product_management.index'), color='secondary', icon='fas fa-arrow-left') }}
+                    {{ render_button('保存产品', onclick='document.getElementById("productForm").submit();', color='primary', icon='fas fa-save') }}
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <i class="fas fa-plus me-1"></i>
+            产品信息
+        </div>
                 <div class="card-body">
                     <form id="productForm" method="POST" action="{{ url_for('product_management.save') }}" enctype="multipart/form-data">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -389,7 +389,7 @@
                                         <select class="form-select" id="category_id" name="category_id" required>
                                             <option value="">-- 请选择分类 --</option>
                                             {% for category in categories %}
-                                            <option value="{{ category.id }}">{{ category.name }} ({{ category.code_letter }})</option>
+                                            <option value="{{ category.id }}" data-code="{{ category.code_letter }}">{{ category.name }}</option>
                                             {% endfor %}
                                         </select>
                                     </div>
@@ -543,8 +543,6 @@
                         </div>
                     </form>
                 </div>
-            </div>
-        </div>
     </div>
 </div>
 {% endblock %}
@@ -581,26 +579,31 @@ document.addEventListener('DOMContentLoaded', function() {
         row.innerHTML = `
             <td>
                 <div class="spec-input-container">
-                    <input type="text" class="spec-input" 
+                    <input type="text" 
+                           class="form-control spec-input" 
                            data-row-id="${rowId}" 
-                           placeholder="${isNonCodeSpec ? '请输入规格名称' : '请选择规格'}">
-                    <div class="spec-dropdown" data-row-id="${rowId}">
+                           placeholder="${isNonCodeSpec ? '请输入规格名称' : '请选择规格'}"
+                           list="spec-options-${rowId}">
+                    <datalist id="spec-options-${rowId}">
                         <!-- 规格选项将在这里动态生成 -->
-                    </div>
+                    </datalist>
                 </div>
                 <input type="hidden" name="spec_name[]" value="">
                 <input type="hidden" name="spec_field_ids[]" value="">
             </td>
             <td>
                 <div class="indicator-input-container">
-                    <div class="indicator-input disabled" 
-                         data-row-id="${rowId}" 
-                         title="请先选择规格">
-                        <span class="indicator-placeholder">请先选择规格</span>
-                    </div>
-                    <div class="indicator-dropdown" data-row-id="${rowId}">
+                    <input type="text" 
+                           class="form-control indicator-text-input" 
+                           data-row-id="${rowId}"
+                           placeholder="请先选择规格"
+                           disabled
+                           list="indicator-options-${rowId}">
+                    <datalist id="indicator-options-${rowId}">
                         <!-- 指标选项将在这里动态生成 -->
-                    </div>
+                    </datalist>
+                    <input type="hidden" name="indicator_values[]" value="">
+                    <input type="hidden" name="indicator_codes[]" value="">
                 </div>
             </td>
             <td>
@@ -619,7 +622,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const row = document.getElementById(rowId);
         if (row) {
             row.remove();
-            updateMNCodePreview();
+            updateMNCodePreview(true); // 立即执行，因为结构发生了变化
         }
     };
     
@@ -781,71 +784,35 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 // 如果在availableSpecs中找不到，创建一个简单的规格对象并设置为手动输入模式
                 console.log('未在availableSpecs中找到规格，设置为手动输入模式');
-                const indicatorInput = row.querySelector('.indicator-input');
-                const indicatorDropdown = row.querySelector('.indicator-dropdown');
+                const indicatorInput = row.querySelector('.indicator-text-input');
+                const datalist = row.querySelector(`datalist[id^="indicator-options-"]`);
                 
-                indicatorInput.innerHTML = '';
-                indicatorInput.classList.remove('disabled');
+                // 启用输入框
+                indicatorInput.disabled = false;
+                indicatorInput.placeholder = '请手动输入指标值...';
                 
-                // 创建文本输入框
-                const textInput = document.createElement('input');
-                textInput.type = 'text';
-                textInput.style.border = 'none';
-                textInput.style.outline = 'none';
-                textInput.style.background = 'transparent';
-                textInput.style.width = '100%';
-                textInput.style.fontSize = '0.875rem';
-                textInput.placeholder = '请手动输入指标值...';
-                textInput.className = 'indicator-text-input';
+                // 清空datalist（因为没有预定义选项）
+                datalist.innerHTML = '';
                 
-                indicatorInput.appendChild(textInput);
-                
-                // 清空下拉菜单
-                indicatorDropdown.innerHTML = '<div class="indicator-dropdown-header">请手动输入指标值</div>';
-                
-                // 绑定输入事件
-                textInput.addEventListener('input', function() {
-                    updateIndicatorHiddenField(row, this.value);
-                });
-                
-                textInput.addEventListener('blur', function() {
-                    updateIndicatorHiddenField(row, this.value);
-                });
+                // 设置简单的输入事件
+                setupIndicatorInputEvents(row, indicatorInput, null);
             }
         } else if (selectedItem.dataset.newSpec) {
             // 新建规格
             hiddenFieldId.value = '';
             // 设置指标区域为手动输入模式
-            const indicatorInput = row.querySelector('.indicator-input');
-            const indicatorDropdown = row.querySelector('.indicator-dropdown');
+            const indicatorInput = row.querySelector('.indicator-text-input');
+            const datalist = row.querySelector(`datalist[id^="indicator-options-"]`);
             
-            indicatorInput.innerHTML = '';
-            indicatorInput.classList.remove('disabled');
+            // 启用输入框
+            indicatorInput.disabled = false;
+            indicatorInput.placeholder = '请手动输入指标值...';
             
-            // 创建文本输入框
-            const textInput = document.createElement('input');
-            textInput.type = 'text';
-            textInput.style.border = 'none';
-            textInput.style.outline = 'none';
-            textInput.style.background = 'transparent';
-            textInput.style.width = '100%';
-            textInput.style.fontSize = '0.875rem';
-            textInput.placeholder = '请手动输入指标值...';
-            textInput.className = 'indicator-text-input';
+            // 清空datalist（新规格没有预设指标）
+            datalist.innerHTML = '';
             
-            indicatorInput.appendChild(textInput);
-            
-            // 清空下拉菜单
-            indicatorDropdown.innerHTML = '<div class="indicator-dropdown-header">新规格暂无预设指标，请手动输入</div>';
-            
-            // 绑定输入事件
-            textInput.addEventListener('input', function() {
-                updateIndicatorHiddenField(row, this.value);
-            });
-            
-            textInput.addEventListener('blur', function() {
-                updateIndicatorHiddenField(row, this.value);
-            });
+            // 设置简单的输入事件
+            setupIndicatorInputEvents(row, indicatorInput, null);
         }
         
         // 隐藏下拉框
@@ -857,31 +824,29 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 更新指标选择区域
     function updateIndicatorArea(row, specField) {
-        const indicatorInput = row.querySelector('.indicator-input');
-        const indicatorDropdown = row.querySelector('.indicator-dropdown');
+        const indicatorInput = row.querySelector('.indicator-text-input');
+        const datalist = row.querySelector(`datalist[id^="indicator-options-"]`);
         
-        // 清空并重新设置指标输入区域
-        indicatorInput.innerHTML = '';
-        indicatorInput.classList.remove('disabled');
+        // 启用输入框
+        indicatorInput.disabled = false;
+        indicatorInput.placeholder = '输入或选择指标值...';
         
-        // 创建文本输入框用于手动输入
-        const textInput = document.createElement('input');
-        textInput.type = 'text';
-        textInput.style.border = 'none';
-        textInput.style.outline = 'none';
-        textInput.style.background = 'transparent';
-        textInput.style.width = '100%';
-        textInput.style.fontSize = '0.875rem';
-        textInput.placeholder = '输入指标值或点击选择...';
-        textInput.className = 'indicator-text-input';
+        // 清空并重新设置datalist选项
+        datalist.innerHTML = '';
         
-        indicatorInput.appendChild(textInput);
+        // 构建指标选项
+        if (specField && specField.options && specField.options.length > 0) {
+            specField.options.forEach(option => {
+                const optionElement = document.createElement('option');
+                optionElement.value = option.field_value;
+                // 不设置textContent，让datalist只显示value
+                optionElement.dataset.code = option.code;
+                datalist.appendChild(optionElement);
+            });
+        }
         
-        // 构建指标下拉选项
-        buildIndicatorDropdown(row, specField);
-        
-        // 绑定事件
-        setupIndicatorEvents(row, textInput);
+        // 设置事件监听
+        setupIndicatorInputEvents(row, indicatorInput, specField);
     }
     
     // 设置指标输入事件
@@ -945,6 +910,50 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateIndicatorHiddenField(row, this.value);
                 indicatorDropdown.style.display = 'none';
                 indicatorDropdown.style.visibility = 'hidden';
+            }
+        });
+    }
+    
+    // 设置指标输入事件（新的简化版本）
+    function setupIndicatorInputEvents(row, indicatorInput, specField) {
+        const datalist = row.querySelector(`datalist[id^="indicator-options-"]`);
+        const hiddenValueField = row.querySelector('input[name="indicator_values[]"]');
+        const hiddenCodeField = row.querySelector('input[name="indicator_codes[]"]');
+        
+        // 当用户输入或选择值时
+        indicatorInput.addEventListener('input', function() {
+            const selectedValue = this.value;
+            
+            // 更新隐藏字段
+            hiddenValueField.value = selectedValue;
+            
+            // 查找匹配的编码
+            if (specField && specField.options) {
+                const matchedOption = specField.options.find(option => option.field_value === selectedValue);
+                if (matchedOption) {
+                    hiddenCodeField.value = matchedOption.code;
+                } else {
+                    // 如果是手动输入的值，编码留空
+                    hiddenCodeField.value = '';
+                }
+            }
+            
+            // 更新MN编码预览
+            updateMNCodePreview();
+        });
+        
+        // 当输入框失去焦点时验证
+        indicatorInput.addEventListener('blur', function() {
+            const value = this.value.trim();
+            if (value) {
+                // 检查是否是预定义选项
+                const isPredefined = specField && specField.options && 
+                    specField.options.some(option => option.field_value === value);
+                
+                if (!isPredefined && value) {
+                    // 显示提示：这是自定义值
+                    console.log(`指标值 "${value}" 是自定义输入，不参与编码生成`);
+                }
             }
         });
     }
@@ -1297,7 +1306,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 initializeStructuredSpecRows(structureData);
-                addSpecContainer.style.display = 'block'; // 显示添加非编码规格按钮
+                checkNonCodeSpecAvailability(); // 检查并显示/隐藏添加非编码规格按钮
             } else if (availableSpecs.length > 0) {
                 // 如果有可用规格但没有结构数据，使用availableSpecs初始化
                 const codePositions = availableSpecs.filter(spec => spec.use_in_code).length;
@@ -1310,11 +1319,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 initializeSpecRowsFromAvailableSpecs(availableSpecs);
-                addSpecContainer.style.display = 'block'; // 显示添加非编码规格按钮
+                checkNonCodeSpecAvailability(); // 检查并显示/隐藏添加非编码规格按钮
             } else {
                 // 没有任何规格定义，显示添加规格按钮和规格管理按钮
                 manageSpecsBtn.style.display = 'inline-block';
-                addSpecContainer.style.display = 'block';
+                checkNonCodeSpecAvailability();
                 const newRow = createSpecRow();
                 specsTableBody.appendChild(newRow);
                 populateSpecSelect(newRow);
@@ -1456,16 +1465,17 @@ document.addEventListener('DOMContentLoaded', function() {
             </td>
             <td>
                 <div class="indicator-input-container">
-                    <div class="indicator-input" 
-                         data-row-id="${rowId}" 
-                         title="点击选择${field.name}的指标值">
-                        <input type="text" class="indicator-text-input" 
-                               placeholder="输入或选择指标值..." 
-                               style="border:none;outline:none;background:transparent;width:100%;font-size:0.875rem;">
-                    </div>
-                    <div class="indicator-dropdown" data-row-id="${rowId}">
+                    <input type="text" 
+                           class="form-control indicator-text-input" 
+                           data-row-id="${rowId}"
+                           placeholder="输入或选择指标值..."
+                           list="indicator-options-${rowId}"
+                           title="点击选择${field.name}的指标值">
+                    <datalist id="indicator-options-${rowId}">
                         <!-- 指标选项将在这里动态生成 -->
-                    </div>
+                    </datalist>
+                    <input type="hidden" name="indicator_values[]" value="">
+                    <input type="hidden" name="indicator_codes[]" value="">
                 </div>
             </td>
             <td>
@@ -1475,18 +1485,10 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         
         // 设置指标区域
-        const indicatorInput = row.querySelector('.indicator-input');
-        const indicatorDropdown = row.querySelector('.indicator-dropdown');
         const textInput = row.querySelector('.indicator-text-input');
         
-        // 构建指标下拉选项（显示编码信息）
+        // 构建指标下拉选项（使用datalist）
         buildStructuredIndicatorDropdown(row, field);
-        
-        // 确保下拉框初始状态为隐藏
-        if (indicatorDropdown) {
-            indicatorDropdown.style.display = 'none';
-            indicatorDropdown.style.visibility = 'hidden';
-        }
         
         // 绑定指标输入事件
         setupStructuredIndicatorEvents(row, textInput, field);
@@ -1494,107 +1496,95 @@ document.addEventListener('DOMContentLoaded', function() {
         return row;
     }
     
-    // 构建结构化指标下拉选项（显示编码信息）
+    // 构建结构化指标下拉选项（使用datalist）
     function buildStructuredIndicatorDropdown(row, field) {
-        const indicatorDropdown = row.querySelector('.indicator-dropdown');
+        const indicatorInput = row.querySelector('.indicator-text-input');
+        const datalist = row.querySelector(`datalist[id^="indicator-options-"]`);
         const options = field.options || [];
         
-        if (options.length === 0) {
-            indicatorDropdown.innerHTML = '';
-            return;
+        // 启用输入框
+        indicatorInput.disabled = false;
+        indicatorInput.placeholder = '输入或选择指标值...';
+        
+        // 清空并重新设置datalist选项
+        datalist.innerHTML = '';
+        
+        if (options.length > 0) {
+            options.forEach(option => {
+                const optionElement = document.createElement('option');
+                optionElement.value = option.value;
+                // 不设置textContent，让datalist只显示value
+                optionElement.dataset.code = option.code;
+                optionElement.dataset.optionId = option.id;
+                datalist.appendChild(optionElement);
+            });
         }
         
-        // 构建下拉内容，显示指标值和编码信息
-        let dropdownHtml = '';
+        // 设置事件监听
+        setupStructuredIndicatorInputEvents(row, indicatorInput, field);
+    }
+    
+    // 设置结构化指标输入事件（新的简化版本）
+    function setupStructuredIndicatorInputEvents(row, indicatorInput, field) {
+        const datalist = row.querySelector(`datalist[id^="indicator-options-"]`);
+        const hiddenValueField = row.querySelector('input[name="indicator_values[]"]');
+        const hiddenCodeField = row.querySelector('input[name="indicator_codes[]"]');
         
-        options.forEach(option => {
-            dropdownHtml += `
-                <div class="indicator-dropdown-item" 
-                     data-option-id="${option.id}" 
-                     data-option-value="${option.value}" 
-                     data-option-code="${option.code}">
-                    <span class="indicator-value">${option.value}</span>
-                    <span class="indicator-code">[${option.code}]</span>
-                </div>
-            `;
+        // 当用户输入或选择值时
+        indicatorInput.addEventListener('input', function() {
+            const selectedValue = this.value.trim();
+            
+            // 更新隐藏字段
+            hiddenValueField.value = selectedValue;
+            
+            // 查找匹配的编码
+            if (field && field.options) {
+                const matchedOption = field.options.find(option => option.value === selectedValue);
+                if (matchedOption) {
+                    hiddenCodeField.value = matchedOption.code;
+                } else if (selectedValue) {
+                    // 如果是手动输入的值，生成动态编码
+                    const dynamicCode = generateDynamicCode(selectedValue, field);
+                    hiddenCodeField.value = dynamicCode;
+                } else {
+                    hiddenCodeField.value = '';
+                }
+            }
+            
+            // 更新MN编码预览
+            updateMNCodePreview();
         });
         
-        indicatorDropdown.innerHTML = dropdownHtml;
-        
-        // 确保下拉菜单有正确的背景样式
-        indicatorDropdown.style.backgroundColor = '#ffffff';
-        indicatorDropdown.style.border = '1px solid #ced4da';
-        indicatorDropdown.style.opacity = '1';
-        
-        // 为所有下拉选项设置背景色
-        indicatorDropdown.querySelectorAll('.indicator-dropdown-item').forEach(item => {
-            item.style.backgroundColor = '#ffffff';
-        });
-        
-        // 绑定点击事件（单选模式）
-        indicatorDropdown.querySelectorAll('.indicator-dropdown-item').forEach(item => {
-            if (item.dataset.optionId) {
-                item.addEventListener('click', function() {
-                    const textInput = row.querySelector('.indicator-text-input');
-                    const newValue = this.dataset.optionValue;
-                    const optionCode = this.dataset.optionCode;
-                    
-                    // 单选模式：直接替换当前值
-                    textInput.value = newValue;
-                    
-                    // 更新隐藏字段，包含正确的编码
-                    updateStructuredIndicatorHiddenField(row, textInput.value, optionCode, field.position);
-                    
-                    // 验证保存按钮状态
-                    validateSaveButton();
-                    
-                    // 隐藏下拉
-                    hideIndicatorDropdown(indicatorDropdown);
-                });
+        // 当输入框失去焦点时验证和保存
+        indicatorInput.addEventListener('blur', function() {
+            const value = this.value.trim();
+            if (value) {
+                // 检查是否是预定义选项
+                const isPredefined = field && field.options && 
+                    field.options.some(option => option.value === value);
+                
+                if (!isPredefined) {
+                    console.log(`指标值 "${value}" 是自定义输入，将生成动态编码`);
+                }
+                
+                // 验证保存按钮状态
+                validateSaveButton();
             }
         });
     }
     
-    // 设置结构化指标输入事件
+    // 设置结构化指标输入事件（保留原有复杂版本用于兼容）
     function setupStructuredIndicatorEvents(row, textInput, field) {
-        const indicatorInput = row.querySelector('.indicator-input');
-        const indicatorDropdown = row.querySelector('.indicator-dropdown');
+        // 委托给新的简化版本
+        setupStructuredIndicatorInputEvents(row, textInput, field);
         
-        // 点击输入区域时显示下拉（支持文本输入和下拉选择）
-        indicatorInput.addEventListener('click', function(e) {
-            if (field.options && field.options.length > 0) {
-                showIndicatorDropdown(indicatorDropdown, indicatorInput);
-            }
-        });
-        
-        // 文本输入框点击时也显示下拉
-        textInput.addEventListener('click', function(e) {
-            if (field.options && field.options.length > 0) {
-                showIndicatorDropdown(indicatorDropdown, indicatorInput);
-            }
-        });
-        
-        // 文本输入框获得焦点时显示下拉和恢复内容
-        textInput.addEventListener('focus', function() {
-            // 恢复内容
-            if (!this.value && this.dataset.originalValue) {
-                this.value = this.dataset.originalValue;
-                const dynamicCode = generateDynamicCode(this.value, field);
-                updateStructuredIndicatorHiddenField(row, this.value, dynamicCode, field.position);
-            }
-            
-            if (field.options && field.options.length > 0) {
-                showIndicatorDropdown(indicatorDropdown, indicatorInput);
-            }
-        });
-        
-        // 文本输入事件 - 更新隐藏字段和动态编码
-        textInput.addEventListener('input', function() {
-            const value = this.value.trim();
+        // 以下是原有的复杂逻辑（保留用于特殊情况）
+        const value = textInput.value ? textInput.value.trim() : '';
+        if (value) {
             const dynamicCode = generateDynamicCode(value, field);
             updateStructuredIndicatorHiddenField(row, value, dynamicCode, field.position);
             validateSaveButton();
-        });
+        }
         
         // 文本输入框失焦时更新隐藏字段
         textInput.addEventListener('blur', function() {
@@ -1723,7 +1713,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 清空规格表格
                 specsTableBody.innerHTML = '';
                 specRowCounter = 0;
-                updateMNCodePreview();
+                updateMNCodePreview(true); // 立即执行，因为型号变化重置了规格
                 originalModel = currentModel;
             } else {
                 // 恢复原始型号
@@ -1823,8 +1813,42 @@ document.addEventListener('DOMContentLoaded', function() {
         // 收集规格数据到表单隐藏字段
         collectSpecDataForSubmission();
 
-        // 提交表单
-        form.submit();
+        // 检查MN编码重复
+        const mnPreview = document.getElementById('mn_code_preview');
+        const currentMNCode = mnPreview ? mnPreview.textContent.trim() : '';
+        
+        if (currentMNCode && currentMNCode !== '请选择产品分类和子分类') {
+            // 检查编码是否已存在
+            fetch('/product-management/api/check-mn-code', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+                },
+                body: JSON.stringify({
+                    mn_code: currentMNCode
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.exists) {
+                    alert('警告：MN编码 "' + currentMNCode + '" 已存在于' + (data.source === 'dev' ? '研发产品库' : '正式产品库') + '中，请调整规格指标后再保存。');
+                    return;
+                } else {
+                    // 编码不重复，提交表单
+                    form.submit();
+                }
+            })
+            .catch(error => {
+                console.error('检查MN编码失败:', error);
+                if (confirm('无法验证MN编码唯一性，是否继续保存？')) {
+                    form.submit();
+                }
+            });
+        } else {
+            // 没有生成MN编码，直接提交
+            form.submit();
+        }
     });
 
     // 收集规格数据的函数
@@ -1898,7 +1922,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         data.subcategories.forEach(subcategory => {
                             const option = document.createElement('option');
                             option.value = subcategory.id;
-                            option.textContent = `${subcategory.name} (${subcategory.code_letter})`;
+                            option.textContent = subcategory.name;
                             option.setAttribute('data-letter', subcategory.code_letter);
                             subcategorySelect.appendChild(option);
                         });
@@ -1918,7 +1942,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // 更新MN编码预览
-        updateMNCodePreview();
+        updateMNCodePreview(true); // 立即执行，因为是重要的分类变化
     });
 
     // 为每个分类选项添加data-letter属性
@@ -1942,6 +1966,12 @@ document.addEventListener('DOMContentLoaded', function() {
         // 清空规格表格
         specsTableBody.innerHTML = '';
         specRowCounter = 0;
+        
+        // 清空非编码规格相关缓存
+        lastCheckedSubcategoryId = null;
+        nonCodeSpecCache = {};
+        nonCodeSpecDataCache = {};
+        
         if (subcategoryId) {
             // 加载型号选项
             fetch(`/product-management/api/subcategory/${subcategoryId}/models`)
@@ -2012,8 +2042,11 @@ document.addEventListener('DOMContentLoaded', function() {
             // 加载规格字段
             loadSpecFields(subcategoryId);
             
-            // 更新MN编码预览
-            updateMNCodePreview();
+            // 检查非编码规格可用性
+            checkNonCodeSpecAvailability();
+            
+            // 更新MN编码预览（立即执行，因为是重要的产品变化）
+            updateMNCodePreview(true);
         }
     });
 
@@ -2071,7 +2104,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     data.regions.forEach(region => {
                         const option = document.createElement('option');
                         option.value = region.id;
-                        option.textContent = `${region.name} (${region.code})`;
+                        option.textContent = region.name;
+                        option.setAttribute('data-code', region.code || '0'); // 保存区域编码
                         regionSelect.appendChild(option);
                     });
                 } else {
@@ -2089,7 +2123,24 @@ document.addEventListener('DOMContentLoaded', function() {
     const mnCodePreview = document.getElementById('mn_code_preview');
 
     // 更新MN编码预览
-    function updateMNCodePreview() {
+    // 防抖变量和缓存
+    let mnCodeUpdateTimeout = null;
+    let lastMNCodeHash = null; // 用于缓存上次计算的哈希值
+    
+    function updateMNCodePreview(immediate = false) {
+        // 如果不是立即执行，使用防抖
+        if (!immediate) {
+            clearTimeout(mnCodeUpdateTimeout);
+            mnCodeUpdateTimeout = setTimeout(() => {
+                updateMNCodePreviewImmediate();
+            }, 300); // 300ms 防抖延迟
+            return;
+        }
+        
+        updateMNCodePreviewImmediate();
+    }
+    
+    function updateMNCodePreviewImmediate() {
         const categoryInput = document.getElementById('category_id');
         const subcategoryInput = document.getElementById('subcategory_id');
         const regionInput = document.getElementById('region_id');
@@ -2098,6 +2149,15 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!categoryInput || !subcategoryInput || !mnPreview) {
             return;
         }
+
+        // 计算当前状态的哈希值，用于缓存检查
+        const currentHash = `${categoryInput.value}-${subcategoryInput.value}-${regionInput?.value || ''}-${Array.from(specsTableBody.querySelectorAll('input[name="spec_option_codes[]"]')).map(i => i.value).join('')}`;
+        
+        // 如果状态没有变化，跳过计算
+        if (lastMNCodeHash === currentHash) {
+            return;
+        }
+        lastMNCodeHash = currentHash;
 
         // 获取选中的分类和子分类的值
         const categoryId = categoryInput.value;
@@ -2110,18 +2170,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // 获取分类和子分类的字母编码
-        const categoryLetter = categoryInput.options[categoryInput.selectedIndex].getAttribute('data-letter') || '?';
+        const categoryLetter = categoryInput.options[categoryInput.selectedIndex].getAttribute('data-code') || '?';
         const subcategoryLetter = subcategoryInput.options[subcategoryInput.selectedIndex].getAttribute('data-letter') || '?';
 
         // 获取销售区域编码
         let regionCode = '0';
-        if (regionInput.value) {
+        if (regionInput && regionInput.value) {
             const selectedRegion = regionInput.options[regionInput.selectedIndex];
-            const regionText = selectedRegion.textContent;
-            const codeMatch = regionText.match(/\((.*?)\)$/);
-            if (codeMatch && codeMatch[1]) {
-                regionCode = codeMatch[1];
-            }
+            regionCode = selectedRegion.getAttribute('data-code') || '0';
         }
 
         // 获取已添加的规格指标编码（按位置排序）
@@ -2162,22 +2218,35 @@ document.addEventListener('DOMContentLoaded', function() {
             usedCodes.push(positionCodes[pos] || '0');
         }
 
-        // 构造完整的MN编码
-        const mnCode = `${categoryLetter}${subcategoryLetter}${regionCode}${usedCodes.join('')}`;
+        // 去掉末尾的'0'，只保留有效编码
+        let lastNonZeroIndex = -1;
+        for (let i = usedCodes.length - 1; i >= 0; i--) {
+            if (usedCodes[i] !== '0') {
+                lastNonZeroIndex = i;
+                break;
+            }
+        }
+        
+        // 只使用到最后一个有效编码的部分
+        const effectiveSpecCodes = lastNonZeroIndex >= 0 ? usedCodes.slice(0, lastNonZeroIndex + 1) : [];
+        
+        // 构造完整的MN编码（去掉末尾的'0'）
+        const mnCode = `${categoryLetter}${subcategoryLetter}${regionCode}${effectiveSpecCodes.join('')}`;
         mnPreview.textContent = mnCode;
         
-        console.log(`MN编码构成: ${categoryLetter}(分类) + ${subcategoryLetter}(子分类) + ${regionCode}(区域) + ${usedCodes.join('')}(规格)`);
-        console.log(`规格编码位置4-8: [${usedCodes.join(', ')}]`);
+        console.log(`MN编码构成: ${categoryLetter}(分类) + ${subcategoryLetter}(子分类) + ${regionCode}(区域) + ${effectiveSpecCodes.join('')}(有效规格)`);
+        console.log(`原始规格编码: [${usedCodes.join(', ')}]`);
+        console.log(`有效规格编码: [${effectiveSpecCodes.join(', ')}]`);
 
         // 存储是否包含'0'的信息，用于表单提交验证
         mnPreview.dataset.containsZero = usedCodes.includes('0');
     }
 
-    // 为区域选择添加变化监听器
-    document.getElementById('region_id').addEventListener('change', updateMNCodePreview);
+    // 为区域选择添加变化监听器（立即执行）
+    document.getElementById('region_id').addEventListener('change', () => updateMNCodePreview(true));
 
-    // 初始更新MN编码预览
-    updateMNCodePreview();
+    // 初始更新MN编码预览（立即执行）
+    updateMNCodePreview(true);
 
     // 添加产品图片文件大小检查
     const productImageInput = document.getElementById('product_image');
@@ -2358,21 +2427,24 @@ document.addEventListener('DOMContentLoaded', function() {
     // 设置非编码规格行
     function setupNonCodeSpecRow(row) {
         const specInput = row.querySelector('.spec-input');
-        const specDropdown = row.querySelector('.spec-dropdown');
-        const indicatorInput = row.querySelector('.indicator-input');
-        const indicatorDropdown = row.querySelector('.indicator-dropdown');
+        const specDatalist = row.querySelector(`datalist[id^="spec-options-"]`);
+        const indicatorInput = row.querySelector('.indicator-text-input');
+        const indicatorDatalist = row.querySelector(`datalist[id^="indicator-options-"]`);
         
         // 设置规格名称输入和下拉选择
-        setupNonCodeSpecNameInput(row, specInput, specDropdown);
-        setupNonCodeIndicatorInput(row, indicatorInput, indicatorDropdown);
+        setupNonCodeSpecNameInput(row, specInput, specDatalist);
+        setupNonCodeIndicatorInput(row, indicatorInput, indicatorDatalist);
         
         // 初始化指标输入为禁用状态
-        indicatorInput.classList.add('disabled');
-        indicatorInput.innerHTML = '<span class="indicator-placeholder">请先输入规格名称</span>';
+        indicatorInput.disabled = true;
+        indicatorInput.placeholder = '请先输入规格名称';
     }
     
-    // 设置非编码规格名称输入
-    function setupNonCodeSpecNameInput(row, specInput, specDropdown) {
+    // 设置非编码规格名称输入（使用datalist）
+    function setupNonCodeSpecNameInput(row, specInput, datalist) {
+        // 加载非编码规格选项到datalist
+        loadNonCodeSpecOptionsToDatalist(row);
+        
         // 规格名称输入事件
         specInput.addEventListener('input', function() {
             const specName = this.value.trim();
@@ -2388,17 +2460,71 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // 规格名称点击事件 - 显示非编码规格选项
-        specInput.addEventListener('click', function() {
-            loadNonCodeSpecOptions(row, this.value.trim());
-        });
-        
+        // 当输入框获得焦点时加载选项
         specInput.addEventListener('focus', function() {
-            loadNonCodeSpecOptions(row, this.value.trim());
+            loadNonCodeSpecOptionsToDatalist(row);
         });
     }
     
-    // 加载非编码规格选项
+    // 加载非编码规格选项到datalist
+    let nonCodeSpecDataCache = {};
+    
+    function loadNonCodeSpecOptionsToDatalist(row) {
+        const datalist = row.querySelector(`datalist[id^="spec-options-"]`);
+        const activeSubcategoryId = document.getElementById('subcategory_id').value;
+        
+        if (!activeSubcategoryId) {
+            return;
+        }
+        
+        // 检查缓存
+        if (nonCodeSpecDataCache[activeSubcategoryId]) {
+            buildNonCodeSpecDatalist(row, nonCodeSpecDataCache[activeSubcategoryId]);
+            return;
+        }
+        
+        // 构建API请求URL - 获取非编码规格
+        const url = new URL('/product-management/api/all-spec-fields', window.location.origin);
+        url.searchParams.append('subcategory_id', activeSubcategoryId);
+        url.searchParams.append('non_code_only', 'true'); // 只获取非编码规格
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                // 缓存数据
+                nonCodeSpecDataCache[activeSubcategoryId] = data;
+                buildNonCodeSpecDatalist(row, data);
+            })
+            .catch(error => {
+                console.error('获取非编码规格数据失败:', error);
+            });
+    }
+    
+    // 构建非编码规格datalist
+    function buildNonCodeSpecDatalist(row, data) {
+        const datalist = row.querySelector(`datalist[id^="spec-options-"]`);
+        datalist.innerHTML = '';
+        
+        // 添加当前产品的非编码规格
+        if (data.current_subcategory_specs && data.current_subcategory_specs.length > 0) {
+            data.current_subcategory_specs.forEach(spec => {
+                const option = document.createElement('option');
+                option.value = spec.name;
+                datalist.appendChild(option);
+            });
+        }
+        
+        // 添加其他产品的非编码规格
+        if (data.other_subcategory_specs && data.other_subcategory_specs.length > 0) {
+            data.other_subcategory_specs.forEach(spec => {
+                const option = document.createElement('option');
+                option.value = spec.name;
+                datalist.appendChild(option);
+            });
+        }
+    }
+    
+    // 加载非编码规格选项（保留旧版本用于兼容）
     function loadNonCodeSpecOptions(row, searchTerm) {
         const specDropdown = row.querySelector('.spec-dropdown');
         const activeSubcategoryId = document.getElementById('subcategory_id').value;
@@ -2504,75 +2630,94 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // 设置非编码指标输入
-    function setupNonCodeIndicatorInput(row, indicatorInput, indicatorDropdown) {
-        // 指标输入点击事件
-        indicatorInput.addEventListener('click', function() {
-            if (!this.classList.contains('disabled')) {
-                showIndicatorDropdown(indicatorDropdown, indicatorInput);
-            }
+    function setupNonCodeIndicatorInput(row, indicatorInput, indicatorDatalist) {
+        // 使用简化的输入事件处理
+        indicatorInput.addEventListener('input', function() {
+            const specName = row.querySelector('.spec-input').value.trim();
+            const indicatorValue = this.value.trim();
+            
+            // 更新隐藏字段
+            updateNonCodeSpecHiddenFields(row, specName, indicatorValue);
         });
     }
     
     // 启用指标输入
     function enableIndicatorInput(row, specName) {
-        const indicatorInput = row.querySelector('.indicator-input');
-        indicatorInput.classList.remove('disabled');
-        indicatorInput.innerHTML = '';
-        
-        // 创建指标文本输入框
-        const indicatorTextInput = document.createElement('input');
-        indicatorTextInput.type = 'text';
-        indicatorTextInput.className = 'indicator-text-input';
-        indicatorTextInput.style.border = 'none';
-        indicatorTextInput.style.outline = 'none';
-        indicatorTextInput.style.background = 'transparent';
-        indicatorTextInput.style.width = '100%';
-        indicatorTextInput.style.fontSize = '0.875rem';
-        indicatorTextInput.placeholder = '输入或选择指标值...';
-        
-        indicatorInput.appendChild(indicatorTextInput);
-        
-        // 绑定指标输入事件
-        indicatorTextInput.addEventListener('input', function() {
-            updateNonCodeSpecHiddenFields(row, specName, this.value);
-        });
-        
-        indicatorTextInput.addEventListener('blur', function() {
-            updateNonCodeSpecHiddenFields(row, specName, this.value);
-            if (this.value) {
-                this.dataset.originalValue = this.value;
-            }
-        });
-        
-        // 焦点恢复功能
-        indicatorTextInput.dataset.originalValue = '';
-        indicatorTextInput.addEventListener('focus', function() {
-            if (!this.value && this.dataset.originalValue) {
-                this.value = this.dataset.originalValue;
-                updateNonCodeSpecHiddenFields(row, specName, this.value);
-            }
-            
-            // 显示指标下拉选项
-            const indicatorDropdown = row.querySelector('.indicator-dropdown');
-            if (indicatorDropdown && indicatorDropdown.innerHTML.trim()) {
-                showIndicatorDropdown(indicatorDropdown, indicatorInput);
-            }
-        });
-        
-        indicatorTextInput.addEventListener('click', function() {
-            const indicatorDropdown = row.querySelector('.indicator-dropdown');
-            if (indicatorDropdown && indicatorDropdown.innerHTML.trim()) {
-                showIndicatorDropdown(indicatorDropdown, indicatorInput);
-            }
-        });
+        const indicatorInput = row.querySelector('.indicator-text-input');
+        indicatorInput.disabled = false;
+        indicatorInput.placeholder = `输入${specName}的指标值...`;
     }
     
     // 禁用指标输入
     function disableIndicatorInput(row) {
-        const indicatorInput = row.querySelector('.indicator-input');
-        indicatorInput.classList.add('disabled');
-        indicatorInput.innerHTML = '<span class="indicator-placeholder">请先输入规格名称</span>';
+        const indicatorInput = row.querySelector('.indicator-text-input');
+        indicatorInput.disabled = true;
+        indicatorInput.placeholder = '请先输入规格名称';
+        indicatorInput.value = '';
         clearNonCodeSpecHiddenFields(row);
+    }
+    
+    // 检查是否有非编码规格选项，控制"添加非编码规格"按钮显示
+    let nonCodeSpecCheckTimeout = null;
+    let lastCheckedSubcategoryId = null;
+    let nonCodeSpecCache = {};
+    
+    function checkNonCodeSpecAvailability() {
+        const activeSubcategoryId = document.getElementById('subcategory_id').value;
+        const addSpecContainer = document.getElementById('add-spec-container');
+        
+        if (!activeSubcategoryId) {
+            addSpecContainer.style.display = 'none';
+            return;
+        }
+        
+        // 如果是相同的subcategory_id，避免重复请求
+        if (lastCheckedSubcategoryId === activeSubcategoryId) {
+            return;
+        }
+        
+        // 检查缓存
+        if (nonCodeSpecCache[activeSubcategoryId] !== undefined) {
+            if (nonCodeSpecCache[activeSubcategoryId]) {
+                addSpecContainer.style.display = 'block';
+            } else {
+                addSpecContainer.style.display = 'none';
+            }
+            return;
+        }
+        
+        // 防抖处理
+        clearTimeout(nonCodeSpecCheckTimeout);
+        nonCodeSpecCheckTimeout = setTimeout(() => {
+            lastCheckedSubcategoryId = activeSubcategoryId;
+            
+            // 构建API请求URL - 检查是否有非编码规格
+            const url = new URL('/product-management/api/all-spec-fields', window.location.origin);
+            url.searchParams.append('subcategory_id', activeSubcategoryId);
+            url.searchParams.append('non_code_only', 'true');
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    // 检查是否有非编码规格选项
+                    const hasNonCodeSpecs = (data.current_subcategory_specs && data.current_subcategory_specs.length > 0) ||
+                                           (data.other_subcategory_specs && data.other_subcategory_specs.length > 0);
+                    
+                    // 缓存结果
+                    nonCodeSpecCache[activeSubcategoryId] = hasNonCodeSpecs;
+                    
+                    if (hasNonCodeSpecs) {
+                        addSpecContainer.style.display = 'block';
+                    } else {
+                        addSpecContainer.style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('检查非编码规格可用性失败:', error);
+                    // 出错时隐藏按钮
+                    addSpecContainer.style.display = 'none';
+                });
+        }, 500); // 500ms 防抖延迟
     }
     
     // 加载指标选项

@@ -6,25 +6,21 @@
 {% block styles %}
 {{ super() }}
 <style>
-    .sortable-ghost {
-        background-color: #f8f9fa;
-        border: 2px dashed #6c757d;
-        opacity: 0.5;
+    /* 标准化页面头部区域在固定导航下的间距调整 - 与其他模块保持一致 */
+    .page-with-fixed-nav .page-header-with-actions {
+        margin-top: 2rem !important; /* 与其他模块一致：2rem = 32px */
     }
-    .sortable-handle {
-        cursor: move;
-        color: #6c757d;
-        padding: 0 10px;
+    
+    /* 产品分类页面主容器顶部留白，避免被fixed导航遮挡 */
+    .container-fluid.page-with-fixed-nav {
+        margin-top: 72px !important;
     }
-    .sortable-handle:hover {
-        color: #343a40;
+    @media (max-width: 991.98px) {
+        .container-fluid.page-with-fixed-nav {
+            margin-top: 120px !important;
+        }
     }
-    .sortable-row {
-        transition: background-color 0.2s ease;
-    }
-    .sortable-row:hover {
-        background-color: #f8f9fa;
-    }
+
 </style>
 {% endblock %}
 
@@ -45,20 +41,12 @@
         </div>
     </div>
 
-    <div class="alert alert-info">
-        <p><i class="fas fa-info-circle me-1"></i> 产品分类是产品编码的第一个组成部分。每个分类有一个唯一的字母标识符。</p>
-        <p>已使用标识符: {{ used_letters|join(', ') }}</p>
-        <p>可用标识符: {{ available_letters|join(', ') }}</p>
-        <p class="mt-2">提示：您可以通过拖拽分类行来重新排序，排序会自动保存并更新分类ID。</p>
+    <div class="alert alert-info mb-3" style="font-size: 0.875rem;">
+        <p class="mb-1" style="font-size: 0.8rem;"><i class="fas fa-info-circle me-1"></i> 产品分类是产品编码的第一个组成部分。每个分类有一个唯一的字母标识符。</p>
+        <p class="mb-1" style="font-size: 0.8rem;">已使用标识符: {{ used_letters|join(', ') }}</p>
+        <p class="mb-0" style="font-size: 0.8rem;">可用标识符: {{ available_letters|join(', ') }}</p>
     </div>
 
-    <div class="alert alert-success" id="successAlert" style="display:none;">
-        <i class="fas fa-check-circle me-1"></i> 分类排序已成功保存。
-    </div>
-
-    <div class="alert alert-danger" id="order-error-alert" style="display:none;">
-        <i class="fas fa-exclamation-circle me-1"></i> <span id="error-message">保存排序时发生错误</span>
-    </div>
 
     <div class="card mb-4">
         <div class="card-header">
@@ -69,8 +57,7 @@
             <table class="table table-bordered table-striped">
                 <thead>
                     <tr>
-                        <th width="50">#</th>
-                        <th width="80">ID</th>
+                        <th width="50">序号</th>
                         <th width="220">分类名称</th>
                         <th width="100">分类标识符</th>
                         <th>描述</th>
@@ -80,25 +67,31 @@
                 </thead>
                 <tbody id="categories-list">
                     {% for category in categories %}
-                    <tr class="sortable-row" data-id="{{ category.id }}">
-                        <td class="sortable-handle"><i class="fas fa-grip-vertical"></i></td>
-                        <td>{{ category.id }}</td>
+                    <tr>
+                        <td>{{ loop.index }}</td>
                         <td>{{ category.name }}</td>
                         <td>{{ category.code_letter }}</td>
                         <td>{{ category.description if category.description }}</td>
                         <td>{{ category.created_at.strftime('%Y-%m-%d %H:%M') if category.created_at }}</td>
-                        <td>
-                            <div class="btn-group">
-                                <a href="{{ url_for('product_code.category_subcategories', id=category.id) }}" class="btn btn-sm btn-info" title="子类管理">
-                                    <i class="fas fa-list"></i>
-                                </a>
-                                <a href="{{ url_for('product_code.edit_category', id=category.id) }}" class="btn btn-sm btn-warning" title="编辑">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <button type="button" class="btn btn-sm btn-danger delete-category" data-id="{{ category.id }}" data-name="{{ category.name }}" title="删除">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
+                        <td class="text-center">
+                            <a href="{{ url_for('product_code.category_subcategories', id=category.id) }}" class="btn btn-sm btn-info" title="子类管理">
+                                <i class="fas fa-list"></i>
+                            </a>
+                            {% if not category.is_used %}
+                            <a href="{{ url_for('product_code.edit_category', id=category.id) }}" class="btn btn-sm btn-warning" title="编辑">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <button type="button" class="btn btn-sm btn-danger delete-category" data-id="{{ category.id }}" data-name="{{ category.name }}" title="删除">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            {% else %}
+                            <button type="button" class="btn btn-sm btn-secondary" disabled title="该分类已被研发产品使用，无法编辑">
+                                <i class="fas fa-lock"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-secondary" disabled title="该分类已被研发产品使用，无法删除">
+                                <i class="fas fa-lock"></i>
+                            </button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -132,11 +125,10 @@
 {% endblock %}
 
 {% block scripts %}
-{{ super() }}
-<!-- 添加Sortable.js库 -->
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('产品分类管理页面已加载');
+    
     // 初始化删除模态框
     const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
     const deleteButtons = document.querySelectorAll('.delete-category');
@@ -152,62 +144,6 @@ document.addEventListener('DOMContentLoaded', function() {
             deleteModal.show();
         });
     });
-
-    // 初始化Sortable
-    const categoryTableBody = document.getElementById('categories-list');
-    if (categoryTableBody && categoryTableBody.children.length > 1) {
-        const sortable = new Sortable(categoryTableBody, {
-            animation: 150,
-            handle: '.sortable-handle',
-            ghostClass: 'sortable-ghost',
-            chosenClass: 'sortable-chosen',
-            dragClass: 'sortable-drag',
-            onEnd: async function() {
-                try {
-                    // 获取当前顺序
-                    const newOrder = Array.from(categoryTableBody.children)
-                        .filter(row => row.hasAttribute('data-id'))
-                        .map(row => row.getAttribute('data-id'));
-
-                    // 发送到服务器
-                    const response = await fetchWithCsrf('/product-code/categories/update-order', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ order: newOrder })
-                    });
-
-                    const result = await response.json();
-
-                    if (result.success) {
-                        // 显示成功消息
-                        const successAlert = document.getElementById('successAlert');
-                        if (successAlert) {
-                            successAlert.style.display = 'block';
-                            setTimeout(() => {
-                                successAlert.style.display = 'none';
-                            }, 3000);
-                        }
-                    } else {
-                        throw new Error(result.message || '保存失败');
-                    }
-                } catch (error) {
-                    const errorAlert = document.getElementById('order-error-alert');
-                    const errorMessage = document.getElementById('error-message');
-                    if (errorAlert && errorMessage) {
-                        errorMessage.textContent = '保存顺序失败: ' + error.message;
-                        errorAlert.style.display = 'block';
-                        setTimeout(() => {
-                            errorAlert.style.display = 'none';
-                        }, 5000);
-                    } else {
-                        alert('保存顺序失败: ' + error.message);
-                    }
-                }
-            }
-        });
-    }
 });
 </script>
 {% endblock %}

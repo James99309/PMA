@@ -2451,7 +2451,7 @@ def order_list():
             'ajax_mode': True,
             'ajax_endpoint': url_for('inventory.order_list_ajax'),
             'ajax_target': '#orderTableBody',
-            'ajax_columns': 9,
+            'ajax_columns': 8,
             'dynamic_reset_button': True,
             'search_field_id': 'search',
             
@@ -2630,16 +2630,11 @@ def order_list():
                         'width': '150px'
                     },
                     {
-                        'key': 'created_by.username',
+                        'key': 'created_by',
                         'label': '创建人',
-                        'type': 'text',
+                        'type': 'badge',
+                        'render': 'render_owner',
                         'width': '100px'
-                    },
-                    {
-                        'key': 'actions',
-                        'label': '操作',
-                        'type': 'custom',
-                        'width': '120px'
                     }
                 ]
             }

@@ -83,7 +83,16 @@ def format_datetime(dt):
     if not dt:
         return ""
     
-    return dt.strftime("%Y-%m-%d %H:%M")
+    try:
+        if isinstance(dt, str):
+            # 如果是字符串，尝试解析
+            dt_obj = datetime.datetime.fromisoformat(dt.replace('Z', '+00:00'))
+            return dt_obj.strftime("%Y-%m-%d %H:%M")
+        else:
+            # 如果是datetime对象
+            return dt.strftime("%Y-%m-%d %H:%M")
+    except (ValueError, AttributeError):
+        return str(dt) if dt else ""
 
 
 def get_object_type_display(object_type):

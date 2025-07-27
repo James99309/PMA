@@ -10,6 +10,20 @@
 
 <!-- 折扣权限检查样式 -->
 <style>
+/* 固定导航页面主容器顶部留白，避免被fixed导航遮挡 */
+.container-fluid.page-with-fixed-nav {
+    margin-top: 72px !important;
+}
+@media (max-width: 991.98px) {
+    .container-fluid.page-with-fixed-nav {
+        margin-top: 120px !important;
+    }
+}
+
+/* 标准化页面头部区域在固定导航下的间距调整 */
+.page-with-fixed-nav .page-header-with-actions {
+    margin-top: 2rem !important; /* 2rem = 32px */
+}
 .discount-warning {
     background-color: #dc3545 !important;
     color: white !important;
@@ -116,29 +130,30 @@
 <!-- 引入标准提示函数 -->
 {{ render_animated_alert_script() }}
 
-<div class="container-fluid">
-    <!-- 页面标题 -->
-    <div class="row mb-4 mt-3">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h2 class="mb-2">
-                        {% if pricing_order.status == 'draft' %}
-                            批价单编辑
-                        {% else %}
-                            批价单
-                        {% endif %}
-                    </h2>
-                    <div class="mb-2">
-                        {{ render_pricing_order_number(pricing_order.order_number) }}
-                        {% if pricing_order.project and pricing_order.project.project_type %}
-                            {{ render_project_type(pricing_order.project.project_type) }}
-                        {% else %}
-                            <span class="badge bg-secondary rounded-pill">未知类型</span>
-                        {% endif %}
-                    </div>
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 标准化页面头部区域：标题与操作按钮在同一行 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">
+                    {% if pricing_order.status == 'draft' %}
+                        {{ _('批价单编辑') }}
+                    {% else %}
+                        {{ _('批价单') }}
+                    {% endif %}
+                </h1>
+                <div class="mt-2">
+                    {{ render_pricing_order_number(pricing_order.order_number) }}
+                    {% if pricing_order.project and pricing_order.project.project_type %}
+                        {{ render_project_type(pricing_order.project.project_type) }}
+                    {% else %}
+                        <span class="badge bg-secondary rounded-pill">未知类型</span>
+                    {% endif %}
                 </div>
-                <div class="d-flex gap-2">
+            </div>
+            <div class="col text-end">
+                <!-- 操作按钮组 -->
+                <div class="btn-toolbar justify-content-end" role="toolbar">
                     {% if pricing_order.created_by == current_user.id and pricing_order.status == 'draft' %}
                         {{ render_button('删除批价单', color='danger', icon='fas fa-trash', type='button', attrs='data-bs-toggle="modal" data-bs-target="#deletePricingOrderModal"') }}
                     {% endif %}

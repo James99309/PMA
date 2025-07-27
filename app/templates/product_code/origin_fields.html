@@ -3,6 +3,26 @@
 
 {% block title %}区域信息管理{% endblock %}
 
+{% block styles %}
+{{ super() }}
+<style>
+    /* 标准化页面头部区域在固定导航下的间距调整 - 与其他模块保持一致 */
+    .page-with-fixed-nav .page-header-with-actions {
+        margin-top: 2rem !important; /* 与其他模块一致：2rem = 32px */
+    }
+    
+    /* 区域信息管理页面主容器顶部留白，避免被fixed导航遮挡 */
+    .container-fluid.page-with-fixed-nav {
+        margin-top: 72px !important;
+    }
+    @media (max-width: 991.98px) {
+        .container-fluid.page-with-fixed-nav {
+            margin-top: 120px !important;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid page-with-fixed-nav">
     <!-- 标准化页面头部区域：标题与操作按钮在同一行 - 使用page-header-with-actions模组 -->
@@ -53,16 +73,22 @@
                         <td><code>{{ field.code }}</code></td>
                         <td>{{ field.description }}</td>
                         <td>{{ field.created_at.strftime('%Y-%m-%d') if field.created_at else '未知' }}</td>
-                        <td>
-                            <a href="{{ url_for('product_code.edit_origin_field', id=field.id) }}" class="btn btn-sm btn-warning">
-                                <i class="fas fa-edit"></i> 编辑
+                        <td class="text-center">
+                            {% if not field.is_used %}
+                            <a href="{{ url_for('product_code.edit_origin_field', id=field.id) }}" class="btn btn-sm btn-warning" title="编辑">
+                                <i class="fas fa-edit"></i>
                             </a>
-                            <form method="POST" action="{{ url_for('product_code.delete_origin_field', id=field.id) }}"
-                                  class="d-inline" onsubmit="return confirm('确定要删除此区域信息吗？');">
-                                <button type="submit" class="btn btn-sm btn-danger">
-                                    <i class="fas fa-trash"></i> 删除
-                                </button>
-                            </form>
+                            <button type="button" class="btn btn-sm btn-danger delete-origin" data-id="{{ field.id }}" data-name="{{ field.name }}" title="删除">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            {% else %}
+                            <button type="button" class="btn btn-sm btn-secondary" disabled title="该区域已被研发产品使用，无法编辑">
+                                <i class="fas fa-lock"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-secondary" disabled title="该区域已被研发产品使用，无法删除">
+                                <i class="fas fa-lock"></i>
+                            </button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% else %}
@@ -75,4 +101,50 @@
         </div>
     </div>
 </div>
+
+<!-- 删除确认模态框 -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">确认删除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                确定要删除区域信息 <span id="originName" class="fw-bold"></span> 吗？此操作不可撤销。
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <form id="deleteForm" method="POST" action="" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger">确认删除</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('区域信息管理页面已加载');
+    
+    // 初始化删除模态框
+    const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    const deleteButtons = document.querySelectorAll('.delete-origin');
+    const deleteForm = document.getElementById('deleteForm');
+    const originNameToDelete = document.getElementById('originName');
+
+    deleteButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const id = this.getAttribute('data-id');
+            const name = this.getAttribute('data-name');
+            deleteForm.action = `/product-code/origin-fields/${id}/delete`;
+            originNameToDelete.textContent = name;
+            deleteModal.show();
+        });
+    });
+});
+</script>
 {% endblock %}

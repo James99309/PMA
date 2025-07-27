@@ -1,10 +1,26 @@
 {% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button %}
 
 {% block title %}{{ subcategory.name }} - 规格管理{% endblock %}
 
 {% block styles %}
 {{ super() }}
 <style>
+    /* 标准化页面头部区域在固定导航下的间距调整 - 与其他模块保持一致 */
+    .page-with-fixed-nav .page-header-with-actions {
+        margin-top: 2rem !important; /* 与其他模块一致：2rem = 32px */
+    }
+    
+    /* 规格管理页面主容器顶部留白，避免被fixed导航遮挡 */
+    .container-fluid.page-with-fixed-nav {
+        margin-top: 72px !important;
+    }
+    @media (max-width: 991.98px) {
+        .container-fluid.page-with-fixed-nav {
+            margin-top: 120px !important;
+        }
+    }
+    
     .sortable-ghost {
         background-color: #f8f9fa;
         border: 2px dashed #0d6efd;
@@ -32,14 +48,22 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid px-4">
-    <h1 class="mt-4">规格管理 - {{ subcategory.name }}</h1>
-    <ol class="breadcrumb mb-4">
-        <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}">首页</a></li>
-        <li class="breadcrumb-item"><a href="{{ url_for('product_code.categories') }}">产品分类</a></li>
-        <li class="breadcrumb-item"><a href="{{ url_for('product_code.category_subcategories', id=subcategory.parent_category.id) }}">子类管理</a></li>
-        <li class="breadcrumb-item active">规格管理</li>
-    </ol>
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 标准化页面头部区域：标题与操作按钮在同一行 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">规格管理</h1>
+            </div>
+            <div class="col text-end">
+                <!-- 操作按钮组 -->
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    {{ render_button('返回子类', href=url_for('product_code.category_subcategories', id=subcategory.parent_category.id), color='secondary', icon='fas fa-arrow-left') }}
+                    {{ render_button('添加规格', href=url_for('product_code.new_field', id=subcategory.id), color='primary', icon='fas fa-plus') }}
+                </div>
+            </div>
+        </div>
+    </div>
     
     <!-- 从产品规格页面来的返回按钮 -->
     {% if request.args.get('from') == 'new_product' %}
@@ -66,88 +90,79 @@
         <span id="errorMessage">保存顺序时发生错误</span>
     </div>
     
-    <div class="alert alert-info mb-4">
+    <div class="alert alert-info mb-3" style="font-size: 0.875rem;">
         <i class="fas fa-info-circle me-1"></i>
         <strong>规格定义说明</strong>
-        <p class="mb-2 mt-2">规格是产品编码中的特性属性，如"频率"、"功率"等。每个规格定义了编码中的一个位置，具体使用什么编码由指标管理决定。</p>
+        <p class="mb-2 mt-1">规格是产品编码中的特性属性，如"频率"、"功率"等。每个规格定义了编码中的一个位置，具体使用什么编码由指标管理决定。</p>
         
         <!-- 规格预览 -->
-        <div class="mb-3">
-            <div class="code-preview p-3 bg-light rounded">
-                <div class="d-flex justify-content-center align-items-center mb-3" id="codePreview">
+        <div class="mb-2">
+            <div class="code-preview p-2 bg-light rounded">
+                <div class="d-flex justify-content-center align-items-center mb-2" id="codePreview" style="font-size: 0.875rem;">
                     <div class="position-relative me-2">
-                        <code class="h4">{{ subcategory.parent_category.code_letter }}</code>
+                        <code style="font-size: 0.875rem;">{{ subcategory.parent_category.code_letter }}</code>
                     </div>
                     <div class="position-relative me-2">
-                        <code class="h4">{{ subcategory.code_letter }}</code>
+                        <code style="font-size: 0.875rem;">{{ subcategory.code_letter }}</code>
                     </div>
                     <div class="position-relative me-2">
-                        <code class="h4 text-success">3</code>
+                        <code class="text-success" style="font-size: 0.875rem;">3</code>
                     </div>
                     {% for field in fields %}
-                        {% if loop.index <= 5 %}
+                        {% if field.use_in_code and loop.index <= 10 %}
                         <div class="position-relative me-2">
-                            <code class="h4 text-info">{% if field.use_in_code %}[{{ field.name }}]{% else %}[未定义]{% endif %}</code>
+                            <code class="text-info" style="font-size: 0.875rem;">[{{ field.name }}]</code>
                         </div>
                         {% endif %}
                     {% endfor %}
-                    {% for i in range(5 - fields|length if fields|length <= 5 else 0) %}
+                    {% for i in range(10 - fields|selectattr('use_in_code')|list|length) %}
                         <div class="position-relative me-2">
-                            <code class="h4 text-info">[未定义]</code>
+                            <code class="text-info" style="font-size: 0.875rem;">[未定义]</code>
                         </div>
                     {% endfor %}
                 </div>
             </div>
         </div>
 
-        <p class="mb-1">编码说明：</p>
-        <ul class="mb-2">
+        <div class="mb-1" style="font-size: 0.8rem;">编码说明：</div>
+        <ul class="mb-1" style="font-size: 0.8rem; line-height: 1.3;">
             <li><code>{{ subcategory.parent_category.code_letter }}</code> - 产品分类标识符（位置1）</li>
             <li><code>{{ subcategory.code_letter }}</code> - 子类标识符（位置2）</li>
             <li><span class="text-success">3</span> - 区域信息（位置3，<a href="{{ url_for('product_code.origin_fields') }}">在销售区域管理中设置</a>）</li>
-            <li><span class="text-info">[规格字段名称]</span> - 产品规格信息（位置4-8，最多5个位置，每个位置代表一个规格属性）</li>
+            <li><span class="text-info">[规格字段名称]</span> - 产品规格信息（位置4-13，最多10个位置，每个位置代表一个规格属性）</li>
         </ul>
-        <p class="mb-0"><strong>注意：</strong>销售区域在第3位置是由系统统一管理的，不会在此规格列表中显示。下方列表仅显示产品特定的规格字段（占据4-8位置，最多5个）。</p>
-        <p class="mb-0">每个规格定义了编码中的一个固定位置，系统根据添加顺序自动分配位置。具体使用什么编码需要在每个规格的指标管理中设置。</p>
-        <p class="mt-2"><i class="fas fa-arrows-alt me-1"></i> <strong>提示：</strong>您可以通过拖拽来调整规格顺序，顺序会自动保存并更新规格在编码中的位置。</p>
+        <p class="mb-1" style="font-size: 0.8rem;"><strong>注意：</strong>销售区域在第3位置是由系统统一管理的，不会在此规格列表中显示。下方列表仅显示产品特定的规格字段（占据4-13位置，最多10个）。</p>
+        <p class="mb-1" style="font-size: 0.8rem;">每个规格定义了编码中的一个固定位置，系统根据添加顺序自动分配位置。具体使用什么编码需要在每个规格的指标管理中设置。</p>
+        <p class="mb-0 mt-1" style="font-size: 0.8rem;"><i class="fas fa-lock me-1"></i> <strong>重要：</strong>规格编码位置固定不可移动，当规格被产品使用后不可删除。</p>
     </div>
     
     <div class="card mb-4">
         <div class="card-header">
             <i class="fas fa-list me-1"></i>
             {{ subcategory.name }} ({{ subcategory.code_letter }}) 规格列表
-            <div class="float-end">
-                <a href="{{ url_for('product_code.new_field', id=subcategory.id) }}" class="btn btn-sm btn-primary" title="添加规格">
-                    <i class="fas fa-plus"></i>
-                </a>
-            </div>
         </div>
         <div class="card-body">
             <table class="table table-bordered table-striped">
                 <thead>
                     <tr>
-                        <th width="5%"></th>
-                        <th width="5%">序号</th>
-                        <th width="15%">规格名称</th>
-                        <th width="10%">编码位置</th>
+                        <th width="8%">序号</th>
+                        <th width="18%">规格名称</th>
+                        <th width="12%">编码位置</th>
                         <th>指标列表</th>
-                        <th width="10%">创建时间</th>
-                        <th width="12%">操作</th>
+                        <th width="12%">创建时间</th>
+                        <th width="15%">操作</th>
                     </tr>
                 </thead>
                 <tbody id="fieldsTableBody">
                     {% for field in fields %}
-                    <tr data-id="{{ field.id }}" data-position="{{ loop.index0 }}">
-                        <td class="text-center sortable-handle">
-                            <i class="fas fa-grip-vertical"></i>
-                        </td>
+                    <tr data-id="{{ field.id }}">
                         <td>{{ loop.index }}</td>
                         <td>{{ field.name }}</td>
                         <td class="position-cell">
                             {% if field.use_in_code %}
-                            <span class="badge bg-success position-badge" draggable="true">位置{{ loop.index + 3 if loop.index <= 5 else 8 }}</span>
+                            <span class="badge bg-success position-badge">位置{{ field.position }}</span>
                             {% else %}
-                            <span class="text-muted">未纳入编码</span>
+                            <span class="badge bg-secondary position-badge">未纳入编码</span>
                             {% endif %}
                         </td>
                         <td>
@@ -165,19 +180,29 @@
                             <a href="{{ url_for('product_code.field_options', id=field.id) }}" class="btn btn-sm btn-info" title="指标管理">
                                 <i class="fas fa-list"></i>
                             </a>
+                            {% if not field.is_used %}
                             <a href="{{ url_for('product_code.edit_field', id=field.id) }}" class="btn btn-sm btn-warning" title="编辑">
                                 <i class="fas fa-edit"></i>
                             </a>
                             <form id="deleteForm" method="POST" action="{{ url_for('product_code.delete_field', id=field.id) }}" class="d-inline" onsubmit="return confirm('确定要删除此规格吗？这将同时删除所有相关指标');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-sm btn-danger" title="删除">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </form>
+                            {% else %}
+                            <button type="button" class="btn btn-sm btn-secondary" disabled title="此规格已被产品使用，无法编辑">
+                                <i class="fas fa-lock"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-secondary" disabled title="此规格已被产品使用，无法删除">
+                                <i class="fas fa-lock"></i>
+                            </button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="7" class="text-center">暂无规格，请添加</td>
+                        <td colspan="6" class="text-center">暂无规格，请添加</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -189,173 +214,20 @@
 
 {% block scripts %}
 {{ super() }}
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const fieldsTableBody = document.getElementById('fieldsTableBody');
-    const successAlert = document.getElementById('successAlert');
-    const errorAlert = document.getElementById('errorAlert');
-    const errorMessage = document.getElementById('errorMessage');
+    console.log('规格管理页面已加载，拖拽功能已禁用');
     
-    let isSaving = false;
-    let draggedBadge = null;
-    let draggedRow = null;
-    let draggedPosition = null;
-
-    // 初始化表格行的拖拽
-    const sortable = new Sortable(fieldsTableBody, {
-        animation: 150,
-        handle: '.sortable-handle',
-        ghostClass: 'sortable-ghost',
-        onEnd: function(evt) {
-            if (evt.oldIndex === evt.newIndex) return;
-            
-            // 只更新显示序号，不更新编码位置
-            const rows = [...fieldsTableBody.querySelectorAll('tr[data-id]')];
-            rows.forEach((row, index) => {
-                row.querySelector('td:nth-child(2)').textContent = index + 1;
-                row.dataset.position = index;
-            });
-            
-            // 获取新的字段顺序并保存
-            const newOrder = rows.map(row => parseInt(row.dataset.id));
-            saveNewOrder(newOrder);
-        }
-    });
-
-    // 初始化编码位置徽章的拖拽
-    function initializeDragAndDrop() {
-        document.querySelectorAll('.position-badge').forEach(badge => {
-            badge.addEventListener('dragstart', function(e) {
-                draggedBadge = this;
-                draggedRow = this.closest('tr');
-                draggedPosition = draggedRow.querySelector('.position-badge').textContent;
-                this.classList.add('dragging');
-                e.dataTransfer.setData('text/plain', '');
-            });
-
-            badge.addEventListener('dragend', function(e) {
-                this.classList.remove('dragging');
-            });
-        });
-
-        document.querySelectorAll('.position-cell').forEach(cell => {
-            cell.addEventListener('dragover', function(e) {
-                e.preventDefault();
-                this.classList.add('drag-over');
-            });
-
-            cell.addEventListener('dragleave', function(e) {
-                this.classList.remove('drag-over');
-            });
-
-            cell.addEventListener('drop', function(e) {
-                e.preventDefault();
-                this.classList.remove('drag-over');
-                
-                if (!draggedBadge || !draggedRow) return;
-                
-                const targetRow = this.closest('tr');
-                const targetBadge = targetRow.querySelector('.position-badge');
-                
-                if (targetRow && targetBadge && draggedRow !== targetRow) {
-                    // 获取两个位置的编号
-                    const sourcePosition = parseInt(draggedPosition.match(/\d+/)[0]);
-                    const targetPosition = parseInt(targetBadge.textContent.match(/\d+/)[0]);
-                    
-                    // 交换两个徽章的位置文本
-                    draggedBadge.textContent = `位置${targetPosition}`;
-                    targetBadge.textContent = `位置${sourcePosition}`;
-                    
-                    // 获取新的字段顺序
-                    const newOrder = [...fieldsTableBody.querySelectorAll('tr[data-id]')].map(row => ({
-                        id: parseInt(row.dataset.id),
-                        position: parseInt(row.querySelector('.position-badge')?.textContent.match(/\d+/)[0] || 0)
-                    }));
-                    
-                    // 立即更新预览
-                    updatePreview();
-                    
-                    // 保存新顺序
-                    saveNewOrder(newOrder.map(item => item.id));
-                }
-                
-                draggedBadge = null;
-                draggedRow = null;
-                draggedPosition = null;
-            });
-        });
-    }
-
-    function saveNewOrder(newOrder) {
-        if (isSaving) return;
-        isSaving = true;
-        errorAlert.style.display = 'none';
-        
-        // 确保newOrder是数组并且每个元素都是数字
-        let orderIds = [];
-        if (Array.isArray(newOrder)) {
-            orderIds = newOrder.map(id => {
-                // 确保id是数字
-                return typeof id === 'number' ? id : parseInt(id, 10) || 0;
-            }).filter(id => id > 0); // 过滤掉无效ID
-        }
-        
-        console.log("正在发送排序数据:", JSON.stringify({field_ids: orderIds}));
-        
-        // 获取CSRF令牌
-        const csrfToken = '{{ csrf_token() }}';
-        
-        fetch(`/product-code/api/subcategory/{{ subcategory.id }}/update-fields-order`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify({
-                field_ids: orderIds,
-                csrf_token: csrfToken
-            })
-        })
-        .then(response => {
-            if (!response.ok) {
-                return response.text().then(text => {
-                    throw new Error('服务器响应错误: ' + response.status + (text ? ' - ' + text : ''));
-                });
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                successAlert.style.display = 'block';
-                successAlert.textContent = data.message || '规格顺序已更新';
-                
-                // 再次更新预览以确保与服务器数据同步
-                updatePreview();
-                
-                setTimeout(() => {
-                    successAlert.style.display = 'none';
-                }, 3000);
-            } else {
-                throw new Error(data.error || '保存顺序失败');
-            }
-        })
-        .catch(error => {
-            console.error('保存顺序时出错:', error);
-            errorMessage.textContent = error.message || '保存顺序时发生错误，请稍后重试';
-            errorAlert.style.display = 'block';
-            
-            // 发生错误时也更新预览，确保显示正确的状态
-            updatePreview();
-        })
-        .finally(() => {
-            isSaving = false;
-        });
-    }
-
+    // 初始化编码预览
+    updatePreview();
+    
     function updatePreview() {
-        const rows = [...fieldsTableBody.querySelectorAll('tr[data-id]')];
+        const fieldsTableBody = document.getElementById('fieldsTableBody');
         const previewContainer = document.getElementById('codePreview');
+        
+        if (!fieldsTableBody || !previewContainer) return;
+        
+        const rows = [...fieldsTableBody.querySelectorAll('tr[data-id]')];
         
         // 保留前三个固定元素（分类、子类、区域）
         const fixedElements = [...previewContainer.children].slice(0, 3);
@@ -366,37 +238,36 @@ document.addEventListener('DOMContentLoaded', function() {
         // 重新添加固定元素
         fixedElements.forEach(el => previewContainer.appendChild(el.cloneNode(true)));
         
-        // 按编码位置排序
-        const sortedRows = [...rows].sort((a, b) => {
-            const posA = parseInt(a.querySelector('.position-badge')?.textContent.match(/\d+/)[0] || '0');
-            const posB = parseInt(b.querySelector('.position-badge')?.textContent.match(/\d+/)[0] || '0');
+        // 获取纳入编码的规格，按position排序
+        const codeFields = rows.filter(row => {
+            const badge = row.querySelector('.position-badge');
+            return badge && badge.textContent.includes('位置');
+        }).sort((a, b) => {
+            const posA = parseInt(a.querySelector('.position-badge').textContent.match(/\d+/)[0] || '0');
+            const posB = parseInt(b.querySelector('.position-badge').textContent.match(/\d+/)[0] || '0');
             return posA - posB;
         });
         
-        // 添加规格字段，最多5个
-        const fieldsToDraw = sortedRows.slice(0, 5);
-        fieldsToDraw.forEach(row => {
-            const badge = row.querySelector('.position-badge');
-            const fieldName = row.querySelector('td:nth-child(3)').textContent;
-            
+        // 添加规格字段，最多10个位置
+        const maxFields = 10;
+        codeFields.slice(0, maxFields).forEach(row => {
+            const fieldName = row.querySelector('td:nth-child(2)').textContent;
             const fieldPreview = document.createElement('div');
             fieldPreview.className = 'position-relative me-2';
-            fieldPreview.innerHTML = `<code class="h4 text-info">[${badge ? fieldName : '未定义'}]</code>`;
+            fieldPreview.innerHTML = `<code class="text-info" style="font-size: 0.875rem;">[${fieldName}]</code>`;
             previewContainer.appendChild(fieldPreview);
         });
         
-        // 添加剩余的未定义位置，确保总共5个位置
-        const remainingSlots = 5 - fieldsToDraw.length;
+        // 添加剩余的未定义位置
+        const remainingSlots = maxFields - codeFields.length;
         for (let i = 0; i < remainingSlots; i++) {
             const emptySlot = document.createElement('div');
             emptySlot.className = 'position-relative me-2';
-            emptySlot.innerHTML = '<code class="h4 text-info">[未定义]</code>';
+            emptySlot.innerHTML = '<code class="text-muted" style="font-size: 0.875rem;">[未定义]</code>';
             previewContainer.appendChild(emptySlot);
         }
+        
     }
-
-    // 初始化拖拽功能
-    initializeDragAndDrop();
 });
 
 // 返回到新产品页面的函数

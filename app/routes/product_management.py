@@ -711,16 +711,24 @@ def get_subcategories(category_id):
 @permission_required('product_code', 'view')
 def get_region_options():
     try:
-        # 从ProductRegion模型中获取销售区域
-        from app.models.product_code import ProductRegion
-        regions = ProductRegion.query.all()
+        # 从ProductCodeField中获取销售区域 (field_type='origin_location')
+        regions = ProductCodeField.query.filter_by(field_type='origin_location').order_by(ProductCodeField.position).all()
         
         regions_data = []
-        for region in regions:
+        for field in regions:
+            # 获取编码，优先从字段的code属性，其次从字段的选项中获取
+            code = getattr(field, 'code', None)
+            if not code or code == "?":
+                option = ProductCodeFieldOption.query.filter_by(field_id=field.id).first()
+                if option:
+                    code = option.code
+                else:
+                    code = "0"  # 默认编码
+            
             regions_data.append({
-                'id': region.id,
-                'name': region.name,
-                'code': region.code_letter
+                'id': field.id,
+                'name': field.name,
+                'code': code
             })
         
         current_app.logger.debug(f"返回 {len(regions_data)} 个销售区域选项: {regions_data}")
@@ -869,7 +877,7 @@ def add_spec_option_if_not_exists(field_id, option_value, product_model):
         return None
 
 # MN编号重复检查函数
-def check_mn_code_duplicate(mn_code, exclude_dev_product_id=None):
+def check_mn_code_duplicate_internal(mn_code, exclude_dev_product_id=None):
     """
     检查MN编号是否在研发产品库和标准产品库中重复
     
@@ -1078,24 +1086,34 @@ def save():
             # 按position排序
             spec_position_data.sort(key=lambda x: x['position'])
             
-            # 提取排序后的编码，映射到MN编码位置4-8
+            # 提取排序后的编码，映射到MN编码位置4-13
             spec_codes = []
-            for i, spec_data in enumerate(spec_position_data[:5]):  # 最多5个规格位置
+            for i, spec_data in enumerate(spec_position_data[:10]):  # 最多10个规格位置
                 spec_codes.append(spec_data['code'])
                 current_app.logger.debug(f"规格顺序 {i + 1} (数据库位置 {spec_data['position']}) -> MN位置 {4 + i}, 编码: {spec_data['code']}")
             
-            # 不足5个位置的用'0'填充
-            while len(spec_codes) < 5:
-                spec_codes.append('0')
+            # 构建MN编码时去掉末尾的'0'
+            # 找到最后一个非'0'编码的位置
+            last_non_zero_index = -1
+            for i in range(len(spec_codes) - 1, -1, -1):
+                if spec_codes[i] != '0':
+                    last_non_zero_index = i
+                    break
             
-            current_app.logger.debug(f"最终规格编码序列: {spec_codes}")
+            # 只使用到最后一个有效编码的部分
+            if last_non_zero_index >= 0:
+                effective_spec_codes = spec_codes[:last_non_zero_index + 1]
+            else:
+                effective_spec_codes = []  # 如果都是'0'，则不包含规格编码
             
-            # 完整MN编码格式，移除末尾2位序号递增的逻辑
-            mn_code = f"{category.code_letter}{subcategory.code_letter}{region_code}{''.join(spec_codes)}"
+            current_app.logger.debug(f"有效规格编码序列: {effective_spec_codes}")
+            
+            # 完整MN编码格式，去掉末尾的'0'
+            mn_code = f"{category.code_letter}{subcategory.code_letter}{region_code}{''.join(effective_spec_codes)}"
             current_app.logger.debug(f"生成的完整MN编码: {mn_code}")
             
             # 检查MN编号是否重复
-            duplicate_check = check_mn_code_duplicate(mn_code)
+            duplicate_check = check_mn_code_duplicate_internal(mn_code)
             if duplicate_check['is_duplicate']:
                 # 构建重复产品信息字符串
                 duplicate_info = []
@@ -1472,23 +1490,45 @@ def update_product(id):
             # 获取规格编码（从产品关联的规格中获取）
             spec_codes = []
             specs = DevProductSpec.query.filter_by(dev_product_id=id).all()
+            
+            # 按规格名称确定位置，构建规格编码数组
+            position_codes = ['0'] * 10  # 初始化10个位置都是'0'
+            
+            # 定义规格名称到位置的映射
+            spec_position_mapping = {
+                '频率范围': 0,  # 第4位
+                '带宽': 1,      # 第5位
+                '功率': 2,      # 第6位
+                '阻抗': 3,      # 第7位
+                '电源类型': 4   # 第8位
+            }
+            
             for spec in specs:
-                if spec.field_code and spec.field_code != '0':
-                    spec_codes.append(spec.field_code)
+                if spec.field_code and spec.field_name in spec_position_mapping:
+                    position_index = spec_position_mapping[spec.field_name]
+                    if 0 <= position_index < 10:
+                        position_codes[position_index] = spec.field_code
             
-            # 确保正好有5个规格代码
-            while len(spec_codes) < 5:
-                spec_codes.append('0')
+            # 构建MN编码时去掉末尾的'0'
+            # 找到最后一个非'0'编码的位置
+            last_non_zero_index = -1
+            for i in range(len(position_codes) - 1, -1, -1):
+                if position_codes[i] != '0':
+                    last_non_zero_index = i
+                    break
             
-            # 只使用前5个代码
-            spec_codes = spec_codes[:5]
+            # 只使用到最后一个有效编码的部分
+            if last_non_zero_index >= 0:
+                effective_spec_codes = position_codes[:last_non_zero_index + 1]
+            else:
+                effective_spec_codes = []  # 如果都是'0'，则不包含规格编码
             
-            # 生成新的MN编码，不再使用后缀
-            new_mn_code = f"{category.code_letter}{subcategory.code_letter}{region_code}{''.join(spec_codes)}"
+            # 生成新的MN编码，去掉末尾的'0'
+            new_mn_code = f"{category.code_letter}{subcategory.code_letter}{region_code}{''.join(effective_spec_codes)}"
             current_app.logger.debug(f"更新MN编码: {dev_product.mn_code} -> {new_mn_code}")
             
             # 检查新MN编号是否重复（排除当前产品）
-            duplicate_check = check_mn_code_duplicate(new_mn_code, exclude_dev_product_id=dev_product.id)
+            duplicate_check = check_mn_code_duplicate_internal(new_mn_code, exclude_dev_product_id=dev_product.id)
             if duplicate_check['is_duplicate']:
                 # 构建重复产品信息字符串
                 duplicate_info = []
@@ -1549,78 +1589,51 @@ def update_product(id):
                     current_app.logger.warning("更新PDF文件上传失败或格式不支持")
         
         # 处理规格字段
-        # 先删除现有规格
-        DevProductSpec.query.filter_by(dev_product_id=id).delete()
+        # 1. 处理删除的规格
+        deleted_spec_ids = request.form.getlist('deleted_spec_ids[]')
+        if deleted_spec_ids:
+            for spec_id in deleted_spec_ids:
+                if spec_id:
+                    spec_to_delete = DevProductSpec.query.get(spec_id)
+                    if spec_to_delete and spec_to_delete.dev_product_id == id:
+                        # 只能删除非编码规格（没有field_code的规格）
+                        if not spec_to_delete.field_code or spec_to_delete.field_code.strip() == '':
+                            db.session.delete(spec_to_delete)
+                            current_app.logger.debug(f"删除非编码规格: {spec_to_delete.field_name}")
         
-        # 获取产品所属的子分类ID
-        subcategory_id = dev_product.subcategory_id
+        # 2. 处理现有规格的更新
+        existing_spec_ids = request.form.getlist('existing_spec_ids[]')
+        spec_names = request.form.getlist('spec_name[]')
+        spec_values = request.form.getlist('indicator_values[]')
+        spec_codes = request.form.getlist('indicator_codes[]')
         
-        # 已有规格字段名列表，用于检查是否需要创建新规格
-        existing_spec_fields = ProductCodeField.query.filter_by(
-            subcategory_id=subcategory_id,
-            field_type='spec'
-        ).all()
-        existing_spec_names = {field.name.lower(): field for field in existing_spec_fields}
+        for i in range(len(existing_spec_ids)):
+            if existing_spec_ids[i] and i < len(spec_names) and i < len(spec_values):
+                existing_spec = DevProductSpec.query.get(existing_spec_ids[i])
+                if existing_spec and existing_spec.dev_product_id == id:
+                    # 更新规格数据
+                    existing_spec.field_name = spec_names[i]
+                    existing_spec.field_value = spec_values[i]
+                    
+                    # 如果是编码规格，更新编码
+                    if existing_spec.field_code and i < len(spec_codes):
+                        existing_spec.field_code = spec_codes[i]
+                    
+                    current_app.logger.debug(f"更新规格: {spec_names[i]} = {spec_values[i]}")
         
-        # 添加新规格
-        specs_data = request.form.getlist('spec_name[]')
-        specs_values = request.form.getlist('spec_value[]')
-        
-        for i in range(len(specs_data)):
-            if specs_data[i].strip():  # 如果字段名不为空
-                # 先添加到产品规格表
-                spec = DevProductSpec(
+        # 3. 处理新增的规格（没有existing_spec_ids的）
+        for i in range(len(spec_names)):
+            # 如果这个索引没有对应的existing_spec_id，说明是新增的
+            if (i >= len(existing_spec_ids) or not existing_spec_ids[i]) and spec_names[i].strip():
+                # 创建新的非编码规格
+                new_spec = DevProductSpec(
                     dev_product_id=dev_product.id,
-                    field_name=specs_data[i],
-                    field_value=specs_values[i] if i < len(specs_values) else ''
+                    field_name=spec_names[i],
+                    field_value=spec_values[i] if i < len(spec_values) else '',
+                    field_code=None  # 非编码规格没有编码
                 )
-                db.session.add(spec)
-                
-                spec_value = specs_values[i] if i < len(specs_values) else ''
-                
-                # 检查规格字段是否存在，如果不存在则创建新字段
-                spec_name_lower = specs_data[i].lower()
-                if spec_name_lower not in existing_spec_names:
-                    # 计算新字段的position
-                    max_position = db.session.query(db.func.max(ProductCodeField.position))\
-                        .filter_by(subcategory_id=subcategory_id).scalar() or 0
-                    new_position = max_position + 1
-                    
-                    # 创建新的规格字段
-                    new_field = ProductCodeField(
-                        subcategory_id=subcategory_id,
-                        name=specs_data[i],
-                        field_type='spec',
-                        description=f'从产品 {dev_product.model} 更新时自动添加的规格字段',
-                        position=new_position,
-                        max_length=1,  # 默认长度
-                        is_required=False,  # 默认非必填
-                        use_in_code=True  # 默认用于编码
-                    )
-                    db.session.add(new_field)
-                    db.session.flush()  # 获取新字段ID
-                    
-                    # 添加规格字段到本地缓存
-                    existing_spec_names[spec_name_lower] = new_field
-                    
-                    # 将规格值作为默认选项添加
-                    if spec_value:
-                        option_id = add_spec_option_if_not_exists(new_field.id, spec_value, dev_product.model)
-                        if option_id:
-                            option = ProductCodeFieldOption.query.get(option_id)
-                            if option:
-                                spec.field_code = option.code
-                                current_app.logger.debug(f"已设置规格 '{specs_data[i]}' 的编码为: {option.code}")
-                else:
-                    # 如果规格字段已存在，检查对应的规格值是否已存在，若不存在则添加
-                    existing_field = existing_spec_names[spec_name_lower]
-                    if spec_value:
-                        option_id = add_spec_option_if_not_exists(existing_field.id, spec_value, dev_product.model)
-                        if option_id:
-                            option = ProductCodeFieldOption.query.get(option_id)
-                            if option:
-                                spec.field_code = option.code
-                                current_app.logger.debug(f"已设置规格 '{specs_data[i]}' 的编码为: {option.code}")
+                db.session.add(new_spec)
+                current_app.logger.debug(f"添加新非编码规格: {spec_names[i]} = {spec_values[i] if i < len(spec_values) else ''}")
         
         # 提交更改
         db.session.commit()
@@ -2403,4 +2416,104 @@ def get_spec_field_options():
         
     except Exception as e:
         current_app.logger.error(f"获取规格字段选项失败: {str(e)}")
+        return jsonify({'options': []})
+
+@product_management_bp.route('/api/product/<int:product_id>/specs', methods=['GET'])
+@login_required
+@permission_required('product_code', 'view')
+def get_product_specs(product_id):
+    """获取产品的现有规格数据"""
+    try:
+        # 获取产品的所有规格
+        specs = DevProductSpec.query.filter_by(dev_product_id=product_id).all()
+        
+        specs_data = []
+        for spec in specs:
+            spec_data = {
+                'id': spec.id,
+                'field_name': spec.field_name,
+                'field_value': spec.field_value,
+                'field_code': spec.field_code
+            }
+            specs_data.append(spec_data)
+        
+        return jsonify({'specs': specs_data})
+        
+    except Exception as e:
+        current_app.logger.error(f"获取产品规格失败: {str(e)}")
+        return jsonify({'specs': []})
+
+@product_management_bp.route('/api/spec-field/<int:field_id>/options', methods=['GET'])
+@login_required
+@permission_required('product_code', 'view')
+def get_spec_field_options_by_id(field_id):
+    """获取指定规格字段的所有选项"""
+    try:
+        # 获取规格字段
+        field = ProductCodeField.query.get(field_id)
+        if not field:
+            return jsonify({'options': [], 'error': '规格字段不存在'}), 404
+        
+        # 获取该字段的所有选项
+        options = ProductCodeFieldOption.query.filter_by(field_id=field_id).order_by(ProductCodeFieldOption.id).all()
+        
+        options_data = []
+        for option in options:
+            option_data = {
+                'id': option.id,
+                'value': option.value,
+                'code': option.code,
+                'description': option.description
+            }
+            options_data.append(option_data)
+        
+        return jsonify({
+            'options': options_data,
+            'field_id': field.id,
+            'field_name': field.name
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"获取规格字段选项失败: {str(e)}")
         return jsonify({'options': []}) 
+
+@product_management_bp.route('/api/check-mn-code', methods=['POST'])
+@login_required
+@permission_required('product_code', 'create')
+def check_mn_code_duplicate_api():
+    """检查MN编码是否重复"""
+    try:
+        data = request.get_json()
+        mn_code = data.get('mn_code', '').strip()
+        exclude_product_id = data.get('exclude_product_id')
+        
+        if not mn_code:
+            return jsonify({'exists': False})
+        
+        # 检查研发产品库
+        dev_query = DevProduct.query.filter(
+            DevProduct.mn_code == mn_code,
+            DevProduct.is_deleted == False
+        )
+        if exclude_product_id:
+            dev_query = dev_query.filter(DevProduct.id != exclude_product_id)
+        
+        dev_exists = dev_query.first() is not None
+        
+        # 检查正式产品库
+        from app.models.product import Product
+        formal_exists = Product.query.filter(
+            Product.mn_code == mn_code,
+            Product.is_deleted == False
+        ).first() is not None
+        
+        if dev_exists:
+            return jsonify({'exists': True, 'source': 'dev'})
+        elif formal_exists:
+            return jsonify({'exists': True, 'source': 'formal'})
+        else:
+            return jsonify({'exists': False})
+            
+    except Exception as e:
+        current_app.logger.error(f"检查MN编码重复失败: {str(e)}")
+        return jsonify({'exists': False, 'error': str(e)})

@@ -116,7 +116,18 @@ def is_project_editable(project_id, user_id=None):
         locker = User.query.get(project.locked_by) if project.locked_by else None
         locker_name = locker.username if locker else "未知用户"
         
-        lock_time = project.locked_at.strftime('%Y-%m-%d %H:%M') if project.locked_at else "未知时间"
+        # 安全的日期格式化
+        lock_time = "未知时间"
+        if project.locked_at:
+            try:
+                if isinstance(project.locked_at, str):
+                    from datetime import datetime
+                    dt = datetime.fromisoformat(project.locked_at.replace('Z', '+00:00'))
+                    lock_time = dt.strftime('%Y-%m-%d %H:%M')
+                else:
+                    lock_time = project.locked_at.strftime('%Y-%m-%d %H:%M')
+            except (ValueError, AttributeError) as e:
+                lock_time = str(project.locked_at)
         
         return False, f"项目已被锁定，原因: {project.locked_reason}, 锁定人: {locker_name}, 时间: {lock_time}"
     

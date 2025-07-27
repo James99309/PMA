@@ -22,47 +22,37 @@
     </div>
     
     {% if list_config %}
-        <!-- 审批中心标签页 - 在页签模组容器之外 -->
-        {% set approval_tabs = [
-            {'key': 'created', 'label': '我发起的', 'icon': 'fas fa-file-export', 'badge': created_pending_count},
-            {'key': 'pending', 'label': '待我审批的', 'icon': 'fas fa-hourglass-half', 'badge': pending_count},
-            {'key': 'pricing_order', 'label': '批价单审批', 'icon': 'fas fa-file-invoice-dollar', 'badge': pricing_order_pending_count},
-            {'key': 'order', 'label': '订单审批', 'icon': 'fas fa-shopping-cart', 'badge': order_pending_count}
-        ] %}
-        
-        {{ render_universal_tabs(approval_tabs, current_tab, url_for('approval.center')) }}
-        
-        <!-- 统计卡片 -->
+        <!-- 统计卡片 - 全局统计，在最上方 -->
         {% if list_config.stats %}
-            <div class="mt-4">
+            <div class="mb-4">
                 {{ render_stats_cards(list_config.stats) }}
             </div>
         {% endif %}
         
-        <!-- 筛选搜索组件 -->
+        <!-- 筛选搜索组件 - 全局筛选，在统计卡片下方 -->
         {% if list_config.filter %}
-            <div class="card mt-4">
+            <div class="card mb-4">
                 <div class="card-body">
                     {{ render_filter_search_form(list_config.filter) }}
                 </div>
             </div>
         {% endif %}
         
-        <!-- 页签模组容器 -->
-        <div class="card mt-4">
-            <!-- 页签模组标题 -->
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="fas fa-table me-2"></i>{{ list_config.table.title }}
-                </h5>
-            </div>
-            
-            <!-- 列表内容 -->
-            <div class="card-body p-0">
-                {% if list_config.table %}
-                    {{ render_data_table(list_config.table, [], ajax_mode=list_config.ajax_mode) }}
-                {% endif %}
-            </div>
+        <!-- 审批中心标签页 - 在统计和筛选之后 -->
+        {% set approval_tabs = [
+            {'key': 'created', 'label': '我发起的', 'icon': 'fas fa-file-export'},
+            {'key': 'pending', 'label': '待我审批的', 'icon': 'fas fa-hourglass-half'},
+            {'key': 'pricing_order', 'label': '批价单审批', 'icon': 'fas fa-file-invoice-dollar'},
+            {'key': 'order', 'label': '订单审批', 'icon': 'fas fa-shopping-cart'}
+        ] %}
+        
+        {{ render_universal_tabs(approval_tabs, current_tab, url_for('approval.center')) }}
+        
+        <!-- 列表内容 - 在标签页下方 -->
+        <div class="mt-4">
+            {% if list_config.table %}
+                {{ render_data_table(list_config.table, [], ajax_mode=list_config.ajax_mode) }}
+            {% endif %}
         </div>
     {% else %}
         <div class="alert alert-warning">
@@ -107,6 +97,11 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             {% endif %}
             
+            // 更新列表项计数
+            if (typeof updateListItemCount === 'function') {
+                updateListItemCount(data.total_count || 0, data.loaded_count || 0, false);
+            }
+            
             // 添加tab参数到URL更新
             const currentTab = '{{ current_tab }}';
             const form = document.getElementById('{{ list_config.filter.form_id }}');
@@ -150,6 +145,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         updateStatsFromAjax({ stats: {{ list_config.stats | tojson | safe }} }, data.statistics);
                     }
                     {% endif %}
+                    
+                    // 更新列表项计数
+                    if (typeof updateListItemCount === 'function') {
+                        updateListItemCount(data.total_count || 0, data.loaded_count || 0, false);
+                    }
                 } else {
                     console.error('数据加载失败:', data.message);
                 }

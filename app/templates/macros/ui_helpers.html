@@ -229,36 +229,34 @@
   {% endif %}
 {% endmacro %}
 
-{% macro render_dev_product_status_badge(status) %}
-  {% set status_map = {
-    '调研中': {'color': '#6c757d', 'text': '调研中'},
-    '立项中': {'color': '#17a2b8', 'text': '立项中'},
-    '研发中': {'color': '#ffc107', 'text': '研发中'},
-    '申请入库': {'color': '#fd7e14', 'text': '申请入库'},
-    '已入库': {'color': '#28a745', 'text': '已入库'}
-  } %}
-  {% set config = status_map.get(status, {'color': '#6c757d', 'text': status or '未知'}) %}
-  <span class="badge" style="background-color: {{ config.color }}; color: white; padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.75rem;">
-    {{ config.text }}
-  </span>
+{# 
+  研发产品状态徽章渲染 - 胶囊型
+  参数:
+  - status: 研发产品状态值
+  - lang: 语言代码(可选，默认从session获取)
+#}
+{% macro render_dev_product_status_badge(status, lang=None) %}
+    {% if not lang %}
+        {% set lang = session.get('language', 'zh') %}
+    {% endif %}
+    
+    {% set status_map = {
+        '调研中': {'zh': '调研中', 'en': 'Research', 'css_class': 'dev-product-status-research'},
+        '立项中': {'zh': '立项中', 'en': 'Project Setup', 'css_class': 'dev-product-status-setup'},
+        '研发中': {'zh': '研发中', 'en': 'Development', 'css_class': 'dev-product-status-development'},
+        '申请入库': {'zh': '申请入库', 'en': 'Applying', 'css_class': 'dev-product-status-applying'},
+        '已入库': {'zh': '已入库', 'en': 'Inventoried', 'css_class': 'dev-product-status-inventoried'}
+    } %}
+    
+    {% set status_config = status_map.get(status, {'zh': status or '未知', 'en': status or 'Unknown', 'css_class': 'dev-product-status-unknown'}) %}
+    {% set display_text = status_config[lang] %}
+    {% set css_class = status_config.css_class %}
+    
+    <span class="badge dev-product-status-badge rounded-pill {{ css_class }}">
+        {{ display_text }}
+    </span>
 {% endmacro %}
 
-{% macro render_product_status_badge(status) %}
-  {% set status_mapping = {
-    'active': {'zh': '生产中', 'en': 'Active', 'color': '#28a745'},
-    'discontinued': {'zh': '已停产', 'en': 'Discontinued', 'color': '#dc3545'},
-    'upcoming': {'zh': '待上市', 'en': 'Upcoming', 'color': '#ffc107'},
-    '生产中': {'zh': '生产中', 'en': 'Active', 'color': '#28a745'},
-    '已停产': {'zh': '已停产', 'en': 'Discontinued', 'color': '#dc3545'},
-    '待上市': {'zh': '待上市', 'en': 'Upcoming', 'color': '#ffc107'}
-  } %}
-  {% set status_config = status_mapping.get(status, {'zh': status, 'en': status, 'color': '#6c757d'}) %}
-  {% set color = status_config.color %}
-  {% set display_status = status_config.get(session.get('language', 'zh'), status) %}
-  <span class="badge" style="background-color: {{ color }}; color: white; padding: 0.25em 0.5em; border-radius: 0.25rem; font-size: 0.75rem;">
-    {{ display_status }}
-  </span>
-{% endmacro %}
 
 {% macro render_button(text, href=None, color="primary", size="md", icon=None, rounded="pill", extra_class="", type="a", attrs=None, onclick=None) %}
   {%- set inline_style = "" %}
@@ -2261,6 +2259,10 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
                 {{ render_order_status_badge(value) }}
             {% elif column.render == 'render_inventory_status_badge' %}
                 {{ render_inventory_status_badge(value) }}
+            {% elif column.render == 'render_dev_product_status_badge' %}
+                {{ render_dev_product_status_badge(value) }}
+            {% elif column.render == 'render_product_status_badge' %}
+                {{ render_product_status_badge(value) }}
             {% else %}
                 {{ caller(value, column.render) if caller else value }}
             {% endif %}
@@ -2283,6 +2285,10 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
                     {{ render_order_status_badge(value) }}
                 {% elif column.render == 'render_inventory_status_badge' %}
                     {{ render_inventory_status_badge(value) }}
+                {% elif column.render == 'render_dev_product_status_badge' %}
+                    {{ render_dev_product_status_badge(value) }}
+                {% elif column.render == 'render_product_status_badge' %}
+                    {{ render_product_status_badge(value) }}
                 {% elif column.render == 'render_user_status_badge' %}
                     {{ render_user_status_badge(value) }}
                 {% elif column.render == 'render_user_role_badge' %}
@@ -2643,6 +2649,10 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
                                 {{ render_inventory_status_badge(value) }}
                             {% elif column.render == 'render_settlement_status_badge' %}
                                 {{ render_settlement_status_badge(value) }}
+                            {% elif column.render == 'render_dev_product_status_badge' %}
+                                {{ render_dev_product_status_badge(value) }}
+                            {% elif column.render == 'render_product_status_badge' %}
+                                {{ render_product_status_badge(value) }}
                             {% elif column.render == 'render_project_stage' %}
                                 {{ render_project_stage(value) }}
                             {% elif column.render == 'render_customer_status_badge' %}
