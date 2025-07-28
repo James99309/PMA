@@ -32,49 +32,55 @@ def index():
         version_number = '1.2.0'  # 默认版本号
     
     # 查询当前用户可见的最近5个项目，按更新时间倒序
-    try:
-        recent_projects = get_viewable_data(Project, current_user).order_by(Project.updated_at.desc()).limit(5).all()
-    except Exception as e:
-        logger.warning(f"使用updated_at查询项目失败: {str(e)}，尝试使用id排序")
+    recent_projects = []
+    if current_user.has_permission('project', 'view'):
         try:
-            # 回滚失败的事务
-            db.session.rollback()
-            recent_projects = get_viewable_data(Project, current_user).order_by(Project.id.desc()).limit(5).all()
-        except Exception as e2:
-            logger.error(f"项目查询完全失败: {str(e2)}")
-            # 回滚失败的事务
-            db.session.rollback()
-            recent_projects = []
+            recent_projects = get_viewable_data(Project, current_user).order_by(Project.updated_at.desc()).limit(5).all()
+        except Exception as e:
+            logger.warning(f"使用updated_at查询项目失败: {str(e)}，尝试使用id排序")
+            try:
+                # 回滚失败的事务
+                db.session.rollback()
+                recent_projects = get_viewable_data(Project, current_user).order_by(Project.id.desc()).limit(5).all()
+            except Exception as e2:
+                logger.error(f"项目查询完全失败: {str(e2)}")
+                # 回滚失败的事务
+                db.session.rollback()
+                recent_projects = []
     
     # 查询当前用户可见的最近5条报价，按更新时间倒序
-    try:
-        recent_quotations = get_viewable_data(Quotation, current_user).order_by(Quotation.updated_at.desc()).limit(5).all()
-    except Exception as e:
-        logger.warning(f"报价查询失败: {str(e)}")
+    recent_quotations = []
+    if current_user.has_permission('quotation', 'view'):
         try:
-            # 回滚失败的事务
-            db.session.rollback()
-            recent_quotations = get_viewable_data(Quotation, current_user).order_by(Quotation.id.desc()).limit(5).all()
-        except Exception as e2:
-            logger.error(f"报价查询完全失败: {str(e2)}")
-            # 回滚失败的事务
-            db.session.rollback()
-            recent_quotations = []
+            recent_quotations = get_viewable_data(Quotation, current_user).order_by(Quotation.updated_at.desc()).limit(5).all()
+        except Exception as e:
+            logger.warning(f"报价查询失败: {str(e)}")
+            try:
+                # 回滚失败的事务
+                db.session.rollback()
+                recent_quotations = get_viewable_data(Quotation, current_user).order_by(Quotation.id.desc()).limit(5).all()
+            except Exception as e2:
+                logger.error(f"报价查询完全失败: {str(e2)}")
+                # 回滚失败的事务
+                db.session.rollback()
+                recent_quotations = []
     
     # 查询当前用户可见的最近5个客户，按更新时间倒序
-    try:
-        recent_companies = get_viewable_data(Company, current_user).order_by(Company.updated_at.desc()).limit(5).all()
-    except Exception as e:
-        logger.warning(f"客户查询失败: {str(e)}")
+    recent_companies = []
+    if current_user.has_permission('customer', 'view'):
         try:
-            # 回滚失败的事务
-            db.session.rollback()
-            recent_companies = get_viewable_data(Company, current_user).order_by(Company.id.desc()).limit(5).all()
-        except Exception as e2:
-            logger.error(f"客户查询完全失败: {str(e2)}")
-            # 回滚失败的事务
-            db.session.rollback()
-            recent_companies = []
+            recent_companies = get_viewable_data(Company, current_user).order_by(Company.updated_at.desc()).limit(5).all()
+        except Exception as e:
+            logger.warning(f"客户查询失败: {str(e)}")
+            try:
+                # 回滚失败的事务
+                db.session.rollback()
+                recent_companies = get_viewable_data(Company, current_user).order_by(Company.id.desc()).limit(5).all()
+            except Exception as e2:
+                logger.error(f"客户查询完全失败: {str(e2)}")
+                # 回滚失败的事务
+                db.session.rollback()
+                recent_companies = []
     
     # 在index视图中，recent_projects处理类型key转中文，支持语言感知
     from app.utils.i18n import get_current_language
@@ -94,8 +100,8 @@ def index():
 @login_required
 def get_recent_work_records():
     """
-    获取最近5天的工作记录
-    支持权限过滤和账户筛选
+    获取最近N天的工作记录
+    支持权限过滤和账户筛选，以及历史天数选择（5-10天范围）
     """
     try:
         # 导入权限检查函数
@@ -103,12 +109,17 @@ def get_recent_work_records():
         
         # 获取参数
         account_id = request.args.get('account_id', type=int)
+        days = request.args.get('days', 7, type=int)  # 默认7天
         
-        # 计算5天前的日期
-        five_days_ago = datetime.now().date() - timedelta(days=5)
+        # 验证天数范围
+        if days < 5 or days > 10:
+            days = 7  # 超出范围时使用默认值
         
-        # 基础查询 - 获取最近5天的记录
-        base_query = Action.query.filter(Action.date >= five_days_ago)
+        # 计算N天前的日期
+        start_date = datetime.now().date() - timedelta(days=days-1)  # days-1是因为包含今天
+        
+        # 基础查询 - 获取最近N天的记录
+        base_query = Action.query.filter(Action.date >= start_date)
         
         # 账户筛选逻辑
         if account_id:

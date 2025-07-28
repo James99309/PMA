@@ -1999,6 +1999,18 @@ msgstr "Channel Product"
 msgid "第三方产品"
 msgstr "Third Party Product"
 
+msgid "绩效看板"
+msgstr "Performance Dashboard"
+
+
+msgid "查看历史天数"
+msgstr "View History Days"
+
+msgid "显示最近7天的工作记录"
+msgstr "Show work records from the last 7 days"
+
+msgid "最近7天内没有工作记录"
+msgstr "No work records in the last 7 days"
 
 msgid "管理员"
 msgstr "Administrator"
@@ -3003,4 +3015,127 @@ msgstr "Sales Director"
 
 msgid "渠道经理"
 msgstr "Channel Manager"
+
+msgid "首页"
+msgstr "Home"
+
+msgid "报价单列表"
+msgstr "Quotation List"
+
+msgid "基本信息"
+msgstr "Basic Information"
+
+msgid "关联项目"
+msgstr "Related Project"
+
+msgid "项目阶段"
+msgstr "Project Stage"
+
+msgid "项目类型"
+msgstr "Project Type"
+
+msgid "联系人"
+msgstr "Contact"
+
+msgid "无"
+msgstr "None"
+
+msgid "报价总额"
+msgstr "Total Amount"
+
+msgid "植入总额合计"
+msgstr "Total Implant Amount"
+
+msgid "负责人"
+msgstr "Owner"
+
+msgid "创建时间"
+msgstr "Created At"
+
+msgid "更新时间"
+msgstr "Updated At"
+
+msgid "锁定状态"
+msgstr "Lock Status"
+
+msgid "已锁定"
+msgstr "Locked"
+
+msgid "未锁定"
+msgstr "Unlocked"
+
+msgid "产品明细"
+msgstr "Product Details"
+
+msgid "点击确认产品明细"
+msgstr "Click to confirm product details"
+
+msgid "仅解决方案经理和管理员可以确认"
+msgstr "Only solution managers and administrators can confirm"
+
+msgid "产品明细已确认"
+msgstr "Product details confirmed"
+
+msgid "已确认"
+msgstr "Confirmed"
+
+msgid "未确认"
+msgstr "Unconfirmed"
+
+msgid "序号"
+msgstr "No."
+
+msgid "产品名称"
+msgstr "Product Name"
+
+msgid "产品型号"
+msgstr "Product Model"
+
+msgid "产品规格"
+msgstr "Product Specification"
+
+msgid "品牌"
+msgstr "Brand"
+
+msgid "市场价"
+msgstr "Market Price"
+
+msgid "折扣率"
+msgstr "Discount Rate"
+
+msgid "单价"
+msgstr "Unit Price"
+
+msgid "数量"
+msgstr "Quantity"
+
+msgid "单位"
+msgstr "Unit"
+
+msgid "总价"
+msgstr "Total Price"
+
+msgid "产品料号"
+msgstr "Product Part Number"
+
+msgid "暂无产品明细"
+msgstr "No product details"
+
+msgid "添加产品明细"
+msgstr "Add Product Details"
+
+msgid "总计金额"
+msgstr "Total Amount"
+
+msgid "导出"
+msgstr "Export"
+
+msgid "编辑"
+msgstr "Edit"
+
+msgid "删除"
+msgstr "Delete"
+
+msgid "点击取消确认"
+msgstr "Click to cancel confirmation"
 

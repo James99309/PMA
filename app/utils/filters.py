@@ -69,4 +69,41 @@ def format_currency(amount):
     try:
         return '￥{:,.2f}'.format(float(amount))
     except (ValueError, TypeError):
-        return '￥0.00' 
+        return '￥0.00'
+
+def format_achievement_rate(achievement_rate, qualifying_rate=None):
+    """
+    格式化达成率，根据合格值设置颜色
+    
+    Args:
+        achievement_rate: 达成率（百分比数值，如85.5）
+        qualifying_rate: 合格值（百分比数值，如80）
+    
+    Returns:
+        带HTML标签的达成率字符串
+    """
+    if achievement_rate is None:
+        return "-"
+    
+    # 确保是数值类型
+    try:
+        rate = float(achievement_rate)
+    except (ValueError, TypeError):
+        return "-"
+    
+    # 格式化为整数百分比
+    rate_str = f"{int(rate)}%"
+    
+    # 如果设置了合格值，根据达成率与合格值比较设置颜色
+    if qualifying_rate is not None and qualifying_rate > 0:
+        try:
+            qualifying = float(qualifying_rate)
+            if rate >= qualifying:
+                return f'<span class="text-success">{rate_str}</span>'
+            else:
+                return f'<span class="text-danger">{rate_str}</span>'
+        except (ValueError, TypeError):
+            pass
+    
+    # 没有设置合格值或合格值无效，使用正常颜色
+    return rate_str 

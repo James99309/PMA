@@ -1,527 +1,794 @@
 {% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button, render_three_choice_dialog, render_top_notification %}
+{% from 'macros/filter_search.html' import render_filter_search_form %}
+
+{# 设置语言变量，使用session语言设置 #}
+{% set is_chinese = session.get('language', 'zh') == 'zh' %}
+
 {% block title %}绩效目标设置{% endblock %}
 
-{% block head %}
-<style>
-.target-card {
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
-}
-
-.month-card {
-    border: 1px solid #e0e0e0;
-    border-radius: 6px;
-    margin-bottom: 15px;
-    transition: all 0.3s ease;
-}
-
-.month-card:hover {
-    border-color: #007bff;
-    box-shadow: 0 2px 8px rgba(0,123,255,0.15);
-}
-
-.month-card.current-month {
-    border-color: #28a745;
-    background-color: #f8fff9;
-}
-
-.month-card.past-month {
-    background-color: #f8f9fa;
-}
-
-.month-header {
-    background: linear-gradient(135deg, #007bff, #0056b3);
-    color: white;
-    padding: 10px 15px;
-    border-radius: 6px 6px 0 0;
-    font-weight: 500;
-}
-
-.month-card.current-month .month-header {
-    background: linear-gradient(135deg, #28a745, #1e7e34);
-}
-
-.month-card.past-month .month-header {
-    background: linear-gradient(135deg, #6c757d, #545b62);
-}
-
-.target-form {
-    padding: 20px;
-}
-
-.form-row {
-    display: flex;
-    gap: 15px;
-    margin-bottom: 15px;
-    align-items: center;
-}
-
-.form-group {
-    flex: 1;
-}
-
-.form-label {
-    font-weight: 500;
-    color: #333;
-    margin-bottom: 5px;
-}
-
-.form-control {
-    border-radius: 4px;
-    border: 1px solid #ddd;
-}
-
-.form-control:focus {
-    border-color: #007bff;
-    box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25);
-}
-
-.currency-selector {
-    width: 120px;
-}
-
-.save-btn {
-    padding: 8px 20px;
-    border-radius: 4px;
-    font-weight: 500;
-}
-
-.batch-actions {
-    background: #f8f9fa;
-    border: 1px solid #e0e0e0;
-    border-radius: 6px;
-    padding: 20px;
-    margin-bottom: 20px;
-}
-
-.copy-month-selector {
-    max-width: 200px;
-}
-
-.indicator-icon {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 8px;
-    font-size: 0.75rem;
-    color: white;
-}
-
-.icon-implant { background-color: #007bff; }
-.icon-sales { background-color: #28a745; }
-.icon-customers { background-color: #17a2b8; }
-.icon-projects { background-color: #ffc107; color: #333; }
-.icon-five-star { background-color: #6f42c1; }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="container-fluid">
-    <!-- 页面标题 -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>
-            <i class="fas fa-cog me-2"></i>
-            绩效目标设置 - {{ current_year }}年
-        </h2>
-        
-        <div class="d-flex align-items-center gap-3">
-            <!-- 用户选择器 -->
-            {% if manageable_users|length > 1 %}
-            <div class="form-group mb-0">
-                <label for="userSelector" class="form-label mb-1 small">管理用户：</label>
-                <select id="userSelector" class="form-select form-select-sm" style="width: auto;">
-                    {% for user in manageable_users %}
-                    <option value="{{ user.id }}" {% if user.id == selected_user.id %}selected{% endif %}>
-                        {{ user.real_name or user.username }}
-                    </option>
-                    {% endfor %}
-                </select>
+<!-- 标准化顶部提示组件 -->
+{{ render_top_notification() }}
+
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 标准化页面头部区域：标题与操作按钮在同一行 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">绩效目标设置</h1>
             </div>
-            {% endif %}
-            
-            <!-- 返回按钮 -->
-            <a href="{{ url_for('performance.index', user_id=selected_user.id) }}" class="btn btn-outline-secondary btn-sm">
-                <i class="fas fa-arrow-left"></i> 返回绩效统计
-            </a>
+            <div class="col text-end">
+                <!-- 操作按钮组 -->
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    {{ render_button(
+                        text=_('保存'),
+                        color='success',
+                        icon='fas fa-save',
+                        onclick='saveAllTargets(event)'
+                    ) }}
+                    
+                    {{ render_button(
+                        text=_('返回'),
+                        href=url_for('performance.index'),
+                        color='secondary',
+                        icon='fas fa-arrow-left',
+                        extra_class='ms-2'
+                    ) }}
+                </div>
+            </div>
         </div>
     </div>
-
-    <!-- 权限提示和批量操作区域 -->
-    {% if not can_edit_targets %}
-    <div class="alert alert-info mb-4">
-        <i class="fas fa-info-circle me-2"></i>
-        您正在查看 <strong>{{ selected_user.real_name or selected_user.username }}</strong> 的绩效目标设置，仅可查看不可修改。
-        {% if current_user.id == selected_user.id %}
-        个人用户只能查看自己的绩效目标，无法编辑。
-        {% else %}
-        只有管理员或具备账户设置模块权限的用户可以修改绩效目标。
-        {% endif %}
-    </div>
+    
+    <!-- 筛选搜索组件 -->
+    {% if filter_config %}
+        <div class="card mb-4">
+            <div class="card-body">
+                {{ render_filter_search_form(filter_config) }}
+            </div>
+        </div>
     {% endif %}
     
-    {% if can_edit_targets %}
-    <!-- 批量操作区域 -->
-    <div class="batch-actions">
-        <h5 class="mb-3">
-            <i class="fas fa-magic me-2"></i>
-            批量操作
-        </h5>
-        
-        <div class="row">
-            <div class="col-md-6">
-                <div class="form-group">
-                    <label class="form-label">全年货币单位设置</label>
-                    <div class="d-flex gap-2">
-                        <select id="globalCurrency" class="form-select currency-selector">
-                            {% for currency in currency_options %}
-                            <option value="{{ currency.code }}">{{ currency.name }} ({{ currency.code }})</option>
-                            {% endfor %}
-                        </select>
-                        <button type="button" class="btn btn-outline-primary" onclick="applyGlobalCurrency()">
-                            应用到全年
-                        </button>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-6">
-                <div class="form-group">
-                    <label class="form-label">复制目标到其他月份</label>
-                    <div class="d-flex gap-2">
-                        <select id="copyFromMonth" class="form-select copy-month-selector">
-                            <option value="">选择源月份</option>
-                            {% for month in range(1, 13) %}
-                            <option value="{{ month }}">{{ month }}月</option>
-                            {% endfor %}
-                        </select>
-                        <select id="copyToRange" class="form-select copy-month-selector">
-                            <option value="remaining">复制到剩余月份</option>
-                            <option value="all">复制到全年</option>
-                        </select>
-                        <button type="button" class="btn btn-outline-success" onclick="copyTargets()">
-                            批量复制
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
 
-    <!-- 月度目标设置 -->
-    <div class="row">
-        {% for month in range(1, 13) %}
-        {% set target = targets.get(month) %}
-        {% set is_current = month == current_month %}
-        {% set is_past = month < current_month %}
-        
-        <div class="col-lg-6 col-xl-4">
-            <div class="month-card {% if is_current %}current-month{% elif is_past %}past-month{% endif %}" data-month="{{ month }}">
-                <div class="month-header">
-                    <h6 class="mb-0">
-                        {{ month }}月目标
-                        {% if is_current %}
-                        <span class="badge bg-light text-dark ms-2">本月</span>
-                        {% elif is_past %}
-                        <span class="badge bg-secondary ms-2">已过</span>
-                        {% endif %}
-                    </h6>
-                </div>
-                
-                <div class="target-form">
-                    <!-- 货币选择 -->
-                    <div class="form-group mb-3">
-                        <label class="form-label">
-                            <i class="fas fa-coins me-1"></i>
-                            货币单位
-                        </label>
-                        <select class="form-control currency-input" data-month="{{ month }}" {% if not can_edit_targets %}disabled{% endif %}>
-                            {% for currency in currency_options %}
-                            <option value="{{ currency.code }}" 
-                                    {% if target and target.display_currency == currency.code %}selected{% endif %}>
-                                {{ currency.name }} ({{ currency.code }})
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <!-- 植入额目标 -->
-                    <div class="form-group mb-3">
-                        <label class="form-label">
-                            <span class="indicator-icon icon-implant">
-                                <i class="fas fa-seedling"></i>
-                            </span>
-                            植入额目标
-                        </label>
-                        <input type="number" class="form-control target-input" 
-                               data-month="{{ month }}" data-field="implant_amount_target"
-                               value="{{ target.implant_amount_target if target else '' }}"
-                               placeholder="请输入植入额目标" min="0" step="0.01"
-                               {% if not can_edit_targets %}readonly{% endif %}>
-                    </div>
-                    
-                    <!-- 销售额目标 -->
-                    <div class="form-group mb-3">
-                        <label class="form-label">
-                            <span class="indicator-icon icon-sales">
-                                <i class="fas fa-dollar-sign"></i>
-                            </span>
-                            销售额目标
-                        </label>
-                        <input type="number" class="form-control target-input" 
-                               data-month="{{ month }}" data-field="sales_amount_target"
-                               value="{{ target.sales_amount_target if target else '' }}"
-                               placeholder="请输入销售额目标" min="0" step="0.01"
-                               {% if not can_edit_targets %}readonly{% endif %}>
-                    </div>
-                    
-                    <!-- 新增客户目标 -->
-                    <div class="form-group mb-3">
-                        <label class="form-label">
-                            <span class="indicator-icon icon-customers">
-                                <i class="fas fa-users"></i>
-                            </span>
-                            新增客户目标
-                        </label>
-                        <input type="number" class="form-control target-input" 
-                               data-month="{{ month }}" data-field="new_customers_target"
-                               value="{{ target.new_customers_target if target else '' }}"
-                               placeholder="请输入新增客户目标" min="0" step="1"
-                               {% if not can_edit_targets %}readonly{% endif %}>
-                    </div>
-                    
-                    <!-- 新增项目目标 -->
-                    <div class="form-group mb-3">
-                        <label class="form-label">
-                            <span class="indicator-icon icon-projects">
-                                <i class="fas fa-project-diagram"></i>
-                            </span>
-                            新增项目目标
-                        </label>
-                        <input type="number" class="form-control target-input" 
-                               data-month="{{ month }}" data-field="new_projects_target"
-                               value="{{ target.new_projects_target if target else '' }}"
-                               placeholder="请输入新增项目目标" min="0" step="1"
-                               {% if not can_edit_targets %}readonly{% endif %}>
-                    </div>
-                    
-                    <!-- 五星项目增量目标 -->
-                    <div class="form-group mb-3">
-                        <label class="form-label">
-                            <span class="indicator-icon icon-five-star">
-                                <i class="fas fa-star"></i>
-                            </span>
-                            五星项目增量目标
-                        </label>
-                        <input type="number" class="form-control target-input" 
-                               data-month="{{ month }}" data-field="five_star_projects_target"
-                               value="{{ target.five_star_projects_target if target else '' }}"
-                               placeholder="请输入五星项目增量目标" min="0" step="1"
-                               {% if not can_edit_targets %}readonly{% endif %}>
-                    </div>
-                    
-                    <!-- 保存按钮 -->
-                    {% if can_edit_targets %}
-                    <div class="text-end">
-                        <button type="button" class="btn btn-primary save-btn" 
-                                onclick="saveTarget({{ month }})">
-                            <i class="fas fa-save me-1"></i>
-                            保存{{ month }}月目标
-                        </button>
-                    </div>
-                    {% else %}
-                    <div class="text-end">
-                        <span class="text-muted small">
-                            <i class="fas fa-lock me-1"></i>
-                            仅查看模式
-                        </span>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
+    <!-- 目标设置主体区域 -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="filter-title mb-0">
+                <i class="fas fa-bullseye me-2"></i>
+                {{ selected_user.real_name or selected_user.username }} - {{ selected_year }}年度目标设置
+            </h2>
         </div>
-        {% endfor %}
+        <div class="card-body">
+            {% if can_edit_targets %}
+                <!-- 目标设置表格 -->
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped target-table">
+                        <thead>
+                            <tr>
+                                <th width="100px">月份</th>
+                                <th width="150px">植入目标额 {% if is_chinese %}万元{% else %}M{% endif %}</th>
+                                <th width="150px">销售额目标 {% if is_chinese %}万元{% else %}M{% endif %}</th>
+                                <th width="150px">客户新增数</th>
+                                <th width="150px">项目新增数</th>
+                            </tr>
+                            <tr class="target-rate-row">
+                                <td class="text-center">
+                                    <strong>合格值(%)</strong>
+                                </td>
+                                <td class="text-center">
+                                    <input type="number" class="form-control rate-input text-center" id="implant_rate" placeholder="80" min="0" max="100" step="1" value="{{ rate_values.implant_rate if rate_values and rate_values.implant_rate else '' }}">
+                                </td>
+                                <td class="text-center">
+                                    <input type="number" class="form-control rate-input text-center" id="sales_rate" placeholder="80" min="0" max="100" step="1" value="{{ rate_values.sales_rate if rate_values and rate_values.sales_rate else '' }}">
+                                </td>
+                                <td class="text-center">
+                                    <input type="number" class="form-control rate-input text-center" id="customers_rate" placeholder="80" min="0" max="100" step="1" value="{{ rate_values.customers_rate if rate_values and rate_values.customers_rate else '' }}">
+                                </td>
+                                <td class="text-center">
+                                    <input type="number" class="form-control rate-input text-center" id="projects_rate" placeholder="80" min="0" max="100" step="1" value="{{ rate_values.projects_rate if rate_values and rate_values.projects_rate else '' }}">
+                                </td>
+                            </tr>
+                        </thead>
+                        <tbody id="targetsTableBody">
+                            {% for month in range(1, 13) %}
+                            {% set target = targets.get(month) %}
+                            <tr data-month="{{ month }}">
+                                <td><strong>{{ month }}月</strong></td>
+                                <td>
+                                    <input type="number" 
+                                           class="form-control target-input" 
+                                           data-field="implant_amount_target"
+                                           data-month="{{ month }}"
+                                           value="{% if target and target.implant_amount_target %}{% if is_chinese %}{{ (target.implant_amount_target / 10000) | round(2) }}{% else %}{{ (target.implant_amount_target / 1000000) | round(2) }}{% endif %}{% endif %}"
+                                           placeholder="0.00"
+                                           step="0.01">
+                                </td>
+                                <td>
+                                    <input type="number" 
+                                           class="form-control target-input" 
+                                           data-field="sales_amount_target"
+                                           data-month="{{ month }}"
+                                           value="{% if target and target.sales_amount_target %}{% if is_chinese %}{{ (target.sales_amount_target / 10000) | round(2) }}{% else %}{{ (target.sales_amount_target / 1000000) | round(2) }}{% endif %}{% endif %}"
+                                           placeholder="0.00"
+                                           step="0.01">
+                                </td>
+                                <td>
+                                    <input type="number" 
+                                           class="form-control target-input" 
+                                           data-field="new_customers_target"
+                                           data-month="{{ month }}"
+                                           value="{{ target.new_customers_target if target and target.new_customers_target else '' }}"
+                                           placeholder="0"
+                                           step="1"
+                                           min="0">
+                                </td>
+                                <td>
+                                    <input type="number" 
+                                           class="form-control target-input" 
+                                           data-field="new_projects_target"
+                                           data-month="{{ month }}"
+                                           value="{{ target.new_projects_target if target and target.new_projects_target else '' }}"
+                                           placeholder="0"
+                                           step="1"
+                                           min="0">
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr class="table-dark total-row">
+                                <td><strong>总计</strong></td>
+                                <td><strong id="total_implant">0</strong></td>
+                                <td><strong id="total_sales">0</strong></td>
+                                <td><strong id="total_customers">0</strong></td>
+                                <td><strong id="total_projects">0</strong></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    您没有权限编辑该用户的绩效目标设置
+                </div>
+            {% endif %}
+        </div>
     </div>
 </div>
 
-<!-- JavaScript -->
+<!-- 标准化三选择确认对话框 -->
+{{ render_three_choice_dialog(
+    'unsavedChangesModal',
+    '检测到未保存的数据更改',
+    '您有未保存的目标设置或合格值更改，请选择：',
+    'fas fa-exclamation-triangle',
+    [
+        {'text': '保存', 'color': 'success', 'icon': 'fas fa-save', 'action': 'handleSaveAction'},
+        {'text': '放弃', 'color': 'warning', 'icon': 'fas fa-trash', 'action': 'handleDiscardAction'},
+        {'text': '取消', 'color': 'secondary', 'icon': 'fas fa-times', 'action': 'handleCancelAction'}
+    ]
+) }}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/filter-search.js') }}"></script>
+
+<style>
+.target-table {
+    font-size: 0.8rem;
+}
+
+.target-table th {
+    background-color: #f8f9fa;
+    text-align: center;
+    vertical-align: middle;
+    font-weight: 600;
+}
+
+.target-table td {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.target-table td:first-child {
+    background-color: #f8f9fa;
+    font-weight: 500;
+}
+
+.target-input {
+    text-align: center;
+    font-size: 0.8rem;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-weight: 500;
+    -moz-appearance: textfield; /* Firefox */
+}
+
+/* 移除输入框的滚动按钮 */
+.target-input::-webkit-outer-spin-button,
+.target-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.rate-input {
+    text-align: center;
+    font-size: 0.85rem;
+    -moz-appearance: textfield; /* Firefox */
+}
+
+.rate-input::-webkit-outer-spin-button,
+.rate-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.metric-selector {
+    font-size: 0.85rem;
+    border: none;
+    background: transparent;
+    color: #495057;
+    font-weight: 600;
+}
+
+.target-rate-row td {
+    background-color: #e3f2fd !important;
+}
+
+.target-rate-row input {
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+.total-row td {
+    font-size: 1rem;
+    text-align: center;
+}
+
+.page-title {
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+.card-header h5 {
+    color: #495057;
+}
+
+/* 筛选器样式 */
+.card-body {
+    padding: 1rem;
+}
+
+/* 标题字体与筛选器保持一致 */
+.filter-title {
+    color: #2c3e50;
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+
+/* 键盘导航样式 */
+.target-input:focus,
+.rate-input:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    background-color: #f8f9ff;
+}
+
+/* 修改状态提示样式 */
+.target-input.data-changed,
+.rate-input.data-changed {
+    border-color: #28a745;
+    background-color: #f8fff8;
+    box-shadow: 0 0 0 0.1rem rgba(40, 167, 69, 0.15);
+}
+
+.target-input.data-changed:focus,
+.rate-input.data-changed:focus {
+    border-color: #28a745;
+    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+}
+
+/* 响应式处理 */
+@media (max-width: 768px) {
+    .target-table {
+        font-size: 0.8rem;
+    }
+    
+    .target-input, .metric-selector {
+        font-size: 0.8rem;
+    }
+}
+</style>
+
 <script>
-// 用户选择器事件
 document.addEventListener('DOMContentLoaded', function() {
-    const userSelector = document.getElementById('userSelector');
-    if (userSelector) {
-        userSelector.addEventListener('change', function() {
-            const userId = this.value;
-            window.location.href = `{{ url_for('performance.target_settings') }}?user_id=${userId}`;
+    // 初始化筛选组件（仅筛选器，无搜索和按钮）
+    {% if filter_config %}
+    const targetFilterConfig = {
+        form_id: '{{ filter_config.form_id }}',
+        realtime_search: false,
+        auto_submit: false,  // 禁用自动提交，使用自定义跳转逻辑
+        dynamic_reset_button: false,
+        adaptive_width: true,
+        adaptive_button_layout: true,
+        search_delay: 300,
+        filter_fields: [
+            { name: 'user_id' },
+            { name: 'year' }
+        ]
+    };
+    
+    setupFilterSearch(targetFilterConfig);
+    
+    // 为账户和年份切换添加专门的页面跳转处理
+    const userSelect = document.getElementById('user_id');
+    const yearSelect = document.getElementById('year');
+    
+    if (userSelect) {
+        userSelect.addEventListener('change', function() {
+            const newUserId = this.value;
+            console.log('🔄 账户切换:', newUserId);
+            
+            // 保存当前状态用于可能的取消操作
+            saveSelectorsState();
+            
+            if (hasUnsavedChanges) {
+                handleUnsavedChanges(() => {
+                    // 保存后切换
+                    saveAllTargets(null).then(() => {
+                        const currentYear = yearSelect ? yearSelect.value : {{ selected_year }};
+                        const newUrl = '{{ url_for("performance.target_settings") }}?user_id=' + newUserId + '&year=' + currentYear;
+                        window.location.href = newUrl;
+                    });
+                }, () => {
+                    // 直接切换
+                    const currentYear = yearSelect ? yearSelect.value : {{ selected_year }};
+                    const newUrl = '{{ url_for("performance.target_settings") }}?user_id=' + newUserId + '&year=' + currentYear;
+                    window.location.href = newUrl;
+                });
+            } else {
+                // 无未保存数据，直接切换
+                const currentYear = yearSelect ? yearSelect.value : {{ selected_year }};
+                const newUrl = '{{ url_for("performance.target_settings") }}?user_id=' + newUserId + '&year=' + currentYear;
+                console.log('🔄 跳转到:', newUrl);
+                window.location.href = newUrl;
+            }
         });
     }
+    
+    if (yearSelect) {
+        yearSelect.addEventListener('change', function() {
+            const newYear = this.value;
+            console.log('🔄 年份切换:', newYear);
+            
+            // 保存当前状态用于可能的取消操作
+            saveSelectorsState();
+            
+            if (hasUnsavedChanges) {
+                handleUnsavedChanges(() => {
+                    // 保存后切换
+                    saveAllTargets(null).then(() => {
+                        const currentUserId = userSelect ? userSelect.value : {{ selected_user.id if selected_user else current_user.id }};
+                        const newUrl = '{{ url_for("performance.target_settings") }}?user_id=' + currentUserId + '&year=' + newYear;
+                        window.location.href = newUrl;
+                    });
+                }, () => {
+                    // 直接切换
+                    const currentUserId = userSelect ? userSelect.value : {{ selected_user.id if selected_user else current_user.id }};
+                    const newUrl = '{{ url_for("performance.target_settings") }}?user_id=' + currentUserId + '&year=' + newYear;
+                    window.location.href = newUrl;
+                });
+            } else {
+                // 无未保存数据，直接切换
+                const currentUserId = userSelect ? userSelect.value : {{ selected_user.id if selected_user else current_user.id }};
+                const newUrl = '{{ url_for("performance.target_settings") }}?user_id=' + currentUserId + '&year=' + newYear;
+                console.log('🔄 跳转到:', newUrl);
+                window.location.href = newUrl;
+            }
+        });
+    }
+    
+    // 添加前端调试信息
+    console.log('🎯 目标设置页面信息:');
+    console.log('   当前用户ID:', {{ current_user.id }});
+    console.log('   选中用户ID:', {{ selected_user.id if selected_user else 'null' }});
+    console.log('   选中年份:', {{ selected_year }});
+    console.log('   当前用户角色:', '{{ current_user.role }}');
+    console.log('   用户选项数量:', {{ filter_config.filter_fields[0].options|length if filter_config.filter_fields else 0 }});
+    {% endif %}
+    
+    // 初始化目标设置功能
+    initializeTargetSettings();
+    
+    // 捕获初始数据状态和选择器状态（在所有初始化完成后）
+    setTimeout(() => {
+        captureOriginalData();
+        saveSelectorsState();
+    }, 100);
+    
+    console.log('✅ 绩效目标设置页面初始化完成');
 });
 
-// 保存目标
-function saveTarget(month) {
-    // 权限检查
-    {% if not can_edit_targets %}
-    showToast('warning', '您没有权限修改绩效目标');
-    return;
-    {% endif %}
-    
-    const userId = {{ selected_user.id }};
-    const year = {{ current_year }};
-    
-    // 收集表单数据
-    const monthCard = document.querySelector(`[data-month="${month}"]`);
-    const currency = monthCard.querySelector('.currency-input').value;
-    
-    const data = {
-        user_id: userId,
-        year: year,
-        month: month,
-        display_currency: currency,
-        implant_amount_target: parseFloat(monthCard.querySelector('[data-field="implant_amount_target"]').value) || 0,
-        sales_amount_target: parseFloat(monthCard.querySelector('[data-field="sales_amount_target"]').value) || 0,
-        new_customers_target: parseInt(monthCard.querySelector('[data-field="new_customers_target"]').value) || 0,
-        new_projects_target: parseInt(monthCard.querySelector('[data-field="new_projects_target"]').value) || 0,
-        five_star_projects_target: parseInt(monthCard.querySelector('[data-field="five_star_projects_target"]').value) || 0
-    };
-    
-    // 保存按钮状态
-    const saveBtn = monthCard.querySelector('.save-btn');
-    const originalText = saveBtn.innerHTML;
-    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>保存中...';
-    saveBtn.disabled = true;
-    
-    // 发送请求
-    fetch('{{ url_for("performance.save_target") }}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': document.querySelector('meta[name=csrf-token]').getAttribute('content')
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // 显示成功消息
-            showToast('success', `${month}月目标保存成功`);
-            
-            // 更新按钮状态
-            saveBtn.innerHTML = '<i class="fas fa-check me-1"></i>已保存';
-            saveBtn.className = 'btn btn-success save-btn';
-            
-            // 2秒后恢复原状
-            setTimeout(() => {
-                saveBtn.innerHTML = originalText;
-                saveBtn.className = 'btn btn-primary save-btn';
-                saveBtn.disabled = false;
-            }, 2000);
-        } else {
-            throw new Error(data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showToast('error', '保存失败: ' + error.message);
-        
-        saveBtn.innerHTML = originalText;
-        saveBtn.disabled = false;
-    });
-}
-
-// 应用全局货币
-function applyGlobalCurrency() {
-    {% if not can_edit_targets %}
-    showToast('warning', '您没有权限修改绩效目标');
-    return;
-    {% endif %}
-    
-    const currency = document.getElementById('globalCurrency').value;
-    const currencySelects = document.querySelectorAll('.currency-input');
-    
-    currencySelects.forEach(select => {
-        select.value = currency;
+function initializeTargetSettings() {
+    // 监听目标输入框变化，实时计算总计
+    document.querySelectorAll('.target-input').forEach(input => {
+        input.addEventListener('input', calculateTotals);
+        input.addEventListener('input', function(e) {
+            markDataChanged(e.target);
+        });
     });
     
-    showToast('success', '已应用全年货币设置');
+    // 监听合格率输入框变化
+    document.querySelectorAll('.rate-input').forEach(input => {
+        input.addEventListener('input', function(e) {
+            markDataChanged(e.target);
+        });
+    });
+    
+    // 添加键盘导航功能
+    setupKeyboardNavigation();
+    
+    // 初始计算总计
+    calculateTotals();
 }
 
-// 复制目标
-function copyTargets() {
-    {% if not can_edit_targets %}
-    showToast('warning', '您没有权限修改绩效目标');
-    return;
-    {% endif %}
+// 数据变更标记
+let hasUnsavedChanges = false;
+let originalData = {};
+
+function markDataChanged(inputElement) {
+    hasUnsavedChanges = true;
     
-    const fromMonth = parseInt(document.getElementById('copyFromMonth').value);
-    const toRange = document.getElementById('copyToRange').value;
-    
-    if (!fromMonth) {
-        showToast('warning', '请选择源月份');
-        return;
+    // 为修改的输入框添加绿色标记
+    if (inputElement) {
+        inputElement.classList.add('data-changed');
     }
     
-    // 获取源月份的数据
-    const sourceCard = document.querySelector(`[data-month="${fromMonth}"]`);
-    const sourceData = {
-        currency: sourceCard.querySelector('.currency-input').value,
-        implant_amount_target: sourceCard.querySelector('[data-field="implant_amount_target"]').value,
-        sales_amount_target: sourceCard.querySelector('[data-field="sales_amount_target"]').value,
-        new_customers_target: sourceCard.querySelector('[data-field="new_customers_target"]').value,
-        new_projects_target: sourceCard.querySelector('[data-field="new_projects_target"]').value,
-        five_star_projects_target: sourceCard.querySelector('[data-field="five_star_projects_target"]').value
-    };
+    console.log('📝 检测到数据变更，已添加绿色标记');
+}
+
+function captureOriginalData() {
+    // 捕获初始数据状态
+    originalData = {};
     
-    // 确定目标月份范围
-    let targetMonths = [];
-    if (toRange === 'all') {
-        targetMonths = Array.from({length: 12}, (_, i) => i + 1).filter(m => m !== fromMonth);
-    } else {
-        // 复制到剩余月份（当前月之后）
-        const currentMonth = {{ current_month }};
-        for (let m = currentMonth; m <= 12; m++) {
-            if (m !== fromMonth) {
-                targetMonths.push(m);
+    // 捕获目标输入框数据
+    document.querySelectorAll('.target-input').forEach(input => {
+        const key = `${input.dataset.month}-${input.dataset.field}`;
+        originalData[key] = input.value || '';
+    });
+    
+    // 捕获合格率输入框数据
+    document.querySelectorAll('.rate-input').forEach(input => {
+        const key = `rate-${input.id}`;
+        originalData[key] = input.value || '';
+    });
+    
+    hasUnsavedChanges = false;
+    console.log('📋 已捕获原始数据状态 - 目标输入框:', document.querySelectorAll('.target-input').length, '个，合格率输入框:', document.querySelectorAll('.rate-input').length, '个');
+}
+
+function clearAllChangedMarks() {
+    // 移除所有输入框的修改标记
+    document.querySelectorAll('.target-input.data-changed, .rate-input.data-changed').forEach(input => {
+        input.classList.remove('data-changed');
+    });
+    console.log('🧹 已清除所有输入框的修改标记');
+}
+
+function setupKeyboardNavigation() {
+    // 获取所有输入框：合格率输入框 + 目标输入框
+    const rateInputs = Array.from(document.querySelectorAll('.rate-input'));
+    const targetInputs = Array.from(document.querySelectorAll('.target-input'));
+    
+    // 为合格率输入框设置导航
+    rateInputs.forEach((input, index) => {
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                
+                let nextInput = null;
+                
+                if (index < rateInputs.length - 1) {
+                    // 移动到右侧合格率输入框
+                    nextInput = rateInputs[index + 1];
+                } else {
+                    // 最后一个合格率输入框，移动到第一月第一个目标输入框
+                    nextInput = document.querySelector(`[data-month="1"][data-field="implant_amount_target"]`);
+                }
+                
+                if (nextInput) {
+                    nextInput.focus();
+                    nextInput.select();
+                    console.log(`⌨️ 合格率导航至: ${nextInput.id || '1月植入目标'}`);
+                }
+            }
+        });
+    });
+    
+    // 为目标输入框设置导航
+    targetInputs.forEach((input, index) => {
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                
+                const currentRow = parseInt(this.dataset.month);
+                const currentField = this.dataset.field;
+                
+                // 定义字段顺序
+                const fieldOrder = [
+                    'implant_amount_target',
+                    'sales_amount_target', 
+                    'new_customers_target',
+                    'new_projects_target'
+                ];
+                
+                const currentFieldIndex = fieldOrder.indexOf(currentField);
+                
+                let nextInput = null;
+                
+                if (currentFieldIndex < fieldOrder.length - 1) {
+                    // 移动到右侧单元格
+                    const nextField = fieldOrder[currentFieldIndex + 1];
+                    nextInput = document.querySelector(`[data-month="${currentRow}"][data-field="${nextField}"]`);
+                } else {
+                    // 最右侧，移动到下一行第一个单元格
+                    const nextRow = currentRow + 1;
+                    if (nextRow <= 12) {
+                        const firstField = fieldOrder[0];
+                        nextInput = document.querySelector(`[data-month="${nextRow}"][data-field="${firstField}"]`);
+                    }
+                }
+                
+                if (nextInput) {
+                    nextInput.focus();
+                    nextInput.select();
+                    console.log(`⌨️ 目标导航至: ${nextInput.dataset.month}月 ${nextInput.dataset.field}`);
+                }
+            }
+        });
+    });
+    
+    console.log('⌨️ 键盘导航已设置完成 - 合格率输入框:', rateInputs.length, '个，目标输入框:', targetInputs.length, '个');
+}
+
+// 全局回调函数存储
+let currentSaveCallback = null;
+let currentDiscardCallback = null;
+
+function handleUnsavedChanges(onSave, onDiscard) {
+    // 存储回调函数供按钮调用
+    currentSaveCallback = onSave;
+    currentDiscardCallback = onDiscard;
+    
+    // 显示标准化的三选择对话框
+    const modal = new bootstrap.Modal(document.getElementById('unsavedChangesModal'));
+    modal.show();
+    
+    console.log('📋 显示标准化三选择确认对话框');
+}
+
+// 标准化对话框的按钮回调函数
+function handleSaveAction() {
+    console.log('💾 用户选择保存后切换');
+    
+    // 先保存数据，然后执行回调
+    saveAllTargets(null).then(() => {
+        // 保存成功后执行原有的切换回调
+        if (currentSaveCallback) {
+            currentSaveCallback();
+        }
+    }).catch((error) => {
+        console.error('保存失败:', error);
+        // 保存失败时恢复选择器状态，不执行切换
+        restoreSelectorsState();
+    });
+    
+    // 关闭对话框
+    const modal = bootstrap.Modal.getInstance(document.getElementById('unsavedChangesModal'));
+    modal.hide();
+}
+
+function handleDiscardAction() {
+    console.log('🗑️ 用户选择放弃更改，直接切换');
+    hasUnsavedChanges = false; // 重置标记
+    if (currentDiscardCallback) {
+        currentDiscardCallback();
+    }
+    // 关闭对话框
+    const modal = bootstrap.Modal.getInstance(document.getElementById('unsavedChangesModal'));
+    modal.hide();
+}
+
+function handleCancelAction() {
+    console.log('❌ 用户取消操作，不切换');
+    // 不执行任何切换操作，恢复选择器状态
+    restoreSelectorsState();
+    // 关闭对话框
+    const modal = bootstrap.Modal.getInstance(document.getElementById('unsavedChangesModal'));
+    modal.hide();
+}
+
+
+// 保存选择器状态，用于取消时恢复
+let savedSelectorsState = {};
+
+function saveSelectorsState() {
+    const userSelect = document.getElementById('user_id');
+    const yearSelect = document.getElementById('year');
+    
+    savedSelectorsState = {
+        userId: userSelect ? userSelect.value : null,
+        year: yearSelect ? yearSelect.value : null
+    };
+}
+
+function restoreSelectorsState() {
+    const userSelect = document.getElementById('user_id');
+    const yearSelect = document.getElementById('year');
+    
+    if (userSelect && savedSelectorsState.userId) {
+        userSelect.value = savedSelectorsState.userId;
+    }
+    if (yearSelect && savedSelectorsState.year) {
+        yearSelect.value = savedSelectorsState.year;
+    }
+}
+
+function calculateTotals() {
+    const fields = [
+        {name: 'implant_amount_target', id: 'total_implant', isAmount: true},
+        {name: 'sales_amount_target', id: 'total_sales', isAmount: true},
+        {name: 'new_customers_target', id: 'total_customers', isAmount: false},
+        {name: 'new_projects_target', id: 'total_projects', isAmount: false}
+    ];
+    
+    fields.forEach((field) => {
+        let total = 0;
+        const inputs = document.querySelectorAll(`[data-field="${field.name}"]`);
+        
+        inputs.forEach(input => {
+            const value = parseFloat(input.value) || 0;
+            total += value;
+        });
+        
+        const totalElement = document.getElementById(field.id);
+        if (totalElement) {
+            if (field.isAmount) {
+                // 金额字段：保留2位小数
+                totalElement.textContent = total.toLocaleString('zh-CN', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+            } else {
+                // 数量字段：整数显示
+                totalElement.textContent = total.toLocaleString('zh-CN', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0
+                });
             }
         }
-    }
-    
-    // 应用到目标月份
-    targetMonths.forEach(month => {
-        const targetCard = document.querySelector(`[data-month="${month}"]`);
-        targetCard.querySelector('.currency-input').value = sourceData.currency;
-        targetCard.querySelector('[data-field="implant_amount_target"]').value = sourceData.implant_amount_target;
-        targetCard.querySelector('[data-field="sales_amount_target"]').value = sourceData.sales_amount_target;
-        targetCard.querySelector('[data-field="new_customers_target"]').value = sourceData.new_customers_target;
-        targetCard.querySelector('[data-field="new_projects_target"]').value = sourceData.new_projects_target;
-        targetCard.querySelector('[data-field="five_star_projects_target"]').value = sourceData.five_star_projects_target;
     });
-    
-    showToast('success', `已将${fromMonth}月目标复制到${targetMonths.length}个月份`);
 }
 
-// 显示提示消息
-function showToast(type, message) {
-    // 创建提示元素
-    const toast = document.createElement('div');
-    toast.className = `alert alert-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'warning'} alert-dismissible fade show position-fixed`;
-    toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-    toast.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>
-    `;
-    
-    document.body.appendChild(toast);
-    
-    // 3秒后自动移除
-    setTimeout(() => {
-        if (toast.parentElement) {
-            toast.remove();
+function saveAllTargets(event) {
+    return new Promise((resolve, reject) => {
+        const targets = [];
+        const userId = {{ selected_user.id }};
+        const year = {{ selected_year }};
+        const isChinese = {{ 'true' if is_chinese else 'false' }};
+        
+        // 收集合格值数据
+        const rateData = {
+            implant_rate: parseInt(document.getElementById('implant_rate')?.value) || 0,
+            sales_rate: parseInt(document.getElementById('sales_rate')?.value) || 0,
+            customers_rate: parseInt(document.getElementById('customers_rate')?.value) || 0,
+            projects_rate: parseInt(document.getElementById('projects_rate')?.value) || 0
+        };
+        
+        console.log('💾 合格值数据:', rateData);
+        
+        // 收集所有月份的目标数据
+        for (let month = 1; month <= 12; month++) {
+            const implantInput = document.querySelector(`[data-month="${month}"][data-field="implant_amount_target"]`);
+            const salesInput = document.querySelector(`[data-month="${month}"][data-field="sales_amount_target"]`);
+            const customersInput = document.querySelector(`[data-month="${month}"][data-field="new_customers_target"]`);
+            const projectsInput = document.querySelector(`[data-month="${month}"][data-field="new_projects_target"]`);
+            
+            // 根据语言环境转换金额单位到数据库存储单位（元）
+            const implantValue = parseFloat(implantInput?.value) || 0;
+            const salesValue = parseFloat(salesInput?.value) || 0;
+            
+            const targetData = {
+                user_id: userId,
+                year: year,
+                month: month,
+                // 转换为数据库存储的元单位
+                // 中文：万元 * 10000 = 元，英文：M * 1000000 = 元
+                implant_amount_target: isChinese ? (implantValue * 10000) : (implantValue * 1000000),
+                sales_amount_target: isChinese ? (salesValue * 10000) : (salesValue * 1000000),
+                new_customers_target: parseInt(customersInput?.value) || 0,
+                new_projects_target: parseInt(projectsInput?.value) || 0,
+                // 合格值数据
+                implant_rate: rateData.implant_rate,
+                sales_rate: rateData.sales_rate,
+                customers_rate: rateData.customers_rate,
+                projects_rate: rateData.projects_rate
+            };
+            
+            targets.push(targetData);
         }
-    }, 3000);
+        
+        // 显示保存中状态
+        const saveButton = event && event.target;
+        let originalText = '';
+        if (saveButton) {
+            originalText = saveButton.innerHTML;
+            saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 保存中...';
+            saveButton.disabled = true;
+        }
+        
+        // 获取CSRF token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        
+        console.log('💾 开始保存目标数据:', targets.length, '个月份');
+        console.log('💾 保存数据示例:', targets[0]);
+        console.log('💾 CSRF Token:', csrfToken ? '已获取' : '未找到');
+        
+        // 发送保存请求
+        fetch('{{ url_for("performance.save_targets_batch") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken || ''
+            },
+            body: JSON.stringify({ targets: targets })
+        })
+        .then(response => {
+            console.log('🌐 服务器响应状态:', response.status, response.statusText);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.text(); // 先获取原始文本
+        })
+        .then(textData => {
+            console.log('📄 服务器原始响应:', textData.substring(0, 200) + '...');
+            try {
+                const data = JSON.parse(textData);
+                return data;
+            } catch (e) {
+                console.error('❌ JSON解析失败:', e);
+                throw new Error('服务器返回的数据格式错误');
+            }
+        })
+        .then(data => {
+            if (data.success) {
+                // 显示顶部成功提示
+                showTopNotification('目标设置已保存成功！', 'success', 3000);
+                
+                // 移除所有输入框的修改标记
+                clearAllChangedMarks();
+                
+                // 重置数据变更标记并重新捕获数据状态
+                hasUnsavedChanges = false;
+                captureOriginalData();
+                resolve(data);
+            } else {
+                showTopNotification('保存失败: ' + data.message, 'error', 5000);
+                reject(new Error(data.message));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showTopNotification('保存失败，请稍后重试', 'error', 5000);
+            reject(error);
+        })
+        .finally(() => {
+            if (saveButton) {
+                saveButton.innerHTML = originalText;
+                saveButton.disabled = false;
+            }
+        });
+    });
 }
+
 </script>
-{% endblock %} 
+{% endblock %}

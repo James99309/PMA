@@ -303,7 +303,7 @@
                     {% set project_type = pricing_order.project.project_type %}
                     {% if project_type == 'channel_follow' %}渠道跟进
                     {% elif project_type == 'sales_focus' %}销售重点
-                    {% elif project_type == 'business_opportunity' %}业务机会
+                    {% elif project_type == 'business_opportunity' %}客户服务
                     {% else %}{{ project_type }}
                     {% endif %}
                 </span>
@@ -324,7 +324,7 @@
                     {% set project_type = pricing_order.project.project_type if pricing_order.project else '' %}
                     {% if project_type == 'channel_follow' %}渠道跟进
                     {% elif project_type == 'sales_focus' %}销售重点
-                    {% elif project_type == 'business_opportunity' %}业务机会
+                    {% elif project_type == 'business_opportunity' %}客户服务
                     {% else %}{{ project_type or '-' }}
                     {% endif %}
                 </td>

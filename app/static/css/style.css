@@ -3270,6 +3270,20 @@ a:focus .badge.badge-transparent.quotation-number-badge {
     border-color: rgba(226, 227, 229, var(--badge-border-opacity)) !important; /* 灰色系边框 */
 }
 
+.data-list-table .badge.product-status-locked,
+.badge.product-status-locked {
+    background-color: rgba(255, 193, 7, var(--badge-bg-opacity)) !important; /* 警告黄色背景 */
+    color: rgba(33, 37, 41, var(--badge-text-opacity)) !important; /* 深色文字 */
+    border-color: rgba(255, 193, 7, var(--badge-border-opacity)) !important; /* 警告黄色边框 */
+}
+
+.data-list-table .badge.product-status-unlocked,
+.badge.product-status-unlocked {
+    background-color: rgba(25, 135, 84, var(--badge-bg-opacity)) !important; /* 成功绿色背景 */
+    color: rgba(255, 255, 255, var(--badge-text-opacity)) !important; /* 白色文字 */
+    border-color: rgba(25, 135, 84, var(--badge-border-opacity)) !important; /* 成功绿色边框 */
+}
+
 /* 研发产品状态徽章 - 胶囊型基础样式，采用订单徽章相同的透明度系统 */
 .data-list-table .badge.dev-product-status-badge,
 .badge.dev-product-status-badge {

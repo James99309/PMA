@@ -139,8 +139,8 @@ def apply_permission_based_filters(query, current_user, quotation_alias=Quotatio
             # 营销总监：额外可以查看销售重点和渠道跟进项目
             permission_filters.append(project_alias.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进']))
         elif user_role in ['service', 'service_manager']:
-            # 服务经理：额外可以查看业务机会项目
-            permission_filters.append(project_alias.project_type == '业务机会')
+            # 服务经理：额外可以查看客户服务项目
+            permission_filters.append(project_alias.project_type == 'business_opportunity')
         elif user_role == 'business_admin':
             # 商务助理：可以查看同部门用户和归属关系授权用户的项目
             viewable_user_ids = [current_user.id]  # 自己的项目

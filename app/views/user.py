@@ -1290,6 +1290,7 @@ def get_default_modules():
         {"id": "user_management", "name": "账户列表", "description": "管理系统用户账户"},
         {"id": "permission_management", "name": "权限管理", "description": "管理用户角色权限"},
         {"id": "dictionary_management", "name": "字典管理", "description": "管理系统字典数据"},
+        {"id": "performance_management", "name": "绩效管理", "description": "管理用户绩效目标和统计数据"},
         {"id": "project_rating", "name": "项目评分🌟", "description": "设置项目五星评分", "type": "switch"}
     ]
 
@@ -1380,6 +1381,22 @@ def user_detail(user_id):
     
     role_dict = {d.key: d.value for d in Dictionary.query.filter_by(type='role').all()}
     
+    # 计算绩效管理权限
+    from app.utils.permissions import get_accessible_users
+    accessible_users = get_accessible_users(current_user, 'performance_management')
+    
+    # 绩效查看权限：有performance_management的view权限且用户在可访问范围内
+    can_view_performance = (
+        current_user.role == 'admin' or 
+        (current_user.has_permission('performance_management', 'view') and user.id in [u.id for u in accessible_users])
+    )
+    
+    # 绩效编辑权限：有performance_management的edit权限且用户在可访问范围内  
+    can_edit_performance = (
+        current_user.role == 'admin' or 
+        (current_user.has_permission('performance_management', 'edit') and user.id in [u.id for u in accessible_users])
+    )
+    
     return render_template(
         'user/detail.html',
         user=user,
@@ -1387,7 +1404,9 @@ def user_detail(user_id):
         affiliations=affiliations,
         role_dict=role_dict,
         modules=modules,
-        is_vendor=is_vendor
+        is_vendor=is_vendor,
+        can_view_performance=can_view_performance,
+        can_edit_performance=can_edit_performance
     )
 
 @user_bp.route('/batch-delete', methods=['POST'])

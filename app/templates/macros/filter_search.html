@@ -11,7 +11,7 @@
         <div class="row filter-row">
             
             {# 文本搜索框 #}
-            {% if config.search_field %}
+            {% if config.search_field and not config.get('show_search') == false %}
             {% set adaptive_class = 'adaptive-width' if config.search_field.get('adaptive', true) else '' %}
             <div class="col-md-{{ config.search_field.col_width or 'auto' }} filter-control {{ adaptive_class }}">
                 <label for="{{ config.search_field.name }}" class="form-label" 
@@ -52,6 +52,7 @@
             
             
             {# 自适应按钮布局容器 #}
+            {% if not config.get('show_buttons') == false %}
             <div class="col-md-auto ms-auto filter-buttons-container">
                 <div class="d-flex gap-2 mt-2 mt-md-0">
                     {{ render_button(_(config.search_button_text or '搜索'), 
@@ -67,6 +68,7 @@
                                    extra_class='filter-reset-button') }}
                 </div>
             </div>
+            {% endif %}
             
         </div>
     </form>

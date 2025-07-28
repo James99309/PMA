@@ -3741,7 +3741,7 @@ def get_user_pricing_order_approvals(user_id, status=None, page=1, per_page=20):
         if user_role == 'business_admin':
             # 商务助理：只能看到销售重点、渠道跟进的批价单（包含所有可能的项目类型值）
             query = query.filter(
-                Project.project_type.in_(['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow', '业务机会', 'business_opportunity'])
+                Project.project_type.in_(['销售重点', 'sales_key', 'sales_focus', '渠道跟进', 'channel_follow', 'business_opportunity'])
             )
         elif user_role == 'sales_director':
             # 营销总监：销售重点、渠道跟进 - 添加所有可能的项目类型值

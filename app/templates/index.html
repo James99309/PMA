@@ -39,6 +39,7 @@
     </div>
 
     <div class="row mb-4">
+    {% if has_permission('project', 'view') %}
     <div class="col-md-4">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -47,7 +48,7 @@
             </div>
             <div class="card-body">
                 <ul class="list-group list-group-flush">
-                    {% if recent_projects and recent_projects|length > 0 %}
+                    {% if has_permission('project', 'view') and recent_projects and recent_projects|length > 0 %}
                         {% for project in recent_projects %}
                         <li class="list-group-item">
                             <div class="d-flex justify-content-between align-items-center">
@@ -66,16 +67,22 @@
                             </div>
                         </li>
                         {% endfor %}
-                    {% else %}
+                    {% elif has_permission('project', 'view') %}
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             {{ _('您没有最近的项目') }}
+                        </li>
+                    {% else %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center text-muted">
+                            {{ _('无权限查看项目') }}
                         </li>
                     {% endif %}
                 </ul>
             </div>
         </div>
     </div>
+    {% endif %}
 
+    {% if has_permission('quotation', 'view') %}
     <div class="col-md-4">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -84,7 +91,7 @@
             </div>
             <div class="card-body">
                 <ul class="list-group list-group-flush">
-                    {% if recent_quotations and recent_quotations|length > 0 %}
+                    {% if has_permission('quotation', 'view') and recent_quotations and recent_quotations|length > 0 %}
                         {% for quotation in recent_quotations %}
                         <li class="list-group-item">
                             <div class="d-flex justify-content-between align-items-center">
@@ -103,16 +110,22 @@
                             </div>
                         </li>
                         {% endfor %}
-                    {% else %}
+                    {% elif has_permission('quotation', 'view') %}
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             {{ _('您没有最近的报价') }}
+                        </li>
+                    {% else %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center text-muted">
+                            {{ _('无权限查看报价') }}
                         </li>
                     {% endif %}
                 </ul>
             </div>
         </div>
     </div>
+    {% endif %}
 
+    {% if has_permission('customer', 'view') %}
     <div class="col-md-4">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -121,7 +134,7 @@
             </div>
             <div class="card-body">
                 <ul class="list-group list-group-flush">
-                    {% if recent_companies and recent_companies|length > 0 %}
+                    {% if has_permission('customer', 'view') and recent_companies and recent_companies|length > 0 %}
                         {% for company in recent_companies %}
                         <li class="list-group-item">
                             <div class="d-flex justify-content-between align-items-center">
@@ -140,15 +153,20 @@
                             </div>
                         </li>
                         {% endfor %}
-                    {% else %}
+                    {% elif has_permission('customer', 'view') %}
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             {{ _('您没有最近的客户') }}
+                        </li>
+                    {% else %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center text-muted">
+                            {{ _('无权限查看客户') }}
                         </li>
                     {% endif %}
                 </ul>
             </div>
         </div>
     </div>
+    {% endif %}
 </div>
 
 <div class="row mb-4">
@@ -158,23 +176,42 @@
                 <h5 class="mb-0">{{ _('快速操作') }}</h5>
             </div>
             <div class="card-body">
+                {% set has_any_action = has_permission('project', 'create') or has_permission('quotation', 'create') or has_permission('customer', 'create') or current_user.role == 'admin' or has_permission('performance_management', 'view') or current_user.role in ['admin', 'sales_director', 'service_manager'] %}
+                {% if has_any_action %}
                 <div class="row">
+                    {% if has_permission('project', 'create') %}
                     <div class="col-md-3 mb-3">
                         {{ render_button(_('新建项目'), href=url_for('project.add_project'), icon='fas fa-plus-circle', extra_class='w-100', size='md') }}
                     </div>
+                    {% endif %}
+                    {% if has_permission('quotation', 'create') %}
                     <div class="col-md-3 mb-3">
                         {{ render_button(_('新建报价'), href=url_for('quotation.create_quotation'), icon='fas fa-file-invoice-dollar', extra_class='w-100', size='md') }}
                     </div>
+                    {% endif %}
+                    {% if has_permission('customer', 'create') %}
                     <div class="col-md-3 mb-3">
                         {{ render_button(_('新建客户'), href=url_for('customer.add_company'), icon='fas fa-building', extra_class='w-100', size='md') }}
                     </div>
+                    {% endif %}
+                    {% if current_user.role == 'admin' %}
                     <div class="col-md-3 mb-3">
                         {{ render_button(_('查看报表'), href='#', icon='fas fa-chart-line', extra_class='w-100 disabled', size='md', attrs='tabindex="-1" aria-disabled="true"') }}
                     </div>
+                    {% endif %}
+                    {% if has_permission('performance_management', 'view') or current_user.role in ['admin', 'sales_director', 'service_manager'] %}
                     <div class="col-md-3 mb-3">
-                        {{ render_button(_('个人绩效'), href=url_for('performance.index'), icon='fas fa-chart-bar', extra_class='w-100', size='md') }}
+                        {{ render_button(_('绩效看板'), href=url_for('performance.index'), icon='fas fa-chart-bar', extra_class='w-100', size='md') }}
                     </div>
+                    {% endif %}
                 </div>
+                {% else %}
+                <div class="text-center py-4 text-muted">
+                    <i class="fas fa-lock fa-2x mb-3"></i>
+                    <p>{{ _('暂无可用的快速操作') }}</p>
+                    <small>{{ _('请联系管理员获取相应权限') }}</small>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -186,7 +223,20 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
                 <h5 class="mb-0" style="font-size: 1.1rem;">{{ _('最近工作记录') }}</h5>
-                <div class="d-flex align-items-center gap-2 flex-wrap">
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <!-- 历史天数选择器 -->
+                    <div class="d-flex align-items-center" style="white-space: nowrap;">
+                        <label for="daysSelector" class="form-label mb-0 me-2" style="font-size: 0.9rem; white-space: nowrap;">{{ _('查看历史天数') }}:</label>
+                        <select id="daysSelector" class="form-select form-select-sm" style="min-width: 85px; width: 85px;">
+                            <option value="5">5天</option>
+                            <option value="6">6天</option>
+                            <option value="7" selected>7天</option>
+                            <option value="8">8天</option>
+                            <option value="9">9天</option>
+                            <option value="10">10天</option>
+                        </select>
+                    </div>
+                    
                     <!-- 账户筛选 - 仅admin和总监级别显示 -->
                     <div id="accountFilterContainer" class="d-none">
                         <select id="accountFilter" class="form-select form-select-sm" style="min-width: 150px;">
@@ -261,7 +311,7 @@
                 <div id="recordsEmptyState" class="text-center p-4 d-none">
                     <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
                     <h6 class="text-muted">{{ _('暂无最近工作记录') }}</h6>
-                    <p class="text-muted small">{{ _('最近5天内没有工作记录') }}</p>
+                    <p class="text-muted small" id="emptyStateMessage">{{ _('最近7天内没有工作记录') }}</p>
                 </div>
                 
                 <!-- 错误状态 -->
@@ -274,7 +324,7 @@
             </div>
             <div class="card-footer bg-light">
                 <div class="d-flex justify-content-between align-items-center">
-                    <small class="text-muted">{{ _('显示最近5天的工作记录') }}</small>
+                    <small class="text-muted" id="footerMessage">{{ _('显示最近7天的工作记录') }}</small>
                     <small class="text-muted">
                         <span id="recordsCount">0</span> {{ _('条记录') }}
                     </small>
@@ -330,6 +380,7 @@
 <script>
 // 最近工作记录功能
 let currentAccountId = null;
+let currentDays = 7; // 默认7天
 const userRole = '{{ current_user.role }}';
 
 // 页面加载完成后初始化
@@ -345,6 +396,13 @@ function initWorkRecords() {
         document.getElementById('accountFilterContainer').classList.remove('d-none');
     }
     
+    // 绑定天数选择事件
+    document.getElementById('daysSelector').addEventListener('change', function() {
+        currentDays = parseInt(this.value);
+        updateDisplayMessages();
+        loadRecentRecords();
+    });
+    
     // 绑定账户筛选事件
     document.getElementById('accountFilter').addEventListener('change', function() {
         currentAccountId = this.value || null;
@@ -354,8 +412,24 @@ function initWorkRecords() {
     // 添加窗口大小变化监听器
     window.addEventListener('resize', handleResponsiveDisplay);
     
+    // 初始化显示消息
+    updateDisplayMessages();
+    
     // 加载初始数据
     loadRecentRecords();
+}
+
+// 更新显示消息
+function updateDisplayMessages() {
+    const footerMessage = document.getElementById('footerMessage');
+    const emptyStateMessage = document.getElementById('emptyStateMessage');
+    
+    if (footerMessage) {
+        footerMessage.textContent = `显示最近${currentDays}天的工作记录`;
+    }
+    if (emptyStateMessage) {
+        emptyStateMessage.textContent = `最近${currentDays}天内没有工作记录`;
+    }
 }
 
 // 处理响应式显示
@@ -409,9 +483,17 @@ function loadRecentRecords() {
     showLoading();
     
     let url = '/api/recent_work_records';
+    const params = new URLSearchParams();
+    
+    // 添加天数参数
+    params.append('days', currentDays);
+    
+    // 添加账户筛选参数
     if (currentAccountId) {
-        url += `?account_id=${currentAccountId}`;
+        params.append('account_id', currentAccountId);
     }
+    
+    url += '?' + params.toString();
     
     fetch(url)
         .then(response => response.json())

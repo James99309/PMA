@@ -52,7 +52,7 @@ class PricingOrderService:
         # 支持中英文项目类型映射
         if project_type in ["渠道跟进", "channel_follow"]:
             return 'channel_follow'
-        elif project_type in ["销售机会", "sales_opportunity", "业务机会", "business_opportunity"]:
+        elif project_type in ["销售机会", "sales_opportunity", "business_opportunity"]:
             return 'sales_opportunity'
         elif project_type in ["销售重点", "sales_key", "sales_focus"]:
             return 'sales_key'

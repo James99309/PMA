@@ -111,7 +111,7 @@
     {% set bg_color = '#5bc0de' %}
   {% elif code and code.startswith('SPJ') or project_type == '销售重点' %}
     {% set bg_color = '#0B6EFD' %}
-  {% elif code and code.startswith('APJ') or project_type == '业务机会' %}
+  {% elif code and code.startswith('APJ') or project_type == 'business_opportunity' %}
     {% set bg_color = '#198754' %}
   {% endif %}
   <span class="badge rounded-pill"
@@ -2749,7 +2749,9 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
     {% set status_map = {
         'active': {'zh': '生产中', 'en': 'Active', 'css_class': 'product-status-active'},
         'discontinued': {'zh': '已停产', 'en': 'Discontinued', 'css_class': 'product-status-discontinued'},
-        'upcoming': {'zh': '待上市', 'en': 'Upcoming', 'css_class': 'product-status-upcoming'}
+        'upcoming': {'zh': '待上市', 'en': 'Upcoming', 'css_class': 'product-status-upcoming'},
+        'locked': {'zh': '已锁定', 'en': 'Locked', 'css_class': 'product-status-locked'},
+        'unlocked': {'zh': '未锁定', 'en': 'Unlocked', 'css_class': 'product-status-unlocked'}
     } %}
     
     {% set status_config = status_map.get(status, {'zh': status or '未知', 'en': status or 'Unknown', 'css_class': 'product-status-unknown'}) %}
@@ -3165,5 +3167,298 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
             {{ get_object_type_display(object_type) if get_object_type_display is defined else (object_type or '未知类型') }}
         </span>
     {% endif %}
+{% endmacro %}
+
+{#
+=============================================================================
+ 标准三选择对话框组件
+=============================================================================
+
+用途：提供标准化的三选择确认对话框，支持图标、文本和标准按钮功能
+
+参数：
+- title: 对话框标题
+- message: 对话框消息内容
+- icon: 标题图标类名（可选，默认为警告图标）
+- choices: 选择按钮配置数组，每个包含：
+  - text: 按钮文本
+  - color: 按钮颜色
+  - icon: 按钮图标（可选）
+  - action: JavaScript回调函数名（字符串）
+
+使用示例：
+{{ render_three_choice_dialog(
+    'modal-id',
+    '检测到未保存的数据更改',
+    '您有未保存的目标设置或合格值更改，请选择：',
+    'fas fa-exclamation-triangle',
+    [
+        {'text': '保存', 'color': 'success', 'icon': 'fas fa-save', 'action': 'handleSave'},
+        {'text': '放弃', 'color': 'warning', 'icon': 'fas fa-trash', 'action': 'handleDiscard'},
+        {'text': '取消', 'color': 'secondary', 'icon': 'fas fa-times', 'action': 'handleCancel'}
+    ]
+) }}
+=============================================================================
+#}
+{% macro render_three_choice_dialog(modal_id, title, message, icon='fas fa-exclamation-triangle', choices=[]) %}
+<div class="modal fade" id="{{ modal_id }}" tabindex="-1" aria-labelledby="{{ modal_id }}Label" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title d-flex align-items-center" id="{{ modal_id }}Label">
+                    {% if icon %}
+                        <i class="{{ icon }} me-2 text-warning"></i>
+                    {% endif %}
+                    {{ title }}
+                </h5>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0">{{ message }}</p>
+            </div>
+            <div class="modal-footer justify-content-center">
+                {% for choice in choices %}
+                    {{ render_button(
+                        text=choice.text,
+                        color=choice.color,
+                        icon=choice.get('icon', ''),
+                        onclick=choice.action + '()',
+                        extra_class='mx-1'
+                    ) }}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{#
+=============================================================================
+ 标准化顶部下拉提示组件
+=============================================================================
+
+用途：提供标准化的从顶部下拉的提示信息，不影响页面布局
+
+参数：
+- container_id: 提示容器的ID（可选，默认为 'topNotification'）
+
+特性：
+- 从顶部菜单下方滑入，不影响现有布局
+- 支持成功(绿色)、失败(红色)、提醒(橘黄色)三种类型
+- 自动消失机制
+- 可手动关闭
+- 支持图标和文本
+
+使用示例：
+{{ render_top_notification() }}
+
+JavaScript调用：
+showTopNotification('操作成功！', 'success');
+showTopNotification('操作失败！', 'error'); 
+showTopNotification('请注意！', 'warning');
+=============================================================================
+#}
+{% macro render_top_notification(container_id='topNotification') %}
+<div id="{{ container_id }}" class="top-notification-container">
+    <div class="top-notification-content">
+        <div class="d-flex align-items-center">
+            <i class="notification-icon me-2"></i>
+            <span class="notification-message flex-grow-1"></span>
+            {{ render_button(
+                text='',
+                color='link',
+                icon='fas fa-times',
+                onclick='hideTopNotification("' + container_id + '")',
+                extra_class='notification-close-btn p-0 ms-2',
+                size='sm'
+            ) }}
+        </div>
+    </div>
+</div>
+
+<style>
+/* 标准化顶部提示组件样式 */
+.top-notification-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1050; /* 在导航栏上方 */
+    transform: translateY(-100%);
+    transition: transform 0.3s ease-in-out;
+    pointer-events: none;
+}
+
+.top-notification-container.show {
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.top-notification-content {
+    margin: 0 auto;
+    max-width: 1200px;
+    padding: 12px 20px;
+    margin-top: 60px; /* 导航栏高度偏移 */
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+/* 成功提示 - 绿色 */
+.top-notification-container.success .top-notification-content {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.top-notification-container.success .notification-icon {
+    color: #28a745;
+}
+
+/* 失败提示 - 红色 */
+.top-notification-container.error .top-notification-content {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.top-notification-container.error .notification-icon {
+    color: #dc3545;
+}
+
+/* 提醒提示 - 橘黄色 */
+.top-notification-container.warning .top-notification-content {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.top-notification-container.warning .notification-icon {
+    color: #fd7e14;
+}
+
+/* 信息提示 - 蓝色 */
+.top-notification-container.info .top-notification-content {
+    background-color: #d1ecf1;
+    color: #0c5460;
+}
+
+.top-notification-container.info .notification-icon {
+    color: #17a2b8;
+}
+
+/* 关闭按钮样式 */
+.notification-close-btn {
+    color: inherit !important;
+    text-decoration: none !important;
+    opacity: 0.7;
+    font-size: 0.9rem;
+}
+
+.notification-close-btn:hover {
+    opacity: 1;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .top-notification-content {
+        margin-top: 50px;
+        margin-left: 10px;
+        margin-right: 10px;
+        font-size: 0.85rem;
+    }
+}
+</style>
+
+<script>
+// 标准化顶部提示函数
+window.showTopNotification = function(message, type = 'info', duration = 3000, containerId = '{{ container_id }}') {
+    const container = document.getElementById(containerId);
+    if (!container) {
+        console.error('Top notification container not found:', containerId);
+        return;
+    }
+    
+    // 设置消息内容
+    const messageElement = container.querySelector('.notification-message');
+    const iconElement = container.querySelector('.notification-icon');
+    
+    if (messageElement) {
+        messageElement.textContent = message;
+    }
+    
+    // 设置图标
+    if (iconElement) {
+        iconElement.className = 'notification-icon me-2 ';
+        switch(type) {
+            case 'success':
+                iconElement.className += 'fas fa-check-circle';
+                break;
+            case 'error':
+                iconElement.className += 'fas fa-exclamation-circle';
+                break;
+            case 'warning':
+                iconElement.className += 'fas fa-exclamation-triangle';
+                break;
+            case 'info':
+            default:
+                iconElement.className += 'fas fa-info-circle';
+                break;
+        }
+    }
+    
+    // 清除之前的类型类
+    container.classList.remove('success', 'error', 'warning', 'info');
+    // 添加新的类型类
+    container.classList.add(type);
+    
+    // 显示提示
+    container.classList.add('show');
+    
+    // 自动隐藏
+    if (duration > 0) {
+        setTimeout(() => {
+            hideTopNotification(containerId);
+        }, duration);
+    }
+    
+    console.log(`📢 顶部提示: ${message} (${type})`);
+};
+
+// 隐藏顶部提示函数
+window.hideTopNotification = function(containerId = '{{ container_id }}') {
+    const container = document.getElementById(containerId);
+    if (container) {
+        container.classList.remove('show');
+    }
+};
+</script>
+{% endmacro %}
+
+{# 用户角色徽章组件 #}
+{% macro render_user_role_badge(role) %}
+  {% set role_map = {
+    'admin': '管理员',
+    'sales': '销售',
+    'product': '产品',
+    'service': '服务',
+    'vendor': '厂商',
+    'client': '客户'
+  } %}
+  
+  {% set role_text = role_map.get(role, role) if role else '未设置' %}
+  
+  {% if role == 'admin' %}
+    <span class="badge badge-pill badge-transparent user-role-admin">{{ _(role_text) }}</span>
+  {% elif role == 'sales' %}
+    <span class="badge badge-pill badge-transparent user-role-sales">{{ _(role_text) }}</span>
+  {% elif role == 'product' %}
+    <span class="badge badge-pill badge-transparent user-role-product">{{ _(role_text) }}</span>
+  {% elif role == 'service' %}
+    <span class="badge badge-pill badge-transparent user-role-service">{{ _(role_text) }}</span>
+  {% elif role == 'vendor' %}
+    <span class="badge badge-pill badge-transparent user-role-vendor">{{ _(role_text) }}</span>
+  {% elif role == 'client' %}
+    <span class="badge badge-pill badge-transparent user-role-client">{{ _(role_text) }}</span>
+  {% else %}
+    <span class="badge badge-pill badge-transparent badge-muted">{{ _(role_text) }}</span>
+  {% endif %}
 {% endmacro %}
 

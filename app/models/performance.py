@@ -20,6 +20,12 @@ class PerformanceTarget(db.Model):
     new_projects_target = Column(Integer, default=0)
     five_star_projects_target = Column(Integer, default=0)
     
+    # 合格值
+    implant_rate = Column(Integer, default=0, comment='植入合格值')
+    sales_rate = Column(Integer, default=0, comment='销售合格值')
+    customers_rate = Column(Integer, default=0, comment='客户合格值')
+    projects_rate = Column(Integer, default=0, comment='项目合格值')
+    
     # 显示货币
     display_currency = Column(String(10), default='CNY')
     

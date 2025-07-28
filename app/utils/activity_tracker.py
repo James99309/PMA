@@ -20,6 +20,7 @@ def check_company_activity(company_id=None, days_threshold=None):
     - 跟进记录的回复（不包括删除）
     - 客户下的项目的创建或者更新
     - 项目的跟进记录的创建和更新（不包括删除）
+    - 项目的报价单创建和更新
     则活跃度标签修改为不活跃
     
     Args:
@@ -131,6 +132,21 @@ def check_company_activity(company_id=None, days_threshold=None):
                     
                     if recent_project_action:
                         logger.debug(f"客户 {company.id} 关联的项目 {project.id} 有最近的跟进记录 ID: {recent_project_action.id}, 创建于 {recent_project_action.created_at}, 仍然活跃")
+                        is_active = True
+                        break
+                
+                # 检查项目的报价单更新
+                if not is_active:
+                    from app.models.quotation import Quotation
+                    recent_quotation = Quotation.query.filter(
+                        and_(
+                            Quotation.project_id == project.id,
+                            Quotation.updated_at > time_threshold
+                        )
+                    ).first()
+                    
+                    if recent_quotation:
+                        logger.debug(f"客户 {company.id} 关联的项目 {project.id} 有报价单更新 ID: {recent_quotation.id}, 更新时间: {recent_quotation.updated_at}, 仍然活跃")
                         is_active = True
                         break
         

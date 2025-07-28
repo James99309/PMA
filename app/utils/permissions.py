@@ -23,7 +23,7 @@ def assign_user_default_permissions(user):
         logger.info(f"为用户 {user.username} (ID: {user.id}) 分配默认权限")
         
         # 定义模块列表
-        modules = ['customer', 'project', 'quotation', 'product', 'product_code', 'user', 'permission', 'inventory', 'settlement', 'order']
+        modules = ['customer', 'project', 'quotation', 'product', 'product_code', 'user', 'permission', 'inventory', 'settlement', 'order', 'performance_management']
         
         # 删除该用户现有的所有权限（如果有）
         Permission.query.filter_by(user_id=user.id).delete()
@@ -115,6 +115,33 @@ def assign_user_default_permissions(user):
                     can_delete = False
                 else:
                     # 其他角色默认无库存管理权限
+                    can_view = False
+                    can_create = False
+                    can_edit = False
+                    can_delete = False
+            
+            # 绩效管理模块权限设置
+            if module == 'performance_management':
+                if user.role == 'admin':
+                    # 管理员拥有所有绩效管理权限
+                    can_view = True
+                    can_create = True
+                    can_edit = True
+                    can_delete = True
+                elif user.role in ['human_resources', 'hr', 'hrdp_manager', 'ceo', 'sales_director', 'service_manager']:
+                    # 人事、人力资源发展经理、CEO、销售总监、服务经理可以查看和编辑绩效
+                    can_view = True
+                    can_create = True
+                    can_edit = True
+                    can_delete = False
+                elif user.role in ['business_admin', 'solution', 'service', 'sales']:
+                    # 商务助理、解决方案、服务、销售可以查看自己的绩效
+                    can_view = True
+                    can_create = False
+                    can_edit = False
+                    can_delete = False
+                else:
+                    # 其他角色默认无绩效管理权限
                     can_view = False
                     can_create = False
                     can_edit = False
@@ -299,13 +326,20 @@ def clear_user_permissions_cache(user_id=None):
         return False
 
 
-def get_accessible_users(current_user):
+def get_accessible_users(current_user, context_module=None):
     """
-    获取当前用户可访问的用户列表（用于绩效统计等功能）
-    基于权限管理中的设置和归属关系控制用户访问范围
+    获取当前用户可访问的用户列表（用于绩效统计、用户管理等功能）
+    统一基于权限模块、部门负责人权限和数据归属关系控制用户访问范围
+    
+    权限优先级（从高到低）：
+    1. admin 管理员特权：可访问所有用户
+    2. 权限模块数据权限：system > company > department > personal
+    3. 部门负责人权限：可访问本部门用户
+    4. 数据归属设置：基于Affiliation模型的明确授权
     
     参数:
         current_user: 当前登录用户
+        context_module: 上下文模块名称，如 'user_management', 'performance_management' 等
         
     返回:
         list: 可访问的用户列表
@@ -314,38 +348,67 @@ def get_accessible_users(current_user):
         if not current_user or not current_user.is_authenticated:
             return []
         
-        # 管理员可以查看所有用户
+        # 1. admin 管理员特权：可以查看所有用户（最高优先级）
         if current_user.role == 'admin':
             return User.query.filter(User._is_active == True).all()
         
         # 收集可访问的用户ID
         accessible_user_ids = set([current_user.id])  # 始终可以查看自己
         
-        # 1. 基于用户管理模块权限的访问控制
-        if current_user.has_permission('user', 'view'):
-            user_permission_level = current_user.get_permission_level('user')
-            
-            if user_permission_level == 'system':
-                # 系统级权限：可以查看所有用户
-                all_users = User.query.filter(User._is_active == True).all()
-                accessible_user_ids.update([u.id for u in all_users])
-            elif user_permission_level == 'company' and current_user.company_name:
-                # 企业级权限：可以查看企业下所有用户
-                company_users = User.query.filter(
-                    User.company_name == current_user.company_name,
-                    User._is_active == True
-                ).all()
-                accessible_user_ids.update([u.id for u in company_users])
-            elif user_permission_level == 'department' and current_user.department and current_user.company_name:
-                # 部门级权限：可以查看部门下所有用户
-                dept_users = User.query.filter(
-                    User.department == current_user.department,
-                    User.company_name == current_user.company_name,
-                    User._is_active == True
-                ).all()
-                accessible_user_ids.update([u.id for u in dept_users])
+        # 2. 权限模块数据权限（第二优先级）
+        # 根据上下文模块检查相应的权限
+        permission_modules_to_check = []
+        if context_module:
+            permission_modules_to_check.append(context_module)
+        else:
+            # 如果没有指定上下文模块，检查常见的用户访问相关权限
+            permission_modules_to_check = ['user_management', 'performance_management', 'user']
         
-        # 2. 基于归属关系的访问控制（Affiliation）
+        highest_permission_level = 'personal'
+        
+        for module in permission_modules_to_check:
+            if current_user.has_permission(module, 'view'):
+                module_permission_level = current_user.get_permission_level(module)
+                
+                # 选择最高的权限级别
+                if module_permission_level == 'system':
+                    highest_permission_level = 'system'
+                    break  # 系统级是最高权限，无需继续检查
+                elif module_permission_level == 'company' and highest_permission_level in ['personal', 'department']:
+                    highest_permission_level = 'company'
+                elif module_permission_level == 'department' and highest_permission_level == 'personal':
+                    highest_permission_level = 'department'
+        
+        # 根据最高权限级别确定可访问范围
+        if highest_permission_level == 'system':
+            # 系统级权限：可以查看所有用户
+            return User.query.filter(User._is_active == True).all()
+        elif highest_permission_level == 'company' and current_user.company_name:
+            # 企业级权限：可以查看企业下所有用户
+            company_users = User.query.filter(
+                User.company_name == current_user.company_name,
+                User._is_active == True
+            ).all()
+            accessible_user_ids.update([u.id for u in company_users])
+        elif highest_permission_level == 'department' and current_user.department and current_user.company_name:
+            # 部门级权限：可以查看部门下所有用户
+            dept_users = User.query.filter(
+                User.department == current_user.department,
+                User.company_name == current_user.company_name,
+                User._is_active == True
+            ).all()
+            accessible_user_ids.update([u.id for u in dept_users])
+        
+        # 3. 部门负责人权限（第三优先级）
+        if (hasattr(current_user, 'is_department_manager') and current_user.is_department_manager 
+              and current_user.department):
+            dept_users = User.query.filter(
+                User.department == current_user.department,
+                User._is_active == True
+            ).all()
+            accessible_user_ids.update([u.id for u in dept_users])
+        
+        # 4. 数据归属设置（第四优先级）
         from app.models.user import Affiliation
         affiliations = Affiliation.query.filter_by(viewer_id=current_user.id).all()
         for affiliation in affiliations:
@@ -356,47 +419,13 @@ def get_accessible_users(current_user):
             if affiliated_user:
                 accessible_user_ids.add(affiliated_user.id)
         
-        # 3. 基于角色的特殊权限
-        user_role = current_user.role.strip() if current_user.role else ''
-        
-        # CEO可以查看所有用户
-        if user_role == 'ceo':
-            all_users = User.query.filter(User._is_active == True).all()
-            accessible_user_ids.update([u.id for u in all_users])
-        
-        # 营销总监可以查看所有销售人员
-        elif user_role == 'sales_director':
-            sales_users = User.query.filter(
-                User.role.in_(['sales', 'sales_manager']),
-                User._is_active == True
-            ).all()
-            accessible_user_ids.update([u.id for u in sales_users])
-        
-        # 商务助理可以查看同部门用户
-        elif user_role == 'business_admin' and current_user.department and current_user.company_name:
-            dept_users = User.query.filter(
-                User.department == current_user.department,
-                User.company_name == current_user.company_name,
-                User._is_active == True
-            ).all()
-            accessible_user_ids.update([u.id for u in dept_users])
-        
-        # 部门经理可以查看本部门用户
-        elif (hasattr(current_user, 'is_department_manager') and current_user.is_department_manager 
-              and current_user.department):
-            dept_users = User.query.filter(
-                User.department == current_user.department,
-                User._is_active == True
-            ).all()
-            accessible_user_ids.update([u.id for u in dept_users])
-        
-        # 4. 根据收集到的用户ID获取用户对象
+        # 5. 根据收集到的用户ID获取用户对象
         accessible_users = User.query.filter(
             User.id.in_(accessible_user_ids),
             User._is_active == True
         ).order_by(User.real_name, User.username).all()
         
-        logger.info(f"用户 {current_user.username} 可访问 {len(accessible_users)} 个用户的绩效数据")
+        logger.info(f"用户 {current_user.username} 通过模块 {context_module or '默认'} 可访问 {len(accessible_users)} 个用户的数据，最高权限级别: {highest_permission_level}")
         return accessible_users
         
     except Exception as e:

@@ -14,7 +14,7 @@ from app.routes.performance import register_performance_routes
 from datetime import timedelta, datetime
 from app.utils import version_check
 import datetime
-from app.utils.filters import project_type_style, project_stage_style, format_date, format_datetime, format_currency
+from app.utils.filters import project_type_style, project_stage_style, format_date, format_datetime, format_currency, format_achievement_rate
 from app.utils.dictionary_helpers import (
     project_type_label, project_stage_label, project_type_label_i18n, project_stage_label_i18n, report_source_label, authorization_status_label, company_type_label, product_situation_label, industry_label, status_label, brand_status_label, reporting_source_label, share_permission_label, user_label, get_role_display_name, get_amount_unit_config, get_currency_symbol, get_default_currency
 )
@@ -645,6 +645,7 @@ def create_app(config_class=Config):
     app.jinja_env.filters['format_date'] = format_date
     app.jinja_env.filters['format_datetime'] = format_datetime
     app.jinja_env.filters['format_currency'] = format_currency
+    app.jinja_env.filters['format_achievement_rate'] = format_achievement_rate
     app.jinja_env.filters['project_type_label'] = project_type_label_i18n
     app.jinja_env.filters['project_stage_label'] = project_stage_label_i18n
     app.jinja_env.filters['report_source_label'] = report_source_label

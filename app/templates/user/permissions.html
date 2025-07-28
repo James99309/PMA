@@ -1,20 +1,28 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button %}
+{% from 'macros/ui_helpers.html' import render_button, render_top_notification, render_user_role_badge %}
 
-{% block title %}权限管理 - 项目管理系统{% endblock %}
+{% block title %}{{ _('权限管理') }} - {{ _('项目管理系统') }}{% endblock %}
 
 {% block content %}
+<!-- 标准化顶部提示组件 -->
+{{ render_top_notification() }}
+
 <div class="container-fluid page-with-fixed-nav">
     <!-- 标准化页面头部区域：标题与操作按钮在同一行 - 使用page-header-with-actions模组 -->
     <div class="page-header-with-actions mb-4">
         <div class="row align-items-center">
             <div class="col-auto">
-                <h1 class="page-title mb-0">权限管理</h1>
+                <h1 class="page-title mb-0">{{ _('权限管理') }}</h1>
             </div>
             <div class="col text-end">
                 <!-- 操作按钮组 -->
                 <div class="btn-toolbar justify-content-end" role="toolbar">
-                    {{ render_button('返回用户管理', href=url_for('user.list_users'), color='secondary') }}
+                    {{ render_button(
+                        text=_('返回用户管理'),
+                        href=url_for('user.list_users'),
+                        color='secondary',
+                        icon='fas fa-arrow-left'
+                    ) }}
                 </div>
             </div>
         </div>
@@ -49,28 +57,14 @@
                     <div class="col-md-4">
                         <div class="mb-1">
                             <strong>角色：</strong>
-                            {% if user and user.role %}
-                                {% if user.role == 'admin' %}
-                                <span class="badge bg-danger">管理员</span>
-                                {% elif user.role == 'sales' %}
-                                <span class="badge bg-primary">销售</span>
-                                {% elif user.role == 'product' %}
-                                <span class="badge bg-info">产品</span>
-                                {% elif user.role == 'service' %}
-                                <span class="badge bg-success">服务</span>
-                                {% else %}
-                                <span class="badge bg-secondary">{{ user.role }}</span>
-                                {% endif %}
-                            {% else %}
-                                N/A
-                            {% endif %}
+                            {{ render_user_role_badge(user.role if user else None) }}
                         </div>
                         <div class="mb-1">
                             <strong>状态：</strong>
                             {% if user and user.is_active %}
-                            <span class="badge bg-success">已激活</span>
+                            <span class="badge badge-pill badge-transparent user-status-active">已激活</span>
                             {% else %}
-                            <span class="badge bg-warning text-dark">未激活</span>
+                            <span class="badge badge-pill badge-transparent user-status-inactive">未激活</span>
                             {% endif %}
                         </div>
                     </div>
@@ -140,19 +134,41 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="btn-group" role="group">
-                                    <button type="button" class="btn btn-outline-primary" id="selectAll">全选</button>
-                                    <button type="button" class="btn btn-outline-secondary" id="selectNone">清空</button>
-                                    <button type="button" class="btn btn-outline-info" id="selectView">仅查看</button>
+                                    {{ render_button(
+                                        text='全选',
+                                        color='outline-primary',
+                                        onclick='selectAllPermissions()',
+                                        size='sm'
+                                    ) }}
+                                    {{ render_button(
+                                        text='清空',
+                                        color='outline-secondary', 
+                                        onclick='selectNonePermissions()',
+                                        size='sm'
+                                    ) }}
+                                    {{ render_button(
+                                        text='仅查看',
+                                        color='outline-info',
+                                        onclick='selectViewPermissions()',
+                                        size='sm'
+                                    ) }}
                                 </div>
                             </div>
                             <div class="col-md-6 text-end">
                                 <div class="btn-group" role="group">
-                                    <a href="{{ url_for('user.list_users') }}" class="btn btn-outline-secondary">
-                                        <i class="fas fa-arrow-left me-1"></i> 返回列表
-                                    </a>
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="fas fa-save me-1"></i> 保存权限设置
-                                    </button>
+                                    {{ render_button(
+                                        text='返回列表',
+                                        href=url_for('user.list_users'),
+                                        color='secondary',
+                                        icon='fas fa-arrow-left'
+                                    ) }}
+                                    {{ render_button(
+                                        text='保存权限设置',
+                                        type='submit',
+                                        color='primary',
+                                        icon='fas fa-save',
+                                        onclick='savePermissions(event)'
+                                    ) }}
                                 </div>
                             </div>
                         </div>
@@ -176,14 +192,133 @@
         font-size: 20px;
         font-weight: bold;
     }
+    
+    /* 用户状态徽章样式 */
+    .user-status-active {
+        --badge-bg-opacity: 0.4;
+        --badge-text-opacity: 0.8;
+        --badge-border-opacity: 0.6;
+        background-color: rgba(40, 167, 69, var(--badge-bg-opacity));
+        color: rgba(21, 87, 36, var(--badge-text-opacity));
+        border: 1px solid rgba(40, 167, 69, var(--badge-border-opacity));
+    }
+    
+    .user-status-inactive {
+        --badge-bg-opacity: 0.4;
+        --badge-text-opacity: 0.8;
+        --badge-border-opacity: 0.6;
+        background-color: rgba(255, 193, 7, var(--badge-bg-opacity));
+        color: rgba(133, 100, 4, var(--badge-text-opacity));
+        border: 1px solid rgba(255, 193, 7, var(--badge-border-opacity));
+    }
+    
+    /* 用户角色徽章样式 */
+    .user-role-admin {
+        --badge-bg-opacity: 0.4;
+        --badge-text-opacity: 0.8;
+        --badge-border-opacity: 0.6;
+        background-color: rgba(220, 53, 69, var(--badge-bg-opacity));
+        color: rgba(114, 28, 36, var(--badge-text-opacity));
+        border: 1px solid rgba(220, 53, 69, var(--badge-border-opacity));
+    }
+    
+    .user-role-sales {
+        --badge-bg-opacity: 0.4;
+        --badge-text-opacity: 0.8;
+        --badge-border-opacity: 0.6;
+        background-color: rgba(0, 123, 255, var(--badge-bg-opacity));
+        color: rgba(0, 53, 110, var(--badge-text-opacity));
+        border: 1px solid rgba(0, 123, 255, var(--badge-border-opacity));
+    }
+    
+    .user-role-product {
+        --badge-bg-opacity: 0.4;
+        --badge-text-opacity: 0.8;
+        --badge-border-opacity: 0.6;
+        background-color: rgba(23, 162, 184, var(--badge-bg-opacity));
+        color: rgba(12, 84, 96, var(--badge-text-opacity));
+        border: 1px solid rgba(23, 162, 184, var(--badge-border-opacity));
+    }
+    
+    .user-role-service {
+        --badge-bg-opacity: 0.4;
+        --badge-text-opacity: 0.8;
+        --badge-border-opacity: 0.6;
+        background-color: rgba(40, 167, 69, var(--badge-bg-opacity));
+        color: rgba(21, 87, 36, var(--badge-text-opacity));
+        border: 1px solid rgba(40, 167, 69, var(--badge-border-opacity));
+    }
+    
+    .user-role-vendor {
+        --badge-bg-opacity: 0.4;
+        --badge-text-opacity: 0.8;
+        --badge-border-opacity: 0.6;
+        background-color: rgba(111, 66, 193, var(--badge-bg-opacity));
+        color: rgba(58, 35, 101, var(--badge-text-opacity));
+        border: 1px solid rgba(111, 66, 193, var(--badge-border-opacity));
+    }
+    
+    .user-role-client {
+        --badge-bg-opacity: 0.4;
+        --badge-text-opacity: 0.8;
+        --badge-border-opacity: 0.6;
+        background-color: rgba(253, 126, 20, var(--badge-bg-opacity));
+        color: rgba(133, 67, 11, var(--badge-text-opacity));
+        border: 1px solid rgba(253, 126, 20, var(--badge-border-opacity));
+    }
 
+    /* 权限矩阵表格样式优化 */
+    .permission-matrix {
+        font-size: 0.9rem;
+    }
+    
     .permission-matrix label {
         cursor: pointer;
+        margin-bottom: 0;
     }
 
     .permission-matrix .form-check-input {
         width: 1.2em;
         height: 1.2em;
+        cursor: pointer;
+    }
+    
+    .permission-matrix .form-check-input:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    .permission-matrix td {
+        vertical-align: middle;
+        padding: 12px 8px;
+    }
+    
+    .permission-matrix th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        text-align: center;
+        vertical-align: middle;
+        border-color: #dee2e6;
+    }
+    
+    .permission-matrix tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .role-perm-tip {
+        font-size: 0.75rem;
+        color: #6c757d !important;
+        font-style: italic;
+        margin-left: 5px;
+    }
+    
+    /* 按钮组间距优化 */
+    .btn-group .btn {
+        margin-right: 0;
+    }
+    
+    .btn-group .btn + .btn {
+        margin-left: -1px;
     }
 </style>
 {% endblock %}
@@ -191,41 +326,7 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // 快速选择按钮
-        const selectAllBtn = document.getElementById('selectAll');
-        const selectNoneBtn = document.getElementById('selectNone');
-        const selectViewBtn = document.getElementById('selectView');
-        const checkboxes = document.querySelectorAll('.permission-matrix input[type="checkbox"]');
-
-        if(selectAllBtn) {
-            selectAllBtn.addEventListener('click', function() {
-                checkboxes.forEach(checkbox => {
-                    if (!checkbox.disabled && checkbox.classList.contains('perm-checkbox')) {
-                        checkbox.checked = true;
-                    }
-                });
-            });
-        }
-
-        if(selectNoneBtn) {
-            selectNoneBtn.addEventListener('click', function() {
-                checkboxes.forEach(checkbox => {
-                    if (!checkbox.disabled && checkbox.classList.contains('perm-checkbox')) {
-                        checkbox.checked = false;
-                    }
-                });
-            });
-        }
-
-        if(selectViewBtn) {
-            selectViewBtn.addEventListener('click', function() {
-                checkboxes.forEach(checkbox => {
-                    if (!checkbox.disabled && checkbox.classList.contains('perm-checkbox')) {
-                    checkbox.checked = checkbox.id.startsWith('view_');
-                    }
-                });
-            });
-        }
+        // 快速选择按钮函数将在全局作用域中定义
 
         // 行内"全部"复选框联动
         document.querySelectorAll('.perm-all-checkbox').forEach(function(allCb) {
@@ -256,16 +357,112 @@
         });
 
         // 禁用角色权限已有的复选框
-        var rolePermissions = {{ role_permissions|tojson|safe }};
-        document.querySelectorAll('.perm-checkbox').forEach(function(cb) {
-            var module = cb.getAttribute('data-module');
-            var action = cb.getAttribute('data-action');
-            if (rolePermissions[module] && rolePermissions[module]['can_' + action]) {
-                cb.disabled = true;
-                var tip = cb.parentNode.querySelector('.role-perm-tip');
-                if (tip) tip.style.display = 'inline';
+        var rolePermissions = {{ (role_permissions or {})|tojson|safe }};
+        if (rolePermissions && typeof rolePermissions === 'object') {
+            document.querySelectorAll('.perm-checkbox').forEach(function(cb) {
+                var module = cb.getAttribute('data-module');
+                var action = cb.getAttribute('data-action');
+                if (rolePermissions[module] && rolePermissions[module]['can_' + action]) {
+                    cb.disabled = true;
+                    var tip = cb.parentNode.querySelector('.role-perm-tip');
+                    if (tip) tip.style.display = 'inline';
+                }
+            });
+        }
+    });
+    
+    // 全局函数定义，供按钮调用
+    window.selectAllPermissions = function() {
+        const checkboxes = document.querySelectorAll('.permission-matrix .perm-checkbox');
+        checkboxes.forEach(checkbox => {
+            if (!checkbox.disabled) {
+                checkbox.checked = true;
             }
         });
-    });
+        updateAllCheckboxes();
+        showTopNotification('已全选所有可用权限', 'info', 2000);
+    };
+    
+    window.selectNonePermissions = function() {
+        const checkboxes = document.querySelectorAll('.permission-matrix .perm-checkbox');
+        checkboxes.forEach(checkbox => {
+            if (!checkbox.disabled) {
+                checkbox.checked = false;
+            }
+        });
+        updateAllCheckboxes();
+        showTopNotification('已清空所有权限选择', 'info', 2000);
+    };
+    
+    window.selectViewPermissions = function() {
+        const checkboxes = document.querySelectorAll('.permission-matrix .perm-checkbox');
+        checkboxes.forEach(checkbox => {
+            if (!checkbox.disabled) {
+                checkbox.checked = checkbox.id.startsWith('view_');
+            }
+        });
+        updateAllCheckboxes();
+        showTopNotification('已设置仅查看权限', 'info', 2000);
+    };
+    
+    window.savePermissions = function(event) {
+        event.preventDefault();
+        
+        const form = event.target.closest('form');
+        const formData = new FormData(form);
+        
+        // 显示保存中状态
+        const saveButton = event.target;
+        const originalText = saveButton.innerHTML;
+        saveButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 保存中...';
+        saveButton.disabled = true;
+        
+        // 获取CSRF token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 
+                          document.querySelector('input[name="csrf_token"]')?.value;
+        
+        const requestData = {
+            method: 'POST',
+            body: formData
+        };
+        
+        if (csrfToken) {
+            requestData.headers = {
+                'X-CSRFToken': csrfToken
+            };
+        }
+        
+        fetch(window.location.href, requestData)
+            .then(response => {
+                if (response.ok) {
+                    showTopNotification('权限设置已保存成功！', 'success', 3000);
+                    return response.text();
+                } else {
+                    throw new Error('保存失败，状态码: ' + response.status);
+                }
+            })
+            .then(data => {
+                // 如果响应是JSON，可以进一步处理
+                console.log('权限保存成功');
+            })
+            .catch(error => {
+                console.error('保存错误:', error);
+                showTopNotification('保存失败，请稍后重试', 'error', 5000);
+            })
+            .finally(() => {
+                saveButton.innerHTML = originalText;
+                saveButton.disabled = false;
+            });
+    };
+    
+    // 更新“全部”复选框状态的辅助函数
+    function updateAllCheckboxes() {
+        document.querySelectorAll('.perm-all-checkbox').forEach(function(allCb) {
+            const moduleId = allCb.getAttribute('data-module');
+            const allCbs = document.querySelectorAll('.perm-checkbox[data-module="' + moduleId + '"]');
+            const allChecked = Array.from(allCbs).filter(x => !x.disabled).every(x => x.checked);
+            allCb.checked = allChecked;
+        });
+    }
 </script>
 {% endblock %}

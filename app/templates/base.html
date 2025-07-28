@@ -288,7 +288,7 @@
                             </li>
                             <li>
                                 <a class="dropdown-item" href="{{ url_for('performance.index') }}">
-                                    <i class="fas fa-chart-bar me-2"></i> {{ _('个人绩效') }}
+                                    <i class="fas fa-chart-bar me-2"></i> {{ _('绩效看板') }}
                                 </a>
                             </li>
                             <li>
@@ -327,14 +327,14 @@
                 <ul class="navbar-nav main-menu-list" style="width: 220px; max-width: 90vw;">
                     {% if current_user.is_authenticated or session.get('user_id') %}
                     <li class="nav-item">
-                        <a class="nav-link text-sm py-2 {{ 'active' if request.endpoint.startswith('main.') else '' }}" href="{{ url_for('main.index') }}">{{ _('仪表盘') }}</a>
+                        <a class="nav-link text-sm py-2" href="{{ url_for('main.index') }}">{{ _('仪表盘') }}</a>
                     </li>
                     
                     <!-- 业务管理主菜单 -->
                     {% if has_permission('customer', 'view') or has_permission('project', 'view') or has_permission('quotation', 'view') %}
                     <li class="nav-item d-lg-none">
                         <details>
-                            <summary class="nav-link text-sm py-2 mb-0 {{ 'active' if request.endpoint.startswith('customer.') or request.endpoint.startswith('project.') or request.endpoint.startswith('quotation.') or request.endpoint.startswith('product_analysis.') else '' }}" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+                            <summary class="nav-link text-sm py-2 mb-0" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
                                 <span>{{ _('业务管理') }}</span>
                                 <svg class="ms-1" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                             </summary>
@@ -353,7 +353,7 @@
                         </details>
                     </li>
                     <li class="nav-item dropdown d-none d-lg-block">
-                        <a class="nav-link dropdown-toggle text-sm py-2 {{ 'active' if request.endpoint.startswith('customer.') or request.endpoint.startswith('project.') or request.endpoint.startswith('quotation.') or request.endpoint.startswith('product_analysis.') else '' }}"
+                        <a class="nav-link dropdown-toggle text-sm py-2"
                            href="#" id="businessDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             {{ _('业务管理') }}
                         </a>
@@ -376,7 +376,7 @@
                     {% if has_permission('product', 'view') or has_permission('product_code', 'view') %}
                     <li class="nav-item d-lg-none">
                         <details>
-                            <summary class="nav-link text-sm py-2 mb-0 {{ 'active' if request.endpoint.startswith('product_route.') or request.endpoint.startswith('product_code.') or request.endpoint.startswith('product_management.') else '' }}" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+                            <summary class="nav-link text-sm py-2 mb-0" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
                                 <span>{{ _('产品管理') }}</span>
                                 <svg class="ms-1" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                             </summary>
@@ -396,7 +396,7 @@
                         </details>
                     </li>
                     <li class="nav-item dropdown d-none d-lg-block">
-                        <a class="nav-link dropdown-toggle text-sm py-2 {{ 'active' if request.endpoint.startswith('product_route.') or request.endpoint.startswith('product_code.') or request.endpoint.startswith('product_management.') else '' }}"
+                        <a class="nav-link dropdown-toggle text-sm py-2"
                            href="#" id="productDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             {{ _('产品管理') }}
                         </a>
@@ -418,7 +418,7 @@
                     {% if has_permission('inventory', 'admin') %}
                     <li class="nav-item d-lg-none">
                         <details>
-                            <summary class="nav-link text-sm py-2 mb-0 {{ 'active' if request.endpoint.startswith('inventory.') else '' }}" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+                            <summary class="nav-link text-sm py-2 mb-0" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
                                 <span>{{ _('订单结算') }}</span>
                                 <svg class="ms-1" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                             </summary>
@@ -439,7 +439,7 @@
                     {% endif %}
                     {% if has_permission('order', 'view') or has_permission('settlement', 'view') or has_permission('inventory', 'view') %}
                     <li class="nav-item dropdown d-none d-lg-block">
-                        <a class="nav-link dropdown-toggle text-sm py-2 {{ 'active' if request.endpoint.startswith('inventory.') else '' }}"
+                        <a class="nav-link dropdown-toggle text-sm py-2"
                            href="#" id="inventoryDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             {{ _('订单结算') }}
                         </a>
@@ -460,22 +460,22 @@
                     {% if current_user.is_authenticated and (current_user.has_permission('user_management', 'view') or current_user.has_permission('permission_management', 'view') or current_user.has_permission('dictionary_management', 'view')) %}
                     <li class="nav-item d-lg-none">
                         <details>
-                            <summary class="nav-link text-sm py-2 mb-0 {{ 'active' if request.endpoint and request.endpoint.startswith('user.') else '' }}" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+                            <summary class="nav-link text-sm py-2 mb-0" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
                                 <span>{{ _('账户管理') }}</span>
                                 <svg class="ms-1" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                             </summary>
                             <ul class="list-unstyled ps-3 mb-0">
                                 {% if has_permission('user_management', 'view') %}
-                                <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.list_users' else '' }}" href="{{ url_for('user.list_users') }}">{{ _('账户列表') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('user.list_users') }}">{{ _('账户列表') }}</a></li>
                                 {% endif %}
                                 {% if has_permission('permission_management', 'view') %}
-                                <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.manage_role_permissions' else '' }}" href="{{ url_for('user.manage_role_permissions') }}">{{ _('权限管理') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('user.manage_role_permissions') }}">{{ _('权限管理') }}</a></li>
                                 {% endif %}
                                 {% if has_permission('dictionary_management', 'view') %}
                                 <li><hr class="dropdown-divider my-1"></li>
-                                <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.manage_roles' else '' }}" href="{{ url_for('user.manage_roles') }}">{{ _('角色字典') }}</a></li>
-                                <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.manage_companies' else '' }}" href="{{ url_for('user.manage_companies') }}">{{ _('企业字典') }}</a></li>
-                                <li><a class="nav-link text-sm py-2 {{ 'active' if request.endpoint == 'user.manage_departments' else '' }}" href="{{ url_for('user.manage_departments') }}">{{ _('部门字典') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('user.manage_roles') }}">{{ _('角色字典') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('user.manage_companies') }}">{{ _('企业字典') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('user.manage_departments') }}">{{ _('部门字典') }}</a></li>
                                 {% endif %}
                             </ul>
                         </details>
@@ -483,14 +483,14 @@
                     {% endif %}
                     {% if has_permission('user_management', 'view') or has_permission('permission_management', 'view') or has_permission('dictionary_management', 'view') %}
                     <li class="nav-item dropdown d-none d-lg-block">
-                        <a class="nav-link dropdown-toggle text-sm py-2 {{ 'active' if request.endpoint and request.endpoint.startswith('user.') else '' }}"
+                        <a class="nav-link dropdown-toggle text-sm py-2"
                            href="#" id="userManagementDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             {{ _('账户管理') }}
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="userManagementDropdown">
                             {% if has_permission('user_management', 'view') %}
                             <li>
-                                <a class="dropdown-item {{ 'active' if request.endpoint == 'user.list_users' else '' }}"
+                                <a class="dropdown-item"
                                    href="{{ url_for('user.list_users') }}">
                                    {{ _('账户列表') }}
                                 </a>
@@ -498,7 +498,7 @@
                             {% endif %}
                             {% if has_permission('permission_management', 'view') %}
                             <li>
-                                <a class="dropdown-item {{ 'active' if request.endpoint == 'user.manage_role_permissions' else '' }}"
+                                <a class="dropdown-item"
                                    href="{{ url_for('user.manage_role_permissions') }}">
                                    {{ _('权限管理') }}
                                 </a>
@@ -507,19 +507,19 @@
                             {% if has_permission('dictionary_management', 'view') %}
                             <li class="dropdown-divider"></li>
                             <li>
-                                <a class="dropdown-item {{ 'active' if request.endpoint == 'user.manage_roles' else '' }}"
+                                <a class="dropdown-item"
                                    href="{{ url_for('user.manage_roles') }}">
                                    {{ _('角色字典') }}
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {{ 'active' if request.endpoint == 'user.manage_companies' else '' }}"
+                                <a class="dropdown-item"
                                    href="{{ url_for('user.manage_companies') }}">
                                    {{ _('企业字典') }}
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {{ 'active' if request.endpoint == 'user.manage_departments' else '' }}"
+                                <a class="dropdown-item"
                                    href="{{ url_for('user.manage_departments') }}">
                                    {{ _('部门字典') }}
                                 </a>
@@ -531,7 +531,7 @@
                     {% if has_permission('system_management', 'admin') %}
                     <li class="nav-item d-lg-none">
                         <details>
-                            <summary class="nav-link text-sm py-2 mb-0 {{ 'active' if request.endpoint and (request.endpoint.startswith('admin.') or request.endpoint.startswith('version_management.') or request.endpoint.startswith('approval_config.') or request.endpoint.startswith('notification.') or request.endpoint.startswith('change_history.') or request.endpoint.startswith('backup.')) else '' }}" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+                            <summary class="nav-link text-sm py-2 mb-0" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
                                 <span>{{ _('系统管理') }}</span>
                                 <svg class="ms-1" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                             </summary>
@@ -546,7 +546,7 @@
                         </details>
                     </li>
                     <li class="nav-item dropdown d-none d-lg-block">
-                        <a class="nav-link dropdown-toggle text-sm py-2 {{ 'active' if request.endpoint and (request.endpoint.startswith('admin.') or request.endpoint.startswith('version_management.') or request.endpoint.startswith('approval_config.') or request.endpoint.startswith('notification.') or request.endpoint.startswith('change_history.') or request.endpoint.startswith('backup.')) else '' }}"
+                        <a class="nav-link dropdown-toggle text-sm py-2"
                            href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             {{ _('系统管理') }}
                         </a>
@@ -557,29 +557,29 @@
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {{ 'active' if request.endpoint and request.endpoint.startswith('version_management.') else '' }}"
+                                <a class="dropdown-item"
                                    href="{{ url_for('version_management.index') }}">
                                    {{ _('版本管理') }}
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {{ 'active' if request.endpoint and request.endpoint.startswith('approval_config.') else '' }}"
+                                <a class="dropdown-item"
                                    href="{{ url_for('approval_config.template_list') }}">
                                    {{ _('审批流程配置') }}
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {{ 'active' if request.endpoint and request.endpoint.startswith('notification.') else '' }}" href="{{ url_for('notification.center') }}">
+                                <a class="dropdown-item" href="{{ url_for('notification.center') }}">
                                     {{ _('通知中心') }}
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {{ 'active' if request.endpoint and request.endpoint.startswith('change_history.') else '' }}" href="{{ url_for('change_history.index') }}">
+                                <a class="dropdown-item" href="{{ url_for('change_history.index') }}">
                                     {{ _('历史记录') }}
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item {{ 'active' if request.endpoint and request.endpoint.startswith('backup.') else '' }}" href="{{ url_for('backup.index') }}">
+                                <a class="dropdown-item" href="{{ url_for('backup.index') }}">
                                     {{ _('数据库备份') }}
                                 </a>
                             </li>

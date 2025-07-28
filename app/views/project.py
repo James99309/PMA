@@ -831,8 +831,8 @@ def view_project(project_id):
     # 销售总监可以查看渠道跟进和销售重点项目
     elif user_role == 'sales_director' and project.project_type in ['channel_follow', 'sales_focus', '渠道跟进', '销售重点']:
         has_permission = True
-    # 服务经理可以查看业务机会项目
-    elif user_role in ['service', 'service_manager'] and project.project_type == '业务机会':
+    # 服务经理可以查看客户服务项目
+    elif user_role in ['service', 'service_manager'] and project.project_type == 'business_opportunity':
         has_permission = True
     # 项目拥有者可以查看自己的项目
     elif project.owner_id == current_user.id:
@@ -1354,7 +1354,7 @@ def edit_project(project_id):
             new_project_type = {
                 '渠道跟进': 'channel_follow',
                 '销售重点': 'sales_focus',
-                '业务机会': 'business_opportunity',
+                '客户服务': 'business_opportunity',
                 'normal': 'normal',
                 'channel_follow': 'channel_follow',
                 'sales_focus': 'sales_focus',
@@ -1721,10 +1721,10 @@ def approve_authorization(project_id):
         # 销售总监可以批准销售重点项目
         elif user_role == 'sales_director' and project.project_type == 'sales_focus':
             can_approve = True
-        # 销售经理不能批准业务机会项目
+        # 销售经理不能批准客户服务项目
         elif user_role == 'sales' and project.project_type != 'business_opportunity':
             can_approve = True
-        # 服务经理可以批准业务机会项目
+        # 服务经理可以批准客户服务项目
         elif user_role in ['service', 'service_manager'] and project.project_type == 'business_opportunity':
             can_approve = True
 
@@ -1812,10 +1812,10 @@ def reject_authorization(project_id):
         # 销售总监可以拒绝销售重点项目
         elif user_role == 'sales_director' and project.project_type == 'sales_focus':
             can_reject = True
-        # 销售经理不能拒绝业务机会项目
+        # 销售经理不能拒绝客户服务项目
         elif user_role == 'sales' and project.project_type != 'business_opportunity':
             can_reject = True
-        # 服务经理可以拒绝业务机会项目
+        # 服务经理可以拒绝客户服务项目
         elif user_role in ['service', 'service_manager'] and project.project_type == 'business_opportunity':
             can_reject = True
 

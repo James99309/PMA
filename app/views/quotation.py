@@ -670,7 +670,8 @@ def quotations_list_ajax():
         # 预加载关联数据
         query = query.options(
             joinedload(Quotation.project),
-            joinedload(Quotation.owner)
+            joinedload(Quotation.owner),
+            joinedload(Quotation.confirmer)
         )
         
         # 计算总数

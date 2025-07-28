@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 PROJECT_TYPE_PREFIXES = {
     '销售重点': 'SPJ',
     '渠道跟进': 'CPJ',
-    '业务机会': 'APJ'
+    '客户服务': 'APJ'  # 客户服务类型项目（原业务机会），使用APJ前缀
 }
 
 def generate_authorization_code(project_type):
@@ -24,7 +24,7 @@ def generate_authorization_code(project_type):
     生成项目的授权编号
     
     Args:
-        project_type (str): 项目类型，可以是'销售重点'、'渠道跟进'或'业务机会'
+        project_type (str): 项目类型，可以是'销售重点'、'渠道跟进'、'业务机会'或'客户服务'
     
     Returns:
         str: 格式化的授权编号，格式为{前缀}{年份}{月份}-{序号}，例如 SPJ202304-001

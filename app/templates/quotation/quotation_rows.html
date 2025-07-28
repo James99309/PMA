@@ -21,6 +21,9 @@
         {% endif %}
     </td>
     <td class="px-3 text-end">
+        {% if quotation.confirmation_badge_status == 'confirmed' %}
+            {{ render_confirmation_badge(quotation) }}
+        {% endif %}
         {{ render_currency_with_symbol(quotation.amount, quotation.currency or 'CNY') }}
     </td>
     <td class="px-3">

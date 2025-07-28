@@ -104,15 +104,31 @@ class User(db.Model, UserMixin):
         }
     
     def has_permission(self, module, action):
+        """
+        检查用户是否具有指定模块和动作的权限
+        
+        权限合并逻辑：
+        1. 角色权限作为基础权限
+        2. 用户个人权限作为补充权限
+        3. 最终权限 = 角色权限 OR 个人权限（取并集）
+        
+        参数:
+            module: 权限模块名称
+            action: 权限动作 ('view', 'create', 'edit', 'delete')
+            
+        返回:
+            bool: 是否拥有该权限
+        """
         # 调试日志
         print(f"[DEBUG][has_permission] user_id={self.id}, username={self.username}, role={self.role}, module={module}, action={action}")
         
         try:
             # 管理员默认拥有所有权限
             if self.role == 'admin':
+                print(f"[DEBUG][has_permission] admin权限直接返回True")
                 return True
             
-            # 获取角色权限
+            # 1. 获取角色权限（基础权限）
             from app.models.role_permissions import RolePermission
             role_permission = RolePermission.query.filter_by(role=self.role, module=module).first()
             role_has_permission = False
@@ -126,7 +142,7 @@ class User(db.Model, UserMixin):
                 elif action == 'delete':
                     role_has_permission = role_permission.can_delete
                     
-            # 获取个人权限
+            # 2. 获取用户个人权限（补充权限）
             permission = Permission.query.filter_by(user_id=self.id, module=module).first()
             personal_has_permission = False
             if permission:
@@ -139,17 +155,25 @@ class User(db.Model, UserMixin):
                 elif action == 'delete':
                     personal_has_permission = permission.can_delete
             
-            # 最终权限 = 角色权限 OR 个人权限
+            # 3. 合并权限：角色权限 OR 个人权限
             final_permission = role_has_permission or personal_has_permission
             
-            print(f"[DEBUG][has_permission] found_permission={permission}")
-            if permission:
-                print(f"[DEBUG][has_permission] can_view={permission.can_view}, can_create={permission.can_create}, can_edit={permission.can_edit}, can_delete={permission.can_delete}")
+            # 调试输出
+            print(f"[DEBUG][has_permission] 角色权限: {role_has_permission}")
+            print(f"[DEBUG][has_permission] 个人权限: {personal_has_permission}")
+            print(f"[DEBUG][has_permission] 最终权限: {final_permission}")
+            
             if role_permission:
-                print(f"[DEBUG][has_permission] using role_permission: role={self.role}, module={module}")
-                print(f"[DEBUG][has_permission] role_can_view={role_permission.can_view}, role_can_create={role_permission.can_create}, role_can_edit={role_permission.can_edit}, role_can_delete={role_permission.can_delete}")
+                print(f"[DEBUG][has_permission] 角色权限详情: role={self.role}, module={module}")
+                print(f"[DEBUG][has_permission] role_permissions: view={role_permission.can_view}, create={role_permission.can_create}, edit={role_permission.can_edit}, delete={role_permission.can_delete}")
                 print(f"[DEBUG][has_permission] permission_level={role_permission.permission_level}")
-            print(f"[DEBUG][has_permission] final result: role={role_has_permission}, personal={personal_has_permission}, final={final_permission}")
+            else:
+                print(f"[DEBUG][has_permission] 未找到角色权限配置")
+                
+            if permission:
+                print(f"[DEBUG][has_permission] 个人权限详情: view={permission.can_view}, create={permission.can_create}, edit={permission.can_edit}, delete={permission.can_delete}")
+            else:
+                print(f"[DEBUG][has_permission] 未找到个人权限配置")
             
             return final_permission
             
@@ -172,13 +196,63 @@ class User(db.Model, UserMixin):
             return False
     
     def get_permission_level(self, module):
-        """获取用户在指定模块的权限级别"""
+        """
+        获取用户在指定模块的权限级别
+        
+        权限级别逻辑：
+        1. 权限级别由角色权限决定
+        2. 用户个人权限只能在角色权限基础上增加权限开关，不能提升权限级别
+        3. 如果用户有该模块的任何权限，使用角色权限的级别
+        4. 如果用户没有权限，返回 personal 级别
+        
+        参数:
+            module: 权限模块名称
+            
+        返回:
+            str: 权限级别 ('system', 'company', 'department', 'personal')
+        """
         try:
+            # 管理员默认拥有系统级权限
+            if self.role == 'admin':
+                return 'system'
+            
+            # 1. 获取角色权限级别（基础权限级别）
             from app.models.role_permissions import RolePermission
             role_permission = RolePermission.query.filter_by(role=self.role, module=module).first()
+            role_level = 'personal'  # 默认个人级
             if role_permission:
-                return role_permission.permission_level
-            return 'personal'  # 默认个人级权限
+                role_level = role_permission.permission_level or 'personal'
+            
+            # 2. 直接检查用户是否有该模块的任何权限（避免递归调用）
+            # 获取角色权限
+            role_has_any_permission = False
+            if role_permission:
+                role_has_any_permission = (role_permission.can_view or role_permission.can_create or 
+                                         role_permission.can_edit or role_permission.can_delete)
+            
+            # 获取个人权限
+            permission = Permission.query.filter_by(user_id=self.id, module=module).first()
+            personal_has_any_permission = False
+            if permission:
+                personal_has_any_permission = (permission.can_view or permission.can_create or 
+                                             permission.can_edit or permission.can_delete)
+            
+            # 合并权限检查
+            user_has_permission = role_has_any_permission or personal_has_any_permission
+            
+            # 3. 如果用户有权限，返回角色权限级别；否则返回个人级别
+            if user_has_permission:
+                final_level = role_level
+            else:
+                final_level = 'personal'
+            
+            print(f"[DEBUG][get_permission_level] user={self.username}, module={module}")
+            print(f"[DEBUG][get_permission_level] 角色权限级别: {role_level}")
+            print(f"[DEBUG][get_permission_level] 用户有权限: {user_has_permission}")
+            print(f"[DEBUG][get_permission_level] 最终权限级别: {final_level}")
+            
+            return final_level
+            
         except Exception as e:
             print(f"[ERROR][get_permission_level] Database error: {str(e)}")
             return 'personal'

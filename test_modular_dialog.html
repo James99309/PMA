@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模组化三选择对话框测试</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .test-container { 
+            max-width: 800px; 
+            margin: 50px auto; 
+            padding: 20px; 
+        }
+        .test-section { 
+            margin: 30px 0; 
+            padding: 20px; 
+            border: 1px solid #ddd; 
+            border-radius: 8px; 
+        }
+        .result-box { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 5px; 
+            margin: 10px 0; 
+        }
+        .success { background: #d4edda; color: #155724; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        .warning { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1><i class="fas fa-cogs me-3"></i>模组化三选择对话框测试</h1>
+        
+        <div class="test-section">
+            <h3>📋 模组化特性验证</h3>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="result-box success">
+                        <h5><i class="fas fa-check-circle me-2"></i>标准按键函数</h5>
+                        <p>✅ 使用 <code>render_button()</code> 宏</p>
+                        <p>✅ 统一的按钮样式和行为</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="result-box success">
+                        <h5><i class="fas fa-icons me-2"></i>图标支持</h5>
+                        <p>✅ 标题图标：<i class="fas fa-exclamation-triangle text-warning"></i></p>
+                        <p>✅ 按钮图标：<i class="fas fa-save text-success"></i> <i class="fas fa-trash text-warning"></i> <i class="fas fa-times text-secondary"></i></p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="result-box success">
+                        <h5><i class="fas fa-comment-dots me-2"></i>提示文字</h5>
+                        <p>✅ 清晰的标题和消息</p>
+                        <p>✅ 描述性的按钮文本</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h3>🎮 功能测试</h3>
+            <div class="row">
+                <div class="col-md-6">
+                    <button class="btn btn-primary btn-lg" onclick="testStandardDialog()">
+                        <i class="fas fa-play me-2"></i>测试标准化对话框
+                    </button>
+                </div>
+                <div class="col-md-6">
+                    <div id="testResult" class="result-box info">
+                        <p><i class="fas fa-info-circle me-2"></i>点击测试按钮查看模组化对话框</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h3>🔧 实现对比</h3>
+            <div class="row">
+                <div class="col-md-6">
+                    <h5><i class="fas fa-times-circle text-danger me-2"></i>旧实现（非模组化）</h5>
+                    <ul class="text-muted">
+                        <li>❌ 硬编码HTML结构</li>
+                        <li>❌ 自定义按钮样式</li>
+                        <li>❌ 重复的代码逻辑</li>
+                        <li>❌ 难以维护和复用</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h5><i class="fas fa-check-circle text-success me-2"></i>新实现（完全模组化）</h5>
+                    <ul class="text-success">
+                        <li>✅ 使用 <code>render_three_choice_dialog</code> 宏</li>
+                        <li>✅ 使用 <code>render_button</code> 标准按钮</li>
+                        <li>✅ 配置驱动的界面生成</li>
+                        <li>✅ 标准化图标和提示文字</li>
+                        <li>✅ 可在整个项目中复用</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h3>📝 使用示例</h3>
+            <pre class="bg-light p-3 rounded"><code>// 模板中添加对话框组件
+{{ render_three_choice_dialog(
+    'unsavedChangesModal',
+    '检测到未保存的数据更改', 
+    '您有未保存的目标设置或合格值更改，请选择：',
+    'fas fa-exclamation-triangle',
+    [
+        {'text': '保存', 'color': 'success', 'icon': 'fas fa-save', 'action': 'handleSaveAction'},
+        {'text': '放弃', 'color': 'warning', 'icon': 'fas fa-trash', 'action': 'handleDiscardAction'},
+        {'text': '取消', 'color': 'secondary', 'icon': 'fas fa-times', 'action': 'handleCancelAction'}
+    ]
+) }}
+
+// JavaScript 中显示对话框
+function showConfirmDialog() {
+    const modal = new bootstrap.Modal(document.getElementById('unsavedChangesModal'));
+    modal.show();
+}</code></pre>
+        </div>
+    </div>
+
+    <!-- 模拟标准化三选择对话框 -->
+    <div class="modal fade" id="testModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title d-flex align-items-center">
+                        <i class="fas fa-exclamation-triangle me-2 text-warning"></i>
+                        检测到未保存的数据更改
+                    </h5>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">您有未保存的目标设置或合格值更改，请选择：</p>
+                </div>
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn btn-success mx-1" onclick="handleTestSave()">
+                        <i class="fas fa-save me-1"></i>保存
+                    </button>
+                    <button type="button" class="btn btn-warning mx-1" onclick="handleTestDiscard()">
+                        <i class="fas fa-trash me-1"></i>放弃
+                    </button>
+                    <button type="button" class="btn btn-secondary mx-1" onclick="handleTestCancel()">
+                        <i class="fas fa-times me-1"></i>取消
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function testStandardDialog() {
+            const modal = new bootstrap.Modal(document.getElementById('testModal'));
+            modal.show();
+            
+            document.getElementById('testResult').innerHTML = `
+                <div class="success result-box">
+                    <h6><i class="fas fa-rocket me-2"></i>标准化对话框已启动！</h6>
+                    <ul>
+                        <li>✅ 使用 Bootstrap Modal 组件</li>
+                        <li>✅ 标准化按钮样式和图标</li>
+                        <li>✅ 响应式居中布局</li>
+                        <li>✅ 无法通过ESC或背景点击关闭</li>
+                    </ul>
+                </div>
+            `;
+        }
+        
+        function handleTestSave() {
+            closeTestModal();
+            showResult('💾 保存', '用户选择保存数据后继续操作', 'success');
+        }
+        
+        function handleTestDiscard() {
+            closeTestModal();
+            showResult('🗑️ 放弃', '用户选择放弃更改直接操作', 'warning');
+        }
+        
+        function handleTestCancel() {
+            closeTestModal();
+            showResult('❌ 取消', '用户取消操作，恢复到原始状态', 'info');
+        }
+        
+        function closeTestModal() {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('testModal'));
+            modal.hide();
+        }
+        
+        function showResult(action, description, type) {
+            document.getElementById('testResult').innerHTML = `
+                <div class="${type} result-box">
+                    <h6><i class="fas fa-check-circle me-2"></i>用户选择：${action}</h6>
+                    <p>${description}</p>
+                    <small class="text-muted">这演示了标准化模组的完整功能</small>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>

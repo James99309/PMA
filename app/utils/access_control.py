@@ -47,72 +47,62 @@ def get_viewable_data(model_class, user, special_filters=None):
         all_filters = base_filters + (special_filters if special_filters else [])
         return model_class.query.filter(*all_filters)
     
-    # 营销总监特殊处理：可以查看销售重点和渠道跟进项目 - 优化为单个OR查询
-    if user.role and user.role.strip() == 'sales_director' and model_class.__name__ == 'Project':
-        # 使用单个OR查询替代UNION操作，提高性能
-        return model_class.query.filter(
-            or_(
-                model_class.owner_id == user.id,  # 自己的项目
-                model_class.project_type.in_(['sales_focus', 'channel_follow', '销售重点', '渠道跟进']),  # 特殊项目类型
-                model_class.vendor_sales_manager_id == user.id  # 作为销售负责人的项目
-            ),
-            *special_filters
-        )
-    
-    # 渠道经理特殊处理：可以查看渠道跟进项目 - 优化为单个OR查询
-    if user.role and user.role.strip() == 'channel_manager' and model_class.__name__ == 'Project':
-        # 使用单个OR查询替代UNION操作，提高性能
-        return model_class.query.filter(
-            or_(
-                model_class.owner_id == user.id,  # 自己的项目
-                model_class.project_type.in_(['channel_follow', '渠道跟进']),  # 渠道跟进项目
-                model_class.vendor_sales_manager_id == user.id  # 作为销售负责人的项目
-            ),
-            *special_filters
-        )
+    # 移除角色特殊权限逻辑，统一使用权限模块系统
     
     # User 模型特殊处理 - User 没有 owner_id 字段
     if model_class.__name__ == 'User':
         # 管理员已经在前面处理
-        # 部门经理可以查看本部门用户
-        if hasattr(user, 'is_department_manager') and user.is_department_manager and user.department:
-            return model_class.query.filter(model_class.department == user.department, *special_filters)
-        # 销售总监可以查看所有销售
-        elif user.role == 'sales_director':
-            return model_class.query.filter(model_class.role == 'sales', *special_filters)
-        # 其他用户只能查看自己
-        else:
-            return model_class.query.filter(model_class.id == user.id, *special_filters)
+        # 使用统一的用户访问权限控制
+        from app.utils.permissions import get_accessible_users
+        accessible_users = get_accessible_users(user)
+        accessible_user_ids = [u.id for u in accessible_users]
+        return model_class.query.filter(model_class.id.in_(accessible_user_ids), *special_filters)
     
     # 产品数据不受限制
     if model_class.__name__ == 'Product':
         return model_class.query.filter(*special_filters)
     
-    # 订单数据访问控制
+    # 订单数据访问控制 - 使用统一权限系统
     if model_class.__name__ == 'PurchaseOrder':
-        # 统一处理角色字符串，去除空格
-        user_role = user.role.strip() if user.role else ''
+        # 检查用户是否有订单模块的查看权限
+        if not user.has_permission('order', 'view'):
+            return model_class.query.filter(False)
         
-        # 营销总监、渠道经理、商务助理、财务总监可以查看所有订单
-        if user_role in ['sales_director', 'channel_manager', 'business_admin', 'finance_director', 'finace_director']:
+        # 获取用户在订单模块的权限级别
+        permission_level = user.get_permission_level('order')
+        
+        if permission_level == 'system':
+            # 系统级权限：可以查看所有订单
             return model_class.query.filter(*special_filters if special_filters else [])
-        
-        # 产品经理、解决方案经理可以查看所有订单（只读权限）
-        if user_role in ['product_manager', 'product', 'solution_manager', 'solution']:
-            return model_class.query.filter(*special_filters if special_filters else [])
-        
-        # 默认订单权限逻辑：自己创建的订单 + 归属关系授权的订单
-        viewable_user_ids = [user.id]
-        
-        # 获取通过归属关系可以查看的数据
-        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-        for affiliation in affiliations:
-            viewable_user_ids.append(affiliation.owner_id)
-        
-        return model_class.query.filter(
-            model_class.created_by_id.in_(viewable_user_ids),
-            *special_filters
-        )
+        elif permission_level == 'company' and user.company_name:
+            # 企业级权限：可以查看企业下所有订单
+            from app.models.user import User
+            company_user_ids = [u.id for u in User.query.filter_by(company_name=user.company_name).all()]
+            return model_class.query.filter(
+                model_class.created_by_id.in_(company_user_ids),
+                *special_filters
+            )
+        elif permission_level == 'department' and user.department:
+            # 部门级权限：可以查看部门下所有订单
+            from app.models.user import User
+            dept_user_ids = [u.id for u in User.query.filter_by(department=user.department, company_name=user.company_name).all()]
+            return model_class.query.filter(
+                model_class.created_by_id.in_(dept_user_ids),
+                *special_filters
+            )
+        else:
+            # 个人级权限：自己创建的订单 + 归属关系授权的订单
+            viewable_user_ids = [user.id]
+            
+            # 获取通过归属关系可以查看的数据
+            affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+            for affiliation in affiliations:
+                viewable_user_ids.append(affiliation.owner_id)
+            
+            return model_class.query.filter(
+                model_class.created_by_id.in_(viewable_user_ids),
+                *special_filters
+            )
     
     # 处理特殊角色权限 - Project模型 - 基于四级权限管理系统
     if model_class.__name__ == 'Project':
@@ -274,7 +264,7 @@ def get_viewable_data(model_class, user, special_filters=None):
         
         # 服务经理特殊处理
         elif user_role in ['service', 'service_manager']:
-            business_opportunity_projects = Project.query.filter_by(project_type='业务机会').with_entities(Project.id).all()
+            business_opportunity_projects = Project.query.filter_by(project_type='business_opportunity').with_entities(Project.id).all()
             if business_opportunity_projects:
                 business_opportunity_project_ids = [p.id for p in business_opportunity_projects]
                 business_quotations = model_class.query.filter(model_class.project_id.in_(business_opportunity_project_ids)).with_entities(model_class.id).all()
@@ -774,7 +764,7 @@ def can_view_project(user, project):
     2. 厂商负责人
     3. 归属链
     4. 财务总监、解决方案经理、产品经理可以查看所有项目
-    5. 销售经理特殊权限：归属关系中的非业务机会项目
+    5. 销售经理特殊权限：归属关系中的非客户服务项目
     6. 共享（如有 shared_with_users 字段，暂未支持）
     """
     if user.role == 'admin':
@@ -805,9 +795,9 @@ def can_view_project(user, project):
     
     # 归属关系权限检查
     if project.owner_id in affiliation_owner_ids:
-        # 销售经理角色：只能查看归属关系中的非业务机会项目
+        # 销售经理角色：只能查看归属关系中的非客户服务项目
         if user_role in ['sales', 'sales_manager']:
-            return project.project_type != '业务机会'
+            return project.project_type != 'business_opportunity'
         # 其他角色可以查看所有归属关系项目
         return True
     
@@ -886,17 +876,38 @@ def can_change_quotation_owner(user, quotation):
     """
     判断用户是否有权修改报价单的拥有人。
     - 管理员可修改所有报价单
-    - 部门负责人（is_department_manager为True或角色为sales_director）可修改本部门成员的报价单
+    - 部门负责人可修改本部门成员的报价单
+    - 基于报价单模块的编辑权限和数据权限级别
     """
     if user.role == 'admin':
         return True
-    if getattr(user, 'is_department_manager', False) or user.role == 'sales_director':
+    
+    # 检查用户是否有报价单模块的编辑权限
+    if not user.has_permission('quotation', 'edit'):
+        return False
+    
+    # 获取用户在报价单模块的权限级别
+    permission_level = user.get_permission_level('quotation')
+    
+    if permission_level in ['system', 'company']:
+        return True
+    elif permission_level == 'department':
         from app.models.user import User
         owner = User.query.get(quotation.owner_id)
         if not owner:
             return False
-        return hasattr(owner, 'department') and hasattr(user, 'department') and owner.department == user.department
-    return False
+        return (hasattr(owner, 'department') and hasattr(user, 'department') and 
+                owner.department == user.department and owner.company_name == user.company_name)
+    else:
+        # 个人级权限或部门负责人权限
+        if getattr(user, 'is_department_manager', False) and user.department:
+            from app.models.user import User
+            owner = User.query.get(quotation.owner_id)
+            if not owner:
+                return False
+            return (hasattr(owner, 'department') and hasattr(user, 'department') and 
+                    owner.department == user.department)
+        return False
 
 def can_delete_project(user, project):
     """
@@ -945,29 +956,39 @@ def can_delete_quotation(user, quotation):
     if user.role == 'admin':
         return True
     
-    # 统一处理角色字符串，去除空格
-    user_role = user.role.strip() if user.role else ''
-    
-    # 财务总监：不能删除任何报价单
-    if user_role in ['finance_director', 'finace_director']:
+    # 检查用户是否有报价单模块的删除权限
+    if not user.has_permission('quotation', 'delete'):
         return False
     
-    # 产品经理、解决方案经理：基于权限系统进行删除权限控制
-    if user_role in ['product_manager', 'product', 'solution_manager', 'solution']:
-        # 检查是否有报价单删除权限
-        return user.has_permission('quotation', 'delete') and quotation.owner_id == user.id
+    # 获取用户在报价单模块的权限级别
+    permission_level = user.get_permission_level('quotation')
     
-    # 报价单拥有者可以删除
-    if quotation.owner_id == user.id:
+    if permission_level == 'system':
+        # 系统级权限：可以删除所有报价单
         return True
-    
-    # 厂商负责人可以删除项目相关的报价单
-    if (hasattr(quotation, 'project') and quotation.project and 
-        hasattr(quotation.project, 'vendor_sales_manager_id') and 
-        quotation.project.vendor_sales_manager_id == user.id):
-        return True
-    
-    return False
+    elif permission_level == 'company' and user.company_name:
+        # 企业级权限：可以删除企业下所有报价单
+        from app.models.user import User
+        owner = User.query.get(quotation.owner_id)
+        return owner and owner.company_name == user.company_name
+    elif permission_level == 'department' and user.department:
+        # 部门级权限：可以删除部门下所有报价单
+        from app.models.user import User
+        owner = User.query.get(quotation.owner_id)
+        return (owner and owner.department == user.department and 
+                owner.company_name == user.company_name)
+    else:
+        # 个人级权限：只能删除自己的报价单或作为厂商负责人的报价单
+        if quotation.owner_id == user.id:
+            return True
+        
+        # 厂商负责人可以删除项目相关的报价单
+        if (hasattr(quotation, 'project') and quotation.project and 
+            hasattr(quotation.project, 'vendor_sales_manager_id') and 
+            quotation.project.vendor_sales_manager_id == user.id):
+            return True
+        
+        return False
 
 def can_start_approval(model_obj, user):
     """
@@ -1143,24 +1164,41 @@ def has_approval_view_permission(user, object_type, object_id):
 def can_view_order(order, current_user):
     """
     检查是否可以查看订单
-    根据新的权限规则：
-    - 营销总监：可以看到所有订单
-    - 渠道经理：可以创建和看到所有订单
-    - 商务助理：可以创建和看到所有订单
-    - 财务总监：可以看到所有订单
-    - 其他用户：只能查看自己创建的订单和归属关系中的订单
+    基于统一权限系统：
+    - admin：可以查看所有订单
+    - 基于订单模块权限级别：system > company > department > personal
+    - 数据归属关系中的订单
+    - 当前审批人可以查看
     """
     # 管理员拥有所有权限
     if current_user.role == 'admin':
         return True
     
-    user_role = current_user.role.strip() if current_user.role else ''
+    # 检查用户是否有订单模块的查看权限
+    if not current_user.has_permission('order', 'view'):
+        return False
     
-    # 营销总监、渠道经理、商务助理、财务总监可以查看所有订单
-    if user_role in ['sales_director', 'channel_manager', 'business_admin', 'finance_director']:
+    # 获取用户在订单模块的权限级别
+    permission_level = current_user.get_permission_level('order')
+    
+    if permission_level == 'system':
+        # 系统级权限：可以查看所有订单
         return True
+    elif permission_level == 'company' and current_user.company_name:
+        # 企业级权限：可以查看企业下所有订单
+        from app.models.user import User
+        if hasattr(order, 'created_by_id'):
+            creator = User.query.get(order.created_by_id)
+            return creator and creator.company_name == current_user.company_name
+    elif permission_level == 'department' and current_user.department:
+        # 部门级权限：可以查看部门下所有订单
+        from app.models.user import User
+        if hasattr(order, 'created_by_id'):
+            creator = User.query.get(order.created_by_id)
+            return (creator and creator.department == current_user.department and 
+                    creator.company_name == current_user.company_name)
     
-    # 创建人可以查看
+    # 个人级权限：创建人可以查看
     if hasattr(order, 'created_by_id') and order.created_by_id == current_user.id:
         return True
     
@@ -1179,20 +1217,19 @@ def can_view_order(order, current_user):
 def can_export_order_pdf(order, current_user):
     """
     检查是否可以导出订单PDF
-    根据新的权限规则：
-    - 商务助理：可以创建和看到所有订单，并且能打印
-    - 财务总监：可以看到所有订单和打印
-    - 其他角色不能打印订单PDF
+    基于统一权限系统：
+    - admin：可以导出所有订单PDF
+    - 需要有订单模块的查看权限，并且能查看该订单
+    - 具体导出权限可以通过权限模块扩展定义
     """
     # 管理员拥有所有权限
     if current_user.role == 'admin':
         return True
-        
-    user_role = current_user.role.strip() if current_user.role else ''
     
-    # 商务助理和财务总监可以打印所有订单PDF
-    if user_role in ['business_admin', 'finance_director']:
-        # 需要先检查是否有查看权限
-        return can_view_order(order, current_user)
+    # 首先需要能查看该订单
+    if not can_view_order(order, current_user):
+        return False
     
-    return False
+    # 检查是否有订单模块的查看权限（导出作为查看权限的一部分）
+    # 后续可以扩展专门的导出权限
+    return current_user.has_permission('order', 'view')
