@@ -1363,7 +1363,7 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
                 'key': 'related_project',
                 'label': '关联项目',
                 'type': 'link',
-                'url_template': '/project/detail/{project_id}',
+                'url_template': '/project/view/{project_id}',
                 'width': '200px',
                 'render': 'render_project_link'
             },
@@ -1742,7 +1742,7 @@ def get_related_project_display(approval_item):
             # 使用项目名称，如果太长则截断
             display_text = project_name[:20] + '...' if len(project_name) > 20 else project_name
             
-            return f'<a href="/project/detail/{project_id}" class="text-decoration-none" title="{project_name}">{display_text}</a>'
+            return f'<a href="/project/view/{project_id}" class="text-decoration-none" title="{project_name}">{display_text}</a>'
             
     except Exception as e:
         current_app.logger.warning(f"获取关联项目失败: {str(e)}")
