@@ -19,65 +19,37 @@ depends_on = None
 def upgrade():
     """将本地最新结构同步到云端"""
     
-    # 添加本地新增的性能索引（来自592b90d54921迁移）
-    # 这些索引在本地存在但云端可能缺失
+    # 使用原生SQL执行索引创建，避免Alembic事务问题
+    connection = op.get_bind()
     
-    # 1. 报价单性能索引
-    try:
-        op.create_index('idx_quotations_project_id', 'quotations', ['project_id'])
-    except Exception:
-        pass  # 索引可能已存在
+    # 定义要创建的索引列表
+    indexes = [
+        # 报价单性能索引
+        "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_quotations_project_id ON quotations(project_id)",
+        "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_quotations_owner_id ON quotations(owner_id)",
+        "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_quotations_created_at ON quotations(created_at)",
+        "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_quotations_updated_at ON quotations(updated_at)", 
+        "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_quotations_amount ON quotations(amount)",
+        "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_quotations_project_owner ON quotations(project_id, owner_id)",
+        
+        # 项目性能索引
+        "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_projects_project_type ON projects(project_type)",
+        "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_projects_current_stage ON projects(current_stage)",
+        "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_projects_type_stage ON projects(project_type, current_stage)",
+        "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_projects_owner_id ON projects(owner_id)",
+        "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_projects_vendor_sales_manager ON projects(vendor_sales_manager_id)"
+    ]
     
-    try:
-        op.create_index('idx_quotations_owner_id', 'quotations', ['owner_id'])
-    except Exception:
-        pass
+    # 设置autocommit模式以支持CONCURRENTLY
+    connection.execution_options(autocommit=True)
     
-    try:
-        op.create_index('idx_quotations_created_at', 'quotations', ['created_at'])
-    except Exception:
-        pass
-    
-    try:
-        op.create_index('idx_quotations_updated_at', 'quotations', ['updated_at'])
-    except Exception:
-        pass
-    
-    try:
-        op.create_index('idx_quotations_amount', 'quotations', ['amount'])
-    except Exception:
-        pass
-    
-    try:
-        op.create_index('idx_quotations_project_owner', 'quotations', ['project_id', 'owner_id'])
-    except Exception:
-        pass
-    
-    # 2. 项目性能索引
-    try:
-        op.create_index('idx_projects_project_type', 'projects', ['project_type'])
-    except Exception:
-        pass
-    
-    try:
-        op.create_index('idx_projects_current_stage', 'projects', ['current_stage'])
-    except Exception:
-        pass
-    
-    try:
-        op.create_index('idx_projects_type_stage', 'projects', ['project_type', 'current_stage'])
-    except Exception:
-        pass
-    
-    try:
-        op.create_index('idx_projects_owner_id', 'projects', ['owner_id'])
-    except Exception:
-        pass
-    
-    try:
-        op.create_index('idx_projects_vendor_sales_manager', 'projects', ['vendor_sales_manager_id'])
-    except Exception:
-        pass
+    for index_sql in indexes:
+        try:
+            connection.execute(sa.text(index_sql))
+            print(f"✅ 索引创建成功: {index_sql.split()[-1]}")
+        except Exception as e:
+            print(f"⚠️ 索引可能已存在或创建失败: {str(e)[:100]}")
+            continue
 
 
 def downgrade():
