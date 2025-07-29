@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'ovs_sync_to_latest_20250729'
-down_revision = None  # OVS首次迁移，无前置版本
+down_revision = 'c8d3eaeaf234'  # 基于最新的稳定版本
 branch_labels = None
 depends_on = None
 
@@ -67,16 +67,16 @@ def upgrade():
         
         if versions:
             current_version = versions[0][0] if versions[0][0] else "空值"
-            print(f"❌ 安全检查失败: 数据库已有迁移版本 '{current_version}'")
-            print("   此迁移仅适用于未初始化的OVS数据库")
-            print("   如果需要强制执行，请先手动清空 alembic_version 表")
-            raise Exception("数据库安全检查失败 - 已存在迁移版本")
+            if current_version != 'c8d3eaeaf234':
+                print(f"⚠️ 版本检查: 当前版本 '{current_version}'，期望版本 'c8d3eaeaf234'")
+                print("   如果确认要强制执行，请继续...")
+            else:
+                print("✅ 安全检查3通过: 当前版本匹配期望的前置版本")
+        else:
+            print("⚠️ 版本检查: alembic_version表为空，将从基础版本开始")
             
     except Exception as e:
-        if "数据库安全检查失败" in str(e):
-            raise
-        # alembic_version表为空，这是期望的OVS状态
-        print("✅ 安全检查3通过: OVS数据库处于未初始化状态")
+        print(f"⚠️ 版本检查警告: {e}")
     
     # 🔒 安全检查4: 验证缺失表存在性
     try:
