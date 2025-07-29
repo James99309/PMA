@@ -19,7 +19,82 @@ depends_on = None
 def upgrade():
     """OVS数据库升级到最新结构"""
     
-    print("🚀 开始OVS数据库迁移...")
+    print("🚀 开始OVS数据库迁移安全检查...")
+    
+    # 🔒 安全检查1: 验证当前数据库是否为OVS
+    connection = op.get_bind()
+    
+    try:
+        result = connection.execute(sa.text("SELECT current_database()"))
+        db_name = result.fetchone()[0]
+        
+        if 'ovs' not in db_name.lower():
+            print(f"❌ 安全检查失败: 当前数据库 '{db_name}' 不是OVS数据库")
+            print("   此迁移仅适用于OVS数据库 (数据库名应包含'ovs')")
+            print("   请检查 DATABASE_URL 环境变量")
+            raise Exception("数据库安全检查失败 - 非OVS数据库")
+            
+        print(f"✅ 安全检查1通过: 当前数据库 '{db_name}' 是OVS数据库")
+    except Exception as e:
+        if "数据库安全检查失败" in str(e):
+            raise
+        print(f"⚠️ 无法确定数据库名称: {e}")
+        print("   执行备用检查...")
+    
+    # 🔒 安全检查2: 验证数据库表数量特征
+    try:
+        result = connection.execute(sa.text("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'"))
+        table_count = result.fetchone()[0]
+        
+        if table_count != 56:
+            print(f"❌ 安全检查失败: 当前数据库表数量 {table_count}，不符合OVS数据库特征")
+            print("   OVS数据库应该有56个表")
+            print(f"   SP8D数据库有58个表")
+            print("   请确认您正在正确的数据库上执行迁移")
+            raise Exception("数据库安全检查失败 - 表数量不匹配")
+            
+        print(f"✅ 安全检查2通过: 表数量 {table_count} 符合OVS数据库特征")
+    except Exception as e:
+        if "数据库安全检查失败" in str(e):
+            raise
+        print(f"❌ 表数量验证失败: {e}")
+        raise Exception("数据库安全检查失败 - 无法验证表数量")
+    
+    # 🔒 安全检查3: 验证alembic版本状态
+    try:
+        result = connection.execute(sa.text("SELECT version_num FROM alembic_version"))
+        versions = result.fetchall()
+        
+        if versions:
+            current_version = versions[0][0] if versions[0][0] else "空值"
+            print(f"❌ 安全检查失败: 数据库已有迁移版本 '{current_version}'")
+            print("   此迁移仅适用于未初始化的OVS数据库")
+            print("   如果需要强制执行，请先手动清空 alembic_version 表")
+            raise Exception("数据库安全检查失败 - 已存在迁移版本")
+            
+    except Exception as e:
+        if "数据库安全检查失败" in str(e):
+            raise
+        # alembic_version表为空，这是期望的OVS状态
+        print("✅ 安全检查3通过: OVS数据库处于未初始化状态")
+    
+    # 🔒 安全检查4: 验证缺失表存在性
+    try:
+        result = connection.execute(sa.text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('temp_products', 'company_assets')"))
+        existing_target_tables = [row[0] for row in result.fetchall()]
+        
+        if existing_target_tables:
+            print(f"❌ 安全检查失败: 目标表已存在 {existing_target_tables}")
+            print("   这表明迁移可能已经执行过或数据库状态异常")
+            raise Exception("数据库安全检查失败 - 目标表已存在")
+            
+        print("✅ 安全检查4通过: 目标表不存在，可以安全创建")
+    except Exception as e:
+        if "数据库安全检查失败" in str(e):
+            raise
+        print(f"⚠️ 目标表检查警告: {e}")
+    
+    print("🎉 所有安全检查通过！开始执行OVS数据库迁移...")
     print("   - 需要创建 2 个表")
     print("   - 需要添加 26 个字段") 
     print("   - 需要创建相关索引和约束")

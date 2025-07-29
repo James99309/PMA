@@ -19,6 +19,43 @@ depends_on = None
 def upgrade():
     """将本地最新结构同步到云端"""
     
+    print("🚀 开始SP8D数据库迁移安全检查...")
+    
+    # 🔒 安全检查: 验证当前数据库是否为SP8D
+    connection = op.get_bind()
+    
+    try:
+        result = connection.execute(sa.text("SELECT current_database()"))
+        db_name = result.fetchone()[0]
+        
+        if 'sp8d' not in db_name.lower():
+            print(f"❌ 安全检查失败: 当前数据库 '{db_name}' 不是SP8D数据库")
+            print("   此迁移仅适用于SP8D数据库 (数据库名应包含'sp8d')")
+            print("   请检查 DATABASE_URL 环境变量")
+            raise Exception("数据库安全检查失败 - 非SP8D数据库")
+            
+        print(f"✅ 安全检查通过: 当前数据库 '{db_name}' 是SP8D数据库")
+    except Exception as e:
+        if "数据库安全检查失败" in str(e):
+            raise
+        print(f"⚠️ 无法确定数据库名称，继续执行: {e}")
+    
+    # 验证前置版本
+    try:
+        result = connection.execute(sa.text("SELECT version_num FROM alembic_version"))
+        versions = result.fetchall()
+        
+        if not versions or versions[0][0] != 'c8d3eaeaf234':
+            current_version = versions[0][0] if versions else "无版本"
+            print(f"⚠️ 版本检查: 当前版本 '{current_version}'，期望版本 'c8d3eaeaf234'")
+            print("   如果确认要强制执行，请继续...")
+        else:
+            print("✅ 版本检查通过: 当前版本匹配期望的前置版本")
+    except Exception as e:
+        print(f"⚠️ 版本检查警告: {e}")
+    
+    print("🎉 开始执行SP8D数据库迁移...")
+    
     # 使用标准的Alembic方法创建索引（不使用CONCURRENTLY避免事务问题）
     
     # 1. 报价单性能索引
