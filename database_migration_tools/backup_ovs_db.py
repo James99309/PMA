@@ -30,11 +30,10 @@ class OVSCloudDatabaseBackup:
         os.makedirs(self.backup_dir, exist_ok=True)
         
         # 云端数据库连接信息 (pma_db_ovs)
-        self.cloud_db_url = os.environ.get('RENDER_DB_URL')
+        self.cloud_db_url = os.environ.get('RENDER_DB_URL', 
+            'postgresql://pma_db_ovs_user:oUKdxwqXDvCrgkg3fkZ33axXgDF21D51@dpg-d170laodl3ps739trgp0-a.singapore-postgres.render.com/pma_db_ovs')
         
-        if not self.cloud_db_url:
-            logger.error("未找到云端数据库URL，请设置RENDER_DB_URL环境变量")
-            sys.exit(1)
+        logger.info(f"使用OVS数据库: {self.cloud_db_url.split('@')[1].split('/')[1]}")
     
     def parse_db_url(self, db_url):
         """解析数据库URL"""
