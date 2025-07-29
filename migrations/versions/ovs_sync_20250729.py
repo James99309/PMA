@@ -1,8 +1,8 @@
 """OVS数据库同步到最新结构
 
-Revision ID: ovs_sync_to_latest_20250729_115500
+Revision ID: ovs_sync_20250729
 Revises: c8d3eaeaf234
-Create Date: 2025-07-29 11:55:00
+Create Date: 2025-07-29 11:58:00
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'ovs_sync_to_latest_20250729_115500'
+revision = 'ovs_sync_20250729'
 down_revision = 'c8d3eaeaf234'
 branch_labels = None
 depends_on = None
@@ -64,35 +64,27 @@ def upgrade():
     print("✅ performance_targets 表字段添加完成")
     
     # 3. dictionaries 表字段
+    fields_to_add = [
+        ('email_signature_content', sa.Text()),
+        ('website', sa.String(length=200)),
+        ('postal_code', sa.String(length=20)),
+        ('logo_filename', sa.String(length=100)),
+        ('email', sa.String(length=100)),
+        ('email_signature_type', sa.String(length=50)),
+        ('email_signature_size', sa.Integer()),
+        ('address', sa.String(length=500)),
+        ('logo_content', sa.Text()),
+        ('email_signature_filename', sa.String(length=100)),
+        ('logo_size', sa.Integer()),
+        ('phone', sa.String(length=50)),
+        ('fax', sa.String(length=50)),
+        ('logo_type', sa.String(length=50))
+    ]
+    
     with op.batch_alter_table('dictionaries', schema=None) as batch_op:
-        if not column_exists('dictionaries', 'email_signature_content'):
-            batch_op.add_column(sa.Column('email_signature_content', sa.Text(), nullable=True))
-        if not column_exists('dictionaries', 'website'):
-            batch_op.add_column(sa.Column('website', sa.String(length=200), nullable=True))
-        if not column_exists('dictionaries', 'postal_code'):
-            batch_op.add_column(sa.Column('postal_code', sa.String(length=20), nullable=True))
-        if not column_exists('dictionaries', 'logo_filename'):
-            batch_op.add_column(sa.Column('logo_filename', sa.String(length=100), nullable=True))
-        if not column_exists('dictionaries', 'email'):
-            batch_op.add_column(sa.Column('email', sa.String(length=100), nullable=True))
-        if not column_exists('dictionaries', 'email_signature_type'):
-            batch_op.add_column(sa.Column('email_signature_type', sa.String(length=50), nullable=True))
-        if not column_exists('dictionaries', 'email_signature_size'):
-            batch_op.add_column(sa.Column('email_signature_size', sa.Integer(), nullable=True))
-        if not column_exists('dictionaries', 'address'):
-            batch_op.add_column(sa.Column('address', sa.String(length=500), nullable=True))
-        if not column_exists('dictionaries', 'logo_content'):
-            batch_op.add_column(sa.Column('logo_content', sa.Text(), nullable=True))
-        if not column_exists('dictionaries', 'email_signature_filename'):
-            batch_op.add_column(sa.Column('email_signature_filename', sa.String(length=100), nullable=True))
-        if not column_exists('dictionaries', 'logo_size'):
-            batch_op.add_column(sa.Column('logo_size', sa.Integer(), nullable=True))
-        if not column_exists('dictionaries', 'phone'):
-            batch_op.add_column(sa.Column('phone', sa.String(length=50), nullable=True))
-        if not column_exists('dictionaries', 'fax'):
-            batch_op.add_column(sa.Column('fax', sa.String(length=50), nullable=True))
-        if not column_exists('dictionaries', 'logo_type'):
-            batch_op.add_column(sa.Column('logo_type', sa.String(length=50), nullable=True))
+        for field_name, field_type in fields_to_add:
+            if not column_exists('dictionaries', field_name):
+                batch_op.add_column(sa.Column(field_name, field_type, nullable=True))
     print("✅ dictionaries 表字段添加完成")
     
     # 4. approval_process_template 表字段
