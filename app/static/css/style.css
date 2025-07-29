@@ -3751,6 +3751,21 @@ a:focus .badge.badge-transparent.quotation-number-badge {
     border-color: rgba(226, 227, 229, var(--badge-border-opacity)) !important; /* 灰色系边框 */
 }
 
+/* ========== 项目锁定状态徽章样式 ========== */
+/* 项目锁定状态徽章 - 已锁定（警告橙色半透明） */
+.badge.badge-transparent.project-lock-locked {
+    background-color: rgba(255, 193, 7, var(--badge-bg-opacity)) !important;
+    color: rgba(102, 77, 3, var(--badge-text-opacity)) !important;
+    border-color: rgba(255, 193, 7, var(--badge-border-opacity)) !important;
+}
+
+/* 项目锁定状态徽章 - 未锁定（成功绿色半透明） */
+.badge.badge-transparent.project-lock-unlocked {
+    background-color: rgba(212, 237, 218, var(--badge-bg-opacity)) !important;
+    color: rgba(21, 87, 36, var(--badge-text-opacity)) !important;
+    border-color: rgba(21, 87, 36, var(--badge-border-opacity)) !important;
+}
+
 /* 深色模式适配 - 暂时禁用以确保产品徽章颜色正常显示 */
 /* @media (prefers-color-scheme: dark) {
     .badge.product-type-badge,

@@ -20,83 +20,7 @@ change_history_bp = Blueprint('change_history', __name__, url_prefix='/admin/his
 @login_required
 def index():
     """历史记录主页"""
-    # 获取查询参数
-    page = request.args.get('page', 1, type=int)
-    per_page = 20
-    
-    # 过滤参数
-    table_name = request.args.get('table_name', '')
-    operation_type = request.args.get('operation_type', '')
-    user_id = request.args.get('user_id', '')
-    date_from = request.args.get('date_from', '')
-    date_to = request.args.get('date_to', '')
-    
-    # 构建查询
-    query = ChangeLog.query
-    
-    # 如果不是管理员，只能查看自己的操作记录
-    if current_user.role != 'admin':
-        query = query.filter(ChangeLog.user_id == current_user.id)
-    
-    if table_name:
-        query = query.filter(ChangeLog.table_name == table_name)
-    
-    if operation_type:
-        query = query.filter(ChangeLog.operation_type == operation_type)
-    
-    # 只有管理员可以按用户过滤
-    if user_id and current_user.role == 'admin':
-        query = query.filter(ChangeLog.user_id == user_id)
-    
-    if date_from:
-        try:
-            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
-            query = query.filter(ChangeLog.created_at >= date_from_obj)
-        except ValueError:
-            pass
-    
-    if date_to:
-        try:
-            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
-            query = query.filter(ChangeLog.created_at < date_to_obj)
-        except ValueError:
-            pass
-    
-    # 按时间倒序排列
-    query = query.order_by(desc(ChangeLog.created_at))
-    
-    # 分页
-    pagination = query.paginate(
-        page=page, 
-        per_page=per_page, 
-        error_out=False
-    )
-    
-    # 获取所有用户用于过滤（只有管理员可以看到）
-    users = []
-    if current_user.role == 'admin':
-        users = User.query.order_by(User.real_name).all()
-    
-    # 获取所有表名用于过滤
-    if current_user.role == 'admin':
-        table_names = ChangeLog.query.with_entities(ChangeLog.table_name).distinct().all()
-    else:
-        # 普通用户只能看到自己操作过的表
-        table_names = ChangeLog.query.filter(ChangeLog.user_id == current_user.id).with_entities(ChangeLog.table_name).distinct().all()
-    table_names = [t[0] for t in table_names if t[0]]
-    
-    return render_template('admin/change_history.html',
-                         pagination=pagination,
-                         users=users,
-                         table_names=table_names,
-                         filters={
-                             'table_name': table_name,
-                             'operation_type': operation_type,
-                             'user_id': user_id,
-                             'date_from': date_from,
-                             'date_to': date_to
-                         },
-                         is_admin=current_user.role == 'admin')
+    return _get_history_data()
 
 @change_history_bp.route('/detail/<int:log_id>')
 @login_required
@@ -278,6 +202,92 @@ def get_logs():
             'success': False,
             'message': f'获取记录失败: {str(e)}'
         }), 500
+
+@change_history_bp.route('/ajax_content')
+@login_required
+def ajax_content():
+    """AJAX获取历史记录内容"""
+    return _get_history_data(template='admin/change_history_content.html')
+
+def _get_history_data(template='admin/change_history.html'):
+    """获取历史记录数据的通用函数"""
+    # 获取查询参数
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
+    
+    # 过滤参数
+    table_name = request.args.get('table_name', '')
+    operation_type = request.args.get('operation_type', '')
+    user_id = request.args.get('user_id', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    
+    # 构建查询
+    query = ChangeLog.query
+    
+    # 如果不是管理员，只能查看自己的操作记录
+    if current_user.role != 'admin':
+        query = query.filter(ChangeLog.user_id == current_user.id)
+    
+    if table_name:
+        query = query.filter(ChangeLog.table_name == table_name)
+    
+    if operation_type:
+        query = query.filter(ChangeLog.operation_type == operation_type)
+    
+    # 只有管理员可以按用户过滤
+    if user_id and current_user.role == 'admin':
+        query = query.filter(ChangeLog.user_id == user_id)
+    
+    if date_from:
+        try:
+            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+            query = query.filter(ChangeLog.created_at >= date_from_obj)
+        except ValueError:
+            pass
+    
+    if date_to:
+        try:
+            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
+            query = query.filter(ChangeLog.created_at < date_to_obj)
+        except ValueError:
+            pass
+    
+    # 按时间倒序排列
+    query = query.order_by(desc(ChangeLog.created_at))
+    
+    # 分页
+    pagination = query.paginate(
+        page=page, 
+        per_page=per_page, 
+        error_out=False
+    )
+    
+    # 获取所有用户用于过滤（只有管理员可以看到）
+    users = []
+    if current_user.role == 'admin':
+        users = User.query.order_by(User.real_name).all()
+    
+    # 获取所有表名用于过滤
+    if current_user.role == 'admin':
+        table_names = ChangeLog.query.with_entities(ChangeLog.table_name).distinct().all()
+    else:
+        # 普通用户只能看到自己操作过的表
+        table_names = ChangeLog.query.filter(ChangeLog.user_id == current_user.id).with_entities(ChangeLog.table_name).distinct().all()
+    table_names = [t[0] for t in table_names if t[0]]
+    
+    return render_template(template,
+                         pagination=pagination,
+                         users=users,
+                         table_names=table_names,
+                         filters={
+                             'table_name': table_name,
+                             'operation_type': operation_type,
+                             'user_id': user_id,
+                             'date_from': date_from,
+                             'date_to': date_to
+                         },
+                         is_admin=current_user.role == 'admin')
 
 @change_history_bp.route('/api/users')
 @login_required

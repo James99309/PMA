@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_authorization_code %}
+{% from 'macros/ui_helpers.html' import render_authorization_code, render_authorization_status_badge %}
 {% import 'macros/ui_helpers.html' as ui %}
 
 {% block head %}
@@ -195,27 +195,21 @@
 
 {% block content %}
 <div class="container mt-4 page-with-fixed-nav">
-    <h2 class="mb-4">{{ _('编辑项目') }}</h2>
-
-    <!-- 授权编号提示框 -->
-    {% if project %}
-    <div class="alert alert-light mb-4">
-        <div class="row align-items-center">
-            <div class="col-auto">
-                <strong>{{ _('授权编号') }}：</strong>
-            </div>
-            <div class="col">
-                {% if project.authorization_code %}
-                    {{ render_authorization_code(project.authorization_code, project.project_type) }}
-                {% else %}
-                    {{ render_authorization_code(None) }}
-                {% endif %}
-            </div>
+    <!-- 页面标题、授权状态和操作按钮 -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex align-items-center gap-3">
+            <h2 class="mb-0">{{ _('编辑项目') }}</h2>
+            {% if project %}
+            {{ render_authorization_status_badge(project.authorization_code, project.authorization_status) }}
+            {% endif %}
+        </div>
+        <div class="d-flex gap-2">
+            {{ ui.render_button(_('保存'), type='submit', color='primary', attrs='form="projectEditForm"') }}
+            {{ ui.render_button(_('取消'), href=url_for('project.view_project', project_id=project.id), color='secondary') }}
         </div>
     </div>
-    {% endif %}
 
-    <form method="POST">
+    <form method="POST" id="projectEditForm">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <!-- 项目信息卡片 -->
         <div class="card mb-4">
@@ -238,11 +232,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <label for="report_time" class="form-label mb-2">{{ _('报备日期') }}</label>
-                        <input type="date" class="form-control" id="report_time" name="report_time" required 
-                               value="{{ project.report_time.strftime('%Y-%m-%d') if project and project.report_time else '' }}">
-                    </div>
+                    <!-- 报备日期在编辑页面不显示，只在详情页面显示 -->
                 </div>
 
                 <div class="row mb-4">
@@ -257,12 +247,25 @@
                     </div>
                     <div class="col-md-6">
                         <label for="project_type" class="form-label mb-2">{{ _('项目类型') }}</label>
+                        {% if project.authorization_code %}
+                        <!-- 已有授权编号时禁用项目类型编辑 -->
+                        <select class="form-select" id="project_type" name="project_type" disabled>
+                            <option value="">{{ _('请选择项目类型') }}</option>
+                            {% for k, v in PROJECT_TYPE_OPTIONS %}
+                            <option value="{{ k }}" {% if project and project.project_type == k %}selected{% endif %}>{{ v }}</option>
+                            {% endfor %}
+                        </select>
+                        <!-- 使用隐藏字段保持原值 -->
+                        <input type="hidden" name="project_type" value="{{ project.project_type }}">
+                        <small class="form-text text-muted">{{ _('项目已获得授权编号，类型无法修改') }}</small>
+                        {% else %}
                         <select class="form-select" id="project_type" name="project_type">
                             <option value="">{{ _('请选择项目类型') }}</option>
                             {% for k, v in PROJECT_TYPE_OPTIONS %}
                             <option value="{{ k }}" {% if project and project.project_type == k %}selected{% endif %}>{{ v }}</option>
                             {% endfor %}
                         </select>
+                        {% endif %}
                     </div>
                 </div>
 
@@ -276,25 +279,11 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-6">
-                        <label for="current_stage" class="form-label mb-2">{{ _('当前阶段') }}</label>
-                        <select class="form-select" id="current_stage" name="current_stage" required>
-                            <option value="">{{ _('请选择当前阶段') }}</option>
-                            {% for k, v in PROJECT_STAGE_OPTIONS %}
-                            <option value="{{ k }}" {% if project and project.current_stage == k %}selected{% endif %}>{{ v }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
+                    <!-- 当前阶段在编辑页面不显示，通过阶段推进系统管理 -->
                 </div>
 
                 <div class="row mb-4">
-                    <div class="col-md-6">
-                        <label for="quotation_customer" class="form-label mb-2">{{ _('报价') }}（{{ _('元') }}）</label>
-                            <input type="text" class="form-control" id="quotation_customer" name="quotation_customer"
-                            placeholder="{{ _('不可编辑') }}"
-                            value="{{ '{:,.2f}'.format(project.quotation_customer) if project and project.quotation_customer else '' }}"
-                            disabled>
-                    </div>
+                    <!-- 报价在编辑页面不显示，通过报价单管理 -->
                     <div class="col-md-6">
                         <label for="delivery_forecast" class="form-label mb-2">{{ _('出货预测日期') }}</label>
                         <input type="date" class="form-control" id="delivery_forecast" name="delivery_forecast" 
@@ -412,10 +401,7 @@
                     <textarea class="form-control" id="stage_description" name="stage_description" rows="3">{{ project.stage_description if project and project.stage_description else '' }}</textarea>
                 </div>
 
-                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                    {{ ui.render_button(_("保存"), type="submit", color="primary", extra_class="me-md-2") }}
-                    {{ ui.render_button(_("取消"), href=url_for('project.view_project', project_id=project.id), color="secondary") }}
-                </div>
+                <!-- 操作按钮已移至页面标题区域 -->
             </div>
         </div>
     </form>

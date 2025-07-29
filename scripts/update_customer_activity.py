@@ -72,7 +72,7 @@ def main():
         # 如果命令行没有指定阈值，则使用系统设置中的值
         days_threshold = args.days
         if days_threshold is None:
-            days_threshold = SystemSettings.get('customer_activity_threshold', 1)
+            days_threshold = SystemSettings.get('customer_activity_threshold', 30)
             
         logger.info(f"开始更新客户活跃度状态，参数: days={days_threshold}, company_id={args.company_id}")
         

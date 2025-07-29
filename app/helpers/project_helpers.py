@@ -131,6 +131,10 @@ def is_project_editable(project_id, user_id=None):
         
         return False, f"项目已被锁定，原因: {project.locked_reason}, 锁定人: {locker_name}, 时间: {lock_time}"
     
+    # 检查项目是否已签约（已签约的项目不允许编辑）
+    if project.current_stage == 'signed':
+        return False, "项目已签约，不允许编辑"
+    
     # 检查项目是否存在授权编号（有授权编号的项目不允许修改某些字段）
     if project.authorization_code:
         return True, "项目已授权，某些字段不可修改"

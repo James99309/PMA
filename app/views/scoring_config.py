@@ -19,6 +19,17 @@ scoring_config = Blueprint('scoring_config', __name__)
 @permission_required('admin', 'view')
 def scoring_config_list():
     """评分配置列表页面"""
+    return _get_scoring_config_data()
+
+@scoring_config.route('/scoring_config/list_ajax')
+@login_required
+@permission_required('admin', 'view')
+def scoring_config_list_ajax():
+    """AJAX获取评分配置内容"""
+    return _get_scoring_config_data(template='admin/scoring_config_content.html')
+
+def _get_scoring_config_data(template='admin/scoring_config_list.html'):
+    """获取评分配置数据的通用函数"""
     try:
         # 按类别分组获取配置
         configs = ProjectScoringConfig.query.order_by(
@@ -44,7 +55,7 @@ def scoring_config_list():
                 }
             grouped_configs[category]['configs'].append(config)
         
-        return render_template('admin/scoring_config_list.html', 
+        return render_template(template, 
                              grouped_configs=grouped_configs,
                              category_labels=category_labels)
         

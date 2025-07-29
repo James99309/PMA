@@ -192,7 +192,7 @@ def refresh_project_activity():
         from app.models.project import Project
         
         # 获取当前设置的活跃度阈值
-        days_threshold = SystemSettings.get('project_activity_threshold', 7)
+        days_threshold = SystemSettings.get('project_activity_threshold', 30)
         
         # 执行活跃度检查
         active_projects, inactive_projects = check_project_activity(days_threshold=days_threshold)

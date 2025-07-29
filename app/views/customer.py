@@ -2309,6 +2309,11 @@ def import_contacts():
                 # 新增：每次添加行动记录后自动刷新客户活跃度和更新时间
                 company.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
                 update_active_status(company)
+                
+                # 如果行动记录关联了项目，也更新项目活跃度
+                if project_id and new_action.project:
+                    update_active_status(new_action.project)
+                    
                 db.session.commit()
                 action_success += 1
             except Exception as e:

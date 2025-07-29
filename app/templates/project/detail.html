@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_currency_with_symbol, render_quotation_number, render_project_stage, render_project_rating, render_rating_input, render_confirmation_badge, render_report_source_badge, render_product_situation_badge, render_industry_badge, render_button %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_currency_with_symbol, render_quotation_number, render_project_stage, render_project_rating, render_rating_input, render_confirmation_badge, render_report_source_badge, render_product_situation_badge, render_industry_badge, render_button, render_status_badge, render_lock_status_badge, render_authorization_status_badge %}
 {% import 'macros/ui_helpers.html' as ui %}
 {% from 'macros/approval_macros.html' import render_approval_timeline, render_approval_form, render_start_approval_button, render_approval_section %}
 {% from 'macros/ui_modals.html' import render_change_project_owner_modal %}
@@ -88,8 +88,11 @@
     <div class="row mb-3">
         <div class="col-md-12">
             <div class="card">
-                <div class="card-header bg-light">
-                    <h5 class="card-title mb-0">{{ _('项目阶段跟踪') }}</h5>
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <div class="flex-grow-1">
+                        <!-- 项目授权状态徽章 -->
+                        {{ render_authorization_status_badge(project.authorization_code, project.authorization_status) }}
+                    </div>
                 </div>
                 <div class="card-body">
                     <div id="projectStageProgress"></div>
@@ -156,7 +159,7 @@
         </div>
     </div>
 {% else %}
-    {% if current_user.has_permission('quotation', 'create') %}
+    {% if current_stage_key != 'signed' and current_user.has_permission('quotation', 'create') %}
     <form action="{{ url_for('quotation.create_quotation') }}" method="GET" style="display:inline;">
         <input type="hidden" name="project_id" value="{{ project.id }}">
         <input type="hidden" name="return_to" value="{{ url_for('project.view_project', project_id=project.id) }}">
@@ -195,8 +198,8 @@
                             </div>
                             {% endif %}
                             
-                            <!-- 创建批价单按钮 -->
-                            {% if has_quotations and (current_stage_key == '签约' or current_stage_key == 'quoted') %}
+                            <!-- 创建批价单按钮 - 只在报价阶段显示，签约后不允许创建 -->
+                            {% if has_quotations and current_stage_key == 'quoted' %}
                             <div class="row mb-2">
                                 <div class="col-md-4"></div>
                                 <div class="col-md-8">
@@ -215,7 +218,7 @@
                                 <div class="col-md-4"><strong>{{ _('拥有人') }}：</strong></div>
                                 <div class="col-md-8">
                                     {{ render_owner(project.owner) }}
-                                    {% if has_change_owner_permission and (not project.is_locked or current_user.role == 'admin') %}
+                                    {% if current_stage_key != 'signed' and has_change_owner_permission and (not project.is_locked or current_user.role == 'admin') %}
                                         <button class="btn btn-link btn-sm p-0 ms-2" data-bs-toggle="modal" data-bs-target="#changeOwnerModal">{{ _('修改') }}</button>
                                     {% endif %}
                                 </div>
@@ -245,25 +248,17 @@
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>{{ _('活跃状态') }}：</strong></div>
                                 <div class="col-md-8">
-                                    {% if project.is_active %}
-                                        <span class="badge bg-success">{{ _('活跃') }}</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">{{ _('不活跃') }}</span>
-                                    {% endif %}
-                                    <small class="ms-2 text-muted">{{ _('阈值') }}: {{ settings.project_activity_threshold|default(7) }}{{ _('天') }}</small>
+                                    {{ render_status_badge(project.is_active) }}
+                                    <small class="ms-2 text-muted">{{ _('阈值') }}: {{ settings.project_activity_threshold|default(30) }}{{ _('天') }}</small>
                                 </div>
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>{{ _('锁定状态') }}：</strong></div>
                                 <div class="col-md-8">
-                                    {% if project.is_locked %}
-                                        <span class="badge bg-warning text-dark">
-                                            <i class="fas fa-lock me-1"></i>{{ _('已锁定') }}
-                                        </span>
-                                    {% else %}
-                                        <span class="badge bg-success">
-                                            <i class="fas fa-unlock me-1"></i>{{ _('未锁定') }}
-                                        </span>
+                                    {{ render_lock_status_badge(project.is_locked) }}
+                                    {# 如果项目已锁定且有锁定原因，显示原因 #}
+                                    {% if project.is_locked and project.locked_reason %}
+                                        <small class="ms-2 text-muted">{{ _('原因') }}: {{ project.locked_reason }}</small>
                                     {% endif %}
                                 </div>
                             </div>

@@ -219,10 +219,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <label for="report_time" class="form-label mb-2">{{ _('报备日期') }}</label>
-                        <input type="date" class="form-control" id="report_time" name="report_time" required value="{{ (request.form.report_time or (now().strftime('%Y-%m-%d'))) }}">
-                    </div>
+                    <!-- 报备日期在创建时不显示，将在授权批准后自动设置 -->
                 </div>
 
                 <div class="row mb-4">
@@ -256,24 +253,11 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-6">
-                        <label for="current_stage" class="form-label mb-2">{{ _('当前阶段') }}</label>
-                        <select class="form-select" id="current_stage" name="current_stage" required>
-                            <option value="">{{ _('请选择当前阶段') }}</option>
-                            {% for k, v in PROJECT_STAGE_OPTIONS %}
-                            <option value="{{ k }}" {% if k == 'discover' %}selected{% endif %}>{{ v }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
+                    <!-- 当前阶段在创建时不显示，默认从发现阶段开始 -->
                 </div>
 
                 <div class="row mb-4">
-                    <div class="col-md-6">
-                        <label for="quotation_customer" class="form-label mb-2">{{ _('报价') }}（{{ _('元') }}）</label>
-                        <input type="text" class="form-control" id="quotation_customer" name="quotation_customer"
-                            placeholder="{{ _('不可编辑') }}"
-                            disabled>
-                    </div>
+                    <!-- 报价在创建时不显示，通过报价单管理 -->
                     <div class="col-md-6">
                         <label for="delivery_forecast" class="form-label mb-2">{{ _('出货预测日期') }}</label>
                         <input type="date" class="form-control" id="delivery_forecast" name="delivery_forecast" value="">

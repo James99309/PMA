@@ -1047,6 +1047,14 @@ def create_quotation():
                     except Exception as track_err:
                         current_app.logger.warning(f"记录报价单创建历史失败: {str(track_err)}")
                     
+                    # 更新关联项目的活跃度
+                    try:
+                        if quotation.project:
+                            update_active_status(quotation.project)
+                            current_app.logger.debug(f"报价单创建后更新项目 {quotation.project.id} 活跃度")
+                    except Exception as activity_err:
+                        current_app.logger.warning(f"更新项目活跃度失败: {str(activity_err)}")
+                    
                     # 注意：项目金额更新交由SQLAlchemy事件监听器处理，此处无需手动更新
                     current_app.logger.info('项目报价金额将由事件监听器自动更新')
                     
@@ -1601,6 +1609,14 @@ def edit_quotation(id):
                 if project:
                     total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
                     project.quotation_customer = total
+                    
+                    # 更新关联项目的活跃度
+                    try:
+                        update_active_status(project)
+                        current_app.logger.debug(f"报价单更新后更新项目 {project.id} 活跃度")
+                    except Exception as activity_err:
+                        current_app.logger.warning(f"更新项目活跃度失败: {str(activity_err)}")
+                        
                 db.session.commit()
                 
                 flash('报价单更新成功！', 'success')

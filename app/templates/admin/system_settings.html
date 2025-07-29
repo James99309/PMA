@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_button %}
 
-{% block title %}系统参数设置{% endblock %}
+{% block title %}系统管理{% endblock %}
 
 {% block styles %}
 <style>
@@ -47,12 +47,13 @@
     <div class="page-header-with-actions mb-4">
         <div class="row align-items-center">
             <div class="col-auto">
-                <h1 class="page-title mb-0">系统参数设置</h1>
+                <h1 class="page-title mb-0">
+                    <i class="fas fa-cogs me-2"></i>系统管理
+                </h1>
             </div>
             <div class="col text-end">
-                <!-- 操作按钮组 -->
                 <div class="btn-toolbar justify-content-end" role="toolbar">
-                    <!-- 系统参数设置通常没有额外的操作按钮 -->
+                    {{ render_button('保存设置', color='primary', attrs='id="saveSettingsBtn" style="display:none;"', type='button') }}
                 </div>
             </div>
         </div>
@@ -69,172 +70,128 @@
       {% endif %}
     {% endwith %}
     
-    <div class="row">
-        <div class="col-lg-8">
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">系统参数配置</h5>
-                </div>
-                <div class="card-body">
-                    <form method="POST">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        
-                        <!-- 活跃度相关设置 -->
-                        <div class="card mb-4">
-                            <div class="card-header">
-                                <h5 class="card-title mb-0">活跃度阈值设置</h5>
-                            </div>
-                            <div class="card-body">
+    <!-- 页签导航 -->
+    <ul class="nav nav-tabs mb-4" id="systemTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="activity-tab" data-bs-toggle="tab" data-bs-target="#activity-settings" type="button" role="tab">
+                <i class="fas fa-heartbeat me-2"></i>活跃度配置
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="scoring-tab" data-bs-toggle="tab" data-bs-target="#scoring-settings" type="button" role="tab">
+                <i class="fas fa-star me-2"></i>项目评分
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-settings" type="button" role="tab">
+                <i class="fas fa-history me-2"></i>历史记录
+            </button>
+        </li>
+    </ul>
+    
+    <!-- 页签内容 -->
+    <div class="tab-content" id="systemTabContent">
+        <!-- 活跃度配置页签 -->
+        <div class="tab-pane fade show active" id="activity-settings" role="tabpanel">
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-body">
+                            <form method="POST" id="activitySettingsForm">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                
                                 <div class="row mb-4">
-                                    <div class="col-12">
-                                        <div class="row">
-                                            <div class="col-md-6">
-                                                <div class="mb-3">
-                                                    <label for="project_activity_threshold" class="form-label">项目活跃度阈值（天）</label>
-                                                    <input type="number" class="form-control" id="project_activity_threshold" name="project_activity_threshold" min="1" max="90" value="{{ settings.project_activity_threshold.value }}">
-                                                    <div class="form-text">项目在超过该天数无任何活动时，将被标记为"不活跃"状态</div>
-                                                </div>
-                                            </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="project_activity_threshold" class="form-label">项目活跃度阈值（天）</label>
+                                            <input type="number" class="form-control" id="project_activity_threshold" name="project_activity_threshold" min="1" max="90" value="{{ settings.project_activity_threshold.value }}">
+                                            <div class="form-text">项目在超过该天数无任何活动时，将被标记为"不活跃"状态</div>
                                         </div>
-                                        <div class="row mt-3">
-                                            <div class="col-12">
-                                                <div class="card bg-light">
-                                                    <div class="card-body">
-                                                        <h6><i class="fas fa-sync-alt me-2"></i>项目活跃度手动刷新</h6>
-                                                        <p class="small mb-3">您可以手动触发项目活跃度检查，这将根据当前设置的阈值重新计算所有项目的活跃状态。</p>
-                                                        <div class="d-flex justify-content-between">
-                                                            <button type="button" id="refreshProjectActivityBtn" class="btn btn-outline-primary btn-sm">
-                                                                <i class="fas fa-refresh me-1"></i> 刷新项目活跃度
-                                                            </button>
-                                                            <div id="refreshStatus" class="d-none">
-                                                                <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
-                                                                    <span class="visually-hidden">正在刷新...</span>
-                                                                </div>
-                                                                <span class="text-muted">正在刷新...</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="customer_activity_threshold" class="form-label">客户活跃度阈值（天）</label>
+                                            <input type="number" class="form-control" id="customer_activity_threshold" name="customer_activity_threshold" min="1" max="180" value="{{ settings.customer_activity_threshold.value }}">
+                                            <div class="form-text">客户在超过该天数无任何活动时，将被标记为"不活跃"状态</div>
                                         </div>
                                     </div>
                                 </div>
                                 
-                                <div class="row">
-                                    <div class="col-12">
-                                        <div class="row">
-                                            <div class="col-md-6">
-                                                <div class="mb-3">
-                                                    <label for="customer_activity_threshold" class="form-label">客户活跃度阈值（天）</label>
-                                                    <input type="number" class="form-control" id="customer_activity_threshold" name="customer_activity_threshold" min="1" max="180" value="{{ settings.customer_activity_threshold.value }}">
-                                                    <div class="form-text">客户在超过该天数无任何活动时，将被标记为"不活跃"状态</div>
-                                                </div>
+                                <!-- 手动刷新区域 -->
+                                <div class="row mb-4">
+                                    <div class="col-md-6">
+                                        {{ render_button('刷新', color='outline-primary', icon='fas fa-redo', attrs='id="refreshProjectActivityBtn"', type='button') }}
+                                        <div id="refreshStatus" class="d-none mt-2">
+                                            <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                                                <span class="visually-hidden">正在刷新...</span>
                                             </div>
+                                            <span class="text-muted">正在刷新...</span>
                                         </div>
-                                        <div class="row mt-3">
-                                            <div class="col-12">
-                                                <div class="card bg-light">
-                                                    <div class="card-body">
-                                                        <h6><i class="fas fa-sync-alt me-2"></i>客户活跃度手动刷新</h6>
-                                                        <p class="small mb-3">您可以手动触发客户活跃度检查，这将根据当前设置的阈值重新计算所有客户的活跃状态。</p>
-                                                        <div class="d-flex justify-content-between">
-                                                            <button type="button" id="refreshCustomerActivityBtn" class="btn btn-outline-primary btn-sm">
-                                                                <i class="fas fa-refresh me-1"></i> 刷新客户活跃度
-                                                            </button>
-                                                            <div id="refreshCustomerStatus" class="d-none">
-                                                                <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
-                                                                    <span class="visually-hidden">正在刷新...</span>
-                                                                </div>
-                                                                <span class="text-muted">正在刷新...</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        {{ render_button('刷新', color='outline-primary', icon='fas fa-redo', attrs='id="refreshCustomerActivityBtn"', type='button') }}
+                                        <div id="refreshCustomerStatus" class="d-none mt-2">
+                                            <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                                                <span class="visually-hidden">正在刷新...</span>
                                             </div>
+                                            <span class="text-muted">正在刷新...</span>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                                
+                                <div class="text-end">
+                                    {{ render_button('保存设置', color='primary', type='submit') }}
+                                </div>
+                            </form>
                         </div>
-                        
-                        <!-- 可以在此处添加其他设置分类 -->
-                        
-                        <div class="text-end mt-4">
-                            <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary me-2">
-                                <i class="fas fa-times me-1"></i> 取消
-                            </a>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save me-1"></i> 保存设置
-                            </button>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <div class="card settings-card">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-info-circle me-2"></i>活跃度说明</h5>
+                            <hr>
+                            <ul class="list-unstyled mb-0">
+                                <li class="mb-2">
+                                    <i class="fas fa-check-circle text-success me-2"></i> 
+                                    <strong>客户活跃度：</strong> 系统每日自动更新或手动触发更新时生效
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-check-circle text-success me-2"></i> 
+                                    <strong>项目活跃度：</strong> 项目状态查询时即时计算，也会在项目操作时自动更新
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-sync-alt text-info me-2"></i> 
+                                    <strong>自动触发：</strong> 创建/编辑项目、报价单、行动记录时自动更新
+                                </li>
+                            </ul>
                         </div>
-                    </form>
+                    </div>
                 </div>
             </div>
         </div>
         
-        <div class="col-lg-4">
-            <div class="card settings-card mb-4">
-                <div class="card-body text-center">
-                    <div class="settings-icon">
-                        <i class="fas fa-info-circle"></i>
+        <!-- 项目评分配置页签 -->
+        <div class="tab-pane fade" id="scoring-settings" role="tabpanel">
+            <div id="scoringConfigContent">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
                     </div>
-                    <div class="settings-title">系统参数说明</div>
-                    <div class="settings-description">
-                        此页面用于配置系统的全局参数，修改后将影响整个系统的运行逻辑。
-                    </div>
+                    <p class="mt-2">正在加载项目评分配置...</p>
                 </div>
             </div>
-            
-            <!-- 评分配置管理入口 -->
-            <div class="card settings-card mb-4">
-                <div class="card-body text-center">
-                    <div class="settings-icon">
-                        <i class="fas fa-star text-warning"></i>
+        </div>
+        
+        <!-- 历史记录页签 -->
+        <div class="tab-pane fade" id="history-settings" role="tabpanel">
+            <div id="historyContent">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
                     </div>
-                    <div class="settings-title">项目评分配置</div>
-                    <div class="settings-description">
-                        管理项目评分系统的各项配置参数，包括信息完整性、报价完整性、阶段得分和手动奖励的分值设置。
-                    </div>
-                    <a href="{{ url_for('scoring_config.scoring_config_list') }}" class="btn btn-outline-warning">
-                        <i class="fas fa-cog me-1"></i> 配置管理
-                    </a>
-                </div>
-            </div>
-            
-            <!-- 历史记录管理入口 -->
-            <div class="card settings-card mb-4">
-                <div class="card-body text-center">
-                    <div class="settings-icon">
-                        <i class="fas fa-history text-info"></i>
-                    </div>
-                    <div class="settings-title">历史记录</div>
-                    <div class="settings-description">
-                        查看系统中所有模块的数据变更历史记录，包括创建、修改、删除等操作的详细信息。
-                    </div>
-                    <a href="{{ url_for('change_history.index') }}" class="btn btn-outline-info">
-                        <i class="fas fa-eye me-1"></i> 查看记录
-                    </a>
-                </div>
-            </div>
-            
-            <div class="card settings-card">
-                <div class="card-body">
-                    <h5 class="card-title"><i class="fas fa-history me-2"></i>参数生效说明</h5>
-                    <hr>
-                    <ul class="list-unstyled mb-0">
-                        <li class="mb-2">
-                            <i class="fas fa-check-circle text-success me-2"></i> 
-                            <strong>客户活跃度阈值：</strong> 系统每日自动更新或手动触发更新时生效
-                        </li>
-                        <li class="mb-2">
-                            <i class="fas fa-check-circle text-success me-2"></i> 
-                            <strong>项目活跃度阈值：</strong> 项目状态查询时即时计算
-                        </li>
-                        <li class="mb-2">
-                            <i class="fas fa-star text-warning me-2"></i> 
-                            <strong>项目评分配置：</strong> 修改后需重新计算所有项目评分
-                        </li>
-                    </ul>
+                    <p class="mt-2">正在加载历史记录...</p>
                 </div>
             </div>
         </div>
@@ -244,11 +201,25 @@
 
 {% block scripts %}
 <script>
-    // 启用工具提示
     document.addEventListener('DOMContentLoaded', function() {
+        // 启用工具提示
         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
         var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl)
+        });
+
+        // 页签切换处理
+        const tabTriggerList = [].slice.call(document.querySelectorAll('#systemTabs button[data-bs-toggle="tab"]'));
+        tabTriggerList.forEach(function(tabTrigger) {
+            tabTrigger.addEventListener('shown.bs.tab', function(event) {
+                const targetTab = event.target.getAttribute('data-bs-target');
+                
+                if (targetTab === '#scoring-settings') {
+                    loadScoringConfig();
+                } else if (targetTab === '#history-settings') {
+                    loadHistoryContent();
+                }
+            });
         });
         
         // 项目活跃度刷新功能
@@ -362,12 +333,22 @@
             }
             
             // 将提示信息添加到页面
-            document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.row'));
+            const container = document.querySelector('.container-fluid');
+            const targetElement = document.querySelector('.page-header-with-actions') || document.querySelector('.nav-tabs');
+            
+            if (container && targetElement) {
+                container.insertBefore(alertDiv, targetElement.nextElementSibling);
+            } else {
+                // 如果找不到理想位置，就插入到页面顶部
+                document.body.insertAdjacentElement('afterbegin', alertDiv);
+            }
             
             // 8秒后自动关闭提示
             setTimeout(() => {
-                alertDiv.classList.remove('show');
-                setTimeout(() => alertDiv.remove(), 150);
+                if (alertDiv.parentNode) {
+                    alertDiv.classList.remove('show');
+                    setTimeout(() => alertDiv.remove(), 150);
+                }
             }, 8000);
         }
         
@@ -379,7 +360,69 @@
                 ${message}
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             `;
-            document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.row'));
+            
+            // 找到合适的容器插入提示
+            const container = document.querySelector('.container-fluid');
+            const targetElement = document.querySelector('.page-header-with-actions') || document.querySelector('.nav-tabs');
+            
+            if (container && targetElement) {
+                container.insertBefore(alertDiv, targetElement.nextElementSibling);
+            } else {
+                // 如果找不到理想位置，就插入到页面顶部
+                document.body.insertAdjacentElement('afterbegin', alertDiv);
+            }
+            
+            // 5秒后自动关闭提示
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.classList.remove('show');
+                    setTimeout(() => alertDiv.remove(), 150);
+                }
+            }, 5000);
+        }
+
+        // 加载项目评分配置内容
+        function loadScoringConfig() {
+            const contentDiv = document.getElementById('scoringConfigContent');
+            if (contentDiv.dataset.loaded) return; // 避免重复加载
+
+            fetch('/scoring_config/list_ajax')
+                .then(response => response.text())
+                .then(html => {
+                    contentDiv.innerHTML = html;
+                    contentDiv.dataset.loaded = 'true';
+                })
+                .catch(error => {
+                    console.error('加载评分配置失败:', error);
+                    contentDiv.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            加载项目评分配置失败，请刷新页面重试。
+                        </div>
+                    `;
+                });
+        }
+
+        // 加载历史记录内容
+        function loadHistoryContent() {
+            const contentDiv = document.getElementById('historyContent');
+            if (contentDiv.dataset.loaded) return; // 避免重复加载
+
+            fetch('/admin/history/ajax_content')
+                .then(response => response.text())
+                .then(html => {
+                    contentDiv.innerHTML = html;
+                    contentDiv.dataset.loaded = 'true';
+                })
+                .catch(error => {
+                    console.error('加载历史记录失败:', error);
+                    contentDiv.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            加载历史记录失败，请刷新页面重试。
+                        </div>
+                    `;
+                });
         }
     });
 </script>

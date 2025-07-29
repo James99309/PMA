@@ -32,12 +32,12 @@ def check_company_activity(company_id=None, days_threshold=None):
     """
     # 如果没有指定阈值，从系统设置获取
     if days_threshold is None:
-        days_threshold = SystemSettings.get('customer_activity_threshold', 1)
+        days_threshold = SystemSettings.get('customer_activity_threshold', 30)
     
     logger.info(f"开始检查客户活跃度，阈值为 {days_threshold} 天")
     
     # 计算时间阈值
-    time_threshold = datetime.utcnow() - timedelta(days=days_threshold)
+    time_threshold = datetime.now() - timedelta(days=days_threshold)
     
     # 准备查询
     if company_id:
@@ -197,12 +197,12 @@ def check_project_activity(project_id=None, days_threshold=None):
     """
     # 如果没有指定阈值，从系统设置获取
     if days_threshold is None:
-        days_threshold = SystemSettings.get('project_activity_threshold', 7)
+        days_threshold = SystemSettings.get('project_activity_threshold', 30)
         
     logger.info(f"开始检查项目活跃度，阈值为 {days_threshold} 天")
     
     # 计算时间阈值
-    time_threshold = datetime.utcnow() - timedelta(days=days_threshold)
+    time_threshold = datetime.now() - timedelta(days=days_threshold)
     
     # 准备查询
     if project_id:
@@ -268,7 +268,7 @@ def check_project_activity(project_id=None, days_threshold=None):
             # 查询引用了该项目的客户跟进记录
             recent_ref_actions = Action.query.filter(
                 and_(
-                    func.instr(Action.action_content, f"项目ID: {project.id}") > 0,
+                    Action.communication.contains(f"项目ID: {project.id}"),
                     Action.created_at > time_threshold
                 )
             ).first()
@@ -333,16 +333,24 @@ def update_active_status(entity, days_threshold=None, commit=True):
         if isinstance(entity, Company):
             days_threshold = SystemSettings.get('customer_activity_threshold', 30)
         elif isinstance(entity, Project):
-            days_threshold = SystemSettings.get('project_activity_threshold', 7)
+            days_threshold = SystemSettings.get('project_activity_threshold', 30)
         else:
             logger.warning(f"未知实体类型: {entity.__class__.__name__}, 使用默认阈值30天")
             days_threshold = 30
     
     # 计算时间阈值
-    time_threshold = datetime.utcnow() - timedelta(days=days_threshold)
+    current_time = datetime.now()
+    time_threshold = current_time - timedelta(days=days_threshold)
     
     # 检查实体更新时间
     is_active = entity.updated_at and entity.updated_at > time_threshold
+    
+    # 添加详细日志
+    logger.info(f"活跃度检查 - 实体: {entity.__class__.__name__} ID: {entity.id}")
+    logger.info(f"当前时间: {current_time}")
+    logger.info(f"阈值时间: {time_threshold} (阈值: {days_threshold}天)")
+    logger.info(f"实体更新时间: {entity.updated_at}")
+    logger.info(f"计算结果: is_active = {is_active}")
     
     # 客户和项目使用不同的字段记录活跃状态
     if isinstance(entity, Company):
@@ -355,11 +363,16 @@ def update_active_status(entity, days_threshold=None, commit=True):
                 db.session.commit()
             logger.info(f"{entity.__class__.__name__} ID: {entity.id} 的状态从 {old_status} 变更为 {new_status}")
     elif isinstance(entity, Project):
+        logger.info(f"项目当前活跃状态: {entity.is_active}, 计算后状态: {is_active}")
         if entity.is_active != is_active:
+            old_status = entity.is_active
             entity.is_active = is_active
             db.session.add(entity)
             if commit:
                 db.session.commit()
-            logger.info(f"{entity.__class__.__name__} ID: {entity.id} 的活跃状态变更为 {'活跃' if is_active else '不活跃'}")
+            logger.info(f"{entity.__class__.__name__} ID: {entity.id} 的活跃状态从 {old_status} 变更为 {is_active} ({'活跃' if is_active else '不活跃'})")
+        else:
+            logger.info(f"{entity.__class__.__name__} ID: {entity.id} 的活跃状态未变更，仍为 {'活跃' if is_active else '不活跃'}")
     
+    logger.info(f"活跃度检查完成 - 返回结果: {is_active}")
     return is_active

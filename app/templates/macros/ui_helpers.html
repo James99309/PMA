@@ -412,10 +412,56 @@
 {% endmacro %}
 
 {% macro render_status_badge(value) %}
-  {% if value == 'active' %}
+  {% if value == 'active' or value == True %}
     <span class="badge customer-status-badge customer-status-active rounded-pill">活跃</span>
   {% else %}
     <span class="badge customer-status-badge customer-status-inactive rounded-pill">非活跃</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro render_lock_status_badge(is_locked) %}
+  {% if is_locked %}
+    <span class="badge badge-pill badge-transparent project-lock-locked">
+      <i class="fas fa-lock me-1"></i>已锁定
+    </span>
+  {% else %}
+    <span class="badge badge-pill badge-transparent project-lock-unlocked">
+      <i class="fas fa-unlock me-1"></i>未锁定
+    </span>
+  {% endif %}
+{% endmacro %}
+
+{% macro render_authorization_status_badge(authorization_code, authorization_status) %}
+  {% if authorization_code %}
+    {# 已有授权编号，显示编号 #}
+    <span class="badge rounded-pill authorization-code-badge"
+          style="font-family: 'Helvetica Neue', sans-serif;
+                 font-size: 0.75rem;
+                 padding: 0.35em 0.85em;
+                 background-color: #198754;
+                 color: #fff;">
+      {{ authorization_code }}
+    </span>
+  {% elif authorization_status == 'pending' %}
+    {# 申请中 #}
+    <span class="badge rounded-pill authorization-status-badge"
+          style="font-family: 'Helvetica Neue', sans-serif;
+                 font-size: 0.75rem;
+                 padding: 0.35em 0.85em;
+                 background-color: #fd7e14;
+                 color: #fff;">
+      申请中
+    </span>
+  {% else %}
+    {# 未申请 #}
+    <span class="badge rounded-pill authorization-status-badge"
+          style="font-family: 'Helvetica Neue', sans-serif;
+                 font-size: 0.75rem;
+                 padding: 0.35em 0.85em;
+                 background-color: #6c757d;
+                 color: #fff;">
+      未申请
+    </span>
   {% endif %}
 {% endmacro %}
 

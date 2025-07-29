@@ -302,6 +302,7 @@ def list_projects():
             _create_stage_card('pre_tender', '招标前', 'fas fa-clipboard-list', stage_stats, currency_symbol, 'warning'),
             _create_stage_card('tendering', '招标中', 'fas fa-gavel', stage_stats, currency_symbol, 'warning'),
             _create_stage_card('awarded', '中标', 'fas fa-trophy', stage_stats, currency_symbol, 'success'),
+            _create_stage_card('quoted', '批价', 'fas fa-dollar-sign', stage_stats, currency_symbol, 'warning'),
             _create_stage_card('signed', '签约', 'fas fa-handshake', stage_stats, currency_symbol, 'primary'),
             _create_stage_card('lost', '失败', 'fas fa-times-circle', stage_stats, currency_symbol, 'danger'),
             _create_stage_card('paused', '搁置', 'fas fa-pause-circle', stage_stats, currency_symbol, 'secondary')
@@ -1005,12 +1006,8 @@ def view_project(project_id):
     # 查询项目相关的行动记录，按时间倒序排列
     project_actions = Action.query.filter_by(project_id=project_id).order_by(Action.date.desc(), Action.created_at.desc()).all()
 
-    # 传递阶段key给前端，确保一致性
+    # 传递原始阶段key给前端用于条件判断，避免语言切换时的问题
     current_stage_key = project.current_stage
-    # 如果是英文key，转换为中文名称
-    if current_stage_key in PROJECT_STAGE_LABELS:
-        current_stage_key = PROJECT_STAGE_LABELS[current_stage_key]['zh']
-    # 如果已经是中文名，保持不变
 
     # 确保阶段历史中的阶段名称也转换为中文
     for stage_item in stage_history:
@@ -1044,7 +1041,7 @@ def view_project(project_id):
 
     # 获取系统设置
     settings = {
-        "project_activity_threshold": SystemSettings.get('project_activity_threshold', 7)
+        "project_activity_threshold": SystemSettings.get('project_activity_threshold', 30)
     }
 
 
@@ -1118,20 +1115,22 @@ def add_project():
             if not request.form.get('project_name'):
                 flash('项目名称不能为空', 'danger')
                 return render_template('project/add.html', **get_project_form_data())
-            if not request.form.get('report_time'):
-                flash('报备日期不能为空', 'danger')
-                return render_template('project/add.html', **get_project_form_data())
-            if not request.form.get('current_stage'):
-                flash('当前阶段不能为空', 'danger')
-                return render_template('project/add.html', **get_project_form_data())
+            # 报备日期不再强制要求，将在授权批准后自动设置
+            # if not request.form.get('report_time'):
+            #     flash('报备日期不能为空', 'danger')
+            #     return render_template('project/add.html', **get_project_form_data())
+            # 当前阶段不在创建页面显示，默认设为'discover'阶段
+            # if not request.form.get('current_stage'):
+            #     flash('当前阶段不能为空', 'danger')
+            #     return render_template('project/add.html', **get_project_form_data())
             if not request.form.get('industry'):
                 flash('项目行业不能为空', 'danger')
                 return render_template('project/add.html', **get_project_form_data())
             
-            # 解析日期
-            report_time = None
-            if request.form.get('report_time'):
-                report_time = datetime.strptime(request.form['report_time'], '%Y-%m-%d').date()
+            # 解析日期 - 只有在授权批准后才设置报备日期，创建时不设置
+            report_time = None  # 初始创建时不设置报备日期
+            # if request.form.get('report_time'):
+            #     report_time = datetime.strptime(request.form['report_time'], '%Y-%m-%d').date()
                 
             delivery_forecast = None
             if request.form.get('delivery_forecast'):
@@ -1168,7 +1167,7 @@ def add_project():
                 product_situation=request.form.get('product_situation'),
                 design_issues=request.form.get('design_issues'),
                 delivery_forecast=delivery_forecast,
-                current_stage=request.form.get('current_stage'),
+                current_stage='discover',  # 默认从发现阶段开始
                 dealer=request.form.get('dealer'),
                 end_user=request.form.get('end_user'),
                 contractor=request.form.get('contractor'),
@@ -1226,6 +1225,26 @@ def add_project():
                 
             except Exception as notify_err:
                 logger.warning(f"启动异步项目创建通知失败: {str(notify_err)}")
+            
+            # 更新相关客户的活跃状态
+            # 查找与项目相关的所有企业名称
+            related_companies = []
+            if project.end_user:
+                related_companies.append(project.end_user)
+            if project.design_issues:
+                related_companies.append(project.design_issues)
+            if project.contractor:
+                related_companies.append(project.contractor)
+            if project.system_integrator:
+                related_companies.append(project.system_integrator)
+            if project.dealer:
+                related_companies.append(project.dealer)
+                
+            # 查找匹配的企业ID并更新活跃状态
+            for company_name in set(related_companies):
+                company = Company.query.filter_by(company_name=company_name, is_deleted=False).first()
+                if company:
+                    check_company_activity(company_id=company.id)
             
             flash('项目添加成功！', 'success')
             return redirect(url_for('project.view_project', project_id=project.id))
@@ -1288,25 +1307,30 @@ def edit_project(project_id):
         from app.utils.change_tracker import ChangeTracker
         old_values = ChangeTracker.capture_old_values(project)
         
+        # 记录修改前的客户关联信息，用于判断是否有新增关联
+        old_customer_relations = {
+            'end_user': project.end_user,
+            'design_issues': project.design_issues,
+            'contractor': project.contractor,
+            'system_integrator': project.system_integrator,
+            'dealer': project.dealer
+        }
+        
         try:
             # 必填项校验
             if not request.form.get('project_name'):
                 flash('项目名称不能为空', 'danger')
                 return render_template('project/edit.html', project=project, **get_edit_project_data())
-            if not request.form.get('report_time'):
-                flash('报备日期不能为空', 'danger')
-                return render_template('project/edit.html', project=project, **get_edit_project_data())
-            if not request.form.get('current_stage'):
-                flash('当前阶段不能为空', 'danger')
-                return render_template('project/edit.html', project=project, **get_edit_project_data())
+            # 报备日期不在编辑页面显示，不需要验证
+            # 当前阶段不在编辑页面显示，不需要验证
+            # if not request.form.get('current_stage'):
+            #     flash('当前阶段不能为空', 'danger')
+            #     return render_template('project/edit.html', project=project, **get_edit_project_data())
             if not request.form.get('industry'):
                 flash('项目行业不能为空', 'danger')
                 return render_template('project/edit.html', project=project, **get_edit_project_data())
-            # 解析日期
-            if request.form.get('report_time'):
-                project.report_time = datetime.strptime(request.form['report_time'], '%Y-%m-%d').date()
-            else:
-                project.report_time = None
+            # 报备日期不在编辑页面显示，不需要解析，保持原有值不变
+            # 解析出货预测日期
             if request.form.get('delivery_forecast'):
                 project.delivery_forecast = datetime.strptime(request.form['delivery_forecast'], '%Y-%m-%d').date()
             else:
@@ -1318,21 +1342,9 @@ def edit_project(project_id):
             project.design_issues = request.form.get('design_issues')
             project.industry = request.form.get('industry')  # 添加行业字段更新
             
-            # 保存旧阶段用于后续比较
+            # 当前阶段不在编辑页面显示，不需要更新，保持原值
             old_stage = project.current_stage
-            new_stage = request.form.get('current_stage')
-            
-            # 如果传入的是中文阶段名称，转换为英文key
-            if new_stage not in PROJECT_STAGE_LABELS:
-                # 反查中文名称对应的英文key
-                reverse_lookup = {v['zh']: k for k, v in PROJECT_STAGE_LABELS.items()}
-                new_stage_key = reverse_lookup.get(new_stage, new_stage)
-                if new_stage_key != new_stage:
-                    current_app.logger.info(f"阶段名称转换: {new_stage} -> {new_stage_key}")
-                    new_stage = new_stage_key
-            
-            # 更新当前阶段
-            project.current_stage = new_stage
+            new_stage = project.current_stage  # 保持不变
             project.dealer = request.form.get('dealer')
             project.end_user = request.form.get('end_user')
             project.contractor = request.form.get('contractor')
@@ -1371,8 +1383,16 @@ def edit_project(project_id):
             except Exception as track_err:
                 logger.warning(f"记录项目变更历史失败: {str(track_err)}")
             
-            # 新增：每次保存后自动刷新活跃度
-            update_active_status(project)
+            # 新增：每次保存后自动刷新活跃度（必须在commit之后调用）
+            try:
+                logger.info(f"项目编辑保存后更新活跃状态: 项目 ID {project.id}, 名称: {project.project_name}")
+                logger.info(f"更新前活跃状态: {project.is_active}, 更新时间: {project.updated_at}")
+                update_active_status(project, commit=True)
+                # 重新查询项目以获取最新状态
+                db.session.refresh(project)
+                logger.info(f"更新后活跃状态: {project.is_active}")
+            except Exception as activity_err:
+                logger.error(f"更新项目活跃状态失败: {str(activity_err)}")
             
             # 项目保存后触发评分重新计算
             try:
@@ -1385,6 +1405,9 @@ def edit_project(project_id):
             # 如果项目阶段发生变更，触发通知
             if old_stage != new_stage:
                 try:
+                    # 项目活跃度已在上面统一更新，这里只记录日志
+                    current_app.logger.debug(f"项目阶段变更后项目 {project.id} 活跃度已更新")
+                    
                     import threading
                     from app.services.event_dispatcher import notify_project_status_updated
                     from app.utils.solution_manager_notifications import notify_solution_managers_project_stage_changed
@@ -1408,25 +1431,31 @@ def edit_project(project_id):
                 except Exception as notify_err:
                     current_app.logger.warning(f"启动异步项目阶段变更通知失败: {str(notify_err)}")
             
-            # 更新相关客户的活跃状态
-            # 查找与项目相关的所有企业名称
-            related_companies = []
-            if project.end_user:
-                related_companies.append(project.end_user)
-            if project.design_issues:
-                related_companies.append(project.design_issues)
-            if project.contractor:
-                related_companies.append(project.contractor)
-            if project.system_integrator:
-                related_companies.append(project.system_integrator)
-            if project.dealer:
-                related_companies.append(project.dealer)
-                
-            # 查找匹配的企业ID并更新活跃状态
-            for company_name in set(related_companies):
+            # 只更新新增关联的客户活跃状态
+            # 获取当前的客户关联信息
+            current_customer_relations = {
+                'end_user': project.end_user,
+                'design_issues': project.design_issues,
+                'contractor': project.contractor,
+                'system_integrator': project.system_integrator,
+                'dealer': project.dealer
+            }
+            
+            # 找出新增的客户关联（之前为空或不同，现在有值）
+            new_related_companies = []
+            for field, current_value in current_customer_relations.items():
+                old_value = old_customer_relations.get(field)
+                # 如果当前有值且与之前不同（新增或修改了关联）
+                if current_value and current_value != old_value:
+                    new_related_companies.append(current_value)
+                    current_app.logger.debug(f"检测到客户关联变更: {field} 从 '{old_value}' 变为 '{current_value}'")
+            
+            # 只更新新增关联的客户活跃状态
+            for company_name in set(new_related_companies):
                 company = Company.query.filter_by(company_name=company_name, is_deleted=False).first()
                 if company:
-                    check_company_activity(company_id=company.id, days_threshold=1)
+                    check_company_activity(company_id=company.id)
+                    current_app.logger.debug(f"更新新关联客户 '{company_name}' 的活跃度")
             
             flash('项目信息已更新！', 'success')
             return redirect(url_for('project.view_project', project_id=project.id))
@@ -1759,6 +1788,10 @@ def approve_authorization(project_id):
         project.authorization_code = authorization_code
         project.authorization_status = None  # 清除pending状态
         project.feedback = approval_note if approval_note else None
+        
+        # 授权批准后自动设置报备日期为当前日期
+        from datetime import date
+        project.report_time = date.today()
         
         # 同步更新所有关联报价单的project_stage和project_type
         from app.models.quotation import Quotation
@@ -2170,9 +2203,25 @@ def update_project_stage():
             allowed_user_ids = current_user.get_viewable_user_ids() if hasattr(current_user, 'get_viewable_user_ids') else [current_user.id]
             if project.owner_id in allowed_user_ids:
                 allowed = True
-        # 签约阶段加固：非管理员禁止任何阶段变更
-        if project.current_stage == '签约' and not is_admin_or_ceo():
-            return jsonify({'success': False, 'message': '签约阶段仅管理员可变更项目阶段'}), 403
+        # 签约阶段加固：已签约项目不允许任何阶段变更（包括管理员）
+        if project.current_stage == 'signed':
+            return jsonify({'success': False, 'message': '已签约项目不允许变更阶段'}), 403
+            
+        # 防止将项目从任何阶段切换到搜置或失败（如果曾经签约过）
+        if new_stage in ['paused', 'failed']:
+            # 检查是否曾经有签约历史记录
+            from app.models.projectpm_stage_history import ProjectStageHistory
+            has_signed_history = ProjectStageHistory.query.filter(
+                ProjectStageHistory.project_id == project_id,
+                ProjectStageHistory.to_stage == 'signed'
+            ).first()
+            
+            if has_signed_history:
+                stage_name_map = {'paused': '搜置', 'failed': '失败'}
+                return jsonify({
+                    'success': False, 
+                    'message': f'该项目曾经签约，不允许切换到{stage_name_map[new_stage]}状态'
+                }), 403
         if not allowed:
             return jsonify({'success': False, 'message': '您没有权限修改此项目'}), 403
             
@@ -2302,6 +2351,16 @@ def update_project_stage():
         
         # 更新项目阶段
         project.current_stage = new_stage
+        
+        # 如果项目推进到签约阶段，自动锁定项目
+        if new_stage == 'signed' and not project.is_locked:
+            from datetime import datetime
+            project.is_locked = True
+            project.locked_reason = '项目已签约，自动锁定'
+            project.locked_by = current_user.id
+            project.locked_at = datetime.now()
+            current_app.logger.info(f'项目 {project.project_name} (ID: {project.id}) 由于签约自动锁定')
+        
         # 同步更新所有关联报价单的project_stage和project_type
         from app.models.quotation import Quotation
         quotations = Quotation.query.filter_by(project_id=project.id).all()
@@ -2321,11 +2380,11 @@ def update_project_stage():
                 commit=False  # 不在方法内部提交，与主事务一同提交
             )
 
-            # 更新项目活跃度（在提交前）
-            update_active_status(project, commit=False)
-            
-            # 提交所有更改
+            # 提交所有更改（让SQLAlchemy自动更新updated_at字段）
             db.session.commit()
+            
+            # 在提交后更新项目活跃度（使用最新的updated_at时间）
+            update_active_status(project, commit=True)
             current_app.logger.info(f"项目ID={project.id}的阶段从{old_stage}更新为{new_stage}，历史记录已添加")
             
             # 提交后再单独重新计算项目评分（避免事务冲突）
@@ -2803,6 +2862,8 @@ def _create_stage_card(stage_key, title, icon, stage_stats, currency_symbol, col
         'unit': '个',
         'amount_unit': '万元',  # 将由通用模组自动处理语言感知
         'color': color,
+        'clickable': True,  # 启用点击筛选功能
+        'click_params': {'current_stage': stage_key},  # 点击时筛选对应阶段
         'data_key': stage_key
     }
 

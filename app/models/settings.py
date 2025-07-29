@@ -98,11 +98,11 @@ class SystemSettings(db.Model):
 # 默认配置参数定义
 DEFAULT_SETTINGS = {
     'customer_activity_threshold': {
-        'value': 1,  # 默认1天
+        'value': 30,  # 默认30天
         'description': '客户活跃度阈值（天）- 超过指定天数无活动则标记为不活跃'
     },
     'project_activity_threshold': {
-        'value': 7,  # 默认7天
+        'value': 30,  # 默认30天
         'description': '项目活跃度阈值（天）- 超过指定天数无活动则标记为不活跃'
     }
 }
