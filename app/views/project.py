@@ -15,6 +15,7 @@ import pandas as pd
 import json
 from app.models.user import User
 from app.models.quotation import Quotation
+from app.models.pricing_order import PricingOrder
 from app.models.relation import ProjectMember
 from app.permissions import check_permission, Permissions
 from werkzeug.utils import secure_filename
@@ -438,7 +439,7 @@ def list_projects():
                 'key': 'authorization_code', 
                 'label': '授权编号', 
                 'type': 'custom',
-                'render': 'render_authorization_code',
+                'render': 'render_project_authorization',
                 'width': '120px'
             },
             {
@@ -680,7 +681,7 @@ def project_list_ajax():
                     'key': 'authorization_code', 
                     'label': '授权编号', 
                     'type': 'custom',
-                    'render': 'render_authorization_code',
+                    'render': 'render_project_authorization',
                     'width': '120px'
                 },
                 {
@@ -2207,17 +2208,16 @@ def update_project_stage():
         if project.current_stage == 'signed':
             return jsonify({'success': False, 'message': '已签约项目不允许变更阶段'}), 403
             
-        # 防止将项目从任何阶段切换到搜置或失败（如果曾经签约过）
+        # 防止将项目从任何阶段切换到搁置或失败（如果曾经签约过）
         if new_stage in ['paused', 'failed']:
             # 检查是否曾经有签约历史记录
-            from app.models.projectpm_stage_history import ProjectStageHistory
             has_signed_history = ProjectStageHistory.query.filter(
                 ProjectStageHistory.project_id == project_id,
                 ProjectStageHistory.to_stage == 'signed'
             ).first()
             
             if has_signed_history:
-                stage_name_map = {'paused': '搜置', 'failed': '失败'}
+                stage_name_map = {'paused': '搁置', 'failed': '失败'}
                 return jsonify({
                     'success': False, 
                     'message': f'该项目曾经签约，不允许切换到{stage_name_map[new_stage]}状态'
@@ -2232,8 +2232,6 @@ def update_project_stage():
         
         if new_stage == 'signed' and old_stage == 'quoted':
             # 从批价阶段推进到签约阶段，检查批价流程状态
-            from app.models.quotation import Quotation
-            from app.models.pricing_order import PricingOrder
             
             # 获取项目的最新报价单
             latest_quotation = Quotation.query.filter_by(project_id=project_id).order_by(
@@ -2354,7 +2352,6 @@ def update_project_stage():
         
         # 如果项目推进到签约阶段，自动锁定项目
         if new_stage == 'signed' and not project.is_locked:
-            from datetime import datetime
             project.is_locked = True
             project.locked_reason = '项目已签约，自动锁定'
             project.locked_by = current_user.id
@@ -2362,7 +2359,6 @@ def update_project_stage():
             current_app.logger.info(f'项目 {project.project_name} (ID: {project.id}) 由于签约自动锁定')
         
         # 同步更新所有关联报价单的project_stage和project_type
-        from app.models.quotation import Quotation
         quotations = Quotation.query.filter_by(project_id=project.id).all()
         for q in quotations:
             q.project_stage = new_stage
@@ -2370,6 +2366,8 @@ def update_project_stage():
         
         # 在一个事务中同时保存项目更新和阶段历史
         try:
+            current_app.logger.info(f"开始为项目ID={project.id}创建阶段历史记录: {old_stage} -> {new_stage}")
+            
             # 创建阶段历史记录但不提交
             ProjectStageHistory.add_history_record(
                 project_id=project.id,
@@ -2379,11 +2377,14 @@ def update_project_stage():
                 remarks=f"API推进: {current_user.username}",
                 commit=False  # 不在方法内部提交，与主事务一同提交
             )
+            current_app.logger.info(f"阶段历史记录已创建，准备提交事务")
 
             # 提交所有更改（让SQLAlchemy自动更新updated_at字段）
             db.session.commit()
+            current_app.logger.info(f"数据库事务已提交")
             
             # 在提交后更新项目活跃度（使用最新的updated_at时间）
+            current_app.logger.info(f"开始更新项目活跃度状态")
             update_active_status(project, commit=True)
             current_app.logger.info(f"项目ID={project.id}的阶段从{old_stage}更新为{new_stage}，历史记录已添加")
             
@@ -2449,14 +2450,28 @@ def update_project_stage():
             return jsonify(response_data), 200
             
         except Exception as db_err:
+            import traceback
+            db_error_traceback = traceback.format_exc()
             db.session.rollback()
             current_app.logger.error(f"提交阶段更新到数据库失败: {str(db_err)}")
-            return jsonify({'success': False, 'message': f'数据库错误: {str(db_err)}'}), 500
+            current_app.logger.error(f"数据库错误堆栈:\n{db_error_traceback}")
+            return jsonify({
+                'success': False, 
+                'message': f'数据库错误: {str(db_err)}',
+                'error_details': db_error_traceback if current_app.debug else None
+            }), 500
         
     except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
         current_app.logger.error(f"更新项目阶段出错: {str(e)}")
+        current_app.logger.error(f"错误堆栈:\n{error_traceback}")
         db.session.rollback()
-        return jsonify({'success': False, 'message': f'服务器错误: {str(e)}'}), 500
+        return jsonify({
+            'success': False, 
+            'message': f'服务器错误: {str(e)}',
+            'error_details': error_traceback if current_app.debug else None
+        }), 500
 
 @project.route('/add_action/<int:project_id>', methods=['GET', 'POST'])
 @permission_required('customer', 'create')

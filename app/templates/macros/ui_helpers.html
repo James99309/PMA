@@ -106,22 +106,25 @@
 {% endmacro %}
 
 {% macro render_authorization_code(code, project_type=None, size="normal") %}
-  {% set bg_color = '#6c757d' %}  {# 默认灰 #}
-  {% if code and code.startswith('CPJ') or project_type == '渠道跟进' %}
-    {% set bg_color = '#5bc0de' %}
-  {% elif code and code.startswith('SPJ') or project_type == '销售重点' %}
-    {% set bg_color = '#0B6EFD' %}
-  {% elif code and code.startswith('APJ') or project_type == 'business_opportunity' %}
-    {% set bg_color = '#198754' %}
+  {% if code %}
+    {% set bg_color = '#6c757d' %}  {# 默认灰 #}
+    {% if code.startswith('CPJ') or project_type == '渠道跟进' %}
+      {% set bg_color = '#5bc0de' %}
+    {% elif code.startswith('SPJ') or project_type == '销售重点' %}
+      {% set bg_color = '#0B6EFD' %}
+    {% elif code.startswith('APJ') or project_type == 'business_opportunity' %}
+      {% set bg_color = '#198754' %}
+    {% endif %}
+    <span class="badge rounded-pill"
+          style="font-family: 'Helvetica Neue', sans-serif;
+                 font-size: 0.75rem;
+                 padding: 0.35em 0.85em;
+                 background-color: {{ bg_color }};
+                 color: #fff;">
+      {{ code }}
+    </span>
   {% endif %}
-  <span class="badge rounded-pill"
-        style="font-family: 'Helvetica Neue', sans-serif;
-               font-size: 0.75rem;
-               padding: 0.35em 0.85em;
-               background-color: {{ bg_color }};
-               color: #fff;">
-    {{ code or '无' }}
-  </span>
+  {# 无授权编号时不显示任何内容 #}
 {% endmacro %}
 
 {% macro render_quotation_number(number, size="normal") %}
@@ -431,38 +434,22 @@
   {% endif %}
 {% endmacro %}
 
-{% macro render_authorization_status_badge(authorization_code, authorization_status) %}
+{% macro render_authorization_status_badge(authorization_code, authorization_status, project_type=None) %}
   {% if authorization_code %}
-    {# 已有授权编号，显示编号 #}
-    <span class="badge rounded-pill authorization-code-badge"
-          style="font-family: 'Helvetica Neue', sans-serif;
-                 font-size: 0.75rem;
-                 padding: 0.35em 0.85em;
-                 background-color: #198754;
-                 color: #fff;">
-      {{ authorization_code }}
-    </span>
+    {# 已有授权编号，显示编号（使用授权编号宏的逻辑） #}
+    {{ render_authorization_code(authorization_code, project_type) }}
   {% elif authorization_status == 'pending' %}
-    {# 申请中 #}
+    {# 申请中 - 橙色徽章 #}
     <span class="badge rounded-pill authorization-status-badge"
           style="font-family: 'Helvetica Neue', sans-serif;
                  font-size: 0.75rem;
                  padding: 0.35em 0.85em;
                  background-color: #fd7e14;
                  color: #fff;">
-      申请中
-    </span>
-  {% else %}
-    {# 未申请 #}
-    <span class="badge rounded-pill authorization-status-badge"
-          style="font-family: 'Helvetica Neue', sans-serif;
-                 font-size: 0.75rem;
-                 padding: 0.35em 0.85em;
-                 background-color: #6c757d;
-                 color: #fff;">
-      未申请
+      {{ _('申请中') }}
     </span>
   {% endif %}
+  {# 未申请时不显示任何内容 #}
 {% endmacro %}
 
 {% macro render_enable_disable_badge(is_enabled) %}
@@ -2397,6 +2384,8 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
             {{ render_status_badge(value) }}
         {% elif column.render == 'render_authorization_code' %}
             {{ render_authorization_code(value) }}
+        {% elif column.render == 'render_project_authorization' %}
+            {{ render_authorization_status_badge(item.authorization_code, item.authorization_status, item.project_type) }}
         {% elif column.render == 'render_date' %}
             {{ render_date(value) }}
         {% elif column.render == 'render_industry_badge' %}

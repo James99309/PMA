@@ -1,4 +1,4 @@
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_authorization_code, render_datetime %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_authorization_code, render_datetime, render_authorization_status_badge %}
 
 {% for project in projects %}
 <tr>
@@ -12,15 +12,7 @@
     {% endif %}
     <td>{{ render_owner(project.owner) if project.owner else '' }}</td>
     <td>
-        {% if project.authorization_code %}
-            {{ render_authorization_code(project.authorization_code, project.project_type) }}
-        {% elif project.authorization_status == 'pending' %}
-            <span class="badge bg-warning">{% if project.authorization_status %}{{ project.authorization_status|authorization_status_label('zh') }}{% else %}无{% endif %}</span>
-        {% elif project.authorization_status == 'rejected' %}
-            <span class="badge bg-danger">{% if project.authorization_status %}{{ project.authorization_status|authorization_status_label('zh') }}{% else %}无{% endif %}</span>
-        {% else %}
-            <span class="badge bg-secondary">未申请</span>
-        {% endif %}
+        {{ render_authorization_status_badge(project.authorization_code, project.authorization_status, project.project_type) }}
     </td>
     <td>
         <a href="{{ url_for('project.view_project', project_id=project.id) }}" class="project-link">
