@@ -12,13 +12,25 @@
     <td class="px-3">{{ render_customer_status_badge(company.status) if company.status else '-' }}</td>
     <td class="px-3">
         {% if company.country %}
-            {{ company.country }}
-            {% if company.region %} {{ company.region }}{% endif %}
+            {% set country_name = country_code_to_name.get(company.country, company.country) %}
+            {% set location_parts = [country_name] %}
+            {% if company.region %}
+                {% set _ = location_parts.append(company.region) %}
+            {% endif %}
+            {% if company.address %}
+                {% if '市' in company.address %}
+                    {% set city = company.address.split('市')[0] + '市' %}
+                    {% set _ = location_parts.append(city) %}
+                {% elif '城' in company.address %}
+                    {% set city = company.address.split('城')[0] + '城' %}
+                    {% set _ = location_parts.append(city) %}
+                {% endif %}
+            {% endif %}
+            {{ location_parts | join('/') }}
         {% else %}
             -
         {% endif %}
     </td>
-    <td class="px-3">{{ company.address or '-' }}</td>
     <td class="px-3">
         {% if company.updated_at %}
             {% if company.updated_at.strftime %}

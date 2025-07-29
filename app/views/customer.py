@@ -306,12 +306,39 @@ def list_companies():
     # 活跃企业统计
     active_companies = all_companies_query.filter(Company.status == 'active').count()
     
-    # 企业类型统计
-    direct_customers = all_companies_query.filter(Company.company_type == 'direct_customer').count()
-    partners = all_companies_query.filter(Company.company_type == 'partner').count()
+    # 直接客户统计（公司类型为user的客户数量）
+    direct_customers = all_companies_query.filter(Company.company_type == 'user').count()
     
-    # 我的企业统计（当前用户负责的）
-    my_companies = all_companies_query.filter(Company.owner_id == current_user.id).count()
+    # 项目客户统计（客户被项目关联过的数量）
+    from app.models.project import Project
+    from sqlalchemy import or_
+    
+    # 获取所有客户公司名称
+    company_names = {c.company_name for c in all_viewable_companies}
+    
+    # 查询被项目关联过的公司名称（使用集合操作提高效率）
+    if company_names:
+        # 直接使用SQL的or_条件查询，避免获取所有数据后再处理
+        linked_companies_subquery = db.session.query(Company.company_name).filter(
+            Company.company_name.in_(
+                db.session.query(Project.end_user).filter(Project.end_user.isnot(None)).union(
+                    db.session.query(Project.design_issues).filter(Project.design_issues.isnot(None))
+                ).union(
+                    db.session.query(Project.dealer).filter(Project.dealer.isnot(None))
+                ).union(
+                    db.session.query(Project.contractor).filter(Project.contractor.isnot(None))
+                ).union(
+                    db.session.query(Project.system_integrator).filter(Project.system_integrator.isnot(None))
+                )
+            )
+        ).distinct()
+        
+        # 统计被项目关联过的客户数量
+        project_customers = all_companies_query.filter(
+            Company.company_name.in_(linked_companies_subquery)
+        ).count()
+    else:
+        project_customers = 0
     
     # 构建标准化筛选配置
     filter_config = {
@@ -439,8 +466,7 @@ def list_companies():
                     'value': total_companies,
                     'unit': '家',
                     'color': 'primary',
-                    'clickable': True,
-                    'click_params': {},
+                    'clickable': False,
                     'data_key': 'total'
                 },
                 {
@@ -450,8 +476,7 @@ def list_companies():
                     'value': active_companies,
                     'unit': '家',
                     'color': 'success',
-                    'clickable': True,
-                    'click_params': {'status_filter': 'active'},
+                    'clickable': False,
                     'data_key': 'active'
                 },
                 {
@@ -461,20 +486,18 @@ def list_companies():
                     'value': direct_customers,
                     'unit': '家',
                     'color': 'info',
-                    'clickable': True,
-                    'click_params': {'company_type': 'direct_customer'},
+                    'clickable': False,
                     'data_key': 'direct_customer'
                 },
                 {
-                    'id': 'my_companies',
-                    'title': '我的企业',
-                    'icon': 'fas fa-user',
-                    'value': my_companies,
+                    'id': 'project_customers',
+                    'title': '项目客户',
+                    'icon': 'fas fa-project-diagram',
+                    'value': project_customers,
                     'unit': '家',
                     'color': 'warning',
-                    'clickable': True,
-                    'click_params': {'owner_filter': str(current_user.id)},
-                    'data_key': 'my_companies'
+                    'clickable': False,
+                    'data_key': 'project_customers'
                 }
             ]
         },
@@ -531,12 +554,6 @@ def list_companies():
                     'label': '国家/地区',
                     'type': 'text',
                     'width': '150px'
-                },
-                {
-                    'key': 'address',
-                    'label': '地址',
-                    'type': 'text',
-                    'width': '200px'
                 },
                 {
                     'key': 'updated_at',
@@ -633,16 +650,20 @@ def companies_list_ajax():
                 if company.owner_id and company.owner_id in owners:
                     company.owner = owners[company.owner_id]
         
+        # 获取国际化的国家名称映射
+        from app.utils.i18n import get_current_language
+        country_code_to_name = get_country_names(get_current_language())
+        
         # 使用通用组件的响应式渲染逻辑（与页面初始化保持一致）
         from app.utils.mobile_helpers import is_mobile_request
         from flask import render_template
         
         if is_mobile_request():
             # 移动端：渲染卡片内容（不包含容器，因为容器已存在）
-            companies_html = render_template('customer/customer_cards.html', items=companies)
+            companies_html = render_template('customer/customer_cards.html', items=companies, country_code_to_name=country_code_to_name)
         else:
             # 桌面端：渲染表格行
-            companies_html = render_template('customer/customer_rows.html', items=companies)
+            companies_html = render_template('customer/customer_rows.html', items=companies, country_code_to_name=country_code_to_name)
         
         # 计算统计数据 - 基于当前筛选条件的结果
         # 重新构建基础查询以获取筛选后的统计数据
@@ -662,11 +683,32 @@ def companies_list_ajax():
         if status_filter:
             base_filtered_query = base_filtered_query.filter(Company.status == status_filter)
         
+        # 计算项目客户统计（基于筛选后的结果，使用优化的SQL查询）
+        # 直接使用SQL子查询统计项目关联的客户
+        linked_companies_subquery = db.session.query(Company.company_name).filter(
+            Company.company_name.in_(
+                db.session.query(Project.end_user).filter(Project.end_user.isnot(None)).union(
+                    db.session.query(Project.design_issues).filter(Project.design_issues.isnot(None))
+                ).union(
+                    db.session.query(Project.dealer).filter(Project.dealer.isnot(None))
+                ).union(
+                    db.session.query(Project.contractor).filter(Project.contractor.isnot(None))
+                ).union(
+                    db.session.query(Project.system_integrator).filter(Project.system_integrator.isnot(None))
+                )
+            )
+        ).distinct()
+        
+        # 统计筛选结果中被项目关联过的客户数量
+        filtered_project_customers = base_filtered_query.filter(
+            Company.company_name.in_(linked_companies_subquery)
+        ).count()
+        
         statistics = {
             'total': base_filtered_query.count(),
             'active': base_filtered_query.filter(Company.status == 'active').count(),
-            'direct_customer': base_filtered_query.filter(Company.company_type == 'direct_customer').count(),
-            'my_companies': base_filtered_query.filter(Company.owner_id == current_user.id).count()
+            'direct_customer': base_filtered_query.filter(Company.company_type == 'user').count(),
+            'project_customers': filtered_project_customers
         }
         
         # 计算是否还有更多数据（用于无限滚动）

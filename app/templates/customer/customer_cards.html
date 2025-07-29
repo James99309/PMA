@@ -33,13 +33,29 @@
         </div>
         {% endif %}
         
-        {% if company.country or company.province or company.city %}
+        {% if company.country or company.region or company.address %}
         <div class="detail-row">
             <span class="label">{{ _('地区') }}:</span>
-            <span class="value">
-                {% if company.country %}{{ company.country }}{% endif %}
-                {% if company.province %} {{ company.province }}{% endif %}
-                {% if company.city %} {{ company.city }}{% endif %}
+            <span class="value text-start">
+                {% if company.country %}
+                    {% set country_name = country_code_to_name.get(company.country, company.country) %}
+                    {% set location_parts = [country_name] %}
+                    {% if company.region %}
+                        {% set _ = location_parts.append(company.region) %}
+                    {% endif %}
+                    {% if company.address %}
+                        {% if '市' in company.address %}
+                            {% set city = company.address.split('市')[0] + '市' %}
+                            {% set _ = location_parts.append(city) %}
+                        {% elif '城' in company.address %}
+                            {% set city = company.address.split('城')[0] + '城' %}
+                            {% set _ = location_parts.append(city) %}
+                        {% endif %}
+                    {% endif %}
+                    {{ location_parts | join('/') }}
+                {% else %}
+                    -
+                {% endif %}
             </span>
         </div>
         {% endif %}

@@ -1,12 +1,39 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-PMA云端数据库备份和本地结构同步脚本
+PMA 云端 SP8D 数据库备份工具
 功能：
 1. 备份云端PostgreSQL数据库 pma_db_sp8d
-2. 获取本地数据库结构
-3. 将本地结构同步到云端数据库（不破坏数据）
-4. 验证数据完整性
+2. 生成详细的备份信息报告
+3. 验证数据完整性
+
+使用方法：
+    python3 backup_cloud_pma_db.py
+
+功能特性：
+- 备份云端 pma_db_sp8d 数据库到本地
+- 生成详细的表统计和备份信息文件
+- 自动验证备份数据完整性
+- 使用标准的 subprocess.run() 方式执行备份
+
+备份文件：
+- 存储位置：./cloud_db_backups/
+- 备份文件：pma_db_sp8d_backup_YYYYMMDD_HHMMSS.sql
+- 信息文件：backup_info_YYYYMMDD_HHMMSS.md
+- 备份大小：约 3.5MB
+- 数据行数：约 15,000 行
+
+备份内容：
+- 58个表的完整结构和数据
+- 所有约束、索引、序列
+- 使用 COPY 语句格式，支持高效恢复
+
+注意：
+- 需要网络连接到 render.com 数据库
+- 需要安装 PostgreSQL 客户端工具 (pg_dump)
+- 备份过程约需3秒，会自动验证数据完整性
+
+遵循 CLAUDE.md 中的云端数据库备份工具规范
 """
 
 import os
