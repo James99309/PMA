@@ -41,6 +41,15 @@
                             <label for="communication" class="form-label">{{ _('沟通情况') }}</label>
                             <textarea class="form-control" id="communication" name="communication" rows="4" required></textarea>
                         </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="is_shared" name="is_shared" checked>
+                                <label class="form-check-label" for="is_shared">
+                                    {{ _('共享此记录') }}
+                                </label>
+                                <small class="form-text text-muted d-block">{{ _('取消勾选后，此记录仅对管理员和上级账户可见') }}</small>
+                            </div>
+                        </div>
                         <div class="text-end">
                             <button type="button" id="saveButton" class="btn btn-primary me-2">
                                 {{ _('保存') }}
@@ -165,7 +174,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const formData = {
             date: document.getElementById('date').value,
             project_id: document.getElementById('project_id').value,
-            communication: document.getElementById('communication').value
+            communication: document.getElementById('communication').value,
+            is_shared: document.getElementById('is_shared').checked
         };
         
         // 禁用保存按钮，防止重复提交

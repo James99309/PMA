@@ -847,6 +847,24 @@ def view_project(project_id):
         allowed_user_ids = current_user.get_viewable_user_ids() if hasattr(current_user, 'get_viewable_user_ids') else [current_user.id]
         if project.owner_id in allowed_user_ids:
             has_permission = True
+        
+        # 通过客户共享获得权限
+        if not has_permission:
+            from app.utils.access_control import get_projects_through_customer_sharing_condition
+            customer_shared_condition = get_projects_through_customer_sharing_condition(current_user, Project)
+            if customer_shared_condition is not None:
+                try:
+                    # 检查当前项目是否满足客户共享条件
+                    project_query = Project.query.filter(
+                        Project.id == project.id,
+                        customer_shared_condition
+                    )
+                    shared_project = project_query.first()
+                    if shared_project:
+                        has_permission = True
+                        logger.debug(f"用户 {current_user.username} 通过客户共享权限访问项目 {project_id}")
+                except Exception as e:
+                    logger.debug(f"检查项目客户共享权限时出错: {e}")
 
     if not has_permission:
         logger.warning(f"用户 {current_user.username} (ID: {current_user.id}, 角色: {current_user.role}) 尝试查看无权限的项目: {project_id} (类型: {project.project_type}, 所有者: {project.owner_id})")
@@ -1004,8 +1022,9 @@ def view_project(project_id):
                 'endDate': None
             })
 
-    # 查询项目相关的行动记录，按时间倒序排列
-    project_actions = Action.query.filter_by(project_id=project_id).order_by(Action.date.desc(), Action.created_at.desc()).all()
+    # 查询项目相关的行动记录，按时间倒序排列（应用共享权限过滤）
+    from app.utils.access_control import get_viewable_data
+    project_actions = get_viewable_data(Action, current_user, special_filters=[Action.project_id == project_id]).order_by(Action.date.desc(), Action.created_at.desc()).all()
 
     # 传递原始阶段key给前端用于条件判断，避免语言切换时的问题
     current_stage_key = project.current_stage
@@ -2542,7 +2561,8 @@ def add_action_for_project(project_id):
                 company_id=company_id if company_id else None,
                 project_id=project_id,
                 communication=communication,
-                owner_id=current_user.id
+                owner_id=current_user.id,
+                is_shared='is_shared' in request.form  # 默认为False（如果未选中checkbox）
             )
             db.session.add(action)
             db.session.commit()

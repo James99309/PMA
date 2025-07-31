@@ -3254,3 +3254,18 @@ msgstr "All Categories"
 msgid "全部状态"
 msgstr "All Status"
 
+
+msgid "自动共享相关项目"
+msgstr "Auto-share Related Projects"
+
+msgid "包括该客户作为最终用户、经销商、承包商、集成商、设计院的项目（仅查看权限）"
+msgstr "Include projects where this customer is the end user, dealer, contractor, integrator, or design institute (view-only permission)"
+
+
+
+msgid "共享此记录"
+msgstr "Share this record"
+
+msgid "取消勾选后，此记录仅对管理员和上级账户可见"
+msgstr "When unchecked, this record will only be visible to admins and superior accounts"
+

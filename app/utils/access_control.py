@@ -25,6 +25,49 @@ from sqlalchemy.dialects.postgresql import JSONB
 
 logger = logging.getLogger(__name__)
 
+def get_projects_through_customer_sharing_condition(user, model_class):
+    """
+    获取通过客户共享获得的项目访问权限的查询条件
+    
+    参数:
+        user: 用户对象
+        model_class: Project模型类
+    
+    返回:
+        SQLAlchemy查询条件或None
+    """
+    try:
+        # 获取用户有访问权限且启用项目共享的客户名称
+        accessible_companies = Company.query.filter(
+            Company.is_deleted == False,
+            Company.share_related_projects == True,
+            cast(Company.shared_with_users, JSONB).op('@>')(text(f"'{user.id}'"))
+        ).all()
+        
+        if not accessible_companies:
+            return None
+        
+        # 获取这些客户的名称
+        company_names = [c.company_name for c in accessible_companies if c.company_name]
+        
+        if not company_names:
+            return None
+        
+        # 构建项目关联客户的查询条件
+        customer_related_condition = or_(
+            model_class.end_user.in_(company_names),
+            model_class.dealer.in_(company_names),
+            model_class.contractor.in_(company_names),
+            model_class.system_integrator.in_(company_names),
+            model_class.design_issues.in_(company_names)
+        )
+        
+        return customer_related_condition
+        
+    except Exception as e:
+        logger.error(f"获取客户共享项目权限时出错: {e}")
+        return None
+
 def get_viewable_data(model_class, user, special_filters=None):
     """
     通用数据访问控制函数，根据用户权限返回可查看的数据集
@@ -159,12 +202,20 @@ def get_viewable_data(model_class, user, special_filters=None):
             # 去重
             viewable_user_ids = list(set(viewable_user_ids))
             
+            # 构建基础权限条件
+            basic_permission_conditions = [
+                model_class.owner_id.in_(viewable_user_ids),
+                model_class.vendor_sales_manager_id == user.id  # 作为厂商销售负责人的项目
+            ]
+            
+            # 添加通过客户共享获得的项目访问权限
+            customer_shared_condition = get_projects_through_customer_sharing_condition(user, model_class)
+            if customer_shared_condition is not None:
+                basic_permission_conditions.append(customer_shared_condition)
+            
             # 基于权限管理系统的数据访问控制
             return model_class.query.filter(
-                db.or_(
-                    model_class.owner_id.in_(viewable_user_ids),
-                    model_class.vendor_sales_manager_id == user.id  # 作为厂商销售负责人的项目
-                ),
+                db.or_(*basic_permission_conditions),
                 *special_filters
             )
 
@@ -408,12 +459,73 @@ def get_viewable_data(model_class, user, special_filters=None):
     
     # 行动记录的特殊处理
     if model_class.__name__ == 'Action':
-        # 用户可以查看与自己有访问权限的企业相关的行动记录
+        # 行动记录权限控制：
+        # 1. 共享记录(is_shared=True)：跟随客户的访问权限（包括共享权限）
+        # 2. 非共享记录(is_shared=False)：仅对管理员、上级账户和记录创建者可见
+        
         viewable_company_ids = [company.id for company in get_viewable_data(Company, user).all()]
-        return model_class.query.filter(
+        
+        # 管理员和系统管理员可以查看所有记录
+        if user.role in ['admin', 'system_admin']:
+            return model_class.query.filter(
+                model_class.company_id.in_(viewable_company_ids),
+                *special_filters
+            )
+        
+        # 构建查询条件：
+        # - 共享记录：按原有客户权限逻辑
+        # - 非共享记录：仅创建者和上级账户可见
+        action_filters = [
             model_class.company_id.in_(viewable_company_ids),
-            *special_filters
-        )
+            db.or_(
+                model_class.is_shared == True,  # 共享记录按客户权限
+                model_class.owner_id == user.id  # 非共享记录仅创建者可见
+            )
+        ]
+        
+        # 上级账户可以查看下级的非共享记录
+        subordinate_ids = []
+        
+        # 1. 基于角色的上级关系
+        if user.role in ['sales_director', 'sales_manager', 'business_manager']:
+            if user.role == 'sales_director':
+                # 销售总监可以查看所有销售相关用户的记录
+                subordinates = User.query.filter(
+                    User.role.in_(['sales_manager', 'sales', 'channel_manager'])
+                ).all()
+                subordinate_ids.extend([u.id for u in subordinates])
+            elif user.role in ['sales_manager', 'business_manager']:
+                # 销售经理和商务经理可以查看同部门用户的记录
+                if user.department and user.company_name:
+                    subordinates = User.query.filter(
+                        User.department == user.department,
+                        User.company_name == user.company_name,
+                        User.role.in_(['sales', 'business_admin'])
+                    ).all()
+                    subordinate_ids.extend([u.id for u in subordinates])
+        
+        # 2. 基于部门负责人关系的上级权限
+        if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
+            # 部门负责人可以查看本部门所有成员的非共享记录
+            from app.models.user import User
+            dept_members = User.query.filter(
+                User.department == user.department,
+                User.company_name == user.company_name,
+                User.id != user.id  # 排除自己
+            ).all()
+            subordinate_ids.extend([u.id for u in dept_members])
+        
+        # 去重
+        subordinate_ids = list(set(subordinate_ids))
+        
+        if subordinate_ids:
+            # 修改查询条件：非共享记录对创建者和上级可见
+            action_filters[-1] = db.or_(
+                model_class.is_shared == True,  # 共享记录按客户权限
+                model_class.owner_id.in_([user.id] + subordinate_ids)  # 非共享记录对创建者和上级可见
+            )
+        
+        return model_class.query.filter(*action_filters, *special_filters)
     
     # 标准数据访问控制：自己的数据 + 归属关系授权的数据
     viewable_user_ids = [user.id]
@@ -759,8 +871,9 @@ def can_edit_contact(user, contact):
         if contact.owner_id in [aff.owner_id for aff in affiliations]:
             return True
     
-    # 其他情况使用查看权限逻辑
-    return can_view_contact(user, contact)
+    # 共享联系人只能查看，不能编辑
+    # 只有联系人创建者、管理员、商务助理或通过归属关系授权的用户才能编辑
+    return False
 
 def can_delete_contact(user, contact):
     """
@@ -815,6 +928,22 @@ def can_view_project(user, project):
             return project.project_type != 'business_opportunity'
         # 其他角色可以查看所有归属关系项目
         return True
+    
+    # 检查通过客户共享获得的项目访问权限
+    customer_shared_condition = get_projects_through_customer_sharing_condition(user, Project)
+    if customer_shared_condition is not None:
+        # 检查当前项目是否满足客户共享条件
+        try:
+            # 构建查询条件检查当前项目
+            project_query = Project.query.filter(
+                Project.id == project.id,
+                customer_shared_condition
+            )
+            shared_project = project_query.first()
+            if shared_project:
+                return True
+        except Exception as e:
+            logger.debug(f"检查项目客户共享权限时出错: {e}")
     
     return False
 

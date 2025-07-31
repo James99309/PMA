@@ -61,6 +61,16 @@
                             <textarea class="form-control" id="communication" name="communication" rows="5" required></textarea>
                         </div>
                         
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="is_shared" name="is_shared" checked>
+                                <label class="form-check-label" for="is_shared">
+                                    {{ _('共享此记录') }}
+                                </label>
+                                <small class="form-text text-muted d-block">{{ _('取消勾选后，此记录仅对管理员和上级账户可见') }}</small>
+                            </div>
+                        </div>
+                        
                         <div class="d-flex justify-content-end">
                             {{ ui.render_button(_("取消"), href=url_for('project.view_project', project_id=project.id), color="secondary", extra_class="me-2") }}
                             {{ ui.render_button(_("保存"), type="submit", color="primary") }}

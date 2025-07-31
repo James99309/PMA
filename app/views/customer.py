@@ -996,9 +996,10 @@ def view_company(company_id):
     )
     actions = pagination.items
     
-    # 筛选出用户有权限查看的联系人的行动记录
-    viewable_contact_ids = [c.id for c in viewable_contacts]
-    viewable_actions = [a for a in actions if a.contact_id in viewable_contact_ids or a.owner_id == current_user.id]
+    # 使用新的权限控制系统筛选用户有权限查看的行动记录
+    all_viewable_actions = get_viewable_data(Action, current_user).all()
+    # 只显示属于当前公司的行动记录
+    viewable_actions = [a for a in all_viewable_actions if a.company_id == company_id]
     
     # 提前加载行动记录所有者信息，避免N+1查询
     action_user_ids = [action.owner_id for action in actions if action.owner_id]
@@ -1655,7 +1656,8 @@ def add_action_api(contact_id):
             company_id=company.id,
             project_id=project_id,
             communication=data['communication'],
-            owner_id=current_user.id
+            owner_id=current_user.id,
+            is_shared=data.get('is_shared', True)  # 默认为True（共享）
         )
         db.session.add(action)
         db.session.commit()
@@ -2989,7 +2991,9 @@ def view_contact(contact_id):
         flash('您没有权限查看此联系人信息', 'danger')
         return redirect(url_for('customer.list_companies'))
     company = contact.company
-    actions = Action.query.filter_by(contact_id=contact.id).order_by(Action.created_at.desc()).all()
+    # 使用权限过滤获取该联系人的行动记录
+    from app.utils.access_control import get_viewable_data
+    actions = get_viewable_data(Action, current_user, special_filters=[Action.contact_id == contact.id]).order_by(Action.created_at.desc()).all()
     owner_ids = [action.owner_id for action in actions if action.owner_id]
     if owner_ids:
         owners = {user.id: user for user in User.query.filter(User.id.in_(owner_ids)).all()}
@@ -3070,7 +3074,8 @@ def add_action_for_company(company_id):
                 company_id=company_id,
                 project_id=project_id,
                 communication=communication,
-                owner_id=current_user.id
+                owner_id=current_user.id,
+                is_shared='is_shared' in request.form  # 处理共享开关
             )
             db.session.add(action)
             db.session.commit()
@@ -3082,7 +3087,9 @@ def add_action_for_company(company_id):
             return redirect(url_for('customer.view_company', company_id=company_id))
     if contact_id:
         selected_contact = Contact.query.get(contact_id)
-        contact_actions = Action.query.filter_by(contact_id=contact_id).order_by(Action.created_at.desc()).all()
+        # 使用权限过滤获取该联系人的历史行动记录
+        from app.utils.access_control import get_viewable_data
+        contact_actions = get_viewable_data(Action, current_user, special_filters=[Action.contact_id == contact_id]).order_by(Action.created_at.desc()).all()
     return render_template('customer/add_action_for_company.html', company=company, contacts=contacts, projects=projects, selected_contact=selected_contact, contact_actions=contact_actions,
                           COMPANY_TYPE_OPTIONS=get_company_type_options(),
                           INDUSTRY_OPTIONS=get_industry_options(),
@@ -3102,8 +3109,10 @@ def update_company_sharing(company_id):
     if not shared_with_users:
         shared_with_users = request.form.getlist('shared_with_users')
     share_contacts = 'share_contacts' in request.form
+    share_related_projects = 'share_related_projects' in request.form
     company.shared_with_users = [int(uid) for uid in shared_with_users]
     company.share_contacts = share_contacts
+    company.share_related_projects = share_related_projects
     db.session.commit()
     flash('客户共享设置已更新', 'success')
     return redirect(url_for('customer.view_company', company_id=company_id))

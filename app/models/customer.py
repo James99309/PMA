@@ -62,6 +62,7 @@ class Company(db.Model):
     # 客户共享字段
     shared_with_users = db.Column(db.JSON, default=list)  # 被共享用户ID列表，如 [3, 5]
     share_contacts = db.Column(db.Boolean, default=True)  # 是否共享该客户下所有联系人
+    share_related_projects = db.Column(db.Boolean, default=True)  # 是否共享相关项目
     
     # 所有者字段（关联到用户表）
     owner_id = db.Column(db.Integer, db.ForeignKey('users.id'))
