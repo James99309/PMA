@@ -119,7 +119,6 @@ def get_viewable_data(model_class, user, special_filters=None):
             return model_class.query.filter(*special_filters if special_filters else [])
         elif permission_level == 'company' and user.company_name:
             # 企业级权限：可以查看企业下所有订单
-            from app.models.user import User
             company_user_ids = [u.id for u in User.query.filter_by(company_name=user.company_name).all()]
             return model_class.query.filter(
                 model_class.created_by_id.in_(company_user_ids),
@@ -127,7 +126,6 @@ def get_viewable_data(model_class, user, special_filters=None):
             )
         elif permission_level == 'department' and user.department:
             # 部门级权限：可以查看部门下所有订单
-            from app.models.user import User
             dept_user_ids = [u.id for u in User.query.filter_by(department=user.department, company_name=user.company_name).all()]
             return model_class.query.filter(
                 model_class.created_by_id.in_(dept_user_ids),
@@ -162,7 +160,6 @@ def get_viewable_data(model_class, user, special_filters=None):
             return model_class.query.filter(*special_filters)
         elif permission_level == 'company' and user.company_name:
             # 企业级权限：可以查看企业下所有项目
-            from app.models.user import User
             company_user_ids = [u.id for u in User.query.filter_by(company_name=user.company_name).all()]
             return model_class.query.filter(
                 db.or_(
@@ -173,7 +170,6 @@ def get_viewable_data(model_class, user, special_filters=None):
             )
         elif permission_level == 'department' and user.department and user.company_name:
             # 部门级权限：可以查看部门下所有项目
-            from app.models.user import User
             dept_user_ids = [u.id for u in User.query.filter(
                 User.department == user.department,
                 User.company_name == user.company_name
@@ -241,11 +237,9 @@ def get_viewable_data(model_class, user, special_filters=None):
             return model_class.query.filter(*special_filters if special_filters else [])
         elif permission_level == 'company' and user.company_name:
             # 企业级权限：可以查看企业下所有报价单
-            from app.models.user import User
             company_user_ids = [u.id for u in User.query.filter_by(company_name=user.company_name).all()]
             
             # 获取这些用户的项目ID
-            from app.models.project import Project
             company_project_ids = [p.id for p in Project.query.filter(Project.owner_id.in_(company_user_ids)).all()]
             
             # 返回企业内所有项目的报价单
@@ -255,14 +249,12 @@ def get_viewable_data(model_class, user, special_filters=None):
             )
         elif permission_level == 'department' and user.department and user.company_name:
             # 部门级权限：可以查看部门下所有报价单
-            from app.models.user import User
             dept_user_ids = [u.id for u in User.query.filter(
                 User.department == user.department,
                 User.company_name == user.company_name
             ).all()]
             
             # 获取这些用户的项目ID
-            from app.models.project import Project
             dept_project_ids = [p.id for p in Project.query.filter(Project.owner_id.in_(dept_user_ids)).all()]
             
             # 返回部门内所有项目的报价单
@@ -285,7 +277,6 @@ def get_viewable_data(model_class, user, special_filters=None):
             accessible_quotation_ids.update([q.id for q in subordinate_quotations])
         
         # 3. 销售负责人相关的项目的报价单
-        from app.models.project import Project
         sales_manager_projects = Project.query.filter(
             Project.vendor_sales_manager_id == user.id
         ).with_entities(Project.id).all()
@@ -392,13 +383,11 @@ def get_viewable_data(model_class, user, special_filters=None):
             return model_class.query.filter(*all_filters)
         elif permission_level == 'company' and user.company_name:
             # 企业级权限：可以查看企业下所有客户数据
-            from app.models.user import User
             company_user_ids = [u.id for u in User.query.filter_by(company_name=user.company_name).all()]
             all_filters = base_filters + [model_class.owner_id.in_(company_user_ids)] + (special_filters if special_filters else [])
             return model_class.query.filter(*all_filters)
         elif permission_level == 'department' and user.department and user.company_name:
             # 部门级权限：可以查看部门下所有客户数据
-            from app.models.user import User
             dept_user_ids = [u.id for u in User.query.filter(
                 User.department == user.department,
                 User.company_name == user.company_name
@@ -463,22 +452,33 @@ def get_viewable_data(model_class, user, special_filters=None):
         # 1. 共享记录(is_shared=True)：跟随客户的访问权限（包括共享权限）
         # 2. 非共享记录(is_shared=False)：仅对管理员、上级账户和记录创建者可见
         
-        viewable_company_ids = [company.id for company in get_viewable_data(Company, user).all()]
+        try:
+            viewable_company_ids = [company.id for company in get_viewable_data(Company, user).all()]
+        except Exception as e:
+            logger.error(f"获取可查看公司数据时出错: {e}")
+            viewable_company_ids = []
         
         # 管理员和系统管理员可以查看所有记录
         if user.role in ['admin', 'system_admin']:
-            return model_class.query.filter(
-                model_class.company_id.in_(viewable_company_ids),
-                *special_filters
-            )
+            if viewable_company_ids:
+                return model_class.query.filter(
+                    model_class.company_id.in_(viewable_company_ids),
+                    *special_filters
+                )
+            else:
+                return model_class.query.filter(False)
         
         # 构建查询条件：
         # - 共享记录：按原有客户权限逻辑
         # - 非共享记录：仅创建者和上级账户可见
+        # 如果没有可查看的公司，返回空查询
+        if not viewable_company_ids:
+            return model_class.query.filter(False)
+            
         action_filters = [
             model_class.company_id.in_(viewable_company_ids),
             db.or_(
-                model_class.is_shared == True,  # 共享记录按客户权限
+                db.or_(model_class.is_shared == True, model_class.is_shared.is_(None)),  # 共享记录或NULL值按客户权限
                 model_class.owner_id == user.id  # 非共享记录仅创建者可见
             )
         ]
@@ -507,7 +507,6 @@ def get_viewable_data(model_class, user, special_filters=None):
         # 2. 基于部门负责人关系的上级权限
         if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
             # 部门负责人可以查看本部门所有成员的非共享记录
-            from app.models.user import User
             dept_members = User.query.filter(
                 User.department == user.department,
                 User.company_name == user.company_name,
@@ -521,7 +520,7 @@ def get_viewable_data(model_class, user, special_filters=None):
         if subordinate_ids:
             # 修改查询条件：非共享记录对创建者和上级可见
             action_filters[-1] = db.or_(
-                model_class.is_shared == True,  # 共享记录按客户权限
+                db.or_(model_class.is_shared == True, model_class.is_shared.is_(None)),  # 共享记录或NULL值按客户权限
                 model_class.owner_id.in_([user.id] + subordinate_ids)  # 非共享记录对创建者和上级可见
             )
         
@@ -579,8 +578,6 @@ def can_edit_data(model_obj, user):
             # 检查是否有报价单编辑权限，如果有权限则可以编辑企业内所有报价单
             if user.has_permission('quotation', 'edit') and user.company_name:
                 # 检查报价单是否属于同企业
-                from app.models.user import User
-                from app.models.project import Project
                 if hasattr(model_obj, 'project') and model_obj.project:
                     project_owner = User.query.get(model_obj.project.owner_id)
                     return project_owner and project_owner.company_name == user.company_name
@@ -598,8 +595,6 @@ def can_edit_data(model_obj, user):
             # 检查是否有报价单编辑权限，如果有权限则可以编辑企业内所有报价单
             if user.has_permission('quotation', 'edit') and user.company_name:
                 # 检查报价单是否属于同企业
-                from app.models.user import User
-                from app.models.project import Project
                 if hasattr(model_obj, 'project') and model_obj.project:
                     project_owner = User.query.get(model_obj.project.owner_id)
                     return project_owner and project_owner.company_name == user.company_name
@@ -773,7 +768,6 @@ def can_edit_company_sharing(user, company):
     if user.id == company.owner_id:
         return True
     
-    from app.models.user import Affiliation
     affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
     if company.owner_id in [aff.owner_id for aff in affiliations]:
         return True
@@ -918,7 +912,6 @@ def can_view_project(user, project):
         if project.project_type in allowed_project_types:
             return True
     
-    from app.models.user import Affiliation
     affiliation_owner_ids = [aff.owner_id for aff in Affiliation.query.filter_by(viewer_id=user.id).all()]
     
     # 归属关系权限检查
@@ -981,7 +974,6 @@ def can_change_company_owner(user, company):
         return True
     # 支持多种部门负责人角色
     if getattr(user, 'is_department_manager', False) or user.role == 'sales_director':
-        from app.models.user import User
         owner = User.query.get(company.owner_id)
         if not owner:
             return False
@@ -1009,7 +1001,6 @@ def can_change_project_owner(user, project):
         return True
     
     if getattr(user, 'is_department_manager', False) or user.role == 'sales_director':
-        from app.models.user import User
         owner = User.query.get(project.owner_id)
         if not owner:
             return False
@@ -1036,7 +1027,6 @@ def can_change_quotation_owner(user, quotation):
     if permission_level in ['system', 'company']:
         return True
     elif permission_level == 'department':
-        from app.models.user import User
         owner = User.query.get(quotation.owner_id)
         if not owner:
             return False
@@ -1045,7 +1035,6 @@ def can_change_quotation_owner(user, quotation):
     else:
         # 个人级权限或部门负责人权限
         if getattr(user, 'is_department_manager', False) and user.department:
-            from app.models.user import User
             owner = User.query.get(quotation.owner_id)
             if not owner:
                 return False
@@ -1112,12 +1101,10 @@ def can_delete_quotation(user, quotation):
         return True
     elif permission_level == 'company' and user.company_name:
         # 企业级权限：可以删除企业下所有报价单
-        from app.models.user import User
         owner = User.query.get(quotation.owner_id)
         return owner and owner.company_name == user.company_name
     elif permission_level == 'department' and user.department:
         # 部门级权限：可以删除部门下所有报价单
-        from app.models.user import User
         owner = User.query.get(quotation.owner_id)
         return (owner and owner.department == user.department and 
                 owner.company_name == user.company_name)
@@ -1276,7 +1263,6 @@ def has_approval_view_permission(user, object_type, object_id):
     
     # 然后检查常规权限
     if object_type == 'project':
-        from app.models.project import Project
         project = Project.query.get(object_id)
         if project:
             return can_view_project(user, project)
@@ -1330,13 +1316,11 @@ def can_view_order(order, current_user):
         return True
     elif permission_level == 'company' and current_user.company_name:
         # 企业级权限：可以查看企业下所有订单
-        from app.models.user import User
         if hasattr(order, 'created_by_id'):
             creator = User.query.get(order.created_by_id)
             return creator and creator.company_name == current_user.company_name
     elif permission_level == 'department' and current_user.department:
         # 部门级权限：可以查看部门下所有订单
-        from app.models.user import User
         if hasattr(order, 'created_by_id'):
             creator = User.query.get(order.created_by_id)
             return (creator and creator.department == current_user.department and 
@@ -1347,7 +1331,6 @@ def can_view_order(order, current_user):
         return True
     
     # 检查归属关系
-    from app.models.user import Affiliation
     affiliations = Affiliation.query.filter_by(viewer_id=current_user.id).all()
     viewable_user_ids = [affiliation.owner_id for affiliation in affiliations]
     

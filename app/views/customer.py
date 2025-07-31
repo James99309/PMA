@@ -948,6 +948,7 @@ def search_contacts():
 @customer.route('/<int:company_id>/view')
 @permission_required('customer', 'view')
 def view_company(company_id):
+    from app.utils.access_control import get_viewable_data
     company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
     
     # 检查当前用户是否有权限查看此企业
