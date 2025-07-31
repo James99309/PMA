@@ -803,6 +803,11 @@ def can_view_contact(user, contact):
     if user.id == contact.owner_id:
         return True
     
+    # 🔥 关键修复：如果用户拥有该联系人所属的客户，则可以查看该联系人
+    company = contact.company
+    if company and company.owner_id == user.id:
+        return True
+    
     # 商务助理：可以查看同部门用户和归属关系授权用户的联系人
     user_role = user.role.strip() if user.role else ''
     if user_role == 'business_admin':
@@ -827,7 +832,6 @@ def can_view_contact(user, contact):
         if hasattr(contact, 'shared_disabled') and contact.shared_disabled:
             return False
     # 检查公司共享设置
-    company = contact.company
     if hasattr(company, 'shared_with_users') and company.shared_with_users:
         if user.id in company.shared_with_users:
             if hasattr(company, 'share_contacts') and company.share_contacts:
@@ -888,6 +892,7 @@ def can_view_project(user, project):
     4. 财务总监、解决方案经理、产品经理可以查看所有项目
     5. 销售经理特殊权限：归属关系中的非客户服务项目
     6. 共享（如有 shared_with_users 字段，暂未支持）
+    7. 客户拥有者权限：如果用户拥有与项目关联的任一客户，则可以查看该项目
     """
     if user.role == 'admin':
         return True
@@ -897,6 +902,34 @@ def can_view_project(user, project):
     # 厂商负责人可以查看项目
     if hasattr(project, 'vendor_sales_manager_id') and project.vendor_sales_manager_id == user.id:
         return True
+    
+    # 🔥 关键修复：如果用户拥有与项目关联的任一客户，则可以查看该项目
+    try:
+        # 构建项目关联的客户名称列表
+        related_company_names = []
+        if project.end_user:
+            related_company_names.append(project.end_user)
+        if project.dealer:
+            related_company_names.append(project.dealer)
+        if project.contractor:
+            related_company_names.append(project.contractor)
+        if project.system_integrator:
+            related_company_names.append(project.system_integrator)
+        # design_issues 可能包含多个客户名称，这里简化处理
+        if project.design_issues:
+            related_company_names.append(project.design_issues)
+        
+        # 检查用户是否拥有任一关联客户
+        if related_company_names:
+            owned_companies = Company.query.filter(
+                Company.company_name.in_(related_company_names),
+                Company.owner_id == user.id,
+                Company.is_deleted == False
+            ).first()
+            if owned_companies:
+                return True
+    except Exception as e:
+        logger.debug(f"检查项目关联客户拥有权限时出错: {e}")
     
     # 统一处理角色字符串，去除空格
     user_role = user.role.strip() if user.role else ''
