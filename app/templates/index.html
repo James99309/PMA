@@ -169,6 +169,52 @@
     {% endif %}
 </div>
 
+<!-- 第二行：添加报销模块 -->
+<div class="row mb-4">
+    {% if has_permission('expense', 'view') %}
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{{ _('最近报销') }}</h5>
+                {{ render_button(_('查看全部'), href=url_for('expense.expense_list'), size='sm', color='secondary') }}
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    {% if has_permission('expense', 'view') and recent_expenses and recent_expenses|length > 0 %}
+                        {% for expense in recent_expenses %}
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-bold" style="font-size: 0.875rem;">
+                                        <a href="{{ url_for('expense.expense_detail', id=expense.id) }}" class="text-decoration-none text-primary">{{ expense.title }}</a>
+                                    </div>
+                                    <div class="mt-2">
+                                        <a href="{{ url_for('expense.expense_detail', id=expense.id) }}" style="background: #f5f5f5; color: #3098af; border-radius: 8px; padding: 2px 8px; font-weight: 600; font-size: 0.75rem; text-decoration: none; display: inline-block;">{{ expense.expense_number }}</a>
+                                    </div>
+                                </div>
+                                <div class="text-end" style="color: #888; font-size: 0.75rem; min-width: 90px;">
+                                    <div>{{ expense.updated_at.strftime('%Y-%m-%d') if expense.updated_at else '' }}</div>
+                                    <div>{{ render_owner(expense.owner) }}</div>
+                                </div>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    {% elif has_permission('expense', 'view') %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ _('您没有最近的报销') }}
+                        </li>
+                    {% else %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center text-muted">
+                            {{ _('无权限查看报销') }}
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
 <div class="row mb-4">
     <div class="col-12">
         <div class="card">
@@ -176,7 +222,7 @@
                 <h5 class="mb-0">{{ _('快速操作') }}</h5>
             </div>
             <div class="card-body">
-                {% set has_any_action = has_permission('project', 'create') or has_permission('quotation', 'create') or has_permission('customer', 'create') or current_user.role == 'admin' or has_permission('performance_management', 'view') or current_user.role in ['admin', 'sales_director', 'service_manager'] %}
+                {% set has_any_action = has_permission('project', 'create') or has_permission('quotation', 'create') or has_permission('customer', 'create') or has_permission('expense', 'create') or current_user.role == 'admin' or has_permission('performance_management', 'view') or current_user.role in ['admin', 'sales_director', 'service_manager'] %}
                 {% if has_any_action %}
                 <div class="row">
                     {% if has_permission('project', 'create') %}
@@ -192,6 +238,11 @@
                     {% if has_permission('customer', 'create') %}
                     <div class="col-md-3 mb-3">
                         {{ render_button(_('新建客户'), href=url_for('customer.add_company'), icon='fas fa-building', extra_class='w-100', size='md') }}
+                    </div>
+                    {% endif %}
+                    {% if has_permission('expense', 'create') %}
+                    <div class="col-md-3 mb-3">
+                        {{ render_button(_('新建报销'), href=url_for('expense.create_expense'), icon='fas fa-receipt', extra_class='w-100', size='md') }}
                     </div>
                     {% endif %}
                     {% if current_user.role == 'admin' %}

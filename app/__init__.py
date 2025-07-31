@@ -284,6 +284,9 @@ def create_app(config_class=Config):
     
     # 导入库存管理蓝图
     from app.routes.inventory import inventory
+    
+    # 导入报销管理蓝图
+    from app.views.expense import expense
 
     # 注册所有Blueprint
     app.register_blueprint(main)
@@ -304,6 +307,7 @@ def create_app(config_class=Config):
     app.register_blueprint(pricing_order_bp, url_prefix='/pricing_order')  # 添加URL前缀
     csrf.exempt(pricing_order_bp)  # 豁免批价单蓝图的CSRF保护
     app.register_blueprint(inventory, url_prefix='/inventory')  # 注册库存管理蓝图
+    app.register_blueprint(expense, url_prefix='/expense')  # 注册报销管理蓝图
     
     # 注册API v1蓝图
     app.register_blueprint(api_v1_bp, url_prefix='/api/v1')

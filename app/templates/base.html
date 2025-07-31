@@ -331,7 +331,7 @@
                     </li>
                     
                     <!-- 业务管理主菜单 -->
-                    {% if has_permission('customer', 'view') or has_permission('project', 'view') or has_permission('quotation', 'view') %}
+                    {% if has_permission('customer', 'view') or has_permission('project', 'view') or has_permission('quotation', 'view') or has_permission('expense', 'view') %}
                     <li class="nav-item d-lg-none">
                         <details>
                             <summary class="nav-link text-sm py-2 mb-0" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
@@ -348,6 +348,9 @@
                                 {% if has_permission('quotation', 'view') %}
                                 <li><a class="nav-link text-sm py-2" href="{{ url_for('quotation.list_quotations') }}">{{ _('报价单管理') }}</a></li>
                                 <li><a class="nav-link text-sm py-2" href="{{ url_for('product_analysis.analysis') }}">{{ _('植入产品分析') }}</a></li>
+                                {% endif %}
+                                {% if has_permission('expense', 'view') %}
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('expense.expense_list') }}">{{ _('报销管理') }}</a></li>
                                 {% endif %}
                             </ul>
                         </details>
@@ -367,6 +370,9 @@
                             {% if has_permission('quotation', 'view') %}
                             <li><a class="dropdown-item" href="{{ url_for('quotation.list_quotations') }}">{{ _('报价单管理') }}</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('product_analysis.analysis') }}">{{ _('植入产品分析') }}</a></li>
+                            {% endif %}
+                            {% if has_permission('expense', 'view') %}
+                            <li><a class="dropdown-item" href="{{ url_for('expense.expense_list') }}">{{ _('报销管理') }}</a></li>
                             {% endif %}
                         </ul>
                     </li>

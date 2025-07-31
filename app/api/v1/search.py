@@ -12,6 +12,7 @@ from app.utils.search_helpers import (
     search_contacts_by_name,
     search_products_by_name,
     search_projects_without_quotations,
+    search_projects_for_expense,
     fuzzy_search_field
 )
 
@@ -293,3 +294,42 @@ def search_quotations():
             'success': False,
             'message': '搜索失败，请重试'
         }), 500 
+
+@search_bp.route('/projects/for-expense', methods=['GET'])
+@login_required
+def search_projects_for_expense_api():
+    """
+    搜索可用于报销的项目（签约超过1月的项目）
+    """
+    try:
+        query_term = request.args.get('q', '').strip()
+        limit = min(int(request.args.get('limit', 10)), 50)
+        
+        if not query_term:
+            return jsonify({
+                'success': True,
+                'data': [],
+                'message': '搜索关键词不能为空'
+            })
+        
+        if len(query_term) < 1:
+            return jsonify({
+                'success': True,
+                'data': [],
+                'message': '搜索关键词太短'
+            })
+        
+        results = search_projects_for_expense(query_term, current_user, limit)
+        
+        return jsonify({
+            'success': True,
+            'data': results,
+            'count': len(results)
+        })
+        
+    except Exception as e:
+        logger.error(f"搜索报销用项目时出错: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': '搜索失败，请重试'
+        }), 500

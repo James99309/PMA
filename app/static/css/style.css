@@ -2810,6 +2810,32 @@ a:focus .badge.badge-transparent.quotation-number-badge {
     text-decoration: none !important;
 }
 
+/* 报销单编号徽章样式 - 淡蓝色胶囊形 */
+.data-list-table .badge.badge-transparent.expense-number-badge,
+.badge.badge-transparent.expense-number-badge {
+    background-color: rgba(207, 226, 255, var(--badge-bg-opacity)) !important; 
+    color: rgba(9, 70, 185, var(--badge-text-opacity)) !important; 
+    border-color: rgba(158, 190, 245, var(--badge-border-opacity)) !important;
+    font-family: 'Helvetica Neue', sans-serif;
+    font-weight: 500;
+    border-radius: 50rem !important;
+    border: 1px solid !important;
+    padding: 0.35em 0.65em !important;
+    font-size: 0.75rem !important;
+}
+
+/* 链接内的报销单编号徽章 - 确保链接样式不覆盖徽章样式 */
+.data-list-table a .badge.badge-transparent.expense-number-badge,
+a .badge.badge-transparent.expense-number-badge,
+a:hover .badge.badge-transparent.expense-number-badge,
+a:visited .badge.badge-transparent.expense-number-badge,
+a:focus .badge.badge-transparent.expense-number-badge {
+    background-color: rgba(207, 226, 255, var(--badge-bg-opacity)) !important; 
+    color: rgba(9, 70, 185, var(--badge-text-opacity)) !important; 
+    border-color: rgba(158, 190, 245, var(--badge-border-opacity)) !important;
+    text-decoration: none !important;
+}
+
 /* 项目阶段徽章样式 - 全局统一，半透明低对比度效果 */
 .badge.badge-transparent.project-stage-discover {
     background-color: rgba(207, 226, 255, var(--badge-bg-opacity)) !important;
@@ -4200,4 +4226,155 @@ a:focus .badge.badge-transparent.quotation-number-badge {
     }
     
     /* 移动端每五行增强效果已移除 */
+}
+
+/* ========== 报销模块徽章样式 ========== */
+
+/* 报销状态徽章样式 */
+.badge.badge-transparent.expense-status-draft {
+    background-color: rgba(108, 117, 125, var(--badge-bg-opacity)) !important;
+    color: rgba(33, 37, 41, var(--badge-text-opacity)) !important;
+    border-color: rgba(108, 117, 125, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.expense-status-pending {
+    background-color: rgba(255, 193, 7, var(--badge-bg-opacity)) !important;
+    color: rgba(33, 37, 41, var(--badge-text-opacity)) !important;
+    border-color: rgba(255, 193, 7, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.expense-status-approved {
+    background-color: rgba(25, 135, 84, var(--badge-bg-opacity)) !important;
+    color: rgba(5, 27, 16, var(--badge-text-opacity)) !important;
+    border-color: rgba(25, 135, 84, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.expense-status-rejected {
+    background-color: rgba(220, 53, 69, var(--badge-bg-opacity)) !important;
+    color: rgba(44, 10, 13, var(--badge-text-opacity)) !important;
+    border-color: rgba(220, 53, 69, var(--badge-border-opacity)) !important;
+}
+
+/* 报销科目徽章样式 */
+.badge.badge-transparent.expense-category-entertainment {
+    background-color: rgba(255, 99, 132, var(--badge-bg-opacity)) !important;
+    color: rgba(51, 19, 26, var(--badge-text-opacity)) !important;
+    border-color: rgba(255, 99, 132, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.expense-category-transport {
+    background-color: rgba(54, 162, 235, var(--badge-bg-opacity)) !important;
+    color: rgba(10, 32, 47, var(--badge-text-opacity)) !important;
+    border-color: rgba(54, 162, 235, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.expense-category-travel {
+    background-color: rgba(255, 159, 64, var(--badge-bg-opacity)) !important;
+    color: rgba(51, 31, 12, var(--badge-text-opacity)) !important;
+    border-color: rgba(255, 159, 64, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.expense-category-office {
+    background-color: rgba(153, 102, 255, var(--badge-bg-opacity)) !important;
+    color: rgba(30, 20, 51, var(--badge-text-opacity)) !important;
+    border-color: rgba(153, 102, 255, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.expense-category-communication {
+    background-color: rgba(75, 192, 192, var(--badge-bg-opacity)) !important;
+    color: rgba(15, 38, 38, var(--badge-text-opacity)) !important;
+    border-color: rgba(75, 192, 192, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.expense-category-fuel {
+    background-color: rgba(255, 205, 86, var(--badge-bg-opacity)) !important;
+    color: rgba(51, 41, 17, var(--badge-text-opacity)) !important;
+    border-color: rgba(255, 205, 86, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.expense-category-parking {
+    background-color: rgba(201, 203, 207, var(--badge-bg-opacity)) !important;
+    color: rgba(40, 40, 41, var(--badge-text-opacity)) !important;
+    border-color: rgba(201, 203, 207, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.expense-category-meals {
+    background-color: rgba(255, 99, 255, var(--badge-bg-opacity)) !important;
+    color: rgba(51, 19, 51, var(--badge-text-opacity)) !important;
+    border-color: rgba(255, 99, 255, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.expense-category-other {
+    background-color: rgba(108, 117, 125, var(--badge-bg-opacity)) !important;
+    color: rgba(21, 23, 25, var(--badge-text-opacity)) !important;
+    border-color: rgba(108, 117, 125, var(--badge-border-opacity)) !important;
+}
+
+/* 报销单锁定状态徽章样式 */
+.badge.badge-transparent.expense-lock-locked {
+    background-color: rgba(255, 193, 7, var(--badge-bg-opacity)) !important;
+    color: rgba(33, 37, 41, var(--badge-text-opacity)) !important;
+    border-color: rgba(255, 193, 7, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.expense-lock-unlocked {
+    background-color: rgba(40, 167, 69, var(--badge-bg-opacity)) !important;
+    color: rgba(8, 33, 13, var(--badge-text-opacity)) !important;
+    border-color: rgba(40, 167, 69, var(--badge-border-opacity)) !important;
+}
+
+/* 报销科目列表容器样式 */
+.expense-categories-container {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.expense-categories-container .badge {
+    margin: 0;
+}
+
+/* 报销单编号徽章样式 */
+.badge.badge-transparent.expense-number {
+    background-color: rgba(13, 202, 240, var(--badge-bg-opacity)) !important;
+    color: rgba(8, 42, 51, var(--badge-text-opacity)) !important;
+    border-color: rgba(13, 202, 240, var(--badge-border-opacity)) !important;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-weight: 600;
+}
+
+.badge.badge-transparent.expense-number-large {
+    background-color: rgba(13, 202, 240, var(--badge-bg-opacity)) !important;
+    color: rgba(8, 42, 51, var(--badge-text-opacity)) !important;
+    border-color: rgba(13, 202, 240, var(--badge-border-opacity)) !important;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-weight: 600;
+    font-size: 1rem;
+    padding: 0.5rem 1rem;
+}
+
+/* 报销状态徽章样式 */
+.badge.badge-transparent.expense-status-draft {
+    background-color: rgba(108, 117, 125, var(--badge-bg-opacity)) !important;
+    color: rgba(21, 23, 25, var(--badge-text-opacity)) !important;
+    border-color: rgba(108, 117, 125, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.expense-status-pending {
+    background-color: rgba(255, 193, 7, var(--badge-bg-opacity)) !important;
+    color: rgba(33, 37, 41, var(--badge-text-opacity)) !important;
+    border-color: rgba(255, 193, 7, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.expense-status-approved {
+    background-color: rgba(25, 135, 84, var(--badge-bg-opacity)) !important;
+    color: rgba(5, 27, 17, var(--badge-text-opacity)) !important;
+    border-color: rgba(25, 135, 84, var(--badge-border-opacity)) !important;
+}
+
+.badge.badge-transparent.expense-status-rejected {
+    background-color: rgba(220, 53, 69, var(--badge-bg-opacity)) !important;
+    color: rgba(44, 11, 14, var(--badge-text-opacity)) !important;
+    border-color: rgba(220, 53, 69, var(--badge-border-opacity)) !important;
 } 

@@ -63,6 +63,13 @@ class Permissions:
     ORDER_CREATE = 'order_create'
     ORDER_EDIT = 'order_edit'
     ORDER_DELETE = 'order_delete'
+    
+    # 报销相关权限
+    EXPENSE_VIEW = 'expense_view'
+    EXPENSE_CREATE = 'expense_create'
+    EXPENSE_EDIT = 'expense_edit'
+    EXPENSE_DELETE = 'expense_delete'
+    EXPENSE_APPROVAL = 'expense_approval'
 
 def is_admin_or_ceo(user=None):
     """

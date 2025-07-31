@@ -380,8 +380,30 @@ def get_viewable_data(model_class, user, special_filters=None):
         # 去重
         viewable_user_ids = list(set(viewable_user_ids))
         
+        # 构建权限查询条件
+        permission_conditions = []
+        
+        # 1. 基于owner_id的权限
+        permission_conditions.append(model_class.owner_id.in_(viewable_user_ids))
+        
+        # 2. 基于shared_with_users的权限（仅适用于Company模型）
+        if model_class.__name__ == 'Company':
+            # 添加共享权限：用户ID在shared_with_users字段中
+            # 使用@>操作符检查JSON数组是否包含用户ID
+            from sqlalchemy import cast, text
+            from sqlalchemy.dialects.postgresql import JSONB
+            permission_conditions.append(
+                cast(model_class.shared_with_users, JSONB).op('@>')(
+                    text(f"'{user.id}'")
+                )
+            )
+        
+        # 使用OR条件组合所有权限
+        from sqlalchemy import or_
+        combined_permission_condition = or_(*permission_conditions)
+        
         # 基于权限管理系统的数据访问控制
-        all_filters = base_filters + [model_class.owner_id.in_(viewable_user_ids)] + (special_filters if special_filters else [])
+        all_filters = base_filters + [combined_permission_condition] + (special_filters if special_filters else [])
         return model_class.query.filter(*all_filters)
     
     # 行动记录的特殊处理
@@ -594,10 +616,6 @@ def can_view_company(user, company):
     # 这个权限过于宽泛，会导致用户能够查看其他账户拥有的企业详情
     # 即使用户是项目的厂商销售负责人，也不应该允许查看其他账户的企业信息
     
-    # 厂商用户特殊权限：可以查看所有经销商类型的公司详情
-    if user.is_vendor_user() and company.company_type in ['经销商', 'dealer']:
-        logger.debug(f"[权限检查] 厂商用户经销商权限 - 允许访问")
-        return True
     
     logger.debug(f"[权限检查] 所有权限检查失败 - 拒绝访问")
     return False
@@ -713,9 +731,6 @@ def can_view_contact(user, contact):
     if contact.owner_id in [affiliation.owner_id for affiliation in affiliations]:
         return True
     
-    # 厂商用户特殊权限：可以查看经销商公司的联系人详情
-    if user.is_vendor_user() and company and company.company_type in ['经销商', 'dealer']:
-        return True
     
     return False
 

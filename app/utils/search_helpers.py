@@ -384,6 +384,113 @@ def search_projects_without_quotations(query_term: str, user=None, limit: int = 
         logger.error(f"搜索无报价单项目失败: {str(e)}")
         return []
 
+def search_projects_for_expense(query_term: str, user=None, limit: int = 10) -> List[Dict[str, Any]]:
+    """
+    为报销单搜索项目（签约超过1月的项目）
+    
+    参数:
+        query_term: 搜索关键词
+        user: 用户对象
+        limit: 返回结果数量限制
+    
+    返回:
+        签约超过1月的项目列表
+    """
+    from app.models.project import Project
+    from app.models.user import User
+    from app.utils.access_control import get_viewable_data
+    from sqlalchemy import and_, or_
+    from datetime import datetime, timedelta
+    
+    try:
+        # 获取用户可查看的项目
+        projects_query = get_viewable_data(Project, user)
+        
+        # 添加搜索条件
+        if query_term:
+            search_condition = or_(
+                Project.project_name.ilike(f'%{query_term}%'),
+                Project.authorization_code.ilike(f'%{query_term}%')
+            )
+            projects_query = projects_query.filter(search_condition)
+        
+        # 过滤签约超过1个月的项目（基于report_time报备时间）
+        one_month_ago = datetime.now().date() - timedelta(days=30)
+        projects_query = projects_query.filter(
+            and_(
+                Project.report_time.isnot(None),  # 有报备时间
+                Project.report_time <= one_month_ago  # 报备时间超过1个月
+            )
+        )
+        
+        # 限制结果数量并排序
+        projects = projects_query.order_by(Project.project_name).limit(limit).all()
+        
+        # 构建返回结果
+        results = []
+        for project in projects:
+            try:
+                # 获取拥有者信息
+                owner_name = ''
+                company_name = ''
+                if project.owner_id:
+                    owner = User.query.get(project.owner_id)
+                    if owner:
+                        # 优先使用真实姓名，如果没有则使用用户名
+                        owner_name = owner.real_name or owner.username
+                        # 获取用户的企业信息
+                        company_name = owner.company_name or ''
+                
+                # 添加语言感知的标签
+                from app.utils.dictionary_helpers import project_type_label, project_stage_label
+                from app.utils.i18n import get_current_language
+                
+                # 获取当前语言
+                lang_code = get_current_language()
+                
+                # 获取项目权限信息
+                permissions = get_project_permissions(project.id, user)
+                
+                result = {
+                    'id': project.id,
+                    'project_name': project.project_name,
+                    'authorization_code': project.authorization_code or '',
+                    'project_type': project.project_type or '',
+                    'project_type_display': project_type_label(project.project_type or '', lang_code),
+                    'current_stage': project.current_stage or '',
+                    'current_stage_display': project_stage_label(project.current_stage or '', lang_code),
+                    'report_time': project.report_time.isoformat() if project.report_time else '',
+                    'owner_id': project.owner_id,
+                    'owner_name': owner_name,
+                    'company_name': company_name,
+                    'permissions': permissions
+                }
+                
+                results.append(result)
+                
+            except Exception as e:
+                logger.error(f"处理项目搜索结果时出错: {str(e)}")
+                # 如果处理失败，至少返回基本信息
+                results.append({
+                    'id': project.id,
+                    'project_name': project.project_name,
+                    'authorization_code': project.authorization_code or '',
+                    'project_type': project.project_type or '',
+                    'project_type_display': project.project_type or '',
+                    'current_stage': project.current_stage or '',
+                    'current_stage_display': project.current_stage or '',
+                    'report_time': project.report_time.isoformat() if project.report_time else '',
+                    'owner_id': project.owner_id,
+                    'owner_name': '',
+                    'company_name': ''
+                })
+        
+        return results
+        
+    except Exception as e:
+        logger.error(f"搜索报销用项目失败: {str(e)}")
+        return []
+
 def search_companies_by_name(query_term: str, user=None, limit: int = 10) -> List[Dict[str, Any]]:
     """
     按公司名称模糊搜索公司

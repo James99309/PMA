@@ -12,19 +12,48 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-4">
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 标准化页面头部区域：标题与操作按钮在同一行 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <div class="d-flex align-items-center">
+                    <h1 class="page-title mb-0 me-3">
+                        {% if quotation and quotation.quotation_number %}
+                            {{ _('编辑报价单') }}
+                        {% else %}
+                            {{ _('创建报价单') }}
+                        {% endif %}
+                    </h1>
+                    {% if quotation and quotation.quotation_number %}
+                        {{ render_quotation_number(quotation.quotation_number, size="large") }}
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col text-end">
+                <!-- 操作按钮组 -->
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    <div class="btn-group" role="group">
+                        {% if return_to %}
+                            {{ render_button(_('返回项目详情'), return_to, color='secondary') }}
+                        {% else %}
+                            {% if quotation and quotation.id %}
+                                {{ render_button(_('返回详情'), url_for('quotation.view_quotation', id=quotation.id), color='secondary') }}
+                            {% else %}
+                                {{ render_button(_('返回列表'), url_for('quotation.list_quotations'), color='secondary') }}
+                            {% endif %}
+                        {% endif %}
+                        {{ render_button(_('保存报价单'), None, color='primary', type='submit', attrs='form="quotationForm" id="submit-btn"') }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 表单内容卡片 -->
     <div class="row">
         <div class="col-12">
             <div class="card">
-                <div class="card-header">
-                    <h4 class="card-title mb-0">
-                        {% if quotation and quotation.quotation_number %}
-                            编辑报价单 - {{ quotation.quotation_number }}
-                        {% else %}
-                            创建报价单
-                        {% endif %}
-                    </h4>
-                </div>
                 <div class="card-body">
                     <form id="quotationForm" method="POST" action="{% if quotation and quotation.id %}/quotation/{{ quotation.id }}/edit{% else %}/quotation/create{% endif %}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -327,17 +356,7 @@
                         </div>
                         
                         
-                        <!-- 提交按钮 -->
-                        <div class="row mt-4">
-                            <div class="col-12 text-end">
-                                {% if return_to %}
-                                {{ render_button('返回项目详情', return_to, color='secondary') }}
-                                {% else %}
-                                {{ render_button('返回详情', '/quotation/' + quotation.id|string + '/detail', color='secondary') }}
-                                {% endif %}
-                                {{ render_button('保存报价单', None, color='primary', type='submit', attrs='form="quotationForm" id="submit-btn"') }}
-                            </div>
-                        </div>
+                        <!-- 提交按钮已移至页面头部 -->
                     </form>
                 </div>
             </div>

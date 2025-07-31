@@ -1,0 +1,454 @@
+{# 
+  通用客户搜索组件
+  支持关键词搜索，权限过滤，显示公司名称、联系人等信息
+  
+  作者: Claude AI
+  版本: 1.0.0
+#}
+
+{# 
+  渲染客户搜索组件
+  参数:
+  - config: 客户搜索配置对象
+  - selected_customer: 已选中的客户信息(可选)
+  - readonly: 是否只读模式(默认false)
+  - required: 是否必填(默认true)
+#}
+{% macro render_customer_search(config, selected_customer=None, readonly=False, required=True) %}
+<div class="customer-search-container" data-config='{{ config | tojson }}'>
+    <!-- 客户搜索标题区域 -->
+    <div class="customer-search-header mb-3">
+        <label for="{{ config.input_id | default('customerSearch') }}" class="form-label">
+            {{ config.label | default('选择客户') }}
+            {% if required %}<span class="text-danger">*</span>{% endif %}
+        </label>
+    </div>
+    
+    <!-- 搜索输入框区域 -->
+    <div class="position-relative">
+        <div class="customer-search-wrapper d-flex align-items-center gap-2">
+            <input type="text" 
+                   class="form-control customer-search-input flex-grow-1" 
+                   id="{{ config.input_id | default('customerSearch') }}"
+                   name="{{ config.input_name | default('customer_search') }}"
+                   placeholder="{{ config.placeholder | default('输入公司名称进行搜索...') }}"
+                   autocomplete="off"
+                   {% if readonly %}readonly{% endif %}
+                   {% if required %}required{% endif %}
+                   value="{{ selected_customer.company_name if selected_customer else '' }}">
+            
+            <!-- 独立的清除按钮 -->
+            {% if not readonly %}
+            <button type="button" 
+                    class="btn btn-outline-danger btn-sm clear-customer-btn" 
+                    id="{{ config.clear_button_id | default('clearCustomer') }}"
+                    title="{{ _('清除选择') }}"
+                    style="display: none;">
+                <i class="fas fa-times"></i>
+            </button>
+            {% endif %}
+        </div>
+        
+        <!-- 搜索下拉菜单 -->
+        <div class="customer-dropdown" 
+             id="{{ config.dropdown_id | default('customerDropdown') }}"
+             style="display: none;">
+            
+            <!-- 加载中状态 -->
+            <div class="dropdown-loading text-center py-3">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">{{ _('搜索中...') }}</span>
+                </div>
+                <small class="d-block mt-2 text-muted">{{ _('搜索中...') }}</small>
+            </div>
+            
+            <!-- 搜索结果容器 -->
+            <div class="dropdown-results">
+                <!-- 客户列表 -->
+                <div class="customer-list">
+                    <!-- 动态生成的客户列表 -->
+                </div>
+                
+                <!-- 无结果提示 -->
+                <div class="no-results text-center py-3" style="display: none;">
+                    <i class="fas fa-search text-muted mb-2"></i>
+                    <div class="text-muted">{{ _('没有找到匹配的客户') }}</div>
+                    <small class="text-muted">{{ _('请尝试其他关键词') }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 隐藏字段：只存储选中的客户ID -->
+    <input type="hidden" 
+           id="{{ config.customer_id_field | default('customerId') }}" 
+           name="{{ config.customer_id_name | default('customer_id') }}" 
+           value="{{ selected_customer.id if selected_customer else '' }}">
+    
+    <!-- 数据属性：用于JavaScript初始化 -->
+    <div id="{{ config.data_element_id | default('customerSearchConfig') }}" 
+         data-config='{{ config | tojson }}'
+         data-selected-customer='{{ selected_customer | tojson if selected_customer else "{}" }}'
+         data-readonly="{{ readonly | lower }}"
+         data-required="{{ required | lower }}"
+         style="display: none;"></div>
+</div>
+
+<!-- 引入必要的CSS -->
+<style>
+    /* 客户搜索容器样式 */
+    .customer-search-container {
+        position: relative;
+        margin: 1rem 0;
+    }
+    
+    /* 客户搜索标题区域样式 */
+    .customer-search-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+    
+    .customer-search-header .form-label {
+        margin-bottom: 0;
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    /* 搜索输入框区域样式 */
+    .customer-search-wrapper {
+        width: 100%;
+    }
+    
+    .customer-search-input {
+        border-radius: 0.375rem;
+        flex-grow: 1;
+    }
+    
+    .customer-search-input:focus {
+        border-color: #6f42c1;
+        box-shadow: 0 0 0 0.2rem rgba(111, 66, 193, 0.25);
+    }
+    
+    /* 独立清除按钮样式 */
+    .clear-customer-btn {
+        border-radius: 0.375rem;
+        padding: 0.375rem 0.75rem;
+        min-width: 38px;
+        flex-shrink: 0;
+        transition: all 0.2s ease-in-out;
+    }
+    
+    .clear-customer-btn:hover {
+        background-color: #dc3545;
+        border-color: #dc3545;
+        color: white;
+        transform: scale(1.05);
+    }
+    
+    .clear-customer-btn:active {
+        transform: scale(0.95);
+    }
+    
+    /* 下拉菜单样式 */
+    .customer-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        z-index: 1050;
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        max-height: 400px;
+        overflow-y: auto;
+        margin-top: 2px;
+    }
+    
+    /* 加载状态样式 */
+    .dropdown-loading {
+        padding: 1rem;
+    }
+    
+    /* 客户列表样式 */
+    .customer-list {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
+    .customer-item {
+        padding: 0.5rem 0.75rem; /* 减少内边距，更紧凑 */
+        border-bottom: 1px solid #f1f3f4;
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+    }
+    
+    .customer-item:last-child {
+        border-bottom: none;
+    }
+    
+    .customer-item:hover {
+        background-color: #f8f9fa;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    
+    .customer-item.active {
+        background-color: #e8f4fd;
+        border-left: 3px solid #1976d2;
+        box-shadow: 0 1px 4px rgba(25,118,210,0.15);
+    }
+    
+    /* 专业紧凑的单行布局 */
+    .customer-single-line {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        line-height: 1.3; /* 控制行高 */
+    }
+    
+    /* 客户名称区域 */
+    .customer-main-section {
+        flex: 1;
+        min-width: 0; /* 允许收缩 */
+    }
+    
+    .customer-single-line .customer-name {
+        font-weight: 600;
+        color: #1a1a1a;
+        font-size: 0.875rem;
+        margin-bottom: 0.125rem;
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    /* 补充信息区域 */
+    .customer-meta-info {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem; /* 紧凑间距 */
+        font-size: 0.75rem;
+        color: #666;
+        line-height: 1.2;
+    }
+    
+    .meta-item {
+        display: flex;
+        align-items: center;
+        white-space: nowrap;
+    }
+    
+    .meta-divider {
+        width: 1px;
+        height: 0.75rem;
+        background-color: #e0e0e0;
+        margin: 0 0.25rem;
+        flex-shrink: 0;
+    }
+    
+    .meta-label {
+        color: #888;
+        margin-right: 0.25rem;
+        font-size: 0.7rem;
+    }
+    
+    .meta-value {
+        color: #555;
+        font-weight: 500;
+    }
+    
+    /* 拥有者信息区域 */
+    .customer-single-line .owner-info {
+        margin-left: 0.5rem;
+        flex-shrink: 0;
+        font-size: 0.75rem;
+    }
+    
+    /* 无结果提示样式 */
+    .no-results {
+        padding: 2rem 1rem;
+        color: #6c757d;
+    }
+    
+    .no-results i {
+        font-size: 2rem;
+        display: block;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* 只读模式样式 */
+    .customer-search-container.readonly .customer-search-input {
+        background-color: #f8f9fa;
+        border-color: #e9ecef;
+        cursor: not-allowed;
+    }
+    
+    .customer-search-container.readonly .clear-customer-btn {
+        display: none !important;
+    }
+    
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+        .customer-dropdown {
+            max-height: 300px;
+        }
+        
+        .customer-item {
+            padding: 0.375rem 0.5rem;
+        }
+        
+        .customer-meta-info {
+            gap: 0.25rem;
+        }
+        
+        .meta-item {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        .meta-label {
+            display: none; /* 移动端隐藏标签 */
+        }
+        
+        .meta-divider {
+            height: 0.5rem;
+            margin: 0 0.125rem;
+        }
+        
+        .customer-single-line .customer-name {
+            font-size: 0.8rem;
+        }
+        
+        .customer-meta-info {
+            font-size: 0.7rem;
+        }
+        
+        /* 移动端清除按钮调整 */
+        .clear-customer-btn {
+            padding: 0.3rem 0.6rem;
+            min-width: 32px;
+        }
+        
+        .customer-search-wrapper {
+            gap: 0.5rem;
+        }
+    }
+    
+    /* 微调样式 */
+    @media (min-width: 992px) {
+        .customer-item {
+            padding: 0.625rem 1rem;
+        }
+        
+        .customer-meta-info {
+            gap: 0.5rem;
+        }
+    }
+</style>
+{% endmacro %}
+
+{# 
+  获取报销单客户搜索配置
+  这是一个预设的报销单配置，可以直接使用
+#}
+{% set EXPENSE_CUSTOMER_SEARCH_CONFIG = {
+    "input_id": "customerSearch",
+    "input_name": "customer_search",
+    "dropdown_id": "customerDropdown",
+    "clear_button_id": "clearCustomer",
+    "customer_id_field": "customerId",
+    "customer_id_name": "customer_id",
+    "data_element_id": "customerSearchConfig",
+    "label": "选择客户",
+    "placeholder": "输入公司名称进行搜索...",
+    "api_endpoints": {
+        "search": "/api/export-helpers/customers/search"
+    },
+    "search_config": {
+        "min_length": 1,
+        "delay": 300,
+        "limit": 10
+    },
+    "display_config": {
+        "show_contact": true,
+        "show_industry": true,
+        "show_owner": true
+    },
+    "validation": {
+        "required": true,
+        "validate_on_submit": true
+    }
+} %}
+
+{# 
+  获取报销单客户搜索配置
+  返回配置字典对象
+#}
+{% macro get_expense_customer_search_config() -%}
+{{ EXPENSE_CUSTOMER_SEARCH_CONFIG }}
+{%- endmacro %}
+
+{# 
+  客户搜索JavaScript初始化脚本
+  在使用客户搜索组件的页面中调用此宏
+#}
+{% macro init_customer_search_scripts() %}
+<script src="{{ url_for('static', filename='js/customer-search.js') }}"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 客户搜索组件初始化开始');
+    
+    // 查找所有客户搜索容器
+    const containers = document.querySelectorAll('.customer-search-container');
+    console.log('🔍 找到客户搜索容器数量:', containers.length);
+    
+    containers.forEach((container, index) => {
+        console.log(`🔍 处理容器 ${index + 1}:`, container);
+        
+        // 直接从容器获取配置
+        if (!container.dataset.config) {
+            console.warn(`❌ 容器 ${index + 1} 没有 data-config 属性`);
+            return;
+        }
+        
+        try {
+            // 解析配置
+            const config = JSON.parse(container.dataset.config);
+            console.log('📋 解析的配置:', config);
+            
+            // 查找数据元素获取其他配置
+            const configElement = container.querySelector(`#${config.data_element_id || 'customerSearchConfig'}`);
+            console.log('🔍 配置元素:', configElement);
+            
+            const selectedCustomer = configElement ? JSON.parse(configElement.dataset.selectedCustomer || '{}') : {};
+            const readonly = configElement ? configElement.dataset.readonly === 'true' : false;
+            const required = configElement ? configElement.dataset.required === 'true' : true;
+            
+            if (readonly) {
+                container.classList.add('readonly');
+                return; // 只读模式不需要初始化交互功能
+            }
+            
+            // 初始化客户搜索组件
+            const searcher = new CustomerSearchComponent(config, container);
+            
+            // 设置已选中客户
+            if (selectedCustomer && selectedCustomer.id) {
+                searcher.setSelectedCustomer(selectedCustomer);
+            }
+            
+            // 保存到全局对象，方便外部访问
+            window.customerSearcher = searcher;
+            
+            console.log('客户搜索组件初始化完成:', config.input_id);
+            
+        } catch (error) {
+            console.error('客户搜索组件初始化失败:', error);
+        }
+    });
+});
+</script>
+{% endmacro %}

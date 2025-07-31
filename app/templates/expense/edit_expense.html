@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}编辑报销单 - {{ expense.expense_number }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <!-- 页面标题和操作栏 -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 class="h4 mb-1">
+                        <i class="fas fa-edit text-primary me-2"></i>编辑报销单
+                    </h2>
+                    <p class="text-muted mb-0">
+                        报销单号：<strong>{{ expense.expense_number }}</strong>
+                        <span class="badge badge-pill badge-transparent expense-status-{{ expense.status }} ms-2">
+                            {{ dict([('pending', '待审批'), ('approved', '已通过'), ('rejected', '已驳回')]).get(expense.status, expense.status) }}
+                        </span>
+                    </p>
+                </div>
+                <div>
+                    <a href="{{ url_for('expense.expense_detail', id=expense.id) }}" class="btn btn-outline-secondary me-2">
+                        <i class="fas fa-eye me-1"></i>查看详情
+                    </a>
+                    <a href="{{ url_for('expense.expense_list') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>返回列表
+                    </a>
+                </div>
+            </div>
+
+            <!-- 报销单编辑表单 -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-edit me-2"></i>报销信息
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('expense.edit_expense', id=expense.id) }}">
+                        <div class="row">
+                            <!-- 报销标题 -->
+                            <div class="col-md-6 mb-3">
+                                <label for="title" class="form-label">报销标题 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" 
+                                       id="title" name="title" 
+                                       placeholder="请输入报销标题" 
+                                       value="{{ request.form.get('title', expense.title) }}" 
+                                       required>
+                            </div>
+
+                            <!-- 报销科目 -->
+                            <div class="col-md-6 mb-3">
+                                <label for="expense_category" class="form-label">报销科目 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="expense_category" name="expense_category" required>
+                                    <option value="">请选择报销科目</option>
+                                    {% for key, value in expense_categories %}
+                                    <option value="{{ key }}" 
+                                            {% if request.form.get('expense_category', expense.expense_category) == key %}selected{% endif %}>
+                                        {{ _(value) }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- 报销金额 -->
+                            <div class="col-md-6 mb-3">
+                                <label for="amount" class="form-label">报销金额（元） <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" 
+                                       id="amount" name="amount" 
+                                       step="0.01" min="0" 
+                                       placeholder="0.00" 
+                                       value="{{ request.form.get('amount', expense.amount) }}" 
+                                       required>
+                            </div>
+
+                            <!-- 发生日期 -->
+                            <div class="col-md-6 mb-3">
+                                <label for="expense_date" class="form-label">发生日期 <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" 
+                                       id="expense_date" name="expense_date" 
+                                       value="{{ request.form.get('expense_date', expense.expense_date.strftime('%Y-%m-%d') if expense.expense_date else '') }}" 
+                                       required>
+                            </div>
+
+                            <!-- 客户 -->
+                            <div class="col-md-6 mb-3">
+                                <label for="customer_id" class="form-label">客户 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="customer_id" name="customer_id" required>
+                                    <option value="">请选择客户</option>
+                                    {% for customer in customers %}
+                                    <option value="{{ customer.id }}" 
+                                            {% if request.form.get('customer_id', expense.customer_id, type=int) == customer.id %}selected{% endif %}>
+                                        {{ customer.company_name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- 项目（可选） -->
+                            <div class="col-md-6 mb-3">
+                                <label for="project_id" class="form-label">关联项目</label>
+                                <select class="form-select" id="project_id" name="project_id">
+                                    <option value="">无关联项目</option>
+                                    {% for project in projects %}
+                                    <option value="{{ project.id }}" 
+                                            {% if request.form.get('project_id', expense.project_id, type=int) == project.id %}selected{% endif %}>
+                                        {{ project.project_name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- 行动记录 -->
+                            <div class="col-md-6 mb-3">
+                                <label for="action_id" class="form-label">行动记录 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="action_id" name="action_id" required>
+                                    <option value="">请选择行动记录</option>
+                                    {% for action in actions %}
+                                    <option value="{{ action.id }}" 
+                                            {% if request.form.get('action_id', expense.action_id, type=int) == action.id %}selected{% endif %}>
+                                        {{ action.communication[:50] }}{% if action.communication|length > 50 %}...{% endif %}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- 归属部门（可选） -->
+                            <div class="col-md-6 mb-3">
+                                <label for="department_id" class="form-label">归属部门</label>
+                                <select class="form-select" id="department_id" name="department_id">
+                                    <option value="">个人费用（不选择部门）</option>
+                                    {% for department in departments %}
+                                    <option value="{{ department.id }}" 
+                                            {% if request.form.get('department_id', expense.department_id, type=int) == department.id %}selected{% endif %}>
+                                        {{ department.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">如不选择部门，费用将记录为个人费用</div>
+                            </div>
+
+                            <!-- 报销说明 -->
+                            <div class="col-12 mb-3">
+                                <label for="description" class="form-label">报销说明</label>
+                                <textarea class="form-control" 
+                                          id="description" name="description" 
+                                          rows="4" 
+                                          placeholder="请详细描述报销事由、费用产生原因等">{{ request.form.get('description', expense.description or '') }}</textarea>
+                            </div>
+                        </div>
+
+                        <!-- 表单操作按钮 -->
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{{ url_for('expense.expense_detail', id=expense.id) }}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-1"></i>取消
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>保存修改
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 修改提示 -->
+            {% if expense.status != 'pending' %}
+            <div class="alert alert-warning mt-3" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>注意：</strong>此报销单状态为"{{ dict([('pending', '待审批'), ('approved', '已通过'), ('rejected', '已驳回')]).get(expense.status, expense.status) }}"，无法进行编辑。
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 表单验证
+    const form = document.querySelector('form');
+    form.addEventListener('submit', function(e) {
+        const amount = parseFloat(document.getElementById('amount').value);
+        if (amount <= 0) {
+            e.preventDefault();
+            alert('请输入有效的报销金额');
+            return false;
+        }
+    });
+});
+</script>
+{% endblock %}

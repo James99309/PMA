@@ -133,6 +133,12 @@
   </span>
 {% endmacro %}
 
+{% macro render_expense_number(number, size="normal") %}
+  <span class="badge badge-pill badge-transparent expense-number-badge">
+    {{ number or '无' }}
+  </span>
+{% endmacro %}
+
 {% macro render_approval_badge(approval_status) %}
   {% if approval_status %}
     {% set badge_config = {
@@ -2296,6 +2302,10 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
                 {{ render_dev_product_status_badge(value) }}
             {% elif column.render == 'render_product_status_badge' %}
                 {{ render_product_status_badge(value) }}
+            {% elif column.render == 'render_expense_category_badge' %}
+                {{ render_expense_category_badge(value) }}
+            {% elif column.render == 'render_expense_status_badge' %}
+                {{ render_expense_status_badge(value) }}
             {% else %}
                 {{ caller(value, column.render) if caller else value }}
             {% endif %}
@@ -2314,6 +2324,8 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
                     {{ render_project_stage(value) }}
                 {% elif column.render == 'render_project_type' %}
                     {{ render_project_type(value) }}
+                {% elif column.render == 'render_expense_number' %}
+                    {{ render_expense_number(value) }}
                 {% elif column.render == 'render_order_status_badge' %}
                     {{ render_order_status_badge(value) }}
                 {% elif column.render == 'render_inventory_status_badge' %}
@@ -2794,6 +2806,31 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
     {% set css_class = status_config.css_class %}
     
     <span class="badge product-status-badge rounded-pill {{ css_class }}">
+        {{ display_text }}
+    </span>
+{% endmacro %}
+
+{# 
+  报销单锁定状态徽章渲染 - 使用通用徽章样式
+  参数:
+  - is_locked: 是否锁定 (boolean)
+  - lang: 语言代码(可选，默认从session获取)
+#}
+{% macro render_expense_lock_status_badge(is_locked, lang=None) %}
+    {% if not lang %}
+        {% set lang = session.get('language', 'zh') %}
+    {% endif %}
+    
+    {% if is_locked %}
+        {% set status_config = {'zh': '已锁定', 'en': 'Locked', 'css_class': 'expense-lock-locked'} %}
+    {% else %}
+        {% set status_config = {'zh': '未锁定', 'en': 'Unlocked', 'css_class': 'expense-lock-unlocked'} %}
+    {% endif %}
+    
+    {% set display_text = status_config[lang] %}
+    {% set css_class = status_config.css_class %}
+    
+    <span class="badge badge-pill badge-transparent {{ css_class }}">
         {{ display_text }}
     </span>
 {% endmacro %}
@@ -3494,6 +3531,107 @@ window.hideTopNotification = function(containerId = '{{ container_id }}') {
     <span class="badge badge-pill badge-transparent user-role-client">{{ _(role_text) }}</span>
   {% else %}
     <span class="badge badge-pill badge-transparent badge-muted">{{ _(role_text) }}</span>
+  {% endif %}
+{% endmacro %}
+
+{# 报销状态徽章组件 #}
+{% macro render_expense_status_badge(status) %}
+  {% set status_map = {
+    'draft': '草稿',
+    'pending': '待审批',
+    'approved': '已通过',
+    'rejected': '已驳回'
+  } %}
+  
+  {% set status_text = status_map.get(status, status) if status else '未设置' %}
+  
+  {% if status == 'draft' %}
+    <span class="badge badge-pill badge-transparent expense-status-draft">{{ _(status_text) }}</span>
+  {% elif status == 'pending' %}
+    <span class="badge badge-pill badge-transparent expense-status-pending">{{ _(status_text) }}</span>
+  {% elif status == 'approved' %}
+    <span class="badge badge-pill badge-transparent expense-status-approved">{{ _(status_text) }}</span>
+  {% elif status == 'rejected' %}
+    <span class="badge badge-pill badge-transparent expense-status-rejected">{{ _(status_text) }}</span>
+  {% else %}
+    <span class="badge badge-pill badge-transparent badge-muted">{{ _(status_text) }}</span>
+  {% endif %}
+{% endmacro %}
+
+{# 报销科目徽章组件 #}
+{% macro render_expense_category_badge(category) %}
+  {% set category_map = {
+    'entertainment': '招待费',
+    'local_transport': '市内交通',
+    'travel_accommodation': '差旅住宿',
+    'office_supplies': '办公用品',
+    'communication': '通讯费',
+    'fuel': '油费',
+    'parking': '停车费',
+    'meals': '餐费',
+    'other': '其他'
+  } %}
+  
+  {% set category_text = category_map.get(category, category) if category else '未设置' %}
+  
+  {% if category == 'entertainment' %}
+    <span class="badge badge-pill badge-transparent expense-category-entertainment">{{ _(category_text) }}</span>
+  {% elif category == 'local_transport' %}
+    <span class="badge badge-pill badge-transparent expense-category-transport">{{ _(category_text) }}</span>
+  {% elif category == 'travel_accommodation' %}
+    <span class="badge badge-pill badge-transparent expense-category-travel">{{ _(category_text) }}</span>
+  {% elif category == 'office_supplies' %}
+    <span class="badge badge-pill badge-transparent expense-category-office">{{ _(category_text) }}</span>
+  {% elif category == 'communication' %}
+    <span class="badge badge-pill badge-transparent expense-category-communication">{{ _(category_text) }}</span>
+  {% elif category == 'fuel' %}
+    <span class="badge badge-pill badge-transparent expense-category-fuel">{{ _(category_text) }}</span>
+  {% elif category == 'parking' %}
+    <span class="badge badge-pill badge-transparent expense-category-parking">{{ _(category_text) }}</span>
+  {% elif category == 'meals' %}
+    <span class="badge badge-pill badge-transparent expense-category-meals">{{ _(category_text) }}</span>
+  {% elif category == 'other' %}
+    <span class="badge badge-pill badge-transparent expense-category-other">{{ _(category_text) }}</span>
+  {% else %}
+    <span class="badge badge-pill badge-transparent badge-muted">{{ _(category_text) }}</span>
+  {% endif %}
+{% endmacro %}
+
+{# 报销单编号徽章组件 #}
+{% macro render_expense_number(expense_number, size="md") %}
+  {% if expense_number %}
+    {% if size == "large" %}
+      <span class="badge badge-pill badge-transparent expense-number-large">{{ expense_number }}</span>
+    {% else %}
+      <span class="badge badge-pill badge-transparent expense-number">{{ expense_number }}</span>
+    {% endif %}
+  {% else %}
+    <span class="badge badge-pill badge-transparent badge-muted">{{ _('无编号') }}</span>
+  {% endif %}
+{% endmacro %}
+
+{# 报销科目列表徽章组件（用于列表页面显示多个科目） #}
+{% macro render_expense_categories_badge(categories_str) %}
+  {% if not categories_str or categories_str.strip() == '' %}
+    <span class="badge badge-pill badge-transparent badge-muted">{{ _('无科目') }}</span>
+  {% else %}
+    {% set categories_list = categories_str.split(',') %}
+    {% if categories_list|length == 1 %}
+      {# 只有一个科目，使用单个科目徽章 #}
+      {{ render_expense_category_badge(categories_list[0].strip()) }}
+    {% else %}
+      {# 多个科目，显示第一个科目 + 数量提示 #}
+      {% set first_category = categories_list[0].strip() %}
+      {% set remaining_count = categories_list|length - 1 %}
+      <div class="expense-categories-container">
+        {{ render_expense_category_badge(first_category) }}
+        {% if remaining_count > 0 %}
+          <span class="badge badge-pill badge-transparent badge-secondary ms-1" title="包含{{ categories_list|length }}个科目: {{ categories_str }}">
+            +{{ remaining_count }}
+          </span>
+        {% endif %}
+      </div>
+    {% endif %}
   {% endif %}
 {% endmacro %}
 

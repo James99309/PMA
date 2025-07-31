@@ -3139,3 +3139,118 @@ msgstr "Delete"
 msgid "点击取消确认"
 msgstr "Click to cancel confirmation"
 
+# ================================================================================
+# 报销管理模块翻译 / Expense Management Module Translations
+# ================================================================================
+
+msgid "报销管理"
+msgstr "Expense Management"
+
+msgid "新建报销"
+msgstr "New Expense"
+
+msgid "最近报销"
+msgstr "Recent Expenses"
+
+msgid "您没有最近的报销"
+msgstr "You have no recent expenses"
+
+msgid "无权限查看报销"
+msgstr "No permission to view expenses"
+
+msgid "报销单列表"
+msgstr "Expense List"
+
+msgid "创建报销单"
+msgstr "Create Expense"
+
+msgid "新建报销单"
+msgstr "New Expense"
+
+msgid "编辑报销单"
+msgstr "Edit Expense"
+
+msgid "报销单详情"
+msgstr "Expense Details"
+
+msgid "报销标题"
+msgstr "Expense Title"
+
+msgid "报销科目"
+msgstr "Expense Category"
+
+msgid "报销金额"
+msgstr "Expense Amount"
+
+msgid "发生日期"
+msgstr "Expense Date"
+
+msgid "报销说明"
+msgstr "Expense Description"
+
+msgid "归属部门"
+msgstr "Department"
+
+msgid "个人费用"
+msgstr "Personal Expense"
+
+msgid "审批状态"
+msgstr "Approval Status"
+
+msgid "申请人"
+msgstr "Applicant"
+
+msgid "审批人"
+msgstr "Approver"
+
+msgid "审批时间"
+msgstr "Approval Time"
+
+msgid "审批备注"
+msgstr "Approval Notes"
+
+msgid "招待费"
+msgstr "Entertainment"
+
+msgid "市内交通"
+msgstr "Local Transport"
+
+msgid "差旅住宿"
+msgstr "Travel & Accommodation"
+
+msgid "办公用品"
+msgstr "Office Supplies"
+
+msgid "通讯费"
+msgstr "Communication"
+
+msgid "油费"
+msgstr "Fuel"
+
+msgid "停车费"
+msgstr "Parking"
+
+msgid "餐费"
+msgstr "Meals"
+
+msgid "其他"
+msgstr "Others"
+
+msgid "待审批"
+msgstr "Pending"
+
+msgid "已通过"
+msgstr "Approved"
+
+msgid "已驳回"
+msgstr "Rejected"
+
+msgid "全部报销"
+msgstr "All Expenses"
+
+msgid "全部科目"
+msgstr "All Categories"
+
+msgid "全部状态"
+msgstr "All Status"
+
