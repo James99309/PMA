@@ -25,27 +25,34 @@
 {% endblock %}
 
 {% block content %}
-<!-- 标题栏优化，去除"客户管理"，主标题风格与客户列表一致 -->
-<div class="container-fluid mt-4 customer-detail-main">
-    <div class="row mb-3 align-items-center">
-        <div class="col-12 d-flex flex-column flex-lg-row align-items-start align-items-lg-center justify-content-between">
-            <h1 class="fw-bold mb-2 mb-lg-0" style="color:#222;">
-                {{ _('客户详情') }}
-                {% if not can_edit_company_info(current_user, company) %}
-                <span class="badge bg-secondary ms-2" style="font-size: 0.5em; vertical-align: middle;">{{ _('只读') }}</span>
-                {% endif %}
-            </h1>
-            <div class="d-flex flex-row flex-wrap gap-2">
-                {{ render_button(_('返回'), url_for('customer.list_companies'), color='secondary', size='md') }}
-                {% if has_permission('customer', 'edit') and can_edit_company_info(current_user, company) %}
-                {{ render_button(_('编辑客户'), url_for('customer.edit_company', company_id=company.id), color='primary', size='md') }}
-                {% endif %}
-                {% if has_permission('customer', 'delete') and can_edit_data(company, current_user) %}
-                {{ render_button(_('删除客户'), '#', color='danger', icon='fas fa-trash', size='md', attrs='id="deleteCompanyBtn" data-company-id="' + company.id|string + '"') }}
-                {% endif %}
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 标准化页面头部区域：标题与操作按钮在同一行 - 使用page-header-with-actions模组 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">
+                    {{ _('客户详情') }}
+                    {% if not can_edit_company_info(current_user, company) %}
+                    <span class="badge bg-secondary ms-2" style="font-size: 0.6em; vertical-align: middle;">{{ _('只读') }}</span>
+                    {% endif %}
+                </h1>
+            </div>
+            <div class="col text-end">
+                <!-- 操作按钮组 -->
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    {{ render_button(_('返回'), url_for('customer.list_companies'), color='secondary') }}
+                    {% if has_permission('customer', 'edit') and can_edit_company_info(current_user, company) %}
+                    {{ render_button(_('编辑客户'), url_for('customer.edit_company', company_id=company.id), color='primary') }}
+                    {% endif %}
+                    {% if has_permission('customer', 'delete') and can_edit_data(company, current_user) %}
+                    {{ render_button(_('删除客户'), '#', color='danger', icon='fas fa-trash', attrs='id="deleteCompanyBtn" data-company-id="' + company.id|string + '"') }}
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
+
+<div class="customer-detail-main">
 
     <!-- 移动端企业信息卡片 -->
     <div class="d-block d-lg-none mb-4">
@@ -639,6 +646,7 @@
     {% if can_change_company_owner(current_user, company) %}
     {{ render_change_owner_modal('changeOwnerModal', url_for('customer.change_company_owner', company_id=company.id), all_users, company.owner_id, user_tree_data) }}
     {% endif %}
+</div>
 </div>
 
 <!-- 添加Font Awesome图标库 -->
