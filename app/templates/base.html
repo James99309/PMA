@@ -1103,6 +1103,10 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    // 通知其他页面语言已变更
+                    if (typeof(Storage) !== "undefined") {
+                        localStorage.setItem('language_changed', Date.now());
+                    }
                     // 刷新页面以应用新语言
                     window.location.reload();
                 } else {

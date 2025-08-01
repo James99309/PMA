@@ -400,8 +400,8 @@
                 <textarea class="form-control standard-font" id="comment" name="comment" rows="3" placeholder="请输入您的审批意见..."></textarea>
               </div>
               <div class="d-flex justify-content-between">
-                {{ render_button('同意', '#', color='success', type='submit', icon='fas fa-check-circle', attrs='name="action" value="approve"') }}
-                {{ render_button('拒绝', '#', color='danger', type='submit', icon='fas fa-times-circle', attrs='name="action" value="reject"') }}
+                {{ render_button('同意', color='success', type='submit', icon='fas fa-check-circle', attrs='name="action" value="approve"') }}
+                {{ render_button('拒绝', color='danger', type='submit', icon='fas fa-times-circle', attrs='name="action" value="reject"') }}
               </div>
             </form>
           </div>
