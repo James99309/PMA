@@ -1753,6 +1753,148 @@ class ExpenseDetailManager {
     }
 
     /**
+     * 获取可用摄像头列表
+     */
+    async getAvailableCameras() {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(device => device.kind === 'videoinput');
+            
+            console.log('可用摄像头数量:', videoDevices.length);
+            return videoDevices;
+        } catch (error) {
+            console.log('获取摄像头列表失败:', error);
+            return [];
+        }
+    }
+
+    /**
+     * 启动摄像头
+     */
+    async startCamera(modal) {
+        const video = modal.querySelector('#cameraVideo');
+        const statusDiv = modal.querySelector('#cameraStatus');
+        const statusText = modal.querySelector('#statusText');
+        const switchBtn = modal.querySelector('#switchCameraBtn');
+        
+        try {
+            // 显示状态提示
+            statusDiv.style.display = 'block';
+            statusText.textContent = '正在启动摄像头...';
+            
+            // 配置摄像头约束
+            const constraints = {
+                video: {
+                    facingMode: this.currentFacingMode,
+                    width: { ideal: 1280, max: 1920 },
+                    height: { ideal: 720, max: 1080 },
+                    frameRate: { ideal: 30, max: 60 }
+                }
+            };
+            
+            // 如果有多个摄像头，尝试使用设备ID
+            if (this.availableCameras.length > 1 && this.currentCameraId) {
+                constraints.video.deviceId = { exact: this.currentCameraId };
+                delete constraints.video.facingMode; // 使用deviceId时移除facingMode
+            }
+            
+            // 停止之前的流
+            if (this.currentStream) {
+                this.currentStream.getTracks().forEach(track => track.stop());
+            }
+            
+            // 获取新的媒体流
+            this.currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+            video.srcObject = this.currentStream;
+            
+            // 等待视频加载
+            await new Promise((resolve) => {
+                video.onloadedmetadata = () => {
+                    video.play().then(resolve).catch(resolve);
+                };
+            });
+            
+            // 隐藏状态提示
+            statusDiv.style.display = 'none';
+            
+            // 绑定摄像头切换事件
+            if (switchBtn && this.availableCameras.length > 1) {
+                switchBtn.onclick = () => this.switchCamera(modal);
+            }
+            
+            console.log('摄像头启动成功');
+            
+        } catch (error) {
+            console.error('摄像头启动失败:', error);
+            statusText.textContent = '摄像头启动失败，请检查权限设置';
+            statusDiv.className = 'alert alert-warning mb-2';
+            
+            // 显示重试按钮
+            setTimeout(() => {
+                statusDiv.innerHTML = `
+                    <small><i class="fas fa-exclamation-triangle me-1"></i>
+                    摄像头启动失败，请检查权限设置</small>
+                    <button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="location.reload()">
+                        <i class="fas fa-refresh me-1"></i>重新授权
+                    </button>
+                `;
+            }, 2000);
+        }
+    }
+
+    /**
+     * 切换摄像头
+     */
+    async switchCamera(modal) {
+        const switchBtn = modal.querySelector('#switchCameraBtn');
+        const statusDiv = modal.querySelector('#cameraStatus');
+        const statusText = modal.querySelector('#statusText');
+        
+        try {
+            // 防止重复点击
+            switchBtn.disabled = true;
+            switchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            
+            // 显示切换状态
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'alert alert-info mb-2';
+            statusText.textContent = '正在切换摄像头...';
+            
+            // 切换前后摄像头
+            if (this.currentFacingMode === 'environment') {
+                this.currentFacingMode = 'user'; // 切换到前置
+            } else {
+                this.currentFacingMode = 'environment'; // 切换到后置
+            }
+            
+            // 如果有多个摄像头，循环选择
+            if (this.availableCameras.length > 1) {
+                const currentIndex = this.availableCameras.findIndex(camera => camera.deviceId === this.currentCameraId);
+                const nextIndex = (currentIndex + 1) % this.availableCameras.length;
+                this.currentCameraId = this.availableCameras[nextIndex].deviceId;
+            }
+            
+            // 重新启动摄像头
+            await this.startCamera(modal);
+            
+            // 恢复按钮状态
+            switchBtn.disabled = false;
+            switchBtn.innerHTML = '<i class="fas fa-sync-alt"></i>';
+            
+            console.log('摄像头切换成功:', this.currentFacingMode);
+            
+        } catch (error) {
+            console.error('摄像头切换失败:', error);
+            statusText.textContent = '摄像头切换失败';
+            statusDiv.className = 'alert alert-warning mb-2';
+            
+            // 恢复按钮状态
+            switchBtn.disabled = false;
+            switchBtn.innerHTML = '<i class="fas fa-sync-alt"></i>';
+        }
+    }
+
+    /**
      * 显示上传选项对话框
      */
     showUploadOptions(rowIndex) {
@@ -1862,23 +2004,66 @@ class ExpenseDetailManager {
      */
     async openCamera(rowIndex) {
         try {
+            // 初始化摄像头配置
+            this.currentFacingMode = 'environment'; // 默认后置镜头
+            this.availableCameras = await this.getAvailableCameras();
+            
             // 创建摄像头模态框
             const cameraModal = document.createElement('div');
             cameraModal.className = 'modal fade';
             cameraModal.id = 'cameraModal';
+            
+            // 检测是否为移动设备
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            const modalSize = isMobile ? 'modal-fullscreen-md-down' : 'modal-lg';
+            
             cameraModal.innerHTML = `
-                <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-dialog ${modalSize} modal-dialog-centered">
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title">拍照上传发票</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
-                        <div class="modal-body text-center">
-                            <video id="cameraVideo" class="w-100 mb-3" style="max-height: 400px;" autoplay></video>
+                        <div class="modal-body text-center p-2">
+                            <!-- 摄像头状态提示 -->
+                            <div id="cameraStatus" class="alert alert-info mb-2" style="display: none;">
+                                <small><i class="fas fa-info-circle me-1"></i><span id="statusText">正在启动摄像头...</span></small>
+                            </div>
+                            
+                            <!-- 视频容器 -->
+                            <div class="camera-container position-relative mb-3" style="max-height: ${isMobile ? '70vh' : '400px'}; overflow: hidden; border-radius: 8px; background: #000;">
+                                <video id="cameraVideo" class="w-100 h-100" autoplay playsinline muted style="object-fit: cover; min-height: 200px;"></video>
+                                
+                                <!-- 摄像头切换按钮 (仅多个摄像头时显示) -->
+                                <button id="switchCameraBtn" type="button" class="btn btn-outline-light position-absolute" 
+                                        style="top: 10px; right: 10px; border-radius: 50%; width: 50px; height: 50px; display: ${this.availableCameras.length > 1 ? 'flex' : 'none'}; align-items: center; justify-content: center;">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                                
+                                <!-- 网格辅助线 -->
+                                <div class="camera-grid position-absolute w-100 h-100" style="top: 0; left: 0; pointer-events: none; opacity: 0.3;">
+                                    <div style="position: absolute; top: 33.33%; left: 0; right: 0; height: 1px; background: white;"></div>
+                                    <div style="position: absolute; top: 66.66%; left: 0; right: 0; height: 1px; background: white;"></div>
+                                    <div style="position: absolute; left: 33.33%; top: 0; bottom: 0; width: 1px; background: white;"></div>
+                                    <div style="position: absolute; left: 66.66%; top: 0; bottom: 0; width: 1px; background: white;"></div>
+                                </div>
+                            </div>
+                            
                             <canvas id="cameraCanvas" style="display: none;"></canvas>
-                            <div class="d-flex justify-content-center gap-3">
-                                ${this.generateStandardButton("拍照", "primary", "md", "fas fa-camera", null, "button")}
-                                ${this.generateStandardButton("取消", "secondary", "md", "fas fa-times", null, "button")}
+                            
+                            <!-- 控制按钮 -->
+                            <div class="d-flex justify-content-center gap-3 ${isMobile ? 'flex-column' : ''}">
+                                ${this.generateStandardButton("拍照", "primary", isMobile ? "lg" : "md", "fas fa-camera", null, "button")}
+                                ${this.generateStandardButton("取消", "secondary", isMobile ? "lg" : "md", "fas fa-times", null, "button")}
+                            </div>
+                            
+                            <!-- 使用提示 -->
+                            <div class="mt-3">
+                                <small class="text-muted">
+                                    <i class="fas fa-lightbulb me-1"></i>
+                                    请将发票居中对准，确保文字清晰可见
+                                    ${this.availableCameras.length > 1 ? '，点击右上角按钮切换摄像头' : ''}
+                                </small>
                             </div>
                         </div>
                     </div>
@@ -1887,10 +2072,8 @@ class ExpenseDetailManager {
             
             document.body.appendChild(cameraModal);
             
-            // 获取摄像头权限
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            const video = cameraModal.querySelector('#cameraVideo');
-            video.srcObject = stream;
+            // 启动摄像头
+            await this.startCamera(cameraModal);
             
             // 绑定拍照按钮事件 - 通过文本内容找到按钮
             const captureBtn = Array.from(cameraModal.querySelectorAll('button')).find(btn => 
@@ -2470,15 +2653,24 @@ class ExpenseDetailManager {
         try {
             // 如果是摄像头模态框，需要停止媒体流
             if (modal.id === 'cameraModal') {
-                const video = modal.querySelector('#cameraVideo');
-                if (video && video.srcObject) {
-                    const stream = video.srcObject;
-                    stream.getTracks().forEach(track => {
+                // 停止当前流
+                if (this.currentStream) {
+                    this.currentStream.getTracks().forEach(track => {
                         track.stop();
                         console.log('停止媒体轨道:', track.kind);
                     });
+                    this.currentStream = null;
+                }
+                
+                // 清理视频元素
+                const video = modal.querySelector('#cameraVideo');
+                if (video && video.srcObject) {
                     video.srcObject = null;
                 }
+                
+                // 重置摄像头配置
+                this.currentFacingMode = 'environment';
+                this.currentCameraId = null;
             }
             
             // 关闭Bootstrap模态框
