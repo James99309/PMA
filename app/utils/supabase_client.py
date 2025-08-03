@@ -116,27 +116,29 @@ class SupabaseStorageClient:
                 file.seek(0)
                 file_content = file.read()
             
-            # 上传到Supabase - 修复版本兼容性
+            # 上传到Supabase - 修复参数顺序问题
             try:
-                # 尝试新版本的上传方式
+                # 正确的参数顺序：path, file, file_options
                 result = self.supabase.storage.from_(self.bucket_name).upload(
-                    path=filename,
-                    file=file_content,
-                    file_options={
+                    filename,  # path parameter (first)
+                    file_content,  # file parameter (second)
+                    {  # file_options parameter (third)
                         "content-type": self._get_content_type(file_type, file_ext),
                         "upsert": True  # 如果文件已存在则覆盖
                     }
                 )
-            except TypeError as upload_error:
-                logger.warning(f"新版本上传方式失败，尝试旧版本: {upload_error}")
+                logger.info(f"Supabase上传成功: {filename}")
+            except Exception as upload_error:
+                logger.error(f"Supabase上传失败: {upload_error}")
+                # 尝试不带file_options的简化版本
                 try:
-                    # 尝试旧版本的上传方式（更少参数）
                     result = self.supabase.storage.from_(self.bucket_name).upload(
                         filename,
                         file_content
                     )
+                    logger.info(f"Supabase简化上传成功: {filename}")
                 except Exception as fallback_error:
-                    logger.error(f"旧版本上传方式也失败: {fallback_error}")
+                    logger.error(f"简化上传也失败: {fallback_error}")
                     raise upload_error
             
             # 检查上传结果
@@ -304,28 +306,30 @@ class SupabaseStorageClient:
                 logger.warning(f"图片处理失败，使用原始文件: {str(e)}")
                 processed_content = file_content
             
-            # 上传到Supabase - 修复版本兼容性
+            # 上传到Supabase - 修复参数顺序问题
             try:
-                # 尝试新版本的上传方式
+                # 正确的参数顺序：path, file, file_options
                 result = self.supabase.storage.from_(self.bucket_name).upload(
-                    path=storage_path,
-                    file=processed_content,
-                    file_options={
+                    storage_path,  # path parameter (first)
+                    processed_content,  # file parameter (second)
+                    {  # file_options parameter (third)
                         "content-type": self._get_content_type('image', filename.split('.')[-1].lower() if '.' in filename else 'jpg'),
                         "cache-control": "3600",
                         "upsert": True  # 允许覆盖同名文件
                     }
                 )
-            except TypeError as upload_error:
-                logger.warning(f"新版本上传方式失败，尝试旧版本: {upload_error}")
+                logger.info(f"Supabase发票上传成功: {storage_path}")
+            except Exception as upload_error:
+                logger.error(f"Supabase发票上传失败: {upload_error}")
+                # 尝试不带file_options的简化版本
                 try:
-                    # 尝试旧版本的上传方式（更少参数）
                     result = self.supabase.storage.from_(self.bucket_name).upload(
                         storage_path,
                         processed_content
                     )
+                    logger.info(f"Supabase发票简化上传成功: {storage_path}")
                 except Exception as fallback_error:
-                    logger.error(f"旧版本上传方式也失败: {fallback_error}")
+                    logger.error(f"发票简化上传也失败: {fallback_error}")
                     raise upload_error
             
             # 检查上传结果
