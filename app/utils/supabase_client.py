@@ -116,15 +116,28 @@ class SupabaseStorageClient:
                 file.seek(0)
                 file_content = file.read()
             
-            # 上传到Supabase
-            result = self.supabase.storage.from_(self.bucket_name).upload(
-                path=filename,
-                file=file_content,
-                file_options={
-                    "content-type": self._get_content_type(file_type, file_ext),
-                    "upsert": True  # 如果文件已存在则覆盖
-                }
-            )
+            # 上传到Supabase - 修复版本兼容性
+            try:
+                # 尝试新版本的上传方式
+                result = self.supabase.storage.from_(self.bucket_name).upload(
+                    path=filename,
+                    file=file_content,
+                    file_options={
+                        "content-type": self._get_content_type(file_type, file_ext),
+                        "upsert": True  # 如果文件已存在则覆盖
+                    }
+                )
+            except TypeError as upload_error:
+                logger.warning(f"新版本上传方式失败，尝试旧版本: {upload_error}")
+                try:
+                    # 尝试旧版本的上传方式（更少参数）
+                    result = self.supabase.storage.from_(self.bucket_name).upload(
+                        filename,
+                        file_content
+                    )
+                except Exception as fallback_error:
+                    logger.error(f"旧版本上传方式也失败: {fallback_error}")
+                    raise upload_error
             
             # 检查上传结果
             if hasattr(result, 'error') and result.error:
@@ -291,16 +304,29 @@ class SupabaseStorageClient:
                 logger.warning(f"图片处理失败，使用原始文件: {str(e)}")
                 processed_content = file_content
             
-            # 上传到Supabase
-            result = self.supabase.storage.from_(self.bucket_name).upload(
-                path=storage_path,
-                file=processed_content,
-                file_options={
-                    "content-type": self._get_content_type('image', filename.split('.')[-1].lower() if '.' in filename else 'jpg'),
-                    "cache-control": "3600",
-                    "upsert": True  # 允许覆盖同名文件
-                }
-            )
+            # 上传到Supabase - 修复版本兼容性
+            try:
+                # 尝试新版本的上传方式
+                result = self.supabase.storage.from_(self.bucket_name).upload(
+                    path=storage_path,
+                    file=processed_content,
+                    file_options={
+                        "content-type": self._get_content_type('image', filename.split('.')[-1].lower() if '.' in filename else 'jpg'),
+                        "cache-control": "3600",
+                        "upsert": True  # 允许覆盖同名文件
+                    }
+                )
+            except TypeError as upload_error:
+                logger.warning(f"新版本上传方式失败，尝试旧版本: {upload_error}")
+                try:
+                    # 尝试旧版本的上传方式（更少参数）
+                    result = self.supabase.storage.from_(self.bucket_name).upload(
+                        storage_path,
+                        processed_content
+                    )
+                except Exception as fallback_error:
+                    logger.error(f"旧版本上传方式也失败: {fallback_error}")
+                    raise upload_error
             
             # 检查上传结果
             if hasattr(result, 'error') and result.error:
