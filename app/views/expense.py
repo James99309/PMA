@@ -23,7 +23,14 @@ logger = logging.getLogger(__name__)
 
 def is_cloud_environment():
     """检测是否在云端环境运行"""
-    return bool(os.getenv('RENDER_SERVICE_NAME') or os.getenv('SUPABASE_URL'))
+    render_service = os.getenv('RENDER_SERVICE_NAME')
+    supabase_url = os.getenv('SUPABASE_URL')
+    is_cloud = bool(render_service or supabase_url)
+    
+    # 添加调试日志
+    current_app.logger.info(f"环境检测: RENDER_SERVICE_NAME={render_service}, SUPABASE_URL={supabase_url[:20] + '...' if supabase_url else None}, is_cloud={is_cloud}")
+    
+    return is_cloud
 
 expense = Blueprint('expense', __name__)
 
@@ -867,7 +874,10 @@ def create_expense():
                                     continue
                                 
                                 # 检测运行环境 - 优先判断是否在云端部署
-                                if is_cloud_environment():
+                                current_app.logger.info(f"开始处理文件上传: {file_obj.filename}, 大小: {file_size} bytes")
+                                cloud_env = is_cloud_environment()
+                                current_app.logger.info(f"环境检测结果: 云端环境={cloud_env}")
+                                if cloud_env:
                                     # 云端环境，使用Supabase存储
                                     try:
                                         from app.utils.supabase_client import get_supabase_client
@@ -1212,7 +1222,10 @@ def edit_expense(id):
                                     continue
                                 
                                 # 检测运行环境 - 优先判断是否在云端部署
-                                if is_cloud_environment():
+                                current_app.logger.info(f"开始处理文件上传: {file_obj.filename}, 大小: {file_size} bytes")
+                                cloud_env = is_cloud_environment()
+                                current_app.logger.info(f"环境检测结果: 云端环境={cloud_env}")
+                                if cloud_env:
                                     # 云端环境，使用Supabase存储
                                     try:
                                         from app.utils.supabase_client import get_supabase_client
