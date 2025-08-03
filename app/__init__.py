@@ -724,6 +724,20 @@ def create_app(config_class=Config):
     from app.context_processors import inject_user_helpers
     app.context_processor(inject_user_helpers)
 
+    # 添加文件URL处理函数到Jinja2全局环境
+    from app.utils.file_url_helper import (
+        normalize_file_url, 
+        get_invoice_image_url, 
+        is_cloud_deployment,
+        ensure_absolute_url,
+        validate_image_url
+    )
+    app.jinja_env.globals['normalize_file_url'] = normalize_file_url
+    app.jinja_env.globals['get_invoice_image_url'] = get_invoice_image_url
+    app.jinja_env.globals['is_cloud_deployment'] = is_cloud_deployment
+    app.jinja_env.globals['ensure_absolute_url'] = ensure_absolute_url
+    app.jinja_env.globals['validate_image_url'] = validate_image_url
+
     # 注册全局帮助函数
     from app.helpers.ui_helpers import format_datetime, render_action_button, render_user_badge, get_user_display_name, render_filter_button
     app.jinja_env.globals['format_datetime'] = format_datetime

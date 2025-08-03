@@ -33,8 +33,8 @@
         </div>
     </div>
     
-    <!-- 报销明细表格 -->
-    <div class="table-responsive">
+    <!-- 报销明细表格 - 桌面端 -->
+    <div class="table-responsive d-none d-lg-block">
         <table class="table table-bordered table-hover" id="{{ config.table_id | default('expenseTable') }}">
             <thead class="table-light">
                 <tr>
@@ -52,6 +52,16 @@
                 <!-- 动态生成的报销明细行 -->
             </tbody>
         </table>
+    </div>
+    
+    <!-- 报销明细卡片 - 移动端 -->
+    <div class="expense-detail-cards d-lg-none" id="{{ config.table_id | default('expenseTable') }}_mobile">
+        <!-- 移动端卡片式明细将由JavaScript动态生成 -->
+        <div class="empty-state text-center py-4">
+            <i class="fas fa-receipt text-muted mb-2" style="font-size: 2rem;"></i>
+            <p class="text-muted mb-0">暂无报销明细</p>
+            <small class="text-muted">点击下方按钮添加报销项目</small>
+        </div>
     </div>
     
     <!-- 添加明细按钮 -->
@@ -339,22 +349,158 @@
         display: none;
     }
     
+    /* 移动端卡片式布局 */
+    .expense-detail-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .expense-detail-card {
+        background: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        position: relative;
+    }
+    
+    .expense-detail-card:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        transition: box-shadow 0.2s ease;
+    }
+    
+    .expense-detail-card-header {
+        display: flex;
+        justify-content: between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .expense-detail-card-title {
+        font-weight: 600;
+        color: #495057;
+        margin: 0;
+        flex-grow: 1;
+        margin-right: 1rem;
+    }
+    
+    .expense-detail-card-amount {
+        font-weight: 700;
+        color: #28a745;
+        font-size: 1.1rem;
+        white-space: nowrap;
+    }
+    
+    .expense-detail-card-body {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .expense-detail-card-field {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .expense-detail-card-field.full-width {
+        grid-column: 1 / -1;
+    }
+    
+    .expense-detail-card-field-label {
+        font-size: 0.75rem;
+        color: #6c757d;
+        font-weight: 500;
+        margin-bottom: 0.25rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .expense-detail-card-field-value {
+        color: #495057;
+        font-weight: 500;
+        word-break: break-word;
+    }
+    
+    .expense-detail-card-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #e9ecef;
+    }
+    
+    .expense-detail-card-invoice-images {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-top: 0.5rem;
+    }
+    
+    .expense-detail-card-invoice-thumb {
+        width: 60px;
+        height: 60px;
+        border-radius: 4px;
+        object-fit: cover;
+        border: 1px solid #dee2e6;
+        cursor: pointer;
+        transition: transform 0.2s ease;
+    }
+    
+    .expense-detail-card-invoice-thumb:hover {
+        transform: scale(1.05);
+    }
+    
+    .expense-detail-empty-state {
+        text-align: center;
+        padding: 2rem 1rem;
+        color: #6c757d;
+    }
+    
     /* 响应式设计 */
     @media (max-width: 768px) {
-        .expense-detail-container .table {
-            min-width: 800px;
-        }
-        
         .expense-detail-container .expense-total-container .row {
             flex-direction: column;
         }
         
-        .expense-detail-container .expense-total-container .col-md-4 {
+        .expense-detail-container .expense-total-container .col-md-6 {
             margin-bottom: 1rem;
         }
         
-        .expense-detail-container .expense-total-container .col-md-4:last-child {
+        .expense-detail-container .expense-total-container .col-md-6:last-child {
             margin-bottom: 0;
+        }
+        
+        .expense-detail-card-body {
+            grid-template-columns: 1fr;
+            gap: 0.5rem;
+        }
+        
+        .expense-detail-card-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        .expense-detail-card-amount {
+            margin-top: 0.5rem;
+            font-size: 1.2rem;
+        }
+    }
+    
+    @media (max-width: 576px) {
+        .expense-detail-card {
+            padding: 0.75rem;
+        }
+        
+        .expense-detail-card-actions {
+            flex-direction: column;
+        }
+        
+        .expense-detail-card-actions .btn {
+            width: 100%;
         }
     }
 </style>
@@ -402,7 +548,7 @@
                                      data-invoice='{{ invoice | tojson }}'
                                      data-index="{{ loop.index }}">
                                     <i class="fas fa-file-invoice text-success invoice-preview-icon"
-                                       data-image-url="{{ invoice.url }}"
+                                       data-image-url="{{ get_invoice_image_url(invoice) }}"
                                        data-title="发票{{ loop.index }}: {{ invoice.filename }}"
                                        title="发票{{ loop.index }}: {{ invoice.filename }}"
                                        style="cursor: pointer;"></i>

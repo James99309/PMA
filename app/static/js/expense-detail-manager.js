@@ -132,6 +132,9 @@ class ExpenseDetailManager {
         // 添加页面卸载时的清理
         this.setupPageUnloadCleanup();
         
+        // 监听窗口大小变化，切换显示模式
+        this.setupResponsiveListener();
+        
         console.log('报销明细管理器初始化完成');
     }
     
@@ -1146,9 +1149,27 @@ class ExpenseDetailManager {
     }
     
     /**
+     * 检测是否为移动端
+     */
+    isMobileView() {
+        return window.innerWidth < 992; // Bootstrap lg断点
+    }
+
+    /**
      * 重新渲染表格
      */
     renderTable() {
+        if (this.isMobileView()) {
+            this.renderMobileCards();
+        } else {
+            this.renderDesktopTable();
+        }
+    }
+
+    /**
+     * 渲染桌面端表格
+     */
+    renderDesktopTable() {
         const tbody = this.tableElement.querySelector('tbody');
         tbody.innerHTML = '';
         
@@ -1163,6 +1184,140 @@ class ExpenseDetailManager {
                 this.updateCategoryStyle(categorySelect);
             }
         });
+    }
+
+    /**
+     * 渲染移动端卡片
+     */
+    renderMobileCards() {
+        const mobileContainer = document.querySelector(`#${this.tableId}_mobile`);
+        if (!mobileContainer) {
+            console.warn('移动端容器未找到');
+            return;
+        }
+
+        mobileContainer.innerHTML = '';
+
+        if (this.rows.length === 0) {
+            mobileContainer.innerHTML = `
+                <div class="empty-state text-center py-4">
+                    <i class="fas fa-receipt text-muted mb-2" style="font-size: 2rem;"></i>
+                    <p class="text-muted mb-0">暂无报销明细</p>
+                    <small class="text-muted">点击下方按钮添加报销项目</small>
+                </div>
+            `;
+            return;
+        }
+
+        this.rows.forEach((rowData, index) => {
+            const card = this.createMobileCard(rowData, index);
+            mobileContainer.appendChild(card);
+        });
+    }
+
+    /**
+     * 创建移动端卡片元素
+     */
+    createMobileCard(rowData, index) {
+        const card = document.createElement('div');
+        card.className = 'expense-detail-card';
+        card.dataset.index = index;
+
+        // 格式化金额显示
+        const formatAmount = (amount, currency = 'CNY') => {
+            const symbols = { 'CNY': '¥', 'USD': '$', 'EUR': '€', 'GBP': '£' };
+            const symbol = symbols[currency] || currency;
+            return `${symbol}${parseFloat(amount || 0).toFixed(2)}`;
+        };
+
+        // 获取科目映射
+        const categoryMap = {
+            'entertainment': '招待费',
+            'local_transport': '市内交通',
+            'travel_accommodation': '差旅住宿',
+            'office_supplies': '办公用品',
+            'communication': '通讯费',
+            'fuel': '油费',
+            'parking': '停车费',
+            'meals': '餐费',
+            'other': '其他'
+        };
+
+        const categoryLabel = categoryMap[rowData.expense_category] || rowData.expense_category;
+        const currentAmount = formatAmount(rowData.current_amount, this.config.base_currency);
+        const invoiceAmount = formatAmount(rowData.invoice_amount, rowData.currency);
+
+        card.innerHTML = `
+            <div class="expense-detail-card-header">
+                <h6 class="expense-detail-card-title">${rowData.description || '报销项目'}</h6>
+                <div class="expense-detail-card-amount">${currentAmount}</div>
+            </div>
+            
+            <div class="expense-detail-card-body">
+                <div class="expense-detail-card-field">
+                    <div class="expense-detail-card-field-label">科目</div>
+                    <div class="expense-detail-card-field-value">${categoryLabel}</div>
+                </div>
+                
+                <div class="expense-detail-card-field">
+                    <div class="expense-detail-card-field-label">日期</div>
+                    <div class="expense-detail-card-field-value">${rowData.expense_date || ''}</div>
+                </div>
+                
+                <div class="expense-detail-card-field">
+                    <div class="expense-detail-card-field-label">发票金额</div>
+                    <div class="expense-detail-card-field-value">${invoiceAmount}</div>
+                </div>
+                
+                <div class="expense-detail-card-field">
+                    <div class="expense-detail-card-field-label">汇率</div>
+                    <div class="expense-detail-card-field-value">${parseFloat(rowData.exchange_rate || 1).toFixed(4)}</div>
+                </div>
+                
+                <div class="expense-detail-card-field">
+                    <div class="expense-detail-card-field-label">单据数量</div>
+                    <div class="expense-detail-card-field-value">${rowData.document_count || 1} 张</div>
+                </div>
+            </div>
+            
+            ${this.createMobileCardInvoiceImages(rowData.invoice_images)}
+            
+            <div class="expense-detail-card-actions">
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="window.expenseDetailManager.editRow(${index})">
+                    <i class="fas fa-edit me-1"></i>编辑
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="window.expenseDetailManager.deleteRow(${index})">
+                    <i class="fas fa-trash me-1"></i>删除
+                </button>
+            </div>
+        `;
+
+        return card;
+    }
+
+    /**
+     * 创建移动端卡片的发票图片部分
+     */
+    createMobileCardInvoiceImages(invoiceImages) {
+        if (!invoiceImages || invoiceImages.length === 0) {
+            return '';
+        }
+
+        const imagesHtml = invoiceImages.map(image => `
+            <img src="${image.url || image.path}" 
+                 alt="发票图片" 
+                 class="expense-detail-card-invoice-thumb"
+                 onclick="window.showImagePreview('${image.url || image.path}')">
+        `).join('');
+
+        return `
+            <div class="expense-detail-card-field full-width">
+                <div class="expense-detail-card-field-label">发票图片</div>
+                <div class="expense-detail-card-invoice-images">
+                    ${imagesHtml}
+                </div>
+            </div>
+        `;
     }
     
     /**
@@ -2683,6 +2838,31 @@ class ExpenseDetailManager {
                 document.body.style.paddingRight = '';
             }
         }, 5000); // 每5秒检查一次
+    }
+
+    /**
+     * 设置响应式监听器
+     */
+    setupResponsiveListener() {
+        this.resizeTimeout = null;
+        
+        const handleResize = () => {
+            clearTimeout(this.resizeTimeout);
+            this.resizeTimeout = setTimeout(() => {
+                console.log('窗口大小变化，重新渲染表格');
+                this.renderTable();
+            }, 250);
+        };
+        
+        window.addEventListener('resize', handleResize);
+        
+        // 页面卸载时清理监听器
+        window.addEventListener('beforeunload', () => {
+            window.removeEventListener('resize', handleResize);
+            if (this.resizeTimeout) {
+                clearTimeout(this.resizeTimeout);
+            }
+        });
     }
 
     /**

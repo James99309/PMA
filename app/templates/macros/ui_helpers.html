@@ -3678,7 +3678,7 @@ window.dismissStandardAlert = function() {
     <div class="invoice-icons-container d-flex justify-content-center align-items-center flex-wrap gap-1">
       {% for invoice in item.invoice_images_list %}
         <div class="invoice-icon-wrapper position-relative" style="display: inline-block;">
-          {% if invoice.pending and not (invoice.url or invoice.path) %}
+          {% if invoice.pending and not get_invoice_image_url(invoice) %}
             {# 处于pending状态且没有实际文件路径的发票 #}
             <i class="fas fa-file-invoice text-warning" 
                style="font-size: 1.2rem; cursor: pointer;" 
@@ -3688,7 +3688,7 @@ window.dismissStandardAlert = function() {
             {# 正常的发票 #}
             <i class="fas fa-file-invoice text-primary" 
                style="font-size: 1.2rem; cursor: pointer;" 
-               onclick="previewInvoiceImage('{{ invoice.url if invoice.url else invoice.path }}', '{{ invoice.filename }}')"
+               onclick="previewInvoiceImage('{{ get_invoice_image_url(invoice) }}', '{{ invoice.filename }}')"
                title="点击预览发票: {{ invoice.filename }}"></i>
           {% endif %}
           <span class="badge bg-primary text-white position-absolute" 

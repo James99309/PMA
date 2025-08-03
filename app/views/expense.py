@@ -17,6 +17,7 @@ from app.utils.access_control import get_viewable_data, can_edit_data
 from types import SimpleNamespace
 import os
 from werkzeug.utils import secure_filename
+from app.utils.file_url_helper import normalize_file_url
 
 logger = logging.getLogger(__name__)
 
@@ -880,7 +881,8 @@ def create_expense():
                                 
                                 # 生成URL
                                 relative_path = os.path.join('uploads', 'invoices', str(detail_obj.id), filename).replace('\\', '/')
-                                image_url = f"/static/{relative_path}"
+                                raw_url = f"/static/{relative_path}"
+                                image_url = normalize_file_url(raw_url, 'invoice_image')
                                 
                                 # 获取原始文件名（如果有元数据）
                                 original_filename = file_obj.filename
@@ -1200,7 +1202,8 @@ def edit_expense(id):
                                 
                                 # 生成URL
                                 relative_path = os.path.join('uploads', 'invoices', str(detail_obj.id), filename).replace('\\', '/')
-                                image_url = f"/static/{relative_path}"
+                                raw_url = f"/static/{relative_path}"
+                                image_url = normalize_file_url(raw_url, 'invoice_image')
                                 
                                 # 获取原始文件名（如果有元数据）
                                 original_filename = file_obj.filename
