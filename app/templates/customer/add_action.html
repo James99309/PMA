@@ -1,135 +1,293 @@
 {% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel %}
+
+{% block title %}{{ _('记录行动') }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row mb-3">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">{{ _('记录行动') }}</h5>
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 主要功能页面头部：集成面包屑和操作按钮 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <!-- 面包屑导航 -->
+                <nav aria-label="breadcrumb" class="mb-2">
+                    <ol class="breadcrumb mb-0">
+                        <li class="breadcrumb-item">
+                            <a href="{{ url_for('customer.list_companies') }}" class="text-decoration-none">
+                                <i class="fas fa-building me-1"></i>{{ _('客户管理') }}
+                            </a>
+                        </li>
+                        <li class="breadcrumb-item">
+                            <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="text-decoration-none">
+                                {{ company.company_name }}
+                            </a>
+                        </li>
+                        <li class="breadcrumb-item active" aria-current="page">{{ _('记录行动') }}</li>
+                    </ol>
+                </nav>
+                <!-- 页面标题 -->
+                <h1 class="page-title mb-0">
+                    <i class="fas fa-plus-circle me-2"></i>{{ _('记录行动') }}
+                </h1>
+                <p class="text-muted mb-0">{{ _('为') }} <strong>{{ contact.name }}</strong> {{ _('添加新的沟通记录') }}</p>
+            </div>
+            <div class="col text-end">
+                <!-- 操作按钮组 -->
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    {{ render_button(
+                        text=_('返回企业详情'),
+                        href=url_for('customer.view_company', company_id=company.id),
+                        color='secondary',
+                        icon='fas fa-arrow-left',
+                        size='sm'
+                    ) }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主要功能页面布局：主内容区域 + 侧边栏 -->
+    <div class="row g-4">
+        <!-- 主要内容区域 -->
+        <div class="col-lg-8">
+            <!-- 行动记录表单卡片 -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-edit text-primary me-2"></i>
+                        <h5 class="card-title mb-0">{{ _('新增行动记录') }}</h5>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <form id="actionForm">
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="date" class="form-label">{{ _('日期') }}</label>
+                    <form id="actionForm" class="needs-validation" novalidate>
+                        <!-- 基本信息行 -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label for="date" class="form-label required">{{ _('沟通日期') }}</label>
                                 <input type="date" class="form-control" id="date" name="date" required>
+                                <div class="invalid-feedback">{{ _('请选择沟通日期') }}</div>
                             </div>
-                            <div class="col-md-6 mb-3">
+                            <div class="col-md-6">
                                 <label for="contact" class="form-label">{{ _('联系人') }}</label>
-                                <input type="text" class="form-control" id="contact" value="{{ contact.name }}" readonly>
-                                <input type="hidden" name="contact_id" value="{{ contact.id }}">
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-user text-muted"></i>
+                                    </span>
+                                    <input type="text" class="form-control bg-light" id="contact" value="{{ contact.name }}" readonly>
+                                    <input type="hidden" name="contact_id" value="{{ contact.id }}">
+                                </div>
                             </div>
                         </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
+
+                        <!-- 关联信息行 -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
                                 <label for="company" class="form-label">{{ _('企业名称') }}</label>
-                                <input type="text" class="form-control" id="company" value="{{ company.company_name }}" readonly>
-                                <input type="hidden" name="company_id" value="{{ company.id }}">
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-building text-muted"></i>
+                                    </span>
+                                    <input type="text" class="form-control bg-light" id="company" value="{{ company.company_name }}" readonly>
+                                    <input type="hidden" name="company_id" value="{{ company.id }}">
+                                </div>
                             </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="project" class="form-label">{{ _('关联项目') }}</label>
+                            <div class="col-md-6">
+                                <label for="project_id" class="form-label">{{ _('关联项目') }}</label>
                                 <select class="form-select" id="project_id" name="project_id">
-                                    <option value="">-- {{ _('请选择项目') }} --</option>
+                                    <option value="">{{ _('请选择关联项目（可选）') }}</option>
                                     {% for project in projects %}
                                     <option value="{{ project.id }}">{{ project.project_name }}</option>
                                     {% endfor %}
                                 </select>
+                                <div class="form-text">{{ _('选择相关的项目，有助于更好地追踪沟通进展') }}</div>
                             </div>
                         </div>
-                        <div class="mb-3">
-                            <label for="communication" class="form-label">{{ _('沟通情况') }}</label>
-                            <textarea class="form-control" id="communication" name="communication" rows="4" required></textarea>
+
+                        <!-- 沟通内容 -->
+                        <div class="mb-4">
+                            <label for="communication" class="form-label required">{{ _('沟通内容') }}</label>
+                            <textarea class="form-control" id="communication" name="communication" 
+                                    rows="6" 
+                                    placeholder="{{ _('请详细描述本次沟通的内容、讨论的要点、达成的共识等...') }}" 
+                                    required></textarea>
+                            <div class="invalid-feedback">{{ _('请输入沟通内容') }}</div>
+                            <div class="form-text">{{ _('建议包含：沟通目的、讨论内容、结果总结、后续计划等') }}</div>
                         </div>
-                        <div class="mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="is_shared" name="is_shared" checked>
-                                <label class="form-check-label" for="is_shared">
-                                    {{ _('共享此记录') }}
-                                </label>
-                                <small class="form-text text-muted d-block">{{ _('取消勾选后，此记录仅对管理员和上级账户可见') }}</small>
+
+                        <!-- 权限设置 -->
+                        <div class="mb-4">
+                            <div class="card bg-light border-0">
+                                <div class="card-body py-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="is_shared" name="is_shared" checked>
+                                        <label class="form-check-label fw-medium" for="is_shared">
+                                            <i class="fas fa-share-alt me-1"></i>{{ _('共享此记录') }}
+                                        </label>
+                                    </div>
+                                    <small class="text-muted">
+                                        {{ _('开启后，团队成员可以查看此沟通记录；关闭后仅管理员和上级可见') }}
+                                    </small>
+                                </div>
                             </div>
                         </div>
-                        <div class="text-end">
-                            <button type="button" id="saveButton" class="btn btn-primary me-2">
-                                {{ _('保存') }}
-                            </button>
+
+                        <!-- 操作按钮 -->
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <div class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                <small>{{ _('保存后将自动返回企业详情页面') }}</small>
+                            </div>
+                            <div class="d-flex gap-2">
+                                {{ render_button(
+                                    text=_('保存记录'),
+                                    color='primary',
+                                    icon='fas fa-save',
+                                    type='button'
+                                ) }}
+                                {{ render_button(
+                                    text=_('取消'),
+                                    href=url_for('customer.view_company', company_id=company.id),
+                                    color='outline-secondary'
+                                ) }}
+                            </div>
                         </div>
                     </form>
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="card mb-3">
-                <div class="card-header">
-                    <h5 class="mb-0">{{ _('行动记录统计') }}</h5>
+
+        <!-- 侧边栏：信息面板 -->
+        <div class="col-lg-4">
+            <!-- 侧边栏：联系人统计信息 -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-chart-bar me-2"></i>
+                        <h6 class="card-title mb-0">{{ _('沟通统计') }}</h6>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-grow-1">
-                            <h6 class="mb-0">{{ contact.name }}</h6>
+                    <!-- 联系人信息 -->
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="flex-shrink-0">
+                            <div class="avatar bg-light rounded-circle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                <i class="fas fa-user text-primary"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="mb-1">{{ contact.name }}</h6>
                             <small class="text-muted">{{ company.company_name }}</small>
-                        </div>
-                        <div class="ms-3">
-                            <span class="badge bg-primary rounded-pill fs-5">{{ action_count }}</span>
+                            {% if contact.position %}
+                            <div class="mt-1">
+                                <span class="badge badge-pill badge-transparent bg-light text-dark">{{ contact.position }}</span>
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
-                    <hr>
-                    <div class="text-muted">
-                        <small>{{ _('总共记录了') }} {{ action_count }} {{ _('次沟通行动') }}</small>
+
+                    <!-- 统计数据 -->
+                    <div class="row g-3 text-center">
+                        <div class="col-6">
+                            <div class="border rounded p-3">
+                                <div class="display-6 text-primary mb-1">{{ action_count }}</div>
+                                <small class="text-muted">{{ _('沟通次数') }}</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border rounded p-3">
+                                <div class="display-6 text-success mb-1">{{ projects|length }}</div>
+                                <small class="text-muted">{{ _('关联项目') }}</small>
+                            </div>
+                        </div>
                     </div>
+
+                    {% if action_count > 0 %}
+                    <hr class="my-3">
+                    <div class="text-center">
+                        <small class="text-muted">
+                            <i class="fas fa-calendar-alt me-1"></i>
+                            {{ _('最近沟通') }}：
+                            {% if actions %}
+                            {{ actions[0].date.strftime('%Y年%m月%d日') }}
+                            {% else %}
+                            {{ _('暂无记录') }}
+                            {% endif %}
+                        </small>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
 
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">{{ _('历史沟通记录') }}</h5>
+            <!-- 历史沟通记录 -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-history text-secondary me-2"></i>
+                            <h6 class="card-title mb-0">{{ _('最近沟通') }}</h6>
+                        </div>
+                        {% if action_count > 3 %}
+                        <a href="{{ url_for('customer.view_company', company_id=company.id) }}#actions" class="btn btn-outline-primary btn-sm">
+                            {{ _('查看全部') }}
+                        </a>
+                        {% endif %}
+                    </div>
                 </div>
                 <div class="card-body p-0">
-                    <div class="communication-history" style="max-height: 500px; overflow-y: auto;">
-                        {% for action in actions %}
-                        <div class="p-3 border-bottom {% if loop.first %}bg-light{% endif %}">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <div>
-                                    <small class="text-muted">{{ action.date.strftime('%Y-%m-%d') }}</small>
+                    {% if actions %}
+                    <div class="communication-history">
+                        {% for action in actions[:3] %}
+                        <div class="p-3 {% if not loop.last %}border-bottom{% endif %} {% if loop.first %}bg-light{% endif %}">
+                            <!-- 沟通记录头部 -->
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-calendar-day text-muted me-2"></i>
+                                        <span class="fw-medium">{{ action.date.strftime('%m月%d日') }}</span>
+                                        {% if loop.first %}
+                                        <span class="badge bg-success ms-2">{{ _('最新') }}</span>
+                                        {% endif %}
+                                    </div>
                                     {% if action.owner %}
-                                    <small class="ms-2 text-muted">{{ _('记录人') }}: {{ action.owner.real_name if action.owner.real_name else action.owner.username }}</small>
+                                    <small class="text-muted">
+                                        <i class="fas fa-user me-1"></i>
+                                        {{ action.owner.real_name if action.owner.real_name else action.owner.username }}
+                                    </small>
                                     {% endif %}
                                 </div>
-                                {% if loop.first %}
-                                <span class="badge bg-info">{{ _('上次沟通') }}</span>
-                                {% endif %}
                             </div>
-                            <div class="text-muted" style="white-space: pre-wrap;">{{ action.communication }}</div>
+                            
+                            <!-- 沟通内容预览 -->
+                            <div class="text-muted">
+                                <small style="line-height: 1.4;">
+                                    {% set preview_text = action.communication[:60] %}
+                                    {{ preview_text }}
+                                    {% if action.communication|length > 60 %}...{% endif %}
+                                </small>
+                            </div>
                         </div>
                         {% endfor %}
                     </div>
+                    {% else %}
+                    <!-- 空状态 -->
+                    <div class="text-center py-5">
+                        <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+                        <p class="text-muted mb-0">{{ _('暂无沟通记录') }}</p>
+                        <small class="text-muted">{{ _('完成此次记录后将显示在这里') }}</small>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<style>
-.communication-history::-webkit-scrollbar {
-    width: 6px;
-}
-.communication-history::-webkit-scrollbar-track {
-    background: #f1f1f1;
-}
-.communication-history::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 3px;
-}
-.communication-history::-webkit-scrollbar-thumb:hover {
-    background: #555;
-}
-</style>
 
 <!-- 通知弹窗 -->
 <div class="toast-container position-fixed bottom-0 end-0 p-3">
   <div id="resultToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
     <div class="toast-header">
+      <i class="fas fa-info-circle me-2" id="toastIcon"></i>
       <strong class="me-auto" id="toastTitle">{{ _('提示') }}</strong>
       <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
     </div>
@@ -139,38 +297,129 @@
   </div>
 </div>
 
+{% endblock %}
+
+{% block scripts %}
 <script>
+// 国际化文本
 window.i18nTexts = {
     saving: '{{ _("保存中...") }}',
     success: '{{ _("成功") }}',
     error: '{{ _("错误") }}',
-    save: '{{ _("保存") }}',
-    submitError: '{{ _("提交数据时发生错误，请稍后重试") }}'
+    save: '{{ _("保存记录") }}',
+    saveRecord: '{{ _("保存记录") }}',
+    submitError: '{{ _("提交数据时发生错误，请稍后重试") }}',
+    pleaseSelectDate: '{{ _("请选择沟通日期") }}',
+    pleaseEnterContent: '{{ _("请输入沟通内容") }}',
+    formValidationFailed: '{{ _("表单验证失败，请检查输入内容") }}'
 };
 
 document.addEventListener('DOMContentLoaded', function() {
-    // 获取今天的日期并设置为默认值
+    // 初始化页面
+    initializePage();
+    
+    // 初始化表单验证
+    initializeFormValidation();
+    
+    // 初始化保存功能
+    initializeSaveAction();
+});
+
+/**
+ * 初始化页面基本设置
+ */
+function initializePage() {
+    // 设置今天的日期为默认值
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('date').value = today;
     
-    // 获取表单和保存按钮
-    const actionForm = document.getElementById('actionForm');
-    const saveButton = document.getElementById('saveButton');
+    // 聚焦到沟通内容输入框
+    setTimeout(() => {
+        document.getElementById('communication').focus();
+    }, 100);
+}
+
+/**
+ * 初始化Bootstrap表单验证
+ */
+function initializeFormValidation() {
+    // 获取表单
+    const form = document.getElementById('actionForm');
     
-    // 获取结果提示框
+    // 添加Bootstrap验证样式
+    form.addEventListener('submit', function(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        if (!form.checkValidity()) {
+            form.classList.add('was-validated');
+            return false;
+        }
+        
+        return true;
+    });
+    
+    // 实时验证
+    const requiredFields = form.querySelectorAll('[required]');
+    requiredFields.forEach(field => {
+        field.addEventListener('blur', function() {
+            if (this.checkValidity()) {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            } else {
+                this.classList.remove('is-valid');
+                this.classList.add('is-invalid');
+            }
+        });
+        
+        field.addEventListener('input', function() {
+            if (this.classList.contains('is-invalid') && this.checkValidity()) {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            }
+        });
+    });
+}
+
+/**
+ * 初始化保存操作
+ */
+function initializeSaveAction() {
+    // 获取表单和按钮
+    const actionForm = document.getElementById('actionForm');
+    const saveButton = document.querySelector('[data-confirm-action="true"]') || document.querySelector('.btn-primary');
+    
+    // 获取通知组件
     const resultToast = new bootstrap.Toast(document.getElementById('resultToast'));
     const toastTitle = document.getElementById('toastTitle');
     const toastMessage = document.getElementById('toastMessage');
+    const toastIcon = document.getElementById('toastIcon');
     
-    // 添加保存按钮点击事件
-    saveButton.addEventListener('click', function() {
+    if (!saveButton) {
+        console.error('Save button not found');
+        return;
+    }
+    
+    // 保存按钮点击事件
+    saveButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        
         // 表单验证
         if (!actionForm.checkValidity()) {
-            actionForm.reportValidity();
+            actionForm.classList.add('was-validated');
+            showToast('error', window.i18nTexts.error, window.i18nTexts.formValidationFailed);
             return;
         }
         
-        // 获取表单数据
+        // 执行保存
+        performSave();
+    });
+    
+    /**
+     * 执行保存操作
+     */
+    function performSave() {
+        // 收集表单数据
         const formData = {
             date: document.getElementById('date').value,
             project_id: document.getElementById('project_id').value,
@@ -178,9 +427,8 @@ document.addEventListener('DOMContentLoaded', function() {
             is_shared: document.getElementById('is_shared').checked
         };
         
-        // 禁用保存按钮，防止重复提交
-        saveButton.disabled = true;
-        saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + (window.i18nTexts ? window.i18nTexts.saving : '保存中...');
+        // 更新按钮状态
+        updateButtonState(true);
         
         // 发送API请求
         fetch(`/customer/api/contacts/{{ contact.id }}/add_action`, {
@@ -195,37 +443,75 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             if (data.success) {
                 // 显示成功消息
-                toastTitle.textContent = window.i18nTexts ? window.i18nTexts.success : '成功';
-                toastMessage.textContent = data.message;
-                resultToast.show();
+                showToast('success', window.i18nTexts.success, data.message);
                 
-                // 延迟后跳转到企业详情页面
+                // 延迟跳转
                 setTimeout(() => {
                     window.location.href = "{{ url_for('customer.view_company', company_id=company.id) }}";
                 }, 1500);
             } else {
                 // 显示错误消息
-                toastTitle.textContent = window.i18nTexts ? window.i18nTexts.error : '错误';
-                toastMessage.textContent = data.message;
-                resultToast.show();
-                
-                // 恢复保存按钮状态
-                saveButton.disabled = false;
-                saveButton.innerHTML = window.i18nTexts ? window.i18nTexts.save : '保存';
+                showToast('error', window.i18nTexts.error, data.message);
+                updateButtonState(false);
             }
         })
         .catch(error => {
-            console.error('Error:', error);
-            // 显示错误消息
-            toastTitle.textContent = window.i18nTexts ? window.i18nTexts.error : '错误';
-            toastMessage.textContent = window.i18nTexts ? window.i18nTexts.submitError : '提交数据时发生错误，请稍后重试';
-            resultToast.show();
-            
-            // 恢复保存按钮状态
-            saveButton.disabled = false;
-            saveButton.innerHTML = window.i18nTexts ? window.i18nTexts.save : '保存';
+            console.error('Save action error:', error);
+            showToast('error', window.i18nTexts.error, window.i18nTexts.submitError);
+            updateButtonState(false);
         });
-    });
-});
+    }
+    
+    /**
+     * 更新按钮状态
+     */
+    function updateButtonState(saving) {
+        if (saving) {
+            saveButton.disabled = true;
+            const originalIcon = saveButton.querySelector('i');
+            if (originalIcon) {
+                originalIcon.className = 'fas fa-spinner fa-spin me-1';
+            }
+            saveButton.childNodes.forEach(node => {
+                if (node.nodeType === 3) { // 文本节点
+                    node.textContent = window.i18nTexts.saving;
+                }
+            });
+        } else {
+            saveButton.disabled = false;
+            const icon = saveButton.querySelector('i');
+            if (icon) {
+                icon.className = 'fas fa-save me-1';
+            }
+            saveButton.childNodes.forEach(node => {
+                if (node.nodeType === 3) {
+                    node.textContent = window.i18nTexts.saveRecord;
+                }
+            });
+        }
+    }
+    
+    /**
+     * 显示通知
+     */
+    function showToast(type, title, message) {
+        let iconClass = '';
+        switch(type) {
+            case 'success':
+                iconClass = 'fas fa-check-circle me-2 text-success';
+                break;
+            case 'error':
+                iconClass = 'fas fa-exclamation-triangle me-2 text-danger';
+                break;
+            default:
+                iconClass = 'fas fa-info-circle me-2 text-info';
+        }
+        
+        toastIcon.className = iconClass;
+        toastTitle.textContent = title;
+        toastMessage.textContent = message;
+        resultToast.show();
+    }
+}
 </script>
 {% endblock %}

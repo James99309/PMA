@@ -2,7 +2,7 @@
 {% import 'macros/ui_helpers.html' as ui %}
 {% from 'macros/ui_helpers.html' import render_button %}
 
-{% block title %}通知中心{% endblock %}
+{% block title %}{{ _('通知中心') }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid page-with-fixed-nav">
@@ -10,7 +10,7 @@
     <div class="page-header-with-actions mb-4">
         <div class="row align-items-center">
             <div class="col-auto">
-                <h1 class="page-title mb-0">通知中心</h1>
+                <h1 class="page-title mb-0">{{ _('通知中心') }}</h1>
             </div>
             <div class="col text-end">
                 <!-- 操作按钮组 -->
@@ -23,7 +23,7 @@
 
     <div class="row mb-4">
         <div class="col-12">
-            <p class="text-muted">管理您的通知订阅设置，选择您想要接收通知的账户及其相关行为。</p>
+            <p class="text-muted">{{ _('管理您的通知订阅设置，选择您想要接收通知的账户及其相关行为。') }}</p>
         </div>
     </div>
 
@@ -34,53 +34,53 @@
             <div class="card shadow-sm border-warning">
                 <div class="card-header bg-warning bg-opacity-10">
                     <h5 class="card-title mb-0 text-warning">
-                        <i class="fas fa-crown me-2"></i>解决方案经理特权设置
+                        <i class="fas fa-crown me-2"></i>{{ _('解决方案经理特权设置') }}
                     </h5>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted mb-3">作为解决方案经理，您可以接收全局的报价单和项目相关邮件通知。</p>
+                    <p class="text-muted mb-3">{{ _('作为解决方案经理，您可以接收全局的报价单和项目相关邮件通知。') }}</p>
                     
                     <form id="solutionManagerForm">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="row">
                             <div class="col-md-6">
-                                <h6 class="fw-bold mb-3">报价单通知</h6>
+                                <h6 class="fw-bold mb-3">{{ _('报价单通知') }}</h6>
                                 <div class="form-check mb-2">
                                     <input class="form-check-input" type="checkbox" id="quotation_created" 
                                            {% if solution_manager_settings.quotation_created %}checked{% endif %}>
                                     <label class="form-check-label" for="quotation_created">
-                                        报价单新建通知
+                                        {{ _('报价单新建通知') }}
                                     </label>
                                 </div>
                                 <div class="form-check mb-3">
                                     <input class="form-check-input" type="checkbox" id="quotation_updated"
                                            {% if solution_manager_settings.quotation_updated %}checked{% endif %}>
                                     <label class="form-check-label" for="quotation_updated">
-                                        报价单更新通知
+                                        {{ _('报价单更新通知') }}
                                     </label>
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <h6 class="fw-bold mb-3">项目通知</h6>
+                                <h6 class="fw-bold mb-3">{{ _('项目通知') }}</h6>
                                 <div class="form-check mb-2">
                                     <input class="form-check-input" type="checkbox" id="project_created"
                                            {% if solution_manager_settings.project_created %}checked{% endif %}>
                                     <label class="form-check-label" for="project_created">
-                                        项目新建通知
+                                        {{ _('项目新建通知') }}
                                     </label>
                                 </div>
                                 <div class="form-check mb-3">
                                     <input class="form-check-input" type="checkbox" id="project_stage_changed"
                                            {% if solution_manager_settings.project_stage_changed %}checked{% endif %}>
                                     <label class="form-check-label" for="project_stage_changed">
-                                        项目阶段推进通知
+                                        {{ _('项目阶段推进通知') }}
                                     </label>
                                 </div>
                             </div>
                         </div>
                         
                         <div class="d-flex justify-content-end">
-                            {{ ui.render_button('保存特权设置', type='button', color='warning', attrs='id="saveSolutionManagerSettings"') }}
+                            {{ ui.render_button(_('保存特权设置'), type='button', color='warning', attrs='id="saveSolutionManagerSettings"') }}
                         </div>
                     </form>
                 </div>
@@ -92,8 +92,8 @@
     <!-- 原有的账户行为订阅设置 -->
     <div class="row mb-4">
         <div class="col-12">
-            <h4 class="mb-3">账户行为订阅设置</h4>
-            <p class="text-muted">选择您想要接收通知的账户及其相关行为，系统将在事件发生时通过邮件通知您。</p>
+            <h4 class="mb-3">{{ _('账户行为订阅设置') }}</h4>
+            <p class="text-muted">{{ _('选择您想要接收通知的账户及其相关行为，系统将在事件发生时通过邮件通知您。') }}</p>
         </div>
     </div>
 
@@ -106,11 +106,11 @@
             <div class="col-md-4 mb-4">
                 <div class="card shadow-sm">
                     <div class="card-header bg-light">
-                        <h5 class="card-title mb-0">选择接收账户</h5>
+                        <h5 class="card-title mb-0">{{ _('选择接收账户') }}</h5>
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
-                            <input type="text" class="form-control" id="userSearch" placeholder="搜索账户...">
+                            <input type="text" class="form-control" id="userSearch" placeholder="{{ _('搜索账户...') }}">
                         </div>
                         <div class="user-list" style="max-height: 400px; overflow-y: auto;">
                             {% for user in viewable_users %}
@@ -123,7 +123,7 @@
                                     <label class="form-check-label" for="user_{{ user.id }}">
                                         {{ user.real_name or user.username }}
                                         {% if user.id == current_user.id %}
-                                            <span class="badge bg-primary">我</span>
+                                            <span class="badge bg-primary">{{ _('我') }}</span>
                                         {% endif %}
                                     </label>
                                 </div>
@@ -137,13 +137,13 @@
             <div class="col-md-8">
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-light">
-                        <h5 class="card-title mb-0">选择接收的行为通知</h5>
+                        <h5 class="card-title mb-0">{{ _('选择接收的行为通知') }}</h5>
                     </div>
                     <div class="card-body">
                         <div id="behaviorCards">
                             <!-- 行为卡片将通过JavaScript动态生成 -->
                             <div class="alert alert-info">
-                                请在左侧选择要订阅的账户
+                                {{ _('请在左侧选择要订阅的账户') }}
                             </div>
                         </div>
                     </div>
@@ -153,9 +153,9 @@
                 <div class="d-flex justify-content-end mb-5">
                     <form action="{{ url_for('notification.restore_default_subscriptions') }}" method="POST" class="me-2">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        {{ ui.render_button('恢复默认', type='submit', color='secondary') }}
+                        {{ ui.render_button(_('恢复默认'), type='submit', color='secondary') }}
                     </form>
-                    {{ ui.render_button('保存设置', type='button', color='primary', attrs='id="saveSubscriptions"') }}
+                    {{ ui.render_button(_('保存设置'), type='button', color='primary', attrs='id="saveSubscriptions"') }}
                 </div>
             </div>
         </div>
@@ -168,9 +168,8 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="mb-0 user-name"></h6>
-                <div>
-                    <button type="button" class="btn btn-sm btn-outline-primary select-all">全选</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary deselect-all">取消全选</button>
+                <div class="button-group">
+                    <!-- 按钮将通过JavaScript动态生成 -->
                 </div>
             </div>
             <div class="card-body">
@@ -194,6 +193,36 @@
 {% block scripts %}
 {{ super() }}
 <script>
+// 国际化文本对象
+window.notificationI18n = {
+    selectAll: '{{ _("全选") }}',
+    deselectAll: '{{ _("取消全选") }}',
+    pleaseSelectAccounts: '{{ _("请在左侧选择要订阅的账户") }}',
+    privilegeSettingsSaved: '{{ _("特权设置已保存") }}',
+    subscriptionSettingsSaved: '{{ _("订阅设置已保存") }}',
+    saveFailed: '{{ _("保存失败") }}',
+    saveSubscriptionFailed: '{{ _("保存订阅失败") }}'
+};
+
+// 创建标准按钮函数（模拟render_button组件）
+function createStandardButton(text, color, size, onClick) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    
+    // 按照render_button样式设置类名
+    let btnClass = 'btn ';
+    if (size === 'sm') {
+        btnClass += 'btn-sm ';
+    }
+    btnClass += `btn-${color} rounded-pill text-xs py-1 px-3 min-width-sm`;
+    
+    button.className = btnClass;
+    button.innerHTML = `<span class="d-none d-md-inline">${text}</span>`;
+    button.style.marginRight = '0.25rem'; // 按钮间距
+    button.addEventListener('click', onClick);
+    return button;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // 解决方案经理设置保存功能
     {% if is_solution_manager %}
@@ -218,14 +247,14 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    showAlert('success', '特权设置已保存');
+                    showAlert('success', window.notificationI18n.privilegeSettingsSaved);
                 } else {
-                    showAlert('danger', data.message || '保存失败');
+                    showAlert('danger', data.message || window.notificationI18n.saveFailed);
                 }
             })
             .catch(error => {
-                console.error('保存失败:', error);
-                showAlert('danger', '保存失败：' + error.message);
+                console.error(window.notificationI18n.saveFailed + ':', error);
+                showAlert('danger', window.notificationI18n.saveFailed + '：' + error.message);
             });
         });
     }
@@ -312,7 +341,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }));
         
         if (selectedUsers.length === 0) {
-            behaviorCards.innerHTML = '<div class="alert alert-info">请在左侧选择要订阅的账户</div>';
+            behaviorCards.innerHTML = '<div class="alert alert-info">' + window.notificationI18n.pleaseSelectAccounts + '</div>';
             return;
         }
         
@@ -345,19 +374,34 @@ document.addEventListener('DOMContentLoaded', function() {
             eventContainer.appendChild(checkboxElement);
         });
         
-        // 绑定全选/取消全选按钮
-        const selectAllBtn = cardElement.querySelector('.select-all');
-        const deselectAllBtn = cardElement.querySelector('.deselect-all');
+        // 创建标准按钮
+        const buttonGroup = cardElement.querySelector('.button-group');
         
-        selectAllBtn.addEventListener('click', function() {
-            const checkboxes = cardDiv.querySelectorAll('.event-checkbox');
-            checkboxes.forEach(cb => cb.checked = true);
-        });
+        // 全选按钮
+        const selectAllBtn = createStandardButton(
+            window.notificationI18n.selectAll, 
+            'outline-primary', 
+            'sm',
+            function() {
+                const checkboxes = cardDiv.querySelectorAll('.event-checkbox');
+                checkboxes.forEach(cb => cb.checked = true);
+            }
+        );
         
-        deselectAllBtn.addEventListener('click', function() {
-            const checkboxes = cardDiv.querySelectorAll('.event-checkbox');
-            checkboxes.forEach(cb => cb.checked = false);
-        });
+        // 取消全选按钮  
+        const deselectAllBtn = createStandardButton(
+            window.notificationI18n.deselectAll,
+            'outline-secondary',
+            'sm', 
+            function() {
+                const checkboxes = cardDiv.querySelectorAll('.event-checkbox');
+                checkboxes.forEach(cb => cb.checked = false);
+            }
+        );
+        
+        // 添加按钮到容器
+        buttonGroup.appendChild(selectAllBtn);
+        buttonGroup.appendChild(deselectAllBtn);
         
         return cardElement;
     }
@@ -426,14 +470,14 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    showAlert('success', '订阅设置已保存');
+                    showAlert('success', window.notificationI18n.subscriptionSettingsSaved);
                 } else {
-                    showAlert('danger', data.message || '保存失败');
+                    showAlert('danger', data.message || window.notificationI18n.saveFailed);
                 }
             })
             .catch(error => {
-                console.error('保存订阅失败:', error);
-                showAlert('danger', '保存失败：' + error.message);
+                console.error(window.notificationI18n.saveSubscriptionFailed + ':', error);
+                showAlert('danger', window.notificationI18n.saveFailed + '：' + error.message);
             });
         });
     }

@@ -150,36 +150,36 @@
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="importQuotationModalLabel">批量导入报价单</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+                <h5 class="modal-title" id="importQuotationModalLabel">{{ _('批量导入报价单') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('关闭') }}"></button>
             </div>
             <div class="modal-body">
                 <form id="importQuotationForm" enctype="multipart/form-data">
                     <div class="mb-3">
-                        <label for="ownerSelect" class="form-label">请选择归属账户</label>
+                        <label for="ownerSelect" class="form-label">{{ _('请选择归属账户') }}</label>
                         <select class="form-select" id="ownerSelect" name="owner_id">
-                            <option value="">请选择归属账户</option>
+                            <option value="">{{ _('请选择归属账户') }}</option>
                             <!-- 选项会通过JavaScript动态加载 -->
                         </select>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="quotationExcelFile" class="form-label">上传Excel文件 (.xlsx或.xls) <span class="text-danger">*</span></label>
+                        <label for="quotationExcelFile" class="form-label">{{ _('上传Excel文件') }} (.xlsx或.xls) <span class="text-danger">*</span></label>
                         <input class="form-control" type="file" id="quotationExcelFile" name="quotationExcelFile" accept=".xlsx, .xls" required>
-                        <div class="form-text">请上传包含报价单数据的Excel文件，系统将根据项目名称自动分组生成报价单及明细</div>
+                        <div class="form-text">{{ _('请上传包含报价单数据的Excel文件，系统将根据项目名称自动分组生成报价单及明细') }}</div>
                         <div class="mt-2">
                             <a class="small text-primary" data-bs-toggle="collapse" href="#excelFormatHelp" role="button">
-                                <i class="fas fa-info-circle"></i> 查看Excel格式要求
+                                <i class="fas fa-info-circle"></i> {{ _('查看Excel格式要求') }}
                             </a>
                             <div class="collapse mt-2" id="excelFormatHelp">
                                 <div class="card card-body bg-light">
-                                    <p class="mb-1 fw-bold">Excel表格必须包含以下列：</p>
+                                    <p class="mb-1 fw-bold">{{ _('Excel表格必须包含以下列') }}：</p>
                                     <ul class="mb-2">
-                                        <li><span class="text-danger fw-bold">项目名称</span> - 必填，将按此字段分组为不同报价单</li>
-                                        <li><span class="fw-bold">产品名称</span> - 作为报价单明细项</li>
-                                        <li><span class="fw-bold">型号</span> - 产品型号</li>
-                                        <li><span class="fw-bold">单价</span> - 产品单价</li>
-                                        <li><span class="fw-bold">合计</span> - 产品总价</li>
+                                        <li><span class="text-danger fw-bold">{{ _('项目名称') }}</span> - {{ _('必填，将按此字段分组为不同报价单') }}</li>
+                                        <li><span class="fw-bold">{{ _('产品名称') }}</span> - {{ _('作为报价单明细项') }}</li>
+                                        <li><span class="fw-bold">{{ _('型号') }}</span> - {{ _('产品型号') }}</li>
+                                        <li><span class="fw-bold">{{ _('单价') }}</span> - {{ _('产品单价') }}</li>
+                                        <li><span class="fw-bold">{{ _('合计') }}</span> - {{ _('产品总价') }}</li>
                                     </ul>
                                     <p class="mb-1 small">注意：表头名称必须与上述名称完全一致，包括中文字符</p>
                                     <p class="mb-1 small">如果解析出错，请检查Excel表头是否包含多余的空格或特殊字符</p>
@@ -203,7 +203,7 @@
                     
                     <!-- 进度条区域 -->
                     <div id="importProgress" class="mt-4" style="display: none;">
-                        <h6>正在处理数据...</h6>
+                        <h6>{{ _('正在处理数据') }}...</h6>
                         <div class="progress">
                             <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
                         </div>
@@ -211,16 +211,16 @@
                     
                     <!-- 预览区域 -->
                     <div id="importPreview" class="mt-4" style="display: none;">
-                        <h6>报价单导入预览</h6>
+                        <h6>{{ _('报价单导入预览') }}</h6>
                         <div class="table-responsive">
                             <table class="table table-sm table-bordered table-hover">
                                 <thead class="table-light">
                                     <tr>
-                                        <th>报价单编号</th>
-                                        <th>项目名称</th>
-                                        <th>阶段状态</th>
-                                        <th>总价</th>
-                                        <th>明细数量</th>
+                                        <th>{{ _('报价单编号') }}</th>
+                                        <th>{{ _('项目名称') }}</th>
+                                        <th>{{ _('阶段状态') }}</th>
+                                        <th>{{ _('总价') }}</th>
+                                        <th>{{ _('明细数量') }}</th>
                         </tr>
                                 </thead>
                                 <tbody id="previewTableBody">
@@ -308,15 +308,15 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="batchDeleteModalLabel">确认批量删除</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+                <h5 class="modal-title" id="batchDeleteModalLabel">{{ _('确认批量删除') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('关闭') }}"></button>
             </div>
             <div class="modal-body">
-                <p>您确定要删除选中的 <span id="selectedCount">0</span> 个报价单吗？此操作无法撤销。</p>
+                <p>{{ _('您确定要删除选中的') }} <span id="selectedCount">0</span> {{ _('个报价单吗？此操作无法撤销。') }}</p>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-danger" id="confirmBatchDelete">确认删除</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('取消') }}</button>
+                <button type="button" class="btn btn-danger" id="confirmBatchDelete">{{ _('确认删除') }}</button>
             </div>
         </div>
     </div>
@@ -958,6 +958,9 @@ document.addEventListener('DOMContentLoaded', function() {
         filter: {% if list_config.filter %}{{ list_config.filter | tojson | safe }}{% else %}{}{% endif %},
         table: {% if list_config.table %}{{ list_config.table | tojson | safe }}{% else %}{}{% endif %},
         infinite_scroll: {% if list_config.infinite_scroll %}{{ list_config.infinite_scroll | tojson | safe }}{% else %}{}{% endif %},
+        i18n: {
+            items: '{{ _("项") }}'
+        },
         onDataLoad: function(data) {
             console.log('✅ 报价单数据加载完成:', data);
         }

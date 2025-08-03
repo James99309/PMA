@@ -258,7 +258,7 @@
             <div class="modal-body">
                 <form id="importCustomerForm" enctype="multipart/form-data">
                     <div class="mb-3">
-                        <label for="ownerSelect" class="form-label">请选择归属账户 <span class="text-danger">*</span></label>
+                        <label for="ownerSelect" class="form-label">{{ _('请选择归属账户') }} <span class="text-danger">*</span></label>
                         <select class="form-select" id="ownerSelect" name="owner_id" required>
                             <option value="">请选择...</option>
                             <!-- 选项会通过JavaScript动态加载 -->
@@ -267,9 +267,9 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label for="excelFile" class="form-label">上传Excel文件 (.xlsx或.xls) <span class="text-danger">*</span></label>
+                        <label for="excelFile" class="form-label">{{ _('上传Excel文件 (.xlsx或.xls)') }} <span class="text-danger">*</span></label>
                         <input class="form-control" type="file" id="excelFile" name="excelFile" accept=".xlsx, .xls" required>
-                        <div class="form-text">请上传包含客户数据的Excel文件，系统将查找名为"customer database"的工作表进行导入</div>
+                        <div class="form-text">{{ _('请上传包含客户数据的Excel文件，系统将查找名为"customer database"的工作表进行导入') }}</div>
                     </div>
                     
                     <div class="alert alert-info">
@@ -281,9 +281,9 @@
                             <li>城市 → 省份/城市</li>
                             <li>单位地址 → 详细地址</li>
                             <li>种类 → 企业类型</li>
-                            <li>状态 → 状态（默认为"活跃"）</li>
-                            <li>备注 → 备注（如为"none"则导入为空）</li>
-                            <li>创建时间 → 创建时间（保留原始创建日期，导入时间将记录在"更新时间"字段）</li>
+                            <li>{{ _('状态 → 状态（默认为"活跃"）') }}</li>
+                            <li>{{ _('备注 → 备注（如为"none"则导入为空）') }}</li>
+                            <li>{{ _('创建时间 → 创建时间（保留原始创建日期，导入时间将记录在"更新时间"字段）') }}</li>
                         </ul>
                     </div>
                 </form>
@@ -390,7 +390,7 @@
             <div class="modal-body">
                 <form id="importContactForm" enctype="multipart/form-data">
                     <div class="mb-3">
-                        <label for="contactOwnerSelect" class="form-label">请选择归属账户 <span class="text-danger">*</span></label>
+                        <label for="contactOwnerSelect" class="form-label">{{ _('请选择归属账户') }} <span class="text-danger">*</span></label>
                         <select class="form-select" id="contactOwnerSelect" name="owner_id" required>
                             <option value="">请选择...</option>
                             <!-- 选项会通过JavaScript动态加载 -->
@@ -399,9 +399,9 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label for="contactExcelFile" class="form-label">上传Excel文件 (.xlsx或.xls) <span class="text-danger">*</span></label>
+                        <label for="contactExcelFile" class="form-label">{{ _('上传Excel文件 (.xlsx或.xls)') }} <span class="text-danger">*</span></label>
                         <input class="form-control" type="file" id="contactExcelFile" name="contactExcelFile" accept=".xlsx, .xls" required>
-                        <div class="form-text">请上传包含联系人数据的Excel文件，系统将查找名为"contact database"的工作表进行导入</div>
+                        <div class="form-text">{{ _('请上传包含联系人数据的Excel文件，系统将查找名为"contact database"的工作表进行导入') }}</div>
                     </div>
                     
                     <div class="alert alert-info">
@@ -413,8 +413,8 @@
                             <li>部门 → 部门</li>
                             <li>职位 → 职位</li>
                             <li>联系电话 → 电话</li>
-                            <li>邮件信箱 → 邮箱</li>
-                            <li>创建时间 → 创建时间（保留原始创建日期，导入时间将记录在"更新时间"字段）</li>
+                            <li>{{ _('邮件信箱 → 邮箱') }}</li>
+                            <li>{{ _('创建时间 → 创建时间（保留原始创建日期，导入时间将记录在"更新时间"字段）') }}</li>
                         </ul>
                     </div>
                 </form>
@@ -2435,11 +2435,150 @@ document.addEventListener('DOMContentLoaded', function() {
         stats: {{ list_config.stats | tojson | safe }},
         filter: {{ list_config.filter | tojson | safe }},
         table: {{ list_config.table | tojson | safe }},
-        infinite_scroll: {{ list_config.infinite_scroll | tojson | safe }}
+        infinite_scroll: {{ list_config.infinite_scroll | tojson | safe }},
+        i18n: {
+            items: '{{ _("项") }}',
+            loading: '{{ _("加载中") }}',
+            noData: '{{ _("暂无数据") }}',
+            loadingData: '{{ _("正在加载数据...") }}',
+            total: '{{ _("共") }}'
+        }
     };
     
     // 初始化数据列表
     setupDataList(customerListConfig);
+    
+    // 语言检测和翻译映射
+    const currentLanguage = '{{ session.get("language", "zh") }}';
+    const testTranslation = '{{ _("搜索") }}';
+    console.log('🌐 当前语言设置:', currentLanguage);
+    console.log('🔧 测试翻译 "搜索":', testTranslation);
+    
+    // 硬编码英文翻译映射表（作为后备方案）
+    const uiTranslations = {
+        // 统计卡片标题
+        '全部企业': 'All Companies',
+        '活跃企业': 'Active Companies',
+        '直接客户': 'Direct Customers',
+        '项目客户': 'Project Customers',
+        '家': 'Companies',
+        // 搜索和筛选相关
+        '企业名称或客户信息': 'Company name or customer information',
+        '搜索': 'Search',
+        '客户负责人': 'Customer Owner',
+        '企业类型': 'Company Type',
+        '行业': 'Industry',
+        '国家': 'Country',
+        '状态': 'Status',
+        '企业列表': 'Company List'
+    };
+    
+    // 如果检测到英文环境，则使用服务器端翻译
+    if (currentLanguage === 'en' && testTranslation !== '搜索') {
+        uiTranslations['全部企业'] = '{{ _("全部企业") }}';
+        uiTranslations['活跃企业'] = '{{ _("活跃企业") }}';
+        uiTranslations['直接客户'] = '{{ _("直接客户") }}';
+        uiTranslations['项目客户'] = '{{ _("项目客户") }}';
+        uiTranslations['家'] = '{{ _("家") }}';
+        uiTranslations['企业名称或客户信息'] = '{{ _("企业名称或客户信息") }}';
+        uiTranslations['搜索'] = '{{ _("搜索") }}';
+        uiTranslations['客户负责人'] = '{{ _("客户负责人") }}';
+        uiTranslations['企业类型'] = '{{ _("企业类型") }}';
+        uiTranslations['行业'] = '{{ _("行业") }}';
+        uiTranslations['国家'] = '{{ _("国家") }}';
+        uiTranslations['状态'] = '{{ _("状态") }}';
+        uiTranslations['企业列表'] = '{{ _("企业列表") }}';
+        console.log('✅ 使用服务器端翻译');
+    } else {
+        console.log('⚠️ 服务器端翻译不可用，使用硬编码英文翻译');
+    }
+    
+    // 强制应用UI元素翻译
+    function forceTranslateUI() {
+        console.log('🌍 开始强制翻译UI元素...');
+        
+        // 调试：显示翻译映射表
+        console.log('📋 翻译映射表:', uiTranslations);
+        
+        // 检测是否需要翻译
+        const needsTranslation = currentLanguage === 'en';
+        console.log('🌐 当前语言模式:', currentLanguage);
+        console.log('📝 是否需要翻译:', needsTranslation);
+        
+        if (!needsTranslation) {
+            console.log('⚠️ 检测到中文模式，跳过翻译');
+            return;
+        }
+        
+        // 1. 翻译统计卡片标题
+        document.querySelectorAll('.stats-cards-container .card-title').forEach(titleElement => {
+            let html = titleElement.innerHTML;
+            let translated = false;
+            Object.keys(uiTranslations).forEach(chineseText => {
+                if (html.includes(chineseText)) {
+                    html = html.replace(new RegExp(chineseText, 'g'), uiTranslations[chineseText]);
+                    translated = true;
+                    console.log('✅ 翻译卡片标题:', chineseText, '->', uiTranslations[chineseText]);
+                }
+            });
+            if (translated) {
+                titleElement.innerHTML = html;
+            }
+        });
+        
+        // 2. 翻译单位文本
+        document.querySelectorAll('.stats-cards-container .text-muted').forEach(unitElement => {
+            const text = unitElement.textContent.trim();
+            if (uiTranslations[text]) {
+                unitElement.textContent = uiTranslations[text];
+                console.log('✅ 翻译单位:', text, '->', uiTranslations[text]);
+            }
+        });
+        
+        // 3. 翻译搜索框占位符
+        const searchInput = document.querySelector('input[name="search"]');
+        if (searchInput && searchInput.placeholder) {
+            const placeholder = searchInput.placeholder;
+            if (uiTranslations[placeholder]) {
+                searchInput.placeholder = uiTranslations[placeholder];
+                searchInput.title = uiTranslations[placeholder];
+                console.log('✅ 翻译搜索框占位符:', placeholder, '->', uiTranslations[placeholder]);
+            }
+        }
+        
+        // 4. 翻译表单标签
+        document.querySelectorAll('.form-label').forEach(label => {
+            const text = label.textContent.trim();
+            if (uiTranslations[text]) {
+                label.textContent = uiTranslations[text];
+                label.title = uiTranslations[text];
+                console.log('✅ 翻译表单标签:', text, '->', uiTranslations[text]);
+            }
+        });
+        
+        // 5. 翻译表格标题
+        document.querySelectorAll('.card-header h5').forEach(headerElement => {
+            let html = headerElement.innerHTML;
+            let translated = false;
+            Object.keys(uiTranslations).forEach(chineseText => {
+                if (html.includes(chineseText)) {
+                    html = html.replace(new RegExp(chineseText, 'g'), uiTranslations[chineseText]);
+                    translated = true;
+                    console.log('✅ 翻译表格标题:', chineseText, '->', uiTranslations[chineseText]);
+                }
+            });
+            if (translated) {
+                headerElement.innerHTML = html;
+            }
+        });
+        
+        console.log('🌍 UI翻译完成!');
+    }
+    
+    // 多次尝试翻译，确保所有动态内容都被处理
+    setTimeout(forceTranslateUI, 100);
+    setTimeout(forceTranslateUI, 500);
+    setTimeout(forceTranslateUI, 1000);
 });
 </script>
 {% endblock %}

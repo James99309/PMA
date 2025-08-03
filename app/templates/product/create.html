@@ -246,7 +246,7 @@
 <div class="container-fluid mt-4">
     <div class="card">
         <div class="card-header">
-            <h5>{% if product %}编辑产品{% else %}创建新产品{% endif %}</h5>
+            <h5>{% if product %}{{ _('编辑产品') }}{% else %}{{ _('创建新产品') }}{% endif %}</h5>
         </div>
         <div class="card-body">
             <form id="product-form" enctype="multipart/form-data">
@@ -319,9 +319,9 @@
 
                     <!-- 产品名称 (支持二级下拉) -->
                     <div class="col-md-6 mb-3">
-                        <label for="product-name" class="form-label required-field">产品名称</label>
+                        <label for="product-name" class="form-label required-field">{{ _('产品名称') }}</label>
                         <div class="product-dropdown-container">
-                            <input type="text" class="form-control" id="product-name" name="product_name" placeholder="选择或输入产品名称" required {% if product %}value="{{ product.product_name }}"{% endif %}>
+                            <input type="text" class="form-control" id="product-name" name="product_name" placeholder="{{ _('选择或输入产品名称') }}" required {% if product %}value="{{ product.product_name }}"{% endif %}>
                             <div class="category-list" id="category-list">
                                 <!-- 类别列表将通过JavaScript动态加载 -->
                             </div>
@@ -339,9 +339,9 @@
 
                     <!-- 产品型号 -->
                     <div class="col-md-6 mb-3">
-                        <label for="model" class="form-label required-field">产品型号</label>
+                        <label for="model" class="form-label required-field">{{ _('产品型号') }}</label>
                         <div class="product-dropdown-container">
-                            <input type="text" class="form-control" id="model" name="model" placeholder="选择或输入产品型号" required {% if product %}value="{{ product.model }}"{% endif %}>
+                            <input type="text" class="form-control" id="model" name="model" placeholder="{{ _('选择或输入产品型号') }}" required {% if product %}value="{{ product.model }}"{% endif %}>
                             <div class="model-list" id="model-list">
                                 <!-- 型号列表将通过JavaScript动态加载 -->
                             </div>
@@ -350,43 +350,43 @@
 
                     <!-- 产品MN号 -->
                     <div class="col-md-6 mb-3">
-                        <label for="product-mn" class="form-label required-field">产品MN号</label>
+                        <label for="product-mn" class="form-label required-field">{{ _('产品MN号') }}</label>
                         <div class="input-group">
-                            <input type="text" class="form-control" id="product-mn" name="product_mn" placeholder="输入MN号" required {% if product %}value="{{ product.product_mn }}"{% endif %}>
-                            <button class="btn btn-outline-secondary" type="button" id="generate-mn" title="生成MN号">
+                            <input type="text" class="form-control" id="product-mn" name="product_mn" placeholder="{{ _('输入MN号') }}" required {% if product %}value="{{ product.product_mn }}"{% endif %}>
+                            <button class="btn btn-outline-secondary" type="button" id="generate-mn" title="{{ _('生成MN号') }}">
                                 <i class="fas fa-magic"></i>
                             </button>
                         </div>
                         <div id="mn-error-message" class="small mt-1"></div>
-                        <small class="text-muted">MN号必须唯一</small>
+                        <small class="text-muted">{{ _('MN号必须唯一') }}</small>
                     </div>
                 </div>
 
                 <!-- 规格与价格 -->
                 <div class="row mb-4">
                     <div class="col-md-12">
-                        <h6 class="border-bottom pb-2">规格与价格</h6>
+                        <h6 class="border-bottom pb-2">{{ _('规格与价格') }}</h6>
                     </div>
 
                     <!-- 产品类型 -->
                     <div class="col-md-6 mb-3">
-                        <label for="type" class="form-label">产品类型</label>
+                        <label for="type" class="form-label">{{ _('产品类型') }}</label>
                         <select class="form-select" id="type" name="type">
-                            <option value="">-- 选择产品类型 --</option>
-                            <option value="渠道产品">渠道产品</option>
-                            <option value="项目产品">项目产品</option>
-                            <option value="第三方产品">第三方产品</option>
+                            <option value="">-- {{ _('选择产品类型') }} --</option>
+                            <option value="渠道产品">{{ _('渠道产品') }}</option>
+                            <option value="项目产品">{{ _('项目产品') }}</option>
+                            <option value="第三方产品">{{ _('第三方产品') }}</option>
                         </select>
                     </div>
 
                     <!-- 品牌 -->
                     <div class="col-md-6 mb-3">
-                        <label for="brand" class="form-label">品牌</label>
-                        <input type="text" class="form-control" id="brand" name="brand" placeholder="选择或输入产品品牌" list="brand-list" {% if product %}value="{{ product.brand }}"{% endif %}>
+                        <label for="brand" class="form-label">{{ _('品牌') }}</label>
+                        <input type="text" class="form-control" id="brand" name="brand" placeholder="{{ _('选择或输入产品品牌') }}" list="brand-list" {% if product %}value="{{ product.brand }}"{% endif %}>
                         <datalist id="brand-list">
                             <!-- 品牌选项将通过JavaScript动态加载 -->
                         </datalist>
-                        <div class="invalid-feedback">请选择或输入品牌</div>
+                        <div class="invalid-feedback">{{ _('请选择或输入品牌') }}</div>
                     </div>
 
                     <!-- 厂商产品标记 -->
@@ -406,22 +406,22 @@
 
                     <!-- 单位 -->
                     <div class="col-md-6 mb-3">
-                        <label for="unit" class="form-label">单位</label>
+                        <label for="unit" class="form-label">{{ _('单位') }}</label>
                         <select class="form-select" id="unit" name="unit">
-                            <option value="">-- 选择单位 --</option>
+                            <option value="">-- {{ _('选择单位') }} --</option>
                             <!-- 单位选项将通过JavaScript动态加载 -->
                         </select>
                     </div>
 
                     <!-- 市场价格 -->
                     <div class="col-md-4 mb-3">
-                        <label for="retail-price" class="form-label">市场价格</label>
+                        <label for="retail-price" class="form-label">{{ _('市场价格') }}</label>
                         <input type="number" class="form-control" id="retail-price" name="retail_price" placeholder="0.00" step="0.01" min="0" {% if product %}value="{{ product.retail_price }}"{% endif %}>
                     </div>
 
                     <!-- 货币类型 -->
                     <div class="col-md-2 mb-3">
-                        <label for="currency" class="form-label">货币</label>
+                        <label for="currency" class="form-label">{{ _('货币') }}</label>
                         <select class="form-select" id="currency" name="currency">
                             <option value="CNY" {% if not product or product.currency == 'CNY' or not product.currency %}selected{% endif %}>人民币 (CNY)</option>
                             <option value="USD" {% if product and product.currency == 'USD' %}selected{% endif %}>美元 (USD)</option>
@@ -448,14 +448,14 @@
 
                 <!-- 规格说明 -->
                 <div class="col-md-12 mb-3">
-                    <label for="specification" class="form-label">规格说明</label>
-                    <textarea class="form-control" id="specification" name="specification" rows="3" placeholder="产品规格说明">{% if product %}{{ product.specification }}{% endif %}</textarea>
+                    <label for="specification" class="form-label">{{ _('规格说明') }}</label>
+                    <textarea class="form-control" id="specification" name="specification" rows="3" placeholder="{{ _('产品规格说明') }}">{% if product %}{{ product.specification }}{% endif %}</textarea>
                 </div>
 
                 <!-- 按钮工具栏 -->
                 <div class="btn-toolbar">
-                    {{ render_button('保存', type='submit', color='primary', icon='fas fa-save') }}
-                    {{ render_button('取消', href=url_for('product_route.product_list'), color='secondary', icon='fas fa-times') }}
+                    {{ render_button(_('保存'), type='submit', color='primary', icon='fas fa-save') }}
+                    {{ render_button(_('取消'), href=url_for('product_route.product_list'), color='secondary', icon='fas fa-times') }}
                 </div>
             </form>
         </div>

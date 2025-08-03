@@ -20,6 +20,18 @@ performance_bp = Blueprint('performance', __name__, url_prefix='/performance')
 @permission_required('performance_management', 'view')
 def index():
     """绩效管理首页"""
+    # 首先检测语言环境，用于后续所有国际化处理（包括异常处理）
+    from app.utils.i18n import get_current_language
+    from flask import session
+    from app.utils.dictionary_helpers import prepare_stats_card_amount, prepare_stats_card_amount_from_wan
+    current_language = get_current_language()
+    is_english = current_language == 'en'
+    
+    # 调试信息 - 可在生产环境中移除
+    print(f"🌐 语言环境检测: current_language={current_language}, is_english={is_english}")
+    print(f"🌐 语言类型: type={type(current_language)}, repr={repr(current_language)}")
+    print(f"🌐 是否以en开头: {current_language.startswith('en') if current_language else False}")
+    
     try:
         current_year = datetime.now().year
         current_tab = request.args.get('tab', 'overview')
@@ -87,9 +99,17 @@ def index():
         
         # 准备简化的数据（移除图表相关数据）
         chart_data = {
-            'months': [f'{m}月' for m in range(1, 13)],
+            'months': [f'Month {m}' if is_english else f'{m}月' for m in range(1, 13)],
             'implant_actual': [],
             'sales_actual': []
+        }
+        
+        # 为月度统计准备标准转换的金额数据
+        monthly_converted_amounts = {
+            'implant_actual': [],
+            'sales_actual': [],
+            'implant_target': [],
+            'sales_target': []
         }
         
         # 汇总当年累计数据
@@ -106,10 +126,23 @@ def index():
             
             # 处理实际值
             if stats:
-                implant_actual = float(stats.implant_amount_actual or 0)
-                sales_actual = float(stats.sales_amount_actual or 0)
+                # 保存原始人民币值（用于标准转换组件）
+                implant_actual_cny = float(stats.implant_amount_actual or 0)
+                sales_actual_cny = float(stats.sales_amount_actual or 0)
                 
-                # 货币转换（如果需要）
+                # 添加月度调试信息
+                print(f"📅 月度数据 {month}月:")
+                print(f"  数据库原始值 implant_actual = {implant_actual_cny}")
+                print(f"  数据库原始值 sales_actual = {sales_actual_cny}")
+                print(f"  数据库原始值类型: implant类型={type(stats.implant_amount_actual)}, sales类型={type(stats.sales_amount_actual)}")
+                print(f"  原始对象字符串: implant={repr(stats.implant_amount_actual)}, sales={repr(stats.sales_amount_actual)}")
+                print(f"  当前语言环境 = {current_language}")
+                
+                # 复制用于图表显示的值
+                implant_actual = implant_actual_cny
+                sales_actual = sales_actual_cny
+                
+                # 货币转换（如果需要）- 仅影响图表显示
                 if display_currency != 'CNY':
                     try:
                         implant_actual = exchange_rate_service.convert_amount(
@@ -124,22 +157,44 @@ def index():
                 chart_data['implant_actual'].append(round(implant_actual, 2))
                 chart_data['sales_actual'].append(round(sales_actual, 2))
                 
-                # 累计实际值
-                total_actual['implant'] += float(implant_actual)
-                total_actual['sales'] += float(sales_actual)
+                # 数据库存储的是人民币元值，使用元转换组件
+                print(f"  数据库存储元值：implant={implant_actual_cny}元, sales={sales_actual_cny}元")
+                
+                implant_converted = prepare_stats_card_amount(implant_actual_cny, current_language)
+                sales_converted = prepare_stats_card_amount(sales_actual_cny, current_language)
+                print(f"  元转换结果: implant={implant_converted}, sales={sales_converted}")
+                monthly_converted_amounts['implant_actual'].append(implant_converted)
+                monthly_converted_amounts['sales_actual'].append(sales_converted)
+                
+                # 累计实际值（保持元单位）
+                total_actual['implant'] += float(implant_actual_cny)
+                total_actual['sales'] += float(sales_actual_cny)
                 total_actual['customers'] += int(stats.new_customers_actual or 0)
                 total_actual['projects'] += int(stats.new_projects_actual or 0)
                 total_actual['five_star'] += int(stats.five_star_projects_actual or 0)
             else:
                 chart_data['implant_actual'].append(0)
                 chart_data['sales_actual'].append(0)
+                
+                # 无数据月份的标准转换
+                zero_implant = prepare_stats_card_amount(0, current_language)
+                zero_sales = prepare_stats_card_amount(0, current_language)
+                monthly_converted_amounts['implant_actual'].append(zero_implant)
+                monthly_converted_amounts['sales_actual'].append(zero_sales)
             
             # 处理目标值
             if target:
-                implant_target = float(target.implant_amount_target or 0)
-                sales_target = float(target.sales_amount_target or 0)
+                # 保存原始人民币值（用于标准转换组件）
+                implant_target_cny = float(target.implant_amount_target or 0)
+                sales_target_cny = float(target.sales_amount_target or 0)
                 
-                # 货币转换（如果需要）
+                # 目标值也是万元单位，使用万元转换组件
+                
+                # 复制用于其他计算的值
+                implant_target = implant_target_cny
+                sales_target = sales_target_cny
+                
+                # 货币转换（如果需要）- 仅影响其他计算
                 if display_currency != 'CNY':
                     try:
                         implant_target = exchange_rate_service.convert_amount(
@@ -151,12 +206,25 @@ def index():
                     except Exception:
                         pass  # 转换失败时保持原值
                 
-                # 累计目标值
-                total_target['implant'] += float(implant_target)
-                total_target['sales'] += float(sales_target)
+                # 目标值在数据库中也是以元为单位存储的（前端保存时已转换）
+                # 直接使用元转换组件（用于月度统计显示）
+                implant_target_converted = prepare_stats_card_amount(implant_target_cny, current_language)
+                sales_target_converted = prepare_stats_card_amount(sales_target_cny, current_language)
+                monthly_converted_amounts['implant_target'].append(implant_target_converted)
+                monthly_converted_amounts['sales_target'].append(sales_target_converted)
+                
+                # 累计目标值（保持元单位进行累计）
+                total_target['implant'] += float(implant_target_cny)
+                total_target['sales'] += float(sales_target_cny)
                 total_target['customers'] += int(target.new_customers_target or 0)
                 total_target['projects'] += int(target.new_projects_target or 0)
                 total_target['five_star'] += int(target.five_star_projects_target or 0)
+            else:
+                # 无目标月份的标准转换
+                zero_implant_target = prepare_stats_card_amount(0, current_language)
+                zero_sales_target = prepare_stats_card_amount(0, current_language)
+                monthly_converted_amounts['implant_target'].append(zero_implant_target)
+                monthly_converted_amounts['sales_target'].append(zero_sales_target)
         
         # 计算年度达成率
         achievement_rates = {}
@@ -197,34 +265,40 @@ def index():
         # 获取月度行业统计
         monthly_industry_stats = PerformanceService.get_monthly_industry_statistics(selected_user_id, current_year)
         
-        # 检测语言环境，用于金额显示格式化
-        from flask import session, g
-        try:
-            current_language = getattr(g, 'current_language', 'zh') or session.get('language', 'zh')
-        except:
-            current_language = 'zh'
-        is_english = current_language == 'en'
+        # 语言环境已在函数开始处检测，这里直接使用is_english变量
         
-        # 根据语言环境格式化金额显示
+        # 使用标准化金额转换组件
+        
+        # 实际值转换（用于卡片主要数值显示）
+        print(f"🔍 调试信息 - 累计金额:")
+        print(f"  total_actual['implant'] = {total_actual['implant']} (元值)")
+        print(f"  total_actual['sales'] = {total_actual['sales']} (元值)")
+        print(f"  current_language = {current_language}")
+        print(f"  预期中文: {total_actual['implant']/10000:.2f}万元")
+        print(f"  预期英文: {total_actual['implant']/1000000:.2f}M")
+        
+        # 使用元转换函数（输入为元）
+        print(f"  调用 prepare_stats_card_amount({total_actual['implant']}, '{current_language}')")
+        implant_actual_data = prepare_stats_card_amount(total_actual['implant'], current_language)
+        sales_actual_data = prepare_stats_card_amount(total_actual['sales'], current_language)
+        
+        print(f"  转换后 implant_actual_data = {implant_actual_data}")
+        print(f"  转换后 sales_actual_data = {sales_actual_data}")
+        print(f"  最终卡片显示: 植入额 {implant_actual_data['value']}{implant_actual_data['unit']}")
+        print(f"  最终卡片显示: 销售额 {sales_actual_data['value']}{sales_actual_data['unit']}")
+        
+        # 目标值转换（用于卡片金额显示）  
+        implant_target_data = prepare_stats_card_amount(total_target['implant'], current_language)
+        sales_target_data = prepare_stats_card_amount(total_target['sales'], current_language)
+        
+        # 根据语言环境设置标题和其他文本
         if is_english:
-            # 英文环境：M (百万)
-            implant_title = 'Implantation (M)'
-            sales_title = 'Sales (M)'
-            implant_value = round(total_actual['implant'] / 1000000, 2)
-            implant_amount = round(total_target['implant'] / 1000000, 2)
-            sales_value = round(total_actual['sales'] / 1000000, 2)
-            sales_amount = round(total_target['sales'] / 1000000, 2)
-            amount_unit = 'M'
+            implant_title = 'Implantation'
+            sales_title = 'Sales'
             target_text = 'Target'
         else:
-            # 中文环境：万元
-            implant_title = '植入额(万元)'
-            sales_title = '销售额(万元)'
-            implant_value = round(total_actual['implant'] / 10000, 2)
-            implant_amount = round(total_target['implant'] / 10000, 2)
-            sales_value = round(total_actual['sales'] / 10000, 2)
-            sales_amount = round(total_target['sales'] / 10000, 2)
-            amount_unit = '万元'
+            implant_title = '植入额'
+            sales_title = '销售额'
             target_text = '目标'
         
         # 构建通用组件配置
@@ -240,10 +314,10 @@ def index():
                         'id': 'implant',
                         'title': implant_title,
                         'icon': 'fas fa-tooth',
-                        'value': implant_value,
-                        'amount': implant_amount,
-                        'unit': amount_unit,
-                        'amount_unit': target_text,
+                        'value': implant_actual_data['value'],
+                        'amount': implant_target_data['value'],
+                        'unit': implant_actual_data['unit'],
+                        'amount_unit': implant_target_data['unit'],
                         'color': 'primary',
                         'clickable': True,
                         'click_params': {'metric': 'implant'},
@@ -253,10 +327,10 @@ def index():
                         'id': 'sales',
                         'title': sales_title,
                         'icon': 'fas fa-dollar-sign',
-                        'value': sales_value,
-                        'amount': sales_amount,
-                        'unit': amount_unit,
-                        'amount_unit': target_text,
+                        'value': sales_actual_data['value'],
+                        'amount': sales_target_data['value'],
+                        'unit': sales_actual_data['unit'],
+                        'amount_unit': sales_target_data['unit'],
                         'color': 'success',
                         'clickable': True,
                         'click_params': {'metric': 'sales'},
@@ -299,8 +373,8 @@ def index():
                 
                 'search_field': {
                     'name': 'search',
-                    'label': '搜索',
-                    'placeholder': '项目名称或客户名称',
+                    'label': 'Search' if is_english else '搜索',
+                    'placeholder': 'Project name or customer name' if is_english else '项目名称或客户名称',
                     'value': request.args.get('search', ''),
                     'col_width': 4
                 },
@@ -308,8 +382,8 @@ def index():
                 'filter_fields': [
                     {
                         'name': 'user_id',
-                        'label': '账户',
-                        'all_option_text': '全部账户',
+                        'label': 'Account' if is_english else '账户',
+                        'all_option_text': 'All Accounts' if is_english else '全部账户',
                         'current_value': str(selected_user_id),  # 使用已计算的默认用户ID
                         'col_width': 3,
                         'options': [
@@ -319,86 +393,86 @@ def index():
                     },
                     {
                         'name': 'year',
-                        'label': '年份',
-                        'all_option_text': '全部年份',
+                        'label': 'Year' if is_english else '年份',
+                        'all_option_text': 'All Years' if is_english else '全部年份',
                         'current_value': str(current_year),  # 使用已计算的默认年份
                         'col_width': 3,
                         'options': [
-                            {'value': str(year), 'label': f'{year}年', 'translate': False}
+                            {'value': str(year), 'label': f'{year}' if is_english else f'{year}年', 'translate': False}
                             for year in available_years
                         ]
                     }
                 ],
                 
-                'search_button_text': '搜索',
-                'reset_button_text': '重置'
+                'search_button_text': 'Search' if is_english else '搜索',
+                'reset_button_text': 'Reset' if is_english else '重置'
             },
             
-            # 表格配置
+            # 表格配置 - 根据当前标签页显示不同的列结构
             'table': {
                 'ajax_target': 'performanceTableBody',
-                'title': '绩效统计',
+                'title': ('Quarterly Details' if current_tab == 'overview' else 'Performance Statistics') if is_english else ('季度详情' if current_tab == 'overview' else '绩效统计'),
                 'icon': 'fas fa-chart-bar',
                 'show_header': True,
                 'columns': [
                     {
-                        'key': 'month',
-                        'label': '月份',
+                        'key': 'period',
+                        'label': ('Quarter' if current_tab == 'overview' else 'Month') if is_english else ('季度' if current_tab == 'overview' else '月份'),
                         'type': 'text',
                         'width': '80px'
                     },
                     {
                         'key': 'implant_actual',
-                        'label': '植入额',
+                        'label': 'Implantation' if is_english else '植入额',
                         'type': 'text',
                         'align': 'end',
                         'width': '120px'
                     },
                     {
                         'key': 'implant_target',
-                        'label': '植入目标',
+                        'label': 'Implant Target' if is_english else '植入目标',
                         'type': 'text',
                         'align': 'end',
                         'width': '120px'
                     },
                     {
                         'key': 'implant_rate',
-                        'label': '达成率',
+                        'label': 'Achievement' if is_english else '达成率',
                         'type': 'text',
                         'align': 'center',
                         'width': '80px'
                     },
                     {
                         'key': 'sales_actual',
-                        'label': '销售额',
+                        'label': 'Sales' if is_english else '销售额',
                         'type': 'text',
                         'align': 'end',
                         'width': '120px'
                     },
                     {
                         'key': 'sales_target',
-                        'label': '销售目标',
+                        'label': 'Sales Target' if is_english else '销售目标',
                         'type': 'text',
                         'align': 'end',
                         'width': '120px'
                     },
                     {
                         'key': 'sales_rate',
-                        'label': '达成率',
+                        'label': 'Achievement' if is_english else '达成率',
                         'type': 'text',
                         'align': 'center',
                         'width': '80px'
                     },
                     {
                         'key': 'customers_actual',
-                        'label': '新增用户',
+                        'label': 'New Customers' if is_english else '新增客户',
                         'type': 'number',
                         'align': 'end',
                         'width': '90px'
                     },
                     {
                         'key': 'projects_actual',
-                        'label': '新增项目',
+                        'label': 'New Projects' if is_english else '新增项目',
                         'type': 'number',
                         'align': 'end',
                         'width': '90px'
@@ -425,6 +499,7 @@ def index():
                              display_currency=display_currency,
                              yearly_stats=yearly_stats,
                              yearly_targets=yearly_targets,
+                             monthly_converted_amounts=monthly_converted_amounts,
                              list_config=list_config)
     
     except Exception as e:
@@ -452,7 +527,7 @@ def index():
                                  current_year=datetime.now().year,
                                  current_month=datetime.now().month,
                                  current_tab='overview',
-                                 chart_data={'months': [f'{m}月' for m in range(1, 13)],
+                                 chart_data={'months': [f'Month {m}' if is_english else f'{m}月' for m in range(1, 13)],
                                            'implant_actual': [0]*12,
                                            'sales_actual': [0]*12},
                                  total_actual={'implant': 0, 'sales': 0, 'customers': 0, 'projects': 0, 'five_star': 0},
@@ -803,6 +878,9 @@ def refresh_statistics():
 def list_ajax():
     """绩效管理列表AJAX端点"""
     try:
+        # 导入标准金额转换组件（在函数开始处导入一次）
+        from app.utils.dictionary_helpers import prepare_stats_card_amount, prepare_stats_card_amount_from_wan
+        
         # 获取参数
         user_id_param = request.args.get('user_id', '')
         year_param = request.args.get('year', '')
@@ -833,10 +911,22 @@ def list_ajax():
         
         targets = targets_query.all()
         
+        # 检测语言环境（与index()函数保持一致）
+        from app.utils.i18n import get_current_language
+        current_language = get_current_language()
+        is_english = current_language == 'en'
+        
+        # 调试信息 - 验证AJAX语言检测
+        print(f"🔧 AJAX语言检测修复:")
+        print(f"  current_language = {current_language}")
+        print(f"  is_english = {is_english}")
+        print(f"  期望: 如果用户在英文环境，应该显示en而不是zh")
+        
         if not targets:
+            no_data_text = 'No performance targets set' if is_english else '暂无绩效目标设置'
             return jsonify({
                 'success': True,
-                'html': '<tr><td colspan="9" class="text-center py-4">暂无绩效目标设置</td></tr>',
+                'html': f'<tr><td colspan="9" class="text-center py-4">{no_data_text}</td></tr>',
                 'total_count': 0,
                 'loaded_count': 0,
                 'statistics': {'implant': 0, 'implant_amount': 0, 'sales': 0, 'sales_amount': 0, 'customers': 0, 'customers_amount': 0, 'projects': 0, 'projects_amount': 0}
@@ -849,9 +939,10 @@ def list_ajax():
         
         # 简化逻辑：目前只支持特定用户特定年份的查询
         if not user_id or not year:
+            select_text = 'Please select specific account and year to view data' if is_english else '请选择具体的账户和年份查看数据'
             return jsonify({
                 'success': True,
-                'html': '<tr><td colspan="9" class="text-center py-4">请选择具体的账户和年份查看数据</td></tr>',
+                'html': f'<tr><td colspan="9" class="text-center py-4">{select_text}</td></tr>',
                 'total_count': 0,
                 'loaded_count': 0,
                 'statistics': {'implant': 0, 'implant_amount': 0, 'sales': 0, 'sales_amount': 0, 'customers': 0, 'customers_amount': 0, 'projects': 0, 'projects_amount': 0}
@@ -872,177 +963,335 @@ def list_ajax():
         current_month = current_date.month
         current_year_actual = current_date.year
         
-        # 显示12个月的数据
-        for m in range(1, 13):
-            stats = yearly_stats[m - 1] if yearly_stats and len(yearly_stats) > m - 1 else None
-            target = yearly_targets.get(m)
+        # 根据当前标签页显示季度或月度数据
+        if tab == 'overview':
+            # 季度视图 - 显示四个季度的汇总数据
+            quarters = [
+                {'name': 'Q1' if is_english else '1季度', 'months': [1, 2, 3]},
+                {'name': 'Q2' if is_english else '2季度', 'months': [4, 5, 6]},
+                {'name': 'Q3' if is_english else '3季度', 'months': [7, 8, 9]},
+                {'name': 'Q4' if is_english else '4季度', 'months': [10, 11, 12]}
+            ]
             
-            # 判断是否是未开始的月份（只对当前年份判断）
-            is_future_month = (year == current_year_actual and m > current_month)
-            
-            if stats:
-                implant_actual = float(stats.implant_amount_actual or 0)
-                sales_actual = float(stats.sales_amount_actual or 0)
-                customers_actual = int(stats.new_customers_actual or 0)
-                projects_actual = int(stats.new_projects_actual or 0)
+            for quarter in quarters:
+                # 汇总季度数据
+                quarter_actual = {'implant': 0.0, 'sales': 0.0, 'customers': 0, 'projects': 0}
+                quarter_target = {'implant': 0.0, 'sales': 0.0, 'customers': 0, 'projects': 0}
                 
-                # 只有已开始的月份才累加到总数中
-                if not is_future_month:
-                    total_actual['implant'] += implant_actual
-                    total_actual['sales'] += sales_actual
-                    total_actual['customers'] += customers_actual
-                    total_actual['projects'] += projects_actual
-            else:
-                implant_actual = sales_actual = customers_actual = projects_actual = 0
-            
-            if target:
-                implant_target = float(target.implant_amount_target or 0)
-                sales_target = float(target.sales_amount_target or 0)
+                # 检查是否是未开始的季度
+                quarter_months = quarter['months']
+                is_future_quarter = (year == current_year_actual and min(quarter_months) > current_month)
                 
-                total_target['implant'] += implant_target
-                total_target['sales'] += sales_target
-                total_target['customers'] += int(target.new_customers_target or 0)
-                total_target['projects'] += int(target.new_projects_target or 0)
-            else:
-                implant_target = sales_target = 0
-            
-            # 计算各指标达成率（带颜色判断，未开始月份显示为"-"）
-            implant_rate = "-"
-            sales_rate = "-"
-            
-            if not is_future_month:
-                # 只对已开始的月份计算达成率
-                if implant_target > 0:
-                    rate_value = int((implant_actual / implant_target) * 100)
-                    # 获取合格值用于颜色判断
-                    implant_qualifying_rate = target.implant_rate if target else None
-                    if implant_qualifying_rate and implant_qualifying_rate > 0:
-                        # 有设置合格值，根据达成率与合格值比较设置颜色
-                        color_class = "text-success" if rate_value >= implant_qualifying_rate else "text-danger"
-                        implant_rate = f'<span class="{color_class}">{rate_value}%</span>'
-                    else:
-                        # 没有设置合格值，使用正常黑色
+                for m in quarter_months:
+                    stats = yearly_stats[m - 1] if yearly_stats and len(yearly_stats) > m - 1 else None
+                    target = yearly_targets.get(m)
+                    
+                    # 汇总实际值
+                    if stats:
+                        implant_actual_yuan = float(stats.implant_amount_actual or 0)
+                        sales_actual_yuan = float(stats.sales_amount_actual or 0)
+                        customers_actual = int(stats.new_customers_actual or 0)
+                        projects_actual = int(stats.new_projects_actual or 0)
+                        
+                        # 只有已开始的月份才累加到季度总数中
+                        if not (year == current_year_actual and m > current_month):
+                            quarter_actual['implant'] += implant_actual_yuan
+                            quarter_actual['sales'] += sales_actual_yuan
+                            quarter_actual['customers'] += customers_actual
+                            quarter_actual['projects'] += projects_actual
+                    
+                    # 汇总目标值
+                    if target:
+                        implant_target_yuan = float(target.implant_amount_target or 0)
+                        sales_target_yuan = float(target.sales_amount_target or 0)
+                        customers_target = int(target.new_customers_target or 0)
+                        projects_target = int(target.new_projects_target or 0)
+                        
+                        quarter_target['implant'] += implant_target_yuan
+                        quarter_target['sales'] += sales_target_yuan
+                        quarter_target['customers'] += customers_target
+                        quarter_target['projects'] += projects_target
+                
+                # 累加到总计
+                total_actual['implant'] += quarter_actual['implant']
+                total_actual['sales'] += quarter_actual['sales']
+                total_actual['customers'] += quarter_actual['customers']
+                total_actual['projects'] += quarter_actual['projects']
+                
+                total_target['implant'] += quarter_target['implant']
+                total_target['sales'] += quarter_target['sales']
+                total_target['customers'] += quarter_target['customers']
+                total_target['projects'] += quarter_target['projects']
+                
+                # 计算季度达成率
+                implant_rate = "-"
+                sales_rate = "-"
+                
+                if not is_future_quarter:
+                    if quarter_target['implant'] > 0:
+                        rate_value = int((quarter_actual['implant'] / quarter_target['implant']) * 100)
                         implant_rate = f"{rate_value}%"
-                
-                if sales_target > 0:
-                    rate_value = int((sales_actual / sales_target) * 100)
-                    # 获取合格值用于颜色判断
-                    sales_qualifying_rate = target.sales_rate if target else None
-                    if sales_qualifying_rate and sales_qualifying_rate > 0:
-                        # 有设置合格值，根据达成率与合格值比较设置颜色
-                        color_class = "text-success" if rate_value >= sales_qualifying_rate else "text-danger"
-                        sales_rate = f'<span class="{color_class}">{rate_value}%</span>'
-                    else:
-                        # 没有设置合格值，使用正常黑色
+                    
+                    if quarter_target['sales'] > 0:
+                        rate_value = int((quarter_actual['sales'] / quarter_target['sales']) * 100)
                         sales_rate = f"{rate_value}%"
-            
-            # 格式化金额显示（根据语言显示单位）
-            from flask import session, g
-            
-            # 检测语言环境，与应用其他部分保持一致
-            try:
-                current_language = getattr(g, 'current_language', 'zh') or session.get('language', 'zh')
-            except:
-                current_language = 'zh'
-            is_english = current_language == 'en'
-            
-            # 格式化金额显示（未开始的月份显示为"-"）
-            if is_future_month:
-                # 未开始的月份显示为"-"
-                implant_actual_display = "-"
-                sales_actual_display = "-"
-                if implant_target > 0:
-                    if is_english:
-                        implant_target_display = f"¥{implant_target / 1000000:.2f}M"
-                    else:
-                        implant_target_display = f"¥{implant_target / 10000:.2f}万元"
-                else:
-                    implant_target_display = "-"
-                    
-                if sales_target > 0:
-                    if is_english:
-                        sales_target_display = f"¥{sales_target / 1000000:.2f}M"
-                    else:
-                        sales_target_display = f"¥{sales_target / 10000:.2f}万元"
-                else:
-                    sales_target_display = "-"
-            elif is_english:
-                # 英文环境：元转换为百万（M），1M = 1,000,000元
-                implant_actual_display = f"¥{implant_actual / 1000000:.2f}M"
-                sales_actual_display = f"¥{sales_actual / 1000000:.2f}M"
                 
-                if implant_target > 0:
-                    implant_target_display = f"¥{implant_target / 1000000:.2f}M"
-                else:
-                    implant_target_display = "-"
+                # 格式化金额显示
+                if is_future_quarter:
+                    implant_actual_display = "-"
+                    sales_actual_display = "-"
                     
-                if sales_target > 0:
-                    sales_target_display = f"¥{sales_target / 1000000:.2f}M"
+                    # 目标值即使未开始也需要显示
+                    if quarter_target['implant'] > 0:
+                        implant_target_data = prepare_stats_card_amount(quarter_target['implant'], current_language)
+                        implant_target_display = f"¥{implant_target_data['value']:.2f}{implant_target_data['unit']}"
+                    else:
+                        implant_target_display = "-"
+                        
+                    if quarter_target['sales'] > 0:
+                        sales_target_data = prepare_stats_card_amount(quarter_target['sales'], current_language)
+                        sales_target_display = f"¥{sales_target_data['value']:.2f}{sales_target_data['unit']}"
+                    else:
+                        sales_target_display = "-"
                 else:
-                    sales_target_display = "-"
-            else:
-                # 中文环境：显示万元
-                implant_actual_display = f"¥{implant_actual / 10000:.2f}万元"
-                sales_actual_display = f"¥{sales_actual / 10000:.2f}万元"
+                    # 实际值转换
+                    if quarter_actual['implant'] > 0:
+                        implant_actual_data = prepare_stats_card_amount(quarter_actual['implant'], current_language)
+                        implant_actual_display = f"¥{implant_actual_data['value']:.2f}{implant_actual_data['unit']}"
+                    else:
+                        zero_data = prepare_stats_card_amount(0, current_language)
+                        implant_actual_display = f"¥{zero_data['value']:.2f}{zero_data['unit']}"
+                    
+                    if quarter_actual['sales'] > 0:
+                        sales_actual_data = prepare_stats_card_amount(quarter_actual['sales'], current_language)
+                        sales_actual_display = f"¥{sales_actual_data['value']:.2f}{sales_actual_data['unit']}"
+                    else:
+                        zero_data = prepare_stats_card_amount(0, current_language)
+                        sales_actual_display = f"¥{zero_data['value']:.2f}{zero_data['unit']}"
+                    
+                    # 目标值转换
+                    if quarter_target['implant'] > 0:
+                        implant_target_data = prepare_stats_card_amount(quarter_target['implant'], current_language)
+                        implant_target_display = f"¥{implant_target_data['value']:.2f}{implant_target_data['unit']}"
+                    else:
+                        implant_target_display = "-"
+                        
+                    if quarter_target['sales'] > 0:
+                        sales_target_data = prepare_stats_card_amount(quarter_target['sales'], current_language)
+                        sales_target_display = f"¥{sales_target_data['value']:.2f}{sales_target_data['unit']}"
+                    else:
+                        sales_target_display = "-"
                 
-                if implant_target > 0:
-                    implant_target_display = f"¥{implant_target / 10000:.2f}万元"
-                else:
-                    implant_target_display = "-"
-                    
-                if sales_target > 0:
-                    sales_target_display = f"¥{sales_target / 10000:.2f}万元"
-                else:
-                    sales_target_display = "-"
-            
-            # 添加当前月份的底纹样式（使用更深的灰色背景）
-            row_class = 'bg-secondary bg-opacity-25' if (year == current_year_actual and m == current_month) else ''
-            
-            # 处理新增客户和新增项目的显示（未开始月份显示为"-"）
-            customers_display = "-" if is_future_month else str(customers_actual)
-            projects_display = "-" if is_future_month else str(projects_actual)
-            
-            html_row = f'''
-            <tr class="{row_class}">
-                <td>{m}月</td>
-                <td class="text-end">{implant_actual_display}</td>
-                <td class="text-end">{implant_target_display}</td>
-                <td class="text-center">{implant_rate}</td>
-                <td class="text-end">{sales_actual_display}</td>
-                <td class="text-end">{sales_target_display}</td>
-                <td class="text-center">{sales_rate}</td>
-                <td class="text-end">{customers_display}</td>
-                <td class="text-end">{projects_display}</td>
-            </tr>
-            '''
-            html_rows.append(html_row)
-        
-        # 计算统计数据用于更新卡片（与主页面的语言环境一致）
-        # 使用data-list.js期望的扁平化格式
-        if is_english:
-            # 英文环境：使用百万（M）
-            statistics = {
-                'implant': round(total_actual['implant'] / 1000000, 2),
-                'implant_amount': round(total_target['implant'] / 1000000, 2),
-                'sales': round(total_actual['sales'] / 1000000, 2),
-                'sales_amount': round(total_target['sales'] / 1000000, 2),
-                'customers': total_actual['customers'],
-                'customers_amount': total_target['customers'],
-                'projects': total_actual['projects'],
-                'projects_amount': total_target['projects']
-            }
+                # 处理新增客户和新增项目的显示
+                customers_display = "-" if is_future_quarter else str(quarter_actual['customers'])
+                projects_display = "-" if is_future_quarter else str(quarter_actual['projects'])
+                
+                # 添加当前季度的底纹样式
+                current_quarter = ((current_month - 1) // 3) + 1
+                quarter_num = quarters.index(quarter) + 1
+                row_class = 'bg-secondary bg-opacity-25' if (year == current_year_actual and quarter_num == current_quarter) else ''
+                
+                html_row = f'''
+                <tr class="{row_class}">
+                    <td>{quarter['name']}</td>
+                    <td class="text-end">{implant_actual_display}</td>
+                    <td class="text-end">{implant_target_display}</td>
+                    <td class="text-center">{implant_rate}</td>
+                    <td class="text-end">{sales_actual_display}</td>
+                    <td class="text-end">{sales_target_display}</td>
+                    <td class="text-center">{sales_rate}</td>
+                    <td class="text-end">{customers_display}</td>
+                    <td class="text-end">{projects_display}</td>
+                </tr>
+                '''
+                html_rows.append(html_row)
         else:
-            # 中文环境：使用万元
-            statistics = {
-                'implant': round(total_actual['implant'] / 10000, 2),
-                'implant_amount': round(total_target['implant'] / 10000, 2),
-                'sales': round(total_actual['sales'] / 10000, 2),
-                'sales_amount': round(total_target['sales'] / 10000, 2),
-                'customers': total_actual['customers'],
-                'customers_amount': total_target['customers'],
-                'projects': total_actual['projects'],
-                'projects_amount': total_target['projects']
+            # 月度视图 - 显示12个月的数据
+            for m in range(1, 13):
+                stats = yearly_stats[m - 1] if yearly_stats and len(yearly_stats) > m - 1 else None
+                target = yearly_targets.get(m)
+                
+                # 判断是否是未开始的月份（只对当前年份判断）
+                is_future_month = (year == current_year_actual and m > current_month)
+                
+                if stats:
+                    # 数据库存储的是元值，保持元单位进行累计
+                    implant_actual_yuan = float(stats.implant_amount_actual or 0)
+                    sales_actual_yuan = float(stats.sales_amount_actual or 0)
+                    customers_actual = int(stats.new_customers_actual or 0)
+                    projects_actual = int(stats.new_projects_actual or 0)
+                    
+                    # 保持元单位
+                    implant_actual = implant_actual_yuan
+                    sales_actual = sales_actual_yuan
+                    
+                    # 只有已开始的月份才累加到总数中
+                    if not is_future_month:
+                        total_actual['implant'] += implant_actual
+                        total_actual['sales'] += sales_actual
+                        total_actual['customers'] += customers_actual
+                        total_actual['projects'] += projects_actual
+                else:
+                    implant_actual = sales_actual = customers_actual = projects_actual = 0
+                
+                if target:
+                    # 目标值在数据库中也是以元为单位存储的
+                    implant_target_yuan = float(target.implant_amount_target or 0)
+                    sales_target_yuan = float(target.sales_amount_target or 0)
+                    
+                    # 保持元单位
+                    implant_target = implant_target_yuan
+                    sales_target = sales_target_yuan
+                    
+                    total_target['implant'] += implant_target
+                    total_target['sales'] += sales_target
+                    total_target['customers'] += int(target.new_customers_target or 0)
+                    total_target['projects'] += int(target.new_projects_target or 0)
+                else:
+                    implant_target = sales_target = 0
+                
+                # 计算各指标达成率（带颜色判断，未开始月份显示为"-"）
+                implant_rate = "-"
+                sales_rate = "-"
+                
+                if not is_future_month:
+                    # 只对已开始的月份计算达成率
+                    if implant_target > 0:
+                        rate_value = int((implant_actual / implant_target) * 100)
+                        # 获取合格值用于颜色判断
+                        implant_qualifying_rate = target.implant_rate if target else None
+                        if implant_qualifying_rate and implant_qualifying_rate > 0:
+                            # 有设置合格值，根据达成率与合格值比较设置颜色
+                            color_class = "text-success" if rate_value >= implant_qualifying_rate else "text-danger"
+                            implant_rate = f'<span class="{color_class}">{rate_value}%</span>'
+                        else:
+                            # 没有设置合格值，使用正常黑色
+                            implant_rate = f"{rate_value}%"
+                    
+                    if sales_target > 0:
+                        rate_value = int((sales_actual / sales_target) * 100)
+                        # 获取合格值用于颜色判断
+                        sales_qualifying_rate = target.sales_rate if target else None
+                        if sales_qualifying_rate and sales_qualifying_rate > 0:
+                            # 有设置合格值，根据达成率与合格值比较设置颜色
+                            color_class = "text-success" if rate_value >= sales_qualifying_rate else "text-danger"
+                            sales_rate = f'<span class="{color_class}">{rate_value}%</span>'
+                        else:
+                            # 没有设置合格值，使用正常黑色
+                            sales_rate = f"{rate_value}%"
+                
+                # 格式化金额显示（未开始的月份显示为"-"）
+                if is_future_month:
+                    # 未开始的月份显示为"-"
+                    implant_actual_display = "-"
+                    sales_actual_display = "-"
+                    
+                    # 目标值即使未开始也需要显示
+                    if implant_target > 0:
+                        implant_target_data = prepare_stats_card_amount(implant_target, current_language)
+                        implant_target_display = f"¥{implant_target_data['value']:.2f}{implant_target_data['unit']}"
+                    else:
+                        implant_target_display = "-"
+                        
+                    if sales_target > 0:
+                        sales_target_data = prepare_stats_card_amount(sales_target, current_language)
+                        sales_target_display = f"¥{sales_target_data['value']:.2f}{sales_target_data['unit']}"
+                    else:
+                        sales_target_display = "-"
+                else:
+                    # 已开始的月份，显示实际值和目标值
+                    # 实际值转换
+                    if implant_actual > 0:
+                        implant_actual_data = prepare_stats_card_amount(implant_actual, current_language)
+                        implant_actual_display = f"¥{implant_actual_data['value']:.2f}{implant_actual_data['unit']}"
+                    else:
+                        zero_data = prepare_stats_card_amount(0, current_language)
+                        implant_actual_display = f"¥{zero_data['value']:.2f}{zero_data['unit']}"
+                    
+                    if sales_actual > 0:
+                        sales_actual_data = prepare_stats_card_amount(sales_actual, current_language)
+                        sales_actual_display = f"¥{sales_actual_data['value']:.2f}{sales_actual_data['unit']}"
+                    else:
+                        zero_data = prepare_stats_card_amount(0, current_language)
+                        sales_actual_display = f"¥{zero_data['value']:.2f}{zero_data['unit']}"
+                    
+                    # 目标值转换
+                    if implant_target > 0:
+                        implant_target_data = prepare_stats_card_amount(implant_target, current_language)
+                        implant_target_display = f"¥{implant_target_data['value']:.2f}{implant_target_data['unit']}"
+                    else:
+                        implant_target_display = "-"
+                        
+                    if sales_target > 0:
+                        sales_target_data = prepare_stats_card_amount(sales_target, current_language)
+                        sales_target_display = f"¥{sales_target_data['value']:.2f}{sales_target_data['unit']}"
+                    else:
+                        sales_target_display = "-"
+                
+                # 添加当前月份的底纹样式（使用更深的灰色背景）
+                row_class = 'bg-secondary bg-opacity-25' if (year == current_year_actual and m == current_month) else ''
+                
+                # 处理新增客户和新增项目的显示（未开始月份显示为"-"）
+                customers_display = "-" if is_future_month else str(customers_actual)
+                projects_display = "-" if is_future_month else str(projects_actual)
+                
+                # 月份显示格式化
+                month_display = f'Month {m}' if is_english else f'{m}月'
+                
+                html_row = f'''
+                <tr class="{row_class}">
+                    <td>{month_display}</td>
+                    <td class="text-end">{implant_actual_display}</td>
+                    <td class="text-end">{implant_target_display}</td>
+                    <td class="text-center">{implant_rate}</td>
+                    <td class="text-end">{sales_actual_display}</td>
+                    <td class="text-end">{sales_target_display}</td>
+                    <td class="text-center">{sales_rate}</td>
+                    <td class="text-end">{customers_display}</td>
+                    <td class="text-end">{projects_display}</td>
+                </tr>
+                '''
+                html_rows.append(html_row)
+        
+        # 计算统计数据用于更新卡片（使用标准化金额转换）
+        
+        # 实际值和目标值转换
+        print(f"🔍 AJAX调试 - 累计金额:")
+        print(f"  total_actual['implant'] = {total_actual['implant']} (元值)")
+        print(f"  current_language = {current_language}")
+        
+        implant_actual_ajax = prepare_stats_card_amount(total_actual['implant'], current_language)
+        implant_target_ajax = prepare_stats_card_amount(total_target['implant'], current_language)
+        sales_actual_ajax = prepare_stats_card_amount(total_actual['sales'], current_language)
+        sales_target_ajax = prepare_stats_card_amount(total_target['sales'], current_language)
+        
+        print(f"  转换后 implant = {implant_actual_ajax}")
+        print(f"  转换后 sales = {sales_actual_ajax}")
+        
+        # 使用data-list.js期望的格式，为金额卡片提供完整的单位信息
+        statistics = {
+            'implant': implant_actual_ajax['value'],
+            'implant_amount': implant_target_ajax['value'],
+            'sales': sales_actual_ajax['value'],
+            'sales_amount': sales_target_ajax['value'],
+            'customers': total_actual['customers'],
+            'customers_amount': total_target['customers'],
+            'projects': total_actual['projects'],
+            'projects_amount': total_target['projects'],
+            # 添加单位配置信息，供前端AJAX更新时使用
+            'unit_configs': {
+                'implant': {
+                    'divisor': 1,  # 已经转换过，不需要再除法
+                    'unit': implant_actual_ajax['unit'],
+                    'decimal_places': 2
+                },
+                'sales': {
+                    'divisor': 1,  # 已经转换过，不需要再除法
+                    'unit': sales_actual_ajax['unit'],
+                    'decimal_places': 2
+                }
             }
+        }
         
         return jsonify({
             'success': True,

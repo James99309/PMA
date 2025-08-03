@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel %}
 
-{% block title %}研发产品详情{% endblock %}
+{% block title %}{{ _('研发产品详情') }}{% endblock %}
 
 {% block styles %}
 {{ super() }}
@@ -29,29 +29,29 @@
     <div class="page-header-with-actions mb-4">
         <div class="row align-items-center">
             <div class="col-auto">
-                <h1 class="page-title mb-0">研发产品详情</h1>
+                <h1 class="page-title mb-0">{{ _('研发产品详情') }}</h1>
                 <small class="text-muted">{{ dev_product.name }} - {{ dev_product.model }}</small>
             </div>
             <div class="col text-end">
                 <!-- 操作按钮组 -->
                 <div class="btn-toolbar justify-content-end" role="toolbar">
                     {% if current_user.role == 'admin' or current_user.id == dev_product.created_by %}
-                    {{ render_button('编辑产品', href=url_for('product_management.edit_product', id=dev_product.id), color='warning', icon='fas fa-edit') }}
+                    {{ render_button(_('编辑产品'), href=url_for('product_management.edit_product', id=dev_product.id), color='warning', icon='fas fa-edit') }}
                     {% endif %}
 
                     {% if dev_product.status != '申请入库' and dev_product.status != '已入库' and dev_product.created_by == current_user.id %}
-                    {{ render_button('申请入库', color='success', icon='fas fa-upload', attrs='type="button" data-bs-toggle="modal" data-bs-target="#applyModal"') }}
+                    {{ render_button(_('申请入库'), color='success', icon='fas fa-upload', attrs='type="button" data-bs-toggle="modal" data-bs-target="#applyModal"') }}
                     {% endif %}
 
                     {% if dev_product.status == '申请入库' and current_user.role == 'admin' %}
-                    {{ render_button('审核入库', color='success', icon='fas fa-check', attrs='type="button" data-bs-toggle="modal" data-bs-target="#approveModal"') }}
+                    {{ render_button(_('审核入库'), color='success', icon='fas fa-check', attrs='type="button" data-bs-toggle="modal" data-bs-target="#approveModal"') }}
                     {% endif %}
 
                     {% if current_user.role == 'admin' or current_user.id == dev_product.created_by %}
-                    {{ render_button('删除产品', color='danger', icon='fas fa-trash', attrs='type="button" data-bs-toggle="modal" data-bs-target="#deleteModal"') }}
+                    {{ render_button(_('删除产品'), color='danger', icon='fas fa-trash', attrs='type="button" data-bs-toggle="modal" data-bs-target="#deleteModal"') }}
                     {% endif %}
 
-                    {{ render_button('返回列表', href=url_for('product_management.index'), color='secondary', icon='fas fa-arrow-left') }}
+                    {{ render_button(_('返回列表'), href=url_for('product_management.index'), color='secondary', icon='fas fa-arrow-left') }}
                 </div>
             </div>
         </div>

@@ -58,8 +58,8 @@
                                     "project_id_field": "projectId",
                                     "project_id_name": "project_id",
                                     "data_element_id": "projectSearchConfig",
-                                    "label": "关联项目",
-                                    "placeholder": "输入项目名称或授权码进行搜索...",
+                                    "label": _("关联项目"),
+                                    "placeholder": _("输入项目名称或授权码进行搜索..."),
                                     "show_component_badge": false,
                                     "api_endpoints": {
                                         "search": "/api/v1/search/projects/without-quotations",
@@ -216,7 +216,7 @@
                                 },
                                 {
                                     "key": "discount",
-                                    "label": "折扣率(%)",
+                                    "label": "折扣率(%%)",
                                     "type": "percentage",
                                     "width": "100px"
                                 },
@@ -242,7 +242,7 @@
                                 },
                                 {
                                     "key": "product_mn",
-                                    "label": "MN",
+                                    "label": "产品料号",
                                     "type": "text",
                                     "readonly": true,
                                     "width": "100px"
@@ -381,7 +381,7 @@ $(document).ready(function() {
                 const allData = window.productDetailManager.getAllData();
                 submitQuotationAsJson(allData);
             } else {
-                alert('产品明细组件未正确初始化');
+                alert('{{ _("产品明细组件未正确初始化") }}');
                 return false;
             }
         }
@@ -452,7 +452,7 @@ function validateForm() {
                 return false;
             }
         } else {
-            alert('产品明细组件未正确初始化');
+            alert('{{ _("产品明细组件未正确初始化") }}');
             return false;
         }
         
@@ -473,7 +473,7 @@ function submitQuotationAsJson(productDetails) {
         // 获取项目ID
         const projectId = $('#project_id').val();
         if (!projectId) {
-            alert('请选择项目');
+            alert('{{ _("请选择项目") }}');
             return;
         }
         
@@ -511,7 +511,7 @@ function submitQuotationAsJson(productDetails) {
         // 显示加载状态
         const submitBtn = $('#submit-btn');
         const originalText = submitBtn.text();
-        submitBtn.text('保存中...').prop('disabled', true);
+        submitBtn.text('{{ _("保存中...") }}').prop('disabled', true);
         
         // 发送JSON请求
         $.ajax({
@@ -529,17 +529,17 @@ function submitQuotationAsJson(productDetails) {
                     if (response.redirect_url) {
                         window.location.href = response.redirect_url;
                     } else {
-                        alert('报价单创建成功！');
+                        alert('{{ _("报价单创建成功！") }}');
                         window.location.reload();
                     }
                 } else {
-                    alert('创建失败: ' + response.message);
+                    alert('{{ _("创建失败") }}: ' + response.message);
                     submitBtn.text(originalText).prop('disabled', false);
                 }
             },
             error: function(xhr, status, error) {
-                console.error('提交失败:', xhr.responseText, error);
-                let errorMsg = '提交失败';
+                console.error('{{ _("提交失败") }}:', xhr.responseText, error);
+                let errorMsg = '{{ _("提交失败") }}';
                 try {
                     const response = JSON.parse(xhr.responseText);
                     errorMsg = response.message || errorMsg;
@@ -553,7 +553,7 @@ function submitQuotationAsJson(productDetails) {
         
     } catch (error) {
         console.error('准备JSON数据时出错:', error);
-        alert('数据准备失败: ' + error.message);
+        alert('{{ _("数据准备失败") }}: ' + error.message);
     }
 }
 
@@ -568,6 +568,16 @@ function submitQuotationAsJson(productDetails) {
 <script>
 // 为currency_selector.js提供翻译后的货币数据
 window.CURRENCY_TRANSLATIONS = {{ currency_options | tojson | safe }};
+
+// 产品明细组件货币国际化
+window.CURRENCY_I18N = {
+    "USD": "{{ _('美元') }}",
+    "CNY": "{{ _('人民币') }}",
+    "SGD": "{{ _('新加坡元') }}",
+    "MYR": "{{ _('马来西亚林吉特') }}",
+    "IDR": "{{ _('印尼盾') }}",
+    "THB": "{{ _('泰铢') }}"
+};
 </script>
 
 <!-- 加载货币选择器 -->

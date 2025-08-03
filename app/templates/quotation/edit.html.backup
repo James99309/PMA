@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "macros/ui_helpers.html" import render_quotation_number, render_button %}
+{% from 'macros/product_detail_manager.html' import render_product_detail_table, init_product_detail_scripts %}
 
 {% block head %}
 {{ super() }}
@@ -341,7 +342,7 @@ input[type="number"].quantity {
                             {% if quotation and quotation.quotation_number %}
                             {{ render_quotation_number(quotation.quotation_number, size="large") }}
                             {% endif %}
-                            {% if quotation and quotation.id %}编辑报价单{% else %}创建报价单{% endif %}
+                            {% if quotation and quotation.id %}{{ _('编辑报价单') }}{% else %}{{ _('创建报价单') }}{% endif %}
                         </h5>
                     </div>
                 </div>
@@ -359,20 +360,20 @@ input[type="number"].quantity {
                         <div class="row mb-3">
                             <!-- 项目选择 -->
                             <div class="col-md-4">
-                                <label for="project_id" class="form-label">关联项目</label>
+                                <label for="project_id" class="form-label">{{ _('关联项目') }}</label>
                                 {% if preset_project_id and selected_project %}
                                 <input type="text" class="form-control text-truncate" value="{{ selected_project.project_name }}" readonly title="{{ selected_project.project_name }}">
                                 <input type="hidden" name="project_id" value="{{ preset_project_id }}">
                                 {% else %}
                                 <select class="form-select" id="project_id" name="project_id" required>
-                                    <option value="">-- 请选择项目 --</option>
+                                    <option value="">{{ _('-- 请选择项目 --') }}</option>
                                     {% if related_projects %}
-                                    <optgroup label="相关项目">
+                                    <optgroup label="{{ _('相关项目') }}">
                                         {% for project in related_projects %}
                                         <option value="{{ project.id }}" {% if quotation and quotation.project_id == project.id %}selected{% endif %}>{{ project.project_name }}</option>
                                         {% endfor %}
                                     </optgroup>
-                                    <optgroup label="其他项目">
+                                    <optgroup label="{{ _('其他项目') }}">
                                     {% endif %}
                                     {% for project in other_projects %}
                                     <option value="{{ project.id }}" {% if quotation and quotation.project_id == project.id %}selected{% endif %}>{{ project.project_name }}</option>
@@ -393,7 +394,7 @@ input[type="number"].quantity {
                                 <input type="hidden" name="customer_id" value="{{ customer.id if customer else '' }}">
                                 {% else %}
                                 <select class="form-select" id="customer_id" name="customer_id" required>
-                                    <option value="">-- 请选择客户 --</option>
+                                    <option value="">{{ _('-- 请选择客户 --') }}</option>
                                 </select>
                                 {% endif %}
                             </div>
@@ -418,9 +419,9 @@ input[type="number"].quantity {
                             </div>
                             <!-- 货币类型 -->
                             <div class="col-md-3">
-                                <label for="currency" class="form-label">货币类型</label>
+                                <label for="currency" class="form-label">{{ _('货币类型') }}</label>
                                 <select class="form-select" id="currency" name="currency">
-                                    <option value="CNY" {% if not quotation or not quotation.currency or quotation.currency == 'CNY' %}selected{% endif %}>人民币 (CNY)</option>
+                                    <option value="CNY" {% if quotation and quotation.currency == 'CNY' %}selected{% elif not quotation %}selected{% endif %}>人民币 (CNY)</option>
                                     <option value="USD" {% if quotation and quotation.currency == 'USD' %}selected{% endif %}>美元 (USD)</option>
                                     <option value="SGD" {% if quotation and quotation.currency == 'SGD' %}selected{% endif %}>新加坡元 (SGD)</option>
                                     <option value="MYR" {% if quotation and quotation.currency == 'MYR' %}selected{% endif %}>马来西亚林吉特 (MYR)</option>
@@ -430,149 +431,189 @@ input[type="number"].quantity {
                             </div>
                         </div>
 
-                        <!-- 报价明细表格 -->
-                        <div class="card mb-4">
-                            <div class="card-header">
-                                <h5 class="card-title mb-0">产品明细</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="table-container">
-                                    <div class="table-responsive">
-                                        <table class="table table-bordered table-hover" id="productTable">
-                                            <thead>
-                                                <tr>
-                                                    <th class="name-column">产品名称</th>
-                                                    <th style="min-width: 130px;">产品型号</th>
-                                                    <th class="desc-column">产品规格</th>
-                                                    <th style="min-width: 90px;">品牌</th>
-                                                    <th style="min-width: 70px;">单位</th>
-                                                    <th class="price-column">市场单价</th>
-                                                    <th style="min-width: 90px;">折扣率%</th>
-                                                    <th class="price-column">单价</th>
-                                                    <th style="min-width: 70px;">数量</th>
-                                                    <th class="price-column">小计</th>
-                                                    <th style="min-width: 130px;">MN</th>
-                                                    <th class="action-column" style="min-width: 50px;">操作</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {% if quotation and quotation.details %}
-                                                {% for item in quotation.details %}
-                                                <tr>
-                                                    <td>
-                                                        <div class="product-name-container">
-                                                            <input type="text" class="form-control product-name" name="product_name[]" value="{{ item.product_name }}" required placeholder="点击选择产品...">
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <div class="product-model-container">
-                                                            <input type="text" class="form-control product-model" name="product_model[]" value="{{ item.product_model }}" readonly>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <input type="text" class="form-control product-spec" name="product_spec[]" value="{{ item.product_desc }}" readonly>
-                                                    </td>
-                                                    <td>
-                                                        <input type="text" class="form-control product-brand" name="product_brand[]" value="{{ item.brand }}" readonly>
-                                                    </td>
-                                                    <td>
-                                                        <input type="text" class="form-control product-unit" name="product_unit[]" value="{{ item.unit }}" readonly>
-                                                    </td>
-                                                    <td>
-                                                        <input type="text" class="form-control product-price" name="product_price[]" value="{{ item.market_price }}" readonly>
-                                                    </td>
-                                                    <td>
-                                                        <div class="discount-rate-group">
-                                                            <input type="number" class="form-control discount-rate" name="discount_rate[]" value="{{ '%.1f'|format(item.discount * 100) }}" min="0" step="0.1" max="1000" required>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <input type="text" class="form-control discounted-price" name="discounted_price[]" 
-                                                               value="{{ '%.2f'|format(item.unit_price) }}" placeholder="输入单价">
-                                                    </td>
-                                                    <td>
-                                                        <input type="number" class="form-control quantity" name="quantity[]" 
-                                                               value="{{ item.quantity }}" min="1" step="1" required>
-                                                    </td>
-                                                    <td>
-                                                        <input type="text" class="form-control subtotal" name="subtotal[]" readonly>
-                                                    </td>
-                                                    <td>
-                                                        <input type="text" class="form-control product-mn" name="product_mn[]" readonly>
-                                                    </td>
-                                                    <td class="text-center">
-                                                        <button type="button" class="btn btn-danger btn-sm remove-row">
-                                                            <i class="fas fa-trash"></i>
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                                {% endfor %}
-                                                {% else %}
-                                                <tr>
-                                                    <td>
-                                                        <div class="product-name-container">
-                                                            <input type="text" class="form-control product-name" name="product_name[]" required placeholder="点击选择产品...">
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <div class="product-model-container">
-                                                            <input type="text" class="form-control product-model" name="product_model[]" readonly>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <input type="text" class="form-control product-spec" name="product_spec[]" readonly>
-                                                    </td>
-                                                    <td>
-                                                        <input type="text" class="form-control product-brand" name="product_brand[]" readonly>
-                                                    </td>
-                                                    <td>
-                                                        <input type="text" class="form-control product-unit" name="product_unit[]" readonly>
-                                                    </td>
-                                                    <td>
-                                                        <input type="text" class="form-control product-price" name="product_price[]" readonly>
-                                                    </td>
-                                                <td>
-                                                    <div class="discount-rate-group">
-                                                        <input type="number" class="form-control discount-rate" name="discount_rate[]" value="100.0" min="0" step="0.1" max="1000" required>
-                                                    </div>
-                                                </td>
-                                                    <td>
-                                                        <input type="text" class="form-control discounted-price" name="discounted_price[]" 
-                                                               placeholder="输入单价">
-                                                    </td>
-                                                    <td>
-                                                        <input type="number" class="form-control quantity" name="quantity[]" 
-                                                               value="1" min="1" step="1" required>
-                                                    </td>
-                                                    <td>
-                                                        <input type="text" class="form-control subtotal" name="subtotal[]" readonly>
-                                                    </td>
-                                                    <td>
-                                                        <input type="text" class="form-control product-mn" name="product_mn[]" readonly>
-                                                    </td>
-                                                    <td class="text-center">
-                                                        <button type="button" class="btn btn-danger btn-sm remove-row">
-                                                            <i class="fas fa-trash"></i>
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                                {% endif %}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                                <div class="text-end mt-3">
-                                    {{ render_button('添加产品', '#', color='auxiliary', attrs='type="button" id="addProduct"') }}
-                                </div>
-                            </div>
-                        </div>
+                        <!-- 产品明细表格 -->
+                        {# 产品明细配置 #}
+                        {% set product_config = {
+                            "table_id": "productTable",
+                            "add_button_id": "addProduct", 
+                            "grand_total_id": "grandTotal",
+                            "apiEndpoints": {
+                                "categories": url_for('quotation.get_product_categories'),
+                                "productsByCategory": url_for('quotation.get_products_by_category'),
+                                "productModels": url_for('quotation.get_product_models'),
+                                "productSpecs": url_for('quotation.get_product_specs'),
+                                "productSearch": url_for('quotation.get_products'),
+                                "tempProducts": url_for('quotation.get_temp_products'),
+                                "tempProductsByCategory": url_for('quotation.get_temp_products_by_category_product'),
+                                "saveTempProduct": url_for('quotation.save_temp_product')
+                            },
+                            "calculationRules": {
+                                "discountType": "percentage",
+                                "currency": quotation.currency if quotation else "CNY",
+                                "decimalPlaces": 2,
+                                "autoCalculate": true
+                            },
+                            "currency_config": {
+                                "supported_currencies": [
+                                    {"code": "USD", "name": "美元", "symbol": "$"},
+                                    {"code": "CNY", "name": "人民币", "symbol": "¥"},
+                                    {"code": "SGD", "name": "新加坡元", "symbol": "S$"},
+                                    {"code": "MYR", "name": "马来西亚林吉特", "symbol": "RM"},
+                                    {"code": "IDR", "name": "印尼盾", "symbol": "Rp"},
+                                    {"code": "THB", "name": "泰铢", "symbol": "฿"}
+                                ],
+                                "base_currency": "CNY",
+                                "default_rates": {
+                                    "CNY": 1.0,
+                                    "USD": 0.14,
+                                    "SGD": 0.19,
+                                    "MYR": 0.65,
+                                    "IDR": 2100.0,
+                                    "THB": 5.0
+                                }
+                            },
+                            "currency_selector_id": "currencySelector",
+                            "currency_symbol_id": "currencySymbol",
+                            "columns": [
+                                {
+                                    "key": "product_name",
+                                    "label": "产品名称",
+                                    "type": "product-selector",
+                                    "required": true,
+                                    "width": "180px"
+                                },
+                                {
+                                    "key": "product_model", 
+                                    "label": "产品型号",
+                                    "type": "text",
+                                    "readonly": true,
+                                    "width": "150px"
+                                },
+                                {
+                                    "key": "product_desc",
+                                    "label": "产品描述",
+                                    "type": "text", 
+                                    "readonly": true,
+                                    "width": "200px"
+                                },
+                                {
+                                    "key": "brand",
+                                    "label": "品牌",
+                                    "type": "text",
+                                    "readonly": true,
+                                    "width": "120px"
+                                },
+                                {
+                                    "key": "unit",
+                                    "label": "单位", 
+                                    "type": "text",
+                                    "readonly": true,
+                                    "width": "80px"
+                                },
+                                {
+                                    "key": "market_price",
+                                    "label": "市场单价",
+                                    "type": "currency",
+                                    "readonly": true,
+                                    "width": "120px"
+                                },
+                                {
+                                    "key": "discount",
+                                    "label": "折扣率(%)",
+                                    "type": "percentage",
+                                    "width": "100px"
+                                },
+                                {
+                                    "key": "unit_price", 
+                                    "label": "单价",
+                                    "type": "currency",
+                                    "width": "120px"
+                                },
+                                {
+                                    "key": "quantity",
+                                    "label": "数量",
+                                    "type": "number", 
+                                    "required": true,
+                                    "width": "80px"
+                                },
+                                {
+                                    "key": "total_price",
+                                    "label": "小计", 
+                                    "type": "currency",
+                                    "readonly": true,
+                                    "width": "120px"
+                                },
+                                {
+                                    "key": "product_mn",
+                                    "label": "产品料号",
+                                    "type": "text",
+                                    "readonly": true,
+                                    "width": "100px"
+                                },
+                                {
+                                    "key": "actions",
+                                    "label": "操作",
+                                    "type": "actions",
+                                    "width": "70px"
+                                }
+                            ],
+                            "fieldMapping": {
+                                "product_name": "product_name",
+                                "product_model": "product_model", 
+                                "product_desc": "product_desc",
+                                "brand": "brand",
+                                "unit": "unit",
+                                "quantity": "quantity",
+                                "market_price": "market_price",
+                                "discount": "discount", 
+                                "unit_price": "unit_price",
+                                "total_price": "total_price",
+                                "product_mn": "product_mn",
+                                "currency": "currency"
+                            },
+                            "validators": {
+                                "quantity": "val => val > 0",
+                                "market_price": "val => val >= 0",
+                                "discount": "val => val >= 0 && val <= 1000"
+                            },
+                            "manual_input": {
+                                "enabled": true,
+                                "option_text": "手动输入",
+                                "temp_indicator": {
+                                    "show": true,
+                                    "text": "临时",
+                                    "position": "after_price",
+                                    "style": "temp-product-indicator"
+                                },
+                                "validation": {
+                                    "required_fields": ["product_model", "product_desc", "brand", "unit"],
+                                    "auto_validate": true
+                                },
+                                "default_values": {
+                                    "unit": "个",
+                                    "currency": quotation.currency if quotation else "CNY",
+                                    "discount": 100,
+                                    "quantity": 1
+                                }
+                            },
+                            "temp_products": {
+                                "auto_save": true,
+                                "category_association": true,
+                                "merge_with_regular": true,
+                                "retention_days": 90
+                            },
+                            "edit_mode": true,
+                            "existing_data": quotation.details if quotation else []
+                        } %}
+                        
+                        {{ render_product_detail_table(product_config) }}
 
                         <!-- 合计行 -->
                         <div class="row justify-content-end mt-4">
                             <div class="col-md-3">
                                 <div class="total-amount-container">
                                     <div class="input-group">
-                                        <span class="input-group-text">总计金额</span>
+                                        <span class="input-group-text">{{ _('总计金额') }}</span>
                                         <input type="text" class="form-control" id="grandTotal" readonly>
                                     </div>
                                 </div>
@@ -582,11 +623,11 @@ input[type="number"].quantity {
                         <!-- 提交按钮 -->
                         <div class="col-auto ml-auto">
                             {% if return_to %}
-                            {{ render_button('返回项目详情', return_to, color='secondary') }}
+                            {{ render_button(_('返回项目详情'), return_to, color='secondary') }}
                             {% else %}
-                            {{ render_button('返回列表', url_for('quotation.list_quotations'), color='secondary') }}
+                            {{ render_button(_('返回列表'), url_for('quotation.list_quotations'), color='secondary') }}
                             {% endif %}
-                            {{ render_button('保存', None, color='primary', type='submit', attrs='form="quotationForm" id="submit-btn"') }}
+                            {{ render_button(_('保存'), None, color='primary', type='submit', attrs='form="quotationForm" id="submit-btn"') }}
                         </div>
                     </form>
                 </div>
@@ -993,272 +1034,194 @@ $(document).ready(function() {
         });
     }
     
-    // 监听表单提交事件
+    // 监听表单提交事件 - 使用标准产品明细组件
     $('#quotationForm').on('submit', function(e) {
         e.preventDefault();
         
-        try {
-            // 验证项目是否选择
-            var projectId = $('#project_id').val();
-            if (!projectId) {
-                alert('请选择项目');
-                // 滚动到项目选择框并聚焦
-                $('html, body').animate({
-                    scrollTop: $('#project_id').offset().top - 100
-                }, 200);
-                $('#project_id').focus();
-                return;
+        if (validateForm()) {
+            // 使用JSON格式提交数据
+            if (window.productDetailManager) {
+                const allData = window.productDetailManager.getAllData();
+                submitQuotationAsJson(allData);
+            } else {
+                alert('{{ _("产品明细组件未正确初始化") }}');
+                return false;
             }
-            
-            // 确保项目ID是整数
-            projectId = parseInt(projectId, 10);
-            if (isNaN(projectId)) {
-                alert('项目ID无效，请重新选择项目');
-                return;
-            }
-            
-            // 准备发送的数据
-            var formData = {
-                project_id: projectId, // 已确保是整数
-                total_amount: parseFloat($('#grandTotal').data('raw-value')) || 0,
-                details: []
-            };
-            
-            console.log('提交的项目ID:', formData.project_id, '类型:', typeof formData.project_id);
-            
-            // 验证产品明细
-            if ($('#productTable tbody tr').length === 0) {
-                alert('请至少添加一个产品明细');
-                return;
-            }
-            
-            // 获取所有产品明细
-            $('#productTable tbody tr').each(function() {
-                var $row = $(this);
-                var productName = $row.find('.product-name').val();
-                
-                if (!productName) {
-                    return true; // 跳过空行
-                }
-                
-                try {
-                    var detail = {
-                        product_name: productName,
-                        product_model: $row.find('.product-model').val() || '',
-                        product_desc: $row.find('.product-spec').val() || '',
-                        brand: $row.find('.product-brand').val() || '',
-                        unit: $row.find('.product-unit').val() || '',
-                        market_price: parseFloat($row.find('.product-price').data('raw-value')) || 0,
-                        discount_rate: parseFloat($row.find('.discount-rate').val()) || 100,
-                        unit_price: parseFloat($row.find('.discounted-price').data('raw-value')) || 0,
-                        quantity: parseInt($row.find('.quantity').val()) || 1,
-                        total_price: parseFloat($row.find('.subtotal').data('raw-value')) || 0,
-                        product_mn: $row.find('.product-mn').val() || ''
-                    };
-                    
-                    formData.details.push(detail);
-                } catch (rowError) {
-                    console.error('处理产品行数据时出错:', rowError);
-                }
-            });
-            
-            if (formData.details.length === 0) {
-                alert('请添加至少一个有效的产品明细');
-                return;
-            }
-            
-            // 显示保存中状态
-            var $submitBtn = $(this).find('button[type="submit"]');
-            var originalText = $submitBtn.html();
-            $submitBtn.html('<i class="fas fa-spinner fa-spin"></i> 保存中...').prop('disabled', true);
-            
-            console.log('提交数据:', formData);
-            console.log('当前路径:', window.location.pathname);
-            
-            // 尝试将请求模式从AJAX修改为表单提交
-            // 创建表单数据对象
-            var formDataObj = new FormData();
-            // 确保项目ID是整数并添加到表单
-            formDataObj.append('project_id', formData.project_id);
-            formDataObj.append('total_amount', formData.total_amount);
-            formDataObj.append('details', JSON.stringify(formData.details));
-            
-            // 发送请求 - 改为表单格式而非JSON
-            $.ajax({
-                url: window.location.pathname.replace('/edit', '/save'),
-                type: "POST",
-                data: JSON.stringify(formData),
-                contentType: "application/json",
-                // 添加请求头以避免浏览器缓存
-                headers: {
-                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache',
-                    'Expires': '0'
-                },
-                success: function(response) {
-                    console.log('服务器响应:', response);
-                    if (response.status === 'success') {
-                        // 检查是否有警告信息
-                        if (response.warnings && response.warnings.length > 0) {
-                            var warningMessage = '报价单保存成功，但有以下提示：\n\n' + response.warnings.join('\n');
-                            alert(warningMessage);
-                        }
-                        
-                        // 保存成功，跳转到报价单详情页面
-                        console.log('报价单保存成功，正在跳转到详情页面...');
-                        
-                        // 优先使用服务器返回的报价单ID
-                        var quotationId = response.quotation_id;
-                        if (!quotationId) {
-                            // 从URL路径中提取ID: /quotation/645/edit -> 645
-                            var pathParts = window.location.pathname.split('/');
-                            for (var i = 0; i < pathParts.length; i++) {
-                                if (pathParts[i] === 'quotation' && i + 1 < pathParts.length) {
-                                    quotationId = pathParts[i + 1];
-                                    break;
-                                }
-                            }
-                        }
-                        
-                        if (quotationId && quotationId !== "edit" && quotationId !== "create") {
-                            // 跳转到报价单详情页面
-                            window.location.href = '/quotation/' + quotationId + '/detail';
-                        } else {
-                            // 如果无法获取ID，跳转到列表页面
-                            window.location.href = '/quotation/quotations';
-                        }
-                    } else {
-                        // 还原按钮状态
-                        $submitBtn.html(originalText).prop('disabled', false);
-                        // 只有错误时才显示提示
-                        alert('保存失败: ' + (response.message || '未知错误'));
-                    }
-                },
-                error: function(xhr, status, error) {
-                    console.error('AJAX请求详细信息:', {
-                        status: status,
-                        error: error,
-                        responseText: xhr.responseText,
-                        statusCode: xhr.status,
-                        url: window.location.pathname,
-                        requestData: formData
-                    });
-                    
-                    // 还原按钮状态
-                    $submitBtn.html(originalText).prop('disabled', false);
-                    
-                    // 尝试解析错误响应
-                    try {
-                        if (xhr.responseText) {
-                            if (xhr.getResponseHeader('Content-Type') && 
-                                xhr.getResponseHeader('Content-Type').includes('text/html')) {
-                                console.error('服务器返回了HTML而不是JSON', xhr.responseText);
-                                // 检查错误消息是否包含已知的错误
-                                if (xhr.responseText.includes('项目不能为空')) {
-                                    alert('保存失败: 项目不能为空，请选择项目');
-                                    // 滚动到项目选择框并聚焦
-                                    $('html, body').animate({
-                                        scrollTop: $('#project_id').offset().top - 100
-                                    }, 200);
-                                    $('#project_id').focus();
-                                } else if (xhr.responseText.includes('Decimal')) {
-                                    // 检测到Decimal类型错误
-                                    alert('保存失败: 数值格式错误，请检查价格和数量输入');
-                                } else {
-                                    // 对于HTML响应，尝试从页面标题或正文中提取错误信息
-                                    let errorMsg = '未知错误';
-                                    try {
-                                        const parser = new DOMParser();
-                                        const htmlDoc = parser.parseFromString(xhr.responseText, 'text/html');
-                                        const title = htmlDoc.querySelector('title');
-                                        const body = htmlDoc.querySelector('body');
-                                        
-                                        if (title && title.textContent.includes('错误')) {
-                                            errorMsg = title.textContent;
-                                        } else if (body) {
-                                            const errorText = body.textContent.trim().substring(0, 100);
-                                            if (errorText) {
-                                                errorMsg = errorText + '...';
-                                            }
-                                        }
-                                    } catch (e) {
-                                        console.error('解析HTML错误响应失败:', e);
-                                    }
-                                    
-                                    alert('保存失败: ' + errorMsg);
-                                }
-                            } else {
-                                try {
-                                    var resp = JSON.parse(xhr.responseText);
-                                    alert('保存失败: ' + (resp.message || resp.error || error));
-                                } catch (parseError) {
-                                    console.error('解析JSON错误响应失败:', parseError);
-                                    alert('保存失败: 无法解析服务器响应 - ' + xhr.responseText.substring(0, 100));
-                                }
-                            }
-                        } else {
-                            if (status === 'timeout') {
-                                alert('保存失败: 请求超时，请检查网络连接并重试');
-                            } else if (status === 'abort') {
-                                alert('保存失败: 请求被中止');
-                            } else if (xhr.status === 0) {
-                                // 处理网络连接问题或服务器重启问题
-                                var retryResponse = confirm('保存失败: 无法连接到服务器，这可能是由于网络问题或服务器正在重启。\n\n是否要重试提交？');
-                                if (retryResponse) {
-                                    // 等待2秒后重试
-                                    setTimeout(function() {
-                                        console.log('正在重试AJAX请求...');
-                                        $.ajax({
-                                            url: window.location.pathname.replace('/edit', '/save'),
-                                            type: "POST",
-                                            data: JSON.stringify(formData),
-                                            contentType: "application/json",
-                                            success: function(response) {
-                                                console.log('服务器响应:', response);
-                                                if (response.status === 'success') {
-                                                    // 显示成功消息
-                                                    alert('报价单保存成功');
-                                                    // 跳转到报价单详情页面
-                                                    var quotationId = response.quotation_id; if (!quotationId) { var pathParts = window.location.pathname.split("/"); for (var i = 0; i < pathParts.length; i++) { if (pathParts[i] === "quotation" && i + 1 < pathParts.length) { quotationId = pathParts[i + 1]; break; } } }
-                                                    if (quotationId && quotationId !== "edit" && quotationId !== "create") {
-                                                        window.location.href = '/quotation/' + quotationId + '/detail';
-                                                    } else {
-                                                        window.location.href = '/quotation/quotations';
-                                                    }
-                                                } else {
-                                                    // 还原按钮状态
-                                                    $submitBtn.html(originalText).prop('disabled', false);
-                                                    // 显示错误消息
-                                                    alert('保存失败: ' + (response.message || '未知错误'));
-                                                }
-                                            },
-                                            error: function(xhr, status, error) {
-                                                // 简化的错误处理，避免无限重试
-                                                console.error('重试AJAX请求失败:', status, error);
-                                                $submitBtn.html(originalText).prop('disabled', false);
-                                                alert('重试保存失败，请稍后再尝试或联系管理员');
-                                            }
-                                        });
-                                    }, 2000); // 等待2秒后重试
-                                } else {
-                                    $submitBtn.html(originalText).prop('disabled', false);
-                                }
-                            } else {
-                                alert('保存失败: 服务器无响应 (' + xhr.status + ')');
-                            }
-                        }
-                    } catch (e) {
-                        console.error('处理错误响应时发生异常:', e);
-                        alert('保存失败: 处理错误响应时出错 - ' + e.message);
-                    }
-                }
-            });
-            
-        } catch (e) {
-            console.error('提交表单时出错:', e);
-            alert('提交表单时出错: ' + e.message);
         }
     });
+});
+
+// 表单验证
+function validateForm() {
+    try {
+        console.log('开始表单验证');
+        
+        // 验证项目ID
+        var projectId = $('#project_id').val();
+        if (!projectId) {
+            alert('{{ _("请选择项目") }}');
+            $('#project_id').focus();
+            return false;
+        }
+        
+        // 验证项目ID格式
+        var parsedProjectId = parseInt(projectId, 10);
+        if (isNaN(parsedProjectId) || parsedProjectId <= 0) {
+            alert('{{ _("项目ID无效，请重新选择项目") }}');
+            $('#project_id').focus();
+            return false;
+        }
+        
+        // 使用产品明细管理器验证产品明细
+        if (window.productDetailManager) {
+            const productDetails = window.productDetailManager.getAllData();
+            const validationErrors = window.productDetailManager.validateAll();
+            
+            if (validationErrors.length > 0) {
+                const errorMessage = validationErrors.map(err => err.message).join('\n');
+                alert(errorMessage);
+                return false;
+            }
+            
+            if (productDetails.length === 0) {
+                alert('{{ _("请至少添加一个产品明细") }}');
+                return false;
+            }
+            
+            // 检查是否有有效的产品
+            const hasValidProduct = productDetails.some(detail => 
+                detail.product_name && 
+                parseFloat(detail.quantity) > 0
+            );
+            
+            if (!hasValidProduct) {
+                alert('{{ _("请添加至少一个有效的产品明细") }}');
+                return false;
+            }
+        } else {
+            alert('{{ _("产品明细组件未正确初始化") }}');
+            return false;
+        }
+        
+        console.log('表单验证通过');
+        return true;
+    } catch (error) {
+        console.error('表单验证时出错:', error);
+        alert('{{ _("表单验证时发生错误") }}: ' + error.message);
+        return false;
+    }
+}
+
+// 使用JSON格式提交报价单数据
+function submitQuotationAsJson(productDetails) {
+    try {
+        console.log('准备JSON格式数据');
+        
+        // 获取项目ID
+        const projectId = $('#project_id').val();
+        if (!projectId) {
+            alert('{{ _("请选择项目") }}');
+            return;
+        }
+        
+        // 获取货币信息
+        const currency = $('#currency').val() || 'CNY';
+        
+        // 获取总金额
+        const grandTotalInput = document.querySelector('#grandTotal');
+        const totalAmount = parseFloat(grandTotalInput?.dataset.rawValue || grandTotalInput?.value.replace(/,/g, '')) || 0;
+        
+        // 准备JSON数据
+        const jsonData = {
+            project_id: parseInt(projectId),
+            currency: currency,
+            total_amount: totalAmount,
+            details: productDetails.map(detail => ({
+                product_name: detail.product_name || '',
+                product_model: detail.product_model || '',
+                product_desc: detail.product_desc || '',
+                brand: detail.brand || '',
+                unit: detail.unit || '个',
+                market_price: parseFloat(detail.market_price) || 0,
+                discount: parseFloat(detail.discount) || 100,
+                quantity: parseInt(detail.quantity) || 1,
+                unit_price: parseFloat(detail.unit_price) || 0,
+                total_price: parseFloat(detail.total_price) || 0,
+                product_mn: detail.product_mn || '',
+                currency: currency
+            }))
+        };
+        
+        console.log('JSON数据准备完成:', jsonData);
+        
+        // 显示加载状态
+        const submitBtn = $('button[type="submit"]');
+        const originalText = submitBtn.text();
+        submitBtn.text('{{ _("保存中...") }}').prop('disabled', true);
+        
+        // 发送JSON请求
+        $.ajax({
+            url: window.location.pathname.replace('/edit', '/save'),
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(jsonData),
+            headers: {
+                'X-CSRFToken': $('input[name="csrf_token"]').val()
+            },
+            success: function(response) {
+                console.log('提交成功:', response);
+                if (response.status === 'success') {
+                    // 跳转到详情页或返回页面
+                    if (response.redirect_url) {
+                        window.location.href = response.redirect_url;
+                    } else {
+                        alert('{{ _("报价单更新成功！") }}');
+                        window.location.reload();
+                    }
+                } else {
+                    alert('{{ _("更新失败") }}: ' + response.message);
+                    submitBtn.text(originalText).prop('disabled', false);
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('提交失败:', xhr.responseText, error);
+                let errorMsg = '{{ _("提交失败") }}';
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    errorMsg = response.message || errorMsg;
+                } catch (e) {
+                    errorMsg = xhr.responseText || errorMsg;
+                }
+                alert(errorMsg);
+                submitBtn.text(originalText).prop('disabled', false);
+            }
+        });
+        
+    } catch (error) {
+        console.error('准备JSON数据时出错:', error);
+        alert('{{ _("数据准备失败") }}: ' + error.message);
+    }
+}
+
+$(document).ready(function() {
+    console.log('页面加载完成，开始初始化...');
+    
+    // 设置页面类型标志 - 这是编辑页面
+    var isCreatePage = false;
+    var isEditPage = true;
+    
+    // 如果有现有数据，预加载到产品明细组件
+    if (window.existingQuotationData && window.existingQuotationData.length > 0) {
+        console.log('预加载现有报价单数据:', window.existingQuotationData);
+        if (window.productDetailManager) {
+            window.productDetailManager.loadExistingData(window.existingQuotationData);
+        }
+    }
+    
+    // 初始化货币选择器
+    if (window.currencySelector) {
+        window.currencySelector.initializeCurrencySelects();
+    }
     
     // 监听项目选择变化
     $('#project_id').on('change', function() {
@@ -1335,7 +1298,7 @@ $(document).ready(function() {
             <tr>
                 <td>
                     <div class="product-name-container">
-                        <input type="text" class="form-control product-name" name="product_name[]" required placeholder="点击选择产品...">
+                        <input type="text" class="form-control product-name" name="product_name[]" required placeholder="{{ _('点击选择产品...') }}">
                     </div>
                 </td>
                 <td>
@@ -1489,7 +1452,7 @@ function loadCustomers() {
                 }
                 
                 // 清空并添加默认选项
-                $select.empty().append('<option value="">-- 请选择客户 --</option>');
+                $select.empty().append('<option value="">{{ _("-- 请选择客户 --") }}</option>');
                 
                 // 添加客户选项
                 if (response.customers && response.customers.length > 0) {
@@ -1647,10 +1610,10 @@ function initializeProductAutocomplete() {
             var $models = $('<div class="model-list menu-list"></div>');
             var $specs = $('<div class="spec-list menu-list"></div>');
             
-            $categories.html('<div class="menu-loading">加载中...</div>');
-            $products.html('<div class="menu-loading">请选择左侧类别</div>');
-            $models.html('<div class="menu-loading">请选择产品名称</div>');
-            $specs.html('<div class="menu-loading">请选择产品型号</div>');
+            $categories.html('<div class="menu-loading">{{ _("加载中...") }}</div>');
+            $products.html('<div class="menu-loading">{{ _("请选择左侧类别") }}</div>');
+            $models.html('<div class="menu-loading">{{ _("请选择产品名称") }}</div>');
+            $specs.html('<div class="menu-loading">{{ _("请选择产品型号") }}</div>');
             
             $menu.append($categories).append($products).append($models).append($specs);
             
@@ -1681,7 +1644,7 @@ function initializeProductAutocomplete() {
                     $categories.empty();
                     
                     if (!categories || categories.length === 0) {
-                        $categories.html('<div class="menu-loading">无产品类别</div>');
+                        $categories.html('<div class="menu-loading">{{ _("无产品类别") }}</div>');
                         return;
                     }
                     
@@ -1702,7 +1665,7 @@ function initializeProductAutocomplete() {
                             
                             // 显示产品列表并加载数据
                             $products.show();
-                            $products.html('<div class="menu-loading">加载中...</div>');
+                            $products.html('<div class="menu-loading">{{ _("加载中...") }}</div>');
                             
                             var selectedCategory = $(this).data('category');
                             console.log('选中类别:', selectedCategory);
@@ -1717,7 +1680,7 @@ function initializeProductAutocomplete() {
                                     $products.empty();
                                     
                                     if (!products || products.length === 0) {
-                                        $products.html('<div class="menu-loading">此类别下无产品</div>');
+                                        $products.html('<div class="menu-loading">{{ _("此类别下无产品") }}</div>');
                                         return;
                                     }
                                     
@@ -1733,7 +1696,7 @@ function initializeProductAutocomplete() {
                                     
                                     // 显示产品名称列表
                                     if (productNames.length === 0) {
-                                        $products.html('<div class="menu-loading">此类别下无产品</div>');
+                                        $products.html('<div class="menu-loading">{{ _("此类别下无产品") }}</div>');
                                     } else {
                                         productNames.forEach(function(name) {
                                             // 过滤出该产品名称对应的所有产品
@@ -1850,7 +1813,7 @@ function initializeProductAutocomplete() {
                 },
                 error: function(xhr, status, error) {
                     console.error('加载类别失败:', error);
-                    $categories.html('<div class="menu-loading">加载类别失败</div>');
+                    $categories.html('<div class="menu-loading">{{ _("加载类别失败") }}</div>');
                 }
             });
             
@@ -1873,7 +1836,7 @@ function createModelSelect($row, products) {
     var $container = $('<div class="model-select-container"></div>');
     var $select = $('<select class="form-select model-select"></select>');
     
-    $select.append('<option value="">-- 请选择型号 --</option>');
+    $select.append('<option value="">{{ _("-- 请选择型号 --") }}</option>');
     
     products.forEach(function(product) {
         $select.append(
@@ -2188,7 +2151,7 @@ function initializeQuotationDetails(details) {
                 <tr>
                     <td>
                         <div class="product-name-container">
-                            <input type="text" class="form-control product-name" name="product_name[]" required placeholder="点击选择产品...">
+                            <input type="text" class="form-control product-name" name="product_name[]" required placeholder="{{ _('点击选择产品...') }}">
                         </div>
                     </td>
                     <td>
@@ -2261,7 +2224,7 @@ function initializeQuotationDetails(details) {
                     <tr>
                         <td>
                             <div class="product-name-container">
-                                <input type="text" class="form-control product-name" name="product_name[]" required value="${safeDetail.product_name}" placeholder="点击选择产品...">
+                                <input type="text" class="form-control product-name" name="product_name[]" required value="${safeDetail.product_name}" placeholder="{{ _('点击选择产品...') }}">
                             </div>
                         </td>
                         <td>
@@ -2333,7 +2296,7 @@ function initializeQuotationDetails(details) {
         var $errorRow = $(`
             <tr>
                 <td colspan="12" class="text-center text-danger">
-                    加载产品明细数据失败，请手动添加产品
+                    {{ _('加载产品明细数据失败，请手动添加产品') }}
                 </td>
             </tr>
         `);
@@ -2351,7 +2314,7 @@ function translateProjectType(typeCode) {
         'poc': '概念验证',
         'strategic': '战略项目',
         'normal': '普通项目',
-        '业务机会': '业务机会'
+        'business_opportunity': '客户服务'
     };
     
     return typeMap[typeCode] || typeCode; // 如果没有匹配的翻译，返回原值
@@ -2535,20 +2498,23 @@ $(document).ready(function() {
         window.currencySelector.initializeCurrencySelects();
     }
     
-    // 获取当前报价单的货币作为初始值
-    const currentCurrency = $('#currency').val() || 'CNY';
-    $('#currency').data('previous-currency', currentCurrency);
+    // 获取当前报价单的货币，确保正确显示
+    const currentCurrency = '{{ quotation.currency if quotation else "CNY" }}';
+    $('#currency').val(currentCurrency);
     
     // 监听货币变更
     $('#currency').on('change', function() {
         const newCurrency = $(this).val();
-        const oldCurrency = $(this).data('previous-currency') || 'CNY';
+        const oldCurrency = $(this).data('previous-currency') || currentCurrency;
         
         if (newCurrency !== oldCurrency) {
             convertProductPrices(oldCurrency, newCurrency);
             $(this).data('previous-currency', newCurrency);
         }
     });
+    
+    // 初始化前一个货币值
+    $('#currency').data('previous-currency', currentCurrency);
 });
 
 // 转换产品价格
@@ -2564,36 +2530,31 @@ async function convertProductPrices(fromCurrency, toCurrency) {
                 const $discountedInput = $row.find('.discounted-price');
                 
                 // 转换市场价格
-                const marketPrice = parseFloat($priceInput.data('raw-value') || $priceInput.val().replace(/,/g, '')) || 0;
-                if (marketPrice > 0 && window.currencySelector) {
-                    try {
-                        const convertedMarketPrice = await window.currencySelector.convertAmount(
-                            marketPrice, fromCurrency, toCurrency
-                        );
-                        $priceInput.data('raw-value', convertedMarketPrice);
-                        $priceInput.val(formatNumber(convertedMarketPrice));
-                    } catch (error) {
-                        console.error('市场价格转换失败:', error);
-                    }
+                const marketPrice = parseFloat($priceInput.val().replace(/,/g, '')) || 0;
+                if (marketPrice > 0) {
+                    const convertedMarketPrice = await window.currencySelector.convertAmount(
+                        marketPrice, fromCurrency, toCurrency
+                    );
+                    $priceInput.val(formatNumber(convertedMarketPrice));
+                    $priceInput.data('raw-value', convertedMarketPrice);
                 }
                 
                 // 转换折后价
-                const discountedPrice = parseFloat($discountedInput.data('raw-value') || $discountedInput.val().replace(/,/g, '')) || 0;
-                if (discountedPrice > 0 && window.currencySelector) {
-                    try {
-                        const convertedDiscountedPrice = await window.currencySelector.convertAmount(
-                            discountedPrice, fromCurrency, toCurrency
-                        );
-                        $discountedInput.data('raw-value', convertedDiscountedPrice);
-                        $discountedInput.val(formatNumber(convertedDiscountedPrice));
-                    } catch (error) {
-                        console.error('折后价格转换失败:', error);
-                    }
+                const discountedPrice = parseFloat($discountedInput.val().replace(/,/g, '')) || 0;
+                if (discountedPrice > 0) {
+                    const convertedDiscountedPrice = await window.currencySelector.convertAmount(
+                        discountedPrice, fromCurrency, toCurrency
+                    );
+                    $discountedInput.val(formatNumber(convertedDiscountedPrice));
+                    $discountedInput.data('raw-value', convertedDiscountedPrice);
                 }
                 
                 // 重新计算小计
                 updateRowSubtotal($row);
             }
+            
+            // 更新总计
+            updateGrandTotal();
             
             console.log(`价格已从${fromCurrency}转换为${toCurrency}`);
         } else {
@@ -2601,13 +2562,41 @@ async function convertProductPrices(fromCurrency, toCurrency) {
             $('#currency').val(fromCurrency);
         }
     } catch (error) {
-        console.error('货币转换过程出错:', error);
-        alert('货币转换失败，请重试');
-        // 恢复原来的货币选择
+        console.error('转换价格失败:', error);
+        alert('{{ _("价格转换失败，请重试") }}');
         $('#currency').val(fromCurrency);
     }
 }
 </script>
+
+<!-- 引用本地JS库文件 -->
+<script src="{{ url_for('static', filename='js/vendor/jquery-ui.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/vendor/jquery.dataTables.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/vendor/dataTables.rowReorder.min.js') }}"></script>
+
+<!-- 初始化产品明细组件 -->
+{{ init_product_detail_scripts() }}
+
+<!-- 加载货币选择器 -->
+<script src="{{ url_for('static', filename='js/currency_selector.js') }}"></script>
+
+<!-- 传递货币翻译数据到JavaScript -->
+<script>
+// 为currency_selector.js提供翻译后的货币数据
+window.CURRENCY_TRANSLATIONS = {{ currency_options | tojson | safe }};
+
+// 设置页面类型标志 - 这是编辑页面
+var isCreatePage = false;
+var isEditPage = true;
+
+// 设置现有数据
+{% if quotation and quotation.details %}
+window.existingQuotationData = {{ quotation_details_json | safe }};
+{% else %}
+window.existingQuotationData = [];
+{% endif %}
+</script>
+
 {% if preset_project_id %}
 <script>
 $(function() {
@@ -2628,7 +2617,8 @@ $(function() {
 });
 </script>
 {% endif %}
-{% endblock %}
+
+<style>
 /* 产品菜单统一样式（与create.html一致） */
 #product-menu-styles,
 .product-menu-container,
@@ -2657,15 +2647,6 @@ $(function() {
     font-style: italic;
     font-size: 0.75rem;
 }
-{% endblock %}
+</style>
 
-{% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
-<!-- 加载货币选择器样式 -->
-<link rel="stylesheet" href="{{ url_for('static', filename='js/currency_selector.css') }}">
-{% endblock %}
-
-{% block extra_js %}
-<!-- 加载货币选择器组件 -->
-<script src="{{ url_for('static', filename='js/currency_selector.js') }}"></script>
 {% endblock %}

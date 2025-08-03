@@ -52,7 +52,8 @@
 {% endmacro %}
 
 {% macro render_project_stage(stage) %}
-  {% set stage_map = {
+  {# 中文显示映射 #}
+  {% set stage_map_zh = {
     'discover': '发现',
     'embed': '植入',
     'pre_tender': '招标前',
@@ -62,6 +63,19 @@
     'signed': '签约',
     'lost': '失败',
     'paused': '搁置'
+  } %}
+  
+  {# 英文显示映射 #}
+  {% set stage_map_en = {
+    'discover': 'Discovery',
+    'embed': 'Implant',
+    'pre_tender': 'Pre-tender',
+    'tendering': 'Tendering',
+    'awarded': 'Awarded',
+    'quoted': 'Price Approval',
+    'signed': 'Signed',
+    'lost': 'Failed',
+    'paused': 'Suspended'
   } %}
   
   {# 处理中文到键的映射 #}
@@ -79,16 +93,37 @@
   
   {% set stage_key = key_map.get(stage, stage) %}
   
+  {# 通过测试已知翻译来检测当前语言 #}
+  {% set is_english = (_('搜索') == 'Search') %}
+  {% set lang_code = 'en' if is_english else 'zh' %}
+  
+  {# 根据语言选择显示文本 #}
+  {% if lang_code == 'en' %}
+    {% set display_text = stage_map_en.get(stage_key, stage) %}
+  {% else %}
+    {% set display_text = stage_map_zh.get(stage_key, stage) %}
+  {% endif %}
+  
   <span class="badge badge-pill badge-transparent project-stage-{{ stage_key }}">
-    {{ stage_map.get(stage_key, stage) }}
+    {{ display_text }}
   </span>
 {% endmacro %}
 
 {% macro render_project_type(type) %}
-  {% set type_map = {
-    'channel_follow': '渠道跟进',
-    'sales_focus': '销售重点', 
-    'business_opportunity': '客户服务'
+  {# 使用dictionary_helpers.py中的标准项目类型映射 #}
+  {% set type_mappings = {
+    'channel_follow': {
+      'zh': '渠道跟进',
+      'en': 'Channel Follow'
+    },
+    'sales_focus': {
+      'zh': '销售重点',
+      'en': 'Sales Focus'
+    }, 
+    'business_opportunity': {
+      'zh': '客户服务',
+      'en': 'Service Opportunity'
+    }
   } %}
   
   {# 处理中文到键的映射 #}
@@ -98,11 +133,35 @@
     '客户服务': 'business_opportunity'
   } %}
   
-  {% set type_key = key_map.get(type, type) %}
+  {# 通过测试已知翻译来检测当前语言 #}
+  {% set is_english = (_('搜索') == 'Search') %}
+  {% set lang_code = 'en' if is_english else 'zh' %}
   
-  <span class="badge badge-pill badge-transparent project-type-{{ type_key }}">
-    {{ type_map.get(type_key, type or '无') }}
-  </span>
+  {# 处理不同的输入格式 #}
+  {% if not type or type == 'None' or type == '' %}
+    {# 空类型不显示任何内容 #}
+    {% set display_text = '' %}
+    {% set type_key = '' %}
+  {% elif type in type_mappings %}
+    {# 标准英文键 - 使用dictionary_helpers.py的映射 #}
+    {% set type_key = type %}
+    {% set display_text = type_mappings[type][lang_code] %}
+  {% elif type in key_map %}
+    {# 中文值转英文键 - 使用dictionary_helpers.py的映射 #}
+    {% set type_key = key_map[type] %}
+    {% set display_text = type_mappings[type_key][lang_code] %}
+  {% else %}
+    {# 未知类型：不显示 #}
+    {% set display_text = '' %}
+    {% set type_key = '' %}
+  {% endif %}
+  
+  {# 只有有内容时才渲染徽章 #}
+  {% if display_text %}
+    <span class="badge badge-pill badge-transparent project-type-{{ type_key }}">
+      {{ display_text }}
+    </span>
+  {% endif %}
 {% endmacro %}
 
 {% macro render_authorization_code(code, project_type=None, size="normal") %}
@@ -421,21 +480,41 @@
 {% endmacro %}
 
 {% macro render_status_badge(value) %}
+  {# 活跃状态映射 - 使用标准映射而不是翻译 #}
+  {% set status_mappings = {
+    'active': {'zh': '活跃', 'en': 'Active'},
+    'inactive': {'zh': '非活跃', 'en': 'Inactive'}
+  } %}
+  
+  {# 通过测试已知翻译来检测当前语言 #}
+  {% set is_english = (_('搜索') == 'Search') %}
+  {% set lang_code = 'en' if is_english else 'zh' %}
+  
   {% if value == 'active' or value == True %}
-    <span class="badge customer-status-badge customer-status-active rounded-pill">活跃</span>
+    <span class="badge customer-status-badge customer-status-active rounded-pill">{{ status_mappings['active'][lang_code] }}</span>
   {% else %}
-    <span class="badge customer-status-badge customer-status-inactive rounded-pill">非活跃</span>
+    <span class="badge customer-status-badge customer-status-inactive rounded-pill">{{ status_mappings['inactive'][lang_code] }}</span>
   {% endif %}
 {% endmacro %}
 
 {% macro render_lock_status_badge(is_locked) %}
+  {# 锁定状态映射 - 使用标准映射而不是翻译 #}
+  {% set lock_mappings = {
+    'locked': {'zh': '已锁定', 'en': 'Locked'},
+    'unlocked': {'zh': '未锁定', 'en': 'Unlocked'}
+  } %}
+  
+  {# 通过测试已知翻译来检测当前语言 #}
+  {% set is_english = (_('搜索') == 'Search') %}
+  {% set lang_code = 'en' if is_english else 'zh' %}
+  
   {% if is_locked %}
     <span class="badge badge-pill badge-transparent project-lock-locked">
-      <i class="fas fa-lock me-1"></i>已锁定
+      <i class="fas fa-lock me-1"></i>{{ lock_mappings['locked'][lang_code] }}
     </span>
   {% else %}
     <span class="badge badge-pill badge-transparent project-lock-unlocked">
-      <i class="fas fa-unlock me-1"></i>未锁定
+      <i class="fas fa-unlock me-1"></i>{{ lock_mappings['unlocked'][lang_code] }}
     </span>
   {% endif %}
 {% endmacro %}
@@ -467,7 +546,8 @@
 {% endmacro %}
 
 {% macro render_order_status_badge(status) %}
-  {% set status_map = {
+  {# 中文显示映射 #}
+  {% set status_map_zh = {
     'draft': '草稿',
     'pending': '审批中',
     'approved': '已审批',
@@ -477,8 +557,32 @@
     'completed': '已完成',
     'cancelled': '已取消'
   } %}
+  
+  {# 英文显示映射 #}
+  {% set status_map_en = {
+    'draft': 'Draft',
+    'pending': 'Under Approval',
+    'approved': 'Approved',
+    'confirmed': 'Confirmed',
+    'rejected': 'Rejected',
+    'shipped': 'Shipped',
+    'completed': 'Completed',
+    'cancelled': 'Cancelled'
+  } %}
+  
+  {# 通过测试已知翻译来检测当前语言 #}
+  {% set is_english = (_('搜索') == 'Search') %}
+  {% set lang_code = 'en' if is_english else 'zh' %}
+  
+  {# 根据语言选择显示文本 #}
+  {% if lang_code == 'en' %}
+    {% set display_text = status_map_en.get(status, status) %}
+  {% else %}
+    {% set display_text = status_map_zh.get(status, status) %}
+  {% endif %}
+  
   <span class="badge badge-pill badge-transparent order-status-{{ status }}">
-    {{ status_map.get(status, status) }}
+    {{ display_text }}
   </span>
 {% endmacro %}
 
@@ -486,13 +590,33 @@
   {% if inventory_status is none %}
     <span class="badge badge-pill badge-muted">-</span>
   {% else %}
-    {% set status_map = {
+    {# 中文显示映射 #}
+    {% set status_map_zh = {
       'pending': '待入库',
       'partially_received': '部分入库',
       'fully_received': '全部入库'
     } %}
+    
+    {# 英文显示映射 #}
+    {% set status_map_en = {
+      'pending': 'Pending',
+      'partially_received': 'Partially Received',
+      'fully_received': 'Fully Received'
+    } %}
+    
+    {# 通过测试已知翻译来检测当前语言 #}
+    {% set is_english = (_('搜索') == 'Search') %}
+    {% set lang_code = 'en' if is_english else 'zh' %}
+    
+    {# 根据语言选择显示文本 #}
+    {% if lang_code == 'en' %}
+      {% set display_text = status_map_en.get(inventory_status, inventory_status) %}
+    {% else %}
+      {% set display_text = status_map_zh.get(inventory_status, inventory_status) %}
+    {% endif %}
+    
     <span class="badge badge-pill badge-transparent inventory-status-{{ inventory_status }}">
-      {{ status_map.get(inventory_status, inventory_status) }}
+      {{ display_text }}
     </span>
   {% endif %}
 {% endmacro %}
@@ -565,7 +689,7 @@
 {% macro render_company_code(code) %}
   {% if code %}
     <span class="badge rounded-pill" style="background-color: #5bc0de; color: white;">
-      企业代码：{{ code }}
+      {{ code }}
     </span>
   {% endif %}
 {% endmacro %}
@@ -2006,7 +2130,7 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
       - amount: 金额数值（可选）
       - amount_unit: 金额单位（可选）
 #}
-{% macro render_stats_cards(stats_config, language_aware=True) %}
+{% macro render_stats_cards(stats_config, language_aware=True, translate_units=True, translate_titles=True) %}
 {# 
   统计卡片渲染宏（支持语言感知的货币单位）
   
@@ -2027,12 +2151,12 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
         <div class="card {% if card.color == 'primary' %}bg-light{% else %}bg-{{ card.color }} bg-opacity-10{% endif %}">
             <div class="card-body">
                 <h6 class="card-title text-{{ card.color }}">
-                    <i class="{{ card.icon }} me-1"></i> {{ card.title }}
+                    <i class="{{ card.icon }} me-1"></i> {% if translate_titles %}{{ _(card.title) }}{% else %}{{ card.title }}{% endif %}
                 </h6>
                 <div class="d-flex justify-content-between align-items-center mt-2">
                     <div>
                         <span class="fs-5" id="{{ card.id }}Count">{{ card.value }}</span>
-                        <span class="text-muted ms-1">{{ card.unit }}</span>
+                        <span class="text-muted ms-1">{% if translate_units %}{{ _(card.unit) }}{% else %}{{ card.unit }}{% endif %}</span>
                     </div>
                     {% if card.amount is defined %}
                     <div>
@@ -2091,20 +2215,20 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
             <div class="list-title-main">
                 <h5 class="mb-0">
                     {% if table_config.icon %}<i class="{{ table_config.icon }} me-2"></i>{% endif %}
-                    {{ table_config.title }}
+                    {{ _(table_config.title) }}
                     {% if table_config.badge_text %}
-                    <span class="badge bg-primary ms-2">{{ table_config.badge_text }}</span>
+                    <span class="badge bg-primary ms-2">{{ _(table_config.badge_text) }}</span>
                     {% endif %}
                 </h5>
             </div>
             <div class="list-title-stats">
                 {% if ajax_mode %}
                 <span class="list-item-count count-loading" id="listItemCount">
-                    加载中
+                    {{ _('加载中') }}
                 </span>
                 {% else %}
                 <span class="list-item-count count-total" id="listItemCount">
-                    共 {{ items|length }} 项
+                    {{ _('共') }} {{ items|length }} {{ _('项') }}
                 </span>
                 {% endif %}
             </div>
@@ -2122,7 +2246,7 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
                         {% for column in table_config.columns %}
                         <th {% if column.width %}style="width: {{ column.width }}"{% endif %}
                             {% if column.align %}class="text-{{ column.align }}"{% endif %}>
-                            {{ column.label }}
+                            {{ _(column.label) }}
                         </th>
                         {% endfor %}
                     </tr>
@@ -2131,12 +2255,12 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
                 <tbody {% if ajax_mode %}id="{{ table_config.ajax_target }}"{% endif %}>
                     {% if ajax_mode %}
                         <!-- AJAX模式：内容将通过JavaScript动态加载 -->
-                        <tr>
+                        <tr data-loading-state="true">
                             <td colspan="{{ table_config.columns|length }}" class="text-center py-4">
                                 <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">加载中...</span>
+                                    <span class="visually-hidden">{{ _('加载中...') }}</span>
                                 </div>
-                                <div class="mt-2">正在加载数据...</div>
+                                <div class="mt-2">{{ _('正在加载数据...') }}</div>
                             </td>
                         </tr>
                     {% else %}
@@ -2461,7 +2585,7 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
     - ajax_mode: 是否启用AJAX模式（默认false）
   - items: 数据项列表（传统模式）
 #}
-{% macro render_data_list(list_config, items=[], caller=none) %}
+{% macro render_data_list(list_config, items=[], caller=none, stats_translate_units=True, stats_translate_titles=True) %}
 <div class="data-list-container">
     <!-- 页面标题 - 只有在页面模板没有独立标题区域时才显示 -->
     <!-- 注释：现在所有页面都有独立的 page-header-with-actions 区域，所以这里不再显示标题 -->
@@ -2476,7 +2600,7 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
     <!-- 统计卡片区域 -->
     {% if list_config.stats %}
     <div class="module-stats-section">
-        {{ render_stats_cards(list_config.stats) }}
+        {{ render_stats_cards(list_config.stats, language_aware=True, translate_units=stats_translate_units, translate_titles=stats_translate_titles) }}
     </div>
     {% endif %}
     
@@ -2540,11 +2664,11 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
     <div class="mobile-cards-container" {% if list_config.ajax_mode %}id="{{ list_config.table.ajax_target }}"{% endif %}>
       {% if list_config.ajax_mode and not items %}
         <!-- AJAX模式：内容将通过JavaScript动态加载 -->
-        <div class="d-flex justify-content-center align-items-center p-4">
+        <div class="d-flex justify-content-center align-items-center p-4" data-loading-state="true">
           <div class="spinner-border text-primary me-2" role="status">
-            <span class="visually-hidden">加载中...</span>
+            <span class="visually-hidden">{{ _('加载中...') }}</span>
           </div>
-          <span class="text-muted">正在加载数据...</span>
+          <span class="text-muted">{{ _('正在加载数据...') }}</span>
         </div>
       {% else %}
         {% include list_config.mobile_template %}
@@ -2555,11 +2679,11 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
     <div class="mobile-cards-container" {% if list_config.ajax_mode %}id="{{ list_config.table.ajax_target }}"{% endif %}>
       {% if list_config.ajax_mode and not items %}
         <!-- AJAX模式：内容将通过JavaScript动态加载 -->
-        <div class="d-flex justify-content-center align-items-center p-4">
+        <div class="d-flex justify-content-center align-items-center p-4" data-loading-state="true">
           <div class="spinner-border text-primary me-2" role="status">
-            <span class="visually-hidden">加载中...</span>
+            <span class="visually-hidden">{{ _('加载中...') }}</span>
           </div>
-          <span class="text-muted">正在加载数据...</span>
+          <span class="text-muted">{{ _('正在加载数据...') }}</span>
         </div>
       {% else %}
         {{ render_mobile_cards_from_table(list_config.table, items) }}
@@ -3117,36 +3241,41 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
 #}
 {% macro render_approval_status_badge(status, status_name=None, lang=None) %}
     {% if not lang %}
-        {% set lang = session.get('language', 'zh') %}
+        {% set is_english = (_('搜索') == 'Search') %}
+        {% set lang = 'en' if is_english else 'zh' %}
     {% endif %}
     
     {# 获取状态显示名称 #}
     {% if status_name %}
-        {% set status_key = status_name %}
+        {% set status_key = status_name.lower() if status_name else 'unknown' %}
     {% elif status %}
         {% if status.name is defined %}
-            {% set status_key = status.name %}
+            {% set status_key = status.name.lower() %}
+        {% elif status.value is defined %}
+            {% set status_key = status.value.lower() %}
         {% else %}
-            {% set status_key = status %}
+            {% set status_key = status|string|lower %}
         {% endif %}
     {% else %}
-        {% set status_key = 'UNKNOWN' %}
+        {% set status_key = 'unknown' %}
     {% endif %}
     
-    {# 状态映射配置 #}
-    {% set status_map = {
-        'PENDING': {'zh': '审批中', 'en': 'Pending', 'css_class': 'approval-status-pending'},
-        'APPROVED': {'zh': '已通过', 'en': 'Approved', 'css_class': 'approval-status-approved'},
-        'REJECTED': {'zh': '已拒绝', 'en': 'Rejected', 'css_class': 'approval-status-rejected'},
-        'DRAFT': {'zh': '草稿', 'en': 'Draft', 'css_class': 'approval-status-draft'},
-        'CANCELLED': {'zh': '已取消', 'en': 'Cancelled', 'css_class': 'approval-status-cancelled'}
+    {# 使用dictionary_helpers.py中的标准映射 #}
+    {% set status_mappings = {
+        'pending': {'zh': '审批中', 'en': 'Pending'},
+        'approved': {'zh': '已通过', 'en': 'Approved'},
+        'rejected': {'zh': '已拒绝', 'en': 'Rejected'},
+        'recalled': {'zh': '已召回', 'en': 'Recalled'},
+        'draft': {'zh': '草稿', 'en': 'Draft'}
     } %}
     
-    {% set status_config = status_map.get(status_key, {'zh': status_key or '未知状态', 'en': status_key or 'Unknown', 'css_class': 'approval-status-unknown'}) %}
-    {% set display_text = status_config[lang] %}
-    {% set css_class = status_config.css_class %}
+    {% if status_key in status_mappings %}
+        {% set display_text = status_mappings[status_key][lang] %}
+    {% else %}
+        {% set display_text = status_key if status_key != 'unknown' else (lang == 'en' and 'Unknown' or '未知状态') %}
+    {% endif %}
     
-    <span class="badge badge-pill badge-transparent {{ css_class }}">
+    <span class="badge badge-pill badge-transparent approval-status-{{ status_key }}">
         {{ display_text }}
     </span>
 {% endmacro %}

@@ -68,11 +68,11 @@
     <div class="form-check">
       <input class="form-check-input" type="checkbox" id="selectAll">
       <label class="form-check-label" for="selectAll">
-        全选
+        {{ _('全选') }}
       </label>
     </div>
     <div id="batchActionsContainer" style="display: none;">
-      {{ render_button('批量删除', type='button', color='danger', size='sm', icon='fas fa-trash', attrs='id="batchDeleteBtn"') }}
+      {{ render_button(_('批量删除'), type='button', color='danger', size='sm', icon='fas fa-trash', attrs='id="batchDeleteBtn"') }}
     </div>
   </div>
   
@@ -86,22 +86,22 @@
             <input type="checkbox" class="form-check-input" id="selectAllHeader">
           </th>
           {% if mode == 'pricing_order' %}
-            <th width="200">批价单编号</th>
-            <th width="200">流程名称</th>
-            <th width="180">关联项目</th>
+            <th width="200">{{ _('批价单编号') }}</th>
+            <th width="200">{{ _('流程名称') }}</th>
+            <th width="180">{{ _('关联项目') }}</th>
           {% elif mode == 'order' %}
-            <th width="200">订单编号</th>
-            <th width="200">流程名称</th>
-            <th width="180">供应商/客户</th>
+            <th width="200">{{ _('订单编号') }}</th>
+            <th width="200">{{ _('流程名称') }}</th>
+            <th width="180">{{ _('供应商/客户') }}</th>
           {% else %}
-            <th width="200">审批编号</th>
-            <th width="200">流程名称</th>
-            <th width="180">关联业务</th>
+            <th width="200">{{ _('审批编号') }}</th>
+            <th width="200">{{ _('流程名称') }}</th>
+            <th width="180">{{ _('关联业务') }}</th>
           {% endif %}
-          <th width="150">提交人</th>
-          <th width="150">当前审批人</th>
-          <th width="120">状态</th>
-          <th width="180" class="d-none d-md-table-cell">发起时间</th>
+          <th width="150">{{ _('提交人') }}</th>
+          <th width="150">{{ _('当前审批人') }}</th>
+          <th width="120">{{ _('状态') }}</th>
+          <th width="180" class="d-none d-md-table-cell">{{ _('发起时间') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -114,7 +114,7 @@
               <td>
                 {# 强制使用业务详情页面URL，添加时间戳防止缓存 #}
                 {% set business_url = get_approval_object_url(item) %}
-                <a href="{{ business_url }}?_t={{ range(1000000, 9999999) | random }}" class="text-decoration-none" title="跳转到业务详情页面">
+                <a href="{{ business_url }}?_t={{ range(1000000, 9999999) | random }}" class="text-decoration-none" title="{{ _('跳转到业务详情页面') }}">
                   {% if item.object_type == 'pricing_order' %}
                     {# 批价单显示批价单编号 #}
                     {% if item.object_id %}
@@ -122,10 +122,10 @@
                       {% if pricing_order %}
                         {{ render_pricing_order_number(pricing_order.order_number) }}
                       {% else %}
-                        <span class="badge rounded-pill bg-secondary">无编号</span>
+                        <span class="badge rounded-pill bg-secondary">{{ _('无编号') }}</span>
                       {% endif %}
                     {% else %}
-                      <span class="badge rounded-pill bg-secondary">无编号</span>
+                      <span class="badge rounded-pill bg-secondary">{{ _('无编号') }}</span>
                     {% endif %}
                   {% elif item.object_type == 'purchase_order' %}
                     {# 订单显示订单编号 #}
@@ -134,7 +134,7 @@
                     {% elif item.business_object_name %}
                       <span class="badge rounded-pill bg-primary">{{ item.business_object_name }}</span>
                     {% else %}
-                      <span class="badge rounded-pill bg-secondary">无编号</span>
+                      <span class="badge rounded-pill bg-secondary">{{ _('无编号') }}</span>
                     {% endif %}
                   {% else %}
                     {# 其他类型显示审批编号 #}
@@ -150,7 +150,7 @@
                 {% if item.process %}
                   {{ item.process.name }}
                 {% else %}
-                  <span class="text-muted">未知流程</span>
+                  <span class="text-muted">{{ _('未知流程') }}</span>
                 {% endif %}
               </td>
               <td>
@@ -164,13 +164,13 @@
                       {% if project and project.authorization_code %}
                         {{ render_authorization_code(project.authorization_code, project.project_type) }}
                       {% else %}
-                        <span class="badge bg-secondary">无项目编号</span>
+                        <span class="badge bg-secondary">{{ _('无项目编号') }}</span>
                       {% endif %}
                     {% else %}
-                      <span class="badge bg-secondary">无关联项目</span>
+                      <span class="badge bg-secondary">{{ _('无关联项目') }}</span>
                     {% endif %}
                   {% else %}
-                    <span class="badge bg-secondary">无关联</span>
+                    <span class="badge bg-secondary">{{ _('无关联') }}</span>
                   {% endif %}
                 {% elif item.object_type == 'project' %}
                   {# 项目审核 - 显示项目名称 #}
@@ -179,10 +179,10 @@
                     {% if project and project.project_name %}
                       <span class="badge bg-success rounded-pill" title="{{ project.project_name }}">{{ project.project_name[:20] }}{% if project.project_name|length > 20 %}...{% endif %}</span>
                     {% else %}
-                      <span class="badge bg-secondary">无项目名称</span>
+                      <span class="badge bg-secondary">{{ _('无项目名称') }}</span>
                     {% endif %}
                   {% else %}
-                    <span class="badge bg-secondary">无关联</span>
+                    <span class="badge bg-secondary">{{ _('无关联') }}</span>
                   {% endif %}
                 {% elif item.object_type == 'customer' %}
                   {# 客户审核 - 显示客户编号或名称 #}
@@ -191,10 +191,10 @@
                     {% if customer %}
                       <span class="badge bg-info rounded-pill">{{ customer.company_name[:10] }}...</span>
                     {% else %}
-                      <span class="badge bg-secondary">无客户</span>
+                      <span class="badge bg-secondary">{{ _('无客户') }}</span>
                     {% endif %}
                   {% else %}
-                    <span class="badge bg-secondary">无关联</span>
+                    <span class="badge bg-secondary">{{ _('无关联') }}</span>
                   {% endif %}
                 {% elif item.object_type == 'pricing_order' %}
                   {# 批价单审核 - 显示关联项目名称 #}
@@ -205,13 +205,13 @@
                       {% if project and project.project_name %}
                         <span class="badge bg-primary rounded-pill" title="{{ project.project_name }}">{{ project.project_name[:20] }}{% if project.project_name|length > 20 %}...{% endif %}</span>
                       {% else %}
-                        <span class="badge bg-secondary">无项目名称</span>
+                        <span class="badge bg-secondary">{{ _('无项目名称') }}</span>
                       {% endif %}
                     {% else %}
-                      <span class="badge bg-secondary">无关联项目</span>
+                      <span class="badge bg-secondary">{{ _('无关联项目') }}</span>
                     {% endif %}
                   {% else %}
-                    <span class="badge bg-secondary">无关联</span>
+                    <span class="badge bg-secondary">{{ _('无关联') }}</span>
                   {% endif %}
                 {% elif item.object_type == 'purchase_order' %}
                   {# 订单审核 - 显示供应商/客户公司 #}
@@ -220,7 +220,7 @@
                   {% elif item.business_object and item.business_object.company %}
                     <span class="badge bg-info rounded-pill">{{ item.business_object.company.company_name[:15] }}{% if item.business_object.company.company_name|length > 15 %}...{% endif %}</span>
                   {% else %}
-                    <span class="badge bg-secondary">无关联公司</span>
+                    <span class="badge bg-secondary">{{ _('无关联公司') }}</span>
                   {% endif %}
                 {% else %}
                   <span class="badge bg-secondary">{{ get_object_type_display(item.object_type) }}</span>
@@ -232,17 +232,17 @@
               <td>{{ render_owner(last_approver or (current_step.approver if current_step else None)) }}</td>
               <td>
                 {% if item.status.name == 'PENDING' %}
-                  <span class="badge rounded-pill bg-warning text-dark">审批中</span>
+                  <span class="badge rounded-pill bg-warning text-dark">{{ _('审批中') }}</span>
                 {% elif item.status.name == 'APPROVED' %}
-                  <span class="badge rounded-pill bg-success text-white">已通过</span>
+                  <span class="badge rounded-pill bg-success text-white">{{ _('已通过') }}</span>
                 {% elif item.status.name == 'REJECTED' %}
-                  <span class="badge rounded-pill bg-danger text-white">已拒绝</span>
+                  <span class="badge rounded-pill bg-danger text-white">{{ _('已拒绝') }}</span>
                 {% elif item.status.name == 'DRAFT' %}
-                  <span class="badge rounded-pill bg-secondary text-white">草稿</span>
+                  <span class="badge rounded-pill bg-secondary text-white">{{ _('草稿') }}</span>
                 {% elif item.status.name == 'CANCELLED' %}
-                  <span class="badge rounded-pill bg-secondary text-white">已取消</span>
+                  <span class="badge rounded-pill bg-secondary text-white">{{ _('已取消') }}</span>
                 {% else %}
-                  <span class="badge rounded-pill bg-secondary text-white">{{ item.status.name or '未知状态' }}</span>
+                  <span class="badge rounded-pill bg-secondary text-white">{{ item.status.name or _('未知状态') }}</span>
                 {% endif %}
               </td>
               <td class="d-none d-md-table-cell">{{ format_datetime_local(item.started_at) }}</td>
@@ -254,11 +254,11 @@
               <div class="text-muted">
                 <i class="fas fa-info-circle me-2"></i>
                 {% if mode == 'pending' %}
-                  暂无待审批的流程
+                  {{ _('暂无待审批的流程') }}
                 {% elif mode == 'all' %}
-                  暂无审批记录
+                  {{ _('暂无审批记录') }}
                 {% else %}
-                  暂无已创建的流程
+                  {{ _('暂无已创建的流程') }}
                 {% endif %}
               </div>
             </td>
@@ -281,16 +281,16 @@
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="batchDeleteModalLabel">确认批量删除</h5>
+          <h5 class="modal-title" id="batchDeleteModalLabel">{{ _('确认批量删除') }}</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
-          <p>您确定要删除选中的 <span id="selectedCount">0</span> 个审批流程吗？</p>
-          <p class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i> 此操作不可撤销！</p>
+          <p>{{ _('您确定要删除选中的') }} <span id="selectedCount">0</span> {{ _('个审批流程吗？') }}</p>
+          <p class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i> {{ _('此操作不可撤销！') }}</p>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-          <button type="button" class="btn btn-danger" id="confirmBatchDelete">确认删除</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('取消') }}</button>
+          <button type="button" class="btn btn-danger" id="confirmBatchDelete">{{ _('确认删除') }}</button>
         </div>
       </div>
     </div>
@@ -386,7 +386,7 @@
 {% macro render_approval_code(id) %}
   <span class="badge rounded-pill" style="background-color: #0c7cd0; color: white; font-family: 'Helvetica Neue', sans-serif; font-size: 0.85rem; font-weight: normal; padding: 0.3em 0.75em;">
     {% if id is string and id.startswith('po_') %}
-      批价单-{{ id.split('_')[1] }}
+      {{ _('批价单') }}-{{ id.split('_')[1] }}
     {% else %}
       APV-{{ '%04d' % (id|int if id is not string else 0) }}
     {% endif %}
@@ -401,14 +401,14 @@
     <div class="row g-2">
       <div class="col-md-4 col-sm-6">
         <div class="form-group">
-          <label for="object_type" class="form-label">业务类型</label>
+          <label for="object_type" class="form-label">{{ _('业务类型') }}</label>
           <select class="form-select" id="object_type" name="object_type">
-            <option value="">全部类型</option>
-            <option value="project" {% if object_type == 'project' %}selected{% endif %}>项目</option>
-            <option value="quotation" {% if object_type == 'quotation' %}selected{% endif %}>报价单</option>
-            <option value="customer" {% if object_type == 'customer' %}selected{% endif %}>客户</option>
-            <option value="pricing_order" {% if object_type == 'pricing_order' %}selected{% endif %}>批价单</option>
-            <option value="purchase_order" {% if object_type == 'purchase_order' %}selected{% endif %}>订单</option>
+            <option value="">{{ _('全部类型') }}</option>
+            <option value="project" {% if object_type == 'project' %}selected{% endif %}>{{ _('项目') }}</option>
+            <option value="quotation" {% if object_type == 'quotation' %}selected{% endif %}>{{ _('报价单') }}</option>
+            <option value="customer" {% if object_type == 'customer' %}selected{% endif %}>{{ _('客户') }}</option>
+            <option value="pricing_order" {% if object_type == 'pricing_order' %}selected{% endif %}>{{ _('批价单') }}</option>
+            <option value="purchase_order" {% if object_type == 'purchase_order' %}selected{% endif %}>{{ _('订单') }}</option>
           </select>
         </div>
       </div>
@@ -416,30 +416,30 @@
       {% if current_tab == 'created' %}
         <div class="col-md-4 col-sm-6">
           <div class="form-group">
-            <label for="status" class="form-label">审批状态</label>
+            <label for="status" class="form-label">{{ _('审批状态') }}</label>
             <select class="form-select" id="status" name="status">
-              <option value="">全部</option>
-              <option value="draft" {{ 'selected' if status == 'draft' else '' }}>草稿</option>
-              <option value="pending" {{ 'selected' if status == 'pending' else '' }}>审批中</option>
-              <option value="approved" {{ 'selected' if status == 'approved' else '' }}>已通过</option>
-              <option value="rejected" {{ 'selected' if status == 'rejected' else '' }}>已拒绝</option>
+              <option value="">{{ _('全部') }}</option>
+              <option value="draft" {{ 'selected' if status == 'draft' else '' }}>{{ _('草稿') }}</option>
+              <option value="pending" {{ 'selected' if status == 'pending' else '' }}>{{ _('审批中') }}</option>
+              <option value="approved" {{ 'selected' if status == 'approved' else '' }}>{{ _('已通过') }}</option>
+              <option value="rejected" {{ 'selected' if status == 'rejected' else '' }}>{{ _('已拒绝') }}</option>
             </select>
           </div>
         </div>
       {% elif current_tab == 'order' %}
         <div class="col-md-4 col-sm-6">
           <div class="form-group">
-            <label for="status" class="form-label">订单状态</label>
+            <label for="status" class="form-label">{{ _('订单状态') }}</label>
             <select class="form-select" id="status" name="status">
-              <option value="">全部</option>
-              <option value="draft" {{ 'selected' if status == 'draft' else '' }}>草稿</option>
-              <option value="pending" {{ 'selected' if status == 'pending' else '' }}>审批中</option>
-              <option value="approved" {{ 'selected' if status == 'approved' else '' }}>已通过</option>
-              <option value="rejected" {{ 'selected' if status == 'rejected' else '' }}>已拒绝</option>
-              <option value="confirmed" {{ 'selected' if status == 'confirmed' else '' }}>已确认</option>
-              <option value="shipped" {{ 'selected' if status == 'shipped' else '' }}>已发货</option>
-              <option value="completed" {{ 'selected' if status == 'completed' else '' }}>已完成</option>
-              <option value="cancelled" {{ 'selected' if status == 'cancelled' else '' }}>已取消</option>
+              <option value="">{{ _('全部') }}</option>
+              <option value="draft" {{ 'selected' if status == 'draft' else '' }}>{{ _('草稿') }}</option>
+              <option value="pending" {{ 'selected' if status == 'pending' else '' }}>{{ _('审批中') }}</option>
+              <option value="approved" {{ 'selected' if status == 'approved' else '' }}>{{ _('已通过') }}</option>
+              <option value="rejected" {{ 'selected' if status == 'rejected' else '' }}>{{ _('已拒绝') }}</option>
+              <option value="confirmed" {{ 'selected' if status == 'confirmed' else '' }}>{{ _('已确认') }}</option>
+              <option value="shipped" {{ 'selected' if status == 'shipped' else '' }}>{{ _('已发货') }}</option>
+              <option value="completed" {{ 'selected' if status == 'completed' else '' }}>{{ _('已完成') }}</option>
+              <option value="cancelled" {{ 'selected' if status == 'cancelled' else '' }}>{{ _('已取消') }}</option>
             </select>
           </div>
         </div>
@@ -447,10 +447,10 @@
       
       <div class="col-md-{{ '4' if current_tab == 'created' else '8' }} col-sm-12 d-flex align-items-end">
         <div class="d-flex flex-wrap gap-2 w-100 justify-content-start">
-          {{ render_filter_button("筛选", "submit", "btn-primary", "fa-filter") |safe }}
+          {{ render_filter_button(_('筛选'), "submit", "btn-primary", "fa-filter") |safe }}
           
           <a href="{{ url_for('approval.center', tab=current_tab) }}" class="btn btn-outline-secondary btn-sm">
-            <i class="fas fa-sync-alt me-1"></i> 重置
+            <i class="fas fa-sync-alt me-1"></i> {{ _('重置') }}
           </a>
         </div>
       </div>
@@ -463,17 +463,17 @@
   <div class="card mb-4">
     <div class="card-header">
       <h5 class="mb-0">
-        <i class="fas fa-history me-2"></i> 审批流程
+        <i class="fas fa-history me-2"></i> {{ _('审批流程') }}
         {% if instance.status.name == 'PENDING' %}
-          <span class="badge rounded-pill bg-warning text-dark">审批中</span>
+          <span class="badge rounded-pill bg-warning text-dark">{{ _('审批中') }}</span>
         {% elif instance.status.name == 'APPROVED' %}
-          <span class="badge rounded-pill bg-success text-white">已通过</span>
+          <span class="badge rounded-pill bg-success text-white">{{ _('已通过') }}</span>
         {% elif instance.status.name == 'REJECTED' %}
-          <span class="badge rounded-pill bg-danger text-white">已拒绝</span>
+          <span class="badge rounded-pill bg-danger text-white">{{ _('已拒绝') }}</span>
         {% elif instance.status.name == 'CANCELLED' %}
-          <span class="badge rounded-pill bg-secondary text-white">已取消</span>
+          <span class="badge rounded-pill bg-secondary text-white">{{ _('已取消') }}</span>
         {% else %}
-          <span class="badge rounded-pill bg-secondary text-white">未知状态</span>
+          <span class="badge rounded-pill bg-secondary text-white">{{ _('未知状态') }}</span>
         {% endif %}
       </h5>
     </div>
@@ -483,10 +483,10 @@
         <div class="timeline-item">
           <div class="timeline-marker bg-info"></div>
           <div class="timeline-content">
-            <h4 class="timeline-title">流程发起</h4>
+            <h4 class="timeline-title">{{ _('流程发起') }}</h4>
             <p>
-              <strong>{{ get_user_display_name(instance.creator) }}</strong> 于 
-              {{ format_datetime(instance.started_at) }} 发起审批
+              <strong>{{ get_user_display_name(instance.creator) }}</strong> {{ _('于') }} 
+              {{ format_datetime(instance.started_at) }} {{ _('发起审批') }}
             </p>
           </div>
         </div>
@@ -500,11 +500,11 @@
               <p>
                 <strong>{{ get_user_display_name(record.approver) }}</strong> 
                 {% if record.action == 'approve' %}
-                  <span class="text-success">同意</span>
+                  <span class="text-success">{{ _('同意') }}</span>
                 {% else %}
-                  <span class="text-danger">拒绝</span>
+                  <span class="text-danger">{{ _('拒绝') }}</span>
                 {% endif %}
-                于 {{ format_datetime(record.timestamp) }}
+                {{ _('于') }} {{ format_datetime(record.timestamp) }}
               </p>
               {% if record.comment %}
                 <div class="mt-2 p-2 bg-light rounded">
@@ -521,8 +521,8 @@
           <div class="timeline-item">
             <div class="timeline-marker bg-warning"></div>
             <div class="timeline-content">
-              <h4 class="timeline-title">{{ current_step.step_name }} <span class="badge bg-warning">当前步骤</span></h4>
-              <p>待 <strong>{{ get_user_display_name(current_step.approver) }}</strong> 审批</p>
+              <h4 class="timeline-title">{{ current_step.step_name }} <span class="badge bg-warning">{{ _('当前步骤') }}</span></h4>
+              <p>{{ _('待') }} <strong>{{ get_user_display_name(current_step.approver) }}</strong> {{ _('审批') }}</p>
             </div>
           </div>
         {% endif %}
@@ -536,21 +536,21 @@
   {% if instance.status == ApprovalStatus.PENDING and can_user_approve(instance.id, current_user.id) %}
     <div class="card mb-4">
       <div class="card-header">
-        <h5 class="mb-0"><i class="fas fa-tasks me-2"></i> 审批操作</h5>
+        <h5 class="mb-0"><i class="fas fa-tasks me-2"></i> {{ _('审批操作') }}</h5>
       </div>
       <div class="card-body">
         <form action="{{ url_for('approval.approve', instance_id=instance.id) }}" method="POST">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="form-group mb-3">
-            <label for="comment" class="form-label">审批意见</label>
-            <textarea class="form-control" id="comment" name="comment" rows="3" placeholder="请输入您的审批意见..."></textarea>
+            <label for="comment" class="form-label">{{ _('审批意见') }}</label>
+            <textarea class="form-control" id="comment" name="comment" rows="3" placeholder="{{ _('请输入您的审批意见...') }}"></textarea>
           </div>
           <div class="d-flex justify-content-between gap-2 flex-wrap">
             <button type="submit" name="action" value="approve" class="btn btn-success">
-              <i class="fas fa-check-circle me-1"></i> 同意
+              <i class="fas fa-check-circle me-1"></i> {{ _('同意') }}
             </button>
             <button type="submit" name="action" value="reject" class="btn btn-danger">
-              <i class="fas fa-times-circle me-1"></i> 拒绝
+              <i class="fas fa-times-circle me-1"></i> {{ _('拒绝') }}
             </button>
           </div>
         </form>
@@ -586,7 +586,7 @@
   {% if has_approval_permission %}
     <div class="card mb-4">
       <div class="card-header">
-        <h5 class="mb-0"><i class="fas fa-paper-plane me-2"></i> 审批操作</h5>
+        <h5 class="mb-0"><i class="fas fa-paper-plane me-2"></i> {{ _('审批操作') }}</h5>
       </div>
       <div class="card-body">
         {% set history_instance = get_rejected_approval_history(object_type, object_id) %}
@@ -595,10 +595,10 @@
             <div class="alert-heading bg-warning text-dark p-3 m-0 d-flex align-items-center justify-content-between">
               <div class="d-flex align-items-center">
                 <i class="fas fa-exclamation-triangle me-2"></i>
-                <span class="mb-0">审批被拒绝提醒</span>
+                <span class="mb-0">{{ _('审批被拒绝提醒') }}</span>
               </div>
               <button class="btn btn-sm btn-outline-dark collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#rejectedApprovalDetails" aria-expanded="false" aria-controls="rejectedApprovalDetails" id="rejectedDetailsToggle">
-                <i class="fas fa-chevron-down toggle-icon"></i> <span class="toggle-text">查看详情</span>
+                <i class="fas fa-chevron-down toggle-icon"></i> <span class="toggle-text">{{ _('查看详情') }}</span>
               </button>
             </div>
             
@@ -606,13 +606,13 @@
               <div class="d-flex flex-column gap-2">
                 <!-- 流程信息 -->
                 <div class="d-flex">
-                  <div class="text-secondary" style="width: 100px;">拒绝流程：</div>
+                  <div class="text-secondary" style="width: 100px;">{{ _('拒绝流程') }}：</div>
                   <div class="fw-bold">{{ history_instance.process.name }}</div>
                 </div>
                 
                 <!-- 拒绝时间 -->
                 <div class="d-flex">
-                  <div class="text-secondary" style="width: 100px;">拒绝时间：</div>
+                  <div class="text-secondary" style="width: 100px;">{{ _('拒绝时间') }}：</div>
                   <div>{{ format_datetime(history_instance.ended_at) }}</div>
                 </div>
                 
@@ -620,7 +620,7 @@
                 {% set last_record = history_instance.records|selectattr('action', 'eq', 'reject')|first %}
                 {% if last_record %}
                 <div class="d-flex">
-                  <div class="text-secondary" style="width: 100px;">拒绝审批人：</div>
+                  <div class="text-secondary" style="width: 100px;">{{ _('拒绝审批人') }}：</div>
                   <div>{{ get_user_display_name(last_record.approver) }}</div>
                 </div>
                 {% endif %}
@@ -628,7 +628,7 @@
                 <!-- 拒绝原因（如果有） -->
                 {% if last_record and last_record.comment %}
                 <div class="d-flex mt-2">
-                  <div class="text-secondary" style="width: 100px;">拒绝原因：</div>
+                  <div class="text-secondary" style="width: 100px;">{{ _('拒绝原因') }}：</div>
                   <div class="p-2 bg-light rounded flex-grow-1 border-start border-4 border-danger">{{ last_record.comment }}</div>
                 </div>
                 {% endif %}
@@ -637,7 +637,7 @@
               <!-- 可折叠的审批流程详情 -->
               <div class="collapse mt-3" id="rejectedApprovalDetails">
                 <div class="card card-body bg-light">
-                  <h6 class="card-title"><i class="fas fa-history me-2"></i>审批流程详情</h6>
+                  <h6 class="card-title"><i class="fas fa-history me-2"></i>{{ _('审批流程详情') }}</h6>
                   
                   <!-- 审批流程时间线 -->
                   <div class="timeline mt-3">
@@ -645,10 +645,10 @@
                     <div class="timeline-item">
                       <div class="timeline-marker bg-info"></div>
                       <div class="timeline-content">
-                        <h6 class="timeline-title">流程发起</h6>
+                        <h6 class="timeline-title">{{ _('流程发起') }}</h6>
                         <p class="small">
-                          <strong>{{ get_user_display_name(history_instance.creator) }}</strong> 于 
-                          {{ format_datetime(history_instance.started_at) }} 发起审批
+                          <strong>{{ get_user_display_name(history_instance.creator) }}</strong> {{ _('于') }} 
+                          {{ format_datetime(history_instance.started_at) }} {{ _('发起审批') }}
                         </p>
                       </div>
                     </div>
@@ -686,24 +686,24 @@
                           
                           <div class="timeline-content">
                             <h6 class="timeline-title">
-                              步骤 {{ step.step_order }}: {{ step.step_name }}
+                              {{ _('步骤') }} {{ step.step_order }}: {{ step.step_name }}
                               
                               <!-- 状态徽章 -->
                               {% if step_record %}
                                 {% if step_record.action == 'approve' %}
-                                  <span class="badge bg-success">已通过</span>
+                                  <span class="badge badge-pill badge-transparent bg-success text-white">{{ _('已通过') }}</span>
                                 {% else %}
-                                  <span class="badge bg-danger">已拒绝</span>
+                                  <span class="badge badge-pill badge-transparent bg-danger text-white">{{ _('已拒绝') }}</span>
                                 {% endif %}
                               {% else %}
-                                <span class="badge bg-secondary">未到达</span>
+                                <span class="badge badge-pill badge-transparent bg-secondary text-white">{{ _('未到达') }}</span>
                               {% endif %}
                             </h6>
                             
                             {% if step_record %}
                               <p class="small mb-1">
-                                审批人: <strong>{{ get_user_display_name(step_record.approver) }}</strong>
-                                审批时间: {{ format_datetime(step_record.timestamp) }}
+                                {{ _('审批人') }}: <strong>{{ get_user_display_name(step_record.approver) }}</strong>
+                                {{ _('审批时间') }}: {{ format_datetime(step_record.timestamp) }}
                               </p>
                               
                               <!-- 拒绝原因展示 -->
@@ -714,7 +714,7 @@
                               {% endif %}
                             {% else %}
                               <p class="small text-muted">
-                                审批人: {{ get_user_display_name(step.approver) }}
+                                {{ _('审批人') }}: {{ get_user_display_name(step.approver) }}
                               </p>
                             {% endif %}
                           </div>
@@ -726,7 +726,7 @@
               </div>
               
               <div class="mt-3 text-end">
-                <span class="badge bg-success">您可以重新发起审批流程</span>
+                <span class="badge bg-success">{{ _('您可以重新发起审批流程') }}</span>
               </div>
             </div>
           </div>
@@ -742,35 +742,35 @@
               document.getElementById('rejectedApprovalDetails').addEventListener('show.bs.collapse', function () {
                 toggleIcon.classList.remove('fa-chevron-down');
                 toggleIcon.classList.add('fa-chevron-up');
-                toggleText.textContent = '收起详情';
+                toggleText.textContent = '{{ _("收起详情") }}';
               });
               
               document.getElementById('rejectedApprovalDetails').addEventListener('hide.bs.collapse', function () {
                 toggleIcon.classList.remove('fa-chevron-up');
                 toggleIcon.classList.add('fa-chevron-down');
-                toggleText.textContent = '查看详情';
+                toggleText.textContent = '{{ _("查看详情") }}';
               });
             });
           </script>
         {% endif %}
         
-        <p>请选择合适的流程模板进行审批。</p>
+        <p>{{ _('请选择合适的流程模板进行审批') }}。</p>
         <form action="{{ url_for('approval.start_approval') }}" method="POST">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="object_type" value="{{ object_type }}">
           <input type="hidden" name="object_id" value="{{ object_id }}">
           
           <div class="form-group mb-3">
-            <label for="template_id" class="form-label">选择审批流程模板</label>
+            <label for="template_id" class="form-label">{{ _('选择审批流程模板') }}</label>
             <select class="form-select" id="template_id" name="template_id" required>
-              <option value="">-- 请选择模板 --</option>
+              <option value="">-- {{ _('请选择模板') }} --</option>
               {# 直接获取可用模板列表，不再使用条件判断 #}
               {% set templates = get_available_templates(object_type, object_id) %}
               {% for template in templates %}
                 <option value="{{ template.id }}">{{ template.name }}</option>
               {% endfor %}
               {% if templates|length == 0 %}
-                <option value="" disabled>无可用的审批模板，请联系管理员</option>
+                <option value="" disabled>{{ _('无可用的审批模板，请联系管理员') }}</option>
               {% endif %}
             </select>
           </div>
@@ -786,7 +786,7 @@
           </div>
           
           <div class="d-flex gap-2">
-            {{ render_button('发起审批', type='submit', color='primary', icon='fas fa-play-circle') }}
+            {{ render_button(_('发起审批'), type='submit', color='primary', icon='fas fa-play-circle') }}
           </div>
         </form>
       </div>
@@ -800,7 +800,7 @@
       <div class="card-body">
         <div class="alert alert-info">
           <i class="fas fa-info-circle me-2"></i>
-          您没有权限发起此审批流程。只有数据拥有者和项目的厂商销售负责人可以发起审批。
+          {{ _('您没有权限发起此审批流程。只有数据拥有者和项目的厂商销售负责人可以发起审批。') }}
         </div>
       </div>
     </div>
@@ -812,18 +812,18 @@
   {% set instance = get_object_approval_instance(object_type, object_id) %}
   {% if instance %}
     {% if instance.status.name == 'PENDING' %}
-      <span class="badge rounded-pill bg-warning text-dark">审批中</span>
+      <span class="badge rounded-pill bg-warning text-dark">{{ _('审批中') }}</span>
     {% elif instance.status.name == 'APPROVED' %}
-      <span class="badge rounded-pill bg-success text-white">已通过</span>
+      <span class="badge rounded-pill bg-success text-white">{{ _('已通过') }}</span>
     {% elif instance.status.name == 'REJECTED' %}
-      <span class="badge rounded-pill bg-danger text-white">已拒绝</span>
+      <span class="badge rounded-pill bg-danger text-white">{{ _('已拒绝') }}</span>
     {% elif instance.status.name == 'CANCELLED' %}
-      <span class="badge rounded-pill bg-secondary text-white">已取消</span>
+      <span class="badge rounded-pill bg-secondary text-white">{{ _('已取消') }}</span>
     {% else %}
-      <span class="badge rounded-pill bg-secondary text-white">未知状态</span>
+      <span class="badge rounded-pill bg-secondary text-white">{{ _('未知状态') }}</span>
     {% endif %}
   {% else %}
-    <span class="badge bg-secondary">未审批</span>
+    <span class="badge bg-secondary">{{ _('未审批') }}</span>
   {% endif %} 
 {% endmacro %}
 
@@ -835,27 +835,18 @@
             <div class="card">
                 <div class="card-header bg-primary text-white">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="fas fa-clipboard-check me-2"></i>审批流程</h5>
+                        <h5 class="mb-0"><i class="fas fa-clipboard-check me-2"></i>{{ _('审批流程') }}</h5>
                         <div class="d-flex gap-2">
                             <!-- 召回按钮 - 只有发起人且状态为pending时显示 -->
                             {% if approval_instance.status == ApprovalStatus.PENDING and current_user and current_user.id == approval_instance.created_by %}
-                                <button type="button" class="btn btn-warning btn-sm" 
-                                        data-bs-toggle="modal" 
-                                        data-bs-target="#recallApprovalModal">
-                                    <i class="fas fa-undo me-1"></i> 召回
-                                </button>
+                                {{ render_button(_('召回'), type='button', color='warning', size='sm', icon='fas fa-undo', attrs='data-bs-toggle="modal" data-bs-target="#recallApprovalModal"') }}
                             {% endif %}
                             <!-- 查看详情按钮 -->
                             {% if approval_instance.id is number %}
-                                <a href="{{ url_for('approval.detail', instance_id=approval_instance.id) }}" 
-                                   class="btn btn-info btn-sm">
-                                    <i class="fas fa-eye me-1"></i> 详情
-                                </a>
+                                {{ render_button(_('详情'), href=url_for('approval.detail', instance_id=approval_instance.id), color='info', size='sm', icon='fas fa-eye') }}
                             {% else %}
                                 <!-- 订单包装对象不支持审批详情页面 -->
-                                <span class="btn btn-secondary btn-sm disabled">
-                                    <i class="fas fa-eye me-1"></i> 详情不可用
-                                </span>
+                                {{ render_button(_('详情不可用'), type='button', color='secondary', size='sm', icon='fas fa-eye', attrs='disabled') }}
                             {% endif %}
                         </div>
                     </div>
@@ -866,45 +857,45 @@
                         <div class="col-md-6">
                             <div class="card border-info">
                                 <div class="card-header bg-info text-white">
-                                    <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>基本信息</h6>
+                                    <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>{{ _('基本信息') }}</h6>
                                 </div>
                                 <div class="card-body">
                                     <table class="table table-sm mb-0">
                                         <tr>
-                                            <th class="standard-font" style="width: 35%">审批编号</th>
+                                            <th class="standard-font" style="width: 35%">{{ _('审批编号') }}</th>
                                             <td class="standard-font">{{ render_approval_code(approval_instance.id)|safe }}</td>
                                         </tr>
                                         <tr>
-                                            <th class="standard-font">流程名称</th>
-                                            <td class="standard-font">{{ approval_instance.process.name if approval_instance.process else '未知流程' }}</td>
+                                            <th class="standard-font">{{ _('流程名称') }}</th>
+                                            <td class="standard-font">{{ approval_instance.process.name if approval_instance.process else _('未知流程') }}</td>
                                         </tr>
                                         <tr>
-                                            <th class="standard-font">发起人</th>
+                                            <th class="standard-font">{{ _('发起人') }}</th>
                                             <td class="standard-font">{{ approval_instance.creator.real_name or approval_instance.creator.username }}</td>
                                         </tr>
                                         <tr>
-                                            <th class="standard-font">发起时间</th>
+                                            <th class="standard-font">{{ _('发起时间') }}</th>
                                             <td class="standard-font">{{ format_datetime(approval_instance.started_at) }}</td>
                                         </tr>
                                         <tr>
-                                            <th class="standard-font">当前状态</th>
+                                            <th class="standard-font">{{ _('当前状态') }}</th>
                                             <td class="standard-font">
                                               {% if approval_instance.status.name == 'PENDING' %}
-                                                <span class="badge rounded-pill bg-warning text-dark">审批中</span>
+                                                <span class="badge badge-pill badge-transparent bg-warning text-dark">{{ _('审批中') }}</span>
                                               {% elif approval_instance.status.name == 'APPROVED' %}
-                                                <span class="badge rounded-pill bg-success text-white">已通过</span>
+                                                <span class="badge badge-pill badge-transparent bg-success text-white">{{ _('已通过') }}</span>
                                               {% elif approval_instance.status.name == 'REJECTED' %}
-                                                <span class="badge rounded-pill bg-danger text-white">已拒绝</span>
+                                                <span class="badge badge-pill badge-transparent bg-danger text-white">{{ _('已拒绝') }}</span>
                                               {% elif approval_instance.status.name == 'CANCELLED' %}
-                                                <span class="badge rounded-pill bg-secondary text-white">已取消</span>
+                                                <span class="badge badge-pill badge-transparent bg-secondary text-white">{{ _('已取消') }}</span>
                                               {% else %}
-                                                <span class="badge rounded-pill bg-secondary text-white">未知状态</span>
+                                                <span class="badge badge-pill badge-transparent bg-secondary text-white">{{ _('未知状态') }}</span>
                                               {% endif %}
                                             </td>
                                         </tr>
                                         {% if approval_instance.ended_at %}
                                         <tr>
-                                            <th class="standard-font">完成时间</th>
+                                            <th class="standard-font">{{ _('完成时间') }}</th>
                                             <td class="standard-font">{{ format_datetime(approval_instance.ended_at) }}</td>
                                         </tr>
                                         {% endif %}
@@ -920,16 +911,16 @@
                                 {% if current_step %}
                                 <div class="card border-warning">
                                     <div class="card-header bg-warning text-dark">
-                                        <h6 class="mb-0"><i class="fas fa-hourglass-half me-2"></i>当前步骤</h6>
+                                        <h6 class="mb-0"><i class="fas fa-hourglass-half me-2"></i>{{ _('当前步骤') }}</h6>
                                     </div>
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-center mb-3">
                                             <div>
                                                 <strong class="standard-font">{{ current_step.step_name }}</strong>
-                                                <div class="text-muted standard-font">审批人: {{ current_step.approver.real_name or current_step.approver.username }}</div>
+                                                <div class="text-muted standard-font">{{ _('审批人') }}: {{ current_step.approver.real_name or current_step.approver.username }}</div>
                                             </div>
                                             <div>
-                                                <span class="badge bg-warning">待审批</span>
+                                                <span class="badge badge-pill badge-transparent bg-warning text-dark">{{ _('待审批') }}</span>
                                             </div>
                                         </div>
                                         
@@ -939,27 +930,19 @@
                                         {% set is_authorization_step = current_step and current_step.action_type == 'authorization' %}
                                         
                                         <div class="border-top pt-3">
-                                            <h6 class="text-muted mb-2">审批操作</h6>
+                                            <h6 class="text-muted mb-2">{{ _('审批操作') }}</h6>
                                             
                                             {% if is_authorization_step and approval_instance.object_type == 'project' %}
                                               <!-- 授权步骤 - 显示进行授权按钮 -->
                                               <div class="d-flex gap-2">
-                                                  <a href="{{ url_for('approval.authorize', instance_id=approval_instance.id) }}" class="btn btn-primary btn-sm">
-                                                      <i class="fas fa-key me-1"></i> 进行授权
-                                                  </a>
-                                                  <button type="button" class="btn btn-danger btn-sm" onclick="openApprovalActionModal('reject')">
-                                                      <i class="fas fa-times me-1"></i> 拒绝
-                                                  </button>
+                                                  {{ render_button(_('进行授权'), href=url_for('approval.authorize', instance_id=approval_instance.id), color='primary', size='sm', icon='fas fa-key') }}
+                                                  {{ render_button(_('拒绝'), type='button', color='danger', size='sm', icon='fas fa-times', attrs='onclick="openApprovalActionModal(\'reject\')"') }}
                                               </div>
                                             {% else %}
                                               <!-- 普通审批步骤 - 显示通过/拒绝按钮 -->
                                               <div class="d-flex gap-2">
-                                                  <button type="button" class="btn btn-success btn-sm" onclick="openApprovalActionModal('approve')">
-                                                      <i class="fas fa-check me-1"></i> 通过
-                                                  </button>
-                                                  <button type="button" class="btn btn-danger btn-sm" onclick="openApprovalActionModal('reject')">
-                                                      <i class="fas fa-times me-1"></i> 拒绝
-                                                  </button>
+                                                  {{ render_button(_('通过'), type='button', color='success', size='sm', icon='fas fa-check', attrs='onclick="openApprovalActionModal(\'approve\')"') }}
+                                                  {{ render_button(_('拒绝'), type='button', color='danger', size='sm', icon='fas fa-times', attrs='onclick="openApprovalActionModal(\'reject\')"') }}
                                               </div>
                                             {% endif %}
                                         </div>
@@ -970,18 +953,18 @@
                             {% else %}
                                 <div class="card border-secondary">
                                     <div class="card-header bg-secondary text-white">
-                                        <h6 class="mb-0"><i class="fas fa-flag-checkered me-2"></i>流程状态</h6>
+                                        <h6 class="mb-0"><i class="fas fa-flag-checkered me-2"></i>{{ _('流程状态') }}</h6>
                                     </div>
                                     <div class="card-body text-center">
                                         {% if approval_instance.status == ApprovalStatus.APPROVED %}
                                             <i class="fas fa-check-circle text-success fa-3x mb-3"></i>
-                                            <h5 class="text-success">审批已通过</h5>
+                                            <h5 class="text-success">{{ _('审批已通过') }}</h5>
                                         {% elif approval_instance.status == ApprovalStatus.REJECTED %}
                                             <i class="fas fa-times-circle text-danger fa-3x mb-3"></i>
-                                            <h5 class="text-danger">审批已拒绝</h5>
+                                            <h5 class="text-danger">{{ _('审批已拒绝') }}</h5>
                                         {% endif %}
                                         {% if approval_instance.ended_at %}
-                                            <p class="text-muted standard-font">完成时间: {{ format_datetime(approval_instance.ended_at) }}</p>
+                                            <p class="text-muted standard-font">{{ _('完成时间') }}: {{ format_datetime(approval_instance.ended_at) }}</p>
                                         {% endif %}
                                     </div>
                                 </div>
@@ -997,18 +980,18 @@
                         <div class="col-12">
                             <div class="card border-info">
                                 <div class="card-header bg-info text-white">
-                                    <h6 class="mb-0"><i class="fas fa-certificate me-2"></i>确认徽章</h6>
+                                    <h6 class="mb-0"><i class="fas fa-certificate me-2"></i>{{ _('确认徽章') }}</h6>
                                 </div>
                                 <div class="card-body">
                                     <div class="row">
                                         <div class="col-md-6">
                                             <div class="d-flex align-items-center gap-2 mb-2">
-                                                <span class="text-muted">当前状态：</span>
+                                                <span class="text-muted">{{ _('当前状态') }}：</span>
                                                 <span id="current-badge-display">
                                                     {% if quotation.confirmation_badge_html %}
                                                         {{ quotation.confirmation_badge_html|safe }}
                                                     {% else %}
-                                                        <span class="text-muted">无</span>
+                                                        <span class="text-muted">{{ _('无') }}</span>
                                                     {% endif %}
                                                 </span>
                                             </div>
@@ -1017,12 +1000,12 @@
                                             <div class="mb-2">
                                                 <small class="text-muted">
                                                     {% if quotation.confirmation_badge_status == 'confirmed' and quotation.confirmer %}
-                                                        已确认 - {{ quotation.confirmer.real_name or quotation.confirmer.username }}
+                                                        {{ _('已确认') }} - {{ quotation.confirmer.real_name or quotation.confirmer.username }}
                                                         {% if quotation.confirmed_at %}
                                                             ({{ quotation.confirmed_at.strftime('%Y-%m-%d %H:%M') }})
                                                         {% endif %}
                                                     {% elif quotation.confirmation_badge_status == 'pending' %}
-                                                        待确认状态
+                                                        {{ _('待确认状态') }}
                                                     {% endif %}
                                                 </small>
                                             </div>
@@ -1031,13 +1014,9 @@
                                         
                                         <div class="col-md-6">
                                             <div class="btn-group" role="group">
-                                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="showConfirmationBadgeModal()">
-                                                    <i class="fas fa-check"></i> 设置确认
-                                                </button>
+                                                {{ render_button(_('设置确认'), type='button', color='outline-primary', size='sm', icon='fas fa-check', attrs='onclick="showConfirmationBadgeModal()"') }}
                                                 {% if quotation.confirmation_badge_status != 'none' %}
-                                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearConfirmationBadge()">
-                                                    <i class="fas fa-times"></i> 清除
-                                                </button>
+                                                    {{ render_button(_('清除'), type='button', color='outline-danger', size='sm', icon='fas fa-times', attrs='onclick="clearConfirmationBadge()"') }}
                                                 {% endif %}
                                             </div>
                                         </div>
@@ -1052,7 +1031,7 @@
                     <!-- 审批流程图 -->
                     <div class="card">
                         <div class="card-header bg-dark text-white">
-                            <h6 class="mb-0"><i class="fas fa-sitemap me-2"></i>审批流程图</h6>
+                            <h6 class="mb-0"><i class="fas fa-sitemap me-2"></i>{{ _('审批流程图') }}</h6>
                         </div>
                         <div class="card-body">
                             <div class="approval-workflow">
@@ -1073,22 +1052,22 @@
                                             "></div>
                                             <div class="timeline-content">
                                                 <div class="d-flex justify-content-between">
-                                                    <h6 class="timeline-title">步骤 {{ step.order }}: {{ step.name }}</h6>
+                                                    <h6 class="timeline-title">{{ _('步骤') }} {{ step.order }}: {{ step.name }}</h6>
                                                     {% if step.is_current %}
-                                                        <span class="badge bg-warning">当前步骤</span>
+                                                        <span class="badge badge-pill badge-transparent bg-warning text-dark">{{ _('当前步骤') }}</span>
                                                     {% elif step.is_completed and step.action %}
                                                         {% if step.action == 'approve' %}
-                                                            <span class="badge bg-success">已通过</span>
+                                                            <span class="badge badge-pill badge-transparent bg-success text-white">{{ _('已通过') }}</span>
                                                         {% else %}
-                                                            <span class="badge bg-danger">已拒绝</span>
+                                                            <span class="badge badge-pill badge-transparent bg-danger text-white">{{ _('已拒绝') }}</span>
                                                         {% endif %}
                                                     {% endif %}
                                                 </div>
                                                 
-                                                <p class="standard-font mb-1">审批人: {{ step.approver }}</p>
+                                                <p class="standard-font mb-1">{{ _('审批人') }}: {{ step.approver }}</p>
                                                 
                                                 {% if step.is_completed and step.timestamp %}
-                                                    <p class="text-muted standard-font mb-1">审批时间: {{ format_datetime(step.timestamp) }}</p>
+                                                    <p class="text-muted standard-font mb-1">{{ _('审批时间') }}: {{ format_datetime(step.timestamp) }}</p>
                                                     
                                                     {% if step.comment %}
                                                         <div class="mt-2 p-2 bg-light rounded">
@@ -1112,18 +1091,18 @@
                                             {% endif %}
                                         "></div>
                                         <div class="timeline-content">
-                                            <h6 class="timeline-title">流程结束</h6>
+                                            <h6 class="timeline-title">{{ _('流程结束') }}</h6>
                                             <p class="standard-font">
                                                 {% if approval_instance.status == ApprovalStatus.APPROVED %}
-                                                    <span class="text-success"><i class="fas fa-check-circle me-1"></i>审批已通过</span>
+                                                    <span class="text-success"><i class="fas fa-check-circle me-1"></i>{{ _('审批已通过') }}</span>
                                                 {% elif approval_instance.status == ApprovalStatus.REJECTED %}
-                                                    <span class="text-danger"><i class="fas fa-times-circle me-1"></i>审批已拒绝</span>
+                                                    <span class="text-danger"><i class="fas fa-times-circle me-1"></i>{{ _('审批已拒绝') }}</span>
                                                 {% else %}
-                                                    <span class="text-muted"><i class="fas fa-hourglass-half me-1"></i>审批进行中</span>
+                                                    <span class="text-muted"><i class="fas fa-hourglass-half me-1"></i>{{ _('审批进行中') }}</span>
                                                 {% endif %}
                                             </p>
                                             {% if approval_instance.ended_at %}
-                                                <p class="text-muted standard-font">完成时间: {{ format_datetime(approval_instance.ended_at) }}</p>
+                                                <p class="text-muted standard-font">{{ _('完成时间') }}: {{ format_datetime(approval_instance.ended_at) }}</p>
                                             {% endif %}
                                         </div>
                                     </div>
@@ -1140,51 +1119,51 @@
                 <div class="modal-dialog">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">设置确认徽章</h5>
+                            <h5 class="modal-title">{{ _('设置确认徽章') }}</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
                             <div class="mb-3">
-                                <label class="form-label">选择徽章颜色</label>
+                                <label class="form-label">{{ _('选择徽章颜色') }}</label>
                                 <div class="row g-2">
                                     <div class="col-auto">
                                         <button type="button" class="btn color-btn" style="background-color: #28a745; width: 40px; height: 40px;" 
-                                                data-color="#28a745" title="绿色"></button>
+                                                data-color="#28a745" title="{{ _('绿色') }}"></button>
                                     </div>
                                     <div class="col-auto">
                                         <button type="button" class="btn color-btn" style="background-color: #007bff; width: 40px; height: 40px;" 
-                                                data-color="#007bff" title="蓝色"></button>
+                                                data-color="#007bff" title="{{ _('蓝色') }}"></button>
                                     </div>
                                     <div class="col-auto">
                                         <button type="button" class="btn color-btn" style="background-color: #ffc107; width: 40px; height: 40px;" 
-                                                data-color="#ffc107" title="黄色"></button>
+                                                data-color="#ffc107" title="{{ _('黄色') }}"></button>
                                     </div>
                                     <div class="col-auto">
                                         <button type="button" class="btn color-btn" style="background-color: #fd7e14; width: 40px; height: 40px;" 
-                                                data-color="#fd7e14" title="橙色"></button>
+                                                data-color="#fd7e14" title="{{ _('橙色') }}"></button>
                                     </div>
                                     <div class="col-auto">
                                         <button type="button" class="btn color-btn" style="background-color: #e83e8c; width: 40px; height: 40px;" 
-                                                data-color="#e83e8c" title="粉色"></button>
+                                                data-color="#e83e8c" title="{{ _('粉色') }}"></button>
                                     </div>
                                     <div class="col-auto">
                                         <button type="button" class="btn color-btn" style="background-color: #6f42c1; width: 40px; height: 40px;" 
-                                                data-color="#6f42c1" title="紫色"></button>
+                                                data-color="#6f42c1" title="{{ _('紫色') }}"></button>
                                     </div>
                                 </div>
-                                <small class="text-muted">点击选择颜色</small>
+                                <small class="text-muted">{{ _('点击选择颜色') }}</small>
                             </div>
                             
                             <div class="mb-3">
-                                <label class="form-label">预览</label>
+                                <label class="form-label">{{ _('预览') }}</label>
                                 <div id="badge-preview">
                                     <span class="badge" style="background-color: #28a745; color: white; font-size: 0.75rem;">✓</span>
                                 </div>
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-primary" id="confirmBadgeBtn">确认设置</button>
+                            {{ render_button(_('取消'), type='button', color='secondary', attrs='data-bs-dismiss="modal"') }}
+                            {{ render_button(_('确认设置'), type='button', color='primary', attrs='id="confirmBadgeBtn"') }}
                         </div>
                     </div>
                 </div>
@@ -1200,7 +1179,7 @@
                 }
 
                 function clearConfirmationBadge() {
-                    if (!confirm('确定要清除确认徽章吗？')) {
+                    if (!confirm('{{ _("确定要清除确认徽章吗？") }}')) {
                         return;
                     }
                     
@@ -1215,12 +1194,12 @@
                         if (data.success) {
                             location.reload(); // 刷新页面显示最新状态
                         } else {
-                            alert('清除失败: ' + data.message);
+                            alert(window.approvalI18nTexts.clearFailed + ': ' + data.message);
                         }
                     })
                     .catch(error => {
                         console.error('清除确认徽章失败:', error);
-                        alert('清除失败，请重试');
+                        alert(window.approvalI18nTexts.clearFailedRetry);
                     });
                 }
 
@@ -1260,12 +1239,12 @@
                                 if (data.success) {
                                     location.reload(); // 刷新页面显示最新状态
                                 } else {
-                                    alert('设置失败: ' + data.message);
+                                    alert(window.approvalI18nTexts.setFailed + ': ' + data.message);
                                 }
                             })
                             .catch(error => {
                                 console.error('设置确认徽章失败:', error);
-                                alert('设置失败，请重试');
+                                alert(window.approvalI18nTexts.setFailedRetry);
                             });
                         });
                     }
@@ -1279,7 +1258,7 @@
                 <div class="modal-dialog">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title" id="approvalActionModalLabel">审批操作</h5>
+                            <h5 class="modal-title" id="approvalActionModalLabel">{{ _('审批操作') }}</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
@@ -1287,19 +1266,33 @@
                                 <!-- 动态内容 -->
                             </div>
                             <div class="mb-3">
-                                <label for="approvalComment" class="form-label">审批意见</label>
-                                <textarea class="form-control" id="approvalComment" rows="3" placeholder="请输入您的审批意见..."></textarea>
+                                <label for="approvalComment" class="form-label">{{ _('审批意见') }}</label>
+                                <textarea class="form-control" id="approvalComment" rows="3" placeholder="{{ _('请输入您的审批意见...') }}"></textarea>
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn" id="confirmApprovalBtn" onclick="submitApprovalAction()">确认</button>
+                            {{ render_button(_('取消'), type='button', color='secondary', attrs='data-bs-dismiss="modal"') }}
+                            {{ render_button(_('确认'), type='button', color='primary', attrs='id="confirmApprovalBtn" onclick="submitApprovalAction()"') }}
                         </div>
                     </div>
                 </div>
             </div>
             
             <script>
+                // 国际化文本对象
+                window.approvalI18nTexts = {
+                    approvalPassed: '{{ _("审批已通过") }}',
+                    approvalRejected: '{{ _("审批已拒绝") }}',
+                    operationFailed: '{{ _("操作失败，请重试") }}',
+                    approvalRecalled: '{{ _("审批已成功召回") }}',
+                    recallFailed: '{{ _("召回失败") }}',
+                    unknownError: '{{ _("未知错误") }}',
+                    clearFailed: '{{ _("清除失败") }}',
+                    clearFailedRetry: '{{ _("清除失败，请重试") }}',
+                    setFailed: '{{ _("设置失败") }}',
+                    setFailedRetry: '{{ _("设置失败，请重试") }}'
+                };
+                
                 let currentApprovalAction = '';
                 
                 function openApprovalActionModal(action) {
@@ -1310,14 +1303,14 @@
                     
                     if (action === 'approve') {
                         actionDisplay.className = 'alert alert-success mb-3';
-                        actionDisplay.innerHTML = '<i class="fas fa-check me-2"></i>您确定要通过此审批吗？';
+                        actionDisplay.innerHTML = '<i class="fas fa-check me-2"></i>{{ _("您确定要通过此审批吗？") }}';
                         confirmBtn.className = 'btn btn-success';
-                        confirmBtn.innerHTML = '<i class="fas fa-check me-1"></i>确认通过';
+                        confirmBtn.innerHTML = '<i class="fas fa-check me-1"></i>{{ _("确认通过") }}';
                     } else {
                         actionDisplay.className = 'alert alert-danger mb-3';
-                        actionDisplay.innerHTML = '<i class="fas fa-times me-2"></i>您确定要拒绝此审批吗？';
+                        actionDisplay.innerHTML = '<i class="fas fa-times me-2"></i>{{ _("您确定要拒绝此审批吗？") }}';
                         confirmBtn.className = 'btn btn-danger';
-                        confirmBtn.innerHTML = '<i class="fas fa-times me-1"></i>确认拒绝';
+                        confirmBtn.innerHTML = '<i class="fas fa-times me-1"></i>{{ _("确认拒绝") }}';
                     }
                     
                     document.getElementById('approvalComment').value = '';
@@ -1346,15 +1339,15 @@
                             modal.hide();
                             
                             // 显示成功消息并刷新页面
-                            alert(currentApprovalAction === 'approve' ? '审批已通过' : '审批已拒绝');
+                            alert(currentApprovalAction === 'approve' ? window.approvalI18nTexts.approvalPassed : window.approvalI18nTexts.approvalRejected);
                             window.location.reload();
                         } else {
-                            alert('操作失败，请重试');
+                            alert(window.approvalI18nTexts.operationFailed);
                         }
                     })
                     .catch(error => {
                         console.error('Error:', error);
-                        alert('操作失败，请重试');
+                        alert(window.approvalI18nTexts.operationFailed);
                     });
                 }
             </script>
@@ -1366,32 +1359,30 @@
                 <div class="modal-dialog">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title" id="recallApprovalModalLabel">确认召回审批</h5>
+                            <h5 class="modal-title" id="recallApprovalModalLabel">{{ _('确认召回审批') }}</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
                             <div class="alert alert-warning">
                                 <i class="fas fa-exclamation-triangle me-2"></i>
-                                您确定要召回此审批流程吗？召回后审批流程将被终止，需要重新发起。
+                                {{ _('您确定要召回此审批流程吗？召回后审批流程将被终止，需要重新发起。') }}
                             </div>
                             <div class="mb-3">
-                                <label for="recallReason" class="form-label">召回原因（可选）</label>
-                                <textarea class="form-control" id="recallReason" rows="3" placeholder="请输入召回原因..."></textarea>
+                                <label for="recallReason" class="form-label">{{ _('召回原因（可选）') }}</label>
+                                <textarea class="form-control" id="recallReason" rows="3" placeholder="{{ _('请输入召回原因...') }}"></textarea>
                             </div>
                             <div class="mb-3">
-                                <strong>审批实例信息：</strong><br>
+                                <strong>{{ _('审批实例信息') }}：</strong><br>
                                 <small class="text-muted">
-                                    实例ID：{{ approval_instance.id }}<br>
-                                    流程名称：{{ approval_instance.process.name if approval_instance.process else '未知流程' }}<br>
-                                    当前步骤：{{ approval_instance.current_step }}
+                                    {{ _('实例ID') }}：{{ approval_instance.id }}<br>
+                                    {{ _('流程名称') }}：{{ approval_instance.process.name if approval_instance.process else _('未知流程') }}<br>
+                                    {{ _('当前步骤') }}：{{ approval_instance.current_step }}
                                 </small>
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-warning" onclick="confirmRecallApproval()">
-                                <i class="fas fa-undo me-1"></i> 确认召回
-                            </button>
+                            {{ render_button(_('取消'), type='button', color='secondary', attrs='data-bs-dismiss="modal"') }}
+                            {{ render_button(_('确认召回'), type='button', color='warning', icon='fas fa-undo', attrs='onclick="confirmRecallApproval()"') }}
                         </div>
                     </div>
                 </div>
@@ -1417,15 +1408,15 @@
                             const modal = bootstrap.Modal.getInstance(document.getElementById('recallApprovalModal'));
                             modal.hide();
                             
-                            alert('审批已成功召回');
+                            alert(window.approvalI18nTexts.approvalRecalled);
                             window.location.reload();
                         } else {
-                            alert('召回失败: ' + (data.message || '未知错误'));
+                            alert(window.approvalI18nTexts.recallFailed + ': ' + (data.message || window.approvalI18nTexts.unknownError));
                         }
                     })
                     .catch(error => {
                         console.error('Error:', error);
-                        alert('召回失败，请稍后重试');
+                        alert(window.approvalI18nTexts.recallFailed);
                     });
                 }
             </script>
@@ -1435,11 +1426,11 @@
             <!-- 没有审批实例时显示发起审批按钮 -->
             <div class="card">
                 <div class="card-header bg-secondary text-white">
-                    <h5 class="mb-0"><i class="fas fa-clipboard-check me-2"></i>审批流程</h5>
+                    <h5 class="mb-0"><i class="fas fa-clipboard-check me-2"></i>{{ _('审批流程') }}</h5>
                 </div>
                 <div class="card-body text-center">
                     <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
-                    <p class="text-muted">暂无审批流程</p>
+                    <p class="text-muted">{{ _('暂无审批流程') }}</p>
                     {{ render_start_approval_button(object_type, object_id, current_user) }}
                 </div>
             </div>

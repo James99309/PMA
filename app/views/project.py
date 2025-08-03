@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, abort, session, after_this_request
+from flask_babel import gettext as _
 from datetime import datetime, date, timedelta
 from flask_login import login_required, current_user
 from app import db, csrf
@@ -289,12 +290,12 @@ def list_projects():
         'cards': [
             {
                 'id': 'total',
-                'title': '全部项目',
+                'title': _('全部项目'),
                 'icon': 'fas fa-project-diagram',
                 'value': len(projects),
                 'amount': round(total_value / 10000, 2),  # 转换为万元以兼容通用模组
-                'unit': '个',
-                'amount_unit': '万元',  # 将由通用模组自动处理语言感知
+                'unit': _('个'),
+                'amount_unit': _('万元'),  # 将由通用模组自动处理语言感知
                 'color': 'primary',
                 'data_key': 'total'
             },
@@ -415,7 +416,7 @@ def list_projects():
     # 表格配置
     table_config = {
         'ajax_target': 'projectTableBody',
-        'title': '项目列表',
+        'title': _('项目列表'),
         'icon': 'fas fa-table',
         'show_header': True,
         'enhanced_striping': True,  # 启用增强斑马线
@@ -423,56 +424,57 @@ def list_projects():
         'columns': [
             {
                 'key': 'owner', 
-                'label': '拥有者', 
+                'label': _('拥有者'), 
                 'type': 'custom',
                 'render': 'render_owner',
                 'width': '120px'
             },
             {
                 'key': 'vendor_sales_manager', 
-                'label': '厂商负责人', 
+                'label': _('厂商负责人'), 
                 'type': 'custom',
                 'render': 'render_owner',
                 'width': '120px'
             },
             {
                 'key': 'authorization_code', 
-                'label': '授权编号', 
+                'label': _('授权编号'), 
                 'type': 'custom',
                 'render': 'render_project_authorization',
                 'width': '120px'
             },
             {
                 'key': 'project_name', 
-                'label': '项目名称', 
+                'label': _('项目名称'), 
                 'type': 'link',
                 'url_template': '/project/view/{id}',
                 'width': '200px'
             },
             {
                 'key': 'is_active', 
-                'label': '活跃状态', 
+                'label': _('活跃状态'), 
                 'type': 'custom',
                 'render': 'render_status_badge',
                 'width': '80px'
             },
             {
                 'key': 'current_stage', 
-                'label': '当前阶段', 
+                'label': _('当前阶段'), 
                 'type': 'custom',
                 'render': 'render_project_stage',
                 'width': '120px'
             },
             {
                 'key': 'project_type', 
-                'label': '项目类型', 
+                'label': _('项目类型'), 
                 'type': 'custom',
                 'render': 'render_project_type',
-                'width': '100px'
+                'width': '100px',
+                'align': 'start'
             },
             {
                 'key': 'quotation_customer', 
-                'label': '报价', 
+                'label': _('报价'), 
                 'type': 'number',
                 'format': 'currency',
                 'width': '120px', 
@@ -480,28 +482,28 @@ def list_projects():
             },
             {
                 'key': 'industry', 
-                'label': '行业', 
+                'label': _('行业'), 
                 'type': 'custom',
                 'render': 'render_industry_badge',
                 'width': '100px'
             },
             {
                 'key': 'report_source', 
-                'label': '来源', 
+                'label': _('来源'), 
                 'type': 'custom',
                 'render': 'render_report_source_badge',
                 'width': '100px'
             },
             {
                 'key': 'updated_at', 
-                'label': '更新时间', 
+                'label': _('更新时间'), 
                 'type': 'date',
                 'format': '%Y-%m-%d %H:%M',
                 'width': '150px'
             },
             {
                 'key': 'created_at', 
-                'label': '创建时间', 
+                'label': _('创建时间'), 
                 'type': 'date',
                 'format': '%Y-%m-%d %H:%M',
                 'width': '150px'
@@ -710,7 +712,8 @@ def project_list_ajax():
                     'label': '项目类型', 
                     'type': 'custom',
                     'render': 'render_project_type',
-                    'width': '100px'
+                    'width': '100px',
+                    'align': 'start'
                 },
                 {
                     'key': 'quotation_customer', 
@@ -2890,12 +2893,12 @@ def _create_stage_card(stage_key, title, icon, stage_stats, currency_symbol, col
     stage_data = stage_stats.get(stage_key, {'count': 0, 'amount': 0})
     return {
         'id': stage_key,
-        'title': title,
+        'title': _(title),
         'icon': icon,
         'value': stage_data['count'],
         'amount': stage_data['amount'],  # stage_stats已经转换为万元，无需再次转换
-        'unit': '个',
-        'amount_unit': '万元',  # 将由通用模组自动处理语言感知
+        'unit': _('个'),
+        'amount_unit': _('万元'),  # 将由通用模组自动处理语言感知
         'color': color,
         'clickable': True,  # 启用点击筛选功能
         'click_params': {'current_stage': stage_key},  # 点击时筛选对应阶段

@@ -348,8 +348,8 @@ def list_companies():
         
         'search_field': {
             'name': 'search',
-            'label': '搜索',
-            'placeholder': '企业名称或客户信息',
+            'label': _('搜索'),
+            'placeholder': _('企业名称或客户信息'),
             'value': search,
             'col_width': 4
         },
@@ -357,8 +357,8 @@ def list_companies():
         'filter_fields': [
             {
                 'name': 'owner_filter',
-                'label': '客户负责人', 
-                'all_option_text': '全部负责人',
+                'label': _('客户负责人'), 
+                'all_option_text': _('全部负责人'),
                 'current_value': owner_filter,
                 'col_width': 2,
                 'options': [
@@ -372,8 +372,8 @@ def list_companies():
             },
             {
                 'name': 'company_type',
-                'label': '企业类型',
-                'all_option_text': '全部类型',
+                'label': _('企业类型'),
+                'all_option_text': _('全部类型'),
                 'current_value': company_type_filter,
                 'col_width': 2,
                 'options': [
@@ -387,8 +387,8 @@ def list_companies():
             },
             {
                 'name': 'industry',
-                'label': '行业',
-                'all_option_text': '全部行业',
+                'label': _('行业'),
+                'all_option_text': _('全部行业'),
                 'current_value': industry_filter,
                 'col_width': 2,
                 'options': [
@@ -402,8 +402,8 @@ def list_companies():
             },
             {
                 'name': 'country',
-                'label': '国家',
-                'all_option_text': '全部国家',
+                'label': _('国家'),
+                'all_option_text': _('全部国家'),
                 'current_value': country_filter,
                 'col_width': 2,
                 'options': [
@@ -417,8 +417,8 @@ def list_companies():
             },
             {
                 'name': 'status_filter',
-                'label': '状态',
-                'all_option_text': '全部状态',
+                'label': _('状态'),
+                'all_option_text': _('全部状态'),
                 'current_value': status_filter,
                 'col_width': 2,
                 'options': [
@@ -432,8 +432,8 @@ def list_companies():
             }
         ],
         
-        'search_button_text': '搜索',
-        'reset_button_text': '重置',
+        'search_button_text': _('搜索'),
+        'reset_button_text': _('重置'),
         
         # 筛选行为配置
         'auto_submit': True,                    # 启用自动筛选
@@ -461,40 +461,40 @@ def list_companies():
             'cards': [
                 {
                     'id': 'total',
-                    'title': '全部企业',
+                    'title': _('全部企业'),
                     'icon': 'fas fa-building',
                     'value': total_companies,
-                    'unit': '家',
+                    'unit': _('家'),
                     'color': 'primary',
                     'clickable': False,
                     'data_key': 'total'
                 },
                 {
                     'id': 'active',
-                    'title': '活跃企业',
+                    'title': _('活跃企业'),
                     'icon': 'fas fa-check-circle',
                     'value': active_companies,
-                    'unit': '家',
+                    'unit': _('家'),
                     'color': 'success',
                     'clickable': False,
                     'data_key': 'active'
                 },
                 {
                     'id': 'direct_customer',
-                    'title': '直接客户',
+                    'title': _('直接客户'),
                     'icon': 'fas fa-user-tie',
                     'value': direct_customers,
-                    'unit': '家',
+                    'unit': _('家'),
                     'color': 'info',
                     'clickable': False,
                     'data_key': 'direct_customer'
                 },
                 {
                     'id': 'project_customers',
-                    'title': '项目客户',
+                    'title': _('项目客户'),
                     'icon': 'fas fa-project-diagram',
                     'value': project_customers,
-                    'unit': '家',
+                    'unit': _('家'),
                     'color': 'warning',
                     'clickable': False,
                     'data_key': 'project_customers'
@@ -509,62 +509,62 @@ def list_companies():
         'table': {
             'ajax_endpoint': url_for('customer.companies_list_ajax'),
             'ajax_target': 'customerTableBody',
-            'title': '企业列表',
+            'title': _('企业列表'),
             'icon': 'fas fa-table',
             'enhanced_striping': True,      # 启用增强斑马线效果
             'fixed_height_scroll': True,    # 启用固定高度滚动
             'columns': [
                 {
                     'key': 'owner',
-                    'label': '客户负责人',
+                    'label': _('客户负责人'),
                     'type': 'badge',
                     'render': 'render_owner',
                     'width': '120px'
                 },
                 {
                     'key': 'company_name',
-                    'label': '企业名称',
+                    'label': _('企业名称'),
                     'type': 'link',
                     'url_template': '/customer/{id}/view',
                     'width': '200px'
                 },
                 {
                     'key': 'company_type',
-                    'label': '企业类型',
+                    'label': _('企业类型'),
                     'type': 'badge',
                     'render': 'render_company_type_badge',
                     'width': '120px'
                 },
                 {
                     'key': 'industry',
-                    'label': '行业',
+                    'label': _('行业'),
                     'type': 'badge',
                     'render': 'render_industry_badge',
                     'width': '120px'
                 },
                 {
                     'key': 'status',
-                    'label': '状态',
+                    'label': _('状态'),
                     'type': 'badge',
                     'render': 'render_status_badge',
                     'width': '100px'
                 },
                 {
                     'key': 'country_region',
-                    'label': '国家/地区',
+                    'label': _('国家/地区'),
                     'type': 'text',
                     'width': '150px'
                 },
                 {
                     'key': 'updated_at',
-                    'label': '更新时间',
+                    'label': _('更新时间'),
                     'type': 'date',
                     'format': '%Y-%m-%d',
                     'width': '120px'
                 },
                 {
                     'key': 'created_at',
-                    'label': '创建时间',
+                    'label': _('创建时间'),
                     'type': 'date',
                     'format': '%Y-%m-%d',
                     'width': '120px'
@@ -999,8 +999,9 @@ def view_company(company_id):
     
     # 使用新的权限控制系统筛选用户有权限查看的行动记录
     all_viewable_actions = get_viewable_data(Action, current_user).all()
-    # 只显示属于当前公司的行动记录
+    # 只显示属于当前公司的行动记录，并按时间降序排序（最新的在最前面）
     viewable_actions = [a for a in all_viewable_actions if a.company_id == company_id]
+    viewable_actions.sort(key=lambda x: x.created_at, reverse=True)
     
     # 提前加载行动记录所有者信息，避免N+1查询
     action_user_ids = [action.owner_id for action in actions if action.owner_id]

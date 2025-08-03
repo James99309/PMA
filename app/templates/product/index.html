@@ -62,7 +62,7 @@
 <script>
 // 导出产品功能
 function exportProducts() {
-    alert('导出功能开发中...');
+    alert('{{ _("导出功能开发中...") }}');
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -76,6 +76,10 @@ document.addEventListener('DOMContentLoaded', function() {
         filter: {{ list_config.filter | tojson | safe }},
         table: {{ list_config.table | tojson | safe }},
         infinite_scroll: {% if list_config.infinite_scroll %}{{ list_config.infinite_scroll | tojson | safe }}{% else %}{}{% endif %},
+        i18n: {
+            items: '{{ _("项") }}',
+            noData: '{{ _("暂无数据") }}'
+        },
         onDataLoad: function(data) {
             console.log('✅ 产品数据加载完成:', data);
         }

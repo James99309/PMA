@@ -17,6 +17,7 @@ except (ImportError, AttributeError):
 
 # 分开导入其他组件
 from flask import Blueprint, request, render_template, flash, redirect, url_for
+from flask_babel import gettext as _
 try:
     from flask.json.provider import JSONProvider  
 except ImportError:
@@ -37,6 +38,7 @@ import uuid
 from PIL import Image
 from werkzeug.utils import secure_filename
 from flask import current_app
+from app.utils.supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 # 创建蓝图
@@ -84,11 +86,11 @@ def save_product_pdf(file):
     if file and allowed_pdf_file(file.filename):
         # 验证文件名是否为英文
         if not validate_english_filename(file.filename):
-            return None, "文件名必须是英文字符（字母、数字、点、下划线、连字符）"
+            return None, _("文件名必须是英文字符（字母、数字、点、下划线、连字符）")
             
         # 检查文件大小
         if not check_file_size(file):
-            return None, "PDF文件大小不能超过12MB"
+            return None, _("PDF文件大小不能超过12MB")
         
         # 重置文件指针到开始位置（修复第一次上传失败的问题）
         file.seek(0)
@@ -270,6 +272,10 @@ def product_list():
     # 计算总价值
     total_value = sum([(p.retail_price or 0) for p in products])
     
+    # 使用标准化金额转换
+    from app.utils.dictionary_helpers import prepare_stats_card_amount
+    amount_data = prepare_stats_card_amount(total_value)
+    
     # 获取筛选选项数据
     product_types = db.session.query(Product.type).distinct().filter(
         Product.type.isnot(None), Product.type != ''
@@ -287,9 +293,9 @@ def product_list():
     brands = [{'value': b[0], 'label': b[0]} for b in brands if b[0]]
     
     status_options = [
-        {'value': 'active', 'label': '生产中'},
-        {'value': 'discontinued', 'label': '已停产'},
-        {'value': 'upcoming', 'label': '待上市'}
+        {'value': 'active', 'label': _('生产中')},
+        {'value': 'discontinued', 'label': _('已停产')},
+        {'value': 'upcoming', 'label': _('待上市')}
     ]
     
     # 构建筛选配置
@@ -310,8 +316,8 @@ def product_list():
         
         'search_field': {
             'name': 'search',
-            'label': '搜索',
-            'placeholder': '产品名称、MN号或型号',
+            'label': _('搜索'),
+            'placeholder': _('产品名称、MN号或型号'),
             'value': search,
             'col_width': 4
         },
@@ -319,46 +325,46 @@ def product_list():
         'filter_fields': [
             {
                 'name': 'product_type',
-                'label': '产品类型',
-                'all_option_text': '全部类型',
+                'label': _('产品类型'),
+                'all_option_text': _('全部类型'),
                 'current_value': product_type,
                 'col_width': 2,
                 'options': product_types
             },
             {
                 'name': 'category',
-                'label': '产品类别',
-                'all_option_text': '全部类别',
+                'label': _('产品类别'),
+                'all_option_text': _('全部类别'),
                 'current_value': category,
                 'col_width': 2,
                 'options': categories
             },
             {
                 'name': 'brand',
-                'label': '品牌',
-                'all_option_text': '全部品牌',
+                'label': _('品牌'),
+                'all_option_text': _('全部品牌'),
                 'current_value': brand,
                 'col_width': 2,
                 'options': brands
             },
             {
                 'name': 'status',
-                'label': '状态',
-                'all_option_text': '全部状态',
+                'label': _('状态'),
+                'all_option_text': _('全部状态'),
                 'current_value': status,
                 'col_width': 2,
                 'options': status_options
             }
         ],
         
-        'search_button_text': '搜索',
-        'reset_button_text': '重置'
+        'search_button_text': _('搜索'),
+        'reset_button_text': _('重置')
     }
     
     # 构建统一的 list_config 配置
     list_config = {
         'module_name': 'product',
-        'title': '产品库管理',
+        'title': _('产品库管理'),
         'ajax_mode': True,
         
         # 移动端模板配置（确保初始化和AJAX使用相同模板）
@@ -377,22 +383,22 @@ def product_list():
             'cards': [
                 {
                     'id': 'total',
-                    'title': '总产品数',
+                    'title': _('总产品数'),
                     'icon': 'fas fa-cube',
                     'value': total_count,
-                    'amount': float(total_value / 10000) if total_value > 0 else 0,  # 万元
-                    'unit': '个',
-                    'amount_unit': '万元',
+                    'amount': amount_data['value'],  # 使用标准化转换
+                    'unit': _('个'),
+                    'amount_unit': amount_data['unit'],  # 语言感知的单位
                     'color': 'primary',
                     'clickable': False,
                     'data_key': 'total'
                 },
                 {
                     'id': 'active',
-                    'title': '生产中',
+                    'title': _('生产中'),
                     'icon': 'fas fa-play-circle',
                     'value': active_count,
-                    'unit': '个',
+                    'unit': _('个'),
                     'color': 'success',
                     'clickable': True,
                     'click_params': {'status': 'active'},
@@ -400,10 +406,10 @@ def product_list():
                 },
                 {
                     'id': 'discontinued',
-                    'title': '已停产',
+                    'title': _('已停产'),
                     'icon': 'fas fa-stop-circle',
                     'value': discontinued_count,
-                    'unit': '个',
+                    'unit': _('个'),
                     'color': 'danger',
                     'clickable': True,
                     'click_params': {'status': 'discontinued'},
@@ -411,10 +417,10 @@ def product_list():
                 },
                 {
                     'id': 'upcoming',
-                    'title': '待上市',
+                    'title': _('待上市'),
                     'icon': 'fas fa-clock',
                     'value': upcoming_count,
-                    'unit': '个',
+                    'unit': _('个'),
                     'color': 'warning',
                     'clickable': True,
                     'click_params': {'status': 'upcoming'},
@@ -429,7 +435,7 @@ def product_list():
         # 表格配置
         'table': {
             'ajax_target': 'productTableBody',
-            'title': '产品列表',
+            'title': _('产品列表'),
             'icon': 'fas fa-table',
             'fixed_height_scroll': True,   # 启用蓝色滚动条
             'enhanced_striping': True,     # 启用增强斑马纹
@@ -437,17 +443,17 @@ def product_list():
             'custom_rows_template': 'product/product_rows.html',
             'columns': [
                 {'key': 'id', 'label': 'ID', 'width': '60px'},
-                {'key': 'type', 'label': '产品类型', 'width': '100px', 'type': 'badge'},
-                {'key': 'category', 'label': '产品类别', 'width': '120px'},
-                {'key': 'product_mn', 'label': 'MN号', 'width': '120px'},
-                {'key': 'product_name', 'label': '产品名称', 'width': '180px', 'type': 'link'},
-                {'key': 'model', 'label': '型号', 'width': '120px'},
-                {'key': 'specification', 'label': '规格', 'width': '150px'},
-                {'key': 'brand', 'label': '品牌', 'width': '100px'},
-                {'key': 'unit', 'label': '单位', 'width': '80px'},
-                {'key': 'retail_price', 'label': '价格', 'width': '100px', 'type': 'currency', 'align': 'right'},
-                {'key': 'status', 'label': '状态', 'width': '100px', 'type': 'badge'},
-                {'key': 'created_at', 'label': '创建时间', 'width': '150px', 'type': 'date'}
+                {'key': 'type', 'label': _('产品类型'), 'width': '100px', 'type': 'badge'},
+                {'key': 'category', 'label': _('产品类别'), 'width': '120px'},
+                {'key': 'product_mn', 'label': _('MN号'), 'width': '120px'},
+                {'key': 'product_name', 'label': _('产品名称'), 'width': '180px', 'type': 'link'},
+                {'key': 'model', 'label': _('型号'), 'width': '120px'},
+                {'key': 'specification', 'label': _('规格'), 'width': '150px'},
+                {'key': 'brand', 'label': _('品牌'), 'width': '100px'},
+                {'key': 'unit', 'label': _('单位'), 'width': '80px'},
+                {'key': 'retail_price', 'label': _('价格'), 'width': '100px', 'type': 'currency', 'align': 'right'},
+                {'key': 'status', 'label': _('状态'), 'width': '100px', 'type': 'badge'},
+                {'key': 'created_at', 'label': _('创建时间'), 'width': '150px', 'type': 'date'}
             ]
         }
     }
@@ -909,6 +915,120 @@ def get_product_models():
             'error': '获取产品型号列表失败',
             'message': str(e)
         }), 500
+
+@bp.route('/api/products/<int:product_id>/upload-files', methods=['POST'])
+@login_required
+@permission_required('product', 'edit')
+def upload_product_files(product_id):
+    """上传产品文件到Supabase云存储"""
+    try:
+        # 检查产品是否存在
+        product = Product.query.get_or_404(product_id)
+        
+        # 获取上传的文件
+        image_file = request.files.get('image')
+        pdf_file = request.files.get('pdf')
+        
+        if not image_file and not pdf_file:
+            return jsonify({
+                'success': False,
+                'error': '请至少选择一个文件上传'
+            }), 400
+        
+        # 获取Supabase客户端
+        supabase_client = get_supabase_client()
+        
+        # 存储结果
+        result = {
+            'success': True,
+            'image_url': None,
+            'pdf_url': None,
+            'errors': []
+        }
+        
+        # 上传图片文件
+        if image_file and image_file.filename:
+            try:
+                image_url = supabase_client.upload_product_file(
+                    product_id=product_id,
+                    file=image_file,
+                    file_type='image'
+                )
+                
+                if image_url:
+                    # 更新数据库中的image_path字段
+                    product.image_path = image_url
+                    result['image_url'] = image_url
+                    logger.info(f"产品 {product_id} 图片上传成功: {image_url}")
+                else:
+                    result['errors'].append('图片上传失败')
+                    logger.error(f"产品 {product_id} 图片上传失败")
+                    
+            except Exception as e:
+                error_msg = f'图片上传错误: {str(e)}'
+                result['errors'].append(error_msg)
+                logger.error(f"产品 {product_id} 图片上传异常: {str(e)}")
+        
+        # 上传PDF文件
+        if pdf_file and pdf_file.filename:
+            try:
+                pdf_url = supabase_client.upload_product_file(
+                    product_id=product_id,
+                    file=pdf_file,
+                    file_type='pdf'
+                )
+                
+                if pdf_url:
+                    # 更新数据库中的pdf_path字段
+                    product.pdf_path = pdf_url
+                    result['pdf_url'] = pdf_url
+                    logger.info(f"产品 {product_id} PDF上传成功: {pdf_url}")
+                else:
+                    result['errors'].append('PDF上传失败')
+                    logger.error(f"产品 {product_id} PDF上传失败")
+                    
+            except Exception as e:
+                error_msg = f'PDF上传错误: {str(e)}'
+                result['errors'].append(error_msg)
+                logger.error(f"产品 {product_id} PDF上传异常: {str(e)}")
+        
+        # 保存数据库更改
+        if result['image_url'] or result['pdf_url']:
+            try:
+                db.session.commit()
+                logger.info(f"产品 {product_id} 文件路径已更新到数据库")
+            except Exception as e:
+                db.session.rollback()
+                error_msg = f'数据库更新失败: {str(e)}'
+                result['errors'].append(error_msg)
+                result['success'] = False
+                logger.error(f"产品 {product_id} 数据库更新失败: {str(e)}")
+        
+        # 判断整体是否成功
+        if result['errors']:
+            result['success'] = len(result['errors']) == 0
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f'产品文件上传时出错: {str(e)}')
+        return jsonify({
+            'success': False,
+            'error': '文件上传失败',
+            'message': str(e)
+        }), 500
+
+@bp.route('/products/<int:product_id>/upload', methods=['GET'])
+@login_required
+@permission_required('product', 'edit')
+def upload_files_page(product_id):
+    """显示产品文件上传页面"""
+    # 检查产品是否存在
+    product = Product.query.get_or_404(product_id)
+    
+    return render_template('product/upload_files.html', 
+                         product_id=product_id,
+                         product=product)
 
 @bp.route('/api/products/check-mn', methods=['GET'])
 def check_product_mn():
@@ -1761,13 +1881,13 @@ def view_product_detail(id):
         # 检查产品停产状态的权限：只有产品经理、解决方案经理和管理员可以查看停产产品
         if product.status == 'discontinued' and current_user.role not in ['admin', 'product_manager', 'solution_manager']:
             logger.warning(f"用户 {current_user.username} 尝试查看停产产品详情: {id}")
-            flash('您没有权限查看已停产的产品', 'danger')
+            flash(_('您没有权限查看已停产的产品'), 'danger')
             return redirect(url_for('product_route.product_list'))
         
         return render_template('product/detail.html', product=product)
     except Exception as e:
         logger.error(f'查看产品详情页面时出错: {str(e)}')
-        flash(f'查看产品详情失败: {str(e)}', 'danger')
+        flash(_('查看产品详情失败: %s') % str(e), 'danger')
         return redirect(url_for('product_route.product_list')) 
 
 @bp.route('/api/products/<int:id>/update-status', methods=['POST'])
@@ -1859,7 +1979,7 @@ def download_pdf(id):
     
     # 检查是否有PDF文件
     if not product.pdf_path:
-        flash('该产品没有PDF文件', 'warning')
+        flash(_('该产品没有PDF文件'), 'warning')
         return redirect(url_for('product_route.view_product_detail', id=id))
     
     # 构建文件完整路径
@@ -1867,7 +1987,7 @@ def download_pdf(id):
     
     # 检查文件是否存在
     if not os.path.exists(pdf_file_path):
-        flash('PDF文件不存在', 'danger')
+        flash(_('PDF文件不存在'), 'danger')
         return redirect(url_for('product_route.view_product_detail', id=id))
     
     try:
@@ -1889,5 +2009,5 @@ def download_pdf(id):
         )
     except Exception as e:
         logger.error(f"下载PDF文件失败: {str(e)}")
-        flash('下载PDF文件失败', 'danger')
+        flash(_('下载PDF文件失败'), 'danger')
         return redirect(url_for('product_route.view_product_detail', id=id)) 

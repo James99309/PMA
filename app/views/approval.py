@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import login_required, current_user
+from flask_babel import gettext as _
 from app.permissions import admin_required, has_permission
 from app.helpers.approval_helpers import (
     get_user_created_approvals,
@@ -112,14 +113,14 @@ def detail(instance_id):
             # 重定向到批价单详情页面
             return redirect(url_for('pricing_order.edit_pricing_order', order_id=pricing_order_id))
         except (ValueError, IndexError):
-            flash('无效的批价单审批ID', 'danger')
+            flash(_('无效的批价单审批ID'), 'danger')
             return redirect(url_for('approval.center'))
     
     # 处理普通审批实例
     try:
         instance_id = int(instance_id)
     except (ValueError, TypeError):
-        flash('无效的审批实例ID', 'danger')
+        flash(_('无效的审批实例ID'), 'danger')
         return redirect(url_for('approval.center'))
     
     # 获取审批实例
@@ -207,7 +208,7 @@ def start_approval():
     
     # 参数验证
     if not all([object_type, object_id, template_id]):
-        flash('参数不完整，无法发起审批', 'danger')
+        flash(_('参数不完整，无法发起审批'), 'danger')
         return redirect(request.referrer or url_for('index'))
     
     # 获取业务对象并检查权限
@@ -228,13 +229,13 @@ def start_approval():
     
     # 检查发起审批的权限
     if not can_start_approval(business_obj, current_user):
-        flash('您没有权限发起此审批流程', 'danger')
+        flash(_('您没有权限发起此审批流程'), 'danger')
         return redirect(request.referrer or url_for('index'))
     
     # 获取审批流程模板
     template = ApprovalProcessTemplate.query.get(template_id)
     if not template:
-        flash('审批流程模板不存在', 'danger')
+        flash(_('审批流程模板不存在'), 'danger')
         return redirect(request.referrer or url_for('index'))
     
     # 检查模板是否适用于当前业务对象类型
@@ -315,21 +316,21 @@ def start_approval():
             user_id=current_user.id
         )
         if not lock_result:
-            flash('无法锁定项目，可能已被其他流程锁定', 'warning')
+            flash(_('无法锁定项目，可能已被其他流程锁定'), 'warning')
             # 继续处理，因为锁定失败可能是由于项目已经被锁定
     
     # 创建审批实例
     instance = start_approval_process(object_type, object_id, template_id, user_id=current_user.id)
     
     if instance:
-        flash('审批流程已成功发起', 'success')
+        flash(_('审批流程已成功发起'), 'success')
         # 重定向到审批详情页面，显示完整的审批流程图
         return redirect(url_for('approval.detail', instance_id=instance.id))
     else:
         # 如果创建失败且项目已锁定，则解锁项目
         if object_type == 'project' and has_authorization_step:
             unlock_project(object_id, current_user.id)
-        flash('发起审批失败，请检查是否已存在审批流程或模板是否有效', 'danger')
+        flash(_('发起审批失败，请检查是否已存在审批流程或模板是否有效'), 'danger')
     
     # 重定向回业务对象详情页
     if object_type == 'project':
@@ -378,7 +379,7 @@ def approve(instance_id):
                 'success': False,
                 'message': '无效的审批操作'
             }), 400
-        flash('无效的审批操作', 'danger')
+        flash(_('无效的审批操作'), 'danger')
         return redirect(request.referrer or url_for('approval.center'))
     
     # 转换为枚举值
@@ -395,7 +396,7 @@ def approve(instance_id):
                 'success': False,
                 'message': '找不到审批实例'
             }), 404
-        flash('找不到审批实例', 'danger')
+        flash(_('找不到审批实例'), 'danger')
         return redirect(url_for('approval.center'))
     
     current_step = get_current_step_info(instance)
@@ -639,7 +640,7 @@ def delete_approval(instance_id):
     # 获取审批实例信息
     instance = get_approval_details(instance_id)
     if not instance:
-        flash('找不到审批实例', 'danger')
+        flash(_('找不到审批实例'), 'danger')
         return redirect(url_for('approval.center'))
     
     # 获取原业务对象的URL
@@ -649,9 +650,9 @@ def delete_approval(instance_id):
     result = delete_approval_instance(instance_id)
     
     if result:
-        flash('审批实例已成功删除', 'success')
+        flash(_('审批实例已成功删除'), 'success')
     else:
-        flash('删除审批实例失败', 'danger')
+        flash(_('删除审批实例失败'), 'danger')
     
     # 返回到审批中心
     return redirect(url_for('approval.center'))
@@ -703,7 +704,7 @@ def authorize(instance_id):
     
     # 检查当前用户是否可以审批
     if not can_user_approve(instance_id):
-        flash('您没有权限进行此审批操作', 'danger')
+        flash(_('您没有权限进行此审批操作'), 'danger')
         return redirect(url_for('approval.detail', instance_id=instance_id))
     
     # 获取当前步骤信息
@@ -716,14 +717,14 @@ def authorize(instance_id):
     
     # 确认是项目类型
     if instance.object_type != 'project':
-        flash('此授权步骤仅适用于项目', 'warning')
+        flash(_('此授权步骤仅适用于项目'), 'warning')
         return redirect(url_for('approval.detail', instance_id=instance_id))
     
     # 获取项目信息
     from app.models.project import Project
     project = Project.query.get(instance.object_id)
     if not project:
-        flash('找不到相关项目', 'danger')
+        flash(_('找不到相关项目'), 'danger')
         return redirect(url_for('approval.center'))
     
     # 获取项目类型选项
@@ -922,7 +923,7 @@ def batch_delete():
     approval_ids = request.form.getlist('approval_ids')
     
     if not approval_ids:
-        flash('请选择要删除的审批流程', 'warning')
+        flash(_('请选择要删除的审批流程'), 'warning')
         return redirect(url_for('approval.center'))
     
     try:
@@ -989,7 +990,7 @@ def batch_delete():
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"批量删除审批流程失败: {str(e)}")
-        flash('批量删除操作失败，请稍后重试', 'danger')
+        flash(_('批量删除操作失败，请稍后重试'), 'danger')
     
     return redirect(url_for('approval.center')) 
 
@@ -1196,23 +1197,67 @@ def rollback_order(order_id):
 
 
 def get_tab_display_name(tab):
-    """获取标签页显示名称"""
-    tab_names = {
-        'created': '我发起的',
-        'pending': '待我审批的',
-        'pricing_order': '批价单审批',
-        'order': '订单审批',
-        'department': '部门审批',
-        'all': '全部审批'
-    }
-    return tab_names.get(tab, '审批列表')
+    """获取标签页显示名称 - 已废弃，统一使用审批列表"""
+    from flask_babel import gettext as _
+    return _('审批列表')
 
 
 def build_approval_list_config(tab, object_type=None, status=None, pending_count=0, created_pending_count=0, pricing_order_pending_count=0, order_pending_count=0):
     """构建审批中心的通用列表配置"""
     from flask import url_for
+    from flask_babel import gettext as _
+    from flask_login import current_user
     
-    # 筛选配置
+    # 根据标签页提供合适的筛选选项，使用安全的静态配置
+    def get_filter_options_for_tab(tab_type):
+        """为不同标签页提供合适的筛选选项"""
+        # 基础业务类型（所有标签页都可能有的）
+        base_object_types = {'project', 'purchase_order'}
+        
+        # 基础状态（审批流程状态）
+        base_statuses = {'pending', 'approved', 'rejected'}
+        
+        if tab_type == 'created':
+            # "我发起的"可能包含所有类型，包括批价单的草稿状态
+            return {
+                'object_types': {'project', 'quotation', 'customer', 'purchase_order', 'pricing_order'},
+                'statuses': {'draft', 'pending', 'approved', 'rejected'}
+            }
+        elif tab_type == 'pending':
+            # "待我审批"主要是审批中状态
+            return {
+                'object_types': base_object_types,
+                'statuses': {'pending'}
+            }
+        elif tab_type == 'pricing_order':
+            # "批价单审批"只有批价单类型，包含草稿状态
+            return {
+                'object_types': {'pricing_order'},
+                'statuses': {'draft', 'pending', 'approved'}
+            }
+        elif tab_type == 'order':
+            # "订单审批"只有订单类型
+            return {
+                'object_types': {'purchase_order'},
+                'statuses': {'pending', 'approved'}
+            }
+        elif tab_type == 'all':
+            # "全部审批"包含所有可能的类型和状态
+            return {
+                'object_types': {'project', 'quotation', 'customer', 'purchase_order', 'pricing_order'},
+                'statuses': {'draft', 'pending', 'approved', 'rejected'}
+            }
+        else:
+            # 默认配置
+            return {
+                'object_types': base_object_types,
+                'statuses': base_statuses
+            }
+    
+    # 获取当前标签页的筛选选项
+    actual_data = get_filter_options_for_tab(tab)
+    
+    # 筛选配置 - 使用翻译函数
     filter_config = {
         'action_url': url_for('approval.center'),
         'form_id': 'approvalFilterForm',
@@ -1220,76 +1265,91 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
         
         'search_field': {
             'name': 'search',
-            'label': '搜索',
-            'placeholder': '审批编号、流程名称或业务关键词',
+            'label': _('搜索'),
+            'placeholder': _('审批编号、流程名称或业务关键词'),
             'value': '',
             'col_width': 4
         },
         
-        'filter_fields': [
-            {
-                'name': 'object_type',
-                'label': '业务类型',
-                'all_option_text': '全部类型',
-                'current_value': object_type,
-                'col_width': 3,
-                'options': [
-                    {'value': 'project', 'label': '项目', 'translate': True},
-                    {'value': 'quotation', 'label': '报价单', 'translate': True},
-                    {'value': 'customer', 'label': '客户', 'translate': True},
-                    {'value': 'pricing_order', 'label': '批价单', 'translate': True},
-                    {'value': 'purchase_order', 'label': '订单', 'translate': True}
-                ]
-            }
-        ],
+        'filter_fields': [],
         
-        'search_button_text': '搜索',
-        'reset_button_text': '重置'
+        'search_button_text': _('搜索'),
+        'reset_button_text': _('重置')
     }
     
-    # 根据标签页添加不同的状态筛选
-    if tab == 'created':
+    # 动态生成业务类型筛选选项
+    object_type_options = []
+    business_type_labels = {
+        'project': _('项目'),
+        'quotation': _('报价单'),
+        'customer': _('客户'),
+        'purchase_order': _('采购订单'),
+        'pricing_order': _('批价单')
+    }
+    
+    for obj_type in actual_data['object_types']:
+        if obj_type in business_type_labels:
+            object_type_options.append({
+                'value': obj_type,
+                'label': business_type_labels[obj_type],
+                'translate': True
+            })
+    
+    # 只有当实际存在业务类型数据时才添加业务类型筛选
+    if object_type_options:
         filter_config['filter_fields'].append({
-            'name': 'status',
-            'label': '审批状态',
-            'all_option_text': '全部状态',
-            'current_value': status,
+            'name': 'object_type',
+            'label': _('业务类型'),
+            'all_option_text': _('全部类型'),
+            'current_value': object_type,
             'col_width': 3,
-            'options': [
-                {'value': 'draft', 'label': '草稿', 'translate': True},
-                {'value': 'pending', 'label': '审批中', 'translate': True},
-                {'value': 'approved', 'label': '已通过', 'translate': True},
-                {'value': 'rejected', 'label': '已拒绝', 'translate': True}
-            ]
-        })
-    elif tab == 'order':
-        filter_config['filter_fields'].append({
-            'name': 'status',
-            'label': '订单状态',
-            'all_option_text': '全部状态',
-            'current_value': status,
-            'col_width': 3,
-            'options': [
-                {'value': 'draft', 'label': '草稿', 'translate': True},
-                {'value': 'pending', 'label': '审批中', 'translate': True},
-                {'value': 'approved', 'label': '已通过', 'translate': True},
-                {'value': 'rejected', 'label': '已拒绝', 'translate': True},
-                {'value': 'confirmed', 'label': '已确认', 'translate': True},
-                {'value': 'shipped', 'label': '已发货', 'translate': True},
-                {'value': 'completed', 'label': '已完成', 'translate': True},
-                {'value': 'cancelled', 'label': '已取消', 'translate': True}
-            ]
+            'options': object_type_options
         })
     
-    # 统计卡片配置
+    # 动态生成状态筛选选项
+    status_options = []
+    status_labels = {
+        'draft': _('草稿'),
+        'pending': _('审批中'),
+        'approved': _('已通过'),
+        'rejected': _('已拒绝')
+    }
+    
+    for status_value in actual_data['statuses']:
+        if status_value in status_labels:
+            status_options.append({
+                'value': status_value,
+                'label': status_labels[status_value],
+                'translate': True
+            })
+    
+    # 只有当实际存在状态数据时才添加状态筛选
+    if status_options:
+        # 确定状态筛选的标签
+        if tab == 'order':
+            status_label = _('订单状态')
+        else:
+            status_label = _('审批状态')
+            
+        filter_config['filter_fields'].append({
+            'name': 'status',
+            'label': status_label,
+            'all_option_text': _('全部状态'),
+            'current_value': status,
+            'col_width': 3,
+            'options': status_options
+        })
+    
+    # 统计卡片配置 - 使用翻译函数
+    
     stats_config = {
         'cards': [
             {
                 'id': 'total',
-                'title': '全部审批',
+                'title': _('全部审批'),
                 'icon': 'fas fa-clipboard-check',
                 'value': pending_count + created_pending_count + pricing_order_pending_count + order_pending_count,
-                'unit': '项',
+                'unit': _('项'),
                 'color': 'primary',
                 'clickable': True,
                 'click_params': {},
@@ -1297,10 +1357,10 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
             },
             {
                 'id': 'pending',
-                'title': '待我审批',
+                'title': _('待我审批'),
                 'icon': 'fas fa-hourglass-half',
                 'value': pending_count,
-                'unit': '项',
+                'unit': _('项'),
                 'color': 'warning',
                 'clickable': True,
                 'click_params': {'tab': 'pending'},
@@ -1308,10 +1368,10 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
             },
             {
                 'id': 'created',
-                'title': '我发起的',
+                'title': _('我发起的'),
                 'icon': 'fas fa-file-export',
                 'value': created_pending_count,
-                'unit': '项',
+                'unit': _('项'),
                 'color': 'info',
                 'clickable': True,
                 'click_params': {'tab': 'created'},
@@ -1319,10 +1379,10 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
             },
             {
                 'id': 'pricing_order',
-                'title': '批价单审批',
+                'title': _('批价单审批'),
                 'icon': 'fas fa-file-invoice-dollar',
                 'value': pricing_order_pending_count,
-                'unit': '项',
+                'unit': _('项'),
                 'color': 'success',
                 'clickable': True,
                 'click_params': {'tab': 'pricing_order'},
@@ -1330,10 +1390,10 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
             },
             {
                 'id': 'order',
-                'title': '订单审批',
+                'title': _('订单审批'),
                 'icon': 'fas fa-shopping-cart',
                 'value': order_pending_count,
-                'unit': '项',
+                'unit': _('项'),
                 'color': 'danger',
                 'clickable': True,
                 'click_params': {'tab': 'order'},
@@ -1345,7 +1405,7 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
     # 表格配置
     table_config = {
         'ajax_target': 'approvalTableBody',
-        'title': f'审批列表 - {get_tab_display_name(tab)}',
+        'title': _('审批列表'),
         'icon': 'fas fa-table',
         'enhanced_striping': True,
         'infinite_scroll': True,
@@ -1353,7 +1413,7 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
         'columns': [
             {
                 'key': 'approval_number',
-                'label': '审批编号',
+                'label': _('审批编号'),
                 'type': 'link',
                 'url_template': '/approval/detail/{id}',
                 'width': '180px',
@@ -1361,7 +1421,7 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
             },
             {
                 'key': 'related_project',
-                'label': '关联项目',
+                'label': _('关联项目'),
                 'type': 'link',
                 'url_template': '/project/view/{project_id}',
                 'width': '200px',
@@ -1369,41 +1429,41 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
             },
             {
                 'key': 'process_name',
-                'label': '流程名称',
+                'label': _('流程名称'),
                 'type': 'text',
                 'width': '180px'
             },
             {
                 'key': 'business_info',
-                'label': '关联业务',
+                'label': _('关联业务'),
                 'type': 'badge',
                 'render': 'render_business_object_badge',
                 'width': '180px'
             },
             {
                 'key': 'creator',
-                'label': '提交人',
+                'label': _('提交人'),
                 'type': 'badge',
                 'render': 'render_owner',
                 'width': '150px'
             },
             {
                 'key': 'current_approver',
-                'label': '当前审批人',
+                'label': _('当前审批人'),
                 'type': 'badge',
                 'render': 'render_owner',
                 'width': '150px'
             },
             {
                 'key': 'status',
-                'label': '状态',
+                'label': _('状态'),
                 'type': 'badge',
                 'render': 'render_approval_status_badge',
                 'width': '120px'
             },
             {
                 'key': 'started_at',
-                'label': '发起时间',
+                'label': _('发起时间'),
                 'type': 'date',
                 'format': '%Y-%m-%d %H:%M',
                 'width': '180px'
@@ -1415,7 +1475,7 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
     if tab == 'pricing_order':
         table_config['columns'][0] = {
             'key': 'pricing_order_number',
-            'label': '批价单编号',
+            'label': _('批价单编号'),
             'type': 'link',
             'url_template': '/pricing_order/detail/{id}',
             'width': '180px',
@@ -1425,7 +1485,7 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
     elif tab == 'order':
         table_config['columns'][0] = {
             'key': 'order_number',
-            'label': '订单编号',
+            'label': _('订单编号'),
             'type': 'link',
             'url_template': '/inventory/order/{id}',
             'width': '180px'
@@ -1434,14 +1494,14 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
         # 将公司信息移到第3列（业务信息列）
         table_config['columns'][3] = {
             'key': 'company_name',
-            'label': '供应商/客户',
+            'label': _('供应商/客户'),
             'type': 'text',
             'width': '180px'
         }
     
     return {
         'module_name': 'approval',
-        'title': '审批中心',
+        'title': _('审批中心'),
         'ajax_mode': True,
         'stats': stats_config,
         'filter': filter_config,
@@ -1453,6 +1513,21 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
         }
     }
 
+
+
+def create_empty_pagination(per_page=20):
+    """创建空分页对象的工具函数"""
+    class EmptyPagination:
+        def __init__(self, per_page):
+            self.items = []
+            self.total = 0
+            self.pages = 0
+            self.has_next = False
+            self.has_prev = False
+            self.page = 1
+            self.per_page = per_page
+    
+    return EmptyPagination(per_page)
 
 
 @approval_bp.route('/center_ajax')
@@ -1477,67 +1552,101 @@ def center_ajax():
         
         # 获取审批数据（复用原有逻辑）
         if tab == 'pending':
-            approvals = get_user_pending_approvals(
-                user_id=current_user.id,
-                object_type=object_type,
-                page=page,
-                per_page=per_page
-            )
+            # 对于待我审批标签页，只显示待审批状态的记录
+            # 如果筛选其他状态，返回空结果
+            if status and status not in ['', 'pending']:
+                # 为非pending状态返回空结果
+                approvals = create_empty_pagination(per_page)
+            else:
+                # 默认或筛选"审批中"，返回待审批列表
+                try:
+                    approvals = get_user_pending_approvals(
+                        user_id=current_user.id,
+                        object_type=object_type,
+                        page=page,
+                        per_page=per_page
+                    )
+                except Exception as e:
+                    current_app.logger.error(f"get_user_pending_approvals调用失败: {str(e)}")
+                    approvals = create_empty_pagination(per_page)
         elif tab == 'pricing_order':
             from app.helpers.approval_helpers import get_user_pricing_order_approvals
-            approvals = get_user_pricing_order_approvals(
-                user_id=current_user.id,
-                status=status,
-                page=page,
-                per_page=per_page
-            )
+            try:
+                approvals = get_user_pricing_order_approvals(
+                    user_id=current_user.id,
+                    status=status,
+                    page=page,
+                    per_page=per_page
+                )
+            except Exception as e:
+                current_app.logger.error(f"get_user_pricing_order_approvals调用失败: {str(e)}")
+                approvals = create_empty_pagination(per_page)
         elif tab == 'order':
             from app.helpers.approval_helpers import get_user_order_approvals
-            approvals = get_user_order_approvals(
-                user_id=current_user.id,
-                status_filter=status,
-                page=page,
-                per_page=per_page
-            )
+            try:
+                approvals = get_user_order_approvals(
+                    user_id=current_user.id,
+                    status_filter=status,
+                    page=page,
+                    per_page=per_page
+                )
+            except Exception as e:
+                current_app.logger.error(f"get_user_order_approvals调用失败: {str(e)}")
+                approvals = create_empty_pagination(per_page)
         elif tab == 'department':
             from app.helpers.approval_helpers import get_user_department_approvals
-            approvals = get_user_department_approvals(
-                user_id=current_user.id,
-                object_type=object_type,
-                status=status,
-                page=page,
-                per_page=per_page
-            )
+            try:
+                approvals = get_user_department_approvals(
+                    user_id=current_user.id,
+                    object_type=object_type,
+                    status=status,
+                    page=page,
+                    per_page=per_page
+                )
+            except Exception as e:
+                current_app.logger.error(f"get_user_department_approvals调用失败: {str(e)}")
+                approvals = create_empty_pagination(per_page)
         elif tab == 'all' and has_permission('approval_management', 'all'):
-            status_param = None
-            if status:
-                try:
-                    status_param = ApprovalStatus[status.upper()]
-                except (KeyError, AttributeError):
-                    status_param = status
+            # 全部审批 - 简化状态处理
+            status_param = status  # 直接使用字符串状态
             
-            approvals = get_all_approvals(
-                object_type=object_type,
-                status=status_param,
-                page=page,
-                per_page=per_page
-            )
+            try:
+                approvals = get_all_approvals(
+                    object_type=object_type,
+                    status=status_param,
+                    page=page,
+                    per_page=per_page
+                )
+            except Exception as e:
+                current_app.logger.error(f"get_all_approvals调用失败: {str(e)}")
+                approvals = create_empty_pagination(per_page)
         else:
-            # 我发起的
-            status_param = None
-            if status:
-                try:
-                    status_param = ApprovalStatus[status.upper()]
-                except (KeyError, AttributeError):
-                    status_param = status
-                    
-            approvals = get_user_created_approvals(
-                user_id=current_user.id,
-                object_type=object_type,
-                status=status_param,
-                page=page,
-                per_page=per_page
-            )
+            # 我发起的 - 特殊处理草稿状态
+            if status == 'draft':
+                # 草稿状态只存在于批价单中，强制设置object_type为pricing_order
+                object_type = 'pricing_order'
+                current_app.logger.info(f"草稿状态筛选，强制设置object_type=pricing_order")
+            
+            status_param = status  # 直接使用字符串状态，让get_user_created_approvals内部处理转换
+            
+            current_app.logger.info(f"调用get_user_created_approvals，参数: user_id={current_user.id}, object_type={object_type}, status={status_param}")
+            
+            try:
+                approvals = get_user_created_approvals(
+                    user_id=current_user.id,
+                    object_type=object_type,
+                    status=status_param,
+                    page=page,
+                    per_page=per_page
+                )
+                current_app.logger.info(f"get_user_created_approvals调用成功，结果数量: {len(approvals.items) if hasattr(approvals, 'items') else 'N/A'}")
+            except Exception as e:
+                current_app.logger.error(f"get_user_created_approvals调用失败: {str(e)}")
+                import traceback
+                current_app.logger.error(traceback.format_exc())
+                
+                # 返回空结果而不是抛出异常
+                approvals = create_empty_pagination(per_page)
         
         # 应用搜索过滤（简单实现）
         items = approvals.items if hasattr(approvals, 'items') else approvals
@@ -1599,26 +1708,43 @@ def center_ajax():
 
 def render_approval_row(item, tab='created'):
     """渲染审批行HTML"""
-    from app.helpers.approval_helpers import get_current_step_info, get_last_approver
+    try:
+        from app.helpers.approval_helpers import get_current_step_info, get_last_approver
+        
+        # 获取当前步骤和审批人信息
+        current_step = None
+        last_approver = None
+        current_approver = None
+        
+        try:
+            current_step = get_current_step_info(item)
+        except Exception as e:
+            current_app.logger.warning(f"获取当前步骤信息失败: {e}")
+        
+        try:
+            if hasattr(item.status, 'name') and item.status.name in ['APPROVED', 'REJECTED']:
+                last_approver = get_last_approver(item)
+        except Exception as e:
+            current_app.logger.warning(f"获取最后审批人失败: {e}")
+            
+        current_approver = last_approver or (current_step.approver if current_step else None)
+    except Exception as e:
+        current_app.logger.error(f"render_approval_row 初始化失败: {e}")
+        # 返回基本的错误行
+        return f'<tr><td colspan="8" class="text-center text-danger">渲染错误: {str(e)}</td></tr>'
     
-    # 获取当前步骤和审批人信息
-    current_step = get_current_step_info(item)
-    last_approver = get_last_approver(item) if item.status.name in ['APPROVED', 'REJECTED'] else None
-    current_approver = last_approver or (current_step.approver if current_step else None)
+    # 状态徽章 - 使用映射的多语言显示
+    from app.utils.dictionary_helpers import approval_status_label
+    from app.utils.i18n import get_current_language
     
-    # 状态徽章
-    status_badge = f'<span class="badge badge-pill badge-transparent approval-status-{item.status.name.lower()}">'
-    if item.status.name == 'PENDING':
-        status_badge += '审批中'
-    elif item.status.name == 'APPROVED':  
-        status_badge += '已通过'
-    elif item.status.name == 'REJECTED':
-        status_badge += '已拒绝'
-    elif item.status.name == 'DRAFT':
-        status_badge += '草稿'
-    else:
-        status_badge += item.status.name
-    status_badge += '</span>'
+    try:
+        lang_code = get_current_language()
+    except:
+        lang_code = 'zh'
+    
+    status_key = item.status.name.lower() if hasattr(item.status, 'name') else str(item.status).lower()
+    status_display = approval_status_label(status_key, lang_code)
+    status_badge = f'<span class="badge badge-pill badge-transparent approval-status-{status_key}">{status_display}</span>'
     
     # 审批编号 - 安全的数字格式化
     try:
@@ -1628,10 +1754,20 @@ def render_approval_row(item, tab='created'):
         approval_code = f'<span class="badge badge-pill badge-transparent approval-code-badge">APV-{item.id}</span>'
     
     # 业务对象信息
-    business_info = get_business_object_display(item)
+    business_info = ""
+    try:
+        business_info = get_business_object_display(item)
+    except Exception as e:
+        current_app.logger.warning(f"获取业务对象信息失败: {e}")
+        business_info = f'<span class="badge badge-pill badge-transparent">对象信息获取失败</span>'
     
     # 关联项目信息
-    related_project = get_related_project_display(item)
+    related_project = ""
+    try:
+        related_project = get_related_project_display(item)
+    except Exception as e:
+        current_app.logger.warning(f"获取关联项目信息失败: {e}")
+        related_project = '<span class="text-muted">-</span>'
     
     # 创建人和当前审批人 - 使用render_owner逻辑生成徽章
     def render_user_badge(user):
@@ -1752,51 +1888,65 @@ def get_related_project_display(approval_item):
 
 
 def get_business_object_display(approval_item):
-    """获取业务对象显示信息"""
-    # 业务对象类型的中文显示名称映射
-    object_type_display_map = {
-        'project': '项目',
-        'quotation': '报价单',
-        'customer': '客户',
-        'purchase_order': '采购订单',
-        'pricing_order': '批价单',
-        'order': '订单',
-        'inventory': '库存',
-        'settlement': '结算单'
+    """获取业务对象类型显示信息 - 显示业务模块类型而非具体内容"""
+    from flask_babel import gettext as _
+    
+    # 业务对象类型的多语言显示名称和样式映射
+    business_type_config = {
+        'project': {
+            'display': _('项目'),
+            'icon': 'fas fa-project-diagram',
+            'class': 'business-type-project'
+        },
+        'quotation': {
+            'display': _('报价单'),
+            'icon': 'fas fa-file-invoice',
+            'class': 'business-type-quotation'
+        },
+        'customer': {
+            'display': _('客户'),
+            'icon': 'fas fa-building',
+            'class': 'business-type-customer'
+        },
+        'purchase_order': {
+            'display': _('采购订单'),
+            'icon': 'fas fa-shopping-cart',
+            'class': 'business-type-order'
+        },
+        'pricing_order': {
+            'display': _('批价单'),
+            'icon': 'fas fa-file-invoice-dollar',
+            'class': 'business-type-pricing'
+        },
+        'order': {
+            'display': _('订单'),
+            'icon': 'fas fa-receipt',
+            'class': 'business-type-order'
+        },
+        'inventory': {
+            'display': _('库存'),
+            'icon': 'fas fa-warehouse',
+            'class': 'business-type-inventory'
+        },
+        'settlement': {
+            'display': _('结算单'),
+            'icon': 'fas fa-calculator',
+            'class': 'business-type-settlement'
+        }
     }
     
-    if approval_item.object_type == 'project' and approval_item.object_id:
-        from app.helpers.approval_helpers import get_project_by_id
-        project = get_project_by_id(approval_item.object_id)
-        if project and project.project_name:
-            return f'<span class="badge badge-pill badge-transparent business-object-project" title="{project.project_name}">{project.project_name[:20]}{"..." if len(project.project_name) > 20 else ""}</span>'
-    elif approval_item.object_type == 'quotation' and approval_item.object_id:
-        from app.helpers.approval_helpers import get_quotation_by_id
-        quotation = get_quotation_by_id(approval_item.object_id)
-        if quotation and quotation.project and quotation.project.authorization_code:
-            return f'<span class="badge badge-pill badge-transparent business-object-project">{quotation.project.authorization_code}</span>'
-    elif approval_item.object_type == 'customer' and approval_item.object_id:
-        from app.helpers.approval_helpers import get_customer_by_id
-        customer = get_customer_by_id(approval_item.object_id)
-        if customer and customer.company_name:
-            return f'<span class="badge badge-pill badge-transparent business-object-customer">{customer.company_name[:10]}...</span>'
-    elif approval_item.object_type == 'purchase_order' and approval_item.object_id:
-        try:
-            from app.models.inventory import Order
-            order = Order.query.filter_by(id=approval_item.object_id, is_deleted=False).first()
-            if order and order.order_number:
-                return f'<span class="badge badge-pill badge-transparent business-object-order">{order.order_number}</span>'
-        except Exception as e:
-            current_app.logger.warning(f"Failed to get purchase order {approval_item.object_id}: {e}")
-    elif approval_item.object_type == 'pricing_order' and approval_item.object_id:
-        try:
-            from app.models.pricing_order import PricingOrder
-            pricing_order = PricingOrder.query.filter_by(id=approval_item.object_id, is_deleted=False).first()
-            if pricing_order and pricing_order.order_number:
-                return f'<span class="badge badge-pill badge-transparent business-object-pricing">{pricing_order.order_number}</span>'
-        except Exception as e:
-            current_app.logger.warning(f"Failed to get pricing order {approval_item.object_id}: {e}")
+    # 获取业务类型配置
+    object_type = approval_item.object_type or 'unknown'
+    type_config = business_type_config.get(object_type)
     
-    # 使用中文显示名称替代技术键值
-    display_name = object_type_display_map.get(approval_item.object_type, approval_item.object_type or "未知类型")
-    return f'<span class="badge badge-pill badge-transparent business-object-none">{display_name}</span>'
+    if type_config:
+        # 使用配置的显示名称、图标和样式
+        display_name = type_config['display']
+        icon = type_config['icon']
+        css_class = type_config['class']
+        
+        return f'<span class="badge badge-pill badge-transparent {css_class}"><i class="{icon} me-1"></i>{display_name}</span>'
+    else:
+        # 未知类型的后备显示
+        display_name = object_type.replace('_', ' ').title() if object_type != 'unknown' else _("未知类型")
+        return f'<span class="badge badge-pill badge-transparent business-type-unknown"><i class="fas fa-question-circle me-1"></i>{display_name}</span>'

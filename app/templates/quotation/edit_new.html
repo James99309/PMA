@@ -72,8 +72,8 @@
                                     "project_id_field": "projectId",
                                     "project_id_name": "project_id",
                                     "data_element_id": "projectSearchConfig",
-                                    "label": "关联项目",
-                                    "placeholder": "输入项目名称或授权码进行搜索...",
+                                    "label": _("关联项目"),
+                                    "placeholder": _("输入项目名称或授权码进行搜索..."),
                                     "show_component_badge": false,
                                     "api_endpoints": {
                                         "search": "/api/v1/search/projects",
@@ -230,7 +230,7 @@
                                         },
                                         {
                                             "key": "discount",
-                                            "label": "折扣率(%)",
+                                            "label": "折扣率(%%)",
                                             "type": "percentage",
                                             "width": "100px"
                                         },
@@ -320,7 +320,7 @@
                                     }
                                 } %}
                                 {% if default_currency %}
-                                    {% set _ = product_config.calculationRules.update({"currency": default_currency}) %}
+                                    {% set dummy = product_config.calculationRules.update({"currency": default_currency}) %}
                                 {% endif %}
                                 
                                 <!-- 格式化现有产品明细数据 -->
@@ -389,14 +389,14 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         
         if (!window.productDetailManager) {
-            alert('产品明细管理器未初始化');
+            alert('{{ _("产品明细管理器未初始化") }}');
             return;
         }
         
         // 验证产品明细
         const errors = window.productDetailManager.validateAll();
         if (errors.length > 0) {
-            alert('请检查产品明细:\n' + errors.map(e => e.message).join('\n'));
+            alert('{{ _("请检查产品明细") }}:\n' + errors.map(e => e.message).join('\n'));
             return;
         }
         
@@ -404,7 +404,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const productDetails = window.productDetailManager.getAllData();
         
         if (productDetails.length === 0) {
-            alert('请至少添加一个产品明细');
+            alert('{{ _("请至少添加一个产品明细") }}');
             return;
         }
         
@@ -458,6 +458,19 @@ function handleQuotationError(data) {
         alert(message);
     }
 }
+</script>
+
+<!-- 传递货币翻译数据到JavaScript -->
+<script>
+// 产品明细组件货币国际化
+window.CURRENCY_I18N = {
+    "USD": "{{ _('美元') }}",
+    "CNY": "{{ _('人民币') }}",
+    "SGD": "{{ _('新加坡元') }}",
+    "MYR": "{{ _('马来西亚林吉特') }}",
+    "IDR": "{{ _('印尼盾') }}",
+    "THB": "{{ _('泰铢') }}"
+};
 </script>
 
 {% endblock %}

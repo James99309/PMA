@@ -179,7 +179,7 @@ def get_default_currency():
     return 'CNY'
 
 def get_amount_unit_config(language=None):
-    """获取基于语言环境的金额单位配置"""
+    """获取基于语言环境的金额单位配置（用于统计卡片language_aware模式）"""
     if language is None:
         try:
             from app.utils.i18n import get_current_language
@@ -192,14 +192,16 @@ def get_amount_unit_config(language=None):
             'divisor': 1,           # 大部分模块数据已经是万元，不需要转换
             'unit': '万元',
             'decimal_places': 2,
-            'format_type': 'wan'
+            'format_type': 'wan',
+            'currency_symbol': '¥'
         }
     else:
         return {
             'divisor': 100,         # 万元转百万：万元/100 = M
             'unit': 'M',
             'decimal_places': 2,
-            'format_type': 'million'
+            'format_type': 'million',
+            'currency_symbol': '¥'
         }
 
 def format_amount_with_unit(amount, currency_symbol, language=None):
@@ -227,6 +229,82 @@ def format_amount_with_unit(amount, currency_symbol, language=None):
             'full_display': f"{currency_symbol}{amount:.2f}万元",
             'format_type': 'wan'
         }
+
+def prepare_stats_card_amount(amount_yuan, language=None):
+    """
+    为统计卡片准备金额数据（从人民币元转换）
+    
+    参数：
+    - amount_yuan: 人民币金额（元）
+    - language: 语言代码，默认自动检测
+    
+    返回：
+    - 包含value、unit等字段的字典，可直接用于stats_card配置
+    """
+    if language is None:
+        try:
+            from app.utils.i18n import get_current_language
+            language = get_current_language()
+        except:
+            language = 'zh'
+    
+    # 调试信息
+    print(f"💰 prepare_stats_card_amount 调用: amount_yuan={amount_yuan}, language={language}")
+    
+    if language == 'zh' or language.startswith('zh'):
+        # 中文：元 -> 万元
+        display_value = amount_yuan / 10000
+        unit = '万元'
+        print(f"💰 中文转换: {amount_yuan}元 ÷ 10000 = {display_value}万元")
+    else:
+        # 英文：元 -> M（百万）
+        display_value = amount_yuan / 1000000
+        unit = 'M'
+        print(f"💰 英文转换: {amount_yuan}元 ÷ 1000000 = {display_value}M")
+    
+    result = {
+        'value': round(display_value, 2),
+        'unit': unit,
+        'currency_symbol': '¥',
+        'format_type': 'wan' if language == 'zh' else 'million'
+    }
+    
+    print(f"💰 转换结果: {result}")
+    return result
+
+def prepare_stats_card_amount_from_wan(amount_wan, language=None):
+    """
+    为统计卡片准备金额数据（从万元转换）
+    
+    参数：
+    - amount_wan: 金额（万元）
+    - language: 语言代码，默认自动检测
+    
+    返回：
+    - 包含value、unit等字段的字典，可直接用于stats_card配置
+    """
+    if language is None:
+        try:
+            from app.utils.i18n import get_current_language
+            language = get_current_language()
+        except:
+            language = 'zh'
+    
+    if language == 'zh' or language.startswith('zh'):
+        # 中文：万元 -> 万元（保持不变）
+        display_value = amount_wan
+        unit = '万元'
+    else:
+        # 英文：万元 -> M（万元 ÷ 100 = 百万）
+        display_value = amount_wan / 100
+        unit = 'M'
+    
+    return {
+        'value': round(display_value, 2),
+        'unit': unit,
+        'currency_symbol': '¥',
+        'format_type': 'wan' if language == 'zh' else 'million'
+    }
 
 def get_currency_type_options():
     """获取语言感知的货币类型选项"""
@@ -424,6 +502,30 @@ REPORTING_SOURCE_LABELS = {
 
 def reporting_source_label(key, lang='zh'):
     return REPORTING_SOURCE_LABELS.get(key, {}).get(lang, key)
+
+# 审批状态映射
+APPROVAL_STATUS_LABELS = {
+    'pending': {'zh': '审批中', 'en': 'Pending'},
+    'approved': {'zh': '已通过', 'en': 'Approved'},
+    'rejected': {'zh': '已拒绝', 'en': 'Rejected'},
+    'recalled': {'zh': '已召回', 'en': 'Recalled'},
+    'draft': {'zh': '草稿', 'en': 'Draft'}
+}
+
+def approval_status_label(key, lang='zh'):
+    """获取审批状态标签"""
+    return APPROVAL_STATUS_LABELS.get(key, {}).get(lang, key)
+
+def get_approval_status_options():
+    """获取语言感知的审批状态选项"""
+    try:
+        from app.utils.i18n import get_current_language
+        lang_code = get_current_language()
+        return [(k, v[lang_code]) for k, v in APPROVAL_STATUS_LABELS.items()]
+    except Exception as e:
+        import logging
+        logging.warning(f"get_approval_status_options 获取语言失败: {e}")
+        return [(k, v['zh']) for k, v in APPROVAL_STATUS_LABELS.items()]
 
 # 分享权限标签映射
 SHARE_PERMISSION_LABELS = {

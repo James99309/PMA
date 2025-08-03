@@ -199,6 +199,10 @@ def list_quotations():
         # 获取实际存在的项目类型选项 - 优化查询避免N+1问题
         from app.utils.dictionary_helpers import PROJECT_TYPE_LABELS
         
+        # 获取当前语言
+        from app.utils.i18n import get_current_language
+        current_lang = get_current_language()
+        
         # 使用高效的子查询获取项目类型，避免加载所有报价单数据
         viewable_quotation_subquery = get_viewable_data(Quotation, current_user).subquery()
         unique_project_types_query = db.session.query(Project.project_type.distinct())\
@@ -215,7 +219,7 @@ def list_quotations():
             if project_type in PROJECT_TYPE_LABELS:
                 project_type_options.append({
                     'value': project_type,
-                    'label': PROJECT_TYPE_LABELS[project_type]['zh']
+                    'label': PROJECT_TYPE_LABELS[project_type][current_lang]
                 })
             else:
                 # 处理没有在字典中定义的项目类型
@@ -254,7 +258,7 @@ def list_quotations():
             if stage in PROJECT_STAGE_LABELS:
                 project_stage_options.append({
                     'value': stage,
-                    'label': PROJECT_STAGE_LABELS[stage]['zh']
+                    'label': PROJECT_STAGE_LABELS[stage][current_lang]
                 })
             else:
                 # 处理没有在字典中定义的项目阶段
@@ -298,8 +302,8 @@ def list_quotations():
             
             'search_field': {
                 'name': 'search',
-                'label': '搜索',
-                'placeholder': '报价单编号或项目名称',
+                'label': _('搜索'),
+                'placeholder': _('报价单编号或项目名称'),
                 'value': search,
                 'col_width': 4
             },
@@ -307,8 +311,8 @@ def list_quotations():
             'filter_fields': [
                 {
                     'name': 'owner_filter',
-                    'label': '负责人',
-                    'all_option_text': '全部负责人',
+                    'label': _('负责人'),
+                    'all_option_text': _('全部负责人'),
                     'current_value': owner_filter if owner_filter and request.args else '',
                     'col_width': 2,
                     'options': [
@@ -318,16 +322,16 @@ def list_quotations():
                 },
                 {
                     'name': 'project_type_filter',
-                    'label': '项目类型',
-                    'all_option_text': '全部类型',
+                    'label': _('项目类型'),
+                    'all_option_text': _('全部类型'),
                     'current_value': project_type_filter if project_type_filter and request.args else '',
                     'col_width': 2,
                     'options': project_type_options
                 },
                 {
                     'name': 'project_stage_filter',
-                    'label': '项目阶段',
-                    'all_option_text': '全部阶段',
+                    'label': _('项目阶段'),
+                    'all_option_text': _('全部阶段'),
                     'current_value': project_stage_filter if project_stage_filter and request.args else '',
                     'col_width': 2,
                     'options': project_stage_options
@@ -341,8 +345,8 @@ def list_quotations():
             'adaptive_width': True,
             'adaptive_button_layout': True,
             
-            'search_button_text': '搜索',
-            'reset_button_text': '重置'
+            'search_button_text': _('搜索'),
+            'reset_button_text': _('重置')
         }
         
         # 通用列表组件配置
@@ -364,12 +368,12 @@ def list_quotations():
                 'cards': [
                     {
                         'id': 'total',
-                        'title': '全部报价单',
+                        'title': _('全部报价单'),
                         'icon': 'fas fa-file-invoice-dollar',
                         'value': total_stats_count,
                         'amount': total_stats_amount,
-                        'unit': '份',
-                        'amount_unit': '万元',
+                        'unit': _('份'),
+                        'amount_unit': _('万元'),
                         'color': 'primary',
                         'clickable': True,
                         'click_params': {},
@@ -377,12 +381,12 @@ def list_quotations():
                     },
                     {
                         'id': 'approved',
-                        'title': '已批准',
+                        'title': _('已批准'),
                         'icon': 'fas fa-check-circle',
                         'value': approved_count,
                         'amount': approved_amount,
-                        'unit': '份',
-                        'amount_unit': '万元',
+                        'unit': _('份'),
+                        'amount_unit': _('万元'),
                         'color': 'success',
                         'clickable': True,
                         'click_params': {'approval_status': 'approved'},
@@ -390,12 +394,12 @@ def list_quotations():
                     },
                     {
                         'id': 'pending',
-                        'title': '待审批',
+                        'title': _('待审批'),
                         'icon': 'fas fa-clock',
                         'value': pending_count,
                         'amount': pending_amount,
-                        'unit': '份',
-                        'amount_unit': '万元',
+                        'unit': _('份'),
+                        'amount_unit': _('万元'),
                         'color': 'warning',
                         'clickable': True,
                         'click_params': {'approval_status': 'pending'},
@@ -403,12 +407,12 @@ def list_quotations():
                     },
                     {
                         'id': 'draft',
-                        'title': '草稿',
+                        'title': _('草稿'),
                         'icon': 'fas fa-edit',
                         'value': draft_count,
                         'amount': draft_amount,
-                        'unit': '份',
-                        'amount_unit': '万元',
+                        'unit': _('份'),
+                        'amount_unit': _('万元'),
                         'color': 'secondary',
                         'clickable': True,
                         'click_params': {'approval_status': 'draft'},
@@ -423,14 +427,14 @@ def list_quotations():
             # 表格配置
             'table': {
                 'ajax_target': 'quotationTableBody',
-                'title': '报价单列表',
+                'title': _('报价单列表'),
                 'icon': 'fas fa-table',
                 'fixed_height_scroll': True,     # 启用固定高度滚动（蓝色滚动条）
                 'enhanced_striping': True,       # 启用增强斑马纹效果
                 'columns': [
                     {
                         'key': 'quotation_number',
-                        'label': '报价单编号',
+                        'label': _('报价单编号'),
                         'type': 'link',
                         'url_template': '/quotations/{id}',
                         'width': '160px',
@@ -438,19 +442,19 @@ def list_quotations():
                     },
                     {
                         'key': 'owner',
-                        'label': '拥有人',
+                        'label': _('拥有人'),
                         'type': 'text',
                         'width': '100px'
                     },
                     {
                         'key': 'project_name',
-                        'label': '关联项目',
+                        'label': _('关联项目'),
                         'type': 'text',
                         'width': '200px'
                     },
                     {
                         'key': 'amount',
-                        'label': '总价',
+                        'label': _('总价'),
                         'type': 'number',
                         'format': 'currency',
                         'align': 'end',
@@ -458,28 +462,28 @@ def list_quotations():
                     },
                     {
                         'key': 'project_stage',
-                        'label': '阶段',
+                        'label': _('阶段'),
                         'type': 'text',
                         'width': '100px',
                         'render': 'render_project_stage'
                     },
                     {
                         'key': 'project_type',
-                        'label': '类型',
+                        'label': _('类型'),
                         'type': 'text',
                         'width': '100px',
                         'render': 'render_project_type'
                     },
                     {
                         'key': 'updated_at',
-                        'label': '更新时间',
+                        'label': _('更新时间'),
                         'type': 'date',
                         'format': '%Y-%m-%d',
                         'width': '120px'
                     },
                     {
                         'key': 'created_at',
-                        'label': '创建时间',
+                        'label': _('创建时间'),
                         'type': 'date',
                         'format': '%Y-%m-%d',
                         'width': '120px'
@@ -524,30 +528,30 @@ def list_quotations():
             'reset_url': url_for('quotation.list_quotations'),
             'search_field': {
                 'name': 'search',
-                'label': '搜索',
-                'placeholder': '报价单编号或项目名称',
+                'label': _('搜索'),
+                'placeholder': _('报价单编号或项目名称'),
                 'value': '',
                 'col_width': 4
             },
             'filter_fields': [],
-            'search_button_text': '搜索',
-            'reset_button_text': '重置'
+            'search_button_text': _('搜索'),
+            'reset_button_text': _('重置')
         }
         
         error_list_config = {
             'module_name': 'quotation',
-            'title': '报价单列表',
+            'title': _('报价单列表'),
             'ajax_mode': True,
             'stats': {
                 'cards': [
                     {
                         'id': 'total',
-                        'title': '全部报价单',
+                        'title': _('全部报价单'),
                         'icon': 'fas fa-file-invoice-dollar',
                         'value': 0,
                         'amount': 0,
-                        'unit': '份',
-                        'amount_unit': '万元',
+                        'unit': _('份'),
+                        'amount_unit': _('万元'),
                         'color': 'primary',
                         'clickable': False,
                         'data_key': 'total'
@@ -557,22 +561,22 @@ def list_quotations():
             'filter': error_filter_config,
             'table': {
                 'ajax_target': 'quotationTableBody',
-                'title': '报价单列表',
+                'title': _('报价单列表'),
                 'icon': 'fas fa-table',
                 'columns': [
-                    {'key': 'quotation_number', 'label': '报价单编号', 'type': 'text'},
-                    {'key': 'owner', 'label': '拥有人', 'type': 'text'},
-                    {'key': 'project_name', 'label': '关联项目', 'type': 'text'},
-                    {'key': 'amount', 'label': '总价', 'type': 'number'},
-                    {'key': 'project_stage', 'label': '阶段', 'type': 'text'},
-                    {'key': 'project_type', 'label': '类型', 'type': 'text'},
-                    {'key': 'updated_at', 'label': '更新时间', 'type': 'date'},
-                    {'key': 'created_at', 'label': '创建时间', 'type': 'date'}
+                    {'key': 'quotation_number', 'label': _('报价单编号'), 'type': 'text'},
+                    {'key': 'owner', 'label': _('拥有人'), 'type': 'text'},
+                    {'key': 'project_name', 'label': _('关联项目'), 'type': 'text'},
+                    {'key': 'amount', 'label': _('总价'), 'type': 'number'},
+                    {'key': 'project_stage', 'label': _('阶段'), 'type': 'text'},
+                    {'key': 'project_type', 'label': _('类型'), 'type': 'text'},
+                    {'key': 'updated_at', 'label': _('更新时间'), 'type': 'date'},
+                    {'key': 'created_at', 'label': _('创建时间'), 'type': 'date'}
                 ]
             }
         }
         
-        flash(f'加载报价单失败：{str(e)}', 'danger')
+        flash(_('加载报价单失败：%s') % str(e), 'danger')
         return render_template('quotation/list.html', 
                               quotations=[], 
                               sort_field='created_at', 
@@ -775,7 +779,7 @@ def quotations_list_ajax():
         current_app.logger.error(f"报价单AJAX筛选失败: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
-            'message': f'加载失败: {str(e)}',
+            'message': '加载失败: %s' % str(e),
             'html': '<tr><td colspan="8" class="text-center text-muted">加载失败，请刷新重试</td></tr>',
             'total_count': 0,
             'loaded_count': 0,
@@ -839,7 +843,7 @@ def create_quotation():
                         current_app.logger.error(f"项目ID {project_id} 不存在")
                         return jsonify({
                             'status': 'error',
-                            'message': f'ID为{project_id}的项目不存在'
+                            'message': 'ID为%s的项目不存在' % project_id
                         }), 400
                 except (ValueError, TypeError) as e:
                     current_app.logger.error(f"项目ID类型转换错误: {str(e)}")
@@ -857,7 +861,7 @@ def create_quotation():
                     current_app.logger.error(f"解析总金额失败: {str(e)}")
                     return jsonify({
                         'status': 'error',
-                        'message': f'总金额格式错误: {str(e)}'
+                        'message': '总金额格式错误: %s' % str(e)
                     }), 400
                 
                 # 获取项目的完整信息（从项目表获取最新数据）
@@ -1119,7 +1123,7 @@ def create_quotation():
                     # 返回错误信息
                     return jsonify({
                         'status': 'error',
-                        'message': f'保存失败: {error_type} - {str(commit_error)}'
+                        'message': '保存失败: %s - %s' % (error_type, str(commit_error))
                     }), 500
             else:
                 # 不再支持传统表单格式，只支持JSON格式提交
@@ -1133,10 +1137,10 @@ def create_quotation():
             if request.is_json:
                 return jsonify({
                     'status': 'error',
-                    'message': f'{type(e).__name__}: {str(e)}'
+                    'message': '%s: %s' % (type(e).__name__, str(e))
                 }), 500
             else:
-                flash(f'报价单创建失败：{str(e)}', 'danger')
+                flash(_('报价单创建失败：%s') % str(e), 'danger')
                 print(f"Error: {str(e)}")  # 添加错误日志
     
     # GET 请求处理
@@ -1222,7 +1226,7 @@ def edit_quotation(id):
         
         # 检查编辑权限
         if not can_edit_data(quotation, current_user):
-            flash('您没有权限编辑此报价单', 'danger')
+            flash(_('您没有权限编辑此报价单'), 'danger')
             return redirect(url_for('quotation.list_quotations'))
         
         # 检查报价单是否被锁定
@@ -1619,7 +1623,7 @@ def edit_quotation(id):
                         
                 db.session.commit()
                 
-                flash('报价单更新成功！', 'success')
+                flash(_('报价单更新成功！'), 'success')
                 return redirect(url_for('quotation.view_quotation', id=quotation.id))
                 
             except ValueError as e:
@@ -1634,7 +1638,7 @@ def edit_quotation(id):
                                      return_to=return_to)
             except Exception as e:
                 db.session.rollback()
-                flash(f'报价单更新失败：{str(e)}', 'danger')
+                flash(_('报价单更新失败：%s') % str(e), 'danger')
                 return render_template('quotation/edit_new.html', 
                                      quotation=quotation,
                                      projects=projects,
@@ -1715,7 +1719,7 @@ def edit_quotation(id):
             raise render_error
         
     except Exception as e:
-        flash(f'加载报价单失败：{str(e)}', 'danger')
+        flash(_('加载报价单失败：%s') % str(e), 'danger')
         return redirect(url_for('quotation.list_quotations'))
 
 @quotation.route('/<int:id>/copy', methods=['POST'])
@@ -1726,7 +1730,7 @@ def copy_quotation(id):
         original_quotation = Quotation.query.get_or_404(id)
         if not can_view_quotation(current_user, original_quotation):
             logger.debug(f"{current_user.username} 无权复制报价单 {original_quotation.id}")
-            flash('您没有权限复制此报价单', 'danger')
+            flash(_('您没有权限复制此报价单'), 'danger')
             return redirect(url_for('quotation.list_quotations'))
         # 创建新报价单
         new_quotation = Quotation(
@@ -1774,11 +1778,11 @@ def copy_quotation(id):
             project.quotation_customer = total
         db.session.commit()
         
-        flash('报价单复制成功！', 'success')
+        flash(_('报价单复制成功！'), 'success')
         return redirect(url_for('quotation.edit_quotation', id=new_quotation.id))
     except Exception as e:
         db.session.rollback()
-        flash(f'报价单复制失败：{str(e)}', 'danger')
+        flash(_('报价单复制失败：%s') % str(e), 'danger')
         return redirect(url_for('quotation.list_quotations'))
 
 @quotation.route('/<int:id>/delete', methods=['POST'])
@@ -1789,7 +1793,7 @@ def delete_quotation(id):
     
     # 检查删除权限
     if not can_edit_data(quotation, current_user):
-        flash('您没有权限删除此报价单', 'danger')
+        flash(_('您没有权限删除此报价单'), 'danger')
         return redirect(url_for('quotation.list_quotations'))
     
     try:
@@ -1831,10 +1835,10 @@ def delete_quotation(id):
         
         db.session.delete(quotation)
         db.session.commit()
-        flash('报价单删除成功！', 'success')
+        flash(_('报价单删除成功！'), 'success')
     except Exception as e:
         db.session.rollback()
-        flash(f'删除失败：{str(e)}', 'danger')
+        flash(_('删除失败：%s') % str(e), 'danger')
     
     return redirect(url_for('quotation.list_quotations'))
 
@@ -2681,7 +2685,7 @@ def view_quotation(id):
         quotation = Quotation.query.get_or_404(id)
         if not can_view_quotation(current_user, quotation):
             logger.debug(f"{current_user.username} 无权访问报价单 {quotation.id}")
-            flash('您没有权限查看此报价单', 'danger')
+            flash(_('您没有权限查看此报价单'), 'danger')
             return redirect(url_for('quotation.list_quotations'))
         # 项目权限校验 - 使用动态权限检查而不是硬编码角色
         if quotation.project:
@@ -2702,7 +2706,7 @@ def view_quotation(id):
             # 检查权限：特殊角色 OR (渠道经理 AND 渠道项目) OR (营销总监 AND 营销项目) OR 常规项目权限
             if not (is_special_role or (is_channel_manager and is_channel_project) or (is_sales_director and is_marketing_project) or can_view_project(current_user, quotation.project)):
                 logger.debug(f"{current_user.username} 无权访问报价单 {quotation.id} 关联项目 {quotation.project_id}")
-                flash('您没有权限查看该报价单关联的项目', 'danger')
+                flash(_('您没有权限查看该报价单关联的项目'), 'danger')
                 return redirect(url_for('quotation.list_quotations'))
         
         # 按产品库产品ID排序获取报价单明细
@@ -2769,7 +2773,7 @@ def view_quotation(id):
                              can_edit_this_quotation=can_edit_this_quotation,
                              can_delete_this_quotation=can_delete_this_quotation)
     except Exception as e:
-        flash(f'加载报价单详情失败：{str(e)}', 'danger')
+        flash(_('加载报价单详情失败：%s') % str(e), 'danger')
         return redirect(url_for('quotation.list_quotations'))
 
 @quotation.route('/get_quotation_details/<int:id>')
@@ -2933,7 +2937,7 @@ def save_quotation(id):
                 current_app.logger.error(f"项目ID {project_id} 不存在")
                 return jsonify({
                     'status': 'error',
-                    'message': f'ID为{project_id}的项目不存在'
+                    'message': 'ID为%s的项目不存在' % project_id
                 }), 400
                 
             # 设置报价单的项目ID
@@ -2958,7 +2962,7 @@ def save_quotation(id):
             current_app.logger.error(f"解析总金额失败: {str(amount_error)}, 原始值: {data.get('total_amount')}")
             return jsonify({
                 'status': 'error',
-                'message': f'总金额格式错误: {str(amount_error)}'
+                'message': '总金额格式错误: %s' % str(amount_error)
             }), 400
         
         # 更新报价单基本信息 - 直接使用前端传来的总金额
@@ -3277,7 +3281,7 @@ def save_quotation(id):
         current_app.logger.exception(f'处理POST请求时发生错误: {error_type}')
         return jsonify({
             'status': 'error',
-            'message': f'{error_type}: {str(e)}'
+            'message': '%s: %s' % (error_type, str(e))
         }), 500
 
 @quotation.route('/<int:id>/change_owner', methods=['POST'])
@@ -3286,20 +3290,20 @@ def save_quotation(id):
 def change_quotation_owner(id):
     quotation = Quotation.query.get_or_404(id)
     if not can_change_quotation_owner(current_user, quotation):
-        flash('您没有权限修改该报价单的拥有人', 'danger')
+        flash(_('您没有权限修改该报价单的拥有人'), 'danger')
         return redirect(url_for('quotation.view_quotation', id=id))
     new_owner_id = request.form.get('new_owner_id', type=int)
     if not new_owner_id:
-        flash('请选择新的拥有人', 'danger')
+        flash(_('请选择新的拥有人'), 'danger')
         return redirect(url_for('quotation.view_quotation', id=id))
     from app.models.user import User
     new_owner = User.query.get(new_owner_id)
     if not new_owner:
-        flash('新拥有人不存在', 'danger')
+        flash(_('新拥有人不存在'), 'danger')
         return redirect(url_for('quotation.view_quotation', id=id))
     quotation.owner_id = new_owner_id
     db.session.commit()
-    flash('报价单拥有人已更新', 'success')
+    flash(_('报价单拥有人已更新'), 'success')
     return redirect(url_for('quotation.view_quotation', id=id))
 
 def can_view_quotation(user, quotation):
@@ -3538,7 +3542,7 @@ def export_pdf(quotation_id):
         
         # 检查查看权限
         if not can_view_quotation(current_user, quotation):
-            flash('权限不足，无法导出该报价单', 'danger')
+            flash(_('权限不足，无法导出该报价单'), 'danger')
             return redirect(url_for('quotation.list_quotations'))
         
         from app.services.evertac_quotation_pdf_generator import EvertacQuotationPDFGenerator
@@ -3563,7 +3567,7 @@ def export_pdf(quotation_id):
         
     except Exception as e:
         logger.error(f"导出报价单PDF失败: {str(e)}", exc_info=True)
-        flash(f'导出PDF失败：{str(e)}', 'danger')
+        flash(_('导出PDF失败：%s') % str(e), 'danger')
         return redirect(url_for('quotation.view_quotation', id=quotation_id))
 
 @quotation.route('/download_pdf/<int:quotation_id>')
@@ -3577,7 +3581,7 @@ def download_pdf(quotation_id):
         
         # 检查查看权限
         if not can_view_quotation(current_user, quotation):
-            flash('权限不足，无法下载该报价单', 'danger')
+            flash(_('权限不足，无法下载该报价单'), 'danger')
             return redirect(url_for('quotation.list_quotations'))
         
         from app.services.evertac_quotation_pdf_generator import EvertacQuotationPDFGenerator
@@ -3602,7 +3606,7 @@ def download_pdf(quotation_id):
         
     except Exception as e:
         logger.error(f"下载报价单PDF失败: {str(e)}", exc_info=True)
-        flash(f'下载PDF失败：{str(e)}', 'danger')
+        flash(_('下载PDF失败：%s') % str(e), 'danger')
         return redirect(url_for('quotation.view_quotation', id=quotation_id))
 
 @quotation.route('/export_excel/<int:quotation_id>')
@@ -3616,7 +3620,7 @@ def export_excel(quotation_id):
         
         # 检查查看权限
         if not can_view_quotation(current_user, quotation):
-            flash('权限不足，无法导出该报价单', 'danger')
+            flash(_('权限不足，无法导出该报价单'), 'danger')
             return redirect(url_for('quotation.list_quotations'))
         
         from app.services.excel_generator import ExcelGenerator
@@ -3685,7 +3689,7 @@ def export_excel(quotation_id):
         
     except Exception as e:
         logger.error(f"导出报价单Excel失败: {str(e)}", exc_info=True)
-        flash(f'导出Excel失败：{str(e)}', 'danger')
+        flash(_('导出Excel失败：%s') % str(e), 'danger')
         return redirect(url_for('quotation.view_quotation', id=quotation_id))
 
 @quotation.route('/export_pdf_with_info', methods=['POST'])

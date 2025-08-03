@@ -1,0 +1,3 @@
+# Supabase文件上传依赖包
+supabase==2.7.0
+storage3==0.7.4

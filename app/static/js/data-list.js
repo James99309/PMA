@@ -72,6 +72,9 @@ function getMobileAjaxTarget(desktopTarget) {
 function setupDataList(config) {
     console.log('🚀 正在设置数据列表功能:', config);
     
+    // 保存当前配置到全局变量，供其他函数使用
+    window.currentDataListConfig = config;
+    
     // 验证必需的配置
     if (!config.module_name) {
         console.error('❌ 数据列表配置错误：缺少 module_name');
@@ -191,9 +194,11 @@ function setupDataList(config) {
         if (!config.filter || !config.filter.auto_submit) {
             // 检查是否已有初始数据
             const targetElement = document.querySelector(config.ajax_target);
+            const noDataText = (config.i18n && config.i18n.noData) || '暂无数据';
+            const loadingText = (config.i18n && config.i18n.loading) || '加载中';
             const hasInitialData = targetElement && targetElement.children.length > 0 && 
-                                 !targetElement.textContent.includes('暂无数据') &&
-                                 !targetElement.textContent.includes('加载中');
+                                 !targetElement.textContent.includes(noDataText) &&
+                                 !targetElement.textContent.includes(loadingText);
             
             if (!hasInitialData) {
                 console.log('🔄 手动触发初始数据加载（筛选未配置或未启用自动提交）');
@@ -246,14 +251,22 @@ function updateStatsFromAjax(config, statistics) {
                 const numericValue = (typeof value === 'number' && !isNaN(value)) ? value : 
                                    (typeof value === 'string' && !isNaN(parseFloat(value))) ? parseFloat(value) : 0;
                 
-                // 获取单位配置（优先从元素的data属性获取，以支持动态语言切换）
+                // 获取单位配置（优先从AJAX数据获取，支持动态语言切换）
                 let unitConfig = card.unit_config;
-                const unitElement = document.getElementById(`${card.id}Unit`);
-                if (unitElement && unitElement.dataset.unitConfig) {
-                    try {
-                        unitConfig = JSON.parse(unitElement.dataset.unitConfig);
-                    } catch (e) {
-                        console.warn('解析unit_config失败:', e);
+                
+                // 从AJAX数据中获取单位配置
+                if (statistics.unit_configs && statistics.unit_configs[card.data_key]) {
+                    unitConfig = statistics.unit_configs[card.data_key];
+                    console.log(`📊 使用AJAX单位配置 ${card.data_key}:`, unitConfig);
+                } else {
+                    // 从元素的data属性获取
+                    const unitElement = document.getElementById(`${card.id}Unit`);
+                    if (unitElement && unitElement.dataset.unitConfig) {
+                        try {
+                            unitConfig = JSON.parse(unitElement.dataset.unitConfig);
+                        } catch (e) {
+                            console.warn('解析unit_config失败:', e);
+                        }
                     }
                 }
                 
@@ -287,8 +300,10 @@ function updateStatsFromAjax(config, statistics) {
                 amountElement.textContent = currencySymbol + formattedWithCommas;
                 
                 // 更新单位显示
+                const unitElement = document.getElementById(`${card.id}Unit`);
                 if (unitElement && displayUnit) {
                     unitElement.textContent = displayUnit;
+                    console.log(`📊 更新单位显示 ${card.id}: ${displayUnit}`);
                 }
                 
                 console.log(`📊 更新卡片 ${card.id} 金额: ${currencySymbol}${formattedWithCommas}${displayUnit}`);
@@ -320,11 +335,13 @@ function updateListItemCount(currentCount, unused, isFiltered = false) {
     // 显示当前筛选条件下的项目总数
     if (currentCount === 0) {
         countElement.classList.add('count-empty');
-        countElement.innerHTML = '<i class="fas fa-inbox me-1"></i>暂无数据';
+        const noDataText = (window.currentDataListConfig && window.currentDataListConfig.i18n && window.currentDataListConfig.i18n.noData) || '暂无数据';
+        countElement.innerHTML = `<i class="fas fa-inbox me-1"></i>${noDataText}`;
     } else {
         // 根据是否有筛选条件显示不同颜色
         countElement.classList.add(isFiltered ? 'count-filtered' : 'count-total');
-        countElement.innerHTML = `<i class="fas fa-list me-1"></i>${formatNumber(currentCount)} 项`;
+        const itemsText = (window.currentDataListConfig && window.currentDataListConfig.i18n && window.currentDataListConfig.i18n.items) || '项';
+        countElement.innerHTML = `<i class="fas fa-list me-1"></i>${formatNumber(currentCount)} ${itemsText}`;
     }
 }
 
@@ -340,7 +357,8 @@ function setListItemCountLoading() {
     // 移除其他状态类，添加加载状态类
     countElement.classList.remove('count-total', 'count-filtered', 'count-empty');
     countElement.classList.add('count-loading');
-    countElement.innerHTML = '加载中';
+    const loadingText = (window.currentDataListConfig && window.currentDataListConfig.i18n && window.currentDataListConfig.i18n.loading) || '加载中';
+    countElement.innerHTML = loadingText;
 }
 
 /**
@@ -395,9 +413,10 @@ function loadInitialData(config) {
             console.log('✅ 初始数据加载成功:', data);
             
             // 更新表格内容
+            const noDataText = (config.i18n && config.i18n.noData) || '暂无数据';
             targetElement.innerHTML = data.html || `
                 <tr>
-                    <td colspan="${columns}" class="text-center py-4">暂无数据</td>
+                    <td colspan="${columns}" class="text-center py-4">${noDataText}</td>
                 </tr>
             `;
             

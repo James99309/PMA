@@ -705,7 +705,7 @@ class ProductDetailManager {
         input.type = 'text';
         input.className = 'form-control product-name';
         input.name = this.config.fieldMapping[column.key] + '[]';
-        input.placeholder = '点击选择产品...';
+        input.placeholder = this.config.i18n?.clickToSelectProduct || '点击选择产品...';
         input.required = column.required || false;
         input.value = value || '';
         input.dataset.rawValue = value || '';  // 添加rawValue属性
@@ -806,7 +806,7 @@ class ProductDetailManager {
         removeBtn.type = 'button';
         removeBtn.className = 'btn btn-sm btn-outline-danger remove-row';
         removeBtn.innerHTML = '<i class="fas fa-trash"></i>';
-        removeBtn.title = '删除行';
+        removeBtn.title = this.config.i18n?.deleteRow || '删除行';
         
         container.appendChild(removeBtn);
         return container;
@@ -1148,7 +1148,11 @@ class ProductDetailManager {
         this.config.currencyConfig.supportedCurrencies.forEach(currency => {
             const option = document.createElement('option');
             option.value = currency.code;
-            option.textContent = `${currency.name} (${currency.code})`;
+            // 使用国际化的货币名称，如果可用的话
+            const i18nName = (window.CURRENCY_I18N && window.CURRENCY_I18N[currency.code]) 
+                ? window.CURRENCY_I18N[currency.code] 
+                : currency.name;
+            option.textContent = `${i18nName} (${currency.code})`;
             
             if (currency.code === this.currentCurrency) {
                 option.selected = true;
@@ -1521,7 +1525,7 @@ class ProductDetailManager {
                 errors.push({
                     row: rowIndex,
                     field: field,
-                    message: `第${rowIndex + 1}行的${this.getColumnLabel(field)}不能为空`
+                    message: `${this.config.i18n?.rowPrefix || '第'}${rowIndex + 1}${this.config.i18n?.rowSuffix || '行的'}${this.getColumnLabel(field)}${this.config.i18n?.cannotBeEmpty || '不能为空'}`
                 });
             }
         });
@@ -1533,7 +1537,7 @@ class ProductDetailManager {
                 errors.push({
                     row: rowIndex,
                     field: error.field,
-                    message: `第${rowIndex + 1}行：${error.message}`
+                    message: `${this.config.i18n?.rowPrefix || '第'}${rowIndex + 1}${this.config.i18n?.rowSuffix || '行'}：${error.message}`
                 });
             });
         }
@@ -1721,7 +1725,7 @@ class ProductDetailManager {
             if (input) {
                 input.readOnly = false;
                 input.classList.add('manual-input-field');
-                input.setAttribute('title', '手动输入字段，可以修改');
+                input.setAttribute('title', this.config.i18n?.manualInputField || '手动输入字段，可以修改');
                 console.log(`✅ 启用字段编辑: ${fieldKey}`);
             }
         });
@@ -1734,7 +1738,7 @@ class ProductDetailManager {
                 input.readOnly = true;
                 input.style.backgroundColor = '#f8f9fa';
                 input.style.color = '#6c757d';
-                input.setAttribute('title', '临时产品无市场价和折扣');
+                input.setAttribute('title', this.config.i18n?.tempProductNoPrice || '临时产品无市场价和折扣');
                 console.log(`🔒 禁用字段: ${fieldKey}`);
             }
         });

@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app, send_file
+from flask_babel import gettext as _
 from flask_login import login_required, current_user
 from app import db
 from app.models.product_code import ProductCategory, ProductSubcategory, ProductCodeField, ProductCodeFieldOption, ProductRegion
@@ -302,16 +303,16 @@ def index():
             'reset_url': url_for('product_management.index'),
             'search_field': {
                 'name': 'search',
-                'label': '搜索',
-                'placeholder': '产品型号、MN编码或描述',
+                'label': _('搜索'),
+                'placeholder': _('产品型号、MN编码或描述'),
                 'value': search,
                 'col_width': 4
             },
             'filter_fields': [
                 {
                     'name': 'category_filter',
-                    'label': '产品分类',
-                    'all_option_text': '全部分类',
+                    'label': _('产品分类'),
+                    'all_option_text': _('全部分类'),
                     'current_value': category_filter,
                     'col_width': 2,
                     'options': [
@@ -321,16 +322,16 @@ def index():
                 },
                 {
                     'name': 'status_filter',
-                    'label': '产品状态',
-                    'all_option_text': '全部状态',
+                    'label': _('产品状态'),
+                    'all_option_text': _('全部状态'),
                     'current_value': status_filter,
                     'col_width': 2,
                     'options': status_options
                 },
                 {
                     'name': 'creator_filter',
-                    'label': '创建者',
-                    'all_option_text': '全部创建者',
+                    'label': _('创建者'),
+                    'all_option_text': _('全部创建者'),
                     'current_value': creator_filter,
                     'col_width': 2,
                     'options': [
@@ -339,14 +340,14 @@ def index():
                     ]
                 }
             ],
-            'search_button_text': '搜索',
-            'reset_button_text': '重置'
+            'search_button_text': _('搜索'),
+            'reset_button_text': _('重置')
         }
         
         # 通用列表组件配置
         list_config = {
             'module_name': 'product_management',
-            'title': '研发产品库',
+            'title': _('研发产品库'),
             'ajax_mode': True,
             
             # 统计卡片配置
@@ -354,10 +355,10 @@ def index():
                 'cards': [
                     {
                         'id': 'total',
-                        'title': '全部产品',
+                        'title': _('全部产品'),
                         'icon': 'fas fa-cube',
                         'value': all_products_count,
-                        'unit': '个',
+                        'unit': _('个'),
                         'color': 'primary',
                         'clickable': True,
                         'click_params': {},  # 清空筛选条件显示全部
@@ -365,10 +366,10 @@ def index():
                     },
                     {
                         'id': 'development',
-                        'title': '研发中',
+                        'title': _('研发中'),
                         'icon': 'fas fa-cogs',
                         'value': development_products,
-                        'unit': '个',
+                        'unit': _('个'),
                         'color': 'warning',
                         'clickable': True,
                         'click_params': {'status_filter': '研发中'},
@@ -376,10 +377,10 @@ def index():
                     },
                     {
                         'id': 'completed',
-                        'title': '已入库',
+                        'title': _('已入库'),
                         'icon': 'fas fa-check-circle',
                         'value': completed_products,
-                        'unit': '个',
+                        'unit': _('个'),
                         'color': 'success',
                         'clickable': True,
                         'click_params': {'status_filter': '已入库'},
@@ -394,7 +395,7 @@ def index():
             # 表格配置
             'table': {
                 'ajax_target': 'productTableBody',
-                'title': '产品列表',
+                'title': _('产品列表'),
                 'icon': 'fas fa-table',
                 'show_header': True,
                 'enhanced_striping': True,  # 启用增强斑马纹
@@ -402,45 +403,45 @@ def index():
                 'columns': [
                     {
                         'key': 'category',
-                        'label': '产品分类',
+                        'label': _('产品分类'),
                         'type': 'text',
                         'width': '120px'
                     },
                     {
                         'key': 'subcategory',
-                        'label': '子分类',
+                        'label': _('子分类'),
                         'type': 'text',
                         'width': '120px'
                     },
                     {
                         'key': 'model',
-                        'label': '产品型号',
+                        'label': _('产品型号'),
                         'type': 'link',
                         'url_template': '/product-management/{id}',
                         'width': '150px'
                     },
                     {
                         'key': 'mn_code',
-                        'label': 'MN编码',
+                        'label': _('MN编码'),
                         'type': 'text',
                         'width': '120px'
                     },
                     {
                         'key': 'status',
-                        'label': '产品状态',
+                        'label': _('产品状态'),
                         'type': 'badge',
                         'render': 'render_dev_product_status_badge',
                         'width': '100px'
                     },
                     {
                         'key': 'creator',
-                        'label': '创建者',
+                        'label': _('创建者'),
                         'type': 'text',
                         'width': '100px'
                     },
                     {
                         'key': 'created_at',
-                        'label': '创建时间',
+                        'label': _('创建时间'),
                         'type': 'date',
                         'format': '%Y-%m-%d',
                         'width': '120px'
@@ -459,16 +460,16 @@ def index():
         # 创建错误时的默认配置
         error_list_config = {
             'module_name': 'product_management',
-            'title': '研发产品库',
+            'title': _('研发产品库'),
             'ajax_mode': False,
             'stats': {
                 'cards': [
                     {
                         'id': 'total',
-                        'title': '全部产品',
+                        'title': _('全部产品'),
                         'icon': 'fas fa-cube',
                         'value': 0,
-                        'unit': '个',
+                        'unit': _('个'),
                         'color': 'primary',
                         'clickable': False,
                         'data_key': 'total'
@@ -481,20 +482,20 @@ def index():
                 'reset_url': url_for('product_management.index'),
                 'search_field': {
                     'name': 'search',
-                    'label': '搜索',
-                    'placeholder': '产品型号、MN编码或描述',
+                    'label': _('搜索'),
+                    'placeholder': _('产品型号、MN编码或描述'),
                     'value': '',
                     'col_width': 4
                 },
                 'filter_fields': [],
-                'search_button_text': '搜索',
-                'reset_button_text': '重置'
+                'search_button_text': _('搜索'),
+                'reset_button_text': _('重置')
             },
             'table': {
                 'columns': [],
                 'actions': [
                     {
-                        'text': '新增产品',
+                        'text': _('新增产品'),
                         'href': url_for('product_management.new_product'),
                         'color': 'primary',
                         'icon': 'fas fa-plus'
@@ -1344,7 +1345,7 @@ def save():
                     db.session.rollback()
             
             # 成功保存，重定向到产品列表
-            flash('新产品已成功添加到研发产品库，自定义规格字段也已同步到产品分类模块', 'success')
+            flash(_('新产品已成功添加到研发产品库，自定义规格字段也已同步到产品分类模块'), 'success')
             return redirect(url_for('product_management.index'))
             
         except IntegrityError as spec_error:
@@ -1402,7 +1403,7 @@ def edit_product(id):
     ).filter_by(id=id).first_or_404()
     
     if not check_product_access(product, current_user):
-        flash('您没有权限编辑此产品', 'danger')
+        flash(_('您没有权限编辑此产品'), 'danger')
         return redirect(url_for('product_management.index'))
     
     # 获取所有产品分类和状态
@@ -1445,7 +1446,7 @@ def update_product(id):
     dev_product = DevProduct.query.get_or_404(id)
     
     if not check_product_access(dev_product, current_user):
-        flash('您没有权限更新此产品', 'danger')
+        flash(_('您没有权限更新此产品'), 'danger')
         return redirect(url_for('product_management.index'))
     
     try:
@@ -1645,12 +1646,12 @@ def update_product(id):
         except Exception as track_err:
             current_app.logger.warning(f"记录产品变更历史失败: {str(track_err)}")
         
-        flash('产品更新成功！', 'success')
+        flash(_('产品更新成功！'), 'success')
         return redirect(url_for('product_management.index'))
         
     except Exception as e:
         db.session.rollback()
-        flash(f'更新产品失败: {str(e)}', 'danger')
+        flash(_('更新产品失败: %s') % str(e), 'danger')
         return redirect(url_for('product_management.edit_product', id=id))
 
 # 删除产品
@@ -1661,7 +1662,7 @@ def delete_product(id):
     dev_product = DevProduct.query.get_or_404(id)
     
     if not check_product_access(dev_product, current_user):
-        flash('您没有权限删除此产品', 'danger')
+        flash(_('您没有权限删除此产品'), 'danger')
         return redirect(url_for('product_management.index'))
     
     try:
@@ -1679,10 +1680,10 @@ def delete_product(id):
         db.session.delete(dev_product)
         db.session.commit()
         
-        flash('产品已成功删除', 'success')
+        flash(_('产品已成功删除'), 'success')
     except Exception as e:
         db.session.rollback()
-        flash(f'删除产品失败: {str(e)}', 'danger')
+        flash(_('删除产品失败: %s') % str(e), 'danger')
     
     return redirect(url_for('product_management.index'))
 
@@ -1695,7 +1696,7 @@ def batch_delete_products():
     product_ids_str = request.form.get('product_ids', '')
     
     if not product_ids_str:
-        flash('未选择要删除的产品', 'warning')
+        flash(_('未选择要删除的产品'), 'warning')
         return redirect(url_for('product_management.index'))
     
     # 将逗号分隔的ID字符串拆分为列表
@@ -1750,10 +1751,10 @@ def batch_delete_products():
     
     # 显示结果消息
     if successful_count > 0:
-        flash(f'成功删除 {successful_count} 个产品', 'success')
+        flash(_('成功删除 %d 个产品') % successful_count, 'success')
     
     if unauthorized_count > 0:
-        flash(f'您没有权限删除其中的 {unauthorized_count} 个产品', 'warning')
+        flash(_('您没有权限删除其中的 %d 个产品') % unauthorized_count, 'warning')
     
     if failed_count > 0:
         flash(f'删除 {failed_count} 个产品时发生错误', 'danger')
@@ -1851,7 +1852,7 @@ def product_detail(id):
     ).filter_by(id=id).first_or_404()
     
     if not check_product_access(dev_product, current_user):
-        flash('您没有权限查看此产品', 'danger')
+        flash(_('您没有权限查看此产品'), 'danger')
         return redirect(url_for('product_management.index'))
     
     # 获取规格字段
@@ -2334,7 +2335,7 @@ def download_pdf(id):
     
     # 检查是否有PDF文件
     if not dev_product.pdf_path:
-        flash('该产品没有PDF文件', 'warning')
+        flash(_('该产品没有PDF文件'), 'warning')
         return redirect(url_for('product_management.product_detail', id=id))
     
     # 构建文件完整路径
@@ -2342,7 +2343,7 @@ def download_pdf(id):
     
     # 检查文件是否存在
     if not os.path.exists(pdf_file_path):
-        flash('PDF文件不存在', 'danger')
+        flash(_('PDF文件不存在'), 'danger')
         return redirect(url_for('product_management.product_detail', id=id))
     
     try:
@@ -2364,7 +2365,7 @@ def download_pdf(id):
         )
     except Exception as e:
         current_app.logger.error(f"下载PDF文件失败: {str(e)}")
-        flash('下载PDF文件失败', 'danger')
+        flash(_('下载PDF文件失败'), 'danger')
         return redirect(url_for('product_management.product_detail', id=id))
 
 # 获取规格字段的选项

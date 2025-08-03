@@ -125,15 +125,15 @@
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>{{ _('报备来源') }}</strong></div>
-                                <div class="col-md-8">{% if project.report_source %}{{ render_report_source_badge(project.report_source, current_language) }}{% else %}<span class="badge bg-secondary rounded-pill" style="font-size: 0.75rem; padding: 0.35em 0.65em;">{{ _('无') }}</span>{% endif %}</div>
+                                <div class="col-md-8">{% if project.report_source %}{{ render_report_source_badge(project.report_source, current_language) }}{% endif %}</div>
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>{{ _('品牌情况') }}</strong></div>
-                                <div class="col-md-8">{% if project.product_situation %}{{ render_product_situation_badge(project.product_situation, current_language) }}{% else %}<span class="badge bg-secondary rounded-pill" style="font-size: 0.75rem; padding: 0.35em 0.65em;">{{ _('无') }}</span>{% endif %}</div>
+                                <div class="col-md-8">{% if project.product_situation %}{{ render_product_situation_badge(project.product_situation, current_language) }}{% endif %}</div>
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>{{ _('项目行业') }}</strong></div>
-                                <div class="col-md-8">{% if project.industry %}{{ render_industry_badge(project.industry, current_language) }}{% else %}<span class="badge bg-secondary rounded-pill" style="font-size: 0.75rem; padding: 0.35em 0.65em;">{{ _('未分类') }}</span>{% endif %}</div>
+                                <div class="col-md-8">{% if project.industry %}{{ render_industry_badge(project.industry, current_language) }}{% endif %}</div>
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>{{ _('当前阶段') }}</strong></div>
@@ -205,7 +205,7 @@
                             <div class="row mb-2">
                                 <div class="col-md-4"></div>
                                 <div class="col-md-8">
-                                    {{ ui.render_button('创建批价单', type='button', color='warning', icon='fas fa-plus', size='sm', onclick='confirmCreatePricingOrder()') }}
+                                    {{ ui.render_button(_('创建批价单'), type='button', color='warning', icon='fas fa-plus', size='sm', onclick='confirmCreatePricingOrder()') }}
                                 </div>
                             </div>
                             {% endif %}
@@ -214,7 +214,7 @@
                         <div class="col-md-6">
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>{{ _('项目类型') }}</strong></div>
-                                <div class="col-md-8">{% if project.project_type %}{{ render_project_type(project.project_type) }}{% else %}<span class="badge bg-secondary rounded-pill" style="font-size: 0.75rem; padding: 0.35em 0.65em;">{{ _('无') }}</span>{% endif %}</div>
+                                <div class="col-md-8">{% if project.project_type %}{{ render_project_type(project.project_type) }}{% endif %}</div>
                             </div>
                             <div class="row mb-2">
                                 <div class="col-md-4"><strong>{{ _('拥有人') }}：</strong></div>
@@ -297,8 +297,6 @@
                                         {% else %}
                                             {{ project.end_user }}
                                         {% endif %}
-                                    {% else %}
-                                        无
                                     {% endif %}
                                 </div>
                             </div>
@@ -313,8 +311,6 @@
                                         {% else %}
                                             {{ project.design_issues }}
                                         {% endif %}
-                                    {% else %}
-                                        无
                                     {% endif %}
                                 </div>
                             </div>
@@ -329,8 +325,6 @@
                                         {% else %}
                                             {{ project.dealer }}
                                         {% endif %}
-                                    {% else %}
-                                        无
                                     {% endif %}
                                 </div>
                             </div>
@@ -347,8 +341,6 @@
                                         {% else %}
                                             {{ project.contractor }}
                                         {% endif %}
-                                    {% else %}
-                                        无
                                     {% endif %}
                                 </div>
                             </div>
@@ -363,8 +355,6 @@
                                         {% else %}
                                             {{ project.system_integrator }}
                                         {% endif %}
-                                    {% else %}
-                                        无
                                     {% endif %}
                                 </div>
                             </div>
@@ -382,8 +372,6 @@
                     <div id="formatted-description">
                         {% if project.stage_description %}
                             <div id="original-description" style="display: none;">{{ project.stage_description }}</div>
-                        {% else %}
-                            <p>无相关说明</p>
                         {% endif %}
                     </div>
                 </div>
@@ -500,7 +488,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                {{ render_button('关闭', '#', color='secondary', size='sm', type='button', attrs='data-bs-dismiss="modal"') }}
+                {{ render_button(_('关闭'), type='button', color='secondary', size='sm', attrs='data-bs-dismiss="modal"') }}
             </div>
         </div>
     </div>
@@ -651,7 +639,13 @@
             createPricingOrderError: {{ _("创建批价单错误")|tojson }} + ':',
             createPricingOrderErrorOccurred: {{ _("创建批价单时发生错误")|tojson }} + '：',
             confirmAdvanceTitle: {{ _("确认推进项目阶段")|tojson }},
-            confirmAdvanceButton: {{ _("确认推进")|tojson }}
+            confirmAdvanceButton: {{ _("确认推进")|tojson }},
+            confirmDeleteAction: {{ _("确定要删除这条行动记录吗？")|tojson }},
+            deleteFailed: {{ _("删除失败")|tojson }} + ': ',
+            deleteFailedRetry: {{ _("删除失败，请重试！")|tojson }},
+            confirmDeleteProject: {{ _("确定要删除这个项目吗？删除后将无法恢复，请谨慎操作！")|tojson }},
+            noQuotationForPricing: {{ _("项目没有关联的报价单，无法创建批价单")|tojson }},
+            confirmCreatePricing: {{ _("确定要为此项目创建新的批价单吗？\n\n这将基于最新的报价单信息创建批价单。")|tojson }}
         };
         
         // 初始化项目阶段进度条
@@ -689,7 +683,7 @@
 
     // 删除行动记录函数
     function deleteAction(actionId) {
-        if (confirm('确定要删除这条行动记录吗？')) {
+        if (confirm(window.stageI18nTexts.confirmDeleteAction)) {
             const csrfToken = $('meta[name="csrf-token"]').attr('content');
             $.ajax({
                 url: `/customer/api/actions/${actionId}/delete`,
@@ -703,11 +697,11 @@
                         // 删除成功后刷新页面
                         window.location.reload();
                     } else {
-                        alert('删除失败: ' + (response.message || '未知错误'));
+                        alert(window.stageI18nTexts.deleteFailed + (response.message || window.stageI18nTexts.unknownError));
                     }
                 },
                 error: function(xhr, status, error) {
-                    alert('删除失败，请重试！');
+                    alert(window.stageI18nTexts.deleteFailedRetry);
                 }
             });
         }
@@ -715,7 +709,7 @@
 
     // 确认删除项目函数
     function confirmDeleteProject(projectId) {
-        if (confirm('确定要删除这个项目吗？删除后将无法恢复，请谨慎操作！')) {
+        if (confirm(window.stageI18nTexts.confirmDeleteProject)) {
             // 创建表单并提交
             const form = document.createElement('form');
             form.method = 'POST';
@@ -763,7 +757,7 @@
             // 移除加载指示器
             const loading = document.getElementById('createPricingOrderLoading');
             if (loading) loading.remove();
-            alert('项目没有关联的报价单，无法创建批价单');
+            alert(window.stageI18nTexts.noQuotationForPricing);
             return;
         }
         
@@ -793,7 +787,7 @@
                     window.location.reload();
                 }
             } else {
-                alert('创建批价单失败：' + (data.message || '未知错误'));
+                alert(window.stageI18nTexts.createPricingOrderFailed + (data.message || window.stageI18nTexts.unknownError));
             }
         })
         .catch(error => {
@@ -802,13 +796,13 @@
             if (loading) loading.remove();
             
             console.error('创建批价单错误:', error);
-            alert('创建批价单时发生错误：' + error.message);
+            alert(window.stageI18nTexts.createPricingOrderErrorOccurred + error.message);
         });
     }
 
     // 确认创建批价单对话框
     function confirmCreatePricingOrder() {
-        if (confirm('确定要为此项目创建新的批价单吗？\n\n这将基于最新的报价单信息创建批价单。')) {
+        if (confirm(window.stageI18nTexts.confirmCreatePricing)) {
             createPricingOrderForAll();
         }
     }
@@ -842,7 +836,7 @@
             // 移除加载指示器
             const loading = document.getElementById('createPricingOrderLoading');
             if (loading) loading.remove();
-            alert('项目没有关联的报价单，无法创建批价单');
+            alert(window.stageI18nTexts.noQuotationForPricing);
             return;
         }
         
@@ -872,7 +866,7 @@
                     window.location.reload();
                 }
             } else {
-                alert('创建批价单失败：' + (data.message || '未知错误'));
+                alert(window.stageI18nTexts.createPricingOrderFailed + (data.message || window.stageI18nTexts.unknownError));
             }
         })
         .catch(error => {
@@ -881,7 +875,7 @@
             if (loading) loading.remove();
             
             console.error('创建批价单错误:', error);
-            alert('创建批价单时发生错误：' + error.message);
+            alert(window.stageI18nTexts.createPricingOrderErrorOccurred + error.message);
         });
     }
 </script>
@@ -1125,9 +1119,9 @@ function generateExpandedScoringCategoriesHtml(data) {
             label: '阶段得分', 
             score: data.score_breakdown.stage_score,
             items: [
-                { key: 'stage_bidding', name: '招投标阶段' },
-                { key: 'stage_awarded', name: '中标阶段' },
-                { key: 'stage_pricing', name: '批价阶段' }
+                { key: 'stage_bidding', name: '{{ _("招投标阶段") }}' },
+                { key: 'stage_awarded', name: '{{ _("中标阶段") }}' },
+                { key: 'stage_pricing', name: '{{ _("批价阶段") }}' }
             ]
         },
         'manual': { 

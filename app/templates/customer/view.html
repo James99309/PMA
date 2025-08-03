@@ -392,7 +392,7 @@
                                 <!-- 添加行动按钮 -->
                                 <a href="{{ url_for('customer.add_action_for_company', company_id=company.id) }}?contact_id={{ contact.id }}"
                                    class="btn btn-sm btn-outline-info me-1" 
-                                   title="添加行动记录">
+                                   title="{{ _('添加行动记录') }}">
                                     <i class="fas fa-comment"></i>
                                 </a>
                                 <!-- 编辑按钮 -->
@@ -578,7 +578,7 @@
                                     <span class="d-flex align-items-center">
                                         <small class="text-muted me-2">{{ _('记录人') }}: {{ render_owner(action.owner) }}</small>
                                         {% if has_permission('customer', 'delete') and (action.owner_id == current_user.id or current_user.role == 'admin') %}
-                                        <button class="btn btn-sm btn-outline-danger delete-action-btn ms-1" data-action-id="{{ action.id }}" title="删除行动记录">
+                                        <button class="btn btn-sm btn-outline-danger delete-action-btn ms-1" data-action-id="{{ action.id }}" title="{{ _('删除行动记录') }}">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                         {% endif %}

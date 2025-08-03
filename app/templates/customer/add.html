@@ -146,7 +146,20 @@
 // 国际化文本变量
 window.i18nTexts = {
     selectCountry: '{{ _("请选择国家") }}',
-    selectRegion: '{{ _("请选择省/州") }}'
+    selectRegion: '{{ _("请选择省/州") }}',
+    companyNameExists: '{{ _("客户名称已存在，无法保存，请更换名称或联系管理员") }}',
+    similarCompanies: '{{ _("相似企业（仅供参考）") }}',
+    referenceNotice: '{{ _("以上企业名称仅供参考，请确保输入的名称不与已有企业重复") }}',
+    companySearchFailed: '{{ _("搜索企业失败") }}',
+    companyNameExistsAlert: '{{ _("客户名称已存在，无法保存，请更换名称或联系管理员") }}',
+    companyName: '{{ _("企业名称") }}',
+    countryRegion: '{{ _("国家/地区") }}',
+    provinceState: '{{ _("省/州") }}',
+    detailedAddress: '{{ _("详细地址") }}',
+    industry: '{{ _("行业") }}',
+    companyType: '{{ _("企业类型") }}',
+    requiredField: '{{ _("此字段为必填项") }}',
+    pleaseComplete: '{{ _("请填写以下必填字段：") }}'
 };
 </script>
 <script src="{{ url_for('static', filename='js/country_region_selector_i18n.js') }}"></script>
@@ -248,7 +261,7 @@ $(document).ready(function() {
             if (normalizedInput === companyName) {
                 // 设置错误状态
                 companyInput.addClass('is-invalid');
-                errorMsgElement.text('客户名称已存在，无法保存，请更换名称或联系管理员');
+                errorMsgElement.text(window.i18nTexts.companyNameExists);
                 toggleFormFields(false); // 禁用其他字段
                 saveButton.prop('disabled', true);
                 return false;
@@ -297,7 +310,7 @@ $(document).ready(function() {
                         suggestionsContainer.empty().removeClass('d-none');
                         
                         // 添加标题
-                        suggestionsContainer.append('<div class="suggestions-header">相似企业（仅供参考）</div>');
+                        suggestionsContainer.append('<div class="suggestions-header">' + window.i18nTexts.similarCompanies + '</div>');
                         
                         // 添加每个建议项
                         matchedCompanies.forEach(function(company) {
@@ -345,7 +358,7 @@ $(document).ready(function() {
                         
                         // 如果有建议结果，添加提示信息
                         if (matchedCompanies.length > 0) {
-                            const noticeText = $('<div class="reference-notice">以上企业名称仅供参考，请确保输入的名称不与已有企业重复</div>');
+                            const noticeText = $('<div class="reference-notice">' + window.i18nTexts.referenceNotice + '</div>');
                             suggestionsContainer.append(noticeText);
                         }
                     } else {
@@ -354,7 +367,7 @@ $(document).ready(function() {
                     }
                 },
                 error: function(xhr, status, error) {
-                    console.error('搜索企业失败:', error);
+                    console.error(window.i18nTexts.companySearchFailed + ':', error);
                     suggestionsContainer.empty().addClass('d-none');
                 }
             });
@@ -407,18 +420,18 @@ $(document).ready(function() {
         // 先验证企业名称
         if (!validateCompanyName(companyInput.val())) {
             e.preventDefault();
-            alert('客户名称已存在，无法保存，请更换名称或联系管理员');
+            alert(window.i18nTexts.companyNameExistsAlert);
             return false;
         }
         
         // 确保必填字段都已填写
         const requiredFields = [
-            { selector: '#company_name', name: '企业名称' },
-            { selector: '#country', name: '国家/地区' },
-            { selector: '#region', name: '省/州' },
-            { selector: '#address', name: '详细地址' },
-            { selector: '#industry', name: '行业' },
-            { selector: '#company_type', name: '企业类型' }
+            { selector: '#company_name', name: window.i18nTexts.companyName },
+            { selector: '#country', name: window.i18nTexts.countryRegion },
+            { selector: '#region', name: window.i18nTexts.provinceState },
+            { selector: '#address', name: window.i18nTexts.detailedAddress },
+            { selector: '#industry', name: window.i18nTexts.industry },
+            { selector: '#company_type', name: window.i18nTexts.companyType }
         ];
         
         let missingFields = [];
@@ -449,11 +462,11 @@ $(document).ready(function() {
                     // 在下方显示反馈信息（如果有 .invalid-feedback）
                     const $input = $(field.selector);
                     // 只在有 .invalid-feedback 的元素下显示
-                    $input.siblings('.invalid-feedback').text('此字段为必填项');
+                    $input.siblings('.invalid-feedback').text(window.i18nTexts.requiredField);
                 }
             });
 
-            alert('请填写以下必填字段：' + missingFields.join('、'));
+            alert(window.i18nTexts.pleaseComplete + missingFields.join('、'));
             return false;
         }
         

@@ -379,7 +379,10 @@
 const i18nTexts = {
     loading: '{{ _("加载中...") }}',
     loadFailed: '{{ _("加载失败") }}',
-    searchFailed: '{{ _("搜索失败") }}'
+    searchFailed: '{{ _("搜索失败") }}',
+    noData: '{{ _("暂无数据") }}',
+    noMatchingOptions: '{{ _("未找到匹配的选项") }}',
+    projectNameDuplicate: '{{ _("项目名称重复，无法保存！") }}'
 };
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -628,9 +631,9 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (!this.filteredCompanies || this.filteredCompanies.length === 0) {
                 if (this.companies && this.companies.length === 0) {
-                    this.dropdown.innerHTML = '<div class="searchable-select-no-results">暂无数据</div>';
+                    this.dropdown.innerHTML = `<div class="searchable-select-no-results">${i18nTexts.noData}</div>`;
                 } else {
-                    this.dropdown.innerHTML = '<div class="searchable-select-no-results">未找到匹配的选项</div>';
+                    this.dropdown.innerHTML = `<div class="searchable-select-no-results">${i18nTexts.noMatchingOptions}</div>`;
                 }
                 return;
             }
@@ -790,7 +793,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 form.addEventListener('submit', (e) => {
                     if (!this.validateProjectName()) {
                         e.preventDefault();
-                        this.showStatus('项目名称重复，无法保存！', 'duplicate');
+                        this.showStatus(i18nTexts.projectNameDuplicate, 'duplicate');
                         this.input.focus();
                     }
                 });

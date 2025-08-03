@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, session, current_app
 from flask_login import login_required, current_user
+from flask_babel import gettext as _
 from app.models.user import User, Permission, User as UserModel, Affiliation
 from app import db
 import logging
@@ -1778,7 +1779,7 @@ def profile():
     """用户个人设置页面，包括账户详情、权限和数据归属"""
     user = User.query.get(current_user.id)
     if not user:
-        flash('找不到用户信息', 'danger')
+        flash(_('找不到用户信息'), 'danger')
         return redirect(url_for('main.index'))
         
     # 处理表单提交
@@ -1789,14 +1790,14 @@ def profile():
         
         # 邮箱非空校验
         if not email or not email.strip():
-            flash('邮箱不能为空', 'danger')
+            flash(_('邮箱不能为空'), 'danger')
             return render_template('user/profile.html', user=user)
         
         # 检查邮箱是否已被其他用户使用
         email = email.strip()
         existing_user = User.query.filter(User.email == email, User.id != user.id).first()
         if existing_user:
-            flash('此邮箱已被其他账户使用', 'danger')
+            flash(_('此邮箱已被其他账户使用'), 'danger')
             return render_template('user/profile.html', user=user)
             
         # 更新用户信息
@@ -1806,12 +1807,12 @@ def profile():
         
         try:
             db.session.commit()
-            flash('个人信息更新成功', 'success')
+            flash(_('个人信息更新成功'), 'success')
             return redirect(url_for('user.profile'))
         except Exception as e:
             db.session.rollback()
             logger.error(f"个人信息更新失败: {str(e)}", exc_info=True)
-            flash(f'更新失败: {str(e)}', 'danger')
+            flash(_('更新失败') + f': {str(e)}', 'danger')
             
     # 获取用户权限信息
     personal_perms = list(user.permissions) if hasattr(user, 'permissions') else []

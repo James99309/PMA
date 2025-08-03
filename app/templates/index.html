@@ -5,20 +5,6 @@
 {% block content %}
 {% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_button %}
 
-{# 角色名称映射 #}
-{% set role_names = {
-    'admin': '管理员',
-    'user': '普通用户',
-    'sales': '销售人员',
-    'channel_manager': '渠道经理',
-    'sales_director': '营销总监',
-    'service': '服务人员',
-    'service_manager': '服务经理',
-    'dealer': '经销商',
-    'product_manager': '产品经理',
-    'solution_manager': '解决方案经理'
-} %}
-
 <div class="container-fluid page-with-fixed-nav">
     <!-- 标准化页面头部区域：标题与操作按钮在同一行 - 使用page-header-with-actions模组 -->
     <div class="page-header-with-actions mb-4">
@@ -279,12 +265,12 @@
                     <div class="d-flex align-items-center" style="white-space: nowrap;">
                         <label for="daysSelector" class="form-label mb-0 me-2" style="font-size: 0.9rem; white-space: nowrap;">{{ _('查看历史天数') }}:</label>
                         <select id="daysSelector" class="form-select form-select-sm" style="min-width: 85px; width: 85px;">
-                            <option value="5">5天</option>
-                            <option value="6">6天</option>
-                            <option value="7" selected>7天</option>
-                            <option value="8">8天</option>
-                            <option value="9">9天</option>
-                            <option value="10">10天</option>
+                            <option value="5">{{ _('5天') }}</option>
+                            <option value="6">{{ _('6天') }}</option>
+                            <option value="7" selected>{{ _('7天') }}</option>
+                            <option value="8">{{ _('8天') }}</option>
+                            <option value="9">{{ _('9天') }}</option>
+                            <option value="10">{{ _('10天') }}</option>
                         </select>
                     </div>
                     
@@ -300,9 +286,9 @@
                 <!-- 加载指示器 -->
                 <div id="recordsLoading" class="text-center p-4">
                     <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">加载中...</span>
+                        <span class="visually-hidden">{{ _('加载中') }}...</span>
                     </div>
-                    <div class="mt-2 text-muted">{{ _('正在加载工作记录...') }}</div>
+                    <div class="mt-2 text-muted">{{ _('正在加载工作记录') }}...</div>
                 </div>
                 
                 <!-- PC端表格 -->
@@ -429,6 +415,41 @@
 </div>
 
 <script>
+// 国际化文本变量
+window.i18nTexts = {
+    displayRecentDays: '{{ _("显示最近{days}天的工作记录") }}',
+    noRecentRecords: '{{ _("最近{days}天内没有工作记录") }}',
+    allAccounts: '{{ _("全部账户") }}',
+    todayNoRecords: '{{ _("今日暂无工作记录") }}',
+    loadingReplies: '{{ _("加载回复中") }}',
+    owner: '{{ _("拥有人") }}',
+    customer: '{{ _("客户") }}',
+    contact: '{{ _("联系人") }}',
+    relatedProject: '{{ _("关联项目") }}',
+    actionRecord: '{{ _("行动记录") }}',
+    loadingAccountsFailed: '{{ _("加载账户列表失败") }}',
+    loadingRecordsFailed: '{{ _("加载工作记录失败") }}',
+    // JavaScript按键和交互文本
+    submit: '{{ _("提交") }}',
+    cancel: '{{ _("取消") }}',
+    reply: '{{ _("回复") }}',
+    delete: '{{ _("删除") }}',
+    addReply: '{{ _("添加回复") }}',
+    submitReply: '{{ _("提交回复") }}',
+    replyRecord: '{{ _("回复记录") }}',
+    noReply: '{{ _("暂无回复") }}',
+    enterReplyContent: '{{ _("输入回复内容...") }}',
+    enterNewReplyContent: '{{ _("输入新的回复内容...") }}',
+    pleaseEnterReplyContent: '{{ _("请输入回复内容") }}',
+    confirmDeleteReply: '{{ _("确定要删除这条回复吗？") }}',
+    submitting: '{{ _("提交中...") }}',
+    replySubmitSuccess: '{{ _("回复提交成功") }}',
+    replyDeleteSuccess: '{{ _("回复删除成功") }}',
+    loadRepliesFailed: '{{ _("加载回复失败") }}',
+    submitFailed: '{{ _("提交失败") }}',
+    deleteFailed: '{{ _("删除失败") }}'
+};
+
 // 最近工作记录功能
 let currentAccountId = null;
 let currentDays = 7; // 默认7天
@@ -476,10 +497,10 @@ function updateDisplayMessages() {
     const emptyStateMessage = document.getElementById('emptyStateMessage');
     
     if (footerMessage) {
-        footerMessage.textContent = `显示最近${currentDays}天的工作记录`;
+        footerMessage.textContent = window.i18nTexts.displayRecentDays.replace('{days}', currentDays);
     }
     if (emptyStateMessage) {
-        emptyStateMessage.textContent = `最近${currentDays}天内没有工作记录`;
+        emptyStateMessage.textContent = window.i18nTexts.noRecentRecords.replace('{days}', currentDays);
     }
 }
 
@@ -513,7 +534,7 @@ function loadAvailableAccounts() {
             if (data.success) {
                 const select = document.getElementById('accountFilter');
                 // 清空现有选项（保留"全部账户"）
-                select.innerHTML = '<option value="">全部账户</option>';
+                select.innerHTML = `<option value="">${window.i18nTexts.allAccounts}</option>`;
                 
                 // 添加账户选项
                 data.data.forEach(account => {
@@ -663,14 +684,14 @@ function renderTableRecords(records) {
                             <div class="card-body p-2">
                                 <textarea class="form-control form-control-sm mb-2" 
                                          rows="2" 
-                                         placeholder="输入回复内容..."
+                                         placeholder="${window.i18nTexts.enterReplyContent}"
                                          id="reply-content-${record.id}"></textarea>
                                 <div class="d-flex gap-1">
                                     <button class="btn btn-primary btn-sm" onclick="submitReply(${record.id})">
-                                        <i class="fas fa-paper-plane me-1"></i>提交
+                                        <i class="fas fa-paper-plane me-1"></i>${window.i18nTexts.submit}
                                     </button>
                                     <button class="btn btn-secondary btn-sm" onclick="cancelReply(${record.id})">
-                                        取消
+                                        ${window.i18nTexts.cancel}
                                     </button>
                                 </div>
                             </div>
@@ -681,10 +702,10 @@ function renderTableRecords(records) {
                         <div class="card border-0 shadow-sm">
                             <div class="card-body p-2">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <h6 class="card-title mb-0 text-primary">回复记录</h6>
+                                    <h6 class="card-title mb-0 text-primary">${window.i18nTexts.replyRecord}</h6>
                                     <div>
                                         <button class="btn btn-sm btn-outline-primary me-1" onclick="addNewReply(${record.id})">
-                                            <i class="fas fa-plus me-1"></i>添加回复
+                                            <i class="fas fa-plus me-1"></i>${window.i18nTexts.addReply}
                                         </button>
                                         <button class="btn btn-sm btn-outline-secondary" onclick="goToActionDetail(${record.id}, '${record.project_id}', '${record.customer_name}', '${record.customer_id}')">
                                             <i class="fas fa-external-link-alt me-1"></i>查看详情
@@ -703,14 +724,14 @@ function renderTableRecords(records) {
                                 <div class="new-reply-form mt-2" id="new-reply-form-${record.id}" style="display: none;">
                                     <textarea class="form-control form-control-sm mb-2" 
                                              rows="3" 
-                                             placeholder="输入新的回复内容..."
+                                             placeholder="${window.i18nTexts.enterNewReplyContent}"
                                              id="new-reply-content-${record.id}"></textarea>
                                     <div class="d-flex gap-1">
                                         <button class="btn btn-primary btn-sm" onclick="submitNewReply(${record.id})">
-                                            <i class="fas fa-paper-plane me-1"></i>提交回复
+                                            <i class="fas fa-paper-plane me-1"></i>${window.i18nTexts.submit}回复
                                         </button>
                                         <button class="btn btn-secondary btn-sm" onclick="cancelNewReply(${record.id})">
-                                            取消
+                                            ${window.i18nTexts.cancel}
                                         </button>
                                     </div>
                                 </div>
@@ -756,7 +777,7 @@ function renderCardRecords(records) {
         emptyCard.style.fontSize = '0.9rem';
         emptyCard.innerHTML = `
             <i class="fas fa-calendar-day fa-2x text-muted mb-2"></i>
-            <div class="text-muted">今日暂无工作记录</div>
+            <div class="text-muted">${window.i18nTexts.todayNoRecords}</div>
         `;
         todayContainer.appendChild(emptyCard);
     }
@@ -783,11 +804,11 @@ function createMobileCard(record) {
         
         <div class="row g-2 mb-2">
             <div class="col-6">
-                <div class="small text-muted" style="font-size: 0.8rem;">拥有人</div>
+                <div class="small text-muted" style="font-size: 0.8rem;">${window.i18nTexts.owner}</div>
                 <div>${record.owner_badge_html || '<span class="badge bg-secondary">无</span>'}</div>
             </div>
             <div class="col-6">
-                <div class="small text-muted" style="font-size: 0.8rem;">客户</div>
+                <div class="small text-muted" style="font-size: 0.8rem;">${window.i18nTexts.customer}</div>
                 <div style="font-size: 0.9rem;">
                     ${record.customer_name && record.customer_id ? 
                         `<a href="/customer/${record.customer_id}/view" class="text-decoration-none text-primary">
@@ -801,12 +822,12 @@ function createMobileCard(record) {
         
         <div class="row g-2 mb-2">
             <div class="col-6">
-                <div class="small text-muted" style="font-size: 0.8rem;">联系人</div>
+                <div class="small text-muted" style="font-size: 0.8rem;">${window.i18nTexts.contact}</div>
                 <div style="font-size: 0.9rem;">${record.contact_name || '-'}</div>
             </div>
             ${record.project_name ? `
             <div class="col-6">
-                <div class="small text-muted" style="font-size: 0.8rem;">关联项目</div>
+                <div class="small text-muted" style="font-size: 0.8rem;">${window.i18nTexts.relatedProject}</div>
                 <a href="/project/view/${record.project_id}" class="text-decoration-none fw-bold" style="font-size: 0.9rem;">
                     ${record.project_name}
                 </a>
@@ -815,7 +836,7 @@ function createMobileCard(record) {
         </div>
         
         <div class="mb-2">
-            <div class="small text-muted" style="font-size: 0.8rem;">行动记录</div>
+            <div class="small text-muted" style="font-size: 0.8rem;">${window.i18nTexts.actionRecord}</div>
             <div class="communication-content" style="word-wrap: break-word; white-space: normal; font-size: 0.9rem;">${escapeHtml(record.communication)}</div>
         </div>
         
@@ -825,14 +846,14 @@ function createMobileCard(record) {
                 <div class="card-body p-2">
                     <textarea class="form-control form-control-sm mb-2" 
                              rows="2" 
-                             placeholder="输入回复内容..."
+                             placeholder="${window.i18nTexts.enterReplyContent}"
                              id="reply-content-${record.id}"></textarea>
                     <div class="d-flex gap-1">
                         <button class="btn btn-primary btn-sm" onclick="submitReply(${record.id})">
-                            <i class="fas fa-paper-plane me-1"></i>提交
+                            <i class="fas fa-paper-plane me-1"></i>${window.i18nTexts.submit}
                         </button>
                         <button class="btn btn-secondary btn-sm" onclick="cancelReply(${record.id})">
-                            取消
+                            ${window.i18nTexts.cancel}
                         </button>
                     </div>
                 </div>
@@ -847,7 +868,7 @@ function createMobileCard(record) {
                         <h6 class="card-title mb-0 text-primary" style="font-size: 0.9rem;">回复记录</h6>
                         <div>
                             <button class="btn btn-sm btn-outline-primary me-1" onclick="addNewReply(${record.id})" style="font-size: 0.8rem;">
-                                <i class="fas fa-plus me-1"></i>回复
+                                <i class="fas fa-plus me-1"></i>${window.i18nTexts.reply}
                             </button>
                             <button class="btn btn-sm btn-outline-secondary me-1" onclick="goToActionDetail(${record.id}, '${record.project_id}', '${record.customer_name}', '${record.customer_id}')">
                                 <i class="fas fa-external-link-alt"></i>
@@ -866,14 +887,14 @@ function createMobileCard(record) {
                     <div class="new-reply-form mt-2" id="new-reply-form-${record.id}" style="display: none;">
                         <textarea class="form-control form-control-sm mb-2" 
                                  rows="3" 
-                                 placeholder="输入新的回复内容..."
+                                 placeholder="${window.i18nTexts.enterNewReplyContent}"
                                  id="new-reply-content-${record.id}"></textarea>
                         <div class="d-flex gap-1">
                             <button class="btn btn-primary btn-sm" onclick="submitNewReply(${record.id})">
-                                <i class="fas fa-paper-plane me-1"></i>提交回复
+                                <i class="fas fa-paper-plane me-1"></i>${window.i18nTexts.submit}回复
                             </button>
                             <button class="btn btn-secondary btn-sm" onclick="cancelNewReply(${record.id})">
-                                取消
+                                ${window.i18nTexts.cancel}
                             </button>
                         </div>
                     </div>
@@ -981,7 +1002,7 @@ function loadActionReplies(actionId) {
     // 显示加载状态
     repliesList.innerHTML = `
         <div class="text-center text-muted">
-            <i class="fas fa-spinner fa-spin me-1"></i>加载回复中...
+            <i class="fas fa-spinner fa-spin me-1"></i>${window.i18nTexts.loadingReplies}...
         </div>
     `;
     
@@ -1018,7 +1039,7 @@ function loadActionReplies(actionId) {
             repliesList.innerHTML = `
                 <div class="text-center text-muted">
                     <i class="fas fa-exclamation-triangle me-1 text-warning"></i>
-                    加载回复失败
+                    ${window.i18nTexts.loadRepliesFailed}
                 </div>
             `;
         });
@@ -1031,7 +1052,7 @@ function displayReplies(actionId, replies) {
     if (!replies || replies.length === 0) {
         repliesList.innerHTML = `
             <div class="text-center text-muted">
-                <i class="fas fa-comment-slash me-1"></i>暂无回复
+                <i class="fas fa-comment-slash me-1"></i>${window.i18nTexts.noReply}
             </div>
         `;
         return;
@@ -1055,11 +1076,11 @@ function displayReplies(actionId, replies) {
                 </div>
                 <div class="mt-1">
                     <button class="btn btn-sm btn-link p-0 text-primary" onclick="replyToReply(${actionId}, ${reply.id}, '${escapeHtml(reply.owner)}')">
-                        <i class="fas fa-reply me-1"></i>回复
+                        <i class="fas fa-reply me-1"></i>${window.i18nTexts.reply}
                     </button>
                     ${reply.can_delete ? `
                         <button class="btn btn-sm btn-link p-0 text-danger ms-2" onclick="deleteReply(${reply.id}, ${actionId})">
-                            <i class="fas fa-trash me-1"></i>删除
+                            <i class="fas fa-trash me-1"></i>${window.i18nTexts.delete}
                         </button>
                     ` : ''}
                 </div>
@@ -1082,7 +1103,7 @@ function displayReplies(actionId, replies) {
 
 // 删除回复
 function deleteReply(replyId, actionId) {
-    if (!confirm('确定要删除这条回复吗？')) {
+    if (!confirm(window.i18nTexts.confirmDeleteReply)) {
         return;
     }
     
@@ -1112,7 +1133,7 @@ function deleteReply(replyId, actionId) {
         if (data.success) {
             // 重新加载回复列表
             loadActionReplies(actionId);
-            showNotification('回复删除成功', 'success');
+            showNotification(window.i18nTexts.replyDeleteSuccess, 'success');
         } else {
             throw new Error(data.message || '删除失败');
         }
@@ -1132,16 +1153,16 @@ function deleteReply(replyId, actionId) {
             .then(data => {
                 if (data.success) {
                     loadActionReplies(actionId);
-                    showNotification('回复删除成功', 'success');
+                    showNotification(window.i18nTexts.replyDeleteSuccess, 'success');
                 } else {
                     throw new Error(data.message || '删除失败');
                 }
             })
             .catch(err => {
-                showNotification(`删除失败: ${err.message}`, 'error');
+                showNotification(`${window.i18nTexts.deleteFailed}: ${err.message}`, 'error');
             });
         } else {
-            showNotification(`删除失败: ${error.message}`, 'error');
+            showNotification(`${window.i18nTexts.deleteFailed}: ${error.message}`, 'error');
         }
     });
 }
@@ -1152,7 +1173,7 @@ function submitNewReply(actionId) {
     const content = textarea.value.trim();
     
     if (!content) {
-        alert('请输入回复内容');
+        alert(window.i18nTexts.pleaseEnterReplyContent);
         return;
     }
     
@@ -1162,7 +1183,7 @@ function submitNewReply(actionId) {
     // 显示提交状态
     const submitBtn = event.target;
     const originalText = submitBtn.innerHTML;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>提交中...';
+    submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i>${window.i18nTexts.submitting}`;
     submitBtn.disabled = true;
     
     // 根据当前页面URL判断使用哪个API路径
@@ -1196,7 +1217,7 @@ function submitNewReply(actionId) {
             // 重新加载回复列表
             loadActionReplies(actionId);
             // 显示成功消息
-            showNotification('回复提交成功', 'success');
+            showNotification(window.i18nTexts.replySubmitSuccess, 'success');
         } else {
             throw new Error(data.message || '提交失败');
         }
@@ -1221,16 +1242,16 @@ function submitNewReply(actionId) {
                     textarea.value = '';
                     cancelNewReply(actionId);
                     loadActionReplies(actionId);
-                    showNotification('回复提交成功', 'success');
+                    showNotification(window.i18nTexts.replySubmitSuccess, 'success');
                 } else {
                     throw new Error(data.message || '提交失败');
                 }
             })
             .catch(err => {
-                showNotification(`提交失败: ${err.message}`, 'error');
+                showNotification(`${window.i18nTexts.submitFailed}: ${err.message}`, 'error');
             });
         } else {
-            showNotification(`提交失败: ${error.message}`, 'error');
+            showNotification(`${window.i18nTexts.submitFailed}: ${error.message}`, 'error');
         }
     })
     .finally(() => {
@@ -1246,7 +1267,7 @@ function submitReply(actionId) {
     const content = textarea.value.trim();
     
     if (!content) {
-        alert('请输入回复内容');
+        alert(window.i18nTexts.pleaseEnterReplyContent);
         return;
     }
     
@@ -1256,7 +1277,7 @@ function submitReply(actionId) {
     // 显示提交状态
     const submitBtn = event.target;
     const originalText = submitBtn.innerHTML;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>提交中...';
+    submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i>${window.i18nTexts.submitting}`;
     submitBtn.disabled = true;
     
     // 根据当前页面URL判断使用哪个API路径
@@ -1288,7 +1309,7 @@ function submitReply(actionId) {
             // 重新加载工作记录列表
             loadRecentRecords();
             // 显示成功消息
-            showNotification('回复提交成功', 'success');
+            showNotification(window.i18nTexts.replySubmitSuccess, 'success');
         } else {
             throw new Error(data.message || '提交失败');
         }
@@ -1312,16 +1333,16 @@ function submitReply(actionId) {
                 if (data.success) {
                     cancelReply(actionId);
                     loadRecentRecords();
-                    showNotification('回复提交成功', 'success');
+                    showNotification(window.i18nTexts.replySubmitSuccess, 'success');
                 } else {
                     throw new Error(data.message || '提交失败');
                 }
             })
             .catch(err => {
-                showNotification(`提交失败: ${err.message}`, 'error');
+                showNotification(`${window.i18nTexts.submitFailed}: ${err.message}`, 'error');
             });
         } else {
-            showNotification(`提交失败: ${error.message}`, 'error');
+            showNotification(`${window.i18nTexts.submitFailed}: ${error.message}`, 'error');
         }
     })
     .finally(() => {

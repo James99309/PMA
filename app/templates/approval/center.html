@@ -2,7 +2,7 @@
 {% from 'macros/ui_helpers.html' import render_universal_tabs, render_stats_cards, render_data_table %}
 {% from 'macros/filter_search.html' import render_filter_search_form %}
 
-{% block title %}审批中心{% endblock %}
+{% block title %}{{ _('审批中心') }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid page-with-fixed-nav">
@@ -10,7 +10,7 @@
     <div class="page-header-with-actions mb-4">
         <div class="row align-items-center">
             <div class="col-auto">
-                <h1 class="page-title mb-0">审批中心</h1>
+                <h1 class="page-title mb-0">{{ _('审批中心') }}</h1>
             </div>
             <div class="col text-end">
                 <!-- 操作按钮组 -->
@@ -40,24 +40,50 @@
         
         <!-- 审批中心标签页 - 在统计和筛选之后 -->
         {% set approval_tabs = [
-            {'key': 'created', 'label': '我发起的', 'icon': 'fas fa-file-export'},
-            {'key': 'pending', 'label': '待我审批的', 'icon': 'fas fa-hourglass-half'},
-            {'key': 'pricing_order', 'label': '批价单审批', 'icon': 'fas fa-file-invoice-dollar'},
-            {'key': 'order', 'label': '订单审批', 'icon': 'fas fa-shopping-cart'}
+            {'key': 'created', 'label': _('我发起的'), 'icon': 'fas fa-file-export'},
+            {'key': 'pending', 'label': _('待我审批的'), 'icon': 'fas fa-hourglass-half'},
+            {'key': 'pricing_order', 'label': _('批价单审批'), 'icon': 'fas fa-file-invoice-dollar'},
+            {'key': 'order', 'label': _('订单审批'), 'icon': 'fas fa-shopping-cart'}
         ] %}
         
-        {{ render_universal_tabs(approval_tabs, current_tab, url_for('approval.center')) }}
+        {# 如果用户有权限查看全部审批，添加全部审批选项卡 #}
+        {% if has_permission('approval_management', 'all') %}
+            {% set approval_tabs = approval_tabs + [{'key': 'all', 'label': _('全部审批'), 'icon': 'fas fa-clipboard-list'}] %}
+        {% endif %}
+        
+        <!-- 自定义客户端标签页 - 避免页面刷新延迟 -->
+        <ul class="nav nav-tabs" role="tablist">
+            {% for tab in approval_tabs %}
+            <li class="nav-item" role="presentation">
+                <a class="nav-link {% if tab.key == current_tab %}active{% endif %}" 
+                   href="#" 
+                   data-tab="{{ tab.key }}" 
+                   role="tab"
+                   onclick="switchApprovalTab('{{ tab.key }}'); return false;">
+                    <i class="{{ tab.icon }} me-1"></i>{{ tab.label }}
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
         
         <!-- 列表内容 - 在标签页下方 -->
         <div class="mt-4">
             {% if list_config.table %}
+                <!-- 加载状态指示器 -->
+                <div id="approvalLoadingIndicator" class="text-center py-4" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">{{ _('加载中...') }}</span>
+                    </div>
+                    <div class="mt-2 text-muted">{{ _('正在加载数据，请稍候...') }}</div>
+                </div>
+                
                 {{ render_data_table(list_config.table, [], ajax_mode=list_config.ajax_mode) }}
             {% endif %}
         </div>
     {% else %}
         <div class="alert alert-warning">
             <i class="fas fa-exclamation-triangle me-2"></i>
-            审批数据加载失败，请刷新页面重试
+            {{ _('审批数据加载失败，请刷新页面重试') }}
         </div>
     {% endif %}
 </div>
@@ -80,6 +106,14 @@ document.addEventListener('DOMContentLoaded', function() {
         ajax_endpoint: '{{ url_for("approval.center_ajax") }}',
         ajax_target: '#{{ list_config.table.ajax_target }}',
         ajax_columns: {{ list_config.table.columns | length }},
+        // 自定义AJAX回调 - 确保包含tab参数
+        ajax_callback: function() {
+            const form = document.getElementById('{{ list_config.filter.form_id }}');
+            if (form) {
+                const currentTab = window.currentApprovalTab || '{{ current_tab }}';
+                window.performManualSubmit(form, currentTab, true);
+            }
+        },
         dynamic_reset_button: true,
         adaptive_width: true,
         adaptive_button_layout: true,
@@ -102,15 +136,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateListItemCount(data.total_count || 0, data.loaded_count || 0, false);
             }
             
-            // 添加tab参数到URL更新
-            const currentTab = '{{ current_tab }}';
+            // 使用全局变量获取当前标签页，并更新URL
+            const currentTab = window.currentApprovalTab || '{{ current_tab }}';
             const form = document.getElementById('{{ list_config.filter.form_id }}');
             if (form) {
                 const formData = new FormData(form);
                 formData.append('tab', currentTab);
                 const params = new URLSearchParams(formData);
                 const newUrl = '{{ url_for("approval.center") }}?' + params.toString();
-                window.history.pushState({}, '', newUrl);
+                window.history.pushState({tab: currentTab}, '', newUrl);
             }
         }
     };
@@ -118,16 +152,123 @@ document.addEventListener('DOMContentLoaded', function() {
     // 设置全局配置供重置按钮使用
     window.filterSearchConfig = approvalFilterConfig;
     setupFilterSearch(approvalFilterConfig);
+    
+    // 强制检查并显示重置按键（调试用）
+    setTimeout(() => {
+        console.log('🔧 强制检查重置按键显示状态');
+        const resetButton = document.querySelector('.filter-reset-button');
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasSearch = urlParams.get('search') && urlParams.get('search').trim() !== '';
+        const hasObjectType = urlParams.get('object_type') && urlParams.get('object_type') !== '';
+        const hasStatus = urlParams.get('status') && urlParams.get('status') !== '';
+        const hasTab = urlParams.get('tab') && urlParams.get('tab') !== '';
+        
+        console.log('🔍 URL参数检查:', {
+            search: urlParams.get('search'),
+            object_type: urlParams.get('object_type'),
+            status: urlParams.get('status'),
+            tab: urlParams.get('tab'),
+            hasSearch, hasObjectType, hasStatus, hasTab
+        });
+        
+        if (resetButton) {
+            console.log('重置按键当前状态:', resetButton.style.display);
+            // 如果有任何筛选条件，显示重置按键
+            if (hasSearch || hasObjectType || hasStatus) {
+                resetButton.style.display = 'inline-block';
+                console.log('✅ 强制显示重置按键');
+            } else {
+                resetButton.style.display = 'none';
+                console.log('🫥 隐藏重置按键（无筛选条件）');
+            }
+        } else {
+            console.error('❌ 未找到重置按键元素');
+        }
+        
+        // 为所有筛选字段添加变化监听器
+        const form = document.getElementById('approvalFilterForm');
+        if (form) {
+            const filterElements = form.querySelectorAll('select, input[type="text"]');
+            filterElements.forEach(element => {
+                element.addEventListener('change', function() {
+                    console.log(`🔄 筛选条件变化: ${this.name}="${this.value}"`);
+                    if (resetButton && this.value && this.value.trim() !== '') {
+                        resetButton.style.display = 'inline-block';
+                        console.log('👁️ 显示重置按键（筛选条件变化）');
+                    }
+                });
+                
+                // 对于搜索框，也监听输入事件
+                if (element.type === 'text') {
+                    element.addEventListener('input', function() {
+                        if (resetButton && this.value && this.value.trim() !== '') {
+                            resetButton.style.display = 'inline-block';
+                            console.log('👁️ 显示重置按键（搜索输入）');
+                        }
+                    });
+                }
+            });
+        }
+    }, 500);
     {% endif %}
     
-    // 手动触发初始数据加载，包含当前tab参数
+    // 全局变量存储当前标签页
+    window.currentApprovalTab = '{{ current_tab }}';
+    
+    // 客户端标签页切换函数 - 定义为全局函数
+    window.switchApprovalTab = function(tabKey) {
+        console.log(`🔄 切换到标签页: ${tabKey}`);
+        
+        // 更新标签页状态
+        window.updateTabActiveState(tabKey);
+        
+        // 更新全局变量
+        window.currentApprovalTab = tabKey;
+        
+        // 立即加载数据（无延迟）
+        const form = document.getElementById('{{ list_config.filter.form_id }}');
+        if (form) {
+            window.performManualSubmit(form, tabKey);
+        }
+        
+        // 更新浏览器URL但不刷新页面
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.set('tab', tabKey);
+        window.history.pushState({tab: tabKey}, '', newUrl);
+    }
+    
+    // 更新标签页激活状态 - 定义为全局函数  
+    window.updateTabActiveState = function(activeTab) {
+        const tabs = document.querySelectorAll('.nav-link[data-tab]');
+        tabs.forEach(tab => {
+            const tabKey = tab.getAttribute('data-tab');
+            if (tabKey === activeTab) {
+                tab.classList.add('active');
+            } else {
+                tab.classList.remove('active');
+            }
+        });
+    }
+    
+    // 优化的数据加载函数 - 带加载状态指示，定义为全局函数
     {% if list_config.ajax_mode %}
-    function performManualSubmit(form, currentTab) {
+    window.performManualSubmit = function(form, currentTab, showLoading = true) {
+        // 显示加载指示器
+        const loadingIndicator = document.getElementById('approvalLoadingIndicator');
+        const tableContainer = document.querySelector('#{{ list_config.table.ajax_target }}').parentElement;
+        
+        if (showLoading && loadingIndicator && tableContainer) {
+            loadingIndicator.style.display = 'block';
+            tableContainer.style.opacity = '0.6';
+        }
+        
         const formData = new FormData(form);
         formData.append('tab', currentTab);
         
         const params = new URLSearchParams(formData);
         const url = '{{ url_for("approval.center_ajax") }}?' + params.toString();
+        
+        console.log(`🌐 发送AJAX请求: ${url}`);
         
         fetch(url)
             .then(response => response.json())
@@ -136,7 +277,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     // 更新表格内容
                     const targetElement = document.querySelector('#{{ list_config.table.ajax_target }}');
                     if (targetElement) {
-                        targetElement.innerHTML = data.html || '<tr><td colspan="{{ list_config.table.columns | length }}" class="text-center py-4">暂无数据</td></tr>';
+                        targetElement.innerHTML = data.html || '<tr><td colspan="{{ list_config.table.columns | length }}" class="text-center py-4">{{ _('暂无数据') }}</td></tr>';
                     }
                     
                     // 更新统计卡片
@@ -150,25 +291,49 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (typeof updateListItemCount === 'function') {
                         updateListItemCount(data.total_count || 0, data.loaded_count || 0, false);
                     }
+                    
+                    console.log(`✅ 数据加载完成，共 ${data.loaded_count || 0} 条记录`);
                 } else {
-                    console.error('数据加载失败:', data.message);
+                    console.error('{{ _('数据加载失败') }}:', data.message);
                 }
             })
             .catch(error => {
-                console.error('AJAX请求失败:', error);
+                console.error('{{ _('AJAX请求失败') }}:', error);
+            })
+            .finally(() => {
+                // 隐藏加载指示器
+                if (loadingIndicator && tableContainer) {
+                    loadingIndicator.style.display = 'none';
+                    tableContainer.style.opacity = '1';
+                }
             });
     }
     
+    // 立即触发初始数据加载（无延迟）
     setTimeout(() => {
         const form = document.getElementById('{{ list_config.filter.form_id }}');
         if (form) {
-            performManualSubmit(form, '{{ current_tab }}');
+            window.performManualSubmit(form, '{{ current_tab }}', false); // 初始加载不显示loading
         }
-    }, 500);
-    {% endif %}
+    }, 100); // 只保留100ms以确保DOM就绪
     {% endif %}
     
-    console.log('✅ 审批中心页面(独立组件模式)初始化完成');
+    // 处理浏览器前进后退按钮
+    window.addEventListener('popstate', function(event) {
+        if (event.state && event.state.tab) {
+            const tabKey = event.state.tab;
+            window.currentApprovalTab = tabKey;
+            updateTabActiveState(tabKey);
+            
+            const form = document.getElementById('{{ list_config.filter.form_id }}');
+            if (form) {
+                performManualSubmit(form, tabKey);
+            }
+        }
+    });
+    {% endif %}
+    
+    console.log('✅ {{ _('审批中心页面初始化完成') }}');
 });
 </script>
 {% endblock %} 

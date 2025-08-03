@@ -254,7 +254,10 @@ function setupFilterSearch(config) {
         // 使用 requestAnimationFrame 确保DOM完全渲染后再执行，比setTimeout更高效
         requestAnimationFrame(() => {
             const targetElement = document.querySelector(config.ajax_target);
-            if (targetElement && targetElement.textContent.includes('正在加载数据')) {
+            // 检查是否存在加载状态标记
+            const loadingElement = targetElement ? targetElement.querySelector('[data-loading-state="true"]') : null;
+            
+            if (loadingElement) {
                 console.log('📊 执行初次数据加载');
                 if (config.ajax_callback && typeof config.ajax_callback === 'function') {
                     config.ajax_callback();

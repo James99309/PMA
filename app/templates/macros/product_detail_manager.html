@@ -45,7 +45,7 @@
                 <tr>
                     {% for column in config.columns %}
                     <th style="width: {{ column.width | default('auto') }}">
-                        {{ column.label if column.label else '' }}
+                        {{ _(column.label) if column.label else '' }}
                         {% if column.required %}
                         <span class="text-danger">*</span>
                         {% endif %}
@@ -99,6 +99,44 @@
          data-config='{{ config | tojson }}'
          data-existing-data='{{ data | tojson if data else "[]" }}'
          data-readonly="{{ readonly | lower }}"
+         data-i18n='{{ {
+             "clickToSelectProduct": _("点击选择产品..."),
+             "productName": _("产品名称"),
+             "productModel": _("产品型号"),
+             "productDesc": _("产品描述"),
+             "brand": _("品牌"),
+             "unit": _("单位"),
+             "marketPrice": _("市场单价"),
+             "discountRate": _("折扣率"),
+             "unitPrice": _("单价"),
+             "quantity": _("数量"),
+             "totalPrice": _("小计"),
+             "productMn": _("产品料号"),
+             "actions": _("操作"),
+             "manualInput": _("手动输入"),
+             "tempProduct": _("临时"),
+             "deleteRow": _("删除"),
+             "addProduct": _("添加产品"),
+             "currencyType": _("货币类型"),
+             "totalAmount": _("总计金额"),
+             "manualInputField": _("手动输入字段，可以修改"),
+             "tempProductNoPrice": _("临时产品无市场价和折扣"),
+             "rowPrefix": _("第"),
+             "rowSuffix": _("行的"),
+             "cannotBeEmpty": _("不能为空"),
+             "deleteRowTitle": _("删除行"),
+             "validationError": _("验证错误"),
+             "pleaseSelectProduct": _("请选择产品"),
+             "invalidQuantity": _("请输入有效的数量"),
+             "invalidPrice": _("请输入有效的价格"),
+             "saveProduct": _("保存产品"),
+             "cancel": _("取消"),
+             "confirm": _("确认"),
+             "loading": _("加载中..."),
+             "noDataAvailable": _("暂无数据"),
+             "searchProduct": _("搜索产品"),
+             "selectProduct": _("选择产品")
+         } | tojson }}'
          style="display: none;"></div>
 </div>
 
@@ -923,6 +961,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const config = JSON.parse(configElement.dataset.config);
             const existingData = JSON.parse(configElement.dataset.existingData || '[]');
             const readonly = configElement.dataset.readonly === 'true';
+            const i18nTexts = JSON.parse(configElement.dataset.i18n || '{}');
             
             if (readonly) {
                 container.classList.add('readonly');
@@ -932,6 +971,9 @@ document.addEventListener('DOMContentLoaded', function() {
             // 设置表格选择器
             config.tableSelector = '#' + (config.table_id || 'productTable');
             config.addButtonSelector = '#' + (config.add_button_id || 'addProduct');
+            
+            // 将国际化文本添加到配置中
+            config.i18n = i18nTexts;
             
             // 初始化产品明细管理器
             const manager = new ProductDetailManager(config);

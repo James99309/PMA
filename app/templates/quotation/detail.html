@@ -411,7 +411,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function copyQuotation(id) {
-    if (confirm('确定要复制这个报价单吗？')) {
+    if (confirm('{{ _("确定要复制这个报价单吗？") }}')) {
         fetch(`/quotation/${id}/copy`, {
             method: 'POST',
         })
@@ -420,18 +420,18 @@ function copyQuotation(id) {
             if (data.success) {
                 window.location.href = "{{ url_for('quotation.list_quotations') }}";
             } else {
-                alert('复制失败: ' + data.error);
+                alert('{{ _("复制失败") }}: ' + data.error);
             }
         })
         .catch(error => {
             console.error('复制报价单时出错:', error);
-            alert('复制报价单时出错');
+            alert('{{ _("复制报价单时出错") }}');
         });
     }
 }
 
 function deleteQuotation(id) {
-    if (confirm('确定要删除这个报价单吗？')) {
+    if (confirm('{{ _("确定要删除这个报价单吗？") }}')) {
         // 获取CSRF token
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         
@@ -447,12 +447,12 @@ function deleteQuotation(id) {
             } else {
                 response.text().then(text => {
                     console.error('删除失败:', response.status, text);
-                    alert(`删除失败 (${response.status}): ${text || '请重试'}`);
+                    alert(`{{ _("删除失败") }} (${response.status}): ${text || '{{ _("请重试") }}'}`);
                 });
             }
         }).catch(error => {
             console.error('删除请求出错:', error);
-            alert('删除请求出错，请重试');
+            alert('{{ _("删除请求出错，请重试") }}');
         });
     }
 }
@@ -507,7 +507,7 @@ function initProductDetailConfirmationBadge() {
         })
         .catch(error => {
             console.error('切换确认状态时出错:', error);
-            showMessage('操作失败，请重试', 'error');
+            showMessage('{{ _("操作失败，请重试") }}', 'error');
         });
     });
 }
@@ -684,7 +684,7 @@ function handleExportConfirmation(modalId, exportData) {
     
     if (!exportPdf && !exportExcel) {
         console.error('❌ 没有选择任何导出格式');
-        showMessage('请选择至少一种导出格式', 'error');
+        showMessage('{{ _("请选择至少一种导出格式") }}', 'error');
         return;
     }
     
@@ -708,7 +708,7 @@ function handleExportConfirmation(modalId, exportData) {
 // 处理PDF导出（新窗口打开）
 function handlePdfExport(quotationId, exportData) {
     console.log('📄 开始处理PDF导出');
-    showMessage('正在生成PDF...', 'info');
+    showMessage('{{ _("正在生成PDF") }}...', 'info');
     
     // 准备导出数据
     const requestData = {
@@ -774,7 +774,7 @@ function handlePdfExport(quotationId, exportData) {
             
             if (newWindow && !newWindow.closed) {
                 console.log('✅ 方法1成功: PDF已在新窗口打开');
-                showMessage('PDF已在新窗口中打开', 'success');
+                showMessage('{{ _("PDF已在新窗口中打开") }}', 'success');
                 success = true;
             } else {
                 throw new Error('新窗口被阻止');
@@ -798,7 +798,7 @@ function handlePdfExport(quotationId, exportData) {
                 document.body.removeChild(link);
                 
                 console.log('✅ 方法2执行完成: 链接已点击');
-                showMessage('PDF已在新标签页中打开', 'success');
+                showMessage('{{ _("PDF已在新标签页中打开") }}', 'success');
                 success = true;
                 
             } catch (linkError) {
@@ -854,7 +854,7 @@ function handlePdfExport(quotationId, exportData) {
 
 // 处理Excel导出（直接下载）
 function handleExcelExport(quotationId, exportData) {
-    showMessage('正在生成Excel...', 'info');
+    showMessage('{{ _("正在生成Excel") }}...', 'info');
     
     // 构建下载URL
     const params = new URLSearchParams({
@@ -874,7 +874,7 @@ function handleExcelExport(quotationId, exportData) {
     a.click();
     document.body.removeChild(a);
     
-    showMessage('Excel文件已开始下载', 'success');
+    showMessage('{{ _("Excel文件已开始下载") }}', 'success');
 }
 
 // 关闭导出信息模态框

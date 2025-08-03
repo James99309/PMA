@@ -4,111 +4,215 @@
 {% block title %}{{ _('添加行动记录') }} - {{ company.company_name }}{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="row mt-3 mb-4">
-        <div class="col">
-            <h3 class="text-primary">{{ _('添加行动记录') }}</h3>
-        </div>
-    </div>
-    <div class="card">
-        <div class="card-body">
-            <form method="POST" novalidate>
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <label class="form-label">{{ _('企业名称') }}</label>
-                        <input type="text" class="form-control" value="{{ company.company_name }}" readonly>
-                    </div>
-                    <div class="col-md-6">
-                        <label for="contact_id" class="form-label">{{ _('联系人') }}</label>
-                        <select class="form-select" id="contact_id" name="contact_id" onchange="window.location.href='{{ url_for('customer.add_action_for_company', company_id=company.id) }}?contact_id=' + this.value">
-                            <option value="">{{ _('请选择联系人') }}</option>
-                            {% for contact in contacts %}
-                            <option value="{{ contact.id }}" {% if selected_contact and contact.id == selected_contact.id %}selected{% endif %}>{{ contact.name }}</option>
-                            {% endfor %}
-                        </select>
+<div class="container-fluid page-with-fixed-nav">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-plus-circle text-primary me-2"></i>
+                        <h4 class="mb-0">{{ _('添加行动记录') }}</h4>
                     </div>
                 </div>
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <label for="project_id" class="form-label">{{ _('关联项目') }}</label>
-                        <select class="form-select" id="project_id" name="project_id">
-                            <option value="">{{ _('无') }}</option>
-                            {% for project in projects %}
-                            <option value="{{ project.id }}">{{ project.project_name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-6">
-                        <label for="date" class="form-label">{{ _('日期') }} <span class="text-danger">*</span></label>
-                        <input type="date" class="form-control" id="date" name="date" value="{{ request.form.date or '' }}" required>
-                        <div class="invalid-feedback">{{ _('请选择日期') }}</div>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label for="communication" class="form-label">{{ _('沟通情况') }} <span class="text-danger">*</span></label>
-                    <textarea class="form-control" id="communication" name="communication" rows="4" required>{{ request.form.communication or '' }}</textarea>
-                    <div class="invalid-feedback">{{ _('请填写沟通情况') }}</div>
-                </div>
-                <div class="mb-3">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="is_shared" name="is_shared" checked>
-                        <label class="form-check-label" for="is_shared">
-                            {{ _('共享此记录') }}
-                        </label>
-                        <small class="form-text text-muted d-block">{{ _('取消勾选后，此记录仅对管理员和上级账户可见') }}</small>
-                    </div>
-                </div>
-                <div class="d-flex justify-content-end gap-2 mt-4">
-                    {{ render_button(_('保存'), None, color='primary', type='submit') }}
-                    {{ render_button(_('取消'), url_for('customer.view_company', company_id=company.id), color='secondary') }}
-                </div>
-            </form>
-        </div>
-    </div>
-    {% if selected_contact %}
-    <div class="card mt-4">
-        <div class="card-header">
-            <strong>{{ _('联系人') }} {{ selected_contact.name }} {{ _('的历史行动记录') }}</strong>
-        </div>
-        <div class="card-body">
-            {% if contact_actions %}
-            <ul class="list-group">
-                {% for action in contact_actions %}
-                <li class="list-group-item">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <span class="text-muted small">{{ render_date(action.date) }}</span>
-                            <span class="ms-2">{{ action.communication|truncate(60) }}</span>
+                <div class="card-body">
+                    <form method="POST" id="actionForm" class="needs-validation" novalidate>
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        
+                        <!-- 基本信息行 -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label">{{ _('企业名称') }}</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-building text-muted"></i>
+                                    </span>
+                                    <input type="text" class="form-control bg-light" value="{{ company.company_name }}" readonly>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="contact_id" class="form-label required">{{ _('联系人') }}</label>
+                                <select class="form-select" id="contact_id" name="contact_id" required onchange="window.location.href='{{ url_for('customer.add_action_for_company', company_id=company.id) }}?contact_id=' + this.value">
+                                    <option value="">{{ _('请选择联系人') }}</option>
+                                    {% for contact in contacts %}
+                                    <option value="{{ contact.id }}" {% if selected_contact and contact.id == selected_contact.id %}selected{% endif %}>{{ contact.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="invalid-feedback">{{ _('请选择联系人') }}</div>
+                                <div class="form-text">{{ _('选择要记录沟通信息的联系人') }}</div>
+                            </div>
                         </div>
-                        <span class="text-muted small">{{ _('记录人') }}: {{ action.owner.real_name or action.owner.username }}</span>
-                    </div>
-                </li>
-                {% endfor %}
-            </ul>
-            {% else %}
-            <p class="text-muted">{{ _('该联系人暂无历史行动记录') }}。</p>
-            {% endif %}
+
+                        <!-- 关联信息行 -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label for="project_id" class="form-label">{{ _('关联项目') }}</label>
+                                <select class="form-select" id="project_id" name="project_id">
+                                    <option value="">{{ _('请选择关联项目（可选）') }}</option>
+                                    {% for project in projects %}
+                                    <option value="{{ project.id }}">{{ project.project_name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">{{ _('选择相关的项目，有助于更好地追踪沟通进展') }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="date" class="form-label required">{{ _('沟通日期') }}</label>
+                                <input type="date" class="form-control" id="date" name="date" value="{{ request.form.date or '' }}" required>
+                                <div class="invalid-feedback">{{ _('请选择沟通日期') }}</div>
+                            </div>
+                        </div>
+
+                        <!-- 沟通内容 -->
+                        <div class="mb-4">
+                            <label for="communication" class="form-label required">{{ _('沟通内容') }}</label>
+                            <textarea class="form-control" id="communication" name="communication" 
+                                    rows="6" 
+                                    placeholder="{{ _('请详细描述本次沟通的内容、讨论的要点、达成的共识等...') }}" 
+                                    required>{{ request.form.communication or '' }}</textarea>
+                            <div class="invalid-feedback">{{ _('请输入沟通内容') }}</div>
+                            <div class="form-text">{{ _('建议包含：沟通目的、讨论内容、结果总结、后续计划等') }}</div>
+                        </div>
+
+                        <!-- 权限设置 -->
+                        <div class="mb-4">
+                            <div class="card bg-light border-0">
+                                <div class="card-body py-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="is_shared" name="is_shared" checked>
+                                        <label class="form-check-label fw-medium" for="is_shared">
+                                            <i class="fas fa-share-alt me-1"></i>{{ _('共享此记录') }}
+                                        </label>
+                                    </div>
+                                    <small class="text-muted">
+                                        {{ _('开启后，团队成员可以查看此沟通记录；关闭后仅管理员和上级可见') }}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 操作按钮 -->
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <div class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                <small>{{ _('保存后将自动返回企业详情页面') }}</small>
+                            </div>
+                            <div class="d-flex gap-2">
+                                {{ render_button(
+                                    text=_('保存记录'),
+                                    color='primary',
+                                    icon='fas fa-save',
+                                    type='submit'
+                                ) }}
+                                {{ render_button(
+                                    text=_('取消'),
+                                    href=url_for('customer.view_company', company_id=company.id),
+                                    color='outline-secondary'
+                                ) }}
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
-    {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
 <script>
+// 国际化文本
+window.i18nTexts = {
+    pleaseSelectContact: '{{ _("请选择联系人") }}',
+    pleaseSelectDate: '{{ _("请选择沟通日期") }}',
+    pleaseEnterContent: '{{ _("请输入沟通内容") }}',
+    formValidationFailed: '{{ _("表单验证失败，请检查输入内容") }}',
+    selectContactFirst: '{{ _("请先选择联系人") }}'
+};
+
 document.addEventListener('DOMContentLoaded', function() {
-  var form = document.querySelector('form');
-  form.addEventListener('submit', function(event) {
-    if (!form.checkValidity()) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-    form.classList.add('was-validated');
-  });
-  
-  const today = new Date().toISOString().split('T')[0];
-  const dateInput = document.getElementById('date');
-  if (!dateInput.value) {
-    dateInput.value = today;
-  }
+    // 初始化页面
+    initializePage();
+    
+    // 初始化表单验证
+    initializeFormValidation();
 });
+
+/**
+ * 初始化页面基本设置
+ */
+function initializePage() {
+    // 设置今天的日期为默认值
+    const today = new Date().toISOString().split('T')[0];
+    const dateInput = document.getElementById('date');
+    if (!dateInput.value) {
+        dateInput.value = today;
+    }
+    
+    // 如果已选择联系人，聚焦到沟通内容输入框
+    const contactSelect = document.getElementById('contact_id');
+    if (contactSelect.value) {
+        setTimeout(() => {
+            document.getElementById('communication').focus();
+        }, 100);
+    }
+}
+
+/**
+ * 初始化Bootstrap表单验证
+ */
+function initializeFormValidation() {
+    // 获取表单
+    const form = document.getElementById('actionForm');
+    
+    // 添加Bootstrap验证样式
+    form.addEventListener('submit', function(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // 检查联系人是否已选择
+        const contactSelect = document.getElementById('contact_id');
+        if (!contactSelect.value) {
+            alert(window.i18nTexts.selectContactFirst);
+            contactSelect.focus();
+            return false;
+        }
+        
+        if (!form.checkValidity()) {
+            form.classList.add('was-validated');
+            return false;
+        }
+        
+        // 如果验证通过，提交表单
+        form.submit();
+        return true;
+    });
+    
+    // 实时验证
+    const requiredFields = form.querySelectorAll('[required]');
+    requiredFields.forEach(field => {
+        field.addEventListener('blur', function() {
+            if (this.checkValidity()) {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            } else {
+                this.classList.remove('is-valid');
+                this.classList.add('is-invalid');
+            }
+        });
+        
+        field.addEventListener('input', function() {
+            if (this.classList.contains('is-invalid') && this.checkValidity()) {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            }
+        });
+    });
+    
+    // 联系人选择特殊处理
+    const contactSelect = document.getElementById('contact_id');
+    contactSelect.addEventListener('change', function() {
+        // 移除验证样式，因为页面会重新加载
+        this.classList.remove('is-invalid', 'is-valid');
+    });
+}
 </script>
 {% endblock %}

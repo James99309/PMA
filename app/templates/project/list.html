@@ -96,7 +96,7 @@
                         <!-- {% include 'project/statistics_dashboard.html' %} -->
                         <div class="text-center text-muted py-4">
                             <i class="fas fa-chart-line fa-3x mb-3"></i>
-                            <p>统计图表功能将在通用组件稳定后重新集成</p>
+                            <p>{{ _('当前使用通用列表组件提供的统计功能') }}</p>
                         </div>
                     </div>
                 </div>
@@ -113,12 +113,22 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log('📝 项目管理页面初始化开始...');
     
+    // 国际化文本配置
+    const i18nTexts = {
+        loading: '{{ _("加载中") }}',
+        noData: '{{ _("暂无数据") }}',
+        items: '{{ _("项") }}'
+    };
+    
     // 配置通用数据列表组件
     const projectListConfig = {
         module_name: '{{ list_config.module_name }}',
         ajax_mode: {{ 'true' if list_config.ajax_mode else 'false' }},
         ajax_endpoint: '{{ list_config.ajax_endpoint }}',
         ajax_target: '#{{ list_config.table.ajax_target }}',
+        
+        // 国际化配置
+        i18n: i18nTexts,
         
         // 无限滚动配置
         infinite_scroll: {{ list_config.infinite_scroll | tojson | safe }},

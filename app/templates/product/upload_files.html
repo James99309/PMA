@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel %}
+
+{% block title %}{{ _('上传产品文件') }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 标准化页面头部区域 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">{{ _('上传产品文件') }}</h1>
+                <small class="text-muted ms-2">{{ _('为产品') }} #{{ product_id }} {{ _('上传图片和PDF文件') }}</small>
+            </div>
+            <div class="col text-end">
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    {{ render_button(_('返回产品列表'), href=url_for('product_route.list'), color='secondary', icon='fas fa-arrow-left') }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 页面主体内容 -->
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-upload me-2"></i>
+                        {{ _('文件上传') }}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <!-- 文件上传表单 -->
+                    <form id="fileUploadForm" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        
+                        <!-- 产品ID显示 -->
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">{{ _('产品ID') }}</label>
+                            </div>
+                            <div class="col-md-9">
+                                <input type="number" class="form-control" name="product_id" value="{{ product_id }}" readonly>
+                            </div>
+                        </div>
+
+                        <!-- 图片上传 -->
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <label for="imageFile" class="form-label fw-bold">
+                                    {{ _('产品图片') }}
+                                    <span class="text-muted">({{ _('可选') }})</span>
+                                </label>
+                            </div>
+                            <div class="col-md-9">
+                                <input type="file" class="form-control" id="imageFile" name="image" 
+                                       accept="image/jpeg,image/jpg,image/png,image/gif">
+                                <div class="form-text">
+                                    {{ _('支持格式') }}: JPG, PNG, GIF | {{ _('文件将命名为') }}: product_{{ product_id }}.jpg
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- PDF上传 -->
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <label for="pdfFile" class="form-label fw-bold">
+                                    {{ _('产品PDF') }}
+                                    <span class="text-muted">({{ _('可选') }})</span>
+                                </label>
+                            </div>
+                            <div class="col-md-9">
+                                <input type="file" class="form-control" id="pdfFile" name="pdf" accept="application/pdf">
+                                <div class="form-text">
+                                    {{ _('支持格式') }}: PDF | {{ _('文件将命名为') }}: product_{{ product_id }}.pdf
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 提交按钮 -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" class="btn btn-secondary" onclick="window.history.back()">
+                                <i class="fas fa-times me-1"></i>{{ _('取消') }}
+                            </button>
+                            <button type="submit" class="btn btn-primary" id="uploadBtn">
+                                <i class="fas fa-upload me-1"></i>{{ _('上传文件') }}
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- 上传进度 -->
+                    <div id="uploadProgress" class="mt-3" style="display: none;">
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 role="progressbar" style="width: 100%">
+                                {{ _('正在上传文件...') }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 上传结果显示 -->
+                    <div id="uploadResult" class="mt-3" style="display: none;">
+                        <!-- 成功消息 -->
+                        <div id="successMessage" class="alert alert-success" style="display: none;">
+                            <h5 class="alert-heading">
+                                <i class="fas fa-check-circle me-2"></i>{{ _('上传成功') }}
+                            </h5>
+                            <p id="successDetails"></p>
+                        </div>
+
+                        <!-- 错误消息 -->
+                        <div id="errorMessage" class="alert alert-danger" style="display: none;">
+                            <h5 class="alert-heading">
+                                <i class="fas fa-exclamation-circle me-2"></i>{{ _('上传失败') }}
+                            </h5>
+                            <ul id="errorDetails"></ul>
+                        </div>
+
+                        <!-- 文件链接显示 -->
+                        <div id="fileLinks" class="row" style="display: none;">
+                            <!-- 图片预览 -->
+                            <div id="imagePreview" class="col-md-6" style="display: none;">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">{{ _('产品图片') }}</h6>
+                                    </div>
+                                    <div class="card-body text-center">
+                                        <img id="uploadedImage" src="" alt="{{ _('产品图片') }}" 
+                                             class="img-fluid mb-2" style="max-height: 200px;">
+                                        <br>
+                                        <a id="imageLink" href="" target="_blank" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-external-link-alt me-1"></i>{{ _('查看原图') }}
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- PDF下载 -->
+                            <div id="pdfPreview" class="col-md-6" style="display: none;">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">{{ _('产品PDF') }}</h6>
+                                    </div>
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-file-pdf fa-4x text-danger mb-3"></i>
+                                        <br>
+                                        <a id="pdfLink" href="" target="_blank" class="btn btn-sm btn-outline-danger">
+                                            <i class="fas fa-download me-1"></i>{{ _('下载PDF') }}
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('fileUploadForm');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const uploadProgress = document.getElementById('uploadProgress');
+    const uploadResult = document.getElementById('uploadResult');
+    const successMessage = document.getElementById('successMessage');
+    const errorMessage = document.getElementById('errorMessage');
+    const successDetails = document.getElementById('successDetails');
+    const errorDetails = document.getElementById('errorDetails');
+    const fileLinks = document.getElementById('fileLinks');
+    
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // 检查是否选择了文件
+        const imageFile = document.getElementById('imageFile').files[0];
+        const pdfFile = document.getElementById('pdfFile').files[0];
+        
+        if (!imageFile && !pdfFile) {
+            alert('{{ _("请至少选择一个文件上传") }}');
+            return;
+        }
+        
+        // 显示上传进度
+        uploadBtn.disabled = true;
+        uploadProgress.style.display = 'block';
+        uploadResult.style.display = 'none';
+        
+        // 准备FormData
+        const formData = new FormData(form);
+        
+        // 发送AJAX请求
+        fetch(`/api/products/{{ product_id }}/upload-files`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            // 隐藏进度条
+            uploadProgress.style.display = 'none';
+            uploadResult.style.display = 'block';
+            
+            if (data.success) {
+                // 显示成功消息
+                successMessage.style.display = 'block';
+                errorMessage.style.display = 'none';
+                
+                let details = [];
+                if (data.image_url) {
+                    details.push('{{ _("图片上传成功") }}');
+                }
+                if (data.pdf_url) {
+                    details.push('{{ _("PDF上传成功") }}');
+                }
+                successDetails.textContent = details.join('、');
+                
+                // 显示文件链接
+                if (data.image_url || data.pdf_url) {
+                    fileLinks.style.display = 'block';
+                    
+                    if (data.image_url) {
+                        const imagePreview = document.getElementById('imagePreview');
+                        const uploadedImage = document.getElementById('uploadedImage');
+                        const imageLink = document.getElementById('imageLink');
+                        
+                        uploadedImage.src = data.image_url;
+                        imageLink.href = data.image_url;
+                        imagePreview.style.display = 'block';
+                    }
+                    
+                    if (data.pdf_url) {
+                        const pdfPreview = document.getElementById('pdfPreview');
+                        const pdfLink = document.getElementById('pdfLink');
+                        
+                        pdfLink.href = data.pdf_url;
+                        pdfPreview.style.display = 'block';
+                    }
+                }
+            } else {
+                // 显示错误消息
+                errorMessage.style.display = 'block';
+                successMessage.style.display = 'none';
+                fileLinks.style.display = 'none';
+                
+                errorDetails.innerHTML = '';
+                if (data.errors && data.errors.length > 0) {
+                    data.errors.forEach(error => {
+                        const li = document.createElement('li');
+                        li.textContent = error;
+                        errorDetails.appendChild(li);
+                    });
+                } else if (data.error) {
+                    const li = document.createElement('li');
+                    li.textContent = data.error;
+                    errorDetails.appendChild(li);
+                }
+            }
+        })
+        .catch(error => {
+            console.error('上传错误:', error);
+            uploadProgress.style.display = 'none';
+            uploadResult.style.display = 'block';
+            errorMessage.style.display = 'block';
+            successMessage.style.display = 'none';
+            fileLinks.style.display = 'none';
+            
+            errorDetails.innerHTML = '<li>{{ _("网络错误，请重试") }}</li>';
+        })
+        .finally(() => {
+            uploadBtn.disabled = false;
+        });
+    });
+});
+</script>
+{% endblock %}

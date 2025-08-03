@@ -413,7 +413,8 @@
 const i18nTexts = {
     loading: '{{ _("加载中...") }}',
     loadFailed: '{{ _("加载失败") }}',
-    searchFailed: '{{ _("搜索失败") }}'
+    searchFailed: '{{ _("搜索失败") }}',
+    noMatchingCompanies: '{{ _("未找到匹配的企业") }}'
 };
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -633,7 +634,7 @@ document.addEventListener('DOMContentLoaded', function() {
             );
             
             if (filteredCompanies.length === 0) {
-                this.dropdown.innerHTML = '<div class="searchable-select-no-results">未找到匹配的企业</div>';
+                this.dropdown.innerHTML = `<div class="searchable-select-no-results">${i18nTexts.noMatchingCompanies}</div>`;
                 return;
             }
             
