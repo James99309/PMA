@@ -116,13 +116,17 @@ class SupabaseStorageClient:
                 file.seek(0)
                 file_content = file.read()
             
-            # 上传到Supabase - 修复参数顺序问题
+            # 上传到Supabase - 修复SyncStorageClient初始化问题
             try:
-                # 正确的参数顺序：path, file, file_options
+                # 使用BytesIO包装二进制数据，避免SyncStorageClient初始化问题
+                from io import BytesIO
+                file_like = BytesIO(file_content)
+                
+                # 正确的上传方法调用
                 result = self.supabase.storage.from_(self.bucket_name).upload(
-                    filename,  # path parameter (first)
-                    file_content,  # file parameter (second)
-                    {  # file_options parameter (third)
+                    filename,  # path parameter
+                    file_like,  # file-like object parameter
+                    {  # file_options parameter
                         "content-type": self._get_content_type(file_type, file_ext),
                         "upsert": True  # 如果文件已存在则覆盖
                     }
@@ -130,11 +134,13 @@ class SupabaseStorageClient:
                 logger.info(f"Supabase上传成功: {filename}")
             except Exception as upload_error:
                 logger.error(f"Supabase上传失败: {upload_error}")
-                # 尝试不带file_options的简化版本
+                # 尝试最简化版本
                 try:
+                    from io import BytesIO
+                    file_like = BytesIO(file_content)
                     result = self.supabase.storage.from_(self.bucket_name).upload(
                         filename,
-                        file_content
+                        file_like
                     )
                     logger.info(f"Supabase简化上传成功: {filename}")
                 except Exception as fallback_error:
@@ -306,13 +312,17 @@ class SupabaseStorageClient:
                 logger.warning(f"图片处理失败，使用原始文件: {str(e)}")
                 processed_content = file_content
             
-            # 上传到Supabase - 修复参数顺序问题
+            # 上传到Supabase - 修复SyncStorageClient初始化问题
             try:
-                # 正确的参数顺序：path, file, file_options
+                # 使用BytesIO包装二进制数据，避免SyncStorageClient初始化问题
+                from io import BytesIO
+                file_like = BytesIO(processed_content)
+                
+                # 正确的上传方法调用
                 result = self.supabase.storage.from_(self.bucket_name).upload(
-                    storage_path,  # path parameter (first)
-                    processed_content,  # file parameter (second)
-                    {  # file_options parameter (third)
+                    storage_path,  # path parameter
+                    file_like,  # file-like object parameter  
+                    {  # file_options parameter
                         "content-type": self._get_content_type('image', filename.split('.')[-1].lower() if '.' in filename else 'jpg'),
                         "cache-control": "3600",
                         "upsert": True  # 允许覆盖同名文件
@@ -321,11 +331,13 @@ class SupabaseStorageClient:
                 logger.info(f"Supabase发票上传成功: {storage_path}")
             except Exception as upload_error:
                 logger.error(f"Supabase发票上传失败: {upload_error}")
-                # 尝试不带file_options的简化版本
+                # 尝试最简化版本
                 try:
+                    from io import BytesIO
+                    file_like = BytesIO(processed_content)
                     result = self.supabase.storage.from_(self.bucket_name).upload(
                         storage_path,
-                        processed_content
+                        file_like
                     )
                     logger.info(f"Supabase发票简化上传成功: {storage_path}")
                 except Exception as fallback_error:
