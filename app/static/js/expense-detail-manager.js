@@ -2079,10 +2079,34 @@ class ExpenseDetailManager {
             const captureBtn = Array.from(cameraModal.querySelectorAll('button')).find(btn => 
                 btn.textContent.includes('拍照')
             );
+            console.log('拍照按钮查找结果:', captureBtn);
             if (captureBtn) {
-                captureBtn.addEventListener('click', () => {
-                    this.capturePhoto(video, stream, cameraModal, rowIndex);
+                console.log('拍照按钮已找到，绑定点击事件');
+                captureBtn.addEventListener('click', (e) => {
+                    console.log('拍照按钮被点击');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const video = cameraModal.querySelector('#cameraVideo');
+                    const stream = this.currentStream;
+                    console.log('视频元素:', video, '视频流:', stream);
+                    
+                    if (video && stream) {
+                        this.capturePhoto(video, stream, cameraModal, rowIndex);
+                    } else {
+                        console.error('拍照失败：视频元素或流不存在');
+                        alert('拍照失败，请重新启动摄像头');
+                    }
                 });
+            } else {
+                console.error('未找到拍照按钮！');
+                // 调试：显示所有按钮
+                const allButtons = cameraModal.querySelectorAll('button');
+                console.log('所有按钮:', Array.from(allButtons).map(btn => ({
+                    text: btn.textContent,
+                    className: btn.className,
+                    innerHTML: btn.innerHTML
+                })));
             }
             
             // 绑定取消按钮事件
@@ -2170,11 +2194,59 @@ class ExpenseDetailManager {
      * 显示图片裁切预览界面
      */
     showCropPreview(imageDataUrl, originalModal, rowIndex) {
-        // 隐藏摄像头视频
+        // 隐藏摄像头视频和控制按钮
         const video = originalModal.querySelector('#cameraVideo');
-        const captureBtn = originalModal.querySelector('#captureBtn');
-        if (video) video.style.display = 'none';
-        if (captureBtn) captureBtn.style.display = 'none';
+        const cameraContainer = originalModal.querySelector('.camera-container');
+        const controlButtonsContainer = originalModal.querySelector('.d-flex.justify-content-center.gap-3');
+        const usageHint = originalModal.querySelector('.mt-3 small.text-muted');
+        
+        // 调试信息
+        console.log('隐藏元素调试信息:');
+        console.log('- video元素:', video);
+        console.log('- cameraContainer元素:', cameraContainer);
+        console.log('- controlButtonsContainer元素:', controlButtonsContainer);
+        console.log('- usageHint元素:', usageHint);
+        
+        // 查找所有可能的按钮容器
+        const allButtonContainers = originalModal.querySelectorAll('.d-flex');
+        console.log('- 所有.d-flex容器数量:', allButtonContainers.length);
+        allButtonContainers.forEach((container, index) => {
+            console.log(`  容器${index}:`, container.className, container.innerHTML.substring(0, 100));
+        });
+        
+        if (video) {
+            video.style.display = 'none';
+            console.log('✓ 视频已隐藏');
+        }
+        if (cameraContainer) {
+            cameraContainer.style.display = 'none';
+            console.log('✓ 摄像头容器已隐藏');
+        }
+        if (controlButtonsContainer) {
+            controlButtonsContainer.style.display = 'none';
+            console.log('✓ 控制按钮容器已隐藏');
+        } else {
+            console.warn('⚠️ 未找到控制按钮容器！');
+            // 尝试更具体的选择器
+            const buttonContainer = originalModal.querySelector('.modal-body .d-flex.justify-content-center');
+            if (buttonContainer) {
+                buttonContainer.style.display = 'none';
+                console.log('✓ 使用备用选择器隐藏按钮容器');
+            }
+        }
+        if (usageHint) {
+            usageHint.style.display = 'none';
+            console.log('✓ 使用提示已隐藏');
+        }
+        
+        // 强制隐藏包含"拍照"和"取消"文本的按钮
+        const allButtons = originalModal.querySelectorAll('button');
+        allButtons.forEach(button => {
+            if (button.textContent.includes('拍照') || (button.textContent.includes('取消') && !button.classList.contains('btn-close'))) {
+                button.style.display = 'none';
+                console.log('✓ 强制隐藏按钮:', button.textContent.trim());
+            }
+        });
         
         // 创建裁切预览界面
         const modalBody = originalModal.querySelector('.modal-body');
@@ -2364,16 +2436,32 @@ class ExpenseDetailManager {
         // 重新拍摄
         if (retakeBtn) {
             retakeBtn.addEventListener('click', () => {
-                // 恢复摄像头界面
+                // 恢复摄像头界面的所有元素
                 const video = modal.querySelector('#cameraVideo');
-                const captureBtn = Array.from(modal.querySelectorAll('button')).find(btn => 
-                    btn.textContent.includes('拍照')
-                );
+                const cameraContainer = modal.querySelector('.camera-container');
+                const controlButtonsContainer = modal.querySelector('.d-flex.justify-content-center.gap-3');
+                const usageHint = modal.querySelector('.mt-3 small.text-muted');
                 const cropContainer = container;
                 
+                // 显示之前隐藏的元素
                 if (video) video.style.display = 'block';
-                if (captureBtn) captureBtn.style.display = 'block';
+                if (cameraContainer) cameraContainer.style.display = 'block';
+                if (controlButtonsContainer) controlButtonsContainer.style.display = 'flex';
+                if (usageHint) usageHint.style.display = 'block';
+                
+                // 恢复被强制隐藏的按钮
+                const allButtons = modal.querySelectorAll('button');
+                allButtons.forEach(button => {
+                    if (button.textContent.includes('拍照') || (button.textContent.includes('取消') && !button.classList.contains('btn-close'))) {
+                        button.style.display = 'inline-block'; // 或者原来的display值
+                        console.log('✓ 恢复按钮显示:', button.textContent.trim());
+                    }
+                });
+                
+                // 移除裁切界面
                 cropContainer.remove();
+                
+                console.log('重新拍摄：摄像头界面已恢复');
             });
         }
         
@@ -2550,9 +2638,7 @@ class ExpenseDetailManager {
         
         // 构建按钮HTML
         const iconHtml = icon ? `<i class="${icon} me-1"></i>` : '';
-        const textHtml = icon ? 
-            `<span class="d-none d-md-inline">${text}</span>` : 
-            text;
+        const textHtml = text; // 移除响应式隐藏逻辑，确保文本始终显示
         
         const onclickAttr = onclick ? `onclick="${onclick}"` : '';
         
