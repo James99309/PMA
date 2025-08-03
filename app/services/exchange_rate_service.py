@@ -102,6 +102,39 @@ class ExchangeRateService:
         
         return round(amount, 2)
     
+    def get_exchange_rate(self, from_currency: str, to_currency: str) -> float:
+        """
+        获取两种货币之间的汇率
+        
+        Args:
+            from_currency: 源货币
+            to_currency: 目标货币
+            
+        Returns:
+            float: 汇率（from_currency 到 to_currency 的汇率）
+        """
+        if from_currency == to_currency:
+            return 1.0
+        
+        # 获取以人民币为基准的汇率
+        rates = self.get_exchange_rates('CNY')
+        
+        # 计算汇率
+        if from_currency == 'CNY':
+            # 从人民币转换
+            return rates.get(to_currency, 1.0)
+        elif to_currency == 'CNY':
+            # 转换为人民币
+            from_rate = rates.get(from_currency, 1.0)
+            return 1.0 / from_rate if from_rate != 0 else 1.0
+        else:
+            # 两种非人民币货币之间的转换
+            from_rate = rates.get(from_currency, 1.0)
+            to_rate = rates.get(to_currency, 1.0)
+            if from_rate != 0:
+                return to_rate / from_rate
+            return 1.0
+    
     def _fetch_from_api(self, base_currency: str) -> Optional[Dict[str, float]]:
         """从API获取汇率数据"""
         try:

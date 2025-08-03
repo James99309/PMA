@@ -1,5 +1,7 @@
 import os
 import logging
+from io import BytesIO
+from PIL import Image
 from supabase import create_client, Client
 from werkzeug.utils import secure_filename
 from typing import Optional, Tuple
@@ -10,6 +12,12 @@ logger = logging.getLogger(__name__)
 
 class SupabaseStorageClient:
     """Supabase 存储客户端工具类"""
+    
+    # 配置常量
+    MAX_FILE_SIZE = 12 * 1024 * 1024  # 12MB
+    MAX_IMAGE_WIDTH = 1200  # 最大图片宽度
+    MAX_IMAGE_HEIGHT = 1200  # 最大图片高度
+    IMAGE_QUALITY = 85  # JPEG压缩质量
     
     def __init__(self):
         """初始化Supabase客户端，从环境变量获取配置"""
@@ -64,12 +72,23 @@ class SupabaseStorageClient:
             if file_ext not in allowed_extensions:
                 raise ValueError(f"不支持的文件类型。{file_type}文件支持：{', '.join(allowed_extensions)}")
             
-            # 读取文件内容
-            file.seek(0)  # 确保从文件开头读取
-            file_content = file.read()
+            # 验证文件大小
+            file.seek(0, 2)  # 移动到文件末尾
+            file_size = file.tell()
+            file.seek(0)  # 重置到开头
             
-            if not file_content:
+            if file_size > self.MAX_FILE_SIZE:
+                raise ValueError(f"文件大小超过限制。最大允许: {self.MAX_FILE_SIZE // (1024*1024)}MB")
+            
+            if not file_size:
                 raise ValueError("文件内容为空")
+            
+            # 处理文件内容
+            if file_type == 'image':
+                file_content = self._process_image(file, file_ext)
+            else:
+                file.seek(0)
+                file_content = file.read()
             
             # 上传到Supabase
             result = self.supabase.storage.from_(self.bucket_name).upload(
@@ -95,6 +114,82 @@ class SupabaseStorageClient:
         except Exception as e:
             logger.error(f"文件上传失败: {str(e)}")
             return None
+    
+    def _process_image(self, file, file_ext: str) -> bytes:
+        """
+        处理图片：压缩、缩放、优化
+        
+        Args:
+            file: 文件对象
+            file_ext: 文件扩展名
+            
+        Returns:
+            处理后的图片字节数据
+        """
+        try:
+            # 读取图片
+            file.seek(0)
+            image = Image.open(file)
+            
+            # 获取原始尺寸
+            original_width, original_height = image.size
+            logger.info(f"原始图片尺寸: {original_width}x{original_height}")
+            
+            # 转换为RGB模式（确保JPEG兼容性）
+            if image.mode in ('RGBA', 'LA', 'P'):
+                # 创建白色背景
+                background = Image.new('RGB', image.size, (255, 255, 255))
+                if image.mode == 'P':
+                    image = image.convert('RGBA')
+                background.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
+                image = background
+            elif image.mode != 'RGB':
+                image = image.convert('RGB')
+            
+            # 计算缩放尺寸（保持宽高比，确保完整显示）
+            if original_width > self.MAX_IMAGE_WIDTH or original_height > self.MAX_IMAGE_HEIGHT:
+                # 计算缩放比例，使用较小的比例确保图片完整显示在限制范围内
+                width_ratio = self.MAX_IMAGE_WIDTH / original_width
+                height_ratio = self.MAX_IMAGE_HEIGHT / original_height
+                scale_ratio = min(width_ratio, height_ratio)  # 使用较小的比例保持宽高比
+                
+                new_width = int(original_width * scale_ratio)
+                new_height = int(original_height * scale_ratio)
+                
+                logger.info(f"缩放计算: 原始({original_width}x{original_height}) -> 目标({new_width}x{new_height}), 比例: {scale_ratio:.3f}")
+                
+                # 高质量缩放 - 确保不裁切
+                image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                logger.info(f"图片已等比缩放至: {new_width}x{new_height}")
+            else:
+                logger.info(f"图片尺寸在限制范围内，无需缩放: {original_width}x{original_height}")
+            
+            # 保存为JPEG格式（统一格式，优化大小）
+            output_buffer = BytesIO()
+            
+            # 根据原始格式决定输出格式
+            if file_ext.lower() in ['png', 'gif'] and original_width * original_height > 500000:
+                # 大图片转为JPEG以减小文件大小
+                image.save(output_buffer, format='JPEG', quality=self.IMAGE_QUALITY, optimize=True)
+                logger.info("图片已转换为JPEG格式以优化大小")
+            elif file_ext.lower() == 'png':
+                # 小PNG保持原格式
+                image.save(output_buffer, format='PNG', optimize=True)
+            else:
+                # 其他格式转为JPEG
+                image.save(output_buffer, format='JPEG', quality=self.IMAGE_QUALITY, optimize=True)
+            
+            # 获取处理后的文件大小
+            processed_size = output_buffer.tell()
+            logger.info(f"处理后文件大小: {processed_size // 1024}KB")
+            
+            return output_buffer.getvalue()
+            
+        except Exception as e:
+            logger.error(f"图片处理失败: {str(e)}")
+            # 处理失败时返回原始文件
+            file.seek(0)
+            return file.read()
     
     def _get_content_type(self, file_type: str, file_ext: str) -> str:
         """获取文件的Content-Type"""
@@ -142,6 +237,135 @@ class SupabaseStorageClient:
         except Exception as e:
             logger.error(f"文件删除失败: {str(e)}")
             return False
+    
+    def upload_expense_invoice(self, detail_id: int, file, filename: str) -> Optional[str]:
+        """
+        上传报销明细发票图片到Supabase存储
+        
+        Args:
+            detail_id: 报销明细ID
+            file: 文件对象
+            filename: 文件名
+            
+        Returns:
+            成功返回公开URL，失败返回None
+        """
+        try:
+            # 生成存储路径
+            storage_path = f"expense_invoices/{detail_id}/{filename}"
+            
+            # 读取并处理图片文件
+            file_content = file.read()
+            file.seek(0)  # 重置文件指针
+            
+            # 压缩图片以节省存储空间和带宽
+            try:
+                processed_content = self._process_invoice_image(file_content)
+            except Exception as e:
+                logger.warning(f"图片处理失败，使用原始文件: {str(e)}")
+                processed_content = file_content
+            
+            # 上传到Supabase
+            result = self.supabase.storage.from_(self.bucket_name).upload(
+                path=storage_path,
+                file=processed_content,
+                file_options={
+                    "content-type": self._get_content_type(filename, 'image'),
+                    "cache-control": "3600",
+                    "upsert": True  # 允许覆盖同名文件
+                }
+            )
+            
+            # 检查上传结果
+            if hasattr(result, 'error') and result.error:
+                logger.error(f"Supabase上传错误: {result.error}")
+                return None
+            
+            # 获取公开URL
+            public_url_result = self.supabase.storage.from_(self.bucket_name).get_public_url(storage_path)
+            
+            if not public_url_result:
+                logger.error("获取公开URL失败")
+                return None
+            
+            public_url = public_url_result
+            logger.info(f"发票图片上传成功: {storage_path}")
+            return public_url
+            
+        except Exception as e:
+            logger.error(f"发票图片上传失败: {str(e)}")
+            return None
+    
+    def delete_expense_invoice(self, filename: str) -> bool:
+        """
+        删除报销明细发票图片
+        
+        Args:
+            filename: 文件名
+            
+        Returns:
+            删除成功返回True，失败返回False
+        """
+        try:
+            # 构建存储路径
+            # 从filename中提取detail_id（假设filename格式为：expense_invoice_{detail_id}_{uuid}.ext）
+            parts = filename.split('_')
+            if len(parts) >= 3 and parts[0] == 'expense' and parts[1] == 'invoice':
+                detail_id = parts[2]
+                storage_path = f"expense_invoices/{detail_id}/{filename}"
+            else:
+                # 备选方案：直接使用filename作为路径
+                storage_path = f"expense_invoices/{filename}"
+            
+            # 删除文件
+            result = self.supabase.storage.from_(self.bucket_name).remove([storage_path])
+            
+            if hasattr(result, 'error') and result.error:
+                logger.error(f"Supabase删除错误: {result.error}")
+                return False
+            
+            logger.info(f"发票图片删除成功: {storage_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"发票图片删除失败: {str(e)}")
+            return False
+    
+    def _process_invoice_image(self, file_content: bytes) -> bytes:
+        """
+        处理发票图片：压缩和调整大小
+        """
+        try:
+            # 打开图片
+            image = Image.open(BytesIO(file_content))
+            
+            # 转换为RGB模式（如果需要）
+            if image.mode not in ('RGB', 'L'):
+                image = image.convert('RGB')
+            
+            # 调整大小（发票图片最大1600x1600）
+            max_size = 1600
+            if image.width > max_size or image.height > max_size:
+                image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+                logger.info(f"图片大小调整为: {image.width}x{image.height}")
+            
+            # 压缩并保存
+            output = BytesIO()
+            image.save(output, format='JPEG', quality=90, optimize=True)
+            compressed_content = output.getvalue()
+            
+            # 检查压缩效果
+            original_size = len(file_content)
+            compressed_size = len(compressed_content)
+            compression_ratio = (1 - compressed_size / original_size) * 100
+            
+            logger.info(f"图片压缩: {original_size} bytes -> {compressed_size} bytes (压缩率: {compression_ratio:.1f}%)")
+            
+            return compressed_content
+            
+        except Exception as e:
+            logger.error(f"图片处理失败: {str(e)}")
+            raise
 
 # 全局Supabase客户端实例
 _supabase_client = None

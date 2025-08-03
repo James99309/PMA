@@ -20,6 +20,7 @@ from app.models.project import Project
 from app.models.customer import Company, Contact
 from app.models.quotation import Quotation
 from app.models.action import Action
+from app.models.expense import Expense
 from sqlalchemy import or_, func, desc, text, cast
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -444,6 +445,72 @@ def get_viewable_data(model_class, user, special_filters=None):
         
         # 基于权限管理系统的数据访问控制
         all_filters = base_filters + [combined_permission_condition] + (special_filters if special_filters else [])
+        return model_class.query.filter(*all_filters)
+    
+    # 报销单特殊权限处理 - 基于权限管理系统
+    if model_class.__name__ == 'Expense':
+        # 检查用户是否有报销单模块的查看权限
+        if not user.has_permission('expense', 'view'):
+            # 如果没有报销单查看权限，返回空查询
+            return model_class.query.filter(False)
+        
+        # 统一处理角色字符串，去除空格
+        user_role = user.role.strip() if user.role else ''
+        
+        # 财务总监可以查看所有报销单（只读权限）
+        if user_role in ['finance_director', 'finace_director']:
+            base_filters = [model_class.is_deleted == False] if hasattr(model_class, 'is_deleted') else []
+            return model_class.query.filter(*(base_filters + (special_filters if special_filters else [])))
+        
+        # 基于四级权限系统的数据访问控制
+        permission_level = user.get_permission_level('expense')
+        
+        # 基础过滤条件：排除已删除的报销单
+        base_filters = [model_class.is_deleted == False] if hasattr(model_class, 'is_deleted') else []
+        
+        if permission_level == 'system':
+            # 系统级权限：可以查看所有报销单
+            return model_class.query.filter(*(base_filters + (special_filters if special_filters else [])))
+        elif permission_level == 'company' and user.company_name:
+            # 企业级权限：可以查看企业下所有报销单
+            company_user_ids = [u.id for u in User.query.filter_by(company_name=user.company_name).all()]
+            all_filters = base_filters + [model_class.owner_id.in_(company_user_ids)] + (special_filters if special_filters else [])
+            return model_class.query.filter(*all_filters)
+        elif permission_level == 'department' and user.department and user.company_name:
+            # 部门级权限：可以查看部门下所有报销单
+            dept_user_ids = [u.id for u in User.query.filter(
+                User.department == user.department,
+                User.company_name == user.company_name
+            ).all()]
+            all_filters = base_filters + [model_class.owner_id.in_(dept_user_ids)] + (special_filters if special_filters else [])
+            return model_class.query.filter(*all_filters)
+        
+        # 个人级权限或其他情况：基础权限控制
+        viewable_user_ids = [user.id]
+        
+        # 添加归属关系授权的用户（数据归属权限）
+        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+        for affiliation in affiliations:
+            viewable_user_ids.append(affiliation.owner_id)
+        
+        # 部门负责人权限：可以查看本部门所有用户的报销单
+        if getattr(user, 'is_department_manager', False) and user.department:
+            dept_users = User.query.filter_by(department=user.department).all()
+            viewable_user_ids.extend([u.id for u in dept_users])
+        
+        # 商务助理特殊权限：具备部门所有账户的查看权限
+        if user_role == 'business_admin' and user.department and user.company_name:
+            dept_users = User.query.filter(
+                User.department == user.department,
+                User.company_name == user.company_name
+            ).all()
+            viewable_user_ids.extend([u.id for u in dept_users])
+        
+        # 去重
+        viewable_user_ids = list(set(viewable_user_ids))
+        
+        # 基于权限管理系统的数据访问控制
+        all_filters = base_filters + [model_class.owner_id.in_(viewable_user_ids)] + (special_filters if special_filters else [])
         return model_class.query.filter(*all_filters)
     
     # 行动记录的特殊处理

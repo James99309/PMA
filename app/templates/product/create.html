@@ -266,11 +266,21 @@
                         <div class="product-image-upload">
                             <div class="image-preview-container" id="image-preview-container">
                                 {% if product and product.image_path %}
-                                <img src="{{ url_for('static', filename='uploads/products/' + product.image_path) }}"
-                                     alt="产品图片"
-                                     class="image-preview"
-                                     id="image-preview"
-                                     style="display: block;">
+                                    {% if product.image_path.startswith('http') %}
+                                        <!-- Supabase云端图片 -->
+                                        <img src="{{ product.image_path }}"
+                                             alt="产品图片"
+                                             class="image-preview"
+                                             id="image-preview"
+                                             style="display: block;">
+                                    {% else %}
+                                        <!-- 本地图片 -->
+                                        <img src="{{ url_for('static', filename='uploads/products/' + product.image_path) }}"
+                                             alt="产品图片"
+                                             class="image-preview"
+                                             id="image-preview"
+                                             style="display: block;">
+                                    {% endif %}
                                 <div class="image-placeholder" style="display: none;">
                                     <i class="fas fa-cloud-upload-alt"></i>
                                     <span>点击上传图片<br>或拖放图片到此处</span>

@@ -20,6 +20,211 @@
             margin-top: 120px !important;
         }
     }
+
+    .product-detail-card {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        border: none;
+    }
+
+    .product-header {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #e7e7e7;
+        padding: 1.5rem;
+        border-radius: 8px 8px 0 0;
+    }
+
+    .product-header h2 {
+        margin-bottom: 0.5rem;
+        color: #333;
+    }
+
+    .product-body {
+        padding: 1.5rem;
+    }
+
+    .product-property {
+        margin-bottom: 1.25rem;
+    }
+
+    .property-label {
+        font-weight: 600;
+        color: #6c757d;
+        margin-bottom: 0.25rem;
+        font-size: 0.9rem;
+    }
+
+    .property-value {
+        font-size: 1rem;
+    }
+
+    /* 确保图片区域和信息区域的对齐 */
+    .product-body .row {
+        align-items: flex-start; /* 顶部对齐 */
+    }
+
+    .product-body .col-md-4 {
+        margin-bottom: 1rem;
+        max-width: 33.333333% !important;
+        flex: 0 0 33.333333% !important;
+        overflow: hidden !important;
+    }
+    
+    .product-body .col-md-8 {
+        margin-bottom: 1rem;
+        max-width: 66.666667% !important;
+        flex: 0 0 66.666667% !important;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        overflow: hidden !important;
+    }
+
+    /* 产品图片样式 - 参考产品详情页面的设计 - 2025-08-03 v2 */
+    .product-image-container {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding-bottom: 100% !important; /* 1:1 的比例，形成正方形 */
+        position: relative !important;
+        overflow: hidden !important;
+        background-color: #f8f9fa !important;
+        border-radius: 8px !important;
+        margin-bottom: 1.5rem !important;
+        border: 1px solid #e7e7e7 !important;
+        height: 0 !important; /* 确保使用padding-bottom控制高度 */
+    }
+
+    .product-image {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: contain !important; /* 保持图片比例，确保完整显示 */
+        max-width: none !important;
+        max-height: none !important;
+    }
+
+    /* 无图片时显示的占位符 */
+    .product-placeholder {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        color: #adb5bd !important;
+        flex-direction: column !important;
+    }
+
+    .product-placeholder i {
+        font-size: 3rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .product-placeholder span {
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+
+    /* 移动端响应式调整 */
+    @media (max-width: 768px) {
+        .product-placeholder i {
+            font-size: 2.5rem;
+        }
+    }
+
+    /* PDF预览样式 */
+    .pdf-preview-container {
+        border-top: 1px solid #e7e7e7;
+        padding-top: 1rem;
+        margin-top: 1rem;
+    }
+
+    .pdf-preview-header {
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #f1f1f1;
+    }
+
+    .pdf-preview-content {
+        position: relative;
+    }
+
+    .pdf-preview-canvas-container {
+        position: relative;
+        display: inline-block;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        background: white;
+    }
+
+    .pdf-preview-canvas {
+        display: block;
+        max-width: 100%;
+        height: auto;
+    }
+
+    .pdf-preview-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        cursor: pointer;
+    }
+
+    .pdf-preview-canvas-container:hover .pdf-preview-overlay {
+        opacity: 1;
+    }
+
+    .pdf-preview-overlay-content {
+        color: white;
+        text-align: center;
+        padding: 1rem;
+    }
+
+    .pdf-preview-overlay-content i {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+
+    .pdf-loading {
+        background: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #e7e7e7;
+    }
+
+    .pdf-error {
+        background: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #e7e7e7;
+    }
+
+    /* 移动端响应式调整 */
+    @media (max-width: 768px) {
+        .pdf-preview-canvas {
+            max-width: 100%;
+        }
+        
+        .pdf-preview-overlay-content {
+            padding: 0.5rem;
+        }
+        
+        .pdf-preview-overlay-content i {
+            font-size: 1.5rem;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -57,113 +262,187 @@
         </div>
     </div>
 
-    <div class="card">
-                <div class="card-body">
-                    <div class="row">
+    <div class="card product-detail-card">
+        <div class="product-header">
+            <h2>{{ dev_product.name }}</h2>
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="ml-2">MN: {{ dev_product.mn_code }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="product-body">
+            <div class="row">
+                <!-- 产品图片区域 -->
+                <div class="col-md-4">
+                    <div class="product-image-container">
                         {% if dev_product.image_path %}
-                        <div class="col-md-4 text-center mb-4">
-                            <img src="{{ url_for('static', filename=dev_product.image_path) }}" alt="{{ dev_product.name }}" class="img-fluid img-thumbnail" style="max-height: 300px;">
-                        </div>
-                        <div class="col-md-8">
+                            {% if dev_product.image_path.startswith('http') %}
+                                <!-- Supabase云端图片 -->
+                                <img src="{{ dev_product.image_path }}"
+                                     alt="{{ dev_product.name }}"
+                                     class="product-image">
+                            {% else %}
+                                <!-- 本地图片 -->
+                                <img src="{{ url_for('static', filename=dev_product.image_path) }}"
+                                     alt="{{ dev_product.name }}"
+                                     class="product-image">
+                            {% endif %}
                         {% else %}
-                        <div class="col-md-12">
+                        <div class="product-placeholder">
+                            <i class="fas fa-image"></i>
+                            <span>{{ _('暂无产品图片') }}</span>
+                        </div>
                         {% endif %}
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-4">
-                                        <h6 class="fw-bold">产品分类</h6>
-                                        <p>{{ dev_product.category.name }}</p>
-                                    </div>
+                    </div>
+                </div>
 
-                                    <div class="mb-4">
-                                        <h6 class="fw-bold">子分类</h6>
-                                        <p>{{ dev_product.subcategory.name }}</p>
-                                    </div>
+                <!-- 产品信息区域 -->
+                <div class="col-md-8">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="product-property">
+                                <div class="property-label">{{ _('产品分类') }}</div>
+                                <div class="property-value">{{ dev_product.category.name }}</div>
+                            </div>
 
-                                    <div class="mb-4">
-                                        <h6 class="fw-bold">产品型号</h6>
-                                        <p>{{ dev_product.model }}</p>
-                                    </div>
-                                </div>
+                            <div class="product-property">
+                                <div class="property-label">{{ _('子分类') }}</div>
+                                <div class="property-value">{{ dev_product.subcategory.name }}</div>
+                            </div>
 
-                                <div class="col-md-6">
-                                    <div class="mb-4">
-                                        <h6 class="fw-bold">MN编码</h6>
-                                        <p>{{ dev_product.mn_code }}</p>
-                                    </div>
+                            <div class="product-property">
+                                <div class="property-label">{{ _('产品型号') }}</div>
+                                <div class="property-value">{{ dev_product.model }}</div>
+                            </div>
 
-                                    <div class="mb-4">
-                                        <h6 class="fw-bold">产品状态</h6>
-                                        <p>
-                                            {% if dev_product.status == '调研中' %}
-                                            <span class="badge bg-info">调研中</span>
-                                            {% elif dev_product.status == '立项中' %}
-                                            <span class="badge bg-warning">立项中</span>
-                                            {% elif dev_product.status == '研发中' %}
-                                            <span class="badge bg-primary">研发中</span>
-                                            {% elif dev_product.status == '申请入库' %}
-                                            <span class="badge bg-secondary">申请入库</span>
-                                            {% elif dev_product.status == '已入库' %}
-                                            <span class="badge bg-success">已入库</span>
-                                            {% else %}
-                                            <span class="badge bg-dark">{{ dev_product.status }}</span>
-                                            {% endif %}
-                                        </p>
-                                    </div>
+                            <div class="product-property">
+                                <div class="property-label">{{ _('销售区域') }}</div>
+                                <div class="property-value">{{ dev_product.region.name if dev_product.region else _('暂无') }}</div>
+                            </div>
+                        </div>
 
-                                    <div class="mb-4">
-                                        <h6 class="fw-bold">销售区域</h6>
-                                        <p>{{ dev_product.region.name if dev_product.region else '暂无' }}</p>
-                                    </div>
-
-                                    <div class="mb-4">
-                                        <h6 class="fw-bold">单位</h6>
-                                        <p>{{ dev_product.unit or '暂无' }}</p>
-                                    </div>
+                        <div class="col-md-6">
+                            <div class="product-property">
+                                <div class="property-label">{{ _('产品状态') }}</div>
+                                <div class="property-value">
+                                    {% if dev_product.status == '调研中' %}
+                                    <span class="badge bg-info">{{ _('调研中') }}</span>
+                                    {% elif dev_product.status == '立项中' %}
+                                    <span class="badge bg-warning">{{ _('立项中') }}</span>
+                                    {% elif dev_product.status == '研发中' %}
+                                    <span class="badge bg-primary">{{ _('研发中') }}</span>
+                                    {% elif dev_product.status == '申请入库' %}
+                                    <span class="badge bg-secondary">{{ _('申请入库') }}</span>
+                                    {% elif dev_product.status == '已入库' %}
+                                    <span class="badge bg-success">{{ _('已入库') }}</span>
+                                    {% else %}
+                                    <span class="badge bg-dark">{{ dev_product.status }}</span>
+                                    {% endif %}
                                 </div>
                             </div>
 
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-4">
-                                        <h6 class="fw-bold">市场价（预估）</h6>
-                                        <p>{% if dev_product.retail_price %}¥{{ dev_product.retail_price }}{% else %}暂无{% endif %}</p>
-                                    </div>
+                            <div class="product-property">
+                                <div class="property-label">{{ _('市场价格（预估）') }}</div>
+                                <div class="property-value">
+                                    {% if dev_product.retail_price %}¥{{ "%.2f"|format(dev_product.retail_price) }}{% else %}{{ _('暂无') }}{% endif %}
                                 </div>
+                            </div>
 
-                                <div class="col-md-6">
-                                    <div class="mb-4">
-                                        <h6 class="fw-bold">创建者</h6>
-                                        <p>
-                                            {% set user = get_user_by_id(dev_product.created_by) %}
-                                            {{ user.username if user else '未知' }}
-                                        </p>
-                                    </div>
+                            <div class="product-property">
+                                <div class="property-label">{{ _('计量单位') }}</div>
+                                <div class="property-value">{{ dev_product.unit or _('暂无') }}</div>
+                            </div>
+
+                            <div class="product-property">
+                                <div class="property-label">{{ _('创建者') }}</div>
+                                <div class="property-value">
+                                    {% set user = get_user_by_id(dev_product.created_by) %}
+                                    {{ user.username if user else _('未知') }}
                                 </div>
+                            </div>
+
+                            <div class="product-property">
+                                <div class="property-label">{{ _('创建时间') }}</div>
+                                <div class="property-value">{{ dev_product.created_at.strftime('%Y-%m-%d %H:%M:%S') if dev_product.created_at else _('未知') }}</div>
                             </div>
                         </div>
                     </div>
-
-                    <div class="mb-4">
-                        <h6 class="fw-bold">产品描述</h6>
-                        <p>{{ dev_product.description or '暂无描述' }}</p>
+                        </div>
                     </div>
 
-                    <!-- PDF文件下载部分 -->
+                    <!-- 产品描述部分 -->
+                    {% if dev_product.description %}
+                    <div class="row mt-4">
+                        <div class="col-md-12">
+                            <div class="product-property">
+                                <div class="property-label">{{ _('产品描述') }}</div>
+                                <div class="property-value">{{ dev_product.description }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- PDF文件预览和下载部分 -->
                     {% if dev_product.pdf_path %}
-                    <div class="mb-4">
-                        <h6 class="fw-bold">产品文档</h6>
-                        <div class="card">
-                            <div class="card-body">
-                                <div class="d-flex align-items-center">
-                                    <i class="fas fa-file-pdf text-danger fa-3x me-3"></i>
-                                    <div class="flex-grow-1">
-                                        <h6 class="mb-1">{{ dev_product.pdf_path.split('/')[-1].split('_', 1)[-1] if '_' in dev_product.pdf_path.split('/')[-1] else dev_product.pdf_path.split('/')[-1] }}</h6>
-                                        <small class="text-muted">PDF文档</small>
+                    <div class="row mt-4">
+                        <div class="col-md-12">
+                            <div class="product-property">
+                                <div class="property-label">{{ _('产品文档') }}</div>
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center mb-3">
+                                            <i class="fas fa-file-pdf text-danger fa-3x me-3"></i>
+                                            <div class="flex-grow-1">
+                                                <h6 class="mb-1">
+                                                    {% if dev_product.pdf_path.startswith('http') %}
+                                                        {{ dev_product.pdf_path.split('/')[-1] }}
+                                                    {% else %}
+                                                        {{ dev_product.pdf_path.split('/')[-1].split('_', 1)[-1] if '_' in dev_product.pdf_path.split('/')[-1] else dev_product.pdf_path.split('/')[-1] }}
+                                                    {% endif %}
+                                                </h6>
+                                                <small class="text-muted">{{ _('PDF文档') }}</small>
+                                            </div>
+                                            <div>
+                                                {{ render_button(_('下载'), href=url_for('product_management.download_pdf', id=dev_product.id), color='primary', icon='fas fa-download', attrs='target="_blank"') }}
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- PDF预览区域 -->
+                                        <div id="pdfPreviewContainer" class="pdf-preview-container">
+                                            <div class="pdf-preview-header">
+                                                <span class="text-muted">{{ _('PDF封面预览') }}</span>
+                                                <small class="ms-2 text-info">{{ _('点击预览图可在新窗口查看完整PDF') }}</small>
+                                            </div>
+                                            <div class="pdf-preview-content">
+                                                <div class="pdf-loading" id="pdfLoading">
+                                                    <div class="d-flex justify-content-center align-items-center" style="height: 200px;">
+                                                        <div class="spinner-border text-primary" role="status">
+                                                            <span class="visually-hidden">{{ _('加载中...') }}</span>
+                                                        </div>
+                                                        <span class="ms-2">{{ _('加载PDF预览中...') }}</span>
+                                                    </div>
+                                                </div>
+                                                <div class="pdf-preview-canvas-container" id="pdfCanvasContainer" style="display: none;">
+                                                    <canvas id="pdfCanvas" class="pdf-preview-canvas"></canvas>
+                                                    <div class="pdf-preview-overlay" onclick="openPdfInNewWindow()">
+                                                        <div class="pdf-preview-overlay-content">
+                                                            <i class="fas fa-external-link-alt"></i>
+                                                            <span>{{ _('点击在新窗口查看') }}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="pdf-error" id="pdfError" style="display: none;">
+                                                    <div class="text-center text-muted py-4">
+                                                        <i class="fas fa-exclamation-triangle text-warning fa-2x mb-2"></i>
+                                                        <div>{{ _('PDF预览加载失败') }}</div>
+                                                        <small>{{ _('请尝试直接下载文件查看') }}</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <a href="{{ url_for('product_management.download_pdf', id=dev_product.id) }}" class="btn btn-primary">
-                                        <i class="fas fa-download me-1"></i> 下载PDF
-                                    </a>
                                 </div>
                             </div>
                         </div>
@@ -171,40 +450,45 @@
                     {% endif %}
 
                     <!-- 产品规格部分 -->
-                    <h6 class="fw-bold mb-3">产品规格</h6>
                     {% if specs %}
-                    <div class="card">
-                        <div class="card-body p-0">
-                            <table class="table table-bordered mb-0">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th width="50%" class="text-center">规格</th>
-                                        <th width="50%" class="text-center">指标</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for spec in specs %}
-                                    {% if spec.field_value %}
-                                    <tr>
-                                        <td class="align-middle">{{ spec.field_name }}</td>
-                                        <td class="align-middle">{{ spec.field_value }}</td>
-                                    </tr>
-                                    {% endif %}
-                                    {% endfor %}
-                                </tbody>
-                            </table>
+                    <div class="row mt-4">
+                        <div class="col-md-12">
+                            <div class="product-property">
+                                <div class="property-label">{{ _('产品规格') }}</div>
+                                <div class="card">
+                                    <div class="card-body p-0">
+                                        <table class="table table-bordered mb-0">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th width="50%" class="text-center">{{ _('规格') }}</th>
+                                                    <th width="50%" class="text-center">{{ _('指标') }}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for spec in specs %}
+                                                {% if spec.field_value %}
+                                                <tr>
+                                                    <td class="align-middle">{{ spec.field_name }}</td>
+                                                    <td class="align-middle">{{ spec.field_value }}</td>
+                                                </tr>
+                                                {% endif %}
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     {% else %}
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle"></i> 暂无规格信息
+                    <div class="row mt-4">
+                        <div class="col-md-12">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i> {{ _('暂无规格信息') }}
+                            </div>
+                        </div>
                     </div>
                     {% endif %}
-
-                    <div class="mt-4">
-                        <h6 class="fw-bold">创建时间</h6>
-                        <p>{{ dev_product.created_at | format_datetime }}</p>
-                    </div>
                 </div>
             </div>
         </div>
@@ -276,4 +560,140 @@
         </div>
     </div>
 </div>
+
+<!-- PDF.js 库 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+<script>
+// PDF预览相关全局变量
+let currentPdfUrl = null;
+
+// 配置PDF.js worker
+if (typeof pdfjsLib !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+/**
+ * 加载PDF预览
+ */
+function loadPdfPreview() {
+    // 构建PDF URL
+    const pdfUrl = '{{ url_for("product_management.download_pdf", id=dev_product.id) if dev_product.pdf_path else "" }}';
+    
+    if (!pdfUrl) {
+        showPdfError();
+        return;
+    }
+    
+    currentPdfUrl = pdfUrl;
+    
+    // 显示加载状态
+    showPdfLoading();
+    
+    // 加载PDF
+    pdfjsLib.getDocument(pdfUrl).promise.then(function(pdf) {
+        console.log('PDF加载成功，页数:', pdf.numPages);
+        
+        // 获取第一页
+        return pdf.getPage(1);
+    }).then(function(page) {
+        console.log('获取第一页成功');
+        
+        // 渲染页面
+        renderPdfPage(page);
+    }).catch(function(error) {
+        console.error('PDF加载失败:', error);
+        showPdfError();
+    });
+}
+
+/**
+ * 渲染PDF页面到Canvas
+ */
+function renderPdfPage(page) {
+    const canvas = document.getElementById('pdfCanvas');
+    const context = canvas.getContext('2d');
+    
+    // 设置渲染参数
+    const viewport = page.getViewport({ scale: 1.0 });
+    
+    // 计算合适的缩放比例（限制最大宽度）
+    const maxWidth = 600;
+    const scale = Math.min(maxWidth / viewport.width, 1.5);
+    const scaledViewport = page.getViewport({ scale: scale });
+    
+    // 设置canvas尺寸
+    canvas.height = scaledViewport.height;
+    canvas.width = scaledViewport.width;
+    
+    // 渲染参数
+    const renderContext = {
+        canvasContext: context,
+        viewport: scaledViewport
+    };
+    
+    // 渲染页面
+    page.render(renderContext).promise.then(function() {
+        console.log('PDF第一页渲染完成');
+        showPdfCanvas();
+    }).catch(function(error) {
+        console.error('PDF渲染失败:', error);
+        showPdfError();
+    });
+}
+
+/**
+ * 显示加载状态
+ */
+function showPdfLoading() {
+    document.getElementById('pdfLoading').style.display = 'block';
+    document.getElementById('pdfCanvasContainer').style.display = 'none';
+    document.getElementById('pdfError').style.display = 'none';
+}
+
+/**
+ * 显示PDF Canvas
+ */
+function showPdfCanvas() {
+    document.getElementById('pdfLoading').style.display = 'none';
+    document.getElementById('pdfCanvasContainer').style.display = 'inline-block';
+    document.getElementById('pdfError').style.display = 'none';
+}
+
+/**
+ * 显示错误状态
+ */
+function showPdfError() {
+    document.getElementById('pdfLoading').style.display = 'none';
+    document.getElementById('pdfCanvasContainer').style.display = 'none';
+    document.getElementById('pdfError').style.display = 'block';
+}
+
+/**
+ * 在新窗口打开PDF
+ */
+function openPdfInNewWindow() {
+    if (currentPdfUrl) {
+        window.open(currentPdfUrl, '_blank');
+    } else {
+        // 如果没有加载过，使用下载链接
+        const pdfUrl = '{{ url_for("product_management.download_pdf", id=dev_product.id) if dev_product.pdf_path else "" }}';
+        if (pdfUrl) {
+            window.open(pdfUrl, '_blank');
+        }
+    }
+}
+
+// 页面加载完成后的初始化
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('研发产品详情页面PDF预览功能已初始化');
+    
+    // 检查是否有PDF文件，如果有则自动开始加载预览
+    const pdfContainer = document.getElementById('pdfPreviewContainer');
+    if (pdfContainer) {
+        loadPdfPreview();
+    }
+});
+</script>
+
 {% endblock %}

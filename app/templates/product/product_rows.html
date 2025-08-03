@@ -1,4 +1,5 @@
 {% from 'macros/ui_helpers.html' import render_product_type_badge, render_product_status_badge, render_vendor_badge %}
+{% from 'macros/file_preview.html' import render_file_preview %}
 {% for product in products %}
 <tr>
     <td>{{ product.id }}</td>
@@ -11,10 +12,23 @@
     </td>
     <td class="text-cell">{{ product.category or '-' }}</td>
     <td class="text-cell">{{ product.product_mn or '-' }}</td>
-    <td class="product-name-link">
-        <a href="{{ url_for('product_route.view_product_detail', id=product.id) }}">
-            {{ product.product_name or '-' }}
-        </a>
+    <td class="product-name-cell">
+        <div class="product-name-container" 
+             {% if product.image_path %}
+             data-image-url="{{ product.image_path }}" 
+             data-product-name="{{ product.product_name }}"
+             {% endif %}>
+            <a href="{{ url_for('product_route.view_product_detail', id=product.id) }}" 
+               class="product-name-link">
+                {{ product.product_name or '-' }}
+                {% if product.image_path %}
+                    <i class="fas fa-image text-primary ms-1" title="{{ _('有产品图片') }}"></i>
+                {% endif %}
+                {% if product.pdf_path %}
+                    <i class="fas fa-file-pdf text-danger ms-1" title="{{ _('有产品PDF') }}"></i>
+                {% endif %}
+            </a>
+        </div>
     </td>
     <td class="text-cell">{{ product.model or '-' }}</td>
     <td class="spec-cell" title="{{ product.specification or '' }}">

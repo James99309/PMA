@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_button, render_data_list %}
+{% from 'macros/file_preview.html' import render_file_preview_modal %}
+{% from 'macros/hover_preview.html' import render_hover_preview_container %}
 
 {% block title %}{{ list_config.title }}{% endblock %}
 
@@ -57,8 +59,16 @@
     {{ render_data_list(list_config) }}
 </div>
 
+<!-- 文件预览模态框 -->
+{{ render_file_preview_modal() }}
+
+<!-- 悬停图片预览容器 -->
+{{ render_hover_preview_container() }}
+
 <script src="{{ url_for('static', filename='js/filter-search.js') }}"></script>
 <script src="{{ url_for('static', filename='js/data-list.js') }}"></script>
+<script src="{{ url_for('static', filename='js/file-preview.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hover-preview.js') }}"></script>
 <script>
 // 导出产品功能
 function exportProducts() {

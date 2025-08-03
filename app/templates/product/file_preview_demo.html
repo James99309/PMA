@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button %}
+{% from 'macros/file_preview.html' import render_file_preview, render_file_preview_modal %}
+
+{% block title %}{{ _('文件预览组件演示') }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 页面头部 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">{{ _('文件预览组件演示') }}</h1>
+            </div>
+            <div class="col text-end">
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    {{ render_button(_('返回产品列表'), url_for('product_route.list'), color='secondary', icon='fas fa-arrow-left') }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 演示内容 -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4>{{ _('通用文件预览组件') }}</h4>
+                    <p class="mb-0 text-muted">{{ _('支持图片和PDF文件预览，自动检测文件类型，提供多种尺寸选项') }}</p>
+                </div>
+                <div class="card-body">
+                    <!-- 尺寸演示 -->
+                    <div class="mb-5">
+                        <h5>{{ _('预览尺寸演示') }}</h5>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <h6>{{ _('小尺寸 (60x60px)') }}</h6>
+                                <div class="d-flex gap-3 align-items-center">
+                                    <!-- 示例图片预览 -->
+                                    {{ render_file_preview(
+                                        file_url='https://via.placeholder.com/300x200/007bff/ffffff?text=Sample+Image',
+                                        file_type='image',
+                                        size='small',
+                                        alt_text='示例图片',
+                                        show_controls=True
+                                    ) }}
+                                    
+                                    <!-- 示例PDF预览 -->
+                                    {{ render_file_preview(
+                                        file_url='https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+                                        file_type='pdf',
+                                        size='small',
+                                        alt_text='示例PDF',
+                                        show_controls=True
+                                    ) }}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <h6>{{ _('中等尺寸 (120x120px)') }}</h6>
+                                <div class="d-flex gap-3 align-items-center">
+                                    {{ render_file_preview(
+                                        file_url='https://via.placeholder.com/400x300/28a745/ffffff?text=Medium+Size',
+                                        file_type='image',
+                                        size='medium',
+                                        alt_text='中等图片',
+                                        show_controls=True
+                                    ) }}
+                                    
+                                    {{ render_file_preview(
+                                        file_url='https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+                                        file_type='pdf',
+                                        size='medium',
+                                        alt_text='中等PDF',
+                                        show_controls=True
+                                    ) }}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <h6>{{ _('大尺寸 (200x200px)') }}</h6>
+                                <div class="d-flex gap-3 align-items-center">
+                                    {{ render_file_preview(
+                                        file_url='https://via.placeholder.com/500x400/dc3545/ffffff?text=Large+Size',
+                                        file_type='image',
+                                        size='large',
+                                        alt_text='大尺寸图片',
+                                        show_controls=True
+                                    ) }}
+                                    
+                                    {{ render_file_preview(
+                                        file_url='https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+                                        file_type='pdf',
+                                        size='large',
+                                        alt_text='大尺寸PDF',
+                                        show_controls=True
+                                    ) }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 使用示例 -->
+                    <div class="mb-5">
+                        <h5>{{ _('使用示例') }}</h5>
+                        <div class="table-responsive">
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>{{ _('文件类型') }}</th>
+                                        <th>{{ _('预览效果') }}</th>
+                                        <th>{{ _('代码示例') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>{{ _('图片文件') }}</td>
+                                        <td>
+                                            {{ render_file_preview(
+                                                file_url='https://via.placeholder.com/300x200/ffc107/000000?text=Product+Image',
+                                                file_type='image',
+                                                size='small',
+                                                alt_text='产品图片',
+                                                show_controls=True
+                                            ) }}
+                                        </td>
+                                        <td>
+                                            <code>{{ "{{ render_file_preview(file_url=product.image_path, file_type='image', size='small') }}" }}</code>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>{{ _('PDF文件') }}</td>
+                                        <td>
+                                            {{ render_file_preview(
+                                                file_url='https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+                                                file_type='pdf',
+                                                size='small',
+                                                alt_text='产品说明书',
+                                                show_controls=True
+                                            ) }}
+                                        </td>
+                                        <td>
+                                            <code>{{ "{{ render_file_preview(file_url=product.pdf_path, file_type='pdf', size='small') }}" }}</code>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>{{ _('自动检测') }}</td>
+                                        <td>
+                                            {{ render_file_preview(
+                                                file_url='https://via.placeholder.com/200x150/6f42c1/ffffff?text=Auto+Detect',
+                                                file_type='auto',
+                                                size='small',
+                                                alt_text='自动检测',
+                                                show_controls=True
+                                            ) }}
+                                        </td>
+                                        <td>
+                                            <code>{{ "{{ render_file_preview(file_url=file_path, file_type='auto') }}" }}</code>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 产品列表集成演示 -->
+                    <div class="mb-5">
+                        <h5>{{ _('产品列表集成效果') }}</h5>
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>{{ _('ID') }}</th>
+                                        <th>{{ _('产品名称') }}</th>
+                                        <th>{{ _('型号') }}</th>
+                                        <th>{{ _('价格') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>001</td>
+                                        <td class="product-name-with-preview">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div class="file-preview-group">
+                                                    {{ render_file_preview(
+                                                        file_url='https://via.placeholder.com/300x200/007bff/ffffff?text=Product+A',
+                                                        file_type='image',
+                                                        size='small',
+                                                        alt_text='产品A图片',
+                                                        show_controls=True,
+                                                        class_extra='me-1'
+                                                    ) }}
+                                                    {{ render_file_preview(
+                                                        file_url='https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+                                                        file_type='pdf',
+                                                        size='small',
+                                                        alt_text='产品A说明书',
+                                                        show_controls=True
+                                                    ) }}
+                                                </div>
+                                                <div class="product-name-info flex-grow-1">
+                                                    <a href="#" class="product-name-link">{{ _('高性能路由器') }}</a>
+                                                    <div class="file-info-badges mt-1">
+                                                        <span class="badge badge-outline-primary badge-sm">
+                                                            <i class="fas fa-image me-1"></i>{{ _('图片') }}
+                                                        </span>
+                                                        <span class="badge badge-outline-danger badge-sm">
+                                                            <i class="fas fa-file-pdf me-1"></i>{{ _('PDF') }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>RT-AC86U</td>
+                                        <td>¥1,299.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>002</td>
+                                        <td class="product-name-with-preview">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div class="file-preview-group">
+                                                    {{ render_file_preview(
+                                                        file_url='https://via.placeholder.com/300x200/28a745/ffffff?text=Product+B',
+                                                        file_type='image',
+                                                        size='small',
+                                                        alt_text='产品B图片',
+                                                        show_controls=True
+                                                    ) }}
+                                                </div>
+                                                <div class="product-name-info flex-grow-1">
+                                                    <a href="#" class="product-name-link">{{ _('无线交换机') }}</a>
+                                                    <div class="file-info-badges mt-1">
+                                                        <span class="badge badge-outline-primary badge-sm">
+                                                            <i class="fas fa-image me-1"></i>{{ _('图片') }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>SW-24P</td>
+                                        <td>¥899.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>003</td>
+                                        <td class="product-name-with-preview">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div class="product-name-info flex-grow-1">
+                                                    <a href="#" class="product-name-link">{{ _('网络存储器') }}</a>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>NAS-4Bay</td>
+                                        <td>¥2,199.00</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 参数说明 -->
+                    <div class="mb-4">
+                        <h5>{{ _('组件参数说明') }}</h5>
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>{{ _('参数') }}</th>
+                                        <th>{{ _('类型') }}</th>
+                                        <th>{{ _('默认值') }}</th>
+                                        <th>{{ _('说明') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><code>file_url</code></td>
+                                        <td>String</td>
+                                        <td>-</td>
+                                        <td>{{ _('文件URL地址（必需）') }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>file_type</code></td>
+                                        <td>String</td>
+                                        <td>'auto'</td>
+                                        <td>{{ _('文件类型：image, pdf, auto') }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>size</code></td>
+                                        <td>String</td>
+                                        <td>'small'</td>
+                                        <td>{{ _('预览尺寸：small, medium, large') }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>alt_text</code></td>
+                                        <td>String</td>
+                                        <td>''</td>
+                                        <td>{{ _('图片alt文本') }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>show_controls</code></td>
+                                        <td>Boolean</td>
+                                        <td>True</td>
+                                        <td>{{ _('是否显示控制按钮') }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>class_extra</code></td>
+                                        <td>String</td>
+                                        <td>''</td>
+                                        <td>{{ _('额外的CSS类名') }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 文件预览模态框 -->
+{{ render_file_preview_modal() }}
+
+<script src="{{ url_for('static', filename='js/file-preview.js') }}"></script>
+{% endblock %}

@@ -41,10 +41,12 @@ class Expense(db.Model):
     
     # 关联信息
     customer_id = Column(Integer, ForeignKey('companies.id'), nullable=False)  # 客户（必须）
+    contact_id = Column(Integer, ForeignKey('contacts.id'), nullable=False)  # 联系人（必须）
     project_id = Column(Integer, ForeignKey('projects.id'), nullable=True)  # 项目（可选）
     # 移除action_id，因为明细表中会有具体的描述
     
-    # 汇总金额（从明细表计算得出）
+    # 货币和汇总金额（从明细表计算得出）
+    currency = Column(String(10), default='CNY', nullable=False)  # 货币类型
     total_amount = Column(Float, nullable=False, default=0.0)  # 报销总金额
     
     # 审批状态
@@ -66,6 +68,7 @@ class Expense(db.Model):
     
     # 关系定义
     customer = relationship('Company', backref='expenses')
+    contact = relationship('Contact', backref='expenses')
     project = relationship('Project', backref='expenses')
     owner = relationship('User', foreign_keys=[owner_id], backref='owned_expenses')
     approver = relationship('User', foreign_keys=[approved_by])
@@ -85,11 +88,13 @@ class Expense(db.Model):
     @property
     def formatted_total_amount(self):
         """格式化总金额显示"""
-        return f'¥{self.total_amount:,.2f}'
+        from app.utils.dictionary_helpers import get_currency_symbol
+        symbol = get_currency_symbol(self.currency)
+        return f'{symbol}{self.total_amount:,.2f}'
     
     def calculate_total_amount(self):
-        """计算总金额（从明细表汇总）"""
-        total = sum(detail.amount for detail in self.details)
+        """计算总金额（从明细表汇总当前金额）"""
+        total = sum(detail.current_amount for detail in self.details)
         self.total_amount = total
         return total
     
@@ -118,7 +123,18 @@ class ExpenseDetail(db.Model):
     expense_category = Column(String(50), nullable=False)  # 报销科目
     description = Column(Text, nullable=False)  # 明细描述
     document_count = Column(Integer, default=1)  # 单据数量
-    amount = Column(Float, nullable=False)  # 金额
+    
+    # 货币和金额字段
+    currency = Column(String(10), default='CNY', nullable=False)  # 发票货币类型
+    invoice_amount = Column(Float, nullable=False, default=0.0)  # 发票金额（原始货币）
+    current_amount = Column(Float, nullable=False, default=0.0)  # 当前金额（报销单货币）
+    exchange_rate = Column(Float, default=1.0, nullable=False)  # 汇率（发票货币→报销单货币）
+    
+    # 向后兼容：保留原有的amount字段（数据库实际字段）
+    amount = Column(Float, nullable=False, default=0.0)  # 向后兼容的金额字段
+    
+    # 发票图片字段 - 支持多张图片，使用JSON数组存储
+    invoice_images = Column(Text)  # JSON格式：[{"filename": "xxx.jpg", "url": "http://...", "size": 123456}]
     
     # 明细状态
     status = Column(String(20), default='draft', nullable=False)  # draft, pending, approved, rejected
@@ -132,8 +148,19 @@ class ExpenseDetail(db.Model):
     
     @property
     def formatted_amount(self):
-        """格式化金额显示"""
-        return f'¥{self.amount:,.2f}'
+        """格式化当前金额显示（报销单货币）"""
+        if hasattr(self, 'expense') and self.expense:
+            from app.utils.dictionary_helpers import get_currency_symbol
+            symbol = get_currency_symbol(self.expense.currency)
+            return f'{symbol}{self.current_amount:,.2f}'
+        return f'¥{self.current_amount:,.2f}'
+    
+    @property
+    def formatted_invoice_amount(self):
+        """格式化发票金额显示（发票货币）"""
+        from app.utils.dictionary_helpers import get_currency_symbol
+        symbol = get_currency_symbol(self.currency)
+        return f'{symbol}{self.invoice_amount:,.2f}'
     
     @property
     def formatted_expense_date(self):
@@ -142,6 +169,99 @@ class ExpenseDetail(db.Model):
             return self.expense_date.strftime('%Y-%m-%d') if self.expense_date else ''
         except (AttributeError, ValueError):
             return ''
+    
+    @property
+    def formatted_exchange_rate(self):
+        """格式化汇率显示"""
+        if self.exchange_rate == 1.0:
+            return '1:1'
+        return f'{self.exchange_rate:.4f}'
+    
+    @property
+    def invoice_images_list(self):
+        """获取发票图片列表"""
+        import json
+        try:
+            if self.invoice_images:
+                return json.loads(self.invoice_images)
+            return []
+        except (json.JSONDecodeError, TypeError):
+            return []
+    
+    @property
+    def invoice_count(self):
+        """获取发票图片数量"""
+        return len(self.invoice_images_list)
+    
+    def add_invoice_image(self, filename, url, size):
+        """添加发票图片"""
+        import json
+        images = self.invoice_images_list
+        images.append({
+            'filename': filename,
+            'url': url,
+            'size': size,
+            'uploaded_at': get_local_time().isoformat()
+        })
+        self.invoice_images = json.dumps(images)
+    
+    def remove_invoice_image(self, index):
+        """移除指定索引的发票图片"""
+        import json
+        images = self.invoice_images_list
+        if 0 <= index < len(images):
+            images.pop(index)
+            self.invoice_images = json.dumps(images) if images else None
+    
+    def update_currency_amount(self, new_currency, new_invoice_amount=None):
+        """更新货币和金额
+        
+        Args:
+            new_currency: 新的发票货币
+            new_invoice_amount: 新的发票金额（可选）
+        """
+        if new_invoice_amount is not None:
+            self.invoice_amount = new_invoice_amount
+        
+        # 如果货币改变，需要重新计算当前金额
+        if new_currency != self.currency:
+            self.currency = new_currency
+            self._recalculate_current_amount()
+    
+    def _recalculate_current_amount(self):
+        """重新计算当前金额（发票货币转报销单货币）"""
+        if not hasattr(self, 'expense') or not self.expense:
+            # 如果没有关联的报销单，默认使用1:1汇率
+            self.current_amount = self.invoice_amount
+            self.exchange_rate = 1.0
+            return
+        
+        from_currency = self.currency
+        to_currency = self.expense.currency
+        
+        if from_currency == to_currency:
+            # 同一货币，直接使用发票金额
+            self.current_amount = self.invoice_amount
+            self.exchange_rate = 1.0
+        else:
+            # 不同货币，需要转换
+            try:
+                from app.services.exchange_rate_service import ExchangeRateService
+                exchange_service = ExchangeRateService()
+                
+                # 获取汇率并转换金额
+                rate = exchange_service.get_exchange_rate(from_currency, to_currency)
+                self.exchange_rate = rate
+                self.current_amount = self.invoice_amount * rate
+                
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"货币转换失败 {from_currency} -> {to_currency}: {e}")
+                
+                # 转换失败时使用1:1汇率
+                self.current_amount = self.invoice_amount
+                self.exchange_rate = 1.0
 
 class Department(db.Model):
     """部门模型"""

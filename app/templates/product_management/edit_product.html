@@ -161,18 +161,38 @@
                                 <div class="row mb-3">
                                     <div class="col-md-6">
                                         <label for="product_image" class="form-label">产品图片</label>
-                                        <input type="file" class="form-control" id="product_image" name="product_image" accept="image/*">
+                                        <div class="input-group">
+                                            <input type="file" class="form-control" id="product_image" name="product_image" accept="image/*">
+                                            <button type="button" class="btn btn-primary" id="upload_image_btn" disabled>
+                                                <i class="fas fa-upload"></i> 上传图片
+                                            </button>
+                                        </div>
                                         <div class="form-text">支持 PNG, JPG, JPEG, GIF 格式，图片大小不超过5MB，支持中文文件名</div>
+                                        <!-- 上传进度和状态 -->
+                                        <div id="image_upload_status" class="mt-2" style="display: none;">
+                                            <div class="d-flex align-items-center">
+                                                <div class="spinner-border spinner-border-sm me-2" role="status">
+                                                    <span class="visually-hidden">上传中...</span>
+                                                </div>
+                                                <span class="text-primary">正在上传图片...</span>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="col-md-6">
                                         {% if dev_product.image_path %}
                                         <label class="form-label">当前图片</label>
-                                        <div class="border rounded p-2 text-center">
-                                            <img src="{{ url_for('static', filename=dev_product.image_path) }}" alt="{{ dev_product.name }}" class="img-fluid" style="max-height: 150px;">
+                                        <div class="border rounded p-2 text-center" id="current_image_preview">
+                                            {% if dev_product.image_path.startswith('http') %}
+                                                <!-- Supabase云端图片 -->
+                                                <img src="{{ dev_product.image_path }}" alt="{{ dev_product.name }}" class="img-fluid" style="max-height: 150px;">
+                                            {% else %}
+                                                <!-- 本地图片 -->
+                                                <img src="{{ url_for('static', filename=dev_product.image_path) }}" alt="{{ dev_product.name }}" class="img-fluid" style="max-height: 150px;">
+                                            {% endif %}
                                         </div>
                                         {% else %}
                                         <label class="form-label">当前图片</label>
-                                        <div class="border rounded p-3 text-center text-muted">
+                                        <div class="border rounded p-3 text-center text-muted" id="current_image_preview">
                                             <i class="fas fa-image fa-3x mb-2"></i><br>
                                             无图片
                                         </div>
@@ -183,17 +203,37 @@
                                 <div class="row mb-3">
                                     <div class="col-md-6">
                                         <label for="product_pdf" class="form-label">产品PDF文件</label>
-                                        <input type="file" class="form-control" id="product_pdf" name="product_pdf" accept=".pdf">
+                                        <div class="input-group">
+                                            <input type="file" class="form-control" id="product_pdf" name="product_pdf" accept=".pdf">
+                                            <button type="button" class="btn btn-danger" id="upload_pdf_btn" disabled>
+                                                <i class="fas fa-upload"></i> 上传PDF
+                                            </button>
+                                        </div>
                                         <div class="form-text">支持 PDF 格式，文件大小不超过12MB，文件名必须是英文字符</div>
+                                        <!-- 上传进度和状态 -->
+                                        <div id="pdf_upload_status" class="mt-2" style="display: none;">
+                                            <div class="d-flex align-items-center">
+                                                <div class="spinner-border spinner-border-sm me-2" role="status">
+                                                    <span class="visually-hidden">上传中...</span>
+                                                </div>
+                                                <span class="text-danger">正在上传PDF...</span>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="col-md-6">
                                         {% if dev_product.pdf_path %}
                                         <label class="form-label">当前PDF文件</label>
-                                        <div class="border rounded p-2">
+                                        <div class="border rounded p-2" id="current_pdf_preview">
                                             <div class="d-flex align-items-center">
                                                 <i class="fas fa-file-pdf text-danger fa-2x me-3"></i>
                                                 <div class="flex-grow-1">
-                                                    <div class="fw-bold">{{ dev_product.pdf_path.split('/')[-1].split('_', 1)[-1] if '_' in dev_product.pdf_path.split('/')[-1] else dev_product.pdf_path.split('/')[-1] }}</div>
+                                                    <div class="fw-bold">
+                                                        {% if dev_product.pdf_path.startswith('http') %}
+                                                            {{ dev_product.pdf_path.split('/')[-1] }}
+                                                        {% else %}
+                                                            {{ dev_product.pdf_path.split('/')[-1].split('_', 1)[-1] if '_' in dev_product.pdf_path.split('/')[-1] else dev_product.pdf_path.split('/')[-1] }}
+                                                        {% endif %}
+                                                    </div>
                                                     <small class="text-muted">PDF文档</small>
                                                 </div>
                                                 <a href="{{ url_for('product_management.download_pdf', id=dev_product.id) }}" class="btn btn-sm btn-outline-primary">
@@ -203,7 +243,7 @@
                                         </div>
                                         {% else %}
                                         <label class="form-label">当前PDF文件</label>
-                                        <div class="border rounded p-3 text-center text-muted">
+                                        <div class="border rounded p-3 text-center text-muted" id="current_pdf_preview">
                                             <i class="fas fa-file-pdf fa-3x mb-2"></i><br>
                                             无PDF文件
                                         </div>
@@ -856,30 +896,172 @@ document.addEventListener('DOMContentLoaded', function() {
         updateMNCodePreview();
     }, 500);
 
-    // 文件大小检查
-    const fileInputs = document.querySelectorAll('input[type="file"]');
-    fileInputs.forEach(input => {
-        input.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
+    // 文件选择和上传按钮控制
+    const imageInput = document.getElementById('product_image');
+    const pdfInput = document.getElementById('product_pdf');
+    const uploadImageBtn = document.getElementById('upload_image_btn');
+    const uploadPdfBtn = document.getElementById('upload_pdf_btn');
+    
+    // 图片文件选择监听
+    imageInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) {
+            uploadImageBtn.disabled = true;
+            return;
+        }
+        
+        // 图片文件检查
+        if (file.size > 5 * 1024 * 1024) { // 5MB
+            alert('图片文件大小不能超过5MB，请选择更小的文件');
+            e.target.value = '';
+            uploadImageBtn.disabled = true;
+            return;
+        }
+        
+        // 启用上传按钮
+        uploadImageBtn.disabled = false;
+    });
+    
+    // PDF文件选择监听
+    pdfInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) {
+            uploadPdfBtn.disabled = true;
+            return;
+        }
+        
+        // PDF文件检查
+        if (file.size > 12 * 1024 * 1024) { // 12MB
+            alert('PDF文件大小不能超过12MB，请选择更小的文件');
+            e.target.value = '';
+            uploadPdfBtn.disabled = true;
+            return;
+        }
+        
+        // 启用上传按钮
+        uploadPdfBtn.disabled = false;
+    });
+    
+    // 图片上传按钮点击处理
+    uploadImageBtn.addEventListener('click', function() {
+        const file = imageInput.files[0];
+        if (!file) {
+            alert('请先选择图片文件');
+            return;
+        }
+        
+        uploadFile('image', file);
+    });
+    
+    // PDF上传按钮点击处理
+    uploadPdfBtn.addEventListener('click', function() {
+        const file = pdfInput.files[0];
+        if (!file) {
+            alert('请先选择PDF文件');
+            return;
+        }
+        
+        uploadFile('pdf', file);
+    });
+    
+    // 通用文件上传函数
+    function uploadFile(type, file) {
+        const formData = new FormData();
+        formData.append('csrf_token', document.querySelector('input[name="csrf_token"]').value);
+        
+        // 包含所有当前表单字段，确保不会丢失数据
+        const form = document.getElementById('editProductForm');
+        const formElements = form.querySelectorAll('input[name], select[name], textarea[name]');
+        
+        formElements.forEach(element => {
+            if (element.type === 'file') {
+                // 跳过文件输入框，文件单独处理
+                return;
+            }
             
-            if (this.id === 'product_image') {
-                // 图片文件检查
-                if (file.size > 5 * 1024 * 1024) { // 5MB
-                    alert('图片文件大小不能超过5MB，请选择更小的文件');
-                    e.target.value = '';
-                    return;
+            if (element.type === 'checkbox' || element.type === 'radio') {
+                if (element.checked) {
+                    formData.append(element.name, element.value);
                 }
-            } else if (this.id === 'product_pdf') {
-                // PDF文件检查
-                if (file.size > 12 * 1024 * 1024) { // 12MB
-                    alert('PDF文件大小不能超过12MB，请选择更小的文件');
-                    e.target.value = '';
-                    return;
+            } else if (element.tagName === 'SELECT') {
+                if (element.selectedIndex >= 0) {
+                    formData.append(element.name, element.value);
                 }
+            } else {
+                // 普通输入框、隐藏字段等
+                formData.append(element.name, element.value);
             }
         });
-    });
+        
+        // 添加标记，表示这是文件上传操作，不需要更新MN编码
+        formData.append('no_update_mn', 'true');
+        
+        if (type === 'image') {
+            formData.append('product_image', file);
+            // 显示上传状态
+            document.getElementById('image_upload_status').style.display = 'block';
+            uploadImageBtn.disabled = true;
+        } else if (type === 'pdf') {
+            formData.append('product_pdf', file);
+            // 显示上传状态
+            document.getElementById('pdf_upload_status').style.display = 'block';
+            uploadPdfBtn.disabled = true;
+        }
+        
+        // 发送上传请求
+        fetch('{{ url_for("product_management.update_product", id=dev_product.id) }}', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+        })
+        .then(response => {
+            // 检查响应是否成功
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            // 检查响应类型
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                return response.json();
+            } else {
+                // 如果不是JSON响应，说明可能是页面重定向
+                throw new Error('服务器返回了非JSON响应，可能是页面重定向');
+            }
+        })
+        .then(data => {
+            if (data.success) {
+                // 上传成功，刷新页面显示新文件
+                alert(type === 'image' ? '图片上传成功！' : 'PDF上传成功！');
+                location.reload();
+            } else {
+                alert('上传失败：' + (data.message || '未知错误'));
+            }
+        })
+        .catch(error => {
+            console.error('上传错误:', error);
+            if (error.message.includes('非JSON响应')) {
+                alert('文件上传可能成功，正在刷新页面...');
+                location.reload();
+            } else {
+                alert('上传过程中发生错误，请重试');
+            }
+        })
+        .finally(() => {
+            // 隐藏上传状态
+            if (type === 'image') {
+                document.getElementById('image_upload_status').style.display = 'none';
+                uploadImageBtn.disabled = false;
+                imageInput.value = '';
+            } else if (type === 'pdf') {
+                document.getElementById('pdf_upload_status').style.display = 'none';
+                uploadPdfBtn.disabled = false;
+                pdfInput.value = '';
+            }
+        });
+    }
 
     // MN编码预览功能
     function updateMNCodePreview(immediate = false) {

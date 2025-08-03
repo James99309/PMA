@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel %}
 
 {% block title %}{{ '编辑' if is_edit else '新建' }}审批流程模板{% endblock %}
 
@@ -85,19 +86,34 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-4">
-  <div class="row">
-    <div class="col-12">
-      <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h5 class="card-title mb-0">
-            <i class="fas fa-tasks mr-2"></i>{{ '编辑' if is_edit else '新建' }}审批流程模板
-          </h5>
-          <a href="{{ url_for('approval_config.template_list') }}" class="btn btn-outline-secondary">
-            <i class="fas fa-arrow-left mr-1"></i> 返回列表
-          </a>
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 标准化页面头部区域：标题与操作按钮在同一行 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">
+                    <i class="fas fa-tasks me-2"></i>{{ '编辑' if is_edit else '新建' }}审批流程模板
+                </h1>
+            </div>
+            <div class="col text-end">
+                <!-- 操作按钮组 -->
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    {{ render_button(
+                        text='返回列表',
+                        href=url_for('approval_config.template_list'),
+                        color='secondary',
+                        icon='fas fa-arrow-left'
+                    ) }}
+                </div>
+            </div>
         </div>
-        <div class="card-body">
+    </div>
+
+    <!-- 页面主体内容 -->
+    <div class="row">
+        <div class="col-md-12">
+          <div class="card">
+            <div class="card-body">
           <form method="POST" action="{{ url_for('approval_config.edit_template', template_id=template.id) if is_edit else url_for('approval_config.create_template') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="row mb-3">
@@ -209,21 +225,22 @@
             </div>
             {% endif %}
             
-            <div class="row mt-4">
-              <div class="col-12">
-                <button type="submit" class="btn btn-primary">
-                  <i class="fas fa-save mr-1"></i> 保存
-                </button>
-                <a href="{{ url_for('approval_config.template_list') }}" class="btn btn-secondary ml-2">
-                  <i class="fas fa-times mr-1"></i> 取消
-                </a>
-              </div>
+            <!-- 标准化表单提交按钮 -->
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                {{ render_confirm_cancel(
+                    confirm_text='保存',
+                    cancel_text='取消',
+                    cancel_href=url_for('approval_config.template_list'),
+                    confirm_color='primary',
+                    cancel_color='secondary',
+                    confirm_type='submit'
+                ) }}
             </div>
           </form>
+            </div>
+          </div>
         </div>
-      </div>
     </div>
-  </div>
 </div>
 
 <script>
@@ -401,6 +418,120 @@
         {name: 'payment_terms', display_name: '付款条件'},
         {name: 'delivery_address', display_name: '交付地址'},
         {name: 'description', display_name: '订单说明'}
+      ];
+      
+      // 报销单字段
+      fieldOptions.expense = [
+        {name: 'expense_number', display_name: '报销单号'},
+        {name: 'submitter_id', display_name: '申请人'},
+        {name: 'submission_date', display_name: '申请日期'},
+        {name: 'total_amount', display_name: '报销总金额'},
+        {name: 'currency', display_name: '币种'},
+        {name: 'customer_id', display_name: '关联客户'},
+        {name: 'project_id', display_name: '关联项目'},
+        {name: 'contact_person', display_name: '联系人'},
+        {name: 'description', display_name: '报销说明'},
+        {name: 'expense_category', display_name: '报销科目'},
+        {name: 'expense_date', display_name: '报销日期'},
+        {name: 'document_count', display_name: '单据数量'}
+      ];
+      
+      // 结算单字段
+      fieldOptions.settlement = [
+        {name: 'settlement_number', display_name: '结算单号'},
+        {name: 'customer_id', display_name: '客户'},
+        {name: 'total_amount', display_name: '结算总金额'},
+        {name: 'currency', display_name: '币种'},
+        {name: 'settlement_date', display_name: '结算日期'},
+        {name: 'payment_terms', display_name: '付款条件'},
+        {name: 'description', display_name: '结算说明'}
+      ];
+      
+      // 批价单字段
+      fieldOptions.pricing_order = [
+        {name: 'pricing_number', display_name: '批价单号'},
+        {name: 'customer_id', display_name: '客户'},
+        {name: 'total_amount', display_name: '批价总金额'},
+        {name: 'currency', display_name: '币种'},
+        {name: 'pricing_date', display_name: '批价日期'},
+        {name: 'valid_until', display_name: '有效期至'},
+        {name: 'description', display_name: '批价说明'}
+      ];
+      
+      // 标准产品字段
+      fieldOptions.standard_product = [
+        {name: 'product_code', display_name: '产品编码'},
+        {name: 'product_name', display_name: '产品名称'},
+        {name: 'product_model', display_name: '产品型号'},
+        {name: 'product_spec', display_name: '产品规格'},
+        {name: 'product_brand', display_name: '产品品牌'},
+        {name: 'product_unit', display_name: '产品单位'},
+        {name: 'standard_price', display_name: '标准价格'},
+        {name: 'category', display_name: '产品分类'}
+      ];
+      
+      // 研发产品字段
+      fieldOptions.rd_product = [
+        {name: 'rd_code', display_name: '研发编码'},
+        {name: 'rd_name', display_name: '研发产品名称'},
+        {name: 'rd_type', display_name: '研发类型'},
+        {name: 'development_stage', display_name: '开发阶段'},
+        {name: 'estimated_cost', display_name: '预估成本'},
+        {name: 'target_price', display_name: '目标价格'},
+        {name: 'description', display_name: '产品描述'}
+      ];
+      
+      // 产品分析字段
+      fieldOptions.product_analysis = [
+        {name: 'analysis_id', display_name: '分析编号'},
+        {name: 'product_id', display_name: '关联产品'},
+        {name: 'analysis_type', display_name: '分析类型'},
+        {name: 'analysis_date', display_name: '分析日期'},
+        {name: 'cost_analysis', display_name: '成本分析'},
+        {name: 'market_analysis', display_name: '市场分析'},
+        {name: 'conclusion', display_name: '分析结论'}
+      ];
+      
+      // 库存字段
+      fieldOptions.inventory_stock = [
+        {name: 'stock_id', display_name: '库存编号'},
+        {name: 'product_id', display_name: '产品'},
+        {name: 'warehouse', display_name: '仓库'},
+        {name: 'current_quantity', display_name: '当前库存'},
+        {name: 'reserved_quantity', display_name: '预留数量'},
+        {name: 'available_quantity', display_name: '可用数量'},
+        {name: 'last_update', display_name: '最后更新时间'}
+      ];
+      
+      // 绩效目标字段
+      fieldOptions.performance_target = [
+        {name: 'target_id', display_name: '目标编号'},
+        {name: 'user_id', display_name: '目标用户'},
+        {name: 'target_type', display_name: '目标类型'},
+        {name: 'target_value', display_name: '目标值'},
+        {name: 'current_value', display_name: '当前值'},
+        {name: 'achievement_rate', display_name: '完成率'},
+        {name: 'period', display_name: '考核期间'}
+      ];
+      
+      // 用户字段
+      fieldOptions.user = [
+        {name: 'username', display_name: '用户名'},
+        {name: 'email', display_name: '邮箱'},
+        {name: 'full_name', display_name: '姓名'},
+        {name: 'phone', display_name: '电话'},
+        {name: 'department_id', display_name: '所属部门'},
+        {name: 'position', display_name: '职位'},
+        {name: 'is_active', display_name: '状态'}
+      ];
+      
+      // 部门字段
+      fieldOptions.department = [
+        {name: 'department_name', display_name: '部门名称'},
+        {name: 'department_code', display_name: '部门编码'},
+        {name: 'parent_id', display_name: '上级部门'},
+        {name: 'manager_id', display_name: '部门经理'},
+        {name: 'description', display_name: '部门描述'}
       ];
       
       // 获取当前对象类型的字段

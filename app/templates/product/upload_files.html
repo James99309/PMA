@@ -57,7 +57,20 @@
                                 <input type="file" class="form-control" id="imageFile" name="image" 
                                        accept="image/jpeg,image/jpg,image/png,image/gif">
                                 <div class="form-text">
-                                    {{ _('支持格式') }}: JPG, PNG, GIF | {{ _('文件将命名为') }}: product_{{ product_id }}.jpg
+                                    {{ _('支持格式') }}: JPG, PNG, GIF | {{ _('最大') }}: 12MB | {{ _('自动优化为') }} 1200x1200px<br>
+                                    {{ _('文件将命名为') }}: product_{{ product_id }}.jpg
+                                </div>
+                                <!-- 图片预览区域 -->
+                                <div id="imagePreviewContainer" class="mt-2" style="display: none;">
+                                    <div class="card">
+                                        <div class="card-body text-center">
+                                            <img id="imagePreview" src="" alt="{{ _('图片预览') }}" 
+                                                 class="img-fluid product-upload-preview">
+                                            <div class="mt-2">
+                                                <small id="imageInfo" class="text-muted"></small>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -127,7 +140,7 @@
                                     </div>
                                     <div class="card-body text-center">
                                         <img id="uploadedImage" src="" alt="{{ _('产品图片') }}" 
-                                             class="img-fluid mb-2" style="max-height: 200px;">
+                                             class="img-fluid mb-2 product-upload-preview">
                                         <br>
                                         <a id="imageLink" href="" target="_blank" class="btn btn-sm btn-outline-primary">
                                             <i class="fas fa-external-link-alt me-1"></i>{{ _('查看原图') }}
@@ -170,6 +183,68 @@ document.addEventListener('DOMContentLoaded', function() {
     const successDetails = document.getElementById('successDetails');
     const errorDetails = document.getElementById('errorDetails');
     const fileLinks = document.getElementById('fileLinks');
+    
+    // 文件大小限制 (12MB)
+    const MAX_FILE_SIZE = 12 * 1024 * 1024;
+    
+    // 图片文件预览
+    document.getElementById('imageFile').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        const previewContainer = document.getElementById('imagePreviewContainer');
+        const preview = document.getElementById('imagePreview');
+        const info = document.getElementById('imageInfo');
+        
+        if (file) {
+            // 验证文件大小
+            if (file.size > MAX_FILE_SIZE) {
+                alert(`{{ _("图片文件太大！最大允许 12MB，当前文件") }}: ${(file.size / (1024*1024)).toFixed(1)}MB`);
+                e.target.value = '';
+                previewContainer.style.display = 'none';
+                return;
+            }
+            
+            // 验证文件类型
+            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+            if (!allowedTypes.includes(file.type)) {
+                alert('{{ _("不支持的图片格式！请选择 JPG、PNG 或 GIF 文件") }}');
+                e.target.value = '';
+                previewContainer.style.display = 'none';
+                return;
+            }
+            
+            // 显示预览
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                preview.src = e.target.result;
+                info.textContent = `${file.name} (${(file.size / 1024).toFixed(1)}KB)`;
+                previewContainer.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        } else {
+            previewContainer.style.display = 'none';
+        }
+    });
+    
+    // PDF文件验证
+    document.getElementById('pdfFile').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        
+        if (file) {
+            // 验证文件大小
+            if (file.size > MAX_FILE_SIZE) {
+                alert(`{{ _("PDF文件太大！最大允许 12MB，当前文件") }}: ${(file.size / (1024*1024)).toFixed(1)}MB`);
+                e.target.value = '';
+                return;
+            }
+            
+            // 验证文件类型
+            if (file.type !== 'application/pdf') {
+                alert('{{ _("请选择 PDF 文件") }}');
+                e.target.value = '';
+                return;
+            }
+        }
+    });
     
     form.addEventListener('submit', function(e) {
         e.preventDefault();

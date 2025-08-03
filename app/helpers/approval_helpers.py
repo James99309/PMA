@@ -2257,7 +2257,17 @@ def get_object_types():
         ('project', '项目'),
         ('quotation', '报价单'),
         ('customer', '客户'),
-        ('purchase_order', '订单')
+        ('purchase_order', '订单'),
+        ('expense', '报销单'),
+        ('settlement', '结算单'),
+        ('pricing_order', '批价单'),
+        ('standard_product', '标准产品'),
+        ('rd_product', '研发产品'),
+        ('product_analysis', '产品分析'),
+        ('inventory_stock', '库存'),
+        ('performance_target', '绩效目标'),
+        ('user', '用户'),
+        ('department', '部门')
     ]
 
 
@@ -2276,6 +2286,16 @@ def get_object_type_display(object_type):
         'quotation': '报价单',
         'customer': '客户',
         'purchase_order': '订单',
+        'expense': '报销单',
+        'settlement': '结算单',
+        'pricing_order': '批价单',
+        'standard_product': '标准产品',
+        'rd_product': '研发产品',
+        'product_analysis': '产品分析',
+        'inventory_stock': '库存',
+        'performance_target': '绩效目标',
+        'user': '用户',
+        'department': '部门'
     }
     
     return type_map.get(object_type, object_type)
@@ -3248,6 +3268,118 @@ def get_object_field_options(object_type=None):
         ('description', '订单说明')
     ]
     
+    expense_fields = [
+        ('expense_number', '报销单号'),
+        ('submitter_id', '申请人'),
+        ('submission_date', '申请日期'),
+        ('total_amount', '报销总金额'),
+        ('currency', '币种'),
+        ('customer_id', '关联客户'),
+        ('project_id', '关联项目'),
+        ('contact_person', '联系人'),
+        ('description', '报销说明'),
+        ('expense_category', '报销科目'),
+        ('expense_date', '报销日期'),
+        ('document_count', '单据数量')
+    ]
+    
+    settlement_fields = [
+        ('settlement_number', '结算单号'),
+        ('customer_id', '客户'),
+        ('total_amount', '结算总金额'),
+        ('currency', '币种'),
+        ('settlement_date', '结算日期'),
+        ('payment_terms', '付款条件'),
+        ('description', '结算说明')
+    ]
+    
+    settlement_order_fields = [
+        ('settlement_id', '结算单'),
+        ('order_id', '订单'),
+        ('settlement_amount', '结算金额'),
+        ('settlement_ratio', '结算比例'),
+        ('remaining_amount', '剩余金额')
+    ]
+    
+    pricing_order_fields = [
+        ('pricing_number', '批价单号'),
+        ('customer_id', '客户'),
+        ('total_amount', '批价总金额'),
+        ('currency', '币种'),
+        ('pricing_date', '批价日期'),
+        ('valid_until', '有效期至'),
+        ('description', '批价说明')
+    ]
+    
+    standard_product_fields = [
+        ('product_code', '产品编码'),
+        ('product_name', '产品名称'),
+        ('product_model', '产品型号'),
+        ('product_spec', '产品规格'),
+        ('product_brand', '产品品牌'),
+        ('product_unit', '产品单位'),
+        ('standard_price', '标准价格'),
+        ('category', '产品分类')
+    ]
+    
+    rd_product_fields = [
+        ('rd_code', '研发编码'),
+        ('rd_name', '研发产品名称'),
+        ('rd_type', '研发类型'),
+        ('development_stage', '开发阶段'),
+        ('estimated_cost', '预估成本'),
+        ('target_price', '目标价格'),
+        ('description', '产品描述')
+    ]
+    
+    product_analysis_fields = [
+        ('analysis_id', '分析编号'),
+        ('product_id', '关联产品'),
+        ('analysis_type', '分析类型'),
+        ('analysis_date', '分析日期'),
+        ('cost_analysis', '成本分析'),
+        ('market_analysis', '市场分析'),
+        ('conclusion', '分析结论')
+    ]
+    
+    inventory_stock_fields = [
+        ('stock_id', '库存编号'),
+        ('product_id', '产品'),
+        ('warehouse', '仓库'),
+        ('current_quantity', '当前库存'),
+        ('reserved_quantity', '预留数量'),
+        ('available_quantity', '可用数量'),
+        ('last_update', '最后更新时间')
+    ]
+    
+    performance_target_fields = [
+        ('target_id', '目标编号'),
+        ('user_id', '目标用户'),
+        ('target_type', '目标类型'),
+        ('target_value', '目标值'),
+        ('current_value', '当前值'),
+        ('achievement_rate', '完成率'),
+        ('period', '考核期间')
+    ]
+    
+    user_fields = [
+        ('username', '用户名'),
+        ('email', '邮箱'),
+        ('full_name', '姓名'),
+        ('phone', '电话'),
+        ('department_id', '所属部门'),
+        ('position', '职位'),
+        ('is_active', '状态')
+    ]
+    
+    department_fields = [
+        ('department_name', '部门名称'),
+        ('department_code', '部门编码'),
+        ('parent_id', '上级部门'),
+        ('manager_id', '部门经理'),
+        ('description', '部门描述')
+    ]
+    
     # 根据业务对象类型返回对应的字段列表
     if object_type == 'project':
         return common_fields + project_fields
@@ -3257,9 +3389,32 @@ def get_object_field_options(object_type=None):
         return common_fields + customer_fields
     elif object_type == 'purchase_order':
         return common_fields + purchase_order_fields
+    elif object_type == 'expense':
+        return common_fields + expense_fields
+    elif object_type == 'settlement':
+        return common_fields + settlement_fields
+    elif object_type == 'pricing_order':
+        return common_fields + pricing_order_fields
+    elif object_type == 'standard_product':
+        return common_fields + standard_product_fields
+    elif object_type == 'rd_product':
+        return common_fields + rd_product_fields
+    elif object_type == 'product_analysis':
+        return common_fields + product_analysis_fields
+    elif object_type == 'inventory_stock':
+        return common_fields + inventory_stock_fields
+    elif object_type == 'performance_target':
+        return common_fields + performance_target_fields
+    elif object_type == 'user':
+        return common_fields + user_fields
+    elif object_type == 'department':
+        return common_fields + department_fields
     else:
         # 如果没有指定业务对象类型，返回所有字段
-        all_fields = set(common_fields + project_fields + quotation_fields + customer_fields + purchase_order_fields)
+        all_fields = set(common_fields + project_fields + quotation_fields + customer_fields + purchase_order_fields + 
+                        expense_fields + settlement_fields + pricing_order_fields +
+                        standard_product_fields + rd_product_fields + product_analysis_fields + inventory_stock_fields +
+                        performance_target_fields + user_fields + department_fields)
         return sorted(list(all_fields), key=lambda x: x[1])  # 按显示名称排序 
 
 

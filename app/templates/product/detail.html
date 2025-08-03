@@ -98,6 +98,97 @@
     .product-placeholder i {
         font-size: 3rem;
     }
+
+    /* PDF预览样式 */
+    .pdf-preview-container {
+        border-top: 1px solid #e7e7e7;
+        padding-top: 1rem;
+        margin-top: 1rem;
+    }
+
+    .pdf-preview-header {
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #f1f1f1;
+    }
+
+    .pdf-preview-content {
+        position: relative;
+    }
+
+    .pdf-preview-canvas-container {
+        position: relative;
+        display: inline-block;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        background: white;
+    }
+
+    .pdf-preview-canvas {
+        display: block;
+        max-width: 100%;
+        height: auto;
+    }
+
+    .pdf-preview-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        cursor: pointer;
+    }
+
+    .pdf-preview-canvas-container:hover .pdf-preview-overlay {
+        opacity: 1;
+    }
+
+    .pdf-preview-overlay-content {
+        color: white;
+        text-align: center;
+        padding: 1rem;
+    }
+
+    .pdf-preview-overlay-content i {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+
+    .pdf-loading {
+        background: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #e7e7e7;
+    }
+
+    .pdf-error {
+        background: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #e7e7e7;
+    }
+
+    /* 移动端响应式调整 */
+    @media (max-width: 768px) {
+        .pdf-preview-canvas {
+            max-width: 100%;
+        }
+        
+        .pdf-preview-overlay-content {
+            padding: 0.5rem;
+        }
+        
+        .pdf-preview-overlay-content i {
+            font-size: 1.5rem;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -135,9 +226,17 @@
                         <div class="col-md-4">
                             <div class="product-image-container">
                                 {% if product.image_path %}
-                                <img src="{{ url_for('static', filename='uploads/products/' + product.image_path) }}"
-                                     alt="{{ product.product_name }}"
-                                     class="product-image">
+                                    {% if product.image_path.startswith('http') %}
+                                        <!-- Supabase云端图片 -->
+                                        <img src="{{ product.image_path }}"
+                                             alt="{{ product.product_name }}"
+                                             class="product-image">
+                                    {% else %}
+                                        <!-- 本地图片 -->
+                                        <img src="{{ url_for('static', filename='uploads/products/' + product.image_path) }}"
+                                             alt="{{ product.product_name }}"
+                                             class="product-image">
+                                    {% endif %}
                                 {% else %}
                                 <div class="product-placeholder">
                                     <i class="fas fa-box"></i>
@@ -216,7 +315,7 @@
                         </div>
                     </div>
 
-                    <!-- PDF文件下载部分 -->
+                    <!-- PDF文件预览和下载部分 -->
                     {% if product.pdf_path %}
                     <div class="row mt-4">
                         <div class="col-md-12">
@@ -224,16 +323,49 @@
                                 <div class="property-label">{{ _('产品文档') }}</div>
                                 <div class="card">
                                     <div class="card-body">
-                                        <div class="d-flex align-items-center">
+                                        <div class="d-flex align-items-center mb-3">
                                             <i class="fas fa-file-pdf text-danger fa-3x me-3"></i>
                                             <div class="flex-grow-1">
                                                 <h6 class="mb-1">{{ product.pdf_path.split('/')[-1].split('_', 1)[-1] if '_' in product.pdf_path.split('/')[-1] else product.pdf_path.split('/')[-1] }}</h6>
                                                 <small class="text-muted">{{ _('PDF文档') }}</small>
                                             </div>
-                                            <a href="{{ url_for('product_route.download_pdf', id=product.id) }}" 
-                                               class="btn btn-outline-primary" target="_blank">
-                                                <i class="fas fa-download"></i> {{ _('下载') }}
-                                            </a>
+                                            <div>
+                                                {{ render_button(_('下载'), href=url_for('product_route.download_pdf', id=product.id), color='primary', icon='fas fa-download', attrs='target="_blank"') }}
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- PDF预览区域 -->
+                                        <div id="pdfPreviewContainer" class="pdf-preview-container">
+                                            <div class="pdf-preview-header">
+                                                <span class="text-muted">{{ _('PDF封面预览') }}</span>
+                                                <small class="ms-2 text-info">{{ _('点击预览图可在新窗口查看完整PDF') }}</small>
+                                            </div>
+                                            <div class="pdf-preview-content">
+                                                <div class="pdf-loading" id="pdfLoading">
+                                                    <div class="d-flex justify-content-center align-items-center" style="height: 200px;">
+                                                        <div class="spinner-border text-primary" role="status">
+                                                            <span class="visually-hidden">{{ _('加载中...') }}</span>
+                                                        </div>
+                                                        <span class="ms-2">{{ _('加载PDF预览中...') }}</span>
+                                                    </div>
+                                                </div>
+                                                <div class="pdf-preview-canvas-container" id="pdfCanvasContainer" style="display: none;">
+                                                    <canvas id="pdfCanvas" class="pdf-preview-canvas"></canvas>
+                                                    <div class="pdf-preview-overlay" onclick="openPdfInNewWindow()">
+                                                        <div class="pdf-preview-overlay-content">
+                                                            <i class="fas fa-external-link-alt"></i>
+                                                            <span>{{ _('点击在新窗口查看') }}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="pdf-error" id="pdfError" style="display: none;">
+                                                    <div class="text-center text-muted py-4">
+                                                        <i class="fas fa-exclamation-triangle text-warning fa-2x mb-2"></i>
+                                                        <div>{{ _('PDF预览加载失败') }}</div>
+                                                        <small>{{ _('请尝试直接下载文件查看') }}</small>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -246,4 +378,140 @@
         </div>
     </div>
 </div>
+
+<!-- PDF.js 库 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+<script>
+// PDF预览相关全局变量
+let currentPdfUrl = null;
+
+// 配置PDF.js worker
+if (typeof pdfjsLib !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+/**
+ * 加载PDF预览
+ */
+function loadPdfPreview() {
+    // 构建PDF URL
+    const pdfUrl = '{{ url_for("product_route.download_pdf", id=product.id) if product.pdf_path else "" }}';
+    
+    if (!pdfUrl) {
+        showPdfError();
+        return;
+    }
+    
+    currentPdfUrl = pdfUrl;
+    
+    // 显示加载状态
+    showPdfLoading();
+    
+    // 加载PDF
+    pdfjsLib.getDocument(pdfUrl).promise.then(function(pdf) {
+        console.log('PDF加载成功，页数:', pdf.numPages);
+        
+        // 获取第一页
+        return pdf.getPage(1);
+    }).then(function(page) {
+        console.log('获取第一页成功');
+        
+        // 渲染页面
+        renderPdfPage(page);
+    }).catch(function(error) {
+        console.error('PDF加载失败:', error);
+        showPdfError();
+    });
+}
+
+/**
+ * 渲染PDF页面到Canvas
+ */
+function renderPdfPage(page) {
+    const canvas = document.getElementById('pdfCanvas');
+    const context = canvas.getContext('2d');
+    
+    // 设置渲染参数
+    const viewport = page.getViewport({ scale: 1.0 });
+    
+    // 计算合适的缩放比例（限制最大宽度）
+    const maxWidth = 600;
+    const scale = Math.min(maxWidth / viewport.width, 1.5);
+    const scaledViewport = page.getViewport({ scale: scale });
+    
+    // 设置canvas尺寸
+    canvas.height = scaledViewport.height;
+    canvas.width = scaledViewport.width;
+    
+    // 渲染参数
+    const renderContext = {
+        canvasContext: context,
+        viewport: scaledViewport
+    };
+    
+    // 渲染页面
+    page.render(renderContext).promise.then(function() {
+        console.log('PDF第一页渲染完成');
+        showPdfCanvas();
+    }).catch(function(error) {
+        console.error('PDF渲染失败:', error);
+        showPdfError();
+    });
+}
+
+/**
+ * 显示加载状态
+ */
+function showPdfLoading() {
+    document.getElementById('pdfLoading').style.display = 'block';
+    document.getElementById('pdfCanvasContainer').style.display = 'none';
+    document.getElementById('pdfError').style.display = 'none';
+}
+
+/**
+ * 显示PDF Canvas
+ */
+function showPdfCanvas() {
+    document.getElementById('pdfLoading').style.display = 'none';
+    document.getElementById('pdfCanvasContainer').style.display = 'inline-block';
+    document.getElementById('pdfError').style.display = 'none';
+}
+
+/**
+ * 显示错误状态
+ */
+function showPdfError() {
+    document.getElementById('pdfLoading').style.display = 'none';
+    document.getElementById('pdfCanvasContainer').style.display = 'none';
+    document.getElementById('pdfError').style.display = 'block';
+}
+
+/**
+ * 在新窗口打开PDF
+ */
+function openPdfInNewWindow() {
+    if (currentPdfUrl) {
+        window.open(currentPdfUrl, '_blank');
+    } else {
+        // 如果没有加载过，使用下载链接
+        const pdfUrl = '{{ url_for("product_route.download_pdf", id=product.id) if product.pdf_path else "" }}';
+        if (pdfUrl) {
+            window.open(pdfUrl, '_blank');
+        }
+    }
+}
+
+// 页面加载完成后的初始化
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('产品详情页面PDF预览功能已初始化');
+    
+    // 检查是否有PDF文件，如果有则自动开始加载预览
+    const pdfContainer = document.getElementById('pdfPreviewContainer');
+    if (pdfContainer) {
+        loadPdfPreview();
+    }
+});
+</script>
+
 {% endblock %}

@@ -1220,6 +1220,386 @@ input[type="number"].discount-rate:hover {
     flex-shrink: 0;
 }
 
+/* 产品上传页面图片预览样式 */
+.product-upload-preview {
+    max-width: 100%;
+    max-height: 300px;
+    object-fit: contain;  /* 保持宽高比，完整显示 */
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    background-color: #f8f9fa;  /* 浅色背景 */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* 图片预览容器 */
+#imagePreviewContainer .card {
+    border: 2px dashed #ccc;
+    background-color: #fafafa;
+}
+
+#imagePreviewContainer .card-body {
+    padding: 1rem;
+}
+
+/* 响应式图片显示 */
+@media (max-width: 768px) {
+    .product-upload-preview {
+        max-height: 250px;
+    }
+}
+
+/* ===============================================
+   通用文件预览组件样式
+   =============================================== */
+
+/* 预览容器基础样式 */
+.file-preview-container {
+    position: relative;
+    display: inline-block;
+    border-radius: 6px;
+    overflow: hidden;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    transition: all 0.2s ease;
+}
+
+.file-preview-container:hover {
+    border-color: #007bff;
+    box-shadow: 0 2px 8px rgba(0,123,255,0.15);
+}
+
+/* 预览大小变体 */
+.file-preview-small {
+    width: 60px;
+    height: 60px;
+}
+
+.file-preview-medium {
+    width: 120px;
+    height: 120px;
+}
+
+.file-preview-large {
+    width: 200px;
+    height: 200px;
+}
+
+/* 图片预览样式 */
+.image-preview-wrapper {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.file-preview-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* PDF预览样式 */
+.pdf-preview-wrapper {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.pdf-preview-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: #ffffff;
+}
+
+.pdf-preview-canvas {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.pdf-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    color: #6c757d;
+}
+
+.pdf-fallback {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    color: #dc3545;
+}
+
+/* 未知文件类型样式 */
+.unknown-file-preview {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    color: #6c757d;
+}
+
+/* 预览覆盖层和控制按钮 */
+.preview-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.file-preview-container:hover .preview-overlay {
+    opacity: 1;
+}
+
+.preview-controls {
+    display: flex;
+    gap: 4px;
+}
+
+.preview-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+/* 错误状态 */
+.file-preview-container.preview-error .image-preview-wrapper,
+.file-preview-container.preview-error .pdf-preview-wrapper {
+    display: none;
+}
+
+.preview-error-state {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    color: #ffc107;
+}
+
+.file-preview-container.preview-error .preview-error-state {
+    display: flex !important;
+}
+
+/* 模态框中的文件预览 */
+.modal-body .file-preview-image {
+    max-width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+}
+
+.modal-body .pdf-preview-canvas {
+    max-width: 100%;
+    max-height: 70vh;
+}
+
+/* 小尺寸预览的特殊样式 */
+.file-preview-small .preview-controls {
+    flex-direction: column;
+    gap: 2px;
+}
+
+.file-preview-small .preview-btn {
+    width: 24px;
+    height: 24px;
+    font-size: 10px;
+}
+
+.file-preview-small .pdf-loading {
+    font-size: 0.6rem;
+}
+
+.file-preview-small .pdf-fallback {
+    font-size: 0.6rem;
+}
+
+.file-preview-small .pdf-fallback i {
+    font-size: 1.2rem !important;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .file-preview-medium {
+        width: 100px;
+        height: 100px;
+    }
+    
+    .file-preview-large {
+        width: 150px;
+        height: 150px;
+    }
+}
+
+/* ===============================================
+   产品列表悬停预览样式
+   =============================================== */
+
+/* 产品名称单元格 */
+.product-name-cell {
+    position: relative;
+}
+
+.product-name-container {
+    cursor: pointer;
+}
+
+.product-name-container[data-image-url]:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+    border-radius: 4px;
+    padding: 2px 4px;
+}
+
+.product-name-link {
+    font-weight: 600;
+    text-decoration: none;
+    color: #007bff;
+}
+
+.product-name-link:hover {
+    text-decoration: underline;
+    color: #0056b3;
+}
+
+/* 文件图标提示 */
+.product-name-link i {
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+
+/* 悬停预览容器 */
+.hover-preview-container {
+    position: fixed;
+    z-index: 9999;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    min-width: 200px;
+    max-width: 420px;
+    max-height: 480px;
+    width: auto;
+    height: auto;
+    animation: fadeInUp 0.2s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 预览内容区域 */
+.hover-preview-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.hover-preview-header {
+    padding: 8px 12px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    text-align: center;
+}
+
+.hover-preview-title {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #495057;
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+
+.hover-preview-body {
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    background-color: #f8f9fa;
+    min-height: 200px;
+}
+
+.hover-preview-img {
+    width: auto;
+    height: auto;
+    max-width: 350px;
+    max-height: 350px;
+    object-fit: scale-down;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    display: block;
+}
+
+.hover-preview-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #6c757d;
+    font-size: 0.8rem;
+}
+
+.hover-preview-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #ffc107;
+    font-size: 0.8rem;
+}
+
+
+/* 移动端响应式调整 */
+@media (max-width: 768px) {
+    .hover-preview-container {
+        max-width: 300px;
+        max-height: 400px;
+    }
+    
+    .hover-preview-body {
+        min-height: 150px;
+    }
+    
+    .hover-preview-img {
+        max-height: 200px;
+    }
+}
+
 .product-info {
     flex: 1;
     min-width: 0;

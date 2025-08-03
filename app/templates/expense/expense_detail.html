@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_expense_status_badge, render_expense_category_badge, render_button, render_expense_number, render_data_table, render_expense_lock_status_badge %}
+{% from 'macros/ui_helpers.html' import render_expense_status_badge, render_expense_category_badge, render_button, render_expense_number, render_data_table, render_expense_lock_status_badge, render_expense_invoice_images, render_currency_badge %}
 {% from 'macros/expense_detail_manager.html' import render_expense_detail_table %}
 
 {% block title %}报销单详情 - {{ expense.expense_number }}{% endblock %}
@@ -90,7 +90,16 @@
                                 <table class="table table-bordered">
                                     <tr>
                                         <th class="bg-light" style="width: 30%">{{ _('报销总金额') }}</th>
-                                        <td>{{ expense.formatted_total_amount }}</td>
+                                        <td>
+                                            <span class="fw-bold text-primary">{{ expense.formatted_total_amount }}</span>
+                                            <small class="text-muted ms-2">({{ expense.currency }})</small>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th class="bg-light">{{ _('货币类型') }}</th>
+                                        <td>
+                                            {{ render_currency_badge(expense.currency) }}
+                                        </td>
                                     </tr>
                                     <tr>
                                         <th class="bg-light">{{ _('状态') }}</th>
@@ -130,7 +139,6 @@
         {% set table_config = {
             'title': '报销明细',
             'icon': 'fas fa-list',
-            'badge_text': expense.detail_count ~ ' 条明细',
             'show_header': true,
             'columns': [
                 {
@@ -149,7 +157,8 @@
                 {
                     'key': 'description',
                     'label': '费用描述',
-                    'type': 'text'
+                    'type': 'text',
+                    'width': '200px'
                 },
                 {
                     'key': 'document_count',
@@ -159,11 +168,36 @@
                     'width': '80px'
                 },
                 {
-                    'key': 'formatted_amount',
-                    'label': '金额(元)',
+                    'key': 'formatted_invoice_amount',
+                    'label': '发票金额',
                     'type': 'text',
                     'align': 'end',
-                    'width': '120px'
+                    'width': '120px',
+                    'description': '原始发票货币金额'
+                },
+                {
+                    'key': 'formatted_exchange_rate',
+                    'label': '汇率',
+                    'type': 'text',
+                    'align': 'center',
+                    'width': '80px',
+                    'description': '发票货币→报销单货币的汇率'
+                },
+                {
+                    'key': 'formatted_amount',
+                    'label': '报销金额',
+                    'type': 'text',
+                    'align': 'end',
+                    'width': '120px',
+                    'description': '转换为报销单货币后的金额'
+                },
+                {
+                    'key': 'invoice_images',
+                    'label': '发票',
+                    'type': 'custom',
+                    'render': 'render_expense_invoice_images',
+                    'align': 'center',
+                    'width': '150px'
                 }
             ]
         } %}
@@ -285,6 +319,65 @@ document.addEventListener('DOMContentLoaded', function() {
         element.innerHTML = element.textContent.replace(/\n/g, '<br>');
     });
 });
+
+// 发票图片预览功能
+function previewInvoiceImage(imagePath, filename) {
+    console.log('预览发票:', imagePath, filename);
+    
+    if (!imagePath || imagePath === 'undefined') {
+        alert('发票图片不存在或已损坏');
+        return;
+    }
+
+    // 创建模态框
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.id = 'invoicePreviewModal';
+    modal.innerHTML = `
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">发票预览</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="badge bg-primary">${filename || '发票图片'}</span>
+                        <a href="${imagePath}" download="${filename}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-download"></i> 下载
+                        </a>
+                    </div>
+                    <div class="invoice-preview-container" style="max-height: 70vh; overflow: auto;">
+                        <img src="${imagePath}" 
+                             alt="${filename}" 
+                             class="img-fluid" 
+                             style="max-width: 100%; height: auto;"
+                             onerror="this.parentElement.innerHTML='<div class=&quot;text-danger&quot;><i class=&quot;fas fa-exclamation-triangle&quot;></i><br>图片加载失败</div>'">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // 移除已存在的模态框
+    const existingModal = document.getElementById('invoicePreviewModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    // 添加到页面并显示
+    document.body.appendChild(modal);
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+
+    // 模态框关闭后移除DOM元素
+    modal.addEventListener('hidden.bs.modal', function() {
+        modal.remove();
+    });
+}
 </script>
 
 <style>
@@ -349,6 +442,27 @@ document.addEventListener('DOMContentLoaded', function() {
     color: white;
     font-weight: 500;
     padding: 0.35rem 0.75rem;
+}
+
+/* 金额显示样式优化 */
+.table th:has-text('发票金额'),
+.table th:has-text('报销金额') {
+    background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+    font-weight: 600;
+}
+
+/* 汇总卡片样式 */
+.card.border-primary .table-primary th {
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    color: white;
+    text-align: center;
+    font-weight: 600;
+}
+
+/* 货币徽章样式 */
+.badge.bg-secondary {
+    font-size: 0.875rem;
+    padding: 0.4rem 0.6rem;
 }
 </style>
 {% endblock %}

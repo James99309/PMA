@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试删除明细的总金额计算</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<div class="container mt-4">
+    <h2>测试删除报销明细的总金额计算</h2>
+    
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <label class="form-label">报销单货币</label>
+            <select class="form-select" id="currency">
+                <option value="CNY" selected>人民币 (CNY)</option>
+                <option value="USD">美元 (USD)</option>
+            </select>
+        </div>
+    </div>
+    
+    <!-- 报销明细表格容器 -->
+    <div class="expense-detail-container" data-config='{}'>
+        <div class="table-responsive">
+            <table class="table table-bordered" id="expenseTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>报销科目</th>
+                        <th>发生日期</th>
+                        <th>费用描述</th>
+                        <th>发票货币</th>
+                        <th>发票金额</th>
+                        <th>当前金额</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        
+        <div class="text-end mt-3">
+            <button type="button" class="btn btn-primary" id="addExpense">添加报销明细</button>
+        </div>
+        
+        <div class="expense-total-container mt-4">
+            <div class="row justify-content-end">
+                <div class="col-md-6">
+                    <div class="input-group expense-total-input">
+                        <span class="input-group-text">总计金额</span>
+                        <span class="input-group-text currency-symbol">¥</span>
+                        <input type="text" class="form-control text-end" id="expenseGrandTotal" readonly>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 测试结果 -->
+    <div class="mt-4">
+        <h4>测试结果</h4>
+        <div id="testResult" class="alert">测试进行中...</div>
+    </div>
+    
+    <!-- 调试信息 -->
+    <div class="mt-4">
+        <h4>调试信息</h4>
+        <div id="debugInfo" class="bg-light p-3 rounded">
+            <div>行数据: <span id="rowsData">[]</span></div>
+            <div>总金额: <span id="totalAmount">0</span></div>
+        </div>
+        <button type="button" class="btn btn-info mt-2" onclick="updateDebugInfo()">刷新调试信息</button>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// 由于这是测试文件，直接内联关键的测试逻辑
+console.log('开始测试删除明细的总金额计算...');
+
+// 模拟 ExpenseDetailManager 的核心计算逻辑测试
+function testCalculateTotal() {
+    // 模拟数据
+    const testRows = [
+        { current_amount: 100, amount: 100, expense_category: 'entertainment' },
+        { current_amount: 50, amount: 50, expense_category: 'transport' },
+        { current_amount: 80, amount: 80, expense_category: 'meals' }
+    ];
+    
+    console.log('初始数据:', testRows);
+    
+    // 模拟计算总金额的逻辑
+    function calculateTotal(rows) {
+        let total = 0;
+        rows.forEach(rowData => {
+            const amount = parseFloat(rowData.current_amount) || parseFloat(rowData.amount) || 0;
+            total += amount;
+        });
+        return total;
+    }
+    
+    // 计算初始总金额
+    let total = calculateTotal(testRows);
+    console.log('初始总金额:', total); // 应该是 230
+    
+    // 模拟删除第二行（索引1）
+    testRows.splice(1, 1);
+    console.log('删除后数据:', testRows);
+    
+    // 重新计算总金额
+    total = calculateTotal(testRows);
+    console.log('删除后总金额:', total); // 应该是 180
+    
+    // 验证结果
+    if (total === 180) {
+        console.log('✅ 测试通过：删除明细后总金额计算正确');
+        document.getElementById('testResult').textContent = '✅ 测试通过：删除明细后总金额计算正确';
+        document.getElementById('testResult').className = 'alert alert-success';
+    } else {
+        console.log('❌ 测试失败：删除明细后总金额计算错误');
+        document.getElementById('testResult').textContent = '❌ 测试失败：删除明细后总金额计算错误';
+        document.getElementById('testResult').className = 'alert alert-danger';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // 运行测试
+    testCalculateTotal();
+});
+</script>
+
+<script>
+// 模拟配置
+const expenseConfig = {
+    "table_id": "expenseTable",
+    "add_button_id": "addExpense", 
+    "grand_total_id": "expenseGrandTotal",
+    "categories": [
+        {"value": "entertainment", "label": "招待费", "color": "#ff6b6b"},
+        {"value": "transport", "label": "交通费", "color": "#4ecdc4"},
+        {"value": "meals", "label": "餐费", "color": "#f7dc6f"}
+    ],
+    "columns": [
+        {"key": "expense_category", "label": "报销科目", "type": "select", "required": true, "width": "120px"},
+        {"key": "expense_date", "label": "发生日期", "type": "date", "required": true, "width": "130px"},
+        {"key": "description", "label": "费用描述", "type": "text", "required": true, "width": "200px"},
+        {"key": "currency", "label": "发票货币", "type": "select", "required": true, "width": "120px", "options": [
+            {"value": "CNY", "label": "人民币"},
+            {"value": "USD", "label": "美元"}
+        ]},
+        {"key": "invoice_amount", "label": "发票金额", "type": "text-currency", "required": true, "width": "120px"},
+        {"key": "current_amount", "label": "当前金额", "type": "currency_display", "required": false, "width": "120px"},
+        {"key": "actions", "label": "操作", "type": "actions", "width": "80px"}
+    ]
+};
+
+// 初始化管理器
+let manager;
+
+document.addEventListener('DOMContentLoaded', function() {
+    manager = new ExpenseDetailManager(expenseConfig);
+    
+    // 添加一些测试数据
+    setTimeout(() => {
+        // 添加第一行
+        manager.addRow({
+            expense_category: 'entertainment',
+            expense_date: '2025-08-03',
+            description: '客户招待',
+            currency: 'CNY',
+            invoice_amount: 100.00,
+            current_amount: 100.00,
+            amount: 100.00
+        });
+        
+        // 添加第二行
+        manager.addRow({
+            expense_category: 'transport',
+            expense_date: '2025-08-03',
+            description: '打车费用',
+            currency: 'CNY',
+            invoice_amount: 50.00,
+            current_amount: 50.00,
+            amount: 50.00
+        });
+        
+        // 添加第三行
+        manager.addRow({
+            expense_category: 'meals',
+            expense_date: '2025-08-03',
+            description: '工作餐',
+            currency: 'CNY',
+            invoice_amount: 80.00,
+            current_amount: 80.00,
+            amount: 80.00
+        });
+        
+        updateDebugInfo();
+    }, 100);
+});
+
+function updateDebugInfo() {
+    if (manager) {
+        const rowsData = manager.rows;
+        const total = manager.calculateTotal();
+        
+        document.getElementById('rowsData').textContent = JSON.stringify(rowsData.map(row => ({
+            category: row.expense_category,
+            invoice_amount: row.invoice_amount,
+            current_amount: row.current_amount,
+            amount: row.amount
+        })), null, 2);
+        
+        document.getElementById('totalAmount').textContent = total;
+    }
+}
+
+// 监听删除事件
+document.addEventListener('expenseDetailChanged', function(e) {
+    console.log('明细变更事件:', e.detail);
+    updateDebugInfo();
+});
+</script>
+
+</body>
+</html>

@@ -1187,4 +1187,47 @@ def search_project_names():
         
     except Exception as e:
         print(f"搜索项目名称失败: {e}")
-        return jsonify({'error': '搜索失败'}), 500 
+        return jsonify({'error': '搜索失败'}), 500
+
+@api_bp.route('/customers/<int:customer_id>/contacts', methods=['GET'])
+@login_required
+def get_customer_contacts(customer_id):
+    """获取指定客户的联系人列表"""
+    try:
+        # 验证客户是否存在
+        from app.models.customer import Company
+        customer = Company.query.get(customer_id)
+        if not customer:
+            return jsonify({
+                'success': False,
+                'message': '客户不存在'
+            }), 404
+        
+        # 获取该客户的所有联系人
+        from app.models.customer import Contact
+        contacts = Contact.query.filter_by(
+            company_id=customer_id
+        ).order_by(Contact.name).all()
+        
+        # 格式化联系人数据
+        contacts_data = []
+        for contact in contacts:
+            contacts_data.append({
+                'id': contact.id,
+                'name': contact.name,
+                'position': contact.position,
+                'phone': contact.phone,
+                'email': contact.email
+            })
+        
+        return jsonify({
+            'success': True,
+            'contacts': contacts_data
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"获取客户联系人失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'获取联系人失败: {str(e)}'
+        }), 500 

@@ -1286,6 +1286,7 @@ def get_default_modules():
         {"id": "inventory", "name": "库存管理", "description": "管理库存信息和出入库"},
         {"id": "settlement", "name": "结算管理", "description": "管理结算单和结算记录"},
         {"id": "order", "name": "订单管理", "description": "管理采购订单和销售订单"},
+        {"id": "expense", "name": "报销管理", "description": "管理报销单的查看、创建、编辑、删除和审批权限"},
         {"id": "pricing_order", "name": "批价单管理", "description": "管理批价单的查看、创建、编辑权限", "supports_discount_limits": True},
         {"id": "settlement_order", "name": "结算单管理", "description": "管理结算单的查看、创建、编辑权限", "supports_discount_limits": True},
         {"id": "user_management", "name": "账户列表", "description": "管理系统用户账户"},

@@ -1,0 +1,145 @@
+{% macro render_file_preview(file_url, file_type='auto', size='small', alt_text='', show_controls=True, class_extra='') %}
+{#
+通用文件预览组件
+参数:
+- file_url: 文件URL (必需)
+- file_type: 文件类型 ('image', 'pdf', 'auto') 默认auto自动检测
+- size: 预览大小 ('small', 'medium', 'large') 默认small
+- alt_text: 图片alt文本
+- show_controls: 是否显示控制按钮 (查看原图/下载)
+- class_extra: 额外的CSS类名
+#}
+
+{% if file_url %}
+    {% set detected_type = file_type %}
+    {% if file_type == 'auto' %}
+        {% if file_url.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')) %}
+            {% set detected_type = 'image' %}
+        {% elif file_url.lower().endswith('.pdf') %}
+            {% set detected_type = 'pdf' %}
+        {% else %}
+            {% set detected_type = 'unknown' %}
+        {% endif %}
+    {% endif %}
+
+    {% set size_classes = {
+        'small': 'file-preview-small',
+        'medium': 'file-preview-medium', 
+        'large': 'file-preview-large'
+    } %}
+    
+    <div class="file-preview-container {{ size_classes.get(size, 'file-preview-small') }} {{ class_extra }}" 
+         data-file-url="{{ file_url }}" 
+         data-file-type="{{ detected_type }}">
+        
+        {% if detected_type == 'image' %}
+            <!-- 图片预览 -->
+            <div class="image-preview-wrapper">
+                <img src="{{ file_url }}" 
+                     alt="{{ alt_text or _('预览图片') }}" 
+                     class="file-preview-image"
+                     loading="lazy"
+                     onerror="this.parentElement.parentElement.classList.add('preview-error')">
+                
+                {% if show_controls %}
+                    <div class="preview-overlay">
+                        <div class="preview-controls">
+                            <button type="button" 
+                                    class="btn btn-sm btn-light preview-btn" 
+                                    onclick="openFileModal('{{ file_url }}', 'image')"
+                                    title="{{ _('查看原图') }}">
+                                <i class="fas fa-search-plus"></i>
+                            </button>
+                            <a href="{{ file_url }}" 
+                               target="_blank" 
+                               class="btn btn-sm btn-light preview-btn"
+                               title="{{ _('在新窗口打开') }}">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+            
+        {% elif detected_type == 'pdf' %}
+            <!-- PDF预览 -->
+            <div class="pdf-preview-wrapper">
+                <div class="pdf-preview-container">
+                    <!-- PDF首页预览将通过JavaScript加载 -->
+                    <div class="pdf-loading">
+                        <div class="spinner-border spinner-border-sm" role="status">
+                            <span class="visually-hidden">{{ _('加载中...') }}</span>
+                        </div>
+                        <div class="mt-1">{{ _('加载PDF预览...') }}</div>
+                    </div>
+                    
+                    <canvas class="pdf-preview-canvas" style="display: none;"></canvas>
+                    
+                    <!-- PDF图标（加载失败时显示） -->
+                    <div class="pdf-fallback" style="display: none;">
+                        <i class="fas fa-file-pdf fa-2x text-danger"></i>
+                        <div class="mt-1">PDF</div>
+                    </div>
+                </div>
+                
+                {% if show_controls %}
+                    <div class="preview-overlay">
+                        <div class="preview-controls">
+                            <button type="button" 
+                                    class="btn btn-sm btn-light preview-btn" 
+                                    onclick="openFileModal('{{ file_url }}', 'pdf')"
+                                    title="{{ _('预览PDF') }}">
+                                <i class="fas fa-search-plus"></i>
+                            </button>
+                            <a href="{{ file_url }}" 
+                               target="_blank" 
+                               class="btn btn-sm btn-light preview-btn"
+                               title="{{ _('下载PDF') }}">
+                                <i class="fas fa-download"></i>
+                            </a>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+            
+        {% else %}
+            <!-- 未知文件类型 -->
+            <div class="unknown-file-preview">
+                <i class="fas fa-file fa-2x text-muted"></i>
+                <div class="mt-1">{{ _('不支持预览') }}</div>
+            </div>
+        {% endif %}
+        
+        <!-- 错误状态 -->
+        <div class="preview-error-state" style="display: none;">
+            <i class="fas fa-exclamation-triangle fa-2x text-warning"></i>
+            <div class="mt-1">{{ _('加载失败') }}</div>
+        </div>
+    </div>
+{% endif %}
+{% endmacro %}
+
+{% macro render_file_preview_modal() %}
+{# 文件预览模态框 - 需要在页面中调用一次 #}
+<div class="modal fade" id="filePreviewModal" tabindex="-1" aria-labelledby="filePreviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="filePreviewModalLabel">{{ _('文件预览') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('关闭') }}"></button>
+            </div>
+            <div class="modal-body text-center">
+                <div id="modalFileContent">
+                    <!-- 内容将通过JavaScript动态加载 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a id="modalDownloadBtn" href="#" target="_blank" class="btn btn-primary">
+                    <i class="fas fa-download me-1"></i>{{ _('下载文件') }}
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('关闭') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}

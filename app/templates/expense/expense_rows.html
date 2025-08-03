@@ -6,7 +6,13 @@
     <td>{{ expense.customer_name }}</td>
     <td>{{ expense.project_name }}</td>
     <td>{{ expense.detail_count }}</td>
-    <td class="text-end">¥{{ "%.2f"|format(expense.total_amount) }}</td>
+    <td class="text-end">
+        {% if expense.currency %}
+            {% if expense.currency == 'USD' %}${% elif expense.currency == 'SGD' %}S${% elif expense.currency == 'MYR' %}RM{% elif expense.currency == 'IDR' %}Rp{% elif expense.currency == 'THB' %}฿{% else %}¥{% endif %}{{ "%.2f"|format(expense.total_amount) }}
+        {% else %}
+            ¥{{ "%.2f"|format(expense.total_amount) }}
+        {% endif %}
+    </td>
     <td class="text-start">{{ render_expense_status_badge(expense.status) }}</td>
     <td class="text-start">
         {% if expense.owner %}

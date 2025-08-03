@@ -1,0 +1,23 @@
+{% macro render_hover_preview_container() %}
+{# 悬停图片预览容器 - 需要在页面中调用一次 #}
+<div id="hoverPreviewContainer" class="hover-preview-container" style="display: none;">
+    <div class="hover-preview-content">
+        <div class="hover-preview-header">
+            <span class="hover-preview-title"></span>
+        </div>
+        <div class="hover-preview-body">
+            <img id="hoverPreviewImage" src="" alt="" class="hover-preview-img">
+            <div class="hover-preview-loading">
+                <div class="spinner-border spinner-border-sm" role="status">
+                    <span class="visually-hidden">{{ _('加载中...') }}</span>
+                </div>
+                <div class="mt-1">{{ _('加载图片中...') }}</div>
+            </div>
+            <div class="hover-preview-error" style="display: none;">
+                <i class="fas fa-exclamation-triangle text-warning"></i>
+                <div class="mt-1">{{ _('图片加载失败') }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}

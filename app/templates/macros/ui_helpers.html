@@ -2530,6 +2530,8 @@ function showChannelValidationAlert(validationResult, targetSelector = '.card:ha
             {{ render_company_type_badge(value) if value else '-' }}
         {% elif column.render == 'render_report_source_badge' %}
             {{ render_report_source_badge(value) if value else '-' }}
+        {% elif column.render == 'render_expense_invoice_images' %}
+            {{ render_expense_invoice_images(item) }}
         {% else %}
             {{ caller(value, column.render) if caller else value }}
         {% endif %}
@@ -3762,5 +3764,74 @@ window.hideTopNotification = function(containerId = '{{ container_id }}') {
       </div>
     {% endif %}
   {% endif %}
+{% endmacro %}
+
+{# 发票图片显示宏 - 用于报销单详情页显示发票图标 #}
+{% macro render_expense_invoice_images(item) %}
+  {% if item.invoice_images_list %}
+    <div class="invoice-icons-container d-flex justify-content-center align-items-center flex-wrap gap-1">
+      {% for invoice in item.invoice_images_list %}
+        <div class="invoice-icon-wrapper position-relative" style="display: inline-block;">
+          {% if invoice.pending and not (invoice.url or invoice.path) %}
+            {# 处于pending状态且没有实际文件路径的发票 #}
+            <i class="fas fa-file-invoice text-warning" 
+               style="font-size: 1.2rem; cursor: pointer;" 
+               onclick="alert('发票上传未完成，请重新编辑报销单并上传发票。')"
+               title="发票上传未完成: {{ invoice.filename }}"></i>
+          {% else %}
+            {# 正常的发票 #}
+            <i class="fas fa-file-invoice text-primary" 
+               style="font-size: 1.2rem; cursor: pointer;" 
+               onclick="previewInvoiceImage('{{ invoice.url if invoice.url else invoice.path }}', '{{ invoice.filename }}')"
+               title="点击预览发票: {{ invoice.filename }}"></i>
+          {% endif %}
+          <span class="badge bg-primary text-white position-absolute" 
+                style="top: -5px; right: -8px; font-size: 0.6rem; min-width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">{{ loop.index }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <span class="text-muted">-</span>
+  {% endif %}
+{% endmacro %}
+
+{# 
+  货币类型徽章渲染 - 胶囊型
+  参数:
+  - currency: 货币代码 (CNY, USD, SGD等)
+  - lang: 语言代码(可选，默认从session获取)
+  - show_icon: 是否显示图标(可选，默认true)
+#}
+{% macro render_currency_badge(currency, lang=None, show_icon=True) %}
+    {% if not lang %}
+        {% set lang = session.get('language', 'zh') %}
+    {% endif %}
+    
+    {% set currency_map = {
+        'CNY': {'zh': '人民币', 'en': 'Chinese Yuan', 'css_class': 'currency-cny', 'color': 'bg-success'},
+        'USD': {'zh': '美元', 'en': 'US Dollar', 'css_class': 'currency-usd', 'color': 'bg-primary'},
+        'SGD': {'zh': '新加坡元', 'en': 'Singapore Dollar', 'css_class': 'currency-sgd', 'color': 'bg-info'},
+        'MYR': {'zh': '马来西亚林吉特', 'en': 'Malaysian Ringgit', 'css_class': 'currency-myr', 'color': 'bg-warning text-dark'},
+        'IDR': {'zh': '印尼盾', 'en': 'Indonesian Rupiah', 'css_class': 'currency-idr', 'color': 'bg-secondary'},
+        'THB': {'zh': '泰铢', 'en': 'Thai Baht', 'css_class': 'currency-thb', 'color': 'bg-dark'},
+        'EUR': {'zh': '欧元', 'en': 'Euro', 'css_class': 'currency-eur', 'color': 'bg-primary'},
+        'GBP': {'zh': '英镑', 'en': 'British Pound', 'css_class': 'currency-gbp', 'color': 'bg-info'},
+        'JPY': {'zh': '日元', 'en': 'Japanese Yen', 'css_class': 'currency-jpy', 'color': 'bg-warning text-dark'},
+        'HKD': {'zh': '港币', 'en': 'Hong Kong Dollar', 'css_class': 'currency-hkd', 'color': 'bg-success'},
+        'AUD': {'zh': '澳元', 'en': 'Australian Dollar', 'css_class': 'currency-aud', 'color': 'bg-info'},
+        'CAD': {'zh': '加元', 'en': 'Canadian Dollar', 'css_class': 'currency-cad', 'color': 'bg-secondary'}
+    } %}
+    
+    {% set currency_config = currency_map.get(currency, {'zh': currency or '未知', 'en': currency or 'Unknown', 'css_class': 'currency-unknown', 'color': 'bg-secondary'}) %}
+    {% set display_text = currency_config[lang] %}
+    {% set css_class = currency_config.css_class %}
+    {% set color_class = currency_config.color %}
+    
+    <span class="badge currency-badge rounded-pill {{ css_class }} {{ color_class }}">
+        {% if show_icon %}
+            <i class="fas fa-coins me-1"></i>
+        {% endif %}
+        {{ display_text }} ({{ currency }})
+    </span>
 {% endmacro %}
 
