@@ -866,23 +866,47 @@ def create_expense():
                                     current_app.logger.warning(f"文件过大: {file_obj.filename} ({file_size} bytes)")
                                     continue
                                 
-                                # 创建上传目录
-                                import os
-                                import uuid
-                                upload_dir = os.path.join(current_app.static_folder, 'uploads', 'invoices', str(detail_obj.id))
-                                os.makedirs(upload_dir, exist_ok=True)
-                                
-                                # 生成文件名
-                                filename = f"invoice_{uuid.uuid4().hex[:8]}.{file_ext}"
-                                file_path = os.path.join(upload_dir, filename)
-                                
-                                # 保存文件
-                                file_obj.save(file_path)
-                                
-                                # 生成URL
-                                relative_path = os.path.join('uploads', 'invoices', str(detail_obj.id), filename).replace('\\', '/')
-                                raw_url = f"/static/{relative_path}"
-                                image_url = normalize_file_url(raw_url, 'invoice_image')
+                                # 检测运行环境 - 优先判断是否在云端部署
+                                if is_cloud_environment():
+                                    # 云端环境，使用Supabase存储
+                                    try:
+                                        from app.utils.supabase_client import get_supabase_client
+                                        supabase_client = get_supabase_client()
+                                        
+                                        # 生成文件名
+                                        import uuid
+                                        filename = f"expense_invoice_{detail_obj.id}_{uuid.uuid4().hex[:8]}.{file_ext}"
+                                        
+                                        # 上传到Supabase
+                                        image_url = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, filename)
+                                        
+                                        if not image_url:
+                                            raise Exception("Supabase上传失败")
+                                            
+                                        current_app.logger.info(f"发票文件上传到Supabase成功: {image_url}")
+                                        
+                                    except Exception as supabase_error:
+                                        current_app.logger.error(f"云端Supabase上传失败: {str(supabase_error)}")
+                                        # 云端上传失败，跳过这个文件
+                                        continue
+                                else:
+                                    # 本地环境，使用本地文件系统
+                                    import os
+                                    import uuid
+                                    upload_dir = os.path.join(current_app.static_folder, 'uploads', 'invoices', str(detail_obj.id))
+                                    os.makedirs(upload_dir, exist_ok=True)
+                                    
+                                    # 生成文件名
+                                    filename = f"invoice_{uuid.uuid4().hex[:8]}.{file_ext}"
+                                    file_path = os.path.join(upload_dir, filename)
+                                    
+                                    # 保存文件
+                                    file_obj.save(file_path)
+                                    
+                                    # 生成URL
+                                    relative_path = os.path.join('uploads', 'invoices', str(detail_obj.id), filename).replace('\\', '/')
+                                    raw_url = f"/static/{relative_path}"
+                                    image_url = normalize_file_url(raw_url, 'invoice_image')
                                 
                                 # 获取原始文件名（如果有元数据）
                                 original_filename = file_obj.filename
@@ -1187,23 +1211,47 @@ def edit_expense(id):
                                     current_app.logger.warning(f"文件过大: {file_obj.filename} ({file_size} bytes)")
                                     continue
                                 
-                                # 创建上传目录
-                                import os
-                                import uuid
-                                upload_dir = os.path.join(current_app.static_folder, 'uploads', 'invoices', str(detail_obj.id))
-                                os.makedirs(upload_dir, exist_ok=True)
-                                
-                                # 生成文件名
-                                filename = f"invoice_{uuid.uuid4().hex[:8]}.{file_ext}"
-                                file_path = os.path.join(upload_dir, filename)
-                                
-                                # 保存文件
-                                file_obj.save(file_path)
-                                
-                                # 生成URL
-                                relative_path = os.path.join('uploads', 'invoices', str(detail_obj.id), filename).replace('\\', '/')
-                                raw_url = f"/static/{relative_path}"
-                                image_url = normalize_file_url(raw_url, 'invoice_image')
+                                # 检测运行环境 - 优先判断是否在云端部署
+                                if is_cloud_environment():
+                                    # 云端环境，使用Supabase存储
+                                    try:
+                                        from app.utils.supabase_client import get_supabase_client
+                                        supabase_client = get_supabase_client()
+                                        
+                                        # 生成文件名
+                                        import uuid
+                                        filename = f"expense_invoice_{detail_obj.id}_{uuid.uuid4().hex[:8]}.{file_ext}"
+                                        
+                                        # 上传到Supabase
+                                        image_url = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, filename)
+                                        
+                                        if not image_url:
+                                            raise Exception("Supabase上传失败")
+                                            
+                                        current_app.logger.info(f"发票文件上传到Supabase成功: {image_url}")
+                                        
+                                    except Exception as supabase_error:
+                                        current_app.logger.error(f"云端Supabase上传失败: {str(supabase_error)}")
+                                        # 云端上传失败，跳过这个文件
+                                        continue
+                                else:
+                                    # 本地环境，使用本地文件系统
+                                    import os
+                                    import uuid
+                                    upload_dir = os.path.join(current_app.static_folder, 'uploads', 'invoices', str(detail_obj.id))
+                                    os.makedirs(upload_dir, exist_ok=True)
+                                    
+                                    # 生成文件名
+                                    filename = f"invoice_{uuid.uuid4().hex[:8]}.{file_ext}"
+                                    file_path = os.path.join(upload_dir, filename)
+                                    
+                                    # 保存文件
+                                    file_obj.save(file_path)
+                                    
+                                    # 生成URL
+                                    relative_path = os.path.join('uploads', 'invoices', str(detail_obj.id), filename).replace('\\', '/')
+                                    raw_url = f"/static/{relative_path}"
+                                    image_url = normalize_file_url(raw_url, 'invoice_image')
                                 
                                 # 获取原始文件名（如果有元数据）
                                 original_filename = file_obj.filename

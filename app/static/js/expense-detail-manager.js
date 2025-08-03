@@ -21,6 +21,7 @@ class ExpenseDetailManager {
     mergeConfig(config) {
         const defaultConfig = {
             // 基础配置
+            table_id: 'expenseTable',
             tableSelector: '#expenseTable',
             addButtonSelector: '#addExpense',
             grandTotalId: 'expenseGrandTotal',
@@ -135,6 +136,9 @@ class ExpenseDetailManager {
         // 监听窗口大小变化，切换显示模式
         this.setupResponsiveListener();
         
+        // 初始渲染 - 确保移动端和桌面端都正确显示
+        this.renderTable();
+        
         console.log('报销明细管理器初始化完成');
     }
     
@@ -178,6 +182,11 @@ class ExpenseDetailManager {
         this.tableElement.querySelector('tbody').appendChild(row);
         
         this.updateSummary();
+        
+        // 更新移动端显示
+        if (this.isMobileView()) {
+            this.renderMobileCards();
+        }
         
         return row;
     }
@@ -1190,9 +1199,13 @@ class ExpenseDetailManager {
      * 渲染移动端卡片
      */
     renderMobileCards() {
-        const mobileContainer = document.querySelector(`#${this.tableId}_mobile`);
+        // 使用配置中的table_id，如果没有则从表格元素获取ID
+        const tableId = this.config.table_id || this.tableElement.id || this.config.tableSelector.replace('#', '');
+        const mobileContainer = document.querySelector(`#${tableId}_mobile`);
         if (!mobileContainer) {
-            console.warn('移动端容器未找到');
+            console.warn('移动端容器未找到:', `#${tableId}_mobile`);
+            console.warn('配置中的table_id:', this.config.table_id);
+            console.warn('表格元素ID:', this.tableElement.id);
             return;
         }
 
@@ -1422,6 +1435,7 @@ class ExpenseDetailManager {
         this.rows = [];
         this.addRow(); // 添加一个空行
         this.updateSummary();
+        // 注意：addRow() 方法已经会调用移动端渲染，所以这里不需要额外调用
     }
     
     /**
