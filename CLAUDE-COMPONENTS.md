@@ -314,6 +314,275 @@ stats_config = {
 - **date**: 日期显示
   - `format: '%Y-%m-%d %H:%M'` - 自定义日期格式
 
+## 📢 提示信息组件规范
+
+### **统一提示组件 - showTopNotification()**
+
+项目采用**统一的顶部通知组件**来处理所有提示信息，提供一致的用户体验。
+
+#### **组件位置和引入**
+- **模板宏**: `app/templates/macros/ui_helpers.html:render_top_notification()`
+- **在页面中引入**:
+```html
+<!-- 在页面顶部添加提示容器 -->
+{{ render_top_notification() }}
+```
+
+#### **JavaScript 使用方法**
+```javascript
+/**
+ * 统一提示函数
+ * @param {string} message - 主要消息内容
+ * @param {string} type - 提示类型: 'success', 'error', 'warning', 'info'
+ * @param {number} duration - 自动隐藏延迟（毫秒），默认3000，设为0则不自动隐藏
+ * @param {string} containerId - 容器ID，默认'topNotification'
+ * @param {Array} conditions - 条件检查列表（可选）
+ */
+showTopNotification(message, type, duration, containerId, conditions)
+
+// 基本用法示例
+showTopNotification('操作成功完成', 'success');
+showTopNotification('请检查输入信息', 'warning', 5000);
+showTopNotification('服务器连接失败', 'error', 0); // 不自动隐藏
+
+// 带条件检查的用法
+showTopNotification('验证结果', 'warning', 0, 'topNotification', [
+    {text: '用户名格式正确', passed: true},
+    {text: '密码长度不足', passed: false}
+]);
+```
+
+#### **支持的提示类型**
+| 类型 | 描述 | 颜色方案 | 图标 |
+|------|------|---------|------|
+| `success` | 成功操作 | 绿色渐变 + 左边框 | fa-check-circle |
+| `error` | 错误信息 | 红色渐变 + 左边框 | fa-exclamation-circle |
+| `warning` | 警告提示 | 黄色渐变 + 左边框 | fa-exclamation-triangle |
+| `info` | 一般信息 | 蓝色渐变 + 左边框 | fa-info-circle |
+
+#### **高级功能**
+
+**1. 条件检查显示**
+```javascript
+const validationResult = {
+    conditions: [
+        {text: '文件格式正确', passed: true},
+        {text: '文件大小超限', passed: false},
+        {text: '权限验证通过', passed: true}
+    ]
+};
+
+showTopNotification('文件上传验证', 'warning', 0, 'topNotification', validationResult.conditions);
+```
+
+**2. 向后兼容支持**
+为了兼容现有代码，提供了`showStandardAlert`的别名：
+```javascript
+// 旧的调用方式仍然有效
+showStandardAlert('success', '操作成功', [], null, 3000);
+
+// 会自动转换为
+showTopNotification('操作成功', 'success', 3000, 'topNotification', []);
+```
+
+#### **设计特性**
+- ✅ **固定顶部位置** - 不影响页面布局
+- ✅ **渐变背景设计** - 视觉层次丰富
+- ✅ **左边框强调** - 清晰的状态指示
+- ✅ **条件检查列表** - 支持复杂验证反馈
+- ✅ **响应式设计** - 移动端友好
+- ✅ **滑动动画** - 流畅的显示/隐藏效果
+- ✅ **自动隐藏** - 可配置的自动消失时间
+
+#### **使用规范**
+1. **必须使用统一组件** - 禁止直接编写提示框HTML
+2. **消息内容** - 支持HTML标签和换行（\n会转换为<br>）
+3. **时长建议**:
+   - 成功提示：2-3秒
+   - 警告信息：5-8秒或不自动隐藏
+   - 错误信息：不自动隐藏（设为0）
+   - 一般信息：3-5秒
+
+#### **禁用的组件**
+❌ **已移除**: `showStandardAlert()` - 请使用 `showTopNotification()`  
+❌ **已移除**: `render_animated_alert_script()` - 功能已合并
+
+## 💬 确认对话框组件规范
+
+### **标准确认对话框 - render_confirm_dialog()**
+
+项目使用**统一的确认对话框组件**处理所有需要用户确认的操作，提供一致的视觉设计和交互体验。
+
+#### **组件位置和引入**
+- **模板宏**: `app/templates/macros/ui_helpers.html:render_confirm_dialog()`
+- **在页面中引入**:
+```html
+<!-- 在页面底部添加对话框容器 -->
+{{ render_confirm_dialog('uniqueDialogId') }}
+```
+
+#### **设计特性**
+- ✅ **标准大小** - 固定400px宽度（移动端95%宽度）
+- ✅ **圆弧形角** - 12px圆角设计
+- ✅ **淡灰色背景** - #f8f9fa主体背景，#ffffff按钮区域背景
+- ✅ **底部右侧按钮** - 使用统一按钮组件，右对齐布局
+- ✅ **左对齐消息** - 消息内容左对齐显示
+- ✅ **毛玻璃效果** - 背景模糊遮罩层
+- ✅ **动画效果** - 淡入淡出和缩放动画
+- ✅ **响应式设计** - 移动端自适应布局
+
+#### **JavaScript 使用方法**
+
+**1. 基本确认对话框**
+```javascript
+/**
+ * 显示标准确认对话框
+ * @param {Object} options - 配置选项
+ * @param {string} options.title - 对话框标题
+ * @param {string} options.message - 对话框消息内容（支持HTML和\n换行）
+ * @param {string} options.type - 对话框类型: 'danger', 'warning', 'info', 'success'
+ * @param {string} options.confirmText - 确认按钮文本，默认'确认'
+ * @param {string} options.cancelText - 取消按钮文本，默认'取消'
+ * @param {Function} options.onConfirm - 确认回调函数
+ * @param {Function} options.onCancel - 取消回调函数
+ * @param {string} options.dialogId - 对话框ID，必须与页面中的ID一致
+ */
+showConfirmDialog({
+    title: '确认操作',
+    message: '确定要执行此操作吗？',
+    type: 'danger',
+    dialogId: 'myConfirmDialog',
+    onConfirm: function() {
+        // 确认操作的代码
+        console.log('用户确认了操作');
+    },
+    onCancel: function() {
+        // 取消操作的代码（可选）
+        console.log('用户取消了操作');
+    }
+});
+```
+
+**2. 删除确认对话框（预设）**
+```javascript
+/**
+ * 删除确认对话框 - 常用的预设
+ * @param {Object} options - 配置选项
+ */
+showDeleteConfirm({
+    title: '确认删除报销单',
+    message: '确定要删除这个报销单吗？此操作不可恢复。\n\n报销单号：EX-2024-001',
+    dialogId: 'deleteDialog',
+    onConfirm: function() {
+        // 执行删除操作
+        fetch('/api/delete', {method: 'POST'})
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showTopNotification('删除成功', 'success');
+                } else {
+                    showTopNotification(data.message, 'error');
+                }
+            });
+    }
+});
+```
+
+#### **支持的对话框类型**
+| 类型 | 描述 | 图标颜色 | 图标 | 默认按钮颜色 |
+|------|------|---------|------|-------------|
+| `danger` | 危险操作 | 红色 #dc3545 | fa-exclamation-triangle | btn-danger |
+| `warning` | 警告提示 | 黄色 #ffc107 | fa-exclamation-circle | btn-warning |
+| `info` | 信息确认 | 蓝色 #17a2b8 | fa-info-circle | btn-primary |
+| `success` | 成功确认 | 绿色 #28a745 | fa-check-circle | btn-primary |
+
+#### **实际使用示例**
+
+**示例1：删除操作确认**
+```html
+<!-- 模板中添加对话框容器 -->
+{{ render_confirm_dialog('expenseDeleteDialog') }}
+
+<!-- 删除按钮 -->
+{{ render_button('删除', None, color='danger', type='button', attrs='onclick="deleteExpense(' ~ expense.id ~ ')"') }}
+```
+
+```javascript
+// JavaScript删除函数
+function deleteExpense(expenseId) {
+    showDeleteConfirm({
+        title: '确认删除报销单',
+        message: `确定要删除这个报销单吗？此操作不可恢复。\n\n报销单号：${expenseNumber}`,
+        dialogId: 'expenseDeleteDialog',
+        onConfirm: function() {
+            // 执行删除API调用
+            fetch(`/expense/${expenseId}/delete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showTopNotification(data.message, 'success');
+                    setTimeout(() => window.location.href = data.redirect_url, 1500);
+                } else {
+                    showTopNotification(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                showTopNotification('删除失败，请重试', 'error');
+            });
+        }
+    });
+}
+```
+
+#### **高级功能**
+
+**1. 手动控制对话框**
+```javascript
+// 手动隐藏对话框
+hideConfirmDialog('dialogId');
+
+// 支持ESC键关闭
+// 支持点击遮罩层关闭
+// 自动管理事件监听器
+```
+
+**2. 多行消息支持**
+```javascript
+showConfirmDialog({
+    title: '批量操作确认',
+    message: '即将执行以下操作：\n\n• 删除3个报销单\n• 更新2个项目状态\n• 发送5封通知邮件\n\n确定继续吗？',
+    type: 'warning'
+});
+```
+
+#### **使用规范**
+1. **必须使用统一组件** - 禁止直接编写对话框HTML或使用Bootstrap模态框
+2. **唯一ID要求** - 每个页面的对话框必须有唯一的dialogId
+3. **消息内容** - 支持HTML标签，`\n`会自动转换为`<br>`
+4. **回调函数** - onConfirm和onCancel都是可选的
+5. **类型选择**:
+   - 删除操作：使用`danger`类型
+   - 重要操作：使用`warning`类型
+   - 一般确认：使用`info`类型
+   - 成功确认：使用`success`类型
+
+#### **与其他组件集成**
+- ✅ **配合顶部通知** - 操作结果使用`showTopNotification()`显示
+- ✅ **配合按钮组件** - 触发按钮使用`render_button()`
+- ✅ **响应式布局** - 移动端自动调整为全屏友好布局
+- ✅ **无障碍支持** - 键盘导航和屏幕阅读器友好
+
+#### **禁用的组件**
+❌ **禁止使用**: Bootstrap模态框 - 请使用标准确认对话框  
+❌ **禁止使用**: 原生alert/confirm - 用户体验不一致  
+❌ **禁止使用**: 自定义对话框HTML - 违反组件化原则
+
 ## 🏷️ 徽章组件规则
 
 ### **设计原则**

@@ -42,9 +42,12 @@ def get_project_permissions(project_id: int, user) -> Dict[str, bool]:
         can_edit = user.has_permission('project', 'edit')
         if can_edit:
             # 进一步检查是否有权限编辑这个特定项目
-            from app.utils.access_control import get_editable_data
-            edit_query = get_editable_data(Project, user)
-            can_edit = edit_query.filter(Project.id == project_id).first() is not None
+            # 使用can_edit_data函数检查编辑权限
+            from app.utils.access_control import can_edit_data
+            if project:
+                can_edit = can_edit_data(project, user)
+            else:
+                can_edit = False
         
         # 检查查看权限
         can_view = user.has_permission('project', 'view')

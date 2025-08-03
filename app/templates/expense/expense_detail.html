@@ -1,10 +1,13 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_expense_status_badge, render_expense_category_badge, render_button, render_expense_number, render_data_table, render_expense_lock_status_badge, render_expense_invoice_images, render_currency_badge %}
+{% from 'macros/ui_helpers.html' import render_expense_status_badge, render_expense_category_badge, render_button, render_expense_number, render_data_table, render_expense_lock_status_badge, render_expense_invoice_images, render_currency_badge, render_confirm_dialog, render_top_notification %}
 {% from 'macros/expense_detail_manager.html' import render_expense_detail_table %}
 
 {% block title %}报销单详情 - {{ expense.expense_number }}{% endblock %}
 
 {% block content %}
+<!-- 顶部通知组件 -->
+{{ render_top_notification() }}
+
 <div class="container-fluid page-with-fixed-nav">
     <!-- 标准化页面头部区域：标题与操作按钮在同一行 -->
     <div class="page-header-with-actions mb-4">
@@ -258,57 +261,43 @@
     </div>
 </div>
 
-<!-- 删除确认模态框 -->
-<div class="modal fade" id="deleteModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">确认删除</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p>确定要删除这个报销单吗？此操作不可恢复。</p>
-                <p class="text-muted small">报销单号：{{ expense.expense_number }}</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-danger" id="confirmDelete">确认删除</button>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- 标准确认对话框 -->
+{{ render_confirm_dialog('expenseDeleteDialog') }}
 
 <script>
 // 删除报销单功能
 function deleteExpense(expenseId) {
-    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
-    modal.show();
-    
-    document.getElementById('confirmDelete').onclick = function() {
-        fetch(`/expense/${expenseId}/delete`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                modal.hide();
-                alert(data.message);
-                if (data.redirect_url) {
-                    window.location.href = data.redirect_url;
+    showDeleteConfirm({
+        title: '确认删除报销单',
+        message: `确定要删除这个报销单吗？此操作不可恢复。\n\n报销单号：{{ expense.expense_number }}`,
+        dialogId: 'expenseDeleteDialog',
+        onConfirm: function() {
+            fetch(`/expense/${expenseId}/delete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                 }
-            } else {
-                alert(data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('删除失败，请重试');
-        });
-    };
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showTopNotification(data.message, 'success');
+                    if (data.redirect_url) {
+                        setTimeout(() => {
+                            window.location.href = data.redirect_url;
+                        }, 1500);
+                    }
+                } else {
+                    showTopNotification(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showTopNotification('删除失败，请重试', 'error');
+            });
+        }
+    });
 }
 
 // 处理换行符显示

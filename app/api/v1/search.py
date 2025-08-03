@@ -302,6 +302,13 @@ def search_projects_for_expense_api():
     搜索可用于报销的项目（签约超过1月的项目）
     """
     try:
+        # 检查用户是否有报销单模块的查看权限
+        if not current_user.has_permission('expense', 'view'):
+            return jsonify({
+                'success': False,
+                'message': '您没有权限访问报销模块'
+            }), 403
+        
         query_term = request.args.get('q', '').strip()
         limit = min(int(request.args.get('limit', 10)), 50)
         

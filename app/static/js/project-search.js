@@ -365,8 +365,17 @@ class ProjectSearchComponent {
      * 显示搜索结果
      */
     showResults(projects) {
+        // 过滤项目：如果设置了不显示锁定项目，则过滤掉锁定项目
+        let filteredProjects = projects;
+        if (!this.config.permission_config.show_locked) {
+            filteredProjects = projects.filter(project => {
+                const permissionType = this.getProjectPermissionType(project);
+                return permissionType !== 'locked';
+            });
+        }
+        
         // 按权限排序：可编辑 > 只读 > 锁定
-        const sortedProjects = this.sortProjectsByPermission(projects);
+        const sortedProjects = this.sortProjectsByPermission(filteredProjects);
         
         // 获取项目列表容器
         const projectList = this.dropdown.querySelector('.project-list');

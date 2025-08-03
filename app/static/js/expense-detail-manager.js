@@ -1099,19 +1099,49 @@ class ExpenseDetailManager {
      */
     deleteRow(rowIndex) {
         if (this.rows.length <= 1) {
-            alert('至少需要保留一条报销明细');
+            // 使用标准通知提示
+            if (window.showTopNotification) {
+                window.showTopNotification('至少需要保留一条报销明细', 'warning');
+            } else {
+                alert('至少需要保留一条报销明细');
+            }
             return;
         }
         
-        if (confirm('确定要删除这条报销明细吗？')) {
-            // 删除数据
-            this.rows.splice(rowIndex, 1);
-            
-            // 重新渲染表格
-            this.renderTable();
-            
-            this.updateSummary();
-            this.updateHiddenField();
+        // 获取明细信息用于确认提示
+        const detail = this.rows[rowIndex];
+        const detailInfo = detail ? `${detail.description || '明细项目'}` : '此明细项目';
+        
+        // 使用标准确认对话框
+        if (window.showDeleteConfirm) {
+            window.showDeleteConfirm({
+                title: '确认删除报销明细',
+                message: `确定要删除这条报销明细吗？\n\n明细信息：${detailInfo}\n\n此操作不可恢复。`,
+                dialogId: 'expenseDetailDeleteDialog',
+                onConfirm: () => {
+                    // 执行删除操作
+                    this.rows.splice(rowIndex, 1);
+                    
+                    // 重新渲染表格
+                    this.renderTable();
+                    
+                    this.updateSummary();
+                    this.updateHiddenField();
+                    
+                    // 显示删除成功提示
+                    if (window.showTopNotification) {
+                        window.showTopNotification('报销明细删除成功', 'success');
+                    }
+                }
+            });
+        } else {
+            // 降级到原生确认对话框（向后兼容）
+            if (confirm('确定要删除这条报销明细吗？')) {
+                this.rows.splice(rowIndex, 1);
+                this.renderTable();
+                this.updateSummary();
+                this.updateHiddenField();
+            }
         }
     }
     

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from 'macros/expense_detail_manager.html' import render_expense_detail_table, init_expense_detail_scripts %}
-{% from 'macros/ui_helpers.html' import render_button, render_expense_status_badge, render_expense_number %}
+{% from 'macros/ui_helpers.html' import render_button, render_expense_status_badge, render_expense_number, render_confirm_dialog %}
 {% from 'macros/project_search.html' import render_project_search, init_project_search_scripts %}
 {% from 'macros/customer_search.html' import render_customer_search, init_customer_search_scripts %}
 {% from 'macros/hover_preview.html' import render_hover_preview_container %}
@@ -43,20 +43,35 @@
             
             <!-- 报销单基本信息 -->
                     
+                    <!-- 第一行：报销主题 | 货币类型 -->
                     <div class="row">
-                        <!-- 报销主题 - 占一整行 -->
-                        <div class="col-12 mb-3">
+                        <!-- 报销主题 -->
+                        <div class="col-md-6 mb-3">
                             <label for="title" class="form-label">报销主题</label>
                             <input type="text" class="form-control" 
                                    id="title" name="title" 
                                    placeholder="默认客户名称-账号-YYDDHHS"
                                    value="{{ request.form.get('title', expense.title or '') }}">
                         </div>
+
+                        <!-- 货币类型 -->
+                        <div class="col-md-6 mb-3">
+                            <label for="currency" class="form-label">货币类型 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="currency" name="currency" required>
+                                <option value="CNY" {% if expense.currency == 'CNY' %}selected{% endif %}>人民币 (CNY)</option>
+                                <option value="USD" {% if expense.currency == 'USD' %}selected{% endif %}>美元 (USD)</option>
+                                <option value="SGD" {% if expense.currency == 'SGD' %}selected{% endif %}>新加坡元 (SGD)</option>
+                                <option value="MYR" {% if expense.currency == 'MYR' %}selected{% endif %}>马来西亚林吉特 (MYR)</option>
+                                <option value="IDR" {% if expense.currency == 'IDR' %}selected{% endif %}>印尼盾 (IDR)</option>
+                                <option value="THB" {% if expense.currency == 'THB' %}selected{% endif %}>泰铢 (THB)</option>
+                            </select>
+                        </div>
                     </div>
                     
+                    <!-- 第二行：关联客户 | 关联项目 -->
                     <div class="row">
                         <!-- 关联客户 -->
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-6 mb-3">
                             {# 客户搜索配置 #}
                             {% set customer_search_config = {
                                 "input_id": "customerSearch",
@@ -101,34 +116,6 @@
                             <input type="hidden" id="customer_id" name="customer_id" value="{{ expense.customer_id or '' }}">
                         </div>
 
-                        <!-- 联系人 -->
-                        <div class="col-md-4 mb-3">
-                            <label for="contact_id" class="form-label">联系人 <span class="text-danger">*</span></label>
-                            <select class="form-select" id="contact_id" name="contact_id" required>
-                                {% if expense.contact %}
-                                    <option value="{{ expense.contact.id }}" selected>{{ expense.contact.name }}{% if expense.contact.position %} ({{ expense.contact.position }}){% endif %}</option>
-                                {% else %}
-                                    <option value="">请先选择关联客户</option>
-                                {% endif %}
-                            </select>
-                        </div>
-
-                        <!-- 报销单货币 -->
-                        <div class="col-md-4 mb-3">
-                            <label for="currency" class="form-label">货币类型 <span class="text-danger">*</span></label>
-                            <select class="form-select" id="currency" name="currency" required>
-                                <option value="CNY" {% if expense.currency == 'CNY' %}selected{% endif %}>人民币 (CNY)</option>
-                                <option value="USD" {% if expense.currency == 'USD' %}selected{% endif %}>美元 (USD)</option>
-                                <option value="SGD" {% if expense.currency == 'SGD' %}selected{% endif %}>新加坡元 (SGD)</option>
-                                <option value="MYR" {% if expense.currency == 'MYR' %}selected{% endif %}>马来西亚林吉特 (MYR)</option>
-                                <option value="IDR" {% if expense.currency == 'IDR' %}selected{% endif %}>印尼盾 (IDR)</option>
-                                <option value="THB" {% if expense.currency == 'THB' %}selected{% endif %}>泰铢 (THB)</option>
-                            </select>
-                            <div class="form-text">报销单的基准货币，用于最终结算</div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
                         <!-- 关联项目 -->
                         <div class="col-md-6 mb-3">
                             {# 项目搜索配置 #}
@@ -153,6 +140,17 @@
                                     "delay": 300,
                                     "limit": 10
                                 },
+                                "permission_config": {
+                                    "check_edit": true,
+                                    "check_view": true,
+                                    "show_locked": false
+                                },
+                                "display_config": {
+                                    "show_owner": true,
+                                    "show_type": true,
+                                    "show_stage": true,
+                                    "show_auth_code": true
+                                },
                                 "validation": {
                                     "required": false,
                                     "validate_on_submit": false
@@ -172,14 +170,30 @@
                             <!-- 兼容性隐藏字段 -->
                             <input type="hidden" id="project_id" name="project_id" value="{{ expense.project_id or '' }}">
                         </div>
+                    </div>
+                    
+                    <!-- 第三行：联系人 | 报销说明 -->
+                    <div class="row">
+                        <!-- 联系人 -->
+                        <div class="col-md-6 mb-3">
+                            <label for="contact_id" class="form-label">联系人 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="contact_id" name="contact_id" required>
+                                {% if expense.contact %}
+                                    <option value="{{ expense.contact.id }}" selected>{{ expense.contact.name }}{% if expense.contact.position %} ({{ expense.contact.position }}){% endif %}</option>
+                                {% else %}
+                                    <option value="">请先选择关联客户</option>
+                                {% endif %}
+                            </select>
+                        </div>
 
                         <!-- 报销说明 -->
                         <div class="col-md-6 mb-3">
                             <label for="description" class="form-label">报销说明</label>
                             <textarea class="form-control" 
                                       id="description" name="description" 
-                                      rows="3" 
-                                      placeholder="请描述报销的背景、目的等总体说明">{{ request.form.get('description', expense.description or '') }}</textarea>
+                                      rows="4" 
+                                      placeholder="请描述报销的背景、目的等总体说明"
+                                      style="resize: vertical;">{{ request.form.get('description', expense.description or '') }}</textarea>
                         </div>
                     </div>
                     
@@ -789,5 +803,8 @@ function clearContactSelection() {
     <strong>注意：</strong>此报销单状态为"{{ render_expense_status_badge(expense.status)|striptags }}"，某些功能可能受限。
 </div>
 {% endif %}
+
+<!-- 确认对话框组件 -->
+{{ render_confirm_dialog('expenseDetailDeleteDialog') }}
 
 {% endblock %}

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from 'macros/expense_detail_manager.html' import render_expense_detail_table, init_expense_detail_scripts %}
-{% from 'macros/ui_helpers.html' import render_button %}
+{% from 'macros/ui_helpers.html' import render_button, render_confirm_dialog %}
 {% from 'macros/project_search.html' import render_project_search, init_project_search_scripts %}
 {% from 'macros/customer_search.html' import render_customer_search, init_customer_search_scripts %}
 {% from 'macros/hover_preview.html' import render_hover_preview_container %}
@@ -40,20 +40,35 @@
             
             <!-- 报销单基本信息 -->
                     
+                    <!-- 第一行：报销主题 | 货币类型 -->
                     <div class="row">
-                        <!-- 报销主题 - 占一整行 -->
-                        <div class="col-12 mb-3">
+                        <!-- 报销主题 -->
+                        <div class="col-md-6 mb-3">
                             <label for="title" class="form-label">报销主题</label>
                             <input type="text" class="form-control" 
                                    id="title" name="title" 
                                    placeholder="默认客户名称-账号-YYDDHHS"
                                    value="{{ request.form.get('title', '') }}">
                         </div>
+
+                        <!-- 货币类型 -->
+                        <div class="col-md-6 mb-3">
+                            <label for="currency" class="form-label">货币类型 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="currency" name="currency" required>
+                                <option value="CNY" selected>人民币 (CNY)</option>
+                                <option value="USD">美元 (USD)</option>
+                                <option value="SGD">新加坡元 (SGD)</option>
+                                <option value="MYR">马来西亚林吉特 (MYR)</option>
+                                <option value="IDR">印尼盾 (IDR)</option>
+                                <option value="THB">泰铢 (THB)</option>
+                            </select>
+                        </div>
                     </div>
                     
+                    <!-- 第二行：关联客户 | 关联项目 -->
                     <div class="row">
                         <!-- 关联客户 -->
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-6 mb-3">
                             {# 客户搜索配置 #}
                             {% set customer_search_config = {
                                 "input_id": "customerSearch",
@@ -93,30 +108,6 @@
                             <input type="hidden" id="customer_id" name="customer_id" value="">
                         </div>
 
-                        <!-- 联系人 -->
-                        <div class="col-md-4 mb-3">
-                            <label for="contact_id" class="form-label">联系人 <span class="text-danger">*</span></label>
-                            <select class="form-select" id="contact_id" name="contact_id" required disabled>
-                                <option value="">请先选择关联客户</option>
-                            </select>
-                        </div>
-
-                        <!-- 报销单货币 -->
-                        <div class="col-md-4 mb-3">
-                            <label for="currency" class="form-label">货币类型 <span class="text-danger">*</span></label>
-                            <select class="form-select" id="currency" name="currency" required>
-                                <option value="CNY" selected>人民币 (CNY)</option>
-                                <option value="USD">美元 (USD)</option>
-                                <option value="SGD">新加坡元 (SGD)</option>
-                                <option value="MYR">马来西亚林吉特 (MYR)</option>
-                                <option value="IDR">印尼盾 (IDR)</option>
-                                <option value="THB">泰铢 (THB)</option>
-                            </select>
-                            <div class="form-text">报销单的基准货币，用于最终结算</div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
                         <!-- 关联项目 -->
                         <div class="col-md-6 mb-3">
                             {# 项目搜索配置 #}
@@ -141,6 +132,17 @@
                                     "delay": 300,
                                     "limit": 10
                                 },
+                                "permission_config": {
+                                    "check_edit": true,
+                                    "check_view": true,
+                                    "show_locked": false
+                                },
+                                "display_config": {
+                                    "show_owner": true,
+                                    "show_type": true,
+                                    "show_stage": true,
+                                    "show_auth_code": true
+                                },
                                 "validation": {
                                     "required": false,
                                     "validate_on_submit": false
@@ -155,14 +157,26 @@
                             <!-- 兼容性隐藏字段 -->
                             <input type="hidden" id="project_id" name="project_id" value="">
                         </div>
+                    </div>
+                    
+                    <!-- 第三行：联系人 | 报销说明 -->
+                    <div class="row">
+                        <!-- 联系人 -->
+                        <div class="col-md-6 mb-3">
+                            <label for="contact_id" class="form-label">联系人 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="contact_id" name="contact_id" required disabled>
+                                <option value="">请先选择关联客户</option>
+                            </select>
+                        </div>
 
                         <!-- 报销说明 -->
                         <div class="col-md-6 mb-3">
                             <label for="description" class="form-label">报销说明</label>
                             <textarea class="form-control" 
                                       id="description" name="description" 
-                                      rows="3" 
-                                      placeholder="请描述报销的背景、目的等总体说明">{{ request.form.get('description', '') }}</textarea>
+                                      rows="4" 
+                                      placeholder="请描述报销的背景、目的等总体说明"
+                                      style="resize: vertical;">{{ request.form.get('description', '') }}</textarea>
                         </div>
                     </div>
                     
@@ -512,80 +526,12 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // 监听主表字段变化，控制提交按钮状态
+    // 简化：移除不必要的按键有效性测试逻辑
+    // 保留基本的DOM元素引用供其他逻辑使用
     const titleInput = document.getElementById('title');
     const customerIdInput = document.getElementById('customer_id');
     const contactIdInput = document.getElementById('contact_id');
-    const submitBtn = document.getElementById('submit-btn'); // 更新ID
-    
-    if (submitBtn) {
-        function updateSubmitButton() {
-            const hasCustomer = customerIdInput.value !== '';
-            const hasContact = contactIdInput.value !== '';
-            const hasValidDetails = window.expenseDetailManager && 
-                                   window.expenseDetailManager.getAllData().length > 0;
-            
-            // 只在状态发生变化时输出调试信息
-            const newState = { hasCustomer, hasContact, hasValidDetails };
-            const stateChanged = !submitBtn.dataset.lastState || 
-                                submitBtn.dataset.lastState !== JSON.stringify(newState);
-            
-            if (stateChanged) {
-                console.log('保存按钮状态检查:', {
-                    hasCustomer: hasCustomer,
-                    customerValue: customerIdInput.value,
-                    hasContact: hasContact,
-                    contactValue: contactIdInput.value,
-                    hasValidDetails: hasValidDetails,
-                    detailCount: window.expenseDetailManager ? window.expenseDetailManager.getAllData().length : 0,
-                    managerExists: !!window.expenseDetailManager
-                });
-                submitBtn.dataset.lastState = JSON.stringify(newState);
-            }
-            
-            const shouldEnable = hasCustomer && hasContact && hasValidDetails;
-            submitBtn.disabled = !shouldEnable;
-            
-            // 更新按钮样式以提供视觉反馈
-            if (shouldEnable) {
-                submitBtn.classList.remove('btn-secondary');
-                submitBtn.classList.add('btn-primary');
-                submitBtn.title = '点击保存报销单';
-            } else {
-                submitBtn.classList.remove('btn-primary'); 
-                submitBtn.classList.add('btn-secondary');
-                
-                let reasons = [];
-                if (!hasCustomer) reasons.push('请选择关联客户');
-                if (!hasContact) reasons.push('请选择联系人');
-                if (!hasValidDetails) reasons.push('请至少添加一条报销明细');
-                submitBtn.title = '无法保存: ' + reasons.join(', ');
-            }
-        }
-        
-        contactIdInput.addEventListener('change', updateSubmitButton);
-        
-        // 监听客户搜索组件变化
-        if (customerSearchContainer) {
-            customerSearchContainer.addEventListener('customerSelected', function() {
-                setTimeout(updateSubmitButton, 100);
-            });
-            customerSearchContainer.addEventListener('customerCleared', function() {
-                setTimeout(updateSubmitButton, 100);
-            });
-        }
-        
-        // 监听明细管理器变化事件
-        document.addEventListener('expenseDetailChanged', function(e) {
-            console.log('明细数据变化事件:', e.detail);
-            updateSubmitButton();
-        });
-        
-        // 页面加载后立即检查一次
-        setTimeout(updateSubmitButton, 500);
-        
-        console.log('保存按钮控制器已初始化');
-    }
+    const submitBtn = document.getElementById('submit-btn');
 });
 
 function validateExpenseForm() {
@@ -826,6 +772,9 @@ function clearContactSelection() {
     contactSelect.disabled = true;
 }
 </script>
+
+<!-- 确认对话框组件 -->
+{{ render_confirm_dialog('expenseDetailDeleteDialog') }}
 
 <!-- 悬停图片预览容器 -->
 {{ render_hover_preview_container() }}

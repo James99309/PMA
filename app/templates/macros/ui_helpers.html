@@ -1695,222 +1695,21 @@
   {% endif %}
 {% endmacro %}
 
-{# 标准动画提示函数 - JavaScript和CSS #}
-{% macro render_animated_alert_script() %}
-<style>
-/* 提示框动画样式 */
-.standard-alert-notification {
-    position: relative;
-    margin: 1rem 0;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    border: none;
-    transition: all 0.3s ease;
-    z-index: 1000;
-}
-
-.standard-alert-notification .alert-content {
-    flex: 1;
-    line-height: 1.5;
-}
-
-.standard-alert-notification .btn-close {
-    background: none;
-    border: none;
-    font-size: 1.2rem;
-    opacity: 0.7;
-    cursor: pointer;
-    padding: 0;
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.standard-alert-notification .btn-close:hover {
-    opacity: 1;
-}
-
-.standard-alert-notification.alert-success {
-    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-    border-left: 4px solid #28a745;
-    color: #155724;
-}
-
-.standard-alert-notification.alert-danger {
-    background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-    border-left: 4px solid #dc3545;
-    color: #721c24;
-}
-
-.standard-alert-notification.alert-warning {
-    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-    border-left: 4px solid #ffc107;
-    color: #856404;
-}
-
-.standard-alert-notification.alert-info {
-    background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
-    border-left: 4px solid #17a2b8;
-    color: #0c5460;
-}
-
-/* 条件检查列表样式 */
-.condition-check-list {
-    margin: 0.5rem 0;
-    padding: 0;
-    list-style: none;
-}
-
-.condition-check-item {
-    display: flex;
-    align-items: center;
-    margin: 0.3rem 0;
-    font-size: 0.9rem;
-}
-
-.condition-icon {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 0.5rem;
-    font-size: 0.75rem;
-    font-weight: bold;
-}
-
-.condition-icon.success {
-    background-color: #28a745;
-    color: white;
-}
-
-.condition-icon.error {
-    background-color: #dc3545;
-    color: white;
-}
-
-.condition-text {
-    flex: 1;
-}
-</style>
-
+{# 渠道验证提示函数 - 仅保留业务逻辑函数 #}
 <script>
 /**
- * 标准动画提示函数
- * @param {string} type - 提示类型: 'success', 'error', 'warning', 'info'
- * @param {string} message - 主要消息内容
- * @param {Array} conditions - 条件检查列表 [{text: '条件描述', passed: true/false}]
- * @param {string} targetSelector - 目标元素选择器，提示框将插入到该元素后面
- * @param {number} autoHideDelay - 自动隐藏延迟时间（毫秒），默认5000
- */
-function showStandardAlert(type, message, conditions = [], targetSelector = null, autoHideDelay = 5000) {
-    // 移除已存在的提示
-    $('.standard-alert-notification').remove();
-    
-    const alertClass = type === 'success' ? 'alert-success' : 
-                      type === 'warning' ? 'alert-warning' : 
-                      type === 'info' ? 'alert-info' : 'alert-danger';
-    const iconClass = type === 'success' ? 'fa-check-circle' : 
-                      type === 'warning' ? 'fa-exclamation-triangle' : 
-                      type === 'info' ? 'fa-info-circle' : 'fa-exclamation-circle';
-    
-    // 构建条件检查列表HTML
-    let conditionsHtml = '';
-    if (conditions && conditions.length > 0) {
-        conditionsHtml = '<ul class="condition-check-list">';
-        conditions.forEach(condition => {
-            const iconType = condition.passed ? 'success' : 'error';
-            const iconSymbol = condition.passed ? '✓' : '✗';
-            conditionsHtml += `
-                <li class="condition-check-item">
-                    <div class="condition-icon ${iconType}">${iconSymbol}</div>
-                    <span class="condition-text">${condition.text}</span>
-                </li>
-            `;
-        });
-        conditionsHtml += '</ul>';
-    }
-    
-    // 创建下拉式提示框
-    const alertHtml = `
-        <div class="standard-alert-notification alert ${alertClass} alert-dismissible" role="alert">
-            <div class="d-flex align-items-start">
-                <i class="fas ${iconClass} me-2 mt-1"></i>
-                <div class="alert-content">
-                    <div>${message.replace(/\n/g, '<br>')}</div>
-                    ${conditionsHtml}
-                </div>
-                <button type="button" class="btn-close ms-auto" onclick="dismissStandardAlert()">×</button>
-            </div>
-        </div>
-    `;
-    
-    // 确定插入位置
-    let $target;
-    if (targetSelector) {
-        $target = $(targetSelector);
-    } else {
-        // 默认插入到第一个卡片后面
-        $target = $('.card').first();
-    }
-    
-    if ($target.length === 0) {
-        // 如果没有找到目标，插入到body开头
-        $('body').prepend(alertHtml);
-    } else {
-        $target.after(alertHtml);
-    }
-    
-    // 添加下拉动画
-    const $alert = $('.standard-alert-notification');
-    $alert.css({
-        'transform': 'translateY(-100%)',
-        'opacity': '0'
-    }).animate({
-        'transform': 'translateY(0)',
-        'opacity': '1'
-    }, 300);
-    
-    // 自动消失
-    if (autoHideDelay > 0) {
-        setTimeout(() => {
-            dismissStandardAlert();
-        }, autoHideDelay);
-    }
-}
-
-/**
- * 手动关闭标准提示
- */
-function dismissStandardAlert() {
-    const $alert = $('.standard-alert-notification');
-    if ($alert.length) {
-        $alert.animate({
-            'transform': 'translateY(-100%)',
-            'opacity': '0'
-        }, 300, function() {
-            $alert.remove();
-        });
-    }
-}
-
-/**
- * 渠道信息验证专用函数
+ * 渠道信息验证专用函数 - 现已使用showTopNotification
  * @param {Object} validationResult - 验证结果对象
- * @param {string} targetSelector - 目标选择器
+ * @param {string} targetSelector - 目标选择器（已废弃，保留兼容性）
  */
-function showChannelValidationAlert(validationResult, targetSelector = '.card:has(#dealerSelect)') {
+function showChannelValidationAlert(validationResult, targetSelector = null) {
     if (validationResult.valid) {
-        showStandardAlert('success', '渠道信息验证通过', validationResult.conditions, targetSelector, 3000);
+        showTopNotification('渠道信息验证通过', 'success', 3000, 'topNotification', validationResult.conditions);
     } else {
-        showStandardAlert('warning', '提交条件不满足，请检查以下条件：', validationResult.conditions, targetSelector, 0);
+        showTopNotification('提交条件不满足，请检查以下条件：', 'warning', 0, 'topNotification', validationResult.conditions);
     }
 }
 </script>
-{% endmacro %}
 
 {# 报告来源徽章 #}
 {% macro render_report_source_badge(source, lang=None) %}
@@ -3463,9 +3262,12 @@ showTopNotification('请注意！', 'warning');
 {% macro render_top_notification(container_id='topNotification') %}
 <div id="{{ container_id }}" class="top-notification-container">
     <div class="top-notification-content">
-        <div class="d-flex align-items-center">
-            <i class="notification-icon me-2"></i>
-            <span class="notification-message flex-grow-1"></span>
+        <div class="d-flex align-items-start">
+            <i class="notification-icon me-2 mt-1"></i>
+            <div class="notification-message flex-grow-1">
+                <div class="notification-main-message"></div>
+                <div class="notification-conditions"></div>
+            </div>
             {{ render_button(
                 text='',
                 color='link',
@@ -3499,17 +3301,20 @@ showTopNotification('请注意！', 'warning');
 .top-notification-content {
     margin: 0 auto;
     max-width: 1200px;
-    padding: 12px 20px;
+    padding: 16px 24px;
     margin-top: 60px; /* 导航栏高度偏移 */
     border-radius: 0 0 8px 8px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     font-size: 0.9rem;
     font-weight: 500;
+    border: none;
+    transition: all 0.3s ease;
 }
 
-/* 成功提示 - 绿色 */
+/* Success 样式 - 使用 showStandardAlert 的渐变设计 */
 .top-notification-container.success .top-notification-content {
-    background-color: #d4edda;
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    border-left: 4px solid #28a745;
     color: #155724;
 }
 
@@ -3517,9 +3322,10 @@ showTopNotification('请注意！', 'warning');
     color: #28a745;
 }
 
-/* 失败提示 - 红色 */
+/* Error 样式 */
 .top-notification-container.error .top-notification-content {
-    background-color: #f8d7da;
+    background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+    border-left: 4px solid #dc3545;
     color: #721c24;
 }
 
@@ -3527,19 +3333,21 @@ showTopNotification('请注意！', 'warning');
     color: #dc3545;
 }
 
-/* 提醒提示 - 橘黄色 */
+/* Warning 样式 */
 .top-notification-container.warning .top-notification-content {
-    background-color: #fff3cd;
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+    border-left: 4px solid #ffc107;
     color: #856404;
 }
 
 .top-notification-container.warning .notification-icon {
-    color: #fd7e14;
+    color: #ffc107;
 }
 
-/* 信息提示 - 蓝色 */
+/* Info 样式 */
 .top-notification-container.info .top-notification-content {
-    background-color: #d1ecf1;
+    background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+    border-left: 4px solid #17a2b8;
     color: #0c5460;
 }
 
@@ -3556,7 +3364,55 @@ showTopNotification('请注意！', 'warning');
 }
 
 .notification-close-btn:hover {
-    opacity: 1;
+    opacity: 1 !important;
+}
+
+.notification-main-message {
+    line-height: 1.5;
+}
+
+/* 条件检查列表样式 */
+.notification-conditions {
+    margin-top: 0.5rem;
+}
+
+.condition-check-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.condition-check-item {
+    display: flex;
+    align-items: center;
+    margin: 0.3rem 0;
+    font-size: 0.85rem;
+}
+
+.condition-icon {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 0.5rem;
+    font-size: 0.7rem;
+    font-weight: bold;
+}
+
+.condition-icon.success {
+    background-color: #28a745;
+    color: white;
+}
+
+.condition-icon.error {
+    background-color: #dc3545;
+    color: white;
+}
+
+.condition-text {
+    flex: 1;
 }
 
 /* 响应式调整 */
@@ -3566,30 +3422,69 @@ showTopNotification('请注意！', 'warning');
         margin-left: 10px;
         margin-right: 10px;
         font-size: 0.85rem;
+        padding: 12px 16px;
+    }
+    
+    .condition-check-item {
+        font-size: 0.8rem;
+    }
+    
+    .condition-icon {
+        width: 14px;
+        height: 14px;
+        font-size: 0.65rem;
     }
 }
 </style>
 
 <script>
-// 标准化顶部提示函数
-window.showTopNotification = function(message, type = 'info', duration = 3000, containerId = '{{ container_id }}') {
+/**
+ * 增强版顶部提示函数 - 统一替代 showStandardAlert
+ * @param {string} message - 主要消息内容
+ * @param {string} type - 提示类型: 'success', 'error', 'warning', 'info'
+ * @param {number} duration - 自动隐藏延迟时间（毫秒），默认3000，设为0则不自动隐藏
+ * @param {string} containerId - 容器ID
+ * @param {Array} conditions - 条件检查列表 [{text: '条件描述', passed: true/false}]
+ */
+window.showTopNotification = function(message, type = 'info', duration = 3000, containerId = '{{ container_id }}', conditions = []) {
     const container = document.getElementById(containerId);
     if (!container) {
         console.error('Top notification container not found:', containerId);
         return;
     }
     
-    // 设置消息内容
-    const messageElement = container.querySelector('.notification-message');
-    const iconElement = container.querySelector('.notification-icon');
+    // 设置主要消息内容
+    const mainMessageElement = container.querySelector('.notification-main-message');
+    if (mainMessageElement) {
+        mainMessageElement.innerHTML = message.replace(/\n/g, '<br>');
+    }
     
-    if (messageElement) {
-        messageElement.textContent = message;
+    // 设置条件检查列表
+    const conditionsElement = container.querySelector('.notification-conditions');
+    if (conditionsElement && conditions && conditions.length > 0) {
+        let conditionsHtml = '<ul class="condition-check-list">';
+        conditions.forEach(condition => {
+            const iconType = condition.passed ? 'success' : 'error';
+            const iconSymbol = condition.passed ? '✓' : '✗';
+            conditionsHtml += `
+                <li class="condition-check-item">
+                    <div class="condition-icon ${iconType}">${iconSymbol}</div>
+                    <span class="condition-text">${condition.text}</span>
+                </li>
+            `;
+        });
+        conditionsHtml += '</ul>';
+        conditionsElement.innerHTML = conditionsHtml;
+        conditionsElement.style.display = 'block';
+    } else if (conditionsElement) {
+        conditionsElement.innerHTML = '';
+        conditionsElement.style.display = 'none';
     }
     
     // 设置图标
+    const iconElement = container.querySelector('.notification-icon');
     if (iconElement) {
-        iconElement.className = 'notification-icon me-2 ';
+        iconElement.className = 'notification-icon me-2 mt-1 ';
         switch(type) {
             case 'success':
                 iconElement.className += 'fas fa-check-circle';
@@ -3622,7 +3517,13 @@ window.showTopNotification = function(message, type = 'info', duration = 3000, c
         }, duration);
     }
     
-    console.log(`📢 顶部提示: ${message} (${type})`);
+    console.log(`📢 顶部提示: ${message} (${type})${conditions.length ? ' 包含条件检查' : ''}`);
+};
+
+// 向后兼容：提供 showStandardAlert 的别名
+window.showStandardAlert = function(type, message, conditions = [], targetSelector = null, autoHideDelay = 5000) {
+    // 将 showStandardAlert 的调用转换为 showTopNotification
+    showTopNotification(message, type, autoHideDelay, '{{ container_id }}', conditions);
 };
 
 // 隐藏顶部提示函数
@@ -3631,6 +3532,11 @@ window.hideTopNotification = function(containerId = '{{ container_id }}') {
     if (container) {
         container.classList.remove('show');
     }
+};
+
+// 手动关闭标准提示（向后兼容）
+window.dismissStandardAlert = function() {
+    hideTopNotification('{{ container_id }}');
 };
 </script>
 {% endmacro %}
@@ -3833,5 +3739,336 @@ window.hideTopNotification = function(containerId = '{{ container_id }}') {
         {% endif %}
         {{ display_text }} ({{ currency }})
     </span>
+{% endmacro %}
+
+{# 标准确认对话框组件 #}
+{% macro render_confirm_dialog(dialog_id='standardConfirmDialog') %}
+<div id="{{ dialog_id }}" class="standard-confirm-dialog" style="display: none;">
+    <div class="dialog-overlay"></div>
+    <div class="dialog-container">
+        <div class="dialog-content">
+            <div class="dialog-message">
+                <i class="dialog-icon"></i>
+                <div class="message-content">
+                    <div class="message-title"></div>
+                    <div class="message-text"></div>
+                </div>
+            </div>
+            <div class="dialog-actions">
+                {{ render_button('取消', None, color='secondary', type='button', extra_class='dialog-cancel-btn', size='') }}
+                {{ render_button('确认', None, color='danger', type='button', extra_class='dialog-confirm-btn', size='') }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* 标准确认对话框样式 */
+.standard-confirm-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1060; /* 高于 Bootstrap 模态框 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.standard-confirm-dialog.show {
+    opacity: 1;
+}
+
+.dialog-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+}
+
+.dialog-container {
+    position: relative;
+    z-index: 1;
+    transform: scale(0.9) translateY(-20px);
+    transition: transform 0.3s ease;
+}
+
+.standard-confirm-dialog.show .dialog-container {
+    transform: scale(1) translateY(0);
+}
+
+.dialog-content {
+    background: #f8f9fa; /* 淡灰色背景 */
+    border-radius: 12px; /* 圆弧形角 */
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    width: 400px;
+    max-width: 90vw;
+    padding: 0;
+    overflow: hidden;
+}
+
+.dialog-message {
+    padding: 24px;
+    display: flex;
+    align-items: flex-start;
+}
+
+.dialog-icon {
+    font-size: 24px;
+    margin-right: 16px;
+    margin-top: 2px;
+    color: #dc3545; /* 默认危险色 */
+}
+
+.message-content {
+    flex: 1;
+    text-align: left; /* 左对齐 */
+}
+
+.message-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #343a40;
+    margin-bottom: 8px;
+    line-height: 1.3;
+}
+
+.message-text {
+    font-size: 14px;
+    color: #6c757d;
+    line-height: 1.5;
+    margin: 0;
+}
+
+.dialog-actions {
+    padding: 16px 24px;
+    border-top: 1px solid #e9ecef;
+    background: #ffffff;
+    display: flex;
+    justify-content: flex-end; /* 按键在底部右侧 */
+    gap: 12px;
+}
+
+/* 针对不同类型的图标颜色 */
+.standard-confirm-dialog.danger .dialog-icon {
+    color: #dc3545;
+}
+
+.standard-confirm-dialog.warning .dialog-icon {
+    color: #ffc107;
+}
+
+.standard-confirm-dialog.info .dialog-icon {
+    color: #17a2b8;
+}
+
+.standard-confirm-dialog.success .dialog-icon {
+    color: #28a745;
+}
+
+/* 响应式调整 */
+@media (max-width: 576px) {
+    .dialog-content {
+        width: 95vw;
+        margin: 20px;
+    }
+    
+    .dialog-message {
+        padding: 20px;
+    }
+    
+    .dialog-actions {
+        padding: 12px 20px;
+        flex-direction: column-reverse;
+    }
+    
+    .dialog-actions .btn {
+        width: 100%;
+        margin: 4px 0;
+    }
+    
+    .message-title {
+        font-size: 16px;
+    }
+    
+    .message-text {
+        font-size: 13px;
+    }
+}
+</style>
+
+<script>
+/**
+ * 显示标准确认对话框
+ * @param {Object} options - 配置选项
+ * @param {string} options.title - 对话框标题
+ * @param {string} options.message - 对话框消息内容
+ * @param {string} options.type - 对话框类型: 'danger', 'warning', 'info', 'success'
+ * @param {string} options.confirmText - 确认按钮文本，默认'确认'
+ * @param {string} options.cancelText - 取消按钮文本，默认'取消'
+ * @param {string} options.confirmColor - 确认按钮颜色，默认根据type决定
+ * @param {Function} options.onConfirm - 确认回调函数
+ * @param {Function} options.onCancel - 取消回调函数
+ * @param {string} options.dialogId - 对话框ID，默认'standardConfirmDialog'
+ */
+window.showConfirmDialog = function(options = {}) {
+    const {
+        title = '确认操作',
+        message = '确定要执行此操作吗？',
+        type = 'danger',
+        confirmText = '确认',
+        cancelText = '取消',
+        confirmColor = null,
+        onConfirm = null,
+        onCancel = null,
+        dialogId = '{{ dialog_id }}'
+    } = options;
+    
+    const dialog = document.getElementById(dialogId);
+    if (!dialog) {
+        console.error('确认对话框容器未找到:', dialogId);
+        return;
+    }
+    
+    // 设置图标
+    const iconElement = dialog.querySelector('.dialog-icon');
+    if (iconElement) {
+        let iconClass = '';
+        switch(type) {
+            case 'danger':
+                iconClass = 'fas fa-exclamation-triangle';
+                break;
+            case 'warning':
+                iconClass = 'fas fa-exclamation-circle';
+                break;
+            case 'info':
+                iconClass = 'fas fa-info-circle';
+                break;
+            case 'success':
+                iconClass = 'fas fa-check-circle';
+                break;
+            default:
+                iconClass = 'fas fa-question-circle';
+        }
+        iconElement.className = `dialog-icon ${iconClass}`;
+    }
+    
+    // 设置标题和消息
+    const titleElement = dialog.querySelector('.message-title');
+    const textElement = dialog.querySelector('.message-text');
+    if (titleElement) titleElement.textContent = title;
+    if (textElement) textElement.innerHTML = message.replace(/\n/g, '<br>');
+    
+    // 设置对话框类型样式
+    dialog.classList.remove('danger', 'warning', 'info', 'success');
+    dialog.classList.add(type);
+    
+    // 设置按钮文本和颜色
+    const confirmBtn = dialog.querySelector('.dialog-confirm-btn');
+    const cancelBtn = dialog.querySelector('.dialog-cancel-btn');
+    
+    if (confirmBtn) {
+        confirmBtn.textContent = confirmText;
+        // 移除旧的颜色类
+        confirmBtn.classList.remove('btn-danger', 'btn-warning', 'btn-primary', 'btn-success');
+        // 设置新的颜色
+        const finalConfirmColor = confirmColor || (type === 'danger' ? 'danger' : type === 'warning' ? 'warning' : 'primary');
+        confirmBtn.classList.add(`btn-${finalConfirmColor}`);
+    }
+    
+    if (cancelBtn) {
+        cancelBtn.textContent = cancelText;
+    }
+    
+    // 绑定事件
+    const handleConfirm = () => {
+        hideConfirmDialog(dialogId);
+        if (onConfirm && typeof onConfirm === 'function') {
+            onConfirm();
+        }
+    };
+    
+    const handleCancel = () => {
+        hideConfirmDialog(dialogId);
+        if (onCancel && typeof onCancel === 'function') {
+            onCancel();
+        }
+    };
+    
+    // 移除旧的事件监听器
+    if (confirmBtn) {
+        confirmBtn.replaceWith(confirmBtn.cloneNode(true));
+        const newConfirmBtn = dialog.querySelector('.dialog-confirm-btn');
+        newConfirmBtn.addEventListener('click', handleConfirm);
+    }
+    
+    if (cancelBtn) {
+        cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+        const newCancelBtn = dialog.querySelector('.dialog-cancel-btn');
+        newCancelBtn.addEventListener('click', handleCancel);
+    }
+    
+    // 点击遮罩层关闭
+    const overlay = dialog.querySelector('.dialog-overlay');
+    if (overlay) {
+        overlay.replaceWith(overlay.cloneNode(true));
+        const newOverlay = dialog.querySelector('.dialog-overlay');
+        newOverlay.addEventListener('click', handleCancel);
+    }
+    
+    // 显示对话框
+    dialog.style.display = 'flex';
+    // 强制重绘后添加show类以触发动画
+    requestAnimationFrame(() => {
+        dialog.classList.add('show');
+    });
+    
+    // ESC键关闭
+    const handleEsc = (e) => {
+        if (e.key === 'Escape') {
+            handleCancel();
+            document.removeEventListener('keydown', handleEsc);
+        }
+    };
+    document.addEventListener('keydown', handleEsc);
+};
+
+/**
+ * 隐藏确认对话框
+ * @param {string} dialogId - 对话框ID
+ */
+window.hideConfirmDialog = function(dialogId = '{{ dialog_id }}') {
+    const dialog = document.getElementById(dialogId);
+    if (dialog) {
+        dialog.classList.remove('show');
+        setTimeout(() => {
+            dialog.style.display = 'none';
+        }, 300);
+    }
+};
+
+/**
+ * 删除确认对话框 - 常用的预设
+ * @param {Object} options - 配置选项
+ */
+window.showDeleteConfirm = function(options = {}) {
+    const defaultOptions = {
+        title: '确认删除',
+        message: '确定要删除吗？此操作不可恢复。',
+        type: 'danger',
+        confirmText: '删除',
+        cancelText: '取消',
+        confirmColor: 'danger'
+    };
+    
+    showConfirmDialog({...defaultOptions, ...options});
+};
+</script>
 {% endmacro %}
 

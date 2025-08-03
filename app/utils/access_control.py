@@ -84,9 +84,9 @@ def get_viewable_data(model_class, user, special_filters=None):
     
     # 管理员可以查看所有数据
     if user.role == 'admin':
-        # 为Company模型添加is_deleted过滤条件，确保管理员也不会看到已删除的客户
+        # 为所有支持软删除的模型添加is_deleted过滤条件
         base_filters = []
-        if model_class.__name__ == 'Company':
+        if hasattr(model_class, 'is_deleted'):
             base_filters.append(model_class.is_deleted == False)
         all_filters = base_filters + (special_filters if special_filters else [])
         return model_class.query.filter(*all_filters)
@@ -358,9 +358,9 @@ def get_viewable_data(model_class, user, special_filters=None):
         # 管理员已经在前面处理过，不应该进入这个逻辑
         # 但为了防止意外，再次检查管理员权限
         if user.role == 'admin':
-            # 为Company模型添加is_deleted过滤条件，确保管理员也不会看到已删除的客户
+            # 为所有支持软删除的模型添加is_deleted过滤条件
             base_filters = []
-            if model_class.__name__ == 'Company':
+            if hasattr(model_class, 'is_deleted'):
                 base_filters.append(model_class.is_deleted == False)
             all_filters = base_filters + (special_filters if special_filters else [])
             return model_class.query.filter(*all_filters)

@@ -631,7 +631,8 @@ def create_expense():
             customer_id = request.form.get('customer_id', type=int)
             contact_id = request.form.get('contact_id', type=int)
             project_id = request.form.get('project_id', type=int) or None
-            currency = request.form.get('currency', 'CNY').strip()
+            expense_currency = request.form.get('currency', 'CNY').strip()  # 报销单主货币
+            logger.info(f"用户选择的报销单主货币: {expense_currency}")
             
             # 数据验证
             if not all([customer_id, contact_id]):
@@ -748,7 +749,7 @@ def create_expense():
                     logger.info(f"明细{index}数据处理: invoice_amount={invoice_amount}, current_amount={current_amount}, amount={amount}, exchange_rate={exchange_rate}")
                     logger.info(f"原始表单数据: {dict(detail)}")
                     
-                    currency = detail['currency']
+                    detail_currency = detail['currency']  # 明细的发票货币
                     document_count = int(detail.get('document_count', 1)) if detail.get('document_count') else 1
                     
                     if invoice_amount <= 0:
@@ -775,7 +776,7 @@ def create_expense():
                         'expense_category': detail['expense_category'],
                         'description': detail['description'].strip(),
                         'document_count': document_count,
-                        'currency': currency,
+                        'currency': detail_currency,  # 使用明细的发票货币
                         'invoice_amount': invoice_amount,
                         'current_amount': current_amount,
                         'amount': amount,  # 确保包含amount字段
@@ -812,7 +813,7 @@ def create_expense():
                 customer_id=customer_id,
                 contact_id=contact_id,
                 project_id=project_id,
-                currency=currency,  # 添加货币字段
+                currency=expense_currency,  # 使用报销单主货币
                 owner_id=current_user.id,
                 total_amount=total_amount  # 根据明细计算总金额
             )
@@ -910,7 +911,13 @@ def create_expense():
                     import json
                     detail_obj.invoice_images = json.dumps(processed_images)
             
+            # 确保用户选择的货币不被覆盖
+            if expense_obj.currency != expense_currency:
+                logger.warning(f"创建时检测到货币被意外修改: {expense_obj.currency} -> {expense_currency}，正在恢复")
+                expense_obj.currency = expense_currency
+            
             db.session.commit()
+            logger.info(f"报销单创建完成，最终货币: {expense_obj.currency}")
             
             # 检查是否是AJAX请求
             if request.headers.get('Content-Type', '').startswith('multipart/form-data'):
@@ -1033,7 +1040,11 @@ def edit_expense(id):
             expense_obj.customer_id = customer_id
             expense_obj.contact_id = contact_id
             expense_obj.project_id = request.form.get('project_id', type=int) or None
-            expense_obj.currency = request.form.get('currency', 'CNY')
+            
+            # 保存用户明确选择的货币，确保不被后续逻辑覆盖
+            user_selected_currency = request.form.get('currency', 'CNY')
+            expense_obj.currency = user_selected_currency
+            logger.info(f"用户选择的报销单货币: {user_selected_currency}")
             
             # 处理明细数据（复用创建报销单的逻辑）
             detail_data = {}
@@ -1268,7 +1279,13 @@ def edit_expense(id):
             # 更新报销单总金额
             expense_obj.total_amount = total_amount
             
+            # 确保用户选择的货币不被覆盖
+            if expense_obj.currency != user_selected_currency:
+                logger.warning(f"检测到货币被意外修改: {expense_obj.currency} -> {user_selected_currency}，正在恢复")
+                expense_obj.currency = user_selected_currency
+            
             db.session.commit()
+            logger.info(f"报销单保存完成，最终货币: {expense_obj.currency}")
             
             # 返回JSON响应
             return jsonify({

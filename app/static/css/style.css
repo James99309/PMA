@@ -4990,3 +4990,194 @@ a:focus .badge.badge-transparent.expense-number-badge {
     margin-bottom: 0.5rem;
     font-weight: 500;
 } 
+
+/* ===== 报销单表单样式 ===== */
+.expense-form-container {
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.expense-form-container .row {
+    margin-bottom: 15px;
+}
+
+.expense-form-container .form-label {
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: #2c3e50;
+    display: flex;
+    align-items: center;
+    min-height: 1.5rem;
+}
+
+.expense-form-container .form-control,
+.expense-form-container .form-select {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    transition: border-color 0.2s ease-in-out;
+    height: calc(2.25rem + 2px);
+    font-size: 0.9rem;
+}
+
+.expense-form-container .form-control:focus,
+.expense-form-container .form-select:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+}
+
+/* 多行文本域的特殊样式 */
+.expense-form-container textarea.form-control {
+    height: auto;
+    min-height: calc(2.25rem + 2px);
+    resize: vertical;
+    line-height: 1.4;
+}
+
+/* 统一标签高度，确保对齐 */
+.expense-form-container .col-md-6 > .form-label {
+    height: 1.5rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+}
+
+/* 确保输入框顶部对齐 */
+.expense-form-container .col-md-6 {
+    display: flex;
+    flex-direction: column;
+}
+
+/* 移除自动边距，让输入框自然顶部对齐 */
+.expense-form-container .col-md-6 > .form-control,
+.expense-form-container .col-md-6 > .form-select {
+    margin-top: 0;
+}
+
+/* 确保搜索组件也顶部对齐 */
+.expense-form-container .customer-search-container,
+.expense-form-container .project-search-container {
+    margin-top: 0;
+}
+
+/* 特别针对同一行的字段进行对齐优化 */
+.expense-form-container .row .col-md-6 {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+/* 确保标签高度一致 */
+.expense-form-container .row .col-md-6 .form-label {
+    height: 1.5rem;
+    margin-bottom: 0.5rem;
+    flex-shrink: 0;
+}
+
+/* 输入框容器顶部对齐 */
+.expense-form-container .row .col-md-6 > .form-control,
+.expense-form-container .row .col-md-6 > .form-select {
+    flex-grow: 0;  /* 单行输入框保持自然高度 */
+    flex-shrink: 0;
+    margin-top: 0 !important;
+}
+
+/* 多行文本域允许增长 */
+.expense-form-container .row .col-md-6 > textarea {
+    flex-grow: 1;
+    margin-top: 0 !important;
+}
+
+/* 搜索组件特殊处理 - 保持标准高度 */
+.expense-form-container .customer-search-container,
+.expense-form-container .project-search-container {
+    flex-grow: 0;
+    flex-shrink: 0;
+    margin-top: 0 !important;
+}
+
+.expense-form-container .customer-search-container .form-control,
+.expense-form-container .project-search-container .form-control {
+    margin-top: 0 !important;
+    height: calc(2.25rem + 2px); /* 确保搜索框保持标准高度 */
+}
+
+/* 特别处理联系人下拉框 - 确保保持单行高度 */
+.expense-form-container select#contact_id {
+    height: calc(2.25rem + 2px) !important;
+    flex-grow: 0 !important;
+    flex-shrink: 0 !important;
+}
+
+/* 确保所有单行输入框都保持标准高度 */
+.expense-form-container input[type="text"],
+.expense-form-container select:not(textarea) {
+    height: calc(2.25rem + 2px) !important;
+}
+
+/* 报销明细表格对齐 */
+.expense-table-container {
+    margin-top: 20px;
+}
+
+.expense-table-container .table th,
+.expense-table-container .table td {
+    vertical-align: middle;
+    text-align: center;
+    padding: 0.5rem;
+}
+
+.expense-table-container .table td input,
+.expense-table-container .table td select,
+.expense-table-container .table td textarea {
+    width: 100%;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.expense-table-container .table td input:focus,
+.expense-table-container .table td select:focus,
+.expense-table-container .table td textarea:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    outline: 0;
+}
+
+/* 表格中的数字输入框右对齐 */
+.expense-table-container .table td input[type="number"] {
+    text-align: right;
+}
+
+/* 分隔线样式 */
+.section-divider {
+    height: 1px;
+    background: linear-gradient(to right, transparent, #ddd 20%, #ddd 80%, transparent);
+    margin: 30px 0;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .expense-form-container {
+        padding: 15px;
+    }
+    
+    .expense-form-container .col-md-6 {
+        margin-bottom: 1rem;
+    }
+    
+    .expense-table-container .table {
+        font-size: 0.8rem;
+    }
+    
+    .expense-table-container .table td input,
+    .expense-table-container .table td select,
+    .expense-table-container .table td textarea {
+        font-size: 0.8rem;
+        padding: 0.25rem 0.5rem;
+    }
+}
