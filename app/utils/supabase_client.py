@@ -27,12 +27,38 @@ class SupabaseStorageClient:
             self.supabase_key = os.getenv('SUPABASE_KEY') 
             self.bucket_name = os.getenv('SUPABASE_BUCKET')
             
-            if not all([self.supabase_url, self.supabase_key, self.bucket_name]):
-                raise ValueError("缺少必需的Supabase环境变量：SUPABASE_URL, SUPABASE_KEY, SUPABASE_BUCKET")
+            # 详细的环境变量检查
+            missing_vars = []
+            if not self.supabase_url:
+                missing_vars.append('SUPABASE_URL')
+            if not self.supabase_key:
+                missing_vars.append('SUPABASE_KEY')
+            if not self.bucket_name:
+                missing_vars.append('SUPABASE_BUCKET')
+                
+            if missing_vars:
+                raise ValueError(f"缺少必需的Supabase环境变量: {', '.join(missing_vars)}")
+                
+            logger.info(f"Supabase配置: URL={self.supabase_url[:20]}..., BUCKET={self.bucket_name}")
             
-            # 创建Supabase客户端
-            self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
-            logger.info("Supabase客户端初始化成功")
+            # 创建Supabase客户端 - 修复版本兼容性问题
+            try:
+                # 使用最新版本的正确参数格式
+                self.supabase: Client = create_client(
+                    supabase_url=self.supabase_url, 
+                    supabase_key=self.supabase_key
+                )
+                logger.info("Supabase客户端初始化成功")
+            except Exception as init_error:
+                logger.error(f"Supabase客户端初始化失败: {init_error}")
+                # 尝试不同的初始化方式
+                try:
+                    # 旧版本的初始化方式
+                    self.supabase = create_client(self.supabase_url, self.supabase_key)
+                    logger.info("使用备用方式初始化Supabase客户端成功")
+                except Exception as fallback_error:
+                    logger.error(f"备用初始化也失败: {fallback_error}")
+                    raise init_error
             
         except Exception as e:
             logger.error(f"Supabase客户端初始化失败: {str(e)}")
@@ -270,7 +296,7 @@ class SupabaseStorageClient:
                 path=storage_path,
                 file=processed_content,
                 file_options={
-                    "content-type": self._get_content_type(filename, 'image'),
+                    "content-type": self._get_content_type('image', filename.split('.')[-1].lower() if '.' in filename else 'jpg'),
                     "cache-control": "3600",
                     "upsert": True  # 允许覆盖同名文件
                 }
