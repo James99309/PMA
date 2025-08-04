@@ -3,9 +3,20 @@ import logging
 from io import BytesIO
 from PIL import Image
 from supabase import create_client, Client
-from supabase.storage.types import UploadFileOptions
 from werkzeug.utils import secure_filename
 from typing import Optional, Tuple
+
+# 尝试导入UploadFileOptions，如果不存在则创建兼容的替代
+try:
+    from supabase.storage.types import UploadFileOptions
+    HAS_UPLOAD_FILE_OPTIONS = True
+except ImportError:
+    # 对于旧版本SDK，创建一个简单的替代类
+    class UploadFileOptions:
+        def __init__(self, content_type: str, **kwargs):
+            self.content_type = content_type
+            self.__dict__.update(kwargs)
+    HAS_UPLOAD_FILE_OPTIONS = False
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -99,23 +110,37 @@ class SupabaseStorageClient:
                 file.seek(0)
                 file_content = file.read()
             
-            # 使用官方推荐的上传方法和UploadFileOptions
+            # 使用版本兼容的上传方法
             try:
                 # 将文件内容包装为BytesIO对象
                 file_bytes = BytesIO(file_content)
                 
-                # 使用UploadFileOptions构造器
-                options = UploadFileOptions(content_type=self._get_content_type(file_type, file_ext))
-                
-                # 使用官方推荐的上传方法
-                res = self.supabase.storage.from_(self.bucket_name).upload(
-                    filename,
-                    file_bytes,
-                    options  # 使用UploadFileOptions而非字典
-                )
+                # 根据SDK版本选择参数格式
+                if HAS_UPLOAD_FILE_OPTIONS:
+                    # 新版本SDK使用UploadFileOptions
+                    options = UploadFileOptions(content_type=self._get_content_type(file_type, file_ext))
+                    res = self.supabase.storage.from_(self.bucket_name).upload(
+                        filename,
+                        file_bytes,
+                        options
+                    )
+                else:
+                    # 旧版本SDK使用字典或更简单的方式
+                    try:
+                        res = self.supabase.storage.from_(self.bucket_name).upload(
+                            filename,
+                            file_bytes,
+                            {"content-type": self._get_content_type(file_type, file_ext)}
+                        )
+                    except:
+                        # 最简化版本，不传递content-type
+                        res = self.supabase.storage.from_(self.bucket_name).upload(
+                            filename,
+                            file_bytes
+                        )
                 
                 # 检查上传结果
-                if res.get("error"):
+                if res and hasattr(res, 'get') and res.get("error"):
                     raise Exception("Upload failed: " + res["error"]["message"])
                 
                 logger.info(f"Supabase上传成功: {filename}")
@@ -284,25 +309,39 @@ class SupabaseStorageClient:
                 logger.warning(f"图片处理失败，使用原始文件: {str(e)}")
                 processed_content = file_content
             
-            # 使用官方推荐的上传方法和UploadFileOptions
+            # 使用版本兼容的上传方法
             try:
                 # 将处理后的文件内容包装为BytesIO对象
                 file_bytes = BytesIO(processed_content)
                 
-                # 使用UploadFileOptions构造器
-                options = UploadFileOptions(
-                    content_type=self._get_content_type('image', filename.split('.')[-1].lower() if '.' in filename else 'jpg')
-                )
-                
-                # 使用官方推荐的上传方法
-                res = self.supabase.storage.from_(self.bucket_name).upload(
-                    storage_path,
-                    file_bytes,
-                    options  # 使用UploadFileOptions而非字典
-                )
+                # 根据SDK版本选择参数格式
+                if HAS_UPLOAD_FILE_OPTIONS:
+                    # 新版本SDK使用UploadFileOptions
+                    options = UploadFileOptions(
+                        content_type=self._get_content_type('image', filename.split('.')[-1].lower() if '.' in filename else 'jpg')
+                    )
+                    res = self.supabase.storage.from_(self.bucket_name).upload(
+                        storage_path,
+                        file_bytes,
+                        options
+                    )
+                else:
+                    # 旧版本SDK使用字典或更简单的方式
+                    try:
+                        res = self.supabase.storage.from_(self.bucket_name).upload(
+                            storage_path,
+                            file_bytes,
+                            {"content-type": self._get_content_type('image', filename.split('.')[-1].lower() if '.' in filename else 'jpg')}
+                        )
+                    except:
+                        # 最简化版本，不传递content-type
+                        res = self.supabase.storage.from_(self.bucket_name).upload(
+                            storage_path,
+                            file_bytes
+                        )
                 
                 # 检查上传结果
-                if res.get("error"):
+                if res and hasattr(res, 'get') and res.get("error"):
                     raise Exception("Upload failed: " + res["error"]["message"])
                 
                 logger.info(f"Supabase发票上传成功: {storage_path}")
