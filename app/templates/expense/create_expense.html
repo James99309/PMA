@@ -686,9 +686,7 @@ async function submitExpenseFormWithFiles() {
                         }
                         
                         // 显示上传结果提示
-                        const uploadEnv = result.file_upload_info.is_cloud ? '云端' : '本地';
-                        const uploadCount = result.file_upload_info.uploaded_files?.length || 0;
-                        alert(`📎 文件上传成功!\n🌐 上传环境: ${uploadEnv}\n📁 上传文件数: ${uploadCount}`);
+                        // 移除文件上传成功的弹窗提示，保留控制台日志供调试
                     }
                     
                     // 延迟跳转，让用户看到提示
