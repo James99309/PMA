@@ -3,6 +3,7 @@ import logging
 from io import BytesIO
 from PIL import Image
 from supabase import create_client, Client
+from supabase.storage.types import UploadFileOptions
 from werkzeug.utils import secure_filename
 from typing import Optional, Tuple
 
@@ -98,16 +99,19 @@ class SupabaseStorageClient:
                 file.seek(0)
                 file_content = file.read()
             
-            # 使用官方推荐的上传方法
+            # 使用官方推荐的上传方法和UploadFileOptions
             try:
                 # 将文件内容包装为BytesIO对象
                 file_bytes = BytesIO(file_content)
+                
+                # 使用UploadFileOptions构造器
+                options = UploadFileOptions(content_type=self._get_content_type(file_type, file_ext))
                 
                 # 使用官方推荐的上传方法
                 res = self.supabase.storage.from_(self.bucket_name).upload(
                     filename,
                     file_bytes,
-                    {"content-type": self._get_content_type(file_type, file_ext)}
+                    options  # 使用UploadFileOptions而非字典
                 )
                 
                 # 检查上传结果
@@ -280,16 +284,21 @@ class SupabaseStorageClient:
                 logger.warning(f"图片处理失败，使用原始文件: {str(e)}")
                 processed_content = file_content
             
-            # 使用官方推荐的上传方法
+            # 使用官方推荐的上传方法和UploadFileOptions
             try:
                 # 将处理后的文件内容包装为BytesIO对象
                 file_bytes = BytesIO(processed_content)
+                
+                # 使用UploadFileOptions构造器
+                options = UploadFileOptions(
+                    content_type=self._get_content_type('image', filename.split('.')[-1].lower() if '.' in filename else 'jpg')
+                )
                 
                 # 使用官方推荐的上传方法
                 res = self.supabase.storage.from_(self.bucket_name).upload(
                     storage_path,
                     file_bytes,
-                    {"content-type": self._get_content_type('image', filename.split('.')[-1].lower() if '.' in filename else 'jpg')}
+                    options  # 使用UploadFileOptions而非字典
                 )
                 
                 # 检查上传结果
