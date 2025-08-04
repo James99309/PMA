@@ -671,10 +671,30 @@ async function submitExpenseFormWithFiles() {
         if (response.ok) {
             try {
                 // 尝试解析JSON
+                console.log('📥 服务器响应:', responseText);
                 const result = JSON.parse(responseText);
+                console.log('📊 解析结果:', result);
+                
                 if (result.success) {
-                    // 成功，跳转到详情页
-                    window.location.href = result.redirect_url;
+                    console.log('✅ 报销单创建成功!');
+                    if (result.file_upload_info) {
+                        console.log('📎 文件上传信息:', result.file_upload_info);
+                        console.log('🌐 上传环境:', result.file_upload_info.is_cloud ? '云端' : '本地');
+                        console.log('🔧 环境变量:', result.file_upload_info.environment_vars);
+                        if (result.file_upload_info.uploaded_files) {
+                            console.log('📁 上传的文件:', result.file_upload_info.uploaded_files);
+                        }
+                        
+                        // 显示上传结果提示
+                        const uploadEnv = result.file_upload_info.is_cloud ? '云端' : '本地';
+                        const uploadCount = result.file_upload_info.uploaded_files?.length || 0;
+                        alert(`📎 文件上传成功!\n🌐 上传环境: ${uploadEnv}\n📁 上传文件数: ${uploadCount}`);
+                    }
+                    
+                    // 延迟跳转，让用户看到提示
+                    setTimeout(() => {
+                        window.location.href = result.redirect_url;
+                    }, 2000);
                 } else {
                     throw new Error(result.message || '保存失败');
                 }

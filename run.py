@@ -23,7 +23,25 @@ def main():
         # 解析命令行参数
         parser = argparse.ArgumentParser(description='PMA项目管理系统')
         parser.add_argument('--port', type=int, help='指定运行端口')
+        parser.add_argument('--supabase', action='store_true', help='启用Supabase云端上传测试')
         args = parser.parse_args()
+        
+        # 如果启用了Supabase测试
+        if args.supabase:
+            logger.info("🌐 启用Supabase云端上传测试模式")
+            # 加载Supabase配置
+            env_file_path = '.env.supabase'
+            if os.path.exists(env_file_path):
+                with open(env_file_path, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#') and '=' in line:
+                            key, value = line.split('=', 1)
+                            os.environ[key] = value
+                            display_value = value[:20] + '...' if len(value) > 20 else value
+                            logger.info(f"✅ 设置环境变量: {key}={display_value}")
+            else:
+                logger.warning("⚠️ Supabase配置文件 .env.supabase 不存在")
         
         # 强制使用本地数据库配置
         os.environ['FLASK_ENV'] = 'local'
@@ -35,6 +53,12 @@ def main():
         # 导入本地配置
         from config import LocalConfig
         app = create_app(LocalConfig)
+        
+        # 显示最终的环境变量状态
+        if args.supabase:
+            logger.info(f"🔍 最终环境变量状态:")
+            logger.info(f"   SUPABASE_URL: {os.environ.get('SUPABASE_URL', 'NOT SET')}")
+            logger.info(f"   FORCE_CLOUD_UPLOAD: {os.environ.get('FORCE_CLOUD_UPLOAD', 'NOT SET')}")
         
         # 获取端口（优先使用命令行参数，然后使用默认值）
         if args.port:
@@ -49,6 +73,8 @@ def main():
         logger.info(f"访问地址: http://localhost:{port}")
         logger.info(f"本地网络地址: http://0.0.0.0:{port}")
         logger.info(f"💾 数据库: 本地PostgreSQL")
+        if args.supabase:
+            logger.info(f"☁️ 文件上传: Supabase云端存储")
         
         # 启动应用
         app.run(

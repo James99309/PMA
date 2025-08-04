@@ -115,29 +115,95 @@ class SupabaseStorageClient:
                 # 将文件内容包装为BytesIO对象
                 file_bytes = BytesIO(file_content)
                 
-                # 根据SDK版本选择参数格式
+                # 调试信息
+                logger.info(f"HAS_UPLOAD_FILE_OPTIONS: {HAS_UPLOAD_FILE_OPTIONS}")
+                
+                # 使用多层容错机制
+                upload_success = False
+                
                 if HAS_UPLOAD_FILE_OPTIONS:
-                    # 新版本SDK使用UploadFileOptions
-                    options = UploadFileOptions(content_type=self._get_content_type(file_type, file_ext))
-                    res = self.supabase.storage.from_(self.bucket_name).upload(
-                        filename,
-                        file_bytes,
-                        options
-                    )
-                else:
-                    # 旧版本SDK使用字典或更简单的方式
                     try:
+                        # 新版本SDK使用UploadFileOptions
+                        logger.info("尝试使用UploadFileOptions方式上传")
+                        options = UploadFileOptions(content_type=self._get_content_type(file_type, file_ext))
+                        res = self.supabase.storage.from_(self.bucket_name).upload(
+                            filename,
+                            file_bytes,
+                            options
+                        )
+                        upload_success = True
+                        logger.info("UploadFileOptions方式上传成功")
+                    except Exception as e:
+                        logger.warning(f"UploadFileOptions方式失败: {e}")
+                
+                if not upload_success:
+                    try:
+                        # 尝试字典方式
+                        logger.info("尝试使用字典方式上传")
                         res = self.supabase.storage.from_(self.bucket_name).upload(
                             filename,
                             file_bytes,
                             {"content-type": self._get_content_type(file_type, file_ext)}
                         )
-                    except:
+                        upload_success = True
+                        logger.info("字典方式上传成功")
+                    except Exception as e:
+                        logger.warning(f"字典方式失败: {e}")
+                
+                if not upload_success:
+                    try:
                         # 最简化版本，不传递content-type
+                        logger.info("尝试使用最简化方式上传")
                         res = self.supabase.storage.from_(self.bucket_name).upload(
                             filename,
                             file_bytes
                         )
+                        upload_success = True
+                        logger.info("最简化方式上传成功")
+                    except Exception as e:
+                        logger.warning(f"最简化方式失败: {e}")
+                
+                # 如果所有SDK方法都失败，使用HTTP API作为最后的备用方案
+                if not upload_success:
+                    try:
+                        logger.info("所有SDK方法失败，尝试使用HTTP API直接上传")
+                        import requests
+                        
+                        # 重置BytesIO位置
+                        file_bytes.seek(0)
+                        
+                        # 构建上传URL
+                        upload_url = f"{self.supabase_url}/storage/v1/object/{self.bucket_name}/{filename}"
+                        
+                        # 设置请求头
+                        headers = {
+                            'Authorization': f'Bearer {self.supabase_key}',
+                            'Content-Type': self._get_content_type(file_type, file_ext),
+                            'x-upsert': 'true'  # 允许覆盖文件
+                        }
+                        
+                        # 发送POST请求上传文件
+                        response = requests.post(
+                            upload_url,
+                            data=file_bytes.read(),
+                            headers=headers,
+                            timeout=30
+                        )
+                        
+                        if response.status_code in [200, 201]:
+                            logger.info("HTTP API方式上传成功")
+                            upload_success = True
+                            # 创建一个模拟的成功响应
+                            res = {"error": None}
+                        else:
+                            raise Exception(f"HTTP上传失败: {response.status_code} - {response.text}")
+                            
+                    except Exception as e:
+                        logger.error(f"HTTP API方式也失败: {e}")
+                        raise e
+                
+                if not upload_success:
+                    raise Exception("所有上传方法都失败了")
                 
                 # 检查上传结果
                 if res and hasattr(res, 'get') and res.get("error"):
@@ -314,31 +380,97 @@ class SupabaseStorageClient:
                 # 将处理后的文件内容包装为BytesIO对象
                 file_bytes = BytesIO(processed_content)
                 
-                # 根据SDK版本选择参数格式
+                # 调试信息
+                logger.info(f"HAS_UPLOAD_FILE_OPTIONS: {HAS_UPLOAD_FILE_OPTIONS}")
+                
+                # 使用多层容错机制
+                upload_success = False
+                
                 if HAS_UPLOAD_FILE_OPTIONS:
-                    # 新版本SDK使用UploadFileOptions
-                    options = UploadFileOptions(
-                        content_type=self._get_content_type('image', filename.split('.')[-1].lower() if '.' in filename else 'jpg')
-                    )
-                    res = self.supabase.storage.from_(self.bucket_name).upload(
-                        storage_path,
-                        file_bytes,
-                        options
-                    )
-                else:
-                    # 旧版本SDK使用字典或更简单的方式
                     try:
+                        # 新版本SDK使用UploadFileOptions
+                        logger.info("尝试使用UploadFileOptions方式上传")
+                        options = UploadFileOptions(
+                            content_type=self._get_content_type('image', filename.split('.')[-1].lower() if '.' in filename else 'jpg')
+                        )
+                        res = self.supabase.storage.from_(self.bucket_name).upload(
+                            storage_path,
+                            file_bytes,
+                            options
+                        )
+                        upload_success = True
+                        logger.info("UploadFileOptions方式上传成功")
+                    except Exception as e:
+                        logger.warning(f"UploadFileOptions方式失败: {e}")
+                
+                if not upload_success:
+                    try:
+                        # 尝试字典方式
+                        logger.info("尝试使用字典方式上传")
                         res = self.supabase.storage.from_(self.bucket_name).upload(
                             storage_path,
                             file_bytes,
                             {"content-type": self._get_content_type('image', filename.split('.')[-1].lower() if '.' in filename else 'jpg')}
                         )
-                    except:
+                        upload_success = True
+                        logger.info("字典方式上传成功")
+                    except Exception as e:
+                        logger.warning(f"字典方式失败: {e}")
+                
+                if not upload_success:
+                    try:
                         # 最简化版本，不传递content-type
+                        logger.info("尝试使用最简化方式上传")
                         res = self.supabase.storage.from_(self.bucket_name).upload(
                             storage_path,
                             file_bytes
                         )
+                        upload_success = True
+                        logger.info("最简化方式上传成功")
+                    except Exception as e:
+                        logger.warning(f"最简化方式失败: {e}")
+                
+                # 如果所有SDK方法都失败，使用HTTP API作为最后的备用方案
+                if not upload_success:
+                    try:
+                        logger.info("所有SDK方法失败，尝试使用HTTP API直接上传")
+                        import requests
+                        
+                        # 重置BytesIO位置
+                        file_bytes.seek(0)
+                        
+                        # 构建上传URL
+                        upload_url = f"{self.supabase_url}/storage/v1/object/{self.bucket_name}/{storage_path}"
+                        
+                        # 设置请求头
+                        headers = {
+                            'Authorization': f'Bearer {self.supabase_key}',
+                            'Content-Type': self._get_content_type('image', filename.split('.')[-1].lower() if '.' in filename else 'jpg'),
+                            'x-upsert': 'true'  # 允许覆盖文件
+                        }
+                        
+                        # 发送POST请求上传文件
+                        response = requests.post(
+                            upload_url,
+                            data=file_bytes.read(),
+                            headers=headers,
+                            timeout=30
+                        )
+                        
+                        if response.status_code in [200, 201]:
+                            logger.info("HTTP API方式上传成功")
+                            upload_success = True
+                            # 创建一个模拟的成功响应
+                            res = {"error": None}
+                        else:
+                            raise Exception(f"HTTP上传失败: {response.status_code} - {response.text}")
+                            
+                    except Exception as e:
+                        logger.error(f"HTTP API方式也失败: {e}")
+                        raise e
+                
+                if not upload_success:
+                    raise Exception("所有上传方法都失败了")
                 
                 # 检查上传结果
                 if res and hasattr(res, 'get') and res.get("error"):

@@ -25,10 +25,14 @@ def is_cloud_environment():
     """检测是否在云端环境运行"""
     render_service = os.getenv('RENDER_SERVICE_NAME')
     supabase_url = os.getenv('SUPABASE_URL')
-    is_cloud = bool(render_service or supabase_url)
+    
+    # 支持强制启用云端上传进行本地测试
+    force_cloud_upload = os.getenv('FORCE_CLOUD_UPLOAD', '').lower() in ['true', '1', 'yes']
+    
+    is_cloud = bool(render_service or supabase_url or force_cloud_upload)
     
     # 添加调试日志
-    current_app.logger.info(f"环境检测: RENDER_SERVICE_NAME={render_service}, SUPABASE_URL={supabase_url[:20] + '...' if supabase_url else None}, is_cloud={is_cloud}")
+    current_app.logger.info(f"环境检测: RENDER_SERVICE_NAME={render_service}, SUPABASE_URL={supabase_url[:20] + '...' if supabase_url else None}, FORCE_CLOUD_UPLOAD={force_cloud_upload}, is_cloud={is_cloud}")
     
     return is_cloud
 
@@ -897,11 +901,14 @@ def create_expense():
                                         
                                     except Exception as supabase_error:
                                         current_app.logger.error(f"云端Supabase上传失败: {str(supabase_error)}")
+                                        # 添加详细错误信息
+                                        import traceback
+                                        current_app.logger.error(f"Supabase上传详细错误: {traceback.format_exc()}")
+                                        current_app.logger.error(f"文件信息: filename={file_obj.filename}, size={file_size}, ext={file_ext}")
                                         # 云端上传失败，跳过这个文件
                                         continue
                                 else:
                                     # 本地环境，使用本地文件系统
-                                    import os
                                     import uuid
                                     upload_dir = os.path.join(current_app.static_folder, 'uploads', 'invoices', str(detail_obj.id))
                                     os.makedirs(upload_dir, exist_ok=True)
@@ -957,13 +964,35 @@ def create_expense():
             
             # 检查是否是AJAX请求
             if request.headers.get('Content-Type', '').startswith('multipart/form-data'):
+                # 收集文件上传信息用于调试
+                upload_info = {
+                    'is_cloud': is_cloud_environment(),
+                    'uploaded_files': [],
+                    'environment_vars': {
+                        'SUPABASE_URL': os.getenv('SUPABASE_URL', 'Not Set')[:20] + '...' if os.getenv('SUPABASE_URL') else 'Not Set',
+                        'FORCE_CLOUD_UPLOAD': os.getenv('FORCE_CLOUD_UPLOAD', 'Not Set'),
+                        'RENDER_SERVICE_NAME': os.getenv('RENDER_SERVICE_NAME', 'Not Set')
+                    }
+                }
+                
+                # 收集上传的文件信息
+                for detail in detail_items:
+                    if 'invoice_images' in detail and detail['invoice_images']:
+                        try:
+                            images = json.loads(detail['invoice_images']) if isinstance(detail['invoice_images'], str) else detail['invoice_images']
+                            if images:
+                                upload_info['uploaded_files'].extend([img.get('url', 'No URL') for img in images])
+                        except:
+                            pass
+                
                 # AJAX请求，返回JSON响应
                 return jsonify({
                     'success': True,
                     'message': f'报销单创建成功，共添加 {len(detail_items)} 条明细，总金额 ¥{total_amount:.2f}',
                     'redirect_url': url_for('expense.expense_detail', id=expense_obj.id),
                     'expense_id': expense_obj.id,
-                    'expense_number': expense_obj.expense_number
+                    'expense_number': expense_obj.expense_number,
+                    'file_upload_info': upload_info
                 })
             else:
                 # 传统表单提交
@@ -1245,11 +1274,14 @@ def edit_expense(id):
                                         
                                     except Exception as supabase_error:
                                         current_app.logger.error(f"云端Supabase上传失败: {str(supabase_error)}")
+                                        # 添加详细错误信息
+                                        import traceback
+                                        current_app.logger.error(f"Supabase上传详细错误: {traceback.format_exc()}")
+                                        current_app.logger.error(f"文件信息: filename={file_obj.filename}, size={file_size}, ext={file_ext}")
                                         # 云端上传失败，跳过这个文件
                                         continue
                                 else:
                                     # 本地环境，使用本地文件系统
-                                    import os
                                     import uuid
                                     upload_dir = os.path.join(current_app.static_folder, 'uploads', 'invoices', str(detail_obj.id))
                                     os.makedirs(upload_dir, exist_ok=True)
