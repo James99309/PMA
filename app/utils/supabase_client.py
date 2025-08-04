@@ -20,29 +20,26 @@ class SupabaseStorageClient:
     IMAGE_QUALITY = 85  # JPEG压缩质量
     
     def __init__(self):
-        """初始化Supabase客户端，从环境变量获取配置"""
+        """使用官方推荐的方式初始化Supabase客户端"""
         try:
-            # 从Render环境变量获取配置
+            # 从环境变量获取配置
             self.supabase_url = os.getenv('SUPABASE_URL')
             self.supabase_key = os.getenv('SUPABASE_KEY') 
-            self.bucket_name = os.getenv('SUPABASE_BUCKET')
+            self.bucket_name = os.getenv('SUPABASE_BUCKET', 'product-images')
             
-            # 详细的环境变量检查
-            missing_vars = []
-            if not self.supabase_url:
-                missing_vars.append('SUPABASE_URL')
-            if not self.supabase_key:
-                missing_vars.append('SUPABASE_KEY')
-            if not self.bucket_name:
-                missing_vars.append('SUPABASE_BUCKET')
-                
-            if missing_vars:
+            # 检查必需的环境变量
+            if not self.supabase_url or not self.supabase_key:
+                missing_vars = []
+                if not self.supabase_url:
+                    missing_vars.append('SUPABASE_URL')
+                if not self.supabase_key:
+                    missing_vars.append('SUPABASE_KEY')
                 raise ValueError(f"缺少必需的Supabase环境变量: {', '.join(missing_vars)}")
                 
             logger.info(f"Supabase配置: URL={self.supabase_url[:20]}..., BUCKET={self.bucket_name}")
             
             # 使用官方推荐的create_client方法
-            self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
+            self.supabase = create_client(self.supabase_url, self.supabase_key)
             logger.info("Supabase客户端初始化成功")
             
         except Exception as e:
@@ -103,19 +100,19 @@ class SupabaseStorageClient:
             
             # 使用官方推荐的上传方法
             try:
-                from io import BytesIO
+                # 将文件内容包装为BytesIO对象
                 file_bytes = BytesIO(file_content)
                 
                 # 使用官方推荐的上传方法
-                result = self.supabase.storage.from_(self.bucket_name).upload(
-                    filename,  # path
-                    file_bytes,  # file data
+                res = self.supabase.storage.from_(self.bucket_name).upload(
+                    filename,
+                    file_bytes,
                     {"content-type": self._get_content_type(file_type, file_ext)}
                 )
                 
                 # 检查上传结果
-                if hasattr(result, 'error') and result.error:
-                    raise Exception(f"上传失败: {result.error}")
+                if res.get("error"):
+                    raise Exception("Upload failed: " + res["error"]["message"])
                 
                 logger.info(f"Supabase上传成功: {filename}")
                 
@@ -123,8 +120,8 @@ class SupabaseStorageClient:
                 logger.error(f"Supabase上传失败: {upload_error}")
                 raise upload_error
             
-            # 获取公开URL
-            public_url = self.supabase.storage.from_(self.bucket_name).get_public_url(filename)
+            # 构建公开URL
+            public_url = f"{self.supabase_url}/storage/v1/object/public/{self.bucket_name}/{filename}"
             logger.info(f"文件上传成功: {filename} -> {public_url}")
             
             return public_url
@@ -285,19 +282,19 @@ class SupabaseStorageClient:
             
             # 使用官方推荐的上传方法
             try:
-                from io import BytesIO
+                # 将处理后的文件内容包装为BytesIO对象
                 file_bytes = BytesIO(processed_content)
                 
                 # 使用官方推荐的上传方法
-                result = self.supabase.storage.from_(self.bucket_name).upload(
-                    storage_path,  # path
-                    file_bytes,  # file data
+                res = self.supabase.storage.from_(self.bucket_name).upload(
+                    storage_path,
+                    file_bytes,
                     {"content-type": self._get_content_type('image', filename.split('.')[-1].lower() if '.' in filename else 'jpg')}
                 )
                 
                 # 检查上传结果
-                if hasattr(result, 'error') and result.error:
-                    raise Exception(f"上传失败: {result.error}")
+                if res.get("error"):
+                    raise Exception("Upload failed: " + res["error"]["message"])
                 
                 logger.info(f"Supabase发票上传成功: {storage_path}")
                 
@@ -305,12 +302,8 @@ class SupabaseStorageClient:
                 logger.error(f"Supabase发票上传失败: {upload_error}")
                 raise upload_error
             
-            # 获取公开URL
-            public_url = self.supabase.storage.from_(self.bucket_name).get_public_url(storage_path)
-            
-            if not public_url:
-                logger.error("获取公开URL失败")
-                return None
+            # 构建公开URL
+            public_url = f"{self.supabase_url}/storage/v1/object/public/{self.bucket_name}/{storage_path}"
             
             logger.info(f"发票图片上传成功: {storage_path}")
             return public_url
