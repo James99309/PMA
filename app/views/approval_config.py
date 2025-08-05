@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
+import json
 from app.permissions import admin_required
 from app.helpers.approval_helpers import (
     get_approval_templates,
@@ -238,21 +239,38 @@ def add_step():
     """添加审批步骤"""
     template_id = request.form.get('template_id', type=int)
     step_name = request.form.get('step_name')
+    approver_type = request.form.get('approver_type', 'user')
     approver_id = request.form.get('approver_id', type=int)
     send_email = request.form.get('send_email') == 'on'
     action_type = request.form.get('action_type')
     
     # 新增字段
-    editable_fields = request.form.getlist('editable_fields')
+    # 支持新格式的JSON字段数据
+    editable_fields_json = request.form.get('editable_fields_json')
+    if editable_fields_json:
+        try:
+            editable_fields = json.loads(editable_fields_json)
+        except (json.JSONDecodeError, TypeError):
+            editable_fields = []
+    else:
+        # 兼容传统格式
+        editable_fields = request.form.getlist('editable_fields')
+    
     cc_users = request.form.getlist('cc_users')
     cc_enabled = request.form.get('cc_enabled') == 'on'
     
-    # 如果是授权编号动作，则不需要指定审批人，将使用动态分配
-    if action_type == 'authorization':
+    # 根据审批人类型决定是否需要固定审批人
+    if approver_type in ['next_level', 'auto'] or action_type == 'authorization':
         approver_id = None
     
-    if not template_id or not step_name or (not approver_id and action_type != 'authorization'):
-        flash('模板ID、步骤名称不能为空，且非授权编号动作需要指定审批人', 'danger')
+    # 验证必填字段
+    if not template_id or not step_name:
+        flash('模板ID和步骤名称不能为空', 'danger')
+        return redirect(url_for('approval_config.template_detail', template_id=template_id))
+    
+    # 验证审批人配置
+    if approver_type == 'user' and not approver_id and action_type != 'authorization':
+        flash('选择指定用户时必须选择具体的审批人', 'danger')
         return redirect(url_for('approval_config.template_detail', template_id=template_id))
     
     # 添加步骤
@@ -263,7 +281,8 @@ def add_step():
         send_email=send_email,
         editable_fields=editable_fields,
         cc_users=[int(user_id) for user_id in cc_users if user_id.isdigit()],
-        cc_enabled=cc_enabled
+        cc_enabled=cc_enabled,
+        approver_type=approver_type
     )
     
     # 如果添加成功且设置了动作类型，更新动作类型
@@ -286,21 +305,38 @@ def edit_step(step_id):
     template_id = step.process_id
     
     step_name = request.form.get('step_name')
+    approver_type = request.form.get('approver_type', 'user')
     approver_id = request.form.get('approver_id', type=int)
     send_email = request.form.get('send_email') == 'on'
     action_type = request.form.get('action_type')
     
     # 新增字段
-    editable_fields = request.form.getlist('editable_fields')
+    # 支持新格式的JSON字段数据
+    editable_fields_json = request.form.get('editable_fields_json')
+    if editable_fields_json:
+        try:
+            editable_fields = json.loads(editable_fields_json)
+        except (json.JSONDecodeError, TypeError):
+            editable_fields = []
+    else:
+        # 兼容传统格式
+        editable_fields = request.form.getlist('editable_fields')
+    
     cc_users = request.form.getlist('cc_users')
     cc_enabled = request.form.get('cc_enabled') == 'on'
     
-    # 如果是授权编号动作，则不需要指定审批人，将使用动态分配
-    if action_type == 'authorization':
+    # 根据审批人类型决定是否需要固定审批人
+    if approver_type in ['next_level', 'auto'] or action_type == 'authorization':
         approver_id = None
     
-    if not step_name or (not approver_id and action_type != 'authorization'):
-        flash('步骤名称不能为空，且非授权编号动作需要指定审批人', 'danger')
+    # 验证必填字段
+    if not step_name:
+        flash('步骤名称不能为空', 'danger')
+        return redirect(url_for('approval_config.template_detail', template_id=template_id))
+    
+    # 验证审批人配置
+    if approver_type == 'user' and not approver_id and action_type != 'authorization':
+        flash('选择指定用户时必须选择具体的审批人', 'danger')
         return redirect(url_for('approval_config.template_detail', template_id=template_id))
     
     # 更新步骤
@@ -312,7 +348,8 @@ def edit_step(step_id):
         editable_fields=editable_fields,
         cc_users=[int(user_id) for user_id in cc_users if user_id.isdigit()],
         cc_enabled=cc_enabled,
-        update_approver=True  # 明确指定要更新审批人
+        update_approver=True,  # 明确指定要更新审批人
+        approver_type=approver_type
     )
     
     # 如果更新成功且设置了动作类型，更新动作类型

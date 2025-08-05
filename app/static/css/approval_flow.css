@@ -1,4 +1,4 @@
-/* 审批流程图标准化样式 */
+/* 审批流程图标准化样式 - v2.1 修复审批通过颜色 */
 
 /* 审批流程图容器 */
 .approval-flow-container {
@@ -152,14 +152,9 @@
     }
 }
 
-.stage-circle.approved {
-    background-color: #0d6efd;
-    border: 2px solid #0b5ed7;
-    color: white;
-}
-
+.stage-circle.approved,
 .stage-circle.completed {
-    background-color: #198754;
+    background-color: #198754; /* 绿色 - 审批通过的标准颜色 */
     border: 2px solid #157347;
     color: white;
 }
@@ -470,3 +465,27 @@
     border-color: #007bff;
     box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
 }
+
+/* 召回状态样式 */
+/* 召回发生的节点 - 橘色显示 */
+.stage-circle.recalled-node {
+    background-color: #fd7e14; /* 橙色 - 召回发生的节点 */
+    border: 2px solid #e76500;
+    color: white;
+}
+
+/* 召回状态下的其他节点 - 灰色显示 */
+.stage-circle.recalled-inactive {
+    background-color: #6c757d; /* 灰色 */
+    border: 2px solid #495057;
+    color: white;
+    opacity: 0.7;
+}
+
+/* 召回状态下的阶段容器 */
+.approval-stage.recalled .stage-info {
+    opacity: 0.6;
+    color: #6c757d;
+}
+
+/* 移除召回横幅样式 */

@@ -82,6 +82,58 @@ def index():
                 db.session.rollback()
                 recent_companies = []
     
+    # 查询当前用户可见的最近5个报销单，按更新时间倒序
+    recent_expenses = []
+    if current_user.has_permission('expense', 'view'):
+        try:
+            from app.models.expense import Expense
+            from app.helpers.approval_helpers import get_object_approval_instance
+            
+            # 获取最近的报销单，包含关联的审批实例信息
+            recent_expenses_query = get_viewable_data(Expense, current_user).options(
+                joinedload(Expense.owner),
+                joinedload(Expense.project)
+            ).order_by(Expense.updated_at.desc()).limit(5)
+            
+            raw_expenses = recent_expenses_query.all()
+            
+            # 为每个报销单添加审批状态信息
+            for expense in raw_expenses:
+                try:
+                    # 获取审批实例以获取审批状态
+                    approval_instance = get_object_approval_instance('expense', expense.id)
+                    if approval_instance:
+                        expense.approval_status = approval_instance.status.value
+                    else:
+                        expense.approval_status = 'draft'
+                except Exception as e:
+                    logger.warning(f"获取报销单 {expense.id} 审批状态失败: {str(e)}")
+                    expense.approval_status = expense.status  # 使用报销单自身状态
+                
+                recent_expenses.append(expense)
+                
+        except Exception as e:
+            logger.warning(f"报销单查询失败: {str(e)}")
+            try:
+                # 回滚失败的事务
+                db.session.rollback()
+                from app.models.expense import Expense
+                recent_expenses_query = get_viewable_data(Expense, current_user).options(
+                    joinedload(Expense.owner),
+                    joinedload(Expense.project)
+                ).order_by(Expense.id.desc()).limit(5)
+                
+                raw_expenses = recent_expenses_query.all()
+                for expense in raw_expenses:
+                    expense.approval_status = expense.status  # 使用报销单自身状态
+                    recent_expenses.append(expense)
+                    
+            except Exception as e2:
+                logger.error(f"报销单查询完全失败: {str(e2)}")
+                # 回滚失败的事务
+                db.session.rollback()
+                recent_expenses = []
+    
     # 在index视图中，recent_projects处理类型key转中文，支持语言感知
     from app.utils.i18n import get_current_language
     lang_code = get_current_language()
@@ -94,6 +146,7 @@ def index():
                          recent_projects=recent_projects, 
                          recent_quotations=recent_quotations, 
                          recent_companies=recent_companies,
+                         recent_expenses=recent_expenses,
                          current_version_number=version_number)
 
 @main.route('/api/recent_work_records')

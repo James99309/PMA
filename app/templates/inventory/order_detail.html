@@ -513,7 +513,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // 设置当前订单ID供动态更新使用
     window.currentOrderId = {{ order.id }};
     
-    // 使用标准化的自动显示功能
+    // 使用标准化的自动显示功能，为订单指定正确的API路径
+    let flow = getApprovalFlowInstance('order', {{ order.id }});
+    if (!flow) {
+        flow = initStandardApprovalFlow('order', {{ order.id }}, 'approvalFlowSection', {
+            apiBasePath: '/inventory/api/approval/order',  // 订单专用的API路径
+            autoLoad: false
+        });
+    }
     autoShowApprovalUI('order', {{ order.id }}, '{{ order.status }}');
     
     // 从管理器获取已创建的审批流程实例

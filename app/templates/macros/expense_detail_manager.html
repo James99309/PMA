@@ -65,7 +65,7 @@
     </div>
     
     <!-- 添加明细按钮 -->
-    {% if not readonly %}
+    {% if not readonly and not (config.approval_edit_mode and config.approval_edit_info) %}
     <div class="text-end mt-3">
         {% from 'macros/ui_helpers.html' import render_button %}
         <span id="{{ config.add_button_id | default('addExpense') }}">

@@ -58,11 +58,7 @@ def allowed_file(filename):
 def allowed_pdf_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_PDF_EXTENSIONS
 
-# 添加英文文件名验证函数
-def validate_english_filename(filename):
-    """验证文件名是否为英文字符（字母、数字、点、下划线、连字符）"""
-    import re
-    return re.match(r'^[a-zA-Z0-9._-]+$', filename) is not None
+# 注释：文件名验证函数已移除，现在支持中英文文件名
 
 # 检查文件大小是否在限制内（12MB）
 def check_file_size(file):
@@ -84,10 +80,6 @@ def save_product_pdf(file):
     - 成功时返回保存的文件路径，失败时返回None和错误信息
     """
     if file and allowed_pdf_file(file.filename):
-        # 验证文件名是否为英文
-        if not validate_english_filename(file.filename):
-            return None, _("文件名必须是英文字符（字母、数字、点、下划线、连字符）")
-            
         # 检查文件大小
         if not check_file_size(file):
             return None, _("PDF文件大小不能超过12MB")

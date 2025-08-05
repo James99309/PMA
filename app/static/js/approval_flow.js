@@ -63,7 +63,7 @@ class ApprovalFlow {
         try {
             console.log(`开始加载审批流程，对象类型: ${this.objectType}, ID: ${this.objectId}`);
             
-            const response = await fetch(`${this.options.apiBasePath}/${this.objectType}/${this.objectId}/flow`);
+            const response = await fetch(`${this.options.apiBasePath}/${this.objectId}/flow`);
             
             console.log('审批流程API响应状态:', response.status);
             
@@ -77,6 +77,7 @@ class ApprovalFlow {
             
             if (data.success && data.approval_flow) {
                 this.approvalData = data.approval_flow;
+                console.log('获取到审批实例ID:', this.approvalData.instance_id);
                 this.renderFlow();
                 this.showContainer();
                 console.log('审批流程图已显示');
@@ -166,9 +167,12 @@ class ApprovalFlow {
         const stages = this.approvalData.stages || [];
         const currentStage = this.approvalData.current_stage;
         const canApprove = this.approvalData.can_approve;
+        const isRecalled = this.approvalData.status === 'recalled';
+        
+        // 召回状态不显示横幅提示
         
         stages.forEach((stage, index) => {
-            const stageElement = this.createStageElement(stage, currentStage, canApprove);
+            const stageElement = this.createStageElement(stage, currentStage, canApprove, isRecalled);
             this.flowDiv.appendChild(stageElement);
         });
         
@@ -186,32 +190,38 @@ class ApprovalFlow {
     }
     
     // 创建阶段元素
-    createStageElement(stage, currentStage, canApprove) {
+    createStageElement(stage, currentStage, canApprove, isRecalled = false) {
         // 创建阶段容器
         const stageDiv = document.createElement('div');
         stageDiv.className = 'approval-stage';
         stageDiv.setAttribute('data-stage-id', stage.id);
         
-        if (stage.stage_order === currentStage && canApprove) {
+        // 召回状态下不允许审批和交互
+        if (!isRecalled && stage.stage_order === currentStage && canApprove) {
             stageDiv.classList.add('current');
         }
         
-        // 设置点击事件
-        if (canApprove && stage.stage_order === currentStage) {
+        // 召回状态下添加特殊样式
+        if (isRecalled) {
+            stageDiv.classList.add('recalled');
+        }
+        
+        // 设置点击事件（召回状态下禁用）
+        if (!isRecalled && canApprove && stage.stage_order === currentStage) {
             stageDiv.classList.add('can-approve');
             stageDiv.onclick = () => this.openApprovalModal(stage);
         }
         
         // 创建圆圈
-        const circleDiv = this.createCircleElement(stage, currentStage, canApprove);
+        const circleDiv = this.createCircleElement(stage, currentStage, canApprove, isRecalled);
         stageDiv.appendChild(circleDiv);
         
         // 创建信息区域
-        const infoDiv = this.createInfoElement(stage);
+        const infoDiv = this.createInfoElement(stage, isRecalled);
         stageDiv.appendChild(infoDiv);
         
-        // 只在有评语且状态为已审批时显示气泡图标
-        if (stage.comment && stage.comment.trim() !== '' && 
+        // 只在有评语且状态为已审批时显示气泡图标（召回状态下不显示）
+        if (!isRecalled && stage.comment && stage.comment.trim() !== '' && 
             (stage.status === 'approved' || stage.status === 'rejected')) {
             this.showCommentBubble(stageDiv, stage.comment, stage.status);
         }
@@ -220,11 +230,32 @@ class ApprovalFlow {
     }
     
     // 创建圆圈元素
-    createCircleElement(stage, currentStage, canApprove) {
+    createCircleElement(stage, currentStage, canApprove, isRecalled = false) {
         const circleDiv = document.createElement('div');
         circleDiv.className = 'stage-circle';
         
-        if (stage.stage_order === currentStage && stage.status === 'pending') {
+        // 调试信息：输出步骤状态
+        console.log(`步骤 ${stage.stage_order} (${stage.stage_name}): status="${stage.status}", currentStage=${currentStage}, isRecalled=${isRecalled}`);
+        
+        if (isRecalled) {
+            // 召回状态下，检查是否是召回发生的节点
+            if (stage.stage_order === currentStage) {
+                // 召回发生的节点显示为橘色召回图标
+                circleDiv.classList.add('recalled-node');
+                circleDiv.innerHTML = '<i class="fas fa-undo"></i>';
+            } else {
+                // 其他节点显示为灰色
+                circleDiv.classList.add('recalled-inactive');
+                // 根据原来的状态显示对应图标但是灰色
+                if (stage.status === 'approved') {
+                    circleDiv.innerHTML = '<i class="fas fa-check"></i>';
+                } else if (stage.status === 'rejected') {
+                    circleDiv.innerHTML = '<i class="fas fa-times"></i>';
+                } else {
+                    circleDiv.innerHTML = stage.stage_order;
+                }
+            }
+        } else if (stage.status === 'current') {
             circleDiv.classList.add('current');
             if (canApprove) {
                 circleDiv.innerHTML = '<i class="fas fa-user-check"></i>';
@@ -236,22 +267,25 @@ class ApprovalFlow {
         } else if (stage.status === 'approved') {
             circleDiv.classList.add('completed');
             circleDiv.innerHTML = '<i class="fas fa-check"></i>';
+            console.log(`✅ 步骤 ${stage.stage_order} 标记为已审批通过，添加completed类`);
         } else if (stage.status === 'rejected') {
             circleDiv.classList.add('rejected');
             circleDiv.innerHTML = '<i class="fas fa-times"></i>';
-        } else if (stage.status === 'waiting' || (stage.status === 'pending' && stage.stage_order !== currentStage)) {
+        } else if (stage.status === 'waiting' || stage.status === 'pending') {
             circleDiv.classList.add('pending');
             circleDiv.innerHTML = '<i class="fas fa-clock"></i>';
         } else {
+            // 其他未知状态，显示为pending状态
             circleDiv.classList.add('pending');
             circleDiv.innerHTML = stage.stage_order;
+            console.log(`⚠️ 步骤 ${stage.stage_order} 状态未识别，添加pending类。状态值: "${stage.status}"`);
         }
         
         return circleDiv;
     }
     
     // 创建信息元素
-    createInfoElement(stage) {
+    createInfoElement(stage, isRecalled = false) {
         const infoDiv = document.createElement('div');
         infoDiv.className = 'stage-info';
         
@@ -266,7 +300,31 @@ class ApprovalFlow {
         const datesDiv = document.createElement('div');
         datesDiv.className = 'stage-dates';
         
-        if (stage.arrived_at) {
+        if (stage.status === 'approved' || stage.status === 'rejected') {
+            // 已处理的节点：显示处理时间和处理耗时
+            if (stage.processed_at) {
+                const processedDate = new Date(stage.processed_at);
+                datesDiv.innerHTML = `处理：${processedDate.toLocaleDateString()}`;
+                
+                // 如果有到达时间，计算处理耗时
+                if (stage.arrived_at) {
+                    const arrivedDate = new Date(stage.arrived_at);
+                    const processingHours = Math.max(0, Math.floor((processedDate - arrivedDate) / (1000 * 60 * 60)));
+                    if (processingHours < 24) {
+                        datesDiv.innerHTML += `<br>耗时：${processingHours}小时`;
+                    } else {
+                        const processingDays = Math.floor(processingHours / 24);
+                        const remainingHours = processingHours % 24;
+                        if (remainingHours > 0) {
+                            datesDiv.innerHTML += `<br>耗时：${processingDays}天${remainingHours}小时`;
+                        } else {
+                            datesDiv.innerHTML += `<br>耗时：${processingDays}天`;
+                        }
+                    }
+                }
+            }
+        } else if (stage.arrived_at) {
+            // 当前或等待中的节点：显示到达时间和停留天数
             const arrivedDate = new Date(stage.arrived_at);
             const daysDiff = Math.max(0, Math.floor((new Date() - arrivedDate) / (1000 * 60 * 60 * 24)));
             datesDiv.innerHTML = `
@@ -368,48 +426,139 @@ class ApprovalFlow {
     
     // 显示审批对话框
     showApprovalDialog(stage, actions) {
-        // 设置模态框数据
+        // 设置对话框数据
         this.currentStage = stage;
-        this.setModalData(stage);
+        this.setDialogData(stage);
         
-        // 显示模态框
-        const modal = new bootstrap.Modal(document.getElementById('approvalConfirmModal'));
-        modal.show();
+        // 显示对话框
+        this.showApprovalConfirmDialog();
     }
     
-    // 设置模态框数据
-    setModalData(stage) {
-        document.getElementById('modalStageTitle').textContent = stage.stage_name;
-        document.getElementById('modalApproverName').textContent = stage.approver_name || '待分配';
+    // 设置对话框数据
+    setDialogData(stage) {
+        document.getElementById('approvalStageTitle').textContent = stage.stage_name;
+        document.getElementById('approvalApproverName').textContent = stage.approver_name || '待分配';
         
         // 格式化到达时间
         if (stage.arrived_at) {
             const arrivedDate = new Date(stage.arrived_at);
             const daysDiff = Math.max(0, Math.floor((new Date() - arrivedDate) / (1000 * 60 * 60 * 24)));
-            document.getElementById('modalArrivedTime').textContent = 
+            document.getElementById('approvalArrivedTime').textContent = 
                 `${arrivedDate.toLocaleDateString()} (${daysDiff}天前)`;
         } else {
-            document.getElementById('modalArrivedTime').textContent = '刚刚到达';
+            document.getElementById('approvalArrivedTime').textContent = '刚刚到达';
         }
         
         // 清空评语输入
         document.getElementById('approvalComment').value = '';
     }
     
+    // 显示审批确认对话框
+    showApprovalConfirmDialog() {
+        const dialog = document.getElementById('approvalConfirmDialog');
+        if (dialog) {
+            // 绑定按钮事件
+            this.bindDialogEvents();
+            
+            // 显示对话框
+            dialog.style.display = 'flex';
+            setTimeout(() => {
+                dialog.classList.add('show');
+            }, 10);
+        }
+    }
+    
+    // 隐藏审批确认对话框
+    hideApprovalConfirmDialog() {
+        const dialog = document.getElementById('approvalConfirmDialog');
+        if (dialog) {
+            dialog.classList.remove('show');
+            setTimeout(() => {
+                dialog.style.display = 'none';
+            }, 300);
+        }
+    }
+    
+    // 绑定对话框事件
+    bindDialogEvents() {
+        const dialog = document.getElementById('approvalConfirmDialog');
+        if (!dialog) return;
+        
+        // 取消按钮
+        const cancelBtn = dialog.querySelector('.dialog-cancel-btn');
+        if (cancelBtn) {
+            cancelBtn.onclick = () => this.hideApprovalConfirmDialog();
+        }
+        
+        // 拒绝按钮
+        const rejectBtn = dialog.querySelector('.dialog-reject-btn');
+        if (rejectBtn) {
+            rejectBtn.onclick = () => this.handleApprovalAction('reject');
+        }
+        
+        // 通过按钮
+        const approveBtn = dialog.querySelector('.dialog-approve-btn');
+        if (approveBtn) {
+            approveBtn.onclick = () => this.handleApprovalAction('approve');
+        }
+        
+        // 点击遮罩层关闭
+        const overlay = dialog.querySelector('.dialog-overlay');
+        if (overlay) {
+            overlay.onclick = () => this.hideApprovalConfirmDialog();
+        }
+    }
+    
+    // 处理审批操作
+    async handleApprovalAction(action) {
+        const comment = document.getElementById('approvalComment').value.trim();
+        
+        try {
+            // 隐藏对话框
+            this.hideApprovalConfirmDialog();
+            
+            // 调用审批处理
+            await this.processApproval(this.currentStage.id, action, comment);
+            
+        } catch (error) {
+            console.error('审批操作失败:', error);
+            // 可以显示错误提示
+        }
+    }
+    
+    // 获取审批实例ID
+    getApprovalInstanceId() {
+        // 从审批数据中获取实例ID
+        if (this.approvalData && this.approvalData.instance_id) {
+            return this.approvalData.instance_id;
+        }
+        
+        // 如果没有实例ID，尝试从其他地方获取
+        console.warn('未找到审批实例ID，审批操作可能失败');
+        console.log('当前审批数据:', this.approvalData);
+        return null;
+    }
+    
     // 处理审批
     async processApproval(stageId, action, comment = '') {
         try {
-            const response = await fetch(`${this.options.apiBasePath}/${this.objectType}/${this.objectId}/process`, {
+            // 获取审批实例ID（需要从当前审批流程数据中获取）
+            const instanceId = this.getApprovalInstanceId();
+            if (!instanceId) {
+                throw new Error('未找到审批实例ID');
+            }
+            
+            // 使用表单数据格式，因为通用审批端点期望表单数据
+            const formData = new FormData();
+            formData.append('action', action);
+            formData.append('comment', comment);
+            
+            const response = await fetch(`/approval/approve/${instanceId}`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
                     'X-CSRFToken': this.getCSRFToken()
                 },
-                body: JSON.stringify({
-                    stage_id: stageId,
-                    action: action,
-                    comment: comment
-                })
+                body: formData
             });
             
             const data = await response.json();
@@ -443,7 +592,7 @@ class ApprovalFlow {
     // 提交审批申请
     async submitForApproval() {
         try {
-            const response = await fetch(`${this.options.apiBasePath}/${this.objectType}/${this.objectId}/submit`, {
+            const response = await fetch(`${this.options.apiBasePath}/${this.objectId}/submit`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -472,7 +621,7 @@ class ApprovalFlow {
     // 召回审批流程
     async recallApproval(reason = '') {
         try {
-            const response = await fetch(`${this.options.apiBasePath}/${this.objectType}/${this.objectId}/recall`, {
+            const response = await fetch(`${this.options.apiBasePath}/${this.objectId}/recall`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -501,7 +650,7 @@ class ApprovalFlow {
     // 重新提交审批
     async resubmitApproval() {
         try {
-            const response = await fetch(`${this.options.apiBasePath}/${this.objectType}/${this.objectId}/resubmit`, {
+            const response = await fetch(`${this.options.apiBasePath}/${this.objectId}/resubmit`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

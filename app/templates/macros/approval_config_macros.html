@@ -171,6 +171,9 @@
                   <div class="text-muted">审批人: 
                     {% if step.approver_user_id %}
                       {{ step.approver.real_name or step.approver.username }}（{{ step.approver.username }}）- {{ get_role_display_name(step.approver.role) }}
+                    {% elif step.approver_type == 'next_level' %}
+                      <span class="text-success"><i class="fas fa-level-up-alt"></i> 上一级领导</span>
+                      <br><small class="text-muted">根据发起人的部门层级动态分配审批人</small>
                     {% else %}
                       <span class="text-info"><i class="fas fa-magic"></i> 自动选择</span>
                       {% if step.action_type == 'authorization' %}
@@ -186,12 +189,74 @@
                     {% if get_object_field_options and template and template.object_type %}
                       {% set field_options = get_object_field_options(template.object_type) %}
                       {% set field_dict = {} %}
-                      {% for option_code, option_name in field_options %}
-                        {% if field_dict.update({option_code: option_name}) %}{% endif %}
-                      {% endfor %}
+                      {% if field_options %}
+                        {% if (field_options is mapping) and 'master' in field_options and 'detail' in field_options %}
+                          {# 新格式：支持明细字段的对象类型 #}
+                          {% if field_options.master %}
+                            {% for item in field_options.master %}
+                              {% if item is iterable and item|length == 2 %}
+                                {% set option_code, option_name = item %}
+                                {% if field_dict.update({option_code: option_name}) %}{% endif %}
+                              {% endif %}
+                            {% endfor %}
+                          {% endif %}
+                          {% if field_options.detail %}
+                            {% for item in field_options.detail %}
+                              {% if item is iterable and item|length == 2 %}
+                                {% set option_code, option_name = item %}
+                                {% if field_dict.update({option_code: option_name}) %}{% endif %}
+                              {% endif %}
+                            {% endfor %}
+                          {% endif %}
+                        {% elif (field_options is iterable) and not (field_options is mapping) %}
+                          {# 传统格式 #}
+                          {% for item in field_options %}
+                            {% if item is iterable and item|length == 2 %}
+                              {% set option_code, option_name = item %}
+                              {% if field_dict.update({option_code: option_name}) %}{% endif %}
+                            {% endif %}
+                          {% endfor %}
+                        {% endif %}
+                      {% endif %}
                       
                       {% for field_code in step.editable_fields %}
-                        <span class="badge badge-light" style="color: #000; background-color: #f8f9fa; border: 1px solid #dee2e6;">{{ field_dict.get(field_code, field_code) }}</span>
+                        {% if field_options and (field_options is mapping) and field_options.master and field_options.detail %}
+                          {# 新格式：显示分组标识 #}
+                          {% set master_codes = [] %}
+                          {% if field_options.master %}
+                            {% for item in field_options.master %}
+                              {% if item is iterable and item|length == 2 %}
+                                {% set code, name = item %}
+                                {% if master_codes.append(code) %}{% endif %}
+                              {% endif %}
+                            {% endfor %}
+                          {% endif %}
+                          {% set detail_codes = [] %}
+                          {% if field_options.detail %}
+                            {% for item in field_options.detail %}
+                              {% if item is iterable and item|length == 2 %}
+                                {% set code, name = item %}
+                                {% if detail_codes.append(code) %}{% endif %}
+                              {% endif %}
+                            {% endfor %}
+                          {% endif %}
+                          {% set is_master = field_code in master_codes %}
+                          {% set is_detail = field_code in detail_codes %}
+                          {% if is_master %}
+                            <span class="badge me-1" style="background-color: #007bff; color: white; font-size: 0.75rem;">
+                              <small>主</small> {{ field_dict.get(field_code, field_code) }}
+                            </span>
+                          {% elif is_detail %}
+                            <span class="badge me-1" style="background-color: #28a745; color: white; font-size: 0.75rem;">
+                              <small>明</small> {{ field_dict.get(field_code, field_code) }}
+                            </span>
+                          {% else %}
+                            <span class="badge badge-light" style="color: #000; background-color: #f8f9fa; border: 1px solid #dee2e6;">{{ field_dict.get(field_code, field_code) }}</span>
+                          {% endif %}
+                        {% else %}
+                          {# 传统格式或出错时 #}
+                          <span class="badge badge-light" style="color: #000; background-color: #f8f9fa; border: 1px solid #dee2e6;">{{ field_dict.get(field_code, field_code) }}</span>
+                        {% endif %}
                       {% endfor %}
                     {% else %}
                       {% for field_code in step.editable_fields %}
@@ -229,6 +294,7 @@
                         data-step-id="{{ step.id }}"
                         data-step-name="{{ step.step_name }}"
                         data-approver-id="{{ step.approver_user_id }}"
+                        data-approver-type="{{ step.approver_type or 'user' }}"
                         data-send-email="{{ step.send_email }}"
                         data-action-type="{{ step.action_type or '' }}"
                         data-editable-fields="{{ (step.editable_fields or [])|tojson }}"
@@ -335,16 +401,37 @@
               <input type="text" class="form-control" id="step_name" name="step_name" required>
             </div>
             <div class="form-group mb-3">
-              <label for="approver_id">审批人</label>
-              <select class="form-control" id="approver_id" name="approver_id" required>
+              <label for="approver_selection">审批人</label>
+              <select class="form-control" id="approver_selection" name="approver_selection" onchange="handleApproverSelection()" required>
                 <option value="">请选择审批人</option>
-                {% for user in users %}
-                  <option value="{{ user.id }}">
-                    {{ user.real_name if user.real_name else user.username }}（{{ user.username }}）- {{ get_role_display_name(user.role) }}
-                  </option>
-                {% endfor %}
+                <optgroup label="智能分配">
+                  <option value="next_level">上一级领导</option>
+                </optgroup>
+                <optgroup label="指定用户">
+                  {% for user in users %}
+                    <option value="user_{{ user.id }}">
+                      {{ user.real_name if user.real_name else user.username }}（{{ user.username }}）- {{ get_role_display_name(user.role) }}
+                    </option>
+                  {% endfor %}
+                </optgroup>
               </select>
+              <small class="form-text text-muted">选择具体的审批人或智能分配方式</small>
             </div>
+            <div class="form-group mb-3" id="next_level_info_section" style="display: none;">
+              <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                <strong>上一级领导逻辑：</strong>
+                <ul class="mb-0 mt-2">
+                  <li>部门成员 → 部门负责人</li>
+                  <li>部门负责人 → 总经理</li>
+                  <li>没有部门的用户 → 总经理</li>
+                  <li>不同企业用户 → 管理员</li>
+                </ul>
+              </div>
+            </div>
+            <!-- 隐藏字段用于后端处理 -->
+            <input type="hidden" id="approver_type" name="approver_type" value="user">
+            <input type="hidden" id="approver_id" name="approver_id" value="">
             <div class="form-group mb-3">
               <label for="action_type">动作类型</label>
               <select class="form-control" id="action_type" name="action_type">
@@ -360,12 +447,57 @@
               <label>可编辑字段</label>
               <div class="border p-3 rounded">
                 <small class="text-muted d-block mb-2">选择在此步骤审批时允许编辑的字段：</small>
-                {% for field_code, field_name in get_object_field_options(template.object_type) %}
-                  <div class="form-check form-check-inline">
-                    <input class="form-check-input" type="checkbox" name="editable_fields" value="{{ field_code }}" id="editable_{{ field_code }}">
-                    <label class="form-check-label" for="editable_{{ field_code }}">{{ field_name }}</label>
+                {% set field_options = get_object_field_options(template.object_type) %}
+                {% if field_options and (field_options is mapping) %}
+                  {# 新格式：支持明细字段的对象类型 #}
+                  <div class="row">
+                    <div class="col-md-6">
+                      <label class="form-label">字段选择</label>
+                      <select class="form-control" id="field_selector" onchange="addFieldBadge()">
+                        <option value="">选择要添加的字段...</option>
+                        {% if field_options.master %}
+                          <optgroup label="主表字段">
+                            {% for item in field_options.master %}
+                              {% if item is iterable and item|length == 2 %}
+                                {% set field_code, field_name = item %}
+                                <option value="{{ field_code }}" data-group="master">{{ field_name }}</option>
+                              {% endif %}
+                            {% endfor %}
+                          </optgroup>
+                        {% endif %}
+                        {% if field_options.detail %}
+                          <optgroup label="明细字段">
+                            {% for item in field_options.detail %}
+                              {% if item is iterable and item|length == 2 %}
+                                {% set field_code, field_name = item %}
+                                <option value="{{ field_code }}" data-group="detail">{{ field_name }}</option>
+                              {% endif %}
+                            {% endfor %}
+                          </optgroup>
+                        {% endif %}
+                      </select>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label">已选择的字段</label>
+                      <div id="selected_fields_container" class="border rounded p-2" style="min-height: 38px; background-color: #f8f9fa;">
+                        <small class="text-muted">使用下拉框选择字段后会在此显示</small>
+                      </div>
+                    </div>
                   </div>
-                {% endfor %}
+                  {# 隐藏字段存储选中的字段 #}
+                  <input type="hidden" id="editable_fields_input" name="editable_fields_json" value="">
+                {% else %}
+                  {# 传统格式：复选框方式 #}
+                  {% for item in field_options %}
+                    {% if item is iterable and item|length == 2 %}
+                      {% set field_code, field_name = item %}
+                      <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" name="editable_fields" value="{{ field_code }}" id="editable_{{ field_code }}">
+                        <label class="form-check-label" for="editable_{{ field_code }}">{{ field_name }}</label>
+                      </div>
+                    {% endif %}
+                  {% endfor %}
+                {% endif %}
               </div>
             </div>
             
@@ -421,16 +553,37 @@
               <input type="text" class="form-control" id="edit_step_name" name="step_name" required>
             </div>
             <div class="form-group mb-3">
-              <label for="edit_approver_id">审批人</label>
-              <select class="form-control" id="edit_approver_id" name="approver_id" required>
+              <label for="edit_approver_selection">审批人</label>
+              <select class="form-control" id="edit_approver_selection" name="approver_selection" onchange="handleEditApproverSelection()" required>
                 <option value="">请选择审批人</option>
-                {% for user in users %}
-                  <option value="{{ user.id }}">
-                    {{ user.real_name if user.real_name else user.username }}（{{ user.username }}）- {{ get_role_display_name(user.role) }}
-                  </option>
-                {% endfor %}
+                <optgroup label="智能分配">
+                  <option value="next_level">上一级领导</option>
+                </optgroup>
+                <optgroup label="指定用户">
+                  {% for user in users %}
+                    <option value="user_{{ user.id }}">
+                      {{ user.real_name if user.real_name else user.username }}（{{ user.username }}）- {{ get_role_display_name(user.role) }}
+                    </option>
+                  {% endfor %}
+                </optgroup>
               </select>
+              <small class="form-text text-muted">选择具体的审批人或智能分配方式</small>
             </div>
+            <div class="form-group mb-3" id="edit_next_level_info_section" style="display: none;">
+              <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                <strong>上一级领导逻辑：</strong>
+                <ul class="mb-0 mt-2">
+                  <li>部门成员 → 部门负责人</li>
+                  <li>部门负责人 → 总经理</li>
+                  <li>没有部门的用户 → 总经理</li>
+                  <li>不同企业用户 → 管理员</li>
+                </ul>
+              </div>
+            </div>
+            <!-- 隐藏字段用于后端处理 -->
+            <input type="hidden" id="edit_approver_type" name="approver_type" value="user">
+            <input type="hidden" id="edit_approver_id" name="approver_id" value="">
             <div class="form-group mb-3">
               <label for="edit_action_type">动作类型</label>
               <select class="form-control" id="edit_action_type" name="action_type">
@@ -446,12 +599,57 @@
               <label>可编辑字段</label>
               <div class="border p-3 rounded">
                 <small class="text-muted d-block mb-2">选择在此步骤审批时允许编辑的字段：</small>
-                {% for field_code, field_name in get_object_field_options(template.object_type) %}
-                  <div class="form-check form-check-inline">
-                    <input class="form-check-input" type="checkbox" name="editable_fields" value="{{ field_code }}" id="edit_editable_{{ field_code }}">
-                    <label class="form-check-label" for="edit_editable_{{ field_code }}">{{ field_name }}</label>
+                {% set field_options = get_object_field_options(template.object_type) %}
+                {% if field_options and (field_options is mapping) %}
+                  {# 新格式：支持明细字段的对象类型 #}
+                  <div class="row">
+                    <div class="col-md-6">
+                      <label class="form-label">字段选择</label>
+                      <select class="form-control" id="edit_field_selector" onchange="addEditFieldBadge()">
+                        <option value="">选择要添加的字段...</option>
+                        {% if field_options.master %}
+                          <optgroup label="主表字段">
+                            {% for item in field_options.master %}
+                              {% if item is iterable and item|length == 2 %}
+                                {% set field_code, field_name = item %}
+                                <option value="{{ field_code }}" data-group="master">{{ field_name }}</option>
+                              {% endif %}
+                            {% endfor %}
+                          </optgroup>
+                        {% endif %}
+                        {% if field_options.detail %}
+                          <optgroup label="明细字段">
+                            {% for item in field_options.detail %}
+                              {% if item is iterable and item|length == 2 %}
+                                {% set field_code, field_name = item %}
+                                <option value="{{ field_code }}" data-group="detail">{{ field_name }}</option>
+                              {% endif %}
+                            {% endfor %}
+                          </optgroup>
+                        {% endif %}
+                      </select>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label">已选择的字段</label>
+                      <div id="edit_selected_fields_container" class="border rounded p-2" style="min-height: 38px; background-color: #f8f9fa;">
+                        <small class="text-muted">使用下拉框选择字段后会在此显示</small>
+                      </div>
+                    </div>
                   </div>
-                {% endfor %}
+                  {# 隐藏字段存储选中的字段 #}
+                  <input type="hidden" id="edit_editable_fields_input" name="editable_fields_json" value="">
+                {% else %}
+                  {# 传统格式：复选框方式 #}
+                  {% for item in field_options %}
+                    {% if item is iterable and item|length == 2 %}
+                      {% set field_code, field_name = item %}
+                      <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" name="editable_fields" value="{{ field_code }}" id="edit_editable_{{ field_code }}">
+                        <label class="form-check-label" for="edit_editable_{{ field_code }}">{{ field_name }}</label>
+                      </div>
+                    {% endif %}
+                  {% endfor %}
+                {% endif %}
               </div>
             </div>
             
@@ -492,6 +690,200 @@
   </div>
   
   <script>
+    // 全局变量存储选中的字段
+    let selectedFields = [];
+    let editSelectedFields = [];
+    
+    // 创建字段徽章HTML
+    function createFieldBadge(fieldCode, fieldName, group) {
+      const groupColor = group === 'master' ? '#007bff' : '#28a745';
+      const groupLabel = group === 'master' ? '主' : '明';
+      return `<span class="badge me-1 mb-1" style="background-color: ${groupColor}; color: white; font-size: 0.8rem;" data-field="${fieldCode}">
+        <small>${groupLabel}</small> ${fieldName} 
+        <i class="fas fa-times ms-1" style="cursor: pointer;" onclick="removeFieldBadge('${fieldCode}')"></i>
+      </span>`;
+    }
+    
+    // 添加字段徽章（添加步骤）
+    function addFieldBadge() {
+      const selector = document.getElementById('field_selector');
+      const container = document.getElementById('selected_fields_container');
+      const hiddenInput = document.getElementById('editable_fields_input');
+      
+      if (!selector.value) return;
+      
+      const fieldCode = selector.value;
+      const fieldName = selector.options[selector.selectedIndex].text;
+      const group = selector.options[selector.selectedIndex].getAttribute('data-group');
+      
+      // 检查是否已经选择过
+      if (selectedFields.includes(fieldCode)) {
+        alert('该字段已经添加过了！');
+        selector.value = '';
+        return;
+      }
+      
+      // 添加到选中字段数组
+      selectedFields.push(fieldCode);
+      
+      // 第一次添加时清除提示文本
+      if (selectedFields.length === 1) {
+        container.innerHTML = '';
+      }
+      
+      // 创建并添加徽章
+      container.innerHTML += createFieldBadge(fieldCode, fieldName, group);
+      
+      // 更新隐藏字段
+      hiddenInput.value = JSON.stringify(selectedFields);
+      
+      // 重置选择框
+      selector.value = '';
+    }
+    
+    // 移除字段徽章（添加步骤）
+    function removeFieldBadge(fieldCode) {
+      const container = document.getElementById('selected_fields_container');
+      const hiddenInput = document.getElementById('editable_fields_input');
+      
+      // 从数组中移除
+      selectedFields = selectedFields.filter(code => code !== fieldCode);
+      
+      // 移除对应的徽章
+      const badge = container.querySelector(`[data-field="${fieldCode}"]`);
+      if (badge) {
+        badge.remove();
+      }
+      
+      // 如果没有选中字段了，显示提示文本
+      if (selectedFields.length === 0) {
+        container.innerHTML = '<small class="text-muted">使用下拉框选择字段后会在此显示</small>';
+      }
+      
+      // 更新隐藏字段
+      hiddenInput.value = JSON.stringify(selectedFields);
+    }
+    
+    // 添加字段徽章（编辑步骤）
+    function addEditFieldBadge() {
+      const selector = document.getElementById('edit_field_selector');
+      const container = document.getElementById('edit_selected_fields_container');
+      const hiddenInput = document.getElementById('edit_editable_fields_input');
+      
+      if (!selector.value) return;
+      
+      const fieldCode = selector.value;
+      const fieldName = selector.options[selector.selectedIndex].text;
+      const group = selector.options[selector.selectedIndex].getAttribute('data-group');
+      
+      // 检查是否已经选择过
+      if (editSelectedFields.includes(fieldCode)) {
+        alert('该字段已经添加过了！');
+        selector.value = '';
+        return;
+      }
+      
+      // 添加到选中字段数组
+      editSelectedFields.push(fieldCode);
+      
+      // 第一次添加时清除提示文本
+      if (editSelectedFields.length === 1) {
+        container.innerHTML = '';
+      }
+      
+      // 创建并添加徽章
+      container.innerHTML += createEditFieldBadge(fieldCode, fieldName, group);
+      
+      // 更新隐藏字段
+      hiddenInput.value = JSON.stringify(editSelectedFields);
+      
+      // 重置选择框
+      selector.value = '';
+    }
+    
+    // 创建编辑字段徽章HTML
+    function createEditFieldBadge(fieldCode, fieldName, group) {
+      const groupColor = group === 'master' ? '#007bff' : '#28a745';
+      const groupLabel = group === 'master' ? '主' : '明';
+      return `<span class="badge me-1 mb-1" style="background-color: ${groupColor}; color: white; font-size: 0.8rem;" data-field="${fieldCode}">
+        <small>${groupLabel}</small> ${fieldName} 
+        <i class="fas fa-times ms-1" style="cursor: pointer;" onclick="removeEditFieldBadge('${fieldCode}')"></i>
+      </span>`;
+    }
+    
+    // 移除编辑字段徽章（编辑步骤）
+    function removeEditFieldBadge(fieldCode) {
+      const container = document.getElementById('edit_selected_fields_container');
+      const hiddenInput = document.getElementById('edit_editable_fields_input');
+      
+      // 从数组中移除
+      editSelectedFields = editSelectedFields.filter(code => code !== fieldCode);
+      
+      // 移除对应的徽章
+      const badge = container.querySelector(`[data-field="${fieldCode}"]`);
+      if (badge) {
+        badge.remove();
+      }
+      
+      // 如果没有选中字段了，显示提示文本
+      if (editSelectedFields.length === 0) {
+        container.innerHTML = '<small class="text-muted">使用下拉框选择字段后会在此显示</small>';
+      }
+      
+      // 更新隐藏字段
+      hiddenInput.value = JSON.stringify(editSelectedFields);
+    }
+    
+    // 处理审批人选择变化
+    function handleApproverSelection() {
+      const selection = document.getElementById('approver_selection').value;
+      const nextLevelSection = document.getElementById('next_level_info_section');
+      const approverTypeField = document.getElementById('approver_type');
+      const approverIdField = document.getElementById('approver_id');
+      
+      if (selection === 'next_level') {
+        // 选择上一级领导
+        nextLevelSection.style.display = 'block';
+        approverTypeField.value = 'next_level';
+        approverIdField.value = '';
+      } else if (selection.startsWith('user_')) {
+        // 选择具体用户
+        nextLevelSection.style.display = 'none';
+        approverTypeField.value = 'user';
+        approverIdField.value = selection.replace('user_', '');
+      } else {
+        // 未选择
+        nextLevelSection.style.display = 'none';
+        approverTypeField.value = 'user';
+        approverIdField.value = '';
+      }
+    }
+    
+    // 处理编辑审批人选择变化
+    function handleEditApproverSelection() {
+      const selection = document.getElementById('edit_approver_selection').value;
+      const nextLevelSection = document.getElementById('edit_next_level_info_section');
+      const approverTypeField = document.getElementById('edit_approver_type');
+      const approverIdField = document.getElementById('edit_approver_id');
+      
+      if (selection === 'next_level') {
+        // 选择上一级领导
+        nextLevelSection.style.display = 'block';
+        approverTypeField.value = 'next_level';
+        approverIdField.value = '';
+      } else if (selection.startsWith('user_')) {
+        // 选择具体用户
+        nextLevelSection.style.display = 'none';
+        approverTypeField.value = 'user';
+        approverIdField.value = selection.replace('user_', '');
+      } else {
+        // 未选择
+        nextLevelSection.style.display = 'none';
+        approverTypeField.value = 'user';
+        approverIdField.value = '';
+      }
+    }
+    
     document.addEventListener('DOMContentLoaded', function() {
       // 邮件抄送显示/隐藏逻辑
       const ccEnabledCheckbox = document.getElementById('cc_enabled');
@@ -513,38 +905,52 @@
 
       // 添加步骤动作类型变化事件处理
       const actionTypeSelect = document.getElementById('action_type');
-      const approverSelect = document.getElementById('approver_id');
+      const approverSelectionSelect = document.getElementById('approver_selection');
+      const approverTypeField = document.getElementById('approver_type');
+      const approverIdField = document.getElementById('approver_id');
       
-      if (actionTypeSelect && approverSelect) {
+      if (actionTypeSelect && approverSelectionSelect) {
         actionTypeSelect.addEventListener('change', function() {
           if (this.value === 'authorization') {
-            // 选择授权编号动作时，清空并禁用审批人选择框
-            approverSelect.value = '';
-            approverSelect.disabled = true;
-            approverSelect.setAttribute('title', '授权编号动作将根据项目类型自动选择审批人');
+            // 选择授权编号动作时，重置选择并禁用
+            approverSelectionSelect.value = '';
+            approverSelectionSelect.disabled = true;
+            approverTypeField.value = 'auto';
+            approverIdField.value = '';
+            document.getElementById('next_level_info_section').style.display = 'none';
           } else {
-            // 选择其他动作时，重新启用审批人选择框
-            approverSelect.disabled = false;
-            approverSelect.removeAttribute('title');
+            // 选择其他动作时，恢复用户选择
+            approverSelectionSelect.disabled = false;
+            if (approverTypeField.value === 'auto') {
+              approverTypeField.value = 'user';
+              approverIdField.value = '';
+            }
           }
         });
       }
 
       // 编辑步骤动作类型变化事件处理
       const editActionTypeSelect = document.getElementById('edit_action_type');
-      const editApproverSelect = document.getElementById('edit_approver_id');
+      const editApproverSelectionSelect = document.getElementById('edit_approver_selection');
+      const editApproverTypeField = document.getElementById('edit_approver_type');
+      const editApproverIdField = document.getElementById('edit_approver_id');
       
-      if (editActionTypeSelect && editApproverSelect) {
+      if (editActionTypeSelect && editApproverSelectionSelect) {
         editActionTypeSelect.addEventListener('change', function() {
           if (this.value === 'authorization') {
-            // 选择授权编号动作时，清空并禁用审批人选择框
-            editApproverSelect.value = '';
-            editApproverSelect.disabled = true;
-            editApproverSelect.setAttribute('title', '授权编号动作将根据项目类型自动选择审批人');
+            // 选择授权编号动作时，重置选择并禁用
+            editApproverSelectionSelect.value = '';
+            editApproverSelectionSelect.disabled = true;
+            editApproverTypeField.value = 'auto';
+            editApproverIdField.value = '';
+            document.getElementById('edit_next_level_info_section').style.display = 'none';
           } else {
-            // 选择其他动作时，重新启用审批人选择框
-            editApproverSelect.disabled = false;
-            editApproverSelect.removeAttribute('title');
+            // 选择其他动作时，恢复用户选择
+            editApproverSelectionSelect.disabled = false;
+            if (editApproverTypeField.value === 'auto') {
+              editApproverTypeField.value = 'user';
+              editApproverIdField.value = '';
+            }
           }
         });
       }
@@ -557,6 +963,7 @@
           var stepId = button.getAttribute('data-step-id');
           var stepName = button.getAttribute('data-step-name');
           var approverId = button.getAttribute('data-approver-id');
+          var approverType = button.getAttribute('data-approver-type') || 'user';
           var sendEmail = button.getAttribute('data-send-email');
           var actionType = button.getAttribute('data-action-type');
           var editableFields = button.getAttribute('data-editable-fields');
@@ -569,19 +976,33 @@
           
           var modal = this;
           modal.querySelector('#edit_step_name').value = stepName || '';
-          modal.querySelector('#edit_approver_id').value = approverId || '';
           modal.querySelector('#edit_action_type').value = actionType || '';
           modal.querySelector('#edit_send_email').checked = (sendEmail === 'True');
-
-          // 处理动作类型对应的审批人状态
-          const editApproverSelect = modal.querySelector('#edit_approver_id');
-          if (actionType === 'authorization') {
-            editApproverSelect.disabled = true;
-            editApproverSelect.setAttribute('title', '授权编号动作将根据项目类型自动选择审批人');
+          
+          // 设置隐藏字段
+          modal.querySelector('#edit_approver_type').value = approverType || 'user';
+          modal.querySelector('#edit_approver_id').value = approverId || '';
+          
+          // 根据审批人类型设置选择框
+          const editApproverSelection = modal.querySelector('#edit_approver_selection');
+          if (approverType === 'next_level') {
+            editApproverSelection.value = 'next_level';
+            document.getElementById('edit_next_level_info_section').style.display = 'block';
+          } else if (approverId) {
+            editApproverSelection.value = 'user_' + approverId;
+            document.getElementById('edit_next_level_info_section').style.display = 'none';
           } else {
-            editApproverSelect.disabled = false;
-            editApproverSelect.removeAttribute('title');
+            editApproverSelection.value = '';
+            document.getElementById('edit_next_level_info_section').style.display = 'none';
           }
+          
+          // 如果是授权动作，禁用选择框
+          if (actionType === 'authorization') {
+            editApproverSelection.disabled = true;
+          } else {
+            editApproverSelection.disabled = false;
+          }
+
           
           // 处理可编辑字段
           let editableFieldsArray = [];
@@ -602,19 +1023,49 @@
           
           console.log('解析后的可编辑字段数组:', editableFieldsArray);
           
-          // 先清除所有复选框的选中状态
-          modal.querySelectorAll('input[name="editable_fields"]').forEach(function(checkbox) {
-            checkbox.checked = false;
-          });
+          // 检查是否有新格式的字段选择器
+          const editFieldSelector = modal.querySelector('#edit_field_selector');
+          const editSelectedFieldsContainer = modal.querySelector('#edit_selected_fields_container');
+          const editEditableFieldsInput = modal.querySelector('#edit_editable_fields_input');
           
-          // 然后设置应该选中的复选框
-          if (Array.isArray(editableFieldsArray)) {
+          if (editFieldSelector && editSelectedFieldsContainer && editEditableFieldsInput) {
+            // 新格式：徽章界面
+            editSelectedFields = editableFieldsArray.slice(); // 复制数组
+            editSelectedFieldsContainer.innerHTML = '';
+            
+            if (editSelectedFields.length === 0) {
+              editSelectedFieldsContainer.innerHTML = '<small class="text-muted">使用下拉框选择字段后会在此显示</small>';
+            } else {
+              // 为每个已选字段创建徽章
+              editSelectedFields.forEach(function(fieldCode) {
+                // 从选择器中查找对应的选项来获取显示名称和分组
+                const option = editFieldSelector.querySelector(`option[value="${fieldCode}"]`);
+                if (option) {
+                  const fieldName = option.textContent;
+                  const group = option.getAttribute('data-group') || 'master';
+                  editSelectedFieldsContainer.innerHTML += createEditFieldBadge(fieldCode, fieldName, group);
+                }
+              });
+            }
+            
+            // 更新隐藏字段
+            editEditableFieldsInput.value = JSON.stringify(editSelectedFields);
+          } else {
+            // 传统格式：复选框界面
+            // 先清除所有复选框的选中状态
             modal.querySelectorAll('input[name="editable_fields"]').forEach(function(checkbox) {
-              if (editableFieldsArray.includes(checkbox.value)) {
-                checkbox.checked = true;
-                console.log('设置字段选中:', checkbox.value);
-              }
+              checkbox.checked = false;
             });
+            
+            // 然后设置应该选中的复选框
+            if (Array.isArray(editableFieldsArray)) {
+              modal.querySelectorAll('input[name="editable_fields"]').forEach(function(checkbox) {
+                if (editableFieldsArray.includes(checkbox.value)) {
+                  checkbox.checked = true;
+                  console.log('设置字段选中:', checkbox.value);
+                }
+              });
+            }
           }
           
           // 处理邮件抄送

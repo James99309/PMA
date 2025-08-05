@@ -18,6 +18,11 @@ from types import SimpleNamespace
 import os
 from werkzeug.utils import secure_filename
 from app.utils.file_url_helper import normalize_file_url
+from app.helpers.approval_helpers import (
+    get_approval_permission_service, 
+    get_field_edit_service,
+    check_universal_approval_permission
+)
 
 logger = logging.getLogger(__name__)
 
@@ -260,6 +265,9 @@ def expense_list():
         'action_url': url_for('expense.expense_list'),
         'form_id': 'expenseFilterForm',
         'reset_url': url_for('expense.expense_list'),
+        'auto_submit': True,  # 启用下拉框自动筛选
+        'dynamic_reset_button': True,  # 启用动态重置按钮
+        'search_field_id': 'search',  # 搜索框ID，用于重置按钮检测
         'search_field': {
             'name': 'search',
             'label': '搜索',
@@ -357,42 +365,17 @@ def expense_list():
             'columns': [
                 {
                     'key': 'expense_number',
-                    'label': '报销单号',
+                    'label': '报销单编号',
                     'type': 'link',
                     'url_template': '/expense/{id}',
                     'render': 'render_expense_number',
                     'width': '140px'
                 },
                 {
-                    'key': 'title',
-                    'label': '报销标题',
+                    'key': 'owner',
+                    'label': '申请人',
                     'type': 'text',
-                    'width': '200px'
-                },
-                {
-                    'key': 'customer_name',
-                    'label': '客户',
-                    'type': 'text',
-                    'width': '150px'
-                },
-                {
-                    'key': 'project_name',
-                    'label': '项目',
-                    'type': 'text',
-                    'width': '150px'
-                },
-                {
-                    'key': 'detail_count',
-                    'label': '明细数量',
-                    'type': 'text',
-                    'width': '80px'
-                },
-                {
-                    'key': 'total_amount',
-                    'label': '总金额',
-                    'type': 'number',
-                    'format': 'currency',
-                    'align': 'end',
+                    'align': 'start',
                     'width': '100px'
                 },
                 {
@@ -404,11 +387,30 @@ def expense_list():
                     'width': '100px'
                 },
                 {
-                    'key': 'owner',
-                    'label': '申请人',
-                    'type': 'text',
-                    'align': 'start',
+                    'key': 'total_amount',
+                    'label': '总金额',
+                    'type': 'number',
+                    'format': 'currency',
+                    'align': 'end',
                     'width': '100px'
+                },
+                {
+                    'key': 'customer_name',
+                    'label': '客户',
+                    'type': 'text',
+                    'width': '150px'
+                },
+                {
+                    'key': 'contact_name',
+                    'label': '联系人',
+                    'type': 'text',
+                    'width': '120px'
+                },
+                {
+                    'key': 'project_name',
+                    'label': '关联项目',
+                    'type': 'text',
+                    'width': '150px'
                 },
                 {
                     'key': 'created_at',
@@ -461,6 +463,7 @@ def expense_list_ajax():
             Expense.status,
             Expense.created_at,
             Expense.customer_id,
+            Expense.contact_id,
             Expense.project_id,
             Expense.owner_id
         )
@@ -501,6 +504,7 @@ def expense_list_ajax():
         # 4. 批量获取关联数据（避免N+1查询）
         if expenses:
             customer_ids = list(set(e.customer_id for e in expenses if e.customer_id))
+            contact_ids = list(set(e.contact_id for e in expenses if e.contact_id))
             project_ids = list(set(e.project_id for e in expenses if e.project_id))
             owner_ids = list(set(e.owner_id for e in expenses if e.owner_id))
             expense_ids = [e.id for e in expenses]
@@ -508,6 +512,9 @@ def expense_list_ajax():
             # 批量查询关联数据
             customers = {c.id: c.company_name for c in 
                         Company.query.filter(Company.id.in_(customer_ids)).all()} if customer_ids else {}
+            
+            contacts = {c.id: c.name for c in 
+                       Contact.query.filter(Contact.id.in_(contact_ids)).all()} if contact_ids else {}
             
             projects = {p.id: p.project_name for p in 
                        Project.query.filter(Project.id.in_(project_ids)).all()} if project_ids else {}
@@ -525,6 +532,7 @@ def expense_list_ajax():
             )
         else:
             customers = {}
+            contacts = {}
             projects = {}
             owners = {}
             detail_counts = {}
@@ -551,6 +559,7 @@ def expense_list_ajax():
                 status=expense.status,
                 created_at=expense.created_at,
                 customer_name=customers.get(expense.customer_id, '未指定'),
+                contact_name=contacts.get(expense.contact_id, '未指定'),
                 project_name=projects.get(expense.project_id, '-'),
                 owner=owner_display,
                 owner_obj=user_obj,
@@ -1036,7 +1045,6 @@ def create_expense():
 
 @expense.route('/<int:id>')
 @login_required
-@permission_required('expense', 'view')
 def expense_detail(id):
     """报销单详情"""
     expense_obj = Expense.query.options(
@@ -1053,7 +1061,43 @@ def expense_detail(id):
         flash('您没有权限查看此报销单', 'error')
         return redirect(url_for('expense.expense_list'))
     
-    return render_template('expense/expense_detail.html', expense=expense_obj)
+    # 智能返回逻辑：根据用户权限和访问来源确定返回链接
+    return_url = url_for('expense.expense_list')  # 默认返回报销单管理
+    return_text = '返回列表'
+    
+    # 检查是否从审批中心访问（通过URL参数）
+    from_approval = request.args.get('from_approval', 'false').lower() == 'true'
+    
+    if from_approval:
+        # 从审批中心访问，应该返回审批中心
+        return_url = url_for('approval.center')
+        return_text = '返回审批中心'
+    else:
+        # 不是从审批中心访问，检查用户是否有报销单管理权限
+        if expense_obj.owner_id != current_user.id:
+            # 用户不是创建人，检查是否有查看权限
+            try:
+                if not current_user.has_permission('expense', 'view'):
+                    # 没有报销单管理权限，返回审批中心
+                    return_url = url_for('approval.center')
+                    return_text = '返回审批中心'
+            except Exception:
+                # 权限检查失败时，安全起见返回审批中心
+                return_url = url_for('approval.center')
+                return_text = '返回审批中心'
+    
+    # 获取审核阶段可编辑字段信息（使用通用服务）
+    approval_edit_info = None
+    try:
+        approval_edit_info = check_universal_approval_permission('expense', id, current_user.id, 'edit')
+    except Exception as e:
+        current_app.logger.warning(f"获取审核阶段可编辑字段信息失败: {str(e)}")
+    
+    return render_template('expense/expense_detail.html', 
+                         expense=expense_obj,
+                         return_url=return_url,
+                         return_text=return_text,
+                         approval_edit_info=approval_edit_info)
 
 @expense.route('/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -1067,15 +1111,32 @@ def edit_expense(id):
         # 移除action和department关联加载，因为已从模型中删除
     ).get_or_404(id)
     
-    # 检查编辑权限
-    if not can_edit_data(expense_obj, current_user):
-        flash('您没有权限编辑此报销单', 'error')
-        return redirect(url_for('expense.expense_detail', id=id))
+    # 检查是否为审核阶段编辑模式
+    approval_edit_mode = request.args.get('approval_edit') == '1'
+    approval_edit_info = None
     
-    # 已审批的报销单不能编辑
-    if expense_obj.status not in ['draft', 'pending']:
-        flash('已审批的报销单不能编辑', 'error')
-        return redirect(url_for('expense.expense_detail', id=id))
+    if approval_edit_mode:
+        # 审核阶段编辑模式的权限检查（使用通用服务）
+        approval_edit_info = check_universal_approval_permission('expense', id, current_user.id, 'edit')
+        
+        if not approval_edit_info['can_edit']:
+            flash('您无权在当前审核阶段编辑此报销单', 'error')
+            return redirect(url_for('expense.expense_detail', id=id))
+    else:
+        # 常规编辑模式的权限检查
+        if not can_edit_data(expense_obj, current_user):
+            flash('您没有权限编辑此报销单', 'error')
+            return redirect(url_for('expense.expense_detail', id=id))
+        
+        # 检查报销单是否可编辑：只有草稿状态和被拒绝/召回状态可以编辑
+        if expense_obj.status not in ['draft', 'rejected', 'recalled']:
+            flash('当前状态的报销单不能编辑', 'error')
+            return redirect(url_for('expense.expense_detail', id=id))
+        
+        # 检查锁定状态：如果报销单被锁定（通常在审批过程中），不能编辑
+        if expense_obj.is_locked:
+            flash('报销单已被锁定，无法编辑', 'error')
+            return redirect(url_for('expense.expense_detail', id=id))
     
     if request.method == 'POST':
         try:
@@ -1087,29 +1148,65 @@ def edit_expense(id):
             logger.info(f"project_id: {request.form.get('project_id')}")
             logger.info(f"currency: {request.form.get('currency')}")
             
-            # 更新报销单主表信息
-            title = request.form.get('title', '').strip()
-            if not title:
-                return jsonify({'success': False, 'message': '报销主题不能为空'}), 400
+            # 根据编辑模式决定更新哪些字段
+            if approval_edit_mode:
+                # 审核编辑模式：只更新允许编辑的字段
+                logger.info(f"审核编辑模式：可编辑字段 {approval_edit_info['editable_fields']}")
+                editable_fields = approval_edit_info['editable_fields']
                 
-            customer_id = request.form.get('customer_id', type=int)
-            if not customer_id:
-                return jsonify({'success': False, 'message': '请选择关联客户'}), 400
+                # 基本信息字段的有条件更新
+                if 'title' in editable_fields:
+                    title = request.form.get('title', '').strip()
+                    if not title:
+                        return jsonify({'success': False, 'message': '报销主题不能为空'}), 400
+                    expense_obj.title = title
                 
-            contact_id = request.form.get('contact_id', type=int)
-            if not contact_id:
-                return jsonify({'success': False, 'message': '请选择联系人'}), 400
-            
-            expense_obj.title = title
-            expense_obj.description = request.form.get('description', '').strip()
-            expense_obj.customer_id = customer_id
-            expense_obj.contact_id = contact_id
-            expense_obj.project_id = request.form.get('project_id', type=int) or None
-            
-            # 保存用户明确选择的货币，确保不被后续逻辑覆盖
-            user_selected_currency = request.form.get('currency', 'CNY')
-            expense_obj.currency = user_selected_currency
-            logger.info(f"用户选择的报销单货币: {user_selected_currency}")
+                if 'description' in editable_fields:
+                    expense_obj.description = request.form.get('description', '').strip()
+                    
+                if 'customer_id' in editable_fields:
+                    customer_id = request.form.get('customer_id', type=int)
+                    if not customer_id:
+                        return jsonify({'success': False, 'message': '请选择关联客户'}), 400
+                    expense_obj.customer_id = customer_id
+                    
+                if 'contact_id' in editable_fields:
+                    contact_id = request.form.get('contact_id', type=int)
+                    if not contact_id:
+                        return jsonify({'success': False, 'message': '请选择联系人'}), 400
+                    expense_obj.contact_id = contact_id
+                    
+                if 'project_id' in editable_fields:
+                    expense_obj.project_id = request.form.get('project_id', type=int) or None
+                    
+                if 'currency' in editable_fields:
+                    user_selected_currency = request.form.get('currency', 'CNY')
+                    expense_obj.currency = user_selected_currency
+                    logger.info(f"审核编辑：更新货币为 {user_selected_currency}")
+            else:
+                # 常规编辑模式：更新所有字段
+                title = request.form.get('title', '').strip()
+                if not title:
+                    return jsonify({'success': False, 'message': '报销主题不能为空'}), 400
+                    
+                customer_id = request.form.get('customer_id', type=int)
+                if not customer_id:
+                    return jsonify({'success': False, 'message': '请选择关联客户'}), 400
+                    
+                contact_id = request.form.get('contact_id', type=int)
+                if not contact_id:
+                    return jsonify({'success': False, 'message': '请选择联系人'}), 400
+                
+                expense_obj.title = title
+                expense_obj.description = request.form.get('description', '').strip()
+                expense_obj.customer_id = customer_id
+                expense_obj.contact_id = contact_id
+                expense_obj.project_id = request.form.get('project_id', type=int) or None
+                
+                # 保存用户明确选择的货币，确保不被后续逻辑覆盖
+                user_selected_currency = request.form.get('currency', 'CNY')
+                expense_obj.currency = user_selected_currency
+                logger.info(f"常规编辑：用户选择的报销单货币 {user_selected_currency}")
             
             # 处理明细数据（复用创建报销单的逻辑）
             detail_data = {}
@@ -1181,49 +1278,78 @@ def edit_expense(id):
             if not detail_data:
                 return jsonify({'success': False, 'message': '请至少保留一条报销明细'}), 400
             
-            # 删除所有现有明细
-            existing_details = ExpenseDetail.query.filter_by(expense_id=expense_obj.id).all()
-            for detail in existing_details:
-                db.session.delete(detail)
-            db.session.flush()  # 确保删除操作被执行
-            
-            # 重新创建明细
-            total_amount = 0.0
-            for index in sorted(detail_data.keys()):
-                detail = detail_data[index]
+            if approval_edit_mode and 'exchange_rate' in approval_edit_info['editable_fields']:
+                # 审核编辑模式：只更新汇率字段，不删除重建明细
+                logger.info("审核编辑模式：只更新汇率字段")
+                existing_details = ExpenseDetail.query.filter_by(expense_id=expense_obj.id).order_by(ExpenseDetail.id).all()
+                total_amount = 0.0
                 
-                # 验证必填字段
-                required_fields = ['expense_category', 'expense_date', 'description', 'invoice_amount', 'currency']
-                for field in required_fields:
-                    if not detail.get(field) or not str(detail[field]).strip():
-                        return jsonify({'success': False, 'message': f'第{index+1}条明细的{field}字段为必填项'}), 400
+                for index, detail_obj in enumerate(existing_details):
+                    if index in detail_data:
+                        detail = detail_data[index]
+                        # 只更新汇率相关字段
+                        if 'exchange_rate' in detail:
+                            exchange_rate = float(detail.get('exchange_rate', 1.0))
+                            detail_obj.exchange_rate = exchange_rate
+                            
+                            # 重新计算转换后的金额
+                            invoice_amount = detail_obj.invoice_amount or 0
+                            current_amount = invoice_amount * exchange_rate
+                            detail_obj.current_amount = current_amount
+                            detail_obj.amount = current_amount  # 向后兼容
+                            
+                            logger.info(f"更新明细 {detail_obj.id} 汇率: {exchange_rate}, 转换金额: {current_amount}")
+                    
+                    total_amount += detail_obj.current_amount or detail_obj.amount or 0
                 
-                # 转换数据类型
-                expense_date = datetime.strptime(detail['expense_date'], '%Y-%m-%d').date()
-                invoice_amount = float(detail['invoice_amount'])
-                current_amount = float(detail.get('current_amount', invoice_amount))
-                exchange_rate = float(detail.get('exchange_rate', 1.0))
-                document_count = int(detail.get('document_count', 1))
+                # 更新报销单总金额
+                expense_obj.total_amount = total_amount
                 
-                if invoice_amount <= 0:
-                    return jsonify({'success': False, 'message': f'第{index+1}条明细的发票金额必须大于0'}), 400
+            else:
+                # 常规编辑模式：删除并重新创建所有明细
+                logger.info("常规编辑模式：重新创建所有明细")
+                existing_details = ExpenseDetail.query.filter_by(expense_id=expense_obj.id).all()
+                for detail in existing_details:
+                    db.session.delete(detail)
+                db.session.flush()  # 确保删除操作被执行
                 
-                # 先创建明细对象（不包含发票数据）
-                detail_obj = ExpenseDetail(
-                    expense_id=expense_obj.id,
-                    expense_date=expense_date,
-                    expense_category=detail['expense_category'],
-                    description=detail['description'].strip(),
-                    document_count=document_count,
-                    currency=detail['currency'],
-                    invoice_amount=invoice_amount,
-                    current_amount=current_amount,
-                    amount=current_amount,  # 向后兼容
-                    exchange_rate=exchange_rate,
-                    invoice_images=None  # 先不设置发票数据
-                )
-                db.session.add(detail_obj)
-                db.session.flush()  # 获取明细ID
+                # 重新创建明细
+                total_amount = 0.0
+                for index in sorted(detail_data.keys()):
+                    detail = detail_data[index]
+                    
+                    # 验证必填字段
+                    required_fields = ['expense_category', 'expense_date', 'description', 'invoice_amount', 'currency']
+                    for field in required_fields:
+                        if not detail.get(field) or not str(detail[field]).strip():
+                            return jsonify({'success': False, 'message': f'第{index+1}条明细的{field}字段为必填项'}), 400
+                    
+                    # 转换数据类型
+                    expense_date = datetime.strptime(detail['expense_date'], '%Y-%m-%d').date()
+                    invoice_amount = float(detail['invoice_amount'])
+                    current_amount = float(detail.get('current_amount', invoice_amount))
+                    exchange_rate = float(detail.get('exchange_rate', 1.0))
+                    document_count = int(detail.get('document_count', 1))
+                    
+                    if invoice_amount <= 0:
+                        return jsonify({'success': False, 'message': f'第{index+1}条明细的发票金额必须大于0'}), 400
+                    
+                    # 先创建明细对象（不包含发票数据）
+                    detail_obj = ExpenseDetail(
+                        expense_id=expense_obj.id,
+                        expense_date=expense_date,
+                        expense_category=detail['expense_category'],
+                        description=detail['description'].strip(),
+                        document_count=document_count,
+                        currency=detail['currency'],
+                        invoice_amount=invoice_amount,
+                        current_amount=current_amount,
+                        amount=current_amount,  # 向后兼容
+                        exchange_rate=exchange_rate,
+                        invoice_images=None  # 先不设置发票数据
+                    )
+                    db.session.add(detail_obj)
+                    db.session.flush()  # 获取明细ID
                 
                 # 处理发票图片数据（使用与创建报销单相同的逻辑）
                 processed_images = []
@@ -1375,10 +1501,11 @@ def edit_expense(id):
             # 更新报销单总金额
             expense_obj.total_amount = total_amount
             
-            # 确保用户选择的货币不被覆盖
-            if expense_obj.currency != user_selected_currency:
-                logger.warning(f"检测到货币被意外修改: {expense_obj.currency} -> {user_selected_currency}，正在恢复")
-                expense_obj.currency = user_selected_currency
+            # 确保用户选择的货币不被覆盖（仅在常规编辑模式下）
+            if not approval_edit_mode:
+                if expense_obj.currency != user_selected_currency:
+                    logger.warning(f"检测到货币被意外修改: {expense_obj.currency} -> {user_selected_currency}，正在恢复")
+                    expense_obj.currency = user_selected_currency
             
             db.session.commit()
             logger.info(f"报销单保存完成，最终货币: {expense_obj.currency}")
@@ -1454,7 +1581,9 @@ def edit_expense(id):
                          expense=expense_obj,
                          customers=customers,
                          projects=projects,
-                         expense_details_data=expense_details_data)
+                         expense_details_data=expense_details_data,
+                         approval_edit_mode=approval_edit_mode,
+                         approval_edit_info=approval_edit_info)
 
 @expense.route('/<int:id>/delete', methods=['POST'])
 @login_required
@@ -1880,4 +2009,507 @@ def delete_invoice_image(detail_id, image_index):
         return jsonify({
             'success': False,
             'message': _('发票删除失败，请重试')
+        }), 500
+
+
+# ==================== 审批流程相关API端点 ====================
+
+@expense.route('/api/approval/<int:expense_id>/templates')
+@login_required
+def get_approval_templates(expense_id):
+    """获取报销单可用的审批模板"""
+    try:
+        from app.helpers.approval_helpers import get_approval_templates
+        
+        # 获取报销单对象 - 使用直接查询，然后进行权限检查
+        expense_obj = Expense.query.get_or_404(expense_id)
+        
+        # 检查访问权限
+        if not can_edit_data(expense_obj, current_user):
+            return jsonify({
+                'success': False,
+                'message': '您没有权限访问此报销单的审批模板'
+            }), 403
+        
+        # 获取报销单类型的审批模板
+        templates = get_approval_templates(object_type='expense', active_only=True)
+        
+        template_list = []
+        if hasattr(templates, 'items'):  # 如果是分页对象
+            template_list = [{
+                'id': t.id,
+                'name': t.name,
+                'object_type': t.object_type,
+                'required_fields': t.required_fields or []
+            } for t in templates.items]
+        else:  # 如果是列表
+            template_list = [{
+                'id': t.id,
+                'name': t.name,
+                'object_type': t.object_type,
+                'required_fields': t.required_fields or []
+            } for t in templates]
+        
+        return jsonify({
+            'success': True,
+            'templates': template_list
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"获取报销单审批模板失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'获取审批模板失败: {str(e)}'
+        }), 500
+
+
+@expense.route('/api/approval/<int:expense_id>/submit', methods=['POST'])
+@login_required
+@permission_required('expense', 'edit')
+def submit_approval(expense_id):
+    """提交报销单审批"""
+    try:
+        from app.helpers.approval_helpers import start_approval_process
+        
+        # 获取报销单对象
+        expense_obj = get_viewable_data(Expense, current_user).filter_by(id=expense_id).first()
+        if not expense_obj:
+            return jsonify({
+                'success': False,
+                'message': '报销单不存在或无权限访问'
+            }), 404
+        
+        # 检查是否是报销单创建人
+        if not can_edit_data(expense_obj, current_user):
+            return jsonify({
+                'success': False,
+                'message': '只有报销单创建人可以提交审批'
+            }), 403
+        
+        # 检查报销单状态 - 允许草稿和被拒绝的报销单提交审批
+        if expense_obj.status not in ['draft', 'rejected']:
+            return jsonify({
+                'success': False,
+                'message': f'报销单当前状态为 {expense_obj.status}，无法提交审批。只有草稿和被拒绝的报销单可以提交审批'
+            }), 400
+        
+        # 获取请求数据
+        data = request.get_json() or {}
+        template_id = data.get('template_id')
+        
+        # 如果未指定模板，使用默认模板
+        if not template_id:
+            from app.models.approval import ApprovalProcessTemplate
+            default_template = ApprovalProcessTemplate.query.filter_by(
+                object_type='expense',
+                is_active=True
+            ).first()
+            
+            if not default_template:
+                return jsonify({
+                    'success': False,
+                    'message': '未找到可用的报销单审批模板'
+                }), 400
+            
+            template_id = default_template.id
+        
+        # 启动审批流程
+        approval_instance = start_approval_process(
+            object_type='expense',
+            object_id=expense_id,
+            template_id=template_id,
+            user_id=current_user.id
+        )
+        
+        if not approval_instance:
+            return jsonify({
+                'success': False,
+                'message': '启动审批流程失败'
+            }), 500
+        
+        # 更新报销单状态
+        expense_obj.status = 'pending'
+        db.session.commit()
+        
+        current_app.logger.info(f"报销单 {expense_obj.expense_number} 审批流程已启动，实例ID: {approval_instance.id}")
+        
+        return jsonify({
+            'success': True,
+            'message': '审批流程已启动',
+            'instance_id': approval_instance.id,
+            'expense_status': expense_obj.status
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"提交报销单审批失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'提交审批失败: {str(e)}'
+        }), 500
+
+
+@expense.route('/api/approval/<int:expense_id>/recall', methods=['POST'])
+@login_required  
+@permission_required('expense', 'edit')
+def recall_approval(expense_id):
+    """召回报销单审批"""
+    try:
+        from app.helpers.approval_helpers import recall_approval_process
+        
+        # 获取报销单对象
+        expense_obj = get_viewable_data(Expense, current_user).filter_by(id=expense_id).first()
+        if not expense_obj:
+            return jsonify({
+                'success': False,
+                'message': '报销单不存在或无权限访问'
+            }), 404
+        
+        # 检查是否是报销单创建人
+        if not can_edit_data(expense_obj, current_user):
+            return jsonify({
+                'success': False,
+                'message': '只有报销单创建人可以召回审批'
+            }), 403
+        
+        # 召回审批流程
+        success, message = recall_approval_process(
+            object_type='expense',
+            object_id=expense_id,
+            user_id=current_user.id
+        )
+        
+        if not success:
+            return jsonify({
+                'success': False,
+                'message': message
+            }), 500
+        
+        # 召回成功，刷新对象状态以获取最新信息
+        db.session.refresh(expense_obj)
+        
+        current_app.logger.info(f"报销单 {expense_obj.expense_number} 审批流程已召回")
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'expense_status': expense_obj.status
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"召回报销单审批失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'召回审批失败: {str(e)}'
+        }), 500
+
+
+@expense.route('/api/approval/<int:expense_id>/resubmit', methods=['POST'])
+@login_required
+@permission_required('expense', 'edit')
+def resubmit_approval(expense_id):
+    """重新提交报销单审批"""
+    try:
+        from app.helpers.approval_helpers import start_approval_process
+        
+        # 获取报销单对象
+        expense_obj = get_viewable_data(Expense, current_user).filter_by(id=expense_id).first()
+        if not expense_obj:
+            return jsonify({
+                'success': False,
+                'message': '报销单不存在或无权限访问'
+            }), 404
+        
+        # 检查是否是报销单创建人
+        if not can_edit_data(expense_obj, current_user):
+            return jsonify({
+                'success': False,
+                'message': '只有报销单创建人可以重新提交审批'
+            }), 403
+        
+        # 检查报销单状态
+        if expense_obj.status not in ['rejected', 'recalled']:
+            return jsonify({
+                'success': False,
+                'message': f'报销单当前状态为 {expense_obj.status}，无法重新提交审批'
+            }), 400
+        
+        # 获取请求数据
+        data = request.get_json() or {}
+        template_id = data.get('template_id')
+        
+        # 如果未指定模板，使用默认模板
+        if not template_id:  
+            from app.models.approval import ApprovalProcessTemplate
+            default_template = ApprovalProcessTemplate.query.filter_by(
+                object_type='expense',
+                is_active=True
+            ).first()
+            
+            if not default_template:
+                return jsonify({
+                    'success': False,
+                    'message': '未找到可用的报销单审批模板'
+                }), 400
+            
+            template_id = default_template.id
+        
+        # 重新启动审批流程
+        approval_instance = start_approval_process(
+            object_type='expense',
+            object_id=expense_id,
+            template_id=template_id,
+            user_id=current_user.id
+        )
+        
+        if not approval_instance:
+            return jsonify({
+                'success': False,
+                'message': '重新启动审批流程失败'
+            }), 500
+        
+        # 更新报销单状态
+        expense_obj.status = 'pending'
+        db.session.commit()
+        
+        current_app.logger.info(f"报销单 {expense_obj.expense_number} 审批流程已重新提交，实例ID: {approval_instance.id}")
+        
+        return jsonify({
+            'success': True,
+            'message': '审批流程已重新提交',
+            'instance_id': approval_instance.id,
+            'expense_status': expense_obj.status
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"重新提交报销单审批失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'重新提交审批失败: {str(e)}'
+        }), 500
+
+
+@expense.route('/api/approval/<int:expense_id>/flow')
+@login_required
+def get_expense_approval_flow(expense_id):
+    """获取报销单审批流程信息 - 标准化API"""
+    try:
+        # 获取报销单 - 使用直接查询，然后进行权限检查
+        expense_obj = Expense.query.get_or_404(expense_id)
+        
+        # 检查访问权限
+        if not can_edit_data(expense_obj, current_user):
+            return jsonify({
+                'success': False,
+                'message': '您没有权限查看此报销单的审批流程'
+            }), 403
+        
+        # 导入审批相关函数
+        from app.helpers.approval_helpers import get_object_approval_instance, can_recall_approval, can_resubmit_approval
+        from app.models.approval import ApprovalInstance, ApprovalRecord, ApprovalStep
+        
+        # 获取审批实例
+        approval_instance = get_object_approval_instance('expense', expense_id)
+        
+        if not approval_instance:
+            # 返回控制信息，即使没有审批流程
+            control_info = {
+                'status': expense_obj.status,
+                'can_submit': expense_obj.status == 'draft' and expense_obj.owner_id == current_user.id,
+                'can_recall': False,
+                'can_resubmit': False
+            }
+            return jsonify({
+                'success': False, 
+                'message': '未找到审批流程', 
+                'approval_flow': None,
+                'control_info': control_info
+            })
+        
+        # 获取审批步骤（从模板获取）
+        steps = approval_instance.get_steps()
+        if not steps:
+            return jsonify({'success': False, 'message': '审批流程配置错误'})
+        
+        # 获取已有的审批记录
+        records = ApprovalRecord.query.filter_by(
+            instance_id=approval_instance.id
+        ).order_by(ApprovalRecord.timestamp.asc()).all()
+        
+        # 构建审批阶段数据
+        stages_data = []
+        current_step_order = approval_instance.current_step  # 使用实例的当前步骤序号
+        
+        for i, step in enumerate(steps):
+            # 确定审批人
+            from app.helpers.approval_helpers import get_step_actual_approver
+            actual_approver = get_step_actual_approver(step, approval_instance)
+            
+            # 获取这个步骤的审批记录
+            # 优先通过step_id匹配，如果没有匹配到则通过审批者匹配
+            step_records = []
+            
+            if step.get('step_id'):
+                # 尝试通过step_id匹配
+                step_records = [r for r in records if r.step_id == step['step_id']]
+            
+            # 如果通过step_id没有找到记录，尝试通过审批者匹配（兜底逻辑）
+            if not step_records and actual_approver:
+                approver_records = [r for r in records if r.approver_id == actual_approver.id]
+                if approver_records:
+                    # 按时间排序，通常第一条记录对应该步骤
+                    approver_records.sort(key=lambda x: x.timestamp)
+                    step_records = [approver_records[0]]
+            
+            stage_data = {
+                'id': step['step_id'],
+                'stage_name': step['step_name'],  # 修复字段名匹配问题
+                'stage_order': step['step_order'],
+                'approver_name': actual_approver.real_name if actual_approver else '待确定',
+                'approver_id': actual_approver.id if actual_approver else None,
+                'status': 'pending',
+                'completed_time': None,
+                'comment': None,
+                'action': None,
+                'arrived_at': None,  # 前端期望的字段名
+                'can_approve': False
+            }
+            
+            if step_records:
+                # 使用最新的记录
+                latest_record = step_records[-1]
+                stage_data.update({
+                    'status': 'approved' if latest_record.action == 'approve' else 'rejected',  # 前端期望的状态值
+                    'processed_at': latest_record.timestamp.strftime('%Y-%m-%d %H:%M:%S'),  # 修复字段名
+                    'comment': latest_record.comment,
+                    'action': latest_record.action,
+                    'approver_name': latest_record.approver.real_name,  # 修复关联字段名
+                    'approver_id': latest_record.approver_id
+                })
+            elif step['step_order'] == current_step_order:
+                # 当前步骤 - 使用步骤序号而不是数组索引
+                stage_data.update({
+                    'status': 'current',
+                    'arrived_at': approval_instance.started_at.strftime('%Y-%m-%d %H:%M:%S'),  # 修复字段名
+                    'can_approve': actual_approver and actual_approver.id == current_user.id
+                })
+            
+            stages_data.append(stage_data)
+        
+        # 确定整体状态
+        actual_status = approval_instance.status.value if hasattr(approval_instance.status, 'value') else approval_instance.status
+        
+        # 检查是否有召回记录
+        last_record = records[-1] if records else None
+        if last_record and last_record.action == 'recall':
+            actual_status = 'recalled'
+        
+        return jsonify({
+            'success': True,
+            'approval_flow': {
+                'instance_id': approval_instance.id,  # 添加实例ID
+                'stages': stages_data,
+                'current_stage': current_step_order,  # 使用实例的当前步骤序号
+                'can_approve': any(stage.get('can_approve', False) for stage in stages_data),
+                'status': actual_status,
+                'can_recall': can_recall_approval('expense', expense_id, current_user.id),
+                'can_resubmit': can_resubmit_approval('expense', expense_id, current_user.id),
+                'is_creator': approval_instance.created_by == current_user.id,
+                'creator_id': approval_instance.created_by
+            }
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"获取报销单审批流程失败: {str(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'message': f'获取审批流程失败: {str(e)}'
+        }), 500
+
+
+@expense.route('/api/approval/<int:expense_id>/editable-fields', methods=['GET'])
+@login_required
+@permission_required('expense', 'view')
+def get_approval_editable_fields(expense_id):
+    """获取当前审核阶段可编辑的字段"""
+    try:
+        from app.helpers.approval_helpers import get_current_approval_step_editable_fields
+        
+        # 检查报销单是否存在
+        expense_obj = Expense.query.get(expense_id)
+        if not expense_obj:
+            return jsonify({
+                'success': False,
+                'message': '报销单不存在'
+            }), 404
+        
+        # 获取可编辑字段信息
+        edit_info = get_current_approval_step_editable_fields('expense', expense_id, current_user.id)
+        
+        return jsonify({
+            'success': True,
+            'data': edit_info
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"获取审核阶段可编辑字段失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'获取可编辑字段失败: {str(e)}'
+        }), 500
+
+
+@expense.route('/api/approval/<int:expense_id>/update-fields', methods=['POST'])
+@login_required
+@permission_required('expense', 'edit')
+def update_approval_fields(expense_id):
+    """在审核阶段更新特定字段（使用通用服务）"""
+    try:
+        # 检查报销单是否存在
+        expense_obj = Expense.query.get(expense_id)
+        if not expense_obj:
+            return jsonify({
+                'success': False,
+                'message': '报销单不存在'
+            }), 404
+        
+        # 获取请求数据
+        data = request.get_json()
+        if not data or 'field_updates' not in data:
+            return jsonify({
+                'success': False,
+                'message': '缺少字段更新数据'
+            }), 400
+        
+        field_updates = data['field_updates']
+        if not isinstance(field_updates, dict):
+            return jsonify({
+                'success': False,
+                'message': '字段更新数据格式不正确'
+            }), 400
+        
+        # 使用通用字段编辑服务更新字段
+        field_service = get_field_edit_service('expense')
+        success, message = field_service.update_fields(expense_id, field_updates, current_user.id)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': message
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': message
+            }), 400
+        
+    except Exception as e:
+        current_app.logger.error(f"更新审核阶段字段失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'更新字段失败: {str(e)}'
         }), 500

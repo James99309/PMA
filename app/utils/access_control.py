@@ -26,6 +26,66 @@ from sqlalchemy.dialects.postgresql import JSONB
 
 logger = logging.getLogger(__name__)
 
+def has_approval_permission(user, model_obj):
+    """
+    检查用户是否对指定对象有审批权限
+    
+    参数:
+        user: 用户对象
+        model_obj: 数据对象（如报销单）
+        
+    返回:
+        bool: 是否有审批权限
+    """
+    try:
+        from app.models.approval import ApprovalInstance, ApprovalRecord
+        from app.helpers.approval_helpers import get_step_actual_approver
+        
+        # 获取对象类型
+        object_type = model_obj.__class__.__name__.lower()
+        if object_type == 'expense':
+            object_type = 'expense'
+        
+        # 查找该对象的进行中的审批实例
+        from app.models.approval import ApprovalStatus
+        approval_instances = ApprovalInstance.query.filter_by(
+            object_id=model_obj.id,
+            object_type=object_type,
+            status=ApprovalStatus.PENDING
+        ).all()
+        
+        for instance in approval_instances:
+            # 获取当前步骤信息
+            current_step_info = instance.get_current_step_info()
+            if not current_step_info:
+                continue
+            
+            # 检查当前用户是否是当前步骤的审批者
+            try:
+                approver = get_step_actual_approver(current_step_info, instance)
+                
+                if approver and approver.id == user.id:
+                    return True
+            except Exception as e:
+                logger.debug(f"检查审批权限时出错: {str(e)}")
+                continue
+        
+        # 检查用户是否曾经审批过该对象（历史审批权限）
+        approval_records = ApprovalRecord.query.join(ApprovalInstance).filter(
+            ApprovalInstance.object_id == model_obj.id,
+            ApprovalInstance.object_type == object_type,
+            ApprovalRecord.approver_id == user.id
+        ).first()
+        
+        if approval_records:
+            return True
+            
+        return False
+        
+    except Exception as e:
+        logger.error(f"检查审批权限时发生错误: {str(e)}")
+        return False
+
 def get_projects_through_customer_sharing_condition(user, model_class):
     """
     获取通过客户共享获得的项目访问权限的查询条件
@@ -633,8 +693,12 @@ def can_edit_data(model_obj, user):
     if user_role in ['finance_director', 'finace_director']:
         if model_name in ['Project', 'Quotation']:
             return False
-        # 其他数据按默认规则
-        return model_obj.owner_id == user.id
+        # 报销单需要特殊处理，不在这里直接返回
+        if model_name == 'Expense':
+            pass  # 继续执行后面的报销单特殊处理逻辑
+        else:
+            # 其他数据按默认规则
+            return model_obj.owner_id == user.id
     
     # 产品经理：基于权限系统进行编辑权限控制
     if user_role in ['product_manager', 'product']:
@@ -693,6 +757,60 @@ def can_edit_data(model_obj, user):
         # 解决方案经理可以编辑所有报价单
         if user_role in ['solution_manager', 'solution']:
             return True
+        return False
+    
+    # 报销单特殊处理：支持审批权限
+    if model_name == 'Expense':
+        # 报销单拥有人可以编辑
+        if model_obj.owner_id == user.id:
+            return True
+        
+        # 检查用户是否有审批权限 - 如果有审批权限，绕过基础权限检查
+        if has_approval_permission(user, model_obj):
+            return True
+        
+        # 基于权限系统的编辑权限控制 - 检查用户是否有基础的查看权限
+        if not user.has_permission('expense', 'view'):
+            return False
+        
+        # 检查用户是否有编辑权限
+        if not user.has_permission('expense', 'edit'):
+            return False
+        
+        # 财务总监可以编辑所有报销单
+        if user_role in ['finance_director', 'finace_director']:
+            return True
+        
+        # 基于四级权限系统的编辑权限控制
+        permission_level = user.get_permission_level('expense')
+        
+        if permission_level == 'system':
+            return True
+        elif permission_level == 'company' and user.company_name:
+            # 企业级权限：可以编辑企业下所有报销单
+            if hasattr(model_obj, 'owner') and model_obj.owner:
+                return model_obj.owner.company_name == user.company_name
+            else:
+                owner = User.query.get(model_obj.owner_id)
+                return owner and owner.company_name == user.company_name
+        elif permission_level == 'department' and user.department and user.company_name:
+            # 部门级权限：可以编辑部门下所有报销单
+            if hasattr(model_obj, 'owner') and model_obj.owner:
+                return (model_obj.owner.department == user.department and 
+                       model_obj.owner.company_name == user.company_name)
+            else:
+                owner = User.query.get(model_obj.owner_id)
+                return (owner and owner.department == user.department and 
+                       owner.company_name == user.company_name)
+        
+        # 部门负责人权限：可以编辑本部门所有用户的报销单
+        if getattr(user, 'is_department_manager', False) and user.department:
+            if hasattr(model_obj, 'owner') and model_obj.owner:
+                return model_obj.owner.department == user.department
+            else:
+                owner = User.query.get(model_obj.owner_id)
+                return owner and owner.department == user.department
+        
         return False
     
     # 营销总监只能编辑自己的数据

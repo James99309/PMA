@@ -2,18 +2,6 @@
 
 <tr>
     <td><a href="{{ url_for('expense.expense_detail', id=expense.id) }}">{{ render_expense_number(expense.expense_number) }}</a></td>
-    <td>{{ expense.title }}</td>
-    <td>{{ expense.customer_name }}</td>
-    <td>{{ expense.project_name }}</td>
-    <td>{{ expense.detail_count }}</td>
-    <td class="text-end">
-        {% if expense.currency %}
-            {% if expense.currency == 'USD' %}${% elif expense.currency == 'SGD' %}S${% elif expense.currency == 'MYR' %}RM{% elif expense.currency == 'IDR' %}Rp{% elif expense.currency == 'THB' %}฿{% else %}¥{% endif %}{{ "%.2f"|format(expense.total_amount) }}
-        {% else %}
-            ¥{{ "%.2f"|format(expense.total_amount) }}
-        {% endif %}
-    </td>
-    <td class="text-start">{{ render_expense_status_badge(expense.status) }}</td>
     <td class="text-start">
         {% if expense.owner %}
             {% if expense.owner_obj and expense.owner_obj.is_vendor_user and expense.owner_obj.is_vendor_user() %}
@@ -25,6 +13,17 @@
             <span class="text-muted">-</span>
         {% endif %}
     </td>
+    <td class="text-start">{{ render_expense_status_badge(expense.status) }}</td>
+    <td class="text-end">
+        {% if expense.currency %}
+            {% if expense.currency == 'USD' %}${% elif expense.currency == 'SGD' %}S${% elif expense.currency == 'MYR' %}RM{% elif expense.currency == 'IDR' %}Rp{% elif expense.currency == 'THB' %}฿{% else %}¥{% endif %}{{ "%.2f"|format(expense.total_amount) }}
+        {% else %}
+            ¥{{ "%.2f"|format(expense.total_amount) }}
+        {% endif %}
+    </td>
+    <td>{{ expense.customer_name }}</td>
+    <td>{{ expense.contact_name }}</td>
+    <td>{{ expense.project_name or '-' }}</td>
     <td>
         {% if expense.created_at %}
             {% if expense.created_at is string %}

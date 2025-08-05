@@ -462,7 +462,7 @@
                                     <div class="col-md-6">
                                         <label for="product_pdf" class="form-label">产品PDF文件</label>
                                         <input type="file" class="form-control" id="product_pdf" name="product_pdf" accept=".pdf">
-                                        <div class="form-text">支持 PDF 格式，文件大小不超过12MB，文件名必须是英文字符</div>
+                                        <div class="form-text">支持 PDF 格式，文件大小不超过12MB，支持中英文文件名</div>
                                     </div>
                                     <div class="col-md-6">
                                     <label for="description" class="form-label">产品描述</label>
@@ -2286,9 +2286,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 
-                // 检查文件名是否为英文
-                if (!/^[a-zA-Z0-9._-]+$/.test(file.name)) {
-                    alert('文件名必须是英文字符（包括字母、数字、点、下划线、连字符）');
+                // 文件名验证：支持中英文文件名，只需要检查是否包含不安全字符
+                if (/[<>:"/\\|?*]/.test(file.name)) {
+                    alert('文件名不能包含以下字符：< > : " / \\ | ? *');
                     e.target.value = '';
                     return;
                 }

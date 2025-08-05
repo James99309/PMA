@@ -3577,7 +3577,8 @@ window.dismissStandardAlert = function() {
     'draft': '草稿',
     'pending': '待审批',
     'approved': '已通过',
-    'rejected': '已驳回'
+    'rejected': '已驳回',
+    'recalled': '已召回'
   } %}
   
   {% set status_text = status_map.get(status, status) if status else '未设置' %}
@@ -3590,6 +3591,8 @@ window.dismissStandardAlert = function() {
     <span class="badge badge-pill badge-transparent expense-status-approved">{{ _(status_text) }}</span>
   {% elif status == 'rejected' %}
     <span class="badge badge-pill badge-transparent expense-status-rejected">{{ _(status_text) }}</span>
+  {% elif status == 'recalled' %}
+    <span class="badge badge-pill badge-transparent expense-status-recalled">{{ _(status_text) }}</span>
   {% else %}
     <span class="badge badge-pill badge-transparent badge-muted">{{ _(status_text) }}</span>
   {% endif %}

@@ -280,15 +280,37 @@ function updateOperationSection(newStatus) {
     let buttonsHtml = '';
     
     if (newStatus === 'draft') {
-        infoHtml = `
-            <p class="text-muted mb-2">创建完成，可以提交审批流程。</p>
-            <small class="text-muted">提交后将进入审批流程，无法直接修改。</small>
-        `;
-        buttonsHtml = `
-            <button type="button" class="btn btn-success operation-btn-submit" onclick="submitStandardApproval('order', ${window.currentOrderId || 'null'})">
-                <i class="fas fa-paper-plane me-1"></i>提交审批
-            </button>
-        `;
+        // 检查是否有召回的审批历史
+        const flow = window.approvalFlowInstance;
+        const hasRecalledHistory = flow && flow.approvalData && flow.approvalData.status === 'recalled';
+        
+        if (hasRecalledHistory) {
+            // 有召回历史的情况
+            infoHtml = `
+                <div class="alert alert-warning border-warning">
+                    <i class="fas fa-undo me-2"></i>
+                    <strong>审批流程已召回</strong>
+                    <p class="mb-1 mt-2">上次提交的审批流程已被召回，您可以重新提交审批。</p>
+                    <small class="text-muted">重新提交后将开始新的审批流程。</small>
+                </div>
+            `;
+            buttonsHtml = `
+                <button type="button" class="btn btn-success operation-btn-submit" onclick="submitStandardApproval('expense', ${window.currentExpenseId || 'null'})">
+                    <i class="fas fa-redo me-1"></i>重新提交审批
+                </button>
+            `;
+        } else {
+            // 普通草稿状态
+            infoHtml = `
+                <p class="text-muted mb-2">创建完成，可以提交审批流程。</p>
+                <small class="text-muted">提交后将进入审批流程，无法直接修改。</small>
+            `;
+            buttonsHtml = `
+                <button type="button" class="btn btn-success operation-btn-submit" onclick="submitStandardApproval('expense', ${window.currentExpenseId || 'null'})">
+                    <i class="fas fa-paper-plane me-1"></i>提交审批
+                </button>
+            `;
+        }
     } else if (newStatus === 'pending') {
         // 检查是否有召回权限
         const flow = window.approvalFlowInstance;

@@ -79,6 +79,166 @@ def get_authorization_approver_by_project_type(project_type):
     
     return approver
 
+
+def get_next_level_approver(user):
+    """获取指定用户的上一级领导
+    
+    上一级领导逻辑：
+    1. 部门成员 -> 部门负责人 -> 总经理（管理员）
+    2. 如果没有部门的直接到总经理（管理员）
+    3. 如果不在同一个企业中的，没有上一级就直接到管理员
+    
+    Args:
+        user: User对象，为其查找上一级领导
+        
+    Returns:
+        User对象或None，上一级领导
+    """
+    from app.models.user import User
+    
+    if not user:
+        return None
+    
+    current_app.logger.debug(f"查找用户 {user.username} 的上一级领导")
+    
+    # 如果用户本身就是管理员，寻找其他管理员作为托底审批人
+    if user.role == 'admin':
+        current_app.logger.debug(f"用户 {user.username} 是管理员，寻找其他管理员作为托底审批人")
+        
+        # 查找其他管理员（排除自己）
+        other_admin = User.query.filter_by(role='admin').filter(User.id != user.id).first()
+        if other_admin:
+            current_app.logger.debug(f"找到其他管理员作为托底审批人: {other_admin.username}")
+            return other_admin
+        
+        # 如果没有其他管理员，查找CEO
+        ceo = User.query.filter_by(role='ceo').filter(User.id != user.id).first()
+        if ceo:
+            current_app.logger.debug(f"找到CEO作为托底审批人: {ceo.username}")
+            return ceo
+        
+        # 如果都没有，返回自己作为托底（自审模式）
+        current_app.logger.warning(f"管理员 {user.username} 没有找到其他审批人，返回自己作为托底")
+        return user
+    
+    # 如果用户有部门且不是部门负责人，上一级是同企业同部门的部门负责人
+    if user.department and user.company_name and not user.is_department_manager:
+        dept_manager = User.query.filter_by(
+            department=user.department,
+            company_name=user.company_name,
+            is_department_manager=True
+        ).filter(User.id != user.id).first()
+        
+        if dept_manager:
+            current_app.logger.debug(f"找到部门负责人: {dept_manager.username}")
+            return dept_manager
+    
+    # 如果是部门负责人或没有找到部门负责人，上一级是总经理
+    # 优先查找同企业的总经理
+    if user.company_name:
+        ceo = User.query.filter_by(
+            company_name=user.company_name,
+            role='ceo'
+        ).filter(User.id != user.id).first()
+        
+        if ceo:
+            current_app.logger.debug(f"找到同企业总经理: {ceo.username}")
+            return ceo
+    
+    # 如果没有同企业的总经理，查找任意总经理
+    ceo = User.query.filter_by(role='ceo').filter(User.id != user.id).first()
+    if ceo:
+        current_app.logger.debug(f"找到总经理: {ceo.username}")
+        return ceo
+    
+    # 最后查找管理员
+    admin = User.query.filter_by(role='admin').filter(User.id != user.id).first()
+    if admin:
+        current_app.logger.debug(f"找到管理员: {admin.username}")
+        return admin
+    
+    current_app.logger.debug(f"未找到用户 {user.username} 的上一级领导")
+    return None
+
+
+def get_approver_by_type(approver_type, approver_user_id, context_user=None, project_type=None):
+    """根据审批人类型获取审批人
+    
+    Args:
+        approver_type: 审批人类型 ('user', 'auto', 'next_level')
+        approver_user_id: 固定审批人ID（当approver_type='user'时使用）
+        context_user: 上下文用户（用于next_level类型）
+        project_type: 项目类型（用于authorization动作类型）
+        
+    Returns:
+        User对象或None
+    """
+    from app.models.user import User
+    
+    if approver_type == 'user' and approver_user_id:
+        # 固定用户
+        return User.query.get(approver_user_id)
+    elif approver_type == 'next_level' and context_user:
+        # 上一级领导
+        return get_next_level_approver(context_user)
+    elif approver_type == 'auto' and project_type:
+        # 根据项目类型自动选择（主要用于authorization动作）
+        return get_authorization_approver_by_project_type(project_type)
+    
+    return None
+
+
+def get_step_actual_approver(step, approval_instance):
+    """获取审批步骤的实际审批人
+    
+    根据步骤配置和审批实例上下文，动态确定实际的审批人。
+    
+    Args:
+        step: ApprovalStep对象或步骤字典（来自模板快照）
+        approval_instance: ApprovalInstance对象
+        
+    Returns:
+        User对象或None
+    """
+    from app.models.user import User
+    
+    # 获取步骤信息
+    if isinstance(step, dict):
+        # 从模板快照中获取
+        approver_type = step.get('approver_type', 'user')
+        approver_user_id = step.get('approver_user_id')
+        action_type = step.get('action_type')
+    else:
+        # 从ApprovalStep对象获取
+        approver_type = step.approver_type or 'user'
+        approver_user_id = step.approver_user_id
+        action_type = step.action_type
+    
+    # 获取审批发起人作为上下文用户
+    context_user = User.query.get(approval_instance.created_by)
+    
+    # 如果是项目相关的审批，获取项目类型
+    project_type = None
+    if approval_instance.object_type == 'project':
+        project = Project.query.get(approval_instance.object_id)
+        if project:
+            project_type = project.project_type
+    
+    # 根据审批人类型确定实际审批人
+    if approver_type == 'next_level':
+        # 上一级领导：基于发起人确定
+        return get_next_level_approver(context_user)
+    elif approver_type == 'auto' or action_type == 'authorization':
+        # 自动选择：基于项目类型确定（主要用于授权）
+        if project_type:
+            return get_authorization_approver_by_project_type(project_type)
+    elif approver_type == 'user' and approver_user_id:
+        # 固定用户
+        return User.query.get(approver_user_id)
+    
+    current_app.logger.warning(f"无法确定步骤审批人: approver_type={approver_type}, approver_user_id={approver_user_id}")
+    return None
+
 def create_or_get_unified_authorization_template():
     """创建或获取统一的动态授权审批模板
     
@@ -155,7 +315,7 @@ def get_user_created_approvals(user_id=None, object_type=None, status=None, page
     Args:
         user_id: 用户ID，默认为当前登录用户
         object_type: 过滤特定类型的审批对象
-        status: 过滤特定状态的审批
+        status: 过滤特定状态的审批，默认为'pending'（只显示审批中的记录）
         page: 页码
         per_page: 每页数量
         
@@ -164,6 +324,10 @@ def get_user_created_approvals(user_id=None, object_type=None, status=None, page
     """
     if user_id is None:
         user_id = current_user.id
+    
+    # 🔥 默认只显示审批中的记录（pending状态），除非明确指定其他状态
+    if status is None:
+        status = 'pending'
     
     # 获取当前查询用户的信息，检查是否为商务助理
     from app.models.user import User
@@ -247,6 +411,173 @@ def get_user_created_approvals(user_id=None, object_type=None, status=None, page
         pricing_orders.items = wrapped_items
         
         return pricing_orders
+        
+    # 如果专门查询报销单，使用报销单的独立审批系统
+    if object_type == 'expense':
+        from app.models.expense import Expense
+        
+        query = Expense.query.filter(Expense.owner_id.in_(user_ids_to_query))
+        
+        # 状态映射 - 修复状态筛选逻辑，优先处理字符串状态
+        if status:
+            # 如果传入的是字符串状态，直接匹配
+            if isinstance(status, str):
+                if status.lower() == 'draft':
+                    query = query.filter(Expense.status == 'draft')
+                elif status.lower() == 'pending':
+                    query = query.filter(Expense.status == 'pending')
+                elif status.lower() == 'approved':
+                    query = query.filter(Expense.status == 'approved')
+                elif status.lower() == 'rejected':
+                    query = query.filter(Expense.status == 'rejected')
+            # 处理ApprovalStatus枚举
+            elif status == ApprovalStatus.PENDING:
+                query = query.filter(Expense.status == 'pending')
+            elif status == ApprovalStatus.APPROVED:
+                query = query.filter(Expense.status == 'approved')
+            elif status == ApprovalStatus.REJECTED:
+                query = query.filter(Expense.status == 'rejected')
+        
+        # 按创建时间倒序排列
+        query = query.order_by(Expense.created_at.desc())
+        
+        # 返回分页结果，需要包装成类似审批实例的格式
+        try:
+            expenses = query.paginate(page=page, per_page=per_page, error_out=False)
+        except Exception as e:
+            # 如果分页出错，返回空结果
+            try:
+                from flask_sqlalchemy import Pagination
+            except ImportError:
+                from flask_sqlalchemy.pagination import Pagination
+            expenses = Pagination(query=query, page=page, per_page=per_page, total=0, items=[])
+        
+        # 创建虚拟审批实例对象，用于在审批中心显示
+        class ExpenseApprovalWrapper:
+            def __init__(self, expense):
+                # 🔥 修复：只有已发起审批的报销单才应该显示在审批中心
+                # 草稿状态的报销单不应该显示审批编号
+                self.real_approval_instance_id = None
+                self.should_display = False  # 标记是否应该在审批中心显示
+                
+                if expense.status in ['pending', 'approved', 'rejected', 'recalled']:
+                    from app.models.approval import ApprovalInstance
+                    approval_instance = ApprovalInstance.query.filter_by(
+                        object_type='expense',
+                        object_id=expense.id
+                    ).order_by(ApprovalInstance.id.desc()).first()
+                    if approval_instance:
+                        self.real_approval_instance_id = approval_instance.id
+                        # 🔥 修改显示逻辑：无论什么状态，只要有审批实例就可以显示
+                        # 具体的状态过滤由调用方的查询条件控制
+                        self.should_display = True
+                        # 使用真实审批实例ID作为主ID
+                        self.id = approval_instance.id
+                        # 设置审批流程的开始时间为审批实例的开始时间
+                        self.started_at = approval_instance.started_at
+                        # 设置结束时间
+                        if approval_instance.ended_at:
+                            self.ended_at = approval_instance.ended_at
+                        elif expense.status == 'approved':
+                            self.ended_at = expense.approved_at
+                        else:
+                            self.ended_at = None
+                    else:
+                        # 状态不是draft但没有审批实例，可能是数据不一致
+                        self.should_display = False
+                        self.id = f"expense_{expense.id}"
+                        self.started_at = expense.created_at
+                        self.ended_at = None
+                else:
+                    # draft状态，不应该在审批中心显示
+                    self.should_display = False
+                    self.id = f"expense_{expense.id}"
+                    self.started_at = expense.created_at
+                    self.ended_at = None
+                
+                self.object_id = expense.id
+                self.object_type = 'expense'
+                self.created_by = expense.owner_id
+                self.creator = expense.owner
+                self.expense = expense
+                
+                # 状态映射 - 确保所有状态都有对应的显示
+                if expense.status == 'pending':
+                    self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
+                elif expense.status == 'approved':
+                    self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
+                elif expense.status == 'rejected':
+                    self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
+                elif expense.status == 'recalled':
+                    self.status = type('Status', (), {'name': 'RECALLED', 'value': 'recalled'})()
+                else:  # draft 或其他状态
+                    self.status = type('Status', (), {'name': 'DRAFT', 'value': 'draft'})()
+                
+                # 虚拟流程对象
+                self.process = type('Process', (), {
+                    'name': '报销单审批流程',
+                    'id': 'expense_approval'
+                })()
+        
+        # 包装分页对象，只包含应该显示的项目
+        wrapped_items = []
+        for expense in expenses.items:
+            wrapper = ExpenseApprovalWrapper(expense)
+            if wrapper.should_display:
+                wrapped_items.append(wrapper)
+        
+        # 重新计算分页信息，因为过滤后数量可能改变
+        # 获取应该显示的总数 - 使用与分页查询相同的基础查询
+        base_query = Expense.query.filter(Expense.owner_id.in_(user_ids_to_query))
+        
+        # 应用相同的状态过滤逻辑
+        if status:
+            # 如果传入的是字符串状态，直接匹配
+            if isinstance(status, str):
+                if status.lower() == 'draft':
+                    base_query = base_query.filter(Expense.status == 'draft')
+                elif status.lower() == 'pending':
+                    base_query = base_query.filter(Expense.status == 'pending')
+                elif status.lower() == 'approved':
+                    base_query = base_query.filter(Expense.status == 'approved')
+                elif status.lower() == 'rejected':
+                    base_query = base_query.filter(Expense.status == 'rejected')
+            # 处理ApprovalStatus枚举
+            elif status == ApprovalStatus.PENDING:
+                base_query = base_query.filter(Expense.status == 'pending')
+            elif status == ApprovalStatus.APPROVED:
+                base_query = base_query.filter(Expense.status == 'approved')
+            elif status == ApprovalStatus.REJECTED:
+                base_query = base_query.filter(Expense.status == 'rejected')
+        
+        total_display_count = 0
+        for expense in base_query.all():
+            wrapper = ExpenseApprovalWrapper(expense)
+            if wrapper.should_display:
+                total_display_count += 1
+        
+        # 创建新的分页对象，因为QueryPagination的属性是只读的
+        try:
+            from flask_sqlalchemy import Pagination
+        except ImportError:
+            from flask_sqlalchemy.pagination import Pagination
+        
+        # 创建自定义分页对象
+        class CustomPagination:
+            def __init__(self, items, page, per_page, total):
+                self.items = items
+                self.page = page
+                self.per_page = per_page
+                self.total = total
+                self.pages = (total + per_page - 1) // per_page if per_page > 0 else 0
+                self.has_prev = page > 1
+                self.has_next = page < self.pages
+                self.prev_num = page - 1 if self.has_prev else None
+                self.next_num = page + 1 if self.has_next else None
+        
+        expenses = CustomPagination(wrapped_items, page, per_page, total_display_count)
+        
+        return expenses
         
     # 基础查询 - 通用审批系统
     query = ApprovalInstance.query.options(db.joinedload(ApprovalInstance.process)).filter(
@@ -428,12 +759,112 @@ def get_user_created_approvals(user_id=None, object_type=None, status=None, page
         # 包装订单为审批实例
         wrapped_orders = [OrderApprovalWrapper(order) for order in all_orders]
         
-        # 合并三种审批数据并按时间排序
-        all_approvals = list(general_approvals.items) + wrapped_pricing_orders + wrapped_orders
+        # 获取报销单审批数据
+        from app.models.expense import Expense
+        expense_query = Expense.query.filter(Expense.owner_id.in_(user_ids_to_query))
+        
+        # 报销单状态过滤 - 与其他地方保持一致的逻辑
+        if status:
+            # 如果传入的是字符串状态，直接匹配
+            if isinstance(status, str):
+                if status.lower() == 'draft':
+                    expense_query = expense_query.filter(Expense.status == 'draft')
+                elif status.lower() == 'pending':
+                    expense_query = expense_query.filter(Expense.status == 'pending')
+                elif status.lower() == 'approved':
+                    expense_query = expense_query.filter(Expense.status == 'approved')
+                elif status.lower() == 'rejected':
+                    expense_query = expense_query.filter(Expense.status == 'rejected')
+            # 处理ApprovalStatus枚举
+            elif status == ApprovalStatus.PENDING:
+                expense_query = expense_query.filter(Expense.status == 'pending')
+            elif status == ApprovalStatus.APPROVED:
+                expense_query = expense_query.filter(Expense.status == 'approved')
+            elif status == ApprovalStatus.REJECTED:
+                expense_query = expense_query.filter(Expense.status == 'rejected')
+        
+        # 获取所有报销单，不分页
+        all_expenses = expense_query.order_by(Expense.created_at.desc()).all()
+        
+        # 创建报销单包装器
+        class ExpenseApprovalWrapper:
+            def __init__(self, expense):
+                # 🔥 修复：统一使用真实审批实例ID和显示控制逻辑
+                self.real_approval_instance_id = None
+                self.should_display = False  # 标记是否应该在审批中心显示
+                
+                if expense.status in ['pending', 'approved', 'rejected', 'recalled']:
+                    from app.models.approval import ApprovalInstance
+                    approval_instance = ApprovalInstance.query.filter_by(
+                        object_type='expense',
+                        object_id=expense.id
+                    ).order_by(ApprovalInstance.id.desc()).first()
+                    if approval_instance:
+                        self.real_approval_instance_id = approval_instance.id
+                        # 🔥 修改显示逻辑：无论什么状态，只要有审批实例就可以显示
+                        # 具体的状态过滤由调用方的查询条件控制
+                        self.should_display = True
+                        # 使用真实审批实例ID作为主ID
+                        self.id = approval_instance.id
+                        # 设置审批流程的开始时间为审批实例的开始时间
+                        self.started_at = approval_instance.started_at
+                        # 设置结束时间
+                        if approval_instance.ended_at:
+                            self.ended_at = approval_instance.ended_at
+                        elif expense.status == 'approved':
+                            self.ended_at = expense.approved_at
+                        else:
+                            self.ended_at = None
+                    else:
+                        # 状态不是draft但没有审批实例，可能是数据不一致
+                        self.should_display = False
+                        self.id = f"expense_{expense.id}"
+                        self.started_at = expense.created_at
+                        self.ended_at = None
+                else:
+                    # draft状态，不应该在审批中心显示
+                    self.should_display = False
+                    self.id = f"expense_{expense.id}"
+                    self.started_at = expense.created_at
+                    self.ended_at = None
+                
+                self.object_id = expense.id
+                self.object_type = 'expense'
+                self.created_by = expense.owner_id
+                self.creator = expense.owner
+                self.expense = expense
+                
+                # 状态映射 - 确保所有状态都有对应的显示
+                if expense.status == 'pending':
+                    self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
+                elif expense.status == 'approved':
+                    self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
+                elif expense.status == 'rejected':
+                    self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
+                elif expense.status == 'recalled':
+                    self.status = type('Status', (), {'name': 'RECALLED', 'value': 'recalled'})()
+                else:  # draft 或其他状态
+                    self.status = type('Status', (), {'name': 'DRAFT', 'value': 'draft'})()
+                
+                # 虚拟流程对象
+                self.process = type('Process', (), {
+                    'name': '报销单审批流程',
+                    'id': 'expense_approval'
+                })()
+        
+        # 包装报销单为审批实例，只包含应该显示的项目
+        wrapped_expenses = []
+        for expense in all_expenses:
+            wrapper = ExpenseApprovalWrapper(expense)  
+            if wrapper.should_display:
+                wrapped_expenses.append(wrapper)
+        
+        # 合并四种审批数据并按时间排序
+        all_approvals = list(general_approvals.items) + wrapped_pricing_orders + wrapped_orders + wrapped_expenses
         all_approvals.sort(key=lambda x: x.started_at, reverse=True)
         
         # 计算总数
-        total_count = general_approvals.total + len(wrapped_pricing_orders) + len(wrapped_orders)
+        total_count = general_approvals.total + len(wrapped_pricing_orders) + len(wrapped_orders) + len(wrapped_expenses)
         
         # 手动分页
         start_idx = (page - 1) * per_page
@@ -595,6 +1026,173 @@ def get_user_department_approvals(user_id=None, object_type=None, status=None, p
         pricing_orders.items = wrapped_items
         
         return pricing_orders
+        
+    # 如果专门查询报销单，使用报销单的独立审批系统
+    if object_type == 'expense':
+        from app.models.expense import Expense
+        
+        query = Expense.query.filter(Expense.owner_id.in_(user_ids_to_query))
+        
+        # 状态映射 - 修复状态筛选逻辑，优先处理字符串状态
+        if status:
+            # 如果传入的是字符串状态，直接匹配
+            if isinstance(status, str):
+                if status.lower() == 'draft':
+                    query = query.filter(Expense.status == 'draft')
+                elif status.lower() == 'pending':
+                    query = query.filter(Expense.status == 'pending')
+                elif status.lower() == 'approved':
+                    query = query.filter(Expense.status == 'approved')
+                elif status.lower() == 'rejected':
+                    query = query.filter(Expense.status == 'rejected')
+            # 处理ApprovalStatus枚举
+            elif status == ApprovalStatus.PENDING:
+                query = query.filter(Expense.status == 'pending')
+            elif status == ApprovalStatus.APPROVED:
+                query = query.filter(Expense.status == 'approved')
+            elif status == ApprovalStatus.REJECTED:
+                query = query.filter(Expense.status == 'rejected')
+        
+        # 按创建时间倒序排列
+        query = query.order_by(Expense.created_at.desc())
+        
+        # 返回分页结果，需要包装成类似审批实例的格式
+        try:
+            expenses = query.paginate(page=page, per_page=per_page, error_out=False)
+        except Exception as e:
+            # 如果分页出错，返回空结果
+            try:
+                from flask_sqlalchemy import Pagination
+            except ImportError:
+                from flask_sqlalchemy.pagination import Pagination
+            expenses = Pagination(query=query, page=page, per_page=per_page, total=0, items=[])
+        
+        # 创建虚拟审批实例对象，用于在审批中心显示
+        class ExpenseApprovalWrapper:
+            def __init__(self, expense):
+                # 🔥 修复：只有已发起审批的报销单才应该显示在审批中心
+                # 草稿状态的报销单不应该显示审批编号
+                self.real_approval_instance_id = None
+                self.should_display = False  # 标记是否应该在审批中心显示
+                
+                if expense.status in ['pending', 'approved', 'rejected', 'recalled']:
+                    from app.models.approval import ApprovalInstance
+                    approval_instance = ApprovalInstance.query.filter_by(
+                        object_type='expense',
+                        object_id=expense.id
+                    ).order_by(ApprovalInstance.id.desc()).first()
+                    if approval_instance:
+                        self.real_approval_instance_id = approval_instance.id
+                        # 🔥 修改显示逻辑：无论什么状态，只要有审批实例就可以显示
+                        # 具体的状态过滤由调用方的查询条件控制
+                        self.should_display = True
+                        # 使用真实审批实例ID作为主ID
+                        self.id = approval_instance.id
+                        # 设置审批流程的开始时间为审批实例的开始时间
+                        self.started_at = approval_instance.started_at
+                        # 设置结束时间
+                        if approval_instance.ended_at:
+                            self.ended_at = approval_instance.ended_at
+                        elif expense.status == 'approved':
+                            self.ended_at = expense.approved_at
+                        else:
+                            self.ended_at = None
+                    else:
+                        # 状态不是draft但没有审批实例，可能是数据不一致
+                        self.should_display = False
+                        self.id = f"expense_{expense.id}"
+                        self.started_at = expense.created_at
+                        self.ended_at = None
+                else:
+                    # draft状态，不应该在审批中心显示
+                    self.should_display = False
+                    self.id = f"expense_{expense.id}"
+                    self.started_at = expense.created_at
+                    self.ended_at = None
+                
+                self.object_id = expense.id
+                self.object_type = 'expense'
+                self.created_by = expense.owner_id
+                self.creator = expense.owner
+                self.expense = expense
+                
+                # 状态映射 - 确保所有状态都有对应的显示
+                if expense.status == 'pending':
+                    self.status = type('Status', (), {'name': 'PENDING', 'value': 'pending'})()
+                elif expense.status == 'approved':
+                    self.status = type('Status', (), {'name': 'APPROVED', 'value': 'approved'})()
+                elif expense.status == 'rejected':
+                    self.status = type('Status', (), {'name': 'REJECTED', 'value': 'rejected'})()
+                elif expense.status == 'recalled':
+                    self.status = type('Status', (), {'name': 'RECALLED', 'value': 'recalled'})()
+                else:  # draft 或其他状态
+                    self.status = type('Status', (), {'name': 'DRAFT', 'value': 'draft'})()
+                
+                # 虚拟流程对象
+                self.process = type('Process', (), {
+                    'name': '报销单审批流程',
+                    'id': 'expense_approval'
+                })()
+        
+        # 包装分页对象，只包含应该显示的项目
+        wrapped_items = []
+        for expense in expenses.items:
+            wrapper = ExpenseApprovalWrapper(expense)
+            if wrapper.should_display:
+                wrapped_items.append(wrapper)
+        
+        # 重新计算分页信息，因为过滤后数量可能改变
+        # 获取应该显示的总数 - 使用与分页查询相同的基础查询
+        base_query = Expense.query.filter(Expense.owner_id.in_(user_ids_to_query))
+        
+        # 应用相同的状态过滤逻辑
+        if status:
+            # 如果传入的是字符串状态，直接匹配
+            if isinstance(status, str):
+                if status.lower() == 'draft':
+                    base_query = base_query.filter(Expense.status == 'draft')
+                elif status.lower() == 'pending':
+                    base_query = base_query.filter(Expense.status == 'pending')
+                elif status.lower() == 'approved':
+                    base_query = base_query.filter(Expense.status == 'approved')
+                elif status.lower() == 'rejected':
+                    base_query = base_query.filter(Expense.status == 'rejected')
+            # 处理ApprovalStatus枚举
+            elif status == ApprovalStatus.PENDING:
+                base_query = base_query.filter(Expense.status == 'pending')
+            elif status == ApprovalStatus.APPROVED:
+                base_query = base_query.filter(Expense.status == 'approved')
+            elif status == ApprovalStatus.REJECTED:
+                base_query = base_query.filter(Expense.status == 'rejected')
+        
+        total_display_count = 0
+        for expense in base_query.all():
+            wrapper = ExpenseApprovalWrapper(expense)
+            if wrapper.should_display:
+                total_display_count += 1
+        
+        # 创建新的分页对象，因为QueryPagination的属性是只读的
+        try:
+            from flask_sqlalchemy import Pagination
+        except ImportError:
+            from flask_sqlalchemy.pagination import Pagination
+        
+        # 创建自定义分页对象
+        class CustomPagination:
+            def __init__(self, items, page, per_page, total):
+                self.items = items
+                self.page = page
+                self.per_page = per_page
+                self.total = total
+                self.pages = (total + per_page - 1) // per_page if per_page > 0 else 0
+                self.has_prev = page > 1
+                self.has_next = page < self.pages
+                self.prev_num = page - 1 if self.has_prev else None
+                self.next_num = page + 1 if self.has_next else None
+        
+        expenses = CustomPagination(wrapped_items, page, per_page, total_display_count)
+        
+        return expenses
         
     # 基础查询 - 通用审批系统
     query = ApprovalInstance.query.options(db.joinedload(ApprovalInstance.process)).filter(
@@ -924,14 +1522,10 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
     for instance in base_instances:
         current_step_info = instance.get_current_step_info()
         if current_step_info:
-            # 处理快照数据（字典）
-            if isinstance(current_step_info, dict):
-                current_approver_id = current_step_info.get('approver_user_id')
-            # 处理模板步骤对象
-            else:
-                current_approver_id = current_step_info.approver_user_id
+            # 使用新的动态审批人确定函数
+            actual_approver = get_step_actual_approver(current_step_info, instance)
             
-            if current_approver_id == user_id:
+            if actual_approver and actual_approver.id == user_id:
                 valid_instance_ids.append(instance.id)
     
     # 基于筛选出的实例ID构建查询
@@ -959,6 +1553,11 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
         query = query.join(Company, ApprovalInstance.object_id == Company.id).filter(
             ApprovalInstance.object_type == 'customer'
         )
+    elif object_type == 'expense':
+        from app.models.expense import Expense
+        query = query.join(Expense, ApprovalInstance.object_id == Expense.id).filter(
+            ApprovalInstance.object_type == 'expense'
+        )
     else:
         # 如果没有指定类型，需要合并通用审批系统和批价单系统的数据
         # 先处理通用审批系统
@@ -977,12 +1576,18 @@ def get_user_pending_approvals(user_id=None, object_type=None, page=1, per_page=
             ApprovalInstance.object_type == 'customer'
         ).join(Company, ApprovalInstance.object_id == Company.id)
         
+        from app.models.expense import Expense
+        expense_subquery = db.session.query(ApprovalInstance.id).filter(
+            ApprovalInstance.object_type == 'expense'
+        ).join(Expense, ApprovalInstance.object_id == Expense.id)
+        
         # 只查询存在于任一子查询中的审批实例
         query = query.filter(
             or_(
                 ApprovalInstance.id.in_(project_subquery),
                 ApprovalInstance.id.in_(quotation_subquery),
-                ApprovalInstance.id.in_(customer_subquery)
+                ApprovalInstance.id.in_(customer_subquery),
+                ApprovalInstance.id.in_(expense_subquery)
             )
         )
         
@@ -1576,6 +2181,8 @@ def get_approval_object_url(instance):
         return url_for('pricing_order.edit_pricing_order', order_id=object_id)
     elif object_type == 'purchase_order':
         return url_for('inventory.order_detail', id=object_id)
+    elif object_type == 'expense':
+        return url_for('expense.expense_detail', id=object_id, from_approval='true')  # 🔥 修复：添加报销单详情页路由，标记来自审批中心
     else:
         return url_for('main.index')
 
@@ -1610,6 +2217,16 @@ def get_current_step_info(instance):
                     ).first()
         return None
     
+    # 🔥 修复：处理报销单包装对象的特殊情况
+    if hasattr(instance, 'expense') and hasattr(instance, 'real_approval_instance_id'):
+        # ExpenseApprovalWrapper对象，如果有真实的审批实例ID，则使用它
+        if instance.real_approval_instance_id:
+            approval_instance = ApprovalInstance.query.get(instance.real_approval_instance_id)
+            if approval_instance:
+                # 递归调用获取当前步骤信息（使用真实的审批实例）
+                return get_current_step_info(approval_instance)
+        return None
+    
     # 处理批价单的特殊情况
     if hasattr(instance, 'object_type') and instance.object_type == 'pricing_order':
         if hasattr(instance, 'pricing_order'):
@@ -1626,7 +2243,10 @@ def get_current_step_info(instance):
                     return type('Step', (), {
                         'step_name': current_record.step_name,
                         'approver': current_record.approver,
-                        'approver_user_id': current_record.approver_id
+                        'approver_user_id': current_record.approver_id,
+                        'approver_type': 'user',  # 🔥 修复：添加缺失的属性
+                        'action_type': None,      # 🔥 修复：添加缺失的属性
+                        'step_order': pricing_order.current_approval_step
                     })()
         return None
     
@@ -1662,6 +2282,23 @@ def get_current_step_info(instance):
             from app.models.user import User
             approver = User.query.get(current_step_data.get('approver_user_id'))
             
+            # 🔥 修复：如果审批人未分配（ID为None），尝试重新计算审批人
+            if not current_step_data.get('approver_user_id') and current_step_data.get('approver_type'):
+                approver_type = current_step_data.get('approver_type')
+                if approver_type == 'next_level':
+                    # 尝试重新计算上级审批人
+                    try:
+                        actual_approver = get_step_actual_approver(current_step_data, instance)
+                        if actual_approver:
+                            approver = actual_approver
+                            current_app.logger.info(f"重新计算审批人成功：{approver.username}")
+                        else:
+                            current_app.logger.warning(f"重新计算审批人失败，审批实例 {instance.id}，步骤 {current_step_data.get('step_order')}")
+                    except Exception as e:
+                        current_app.logger.error(f"重新计算审批人时出错：{e}")
+                        import traceback
+                        current_app.logger.error(traceback.format_exc())
+            
             # 如果无法从数据库获取审批人，创建虚拟审批人对象
             if not approver and current_step_data.get('approver_user_id'):
                 approver = type('VirtualUser', (), {
@@ -1676,15 +2313,16 @@ def get_current_step_info(instance):
                 'id': f"snapshot_step_{instance.id}_{current_step_data['step_order']}",
                 'step_name': current_step_data.get('step_name', '未知步骤'),
                 'step_order': current_step_data.get('step_order'),
-                'approver_user_id': current_step_data.get('approver_user_id'),
+                'approver_user_id': approver.id if approver else current_step_data.get('approver_user_id'),
+                'approver_type': current_step_data.get('approver_type', 'user'),  # 🔥 修复：添加缺失的属性
                 'approver': approver,
                 'action_type': current_step_data.get('action_type'),
                 'send_email': current_step_data.get('send_email', True),
                 'description': current_step_data.get('description', ''),
                 'process_id': instance.process_id,
                 # 添加额外的快照信息
-                'approver_username': current_step_data.get('approver_username'),
-                'approver_real_name': current_step_data.get('approver_real_name')
+                'approver_username': approver.username if approver else current_step_data.get('approver_username'),
+                'approver_real_name': approver.real_name if approver and hasattr(approver, 'real_name') else current_step_data.get('approver_real_name')
             })()
             
             current_app.logger.info(f"使用模板快照获取步骤信息 - 审批实例 {instance.id}，步骤 {instance.current_step}，审批人: {current_step_data.get('approver_username')} (ID: {current_step_data.get('approver_user_id')})")
@@ -1819,7 +2457,9 @@ def can_user_approve(instance_id, user_id=None):
     if not current_step:
         return False
     
-    return current_step.approver_user_id == user_id
+    # 使用新的动态审批人确定函数
+    actual_approver = get_step_actual_approver(current_step, instance)
+    return actual_approver and actual_approver.id == user_id
 
 # ----- 以下是审批流程配置模块需要的函数 ----- #
 
@@ -2045,7 +2685,7 @@ def delete_approval_template(template_id):
         }
 
 
-def add_approval_step(template_id, step_name, approver_id, send_email=True, editable_fields=None, cc_users=None, cc_enabled=False):
+def add_approval_step(template_id, step_name, approver_id, send_email=True, editable_fields=None, cc_users=None, cc_enabled=False, approver_type='user'):
     """添加审批步骤
     
     Args:
@@ -2056,6 +2696,7 @@ def add_approval_step(template_id, step_name, approver_id, send_email=True, edit
         editable_fields: 在此步骤可编辑的字段列表
         cc_users: 抄送用户ID列表
         cc_enabled: 是否启用抄送
+        approver_type: 审批人类型 ('user', 'next_level', 'auto')
         
     Returns:
         新创建的步骤对象，如果模板不存在则返回None
@@ -2082,6 +2723,7 @@ def add_approval_step(template_id, step_name, approver_id, send_email=True, edit
         process_id=template_id,
         step_order=max_order + 1,
         approver_user_id=approver_id,
+        approver_type=approver_type,
         step_name=step_name,
         send_email=send_email,
         editable_fields=editable_fields,
@@ -2095,7 +2737,7 @@ def add_approval_step(template_id, step_name, approver_id, send_email=True, edit
     return step
 
 
-def update_approval_step(step_id, step_name=None, approver_id=None, send_email=None, editable_fields=None, cc_users=None, cc_enabled=None, update_approver=False):
+def update_approval_step(step_id, step_name=None, approver_id=None, send_email=None, editable_fields=None, cc_users=None, cc_enabled=None, update_approver=False, approver_type=None):
     """更新审批步骤
     
     Args:
@@ -2107,6 +2749,7 @@ def update_approval_step(step_id, step_name=None, approver_id=None, send_email=N
         cc_users: 抄送用户ID列表
         cc_enabled: 是否启用抄送
         update_approver: 是否更新审批人（用于区分None值和不更新）
+        approver_type: 审批人类型 ('user', 'next_level', 'auto')
         
     Returns:
         更新后的步骤对象，如果没有找到则返回None
@@ -2121,6 +2764,9 @@ def update_approval_step(step_id, step_name=None, approver_id=None, send_email=N
     # 只有在明确指定更新审批人时才更新，允许设置为None
     if update_approver:
         step.approver_user_id = approver_id
+    
+    if approver_type is not None:
+        step.approver_type = approver_type
         
     if send_email is not None:
         step.send_email = send_email
@@ -2369,7 +3015,7 @@ def get_object_approval_instance(object_type, object_id, include_rejected=False)
         if pending_instance:
             return pending_instance
         
-        # 如果没有PENDING实例，查找最新的APPROVED实例（用于显示审批历史）
+        # 如果没有PENDING实例，查找最新的APPROVED实例（已通过的实例应优先显示）
         approved_instance = ApprovalInstance.query.filter_by(
             object_type=object_type,
             object_id=object_id,
@@ -2379,18 +3025,29 @@ def get_object_approval_instance(object_type, object_id, include_rejected=False)
         if approved_instance:
             return approved_instance
         
-        # 如果需要包含被拒绝的实例，返回最新的被拒绝实例
-        if include_rejected:
-            rejected_instance = ApprovalInstance.query.filter_by(
-                object_type=object_type,
-                object_id=object_id,
-                status=ApprovalStatus.REJECTED
-            ).order_by(ApprovalInstance.started_at.desc()).first()
-            
-            if rejected_instance:
-                return rejected_instance
+        # 如果没有APPROVED实例，查找最新的REJECTED实例（拒绝状态优先于召回）
+        rejected_instance = ApprovalInstance.query.filter_by(
+            object_type=object_type,
+            object_id=object_id,
+            status=ApprovalStatus.REJECTED
+        ).order_by(ApprovalInstance.started_at.desc()).first()
         
-        # 被拒绝或其他情况，允许重新发起审批
+        if rejected_instance:
+            return rejected_instance
+        
+        # 最后查找最新的RECALLED实例（已召回的实例优先级最低）
+        recalled_instance = ApprovalInstance.query.filter_by(
+            object_type=object_type,
+            object_id=object_id,
+            status=ApprovalStatus.RECALLED
+        ).order_by(ApprovalInstance.started_at.desc()).first()
+        
+        if recalled_instance:
+            return recalled_instance
+        
+        # include_rejected参数现在不再需要，因为REJECTED实例总是被优先返回
+        
+        # 没有找到任何实例，允许重新发起审批
         return None
         
     except Exception as e:
@@ -2599,18 +3256,26 @@ def start_approval_process(object_type, object_id, template_id, user_id=None):
                     approver = get_authorization_approver_by_project_type(project.project_type)
                     current_app.logger.info(f"项目 {object_id} 使用智能授权路由，项目类型: {project.project_type}, 将分配给: {approver.username if approver else '未知用户'}")
     
-    # 检查是否已存在进行中的审批实例（不包括被拒绝的）
+    # 检查是否已存在进行中的审批实例（不包括被拒绝的和已召回的）
     existing = get_object_approval_instance(object_type, object_id, include_rejected=False)
     
-    if existing:
+    if existing and existing.status not in [ApprovalStatus.RECALLED, ApprovalStatus.REJECTED]:
         status_str = str(existing.status) if hasattr(existing, 'status') else '未知状态'
         current_app.logger.warning(
             f"业务对象已存在审批实例: {object_type}:{object_id}, "
             f"实例ID: {existing.id}, 状态: {status_str}"
         )
-        from flask import flash
-        flash(f"发起审批失败，已存在审批流程 (状态: {status_str})", 'danger')
+        try:
+            from flask import flash
+            flash(f"发起审批失败，已存在审批流程 (状态: {status_str})", 'danger')
+        except RuntimeError:
+            # 在非请求上下文中，不使用flash
+            current_app.logger.warning(f"无法使用flash消息: 非请求上下文")
         return None
+    
+    # 如果存在RECALLED或REJECTED状态的实例，记录日志但允许重新发起
+    if existing and existing.status in [ApprovalStatus.RECALLED, ApprovalStatus.REJECTED]:
+        current_app.logger.info(f"发现已{'召回' if existing.status == ApprovalStatus.RECALLED else '拒绝'}的审批实例: {existing.id}, 允许重新发起审批")
     
     # 检查是否有被拒绝的实例，如果有则删除后重新创建
     rejected_instance = get_object_approval_instance(object_type, object_id, include_rejected=True)
@@ -2681,6 +3346,7 @@ def start_approval_process(object_type, object_id, template_id, user_id=None):
                 'step_id': step.id,
                 'step_order': step.step_order,
                 'step_name': step.step_name,
+                'approver_type': step.approver_type,  # 🔥 关键修复：添加 approver_type 字段
                 'approver_user_id': step.approver_user_id,
                 'approver_username': step.approver.username if step.approver else None,
                 'approver_real_name': step.approver.real_name if step.approver and step.approver.real_name else (step.approver.username if step.approver else None),
@@ -2772,11 +3438,14 @@ def start_approval_process(object_type, object_id, template_id, user_id=None):
                     user_id=user_id,
                     force=True  # 强制锁定，即使已经锁定也更新锁定状态
                 )
+            elif object_type == 'expense':
+                # 报销单锁定逻辑
+                lock_success = lock_expense(object_id, user_id)
             elif object_type == 'customer':
                 # 客户锁定逻辑可以在这里添加
                 lock_success = True  # 暂时跳过客户锁定
             
-            if not lock_success and object_type in ['quotation', 'project']:
+            if not lock_success and object_type in ['quotation', 'project', 'expense']:
                 current_app.logger.warning(f"锁定{object_type}失败: {object_id}")
                 # 锁定失败时回滚审批实例创建
                 db.session.rollback()
@@ -2887,7 +3556,12 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
     
     # 获取当前步骤
     current_step = get_current_step_info(instance)
-    if not current_step or current_step.approver_user_id != user_id:
+    if not current_step:
+        return False
+    
+    # 使用新的动态审批人确定函数检查权限
+    actual_approver = get_step_actual_approver(current_step, instance)
+    if not actual_approver or actual_approver.id != user_id:
         return False
     
     # 检查是否是授权编号步骤
@@ -2945,6 +3619,8 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
         elif instance.object_type == 'quotation':
             from app.helpers.quotation_helpers import unlock_quotation
             unlock_quotation(instance.object_id, user_id)
+        elif instance.object_type == 'expense':
+            unlock_expense(instance.object_id, user_id)
     else:
         # 获取下一步骤
         next_step_order = instance.current_step + 1
@@ -3069,7 +3745,12 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
     
     # 获取当前步骤
     current_step = get_current_step_info(instance)
-    if not current_step or current_step.approver_user_id != user_id:
+    if not current_step:
+        return False
+    
+    # 使用新的动态审批人确定函数检查权限
+    actual_approver = get_step_actual_approver(current_step, instance)
+    if not actual_approver or actual_approver.id != user_id:
         return False
     
     # 确保action是枚举类型
@@ -3116,6 +3797,8 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
         elif instance.object_type == 'quotation':
             from app.helpers.quotation_helpers import unlock_quotation
             unlock_quotation(instance.object_id, user_id)
+        elif instance.object_type == 'expense':
+            unlock_expense(instance.object_id, user_id)
     else:
         # 获取下一步骤
         next_step_order = instance.current_step + 1
@@ -3195,14 +3878,150 @@ def delete_approval_instance(instance_id):
 
 
 def get_object_field_options(object_type=None):
-    """获取业务对象的字段选项列表，用于必填字段下拉多选
+    """获取对象的可编辑字段选项，包括主表和明细表字段
     
     Args:
-        object_type: 业务对象类型，如project、quotation、customer
-        
+        object_type: 对象类型 ('quotation', 'pricing_order', 'settlement_order', 'expense')
+    
     Returns:
-        字段选项列表，每项为 (字段名, 显示名称)
+        dict: 字段选项字典，按分组组织，格式为:
+        {
+            'master': [(field_name, field_label)],  # 主表字段
+            'detail': [(field_name, field_label)]   # 明细表字段
+        }
+        对于不支持明细的对象类型，返回传统格式的列表
     """
+    
+    # 支持明细字段的新格式对象类型
+    if object_type in ['quotation', 'pricing_order', 'settlement_order', 'expense']:
+        field_options = {'master': [], 'detail': []}
+        
+        if object_type == 'quotation':
+            # 报价单主表字段
+            field_options['master'] = [
+                ('quotation_number', '报价单号'),
+                ('amount', '报价金额'),
+                ('project_stage', '项目阶段'),
+                ('project_type', '项目类型'),
+                ('approval_status', '审核状态'),
+                ('currency', '货币类型'),
+                ('implant_total_amount', '植入总额合计'),
+                ('confirmation_badge_status', '确认徽章状态'),
+                ('is_locked', '锁定状态'),
+                ('lock_reason', '锁定原因'),
+                ('created_at', '创建时间'),
+                ('updated_at', '更新时间')
+            ]
+            # 报价单明细字段
+            field_options['detail'] = [
+                ('product_name', '产品名称'),
+                ('product_model', '产品型号'),
+                ('product_desc', '产品描述'),
+                ('brand', '品牌'),
+                ('unit', '单位'),
+                ('quantity', '数量'),
+                ('discount', '折扣率'),
+                ('market_price', '市场价'),
+                ('unit_price', '单价'),
+                ('total_price', '总价'),
+                ('product_mn', '产品料号'),
+                ('implant_subtotal', '植入小计'),
+                ('currency', '货币类型')
+            ]
+        elif object_type == 'pricing_order':
+            # 批价单主表字段
+            field_options['master'] = [
+                ('order_number', '批价单号'),
+                ('approval_flow_type', '审批流程类型'),
+                ('status', '批价单状态'),
+                ('current_approval_step', '当前审批步骤'),
+                ('pricing_total_amount', '批价单总金额'),
+                ('pricing_total_discount_rate', '批价单总折扣率'),
+                ('settlement_total_amount', '结算单总金额'),
+                ('settlement_total_discount_rate', '结算单总折扣率'),
+                ('is_direct_contract', '厂商直签'),
+                ('is_factory_pickup', '厂家提货'),
+                ('currency', '货币类型'),
+                ('created_at', '创建时间'),
+                ('updated_at', '更新时间')
+            ]
+            # 批价单明细字段
+            field_options['detail'] = [
+                ('product_name', '产品名称'),
+                ('product_model', '产品型号'),
+                ('product_desc', '产品描述'),
+                ('brand', '品牌'),
+                ('unit', '单位'),
+                ('product_mn', '产品MN编码'),
+                ('market_price', '市场价'),
+                ('unit_price', '单价'),
+                ('quantity', '数量'),
+                ('discount_rate', '折扣率'),
+                ('total_price', '小计金额'),
+                ('currency', '货币类型'),
+                ('source_type', '数据来源')
+            ]
+        elif object_type == 'settlement_order':
+            # 结算单主表字段
+            field_options['master'] = [
+                ('order_number', '结算单号'),
+                ('total_amount', '结算总金额'),
+                ('total_discount_rate', '结算总折扣率'),
+                ('status', '结算单审批状态'),
+                ('settlement_status', '结算状态'),
+                ('created_at', '创建时间'),
+                ('updated_at', '更新时间')
+            ]
+            # 结算单明细字段
+            field_options['detail'] = [
+                ('product_name', '产品名称'),
+                ('product_model', '产品型号'),
+                ('product_desc', '产品描述'),
+                ('brand', '品牌'),
+                ('unit', '单位'),
+                ('product_mn', '产品MN编码'),
+                ('market_price', '市场价'),
+                ('unit_price', '单价'),
+                ('quantity', '数量'),
+                ('discount_rate', '折扣率'),
+                ('total_price', '小计金额'),
+                ('currency', '货币类型'),
+                ('settlement_status', '结算状态'),
+                ('settlement_date', '结算完成时间'),
+                ('settlement_notes', '结算备注')
+            ]
+        elif object_type == 'expense':
+            # 报销单主表字段
+            field_options['master'] = [
+                ('expense_number', '报销单编号'),
+                ('title', '报销主题'),
+                ('description', '报销说明'),
+                ('currency', '货币类型'),
+                ('total_amount', '报销总金额'),
+                ('status', '审批状态'),
+                ('is_locked', '锁定状态'),
+                ('approval_notes', '审批备注'),
+                ('created_at', '创建时间'),
+                ('updated_at', '更新时间')
+            ]
+            # 报销单明细字段
+            field_options['detail'] = [
+                ('expense_date', '发生日期'),
+                ('expense_category', '报销科目'),
+                ('description', '明细描述'),
+                ('document_count', '单据数量'),
+                ('currency', '发票货币类型'),
+                ('invoice_amount', '发票金额'),
+                ('current_amount', '当前金额'),
+                ('exchange_rate', '汇率'),
+                ('amount', '金额'),
+                ('invoice_images', '发票图片'),
+                ('status', '明细状态')
+            ]
+        
+        return field_options
+    
+    # 以下是传统格式的字段定义，保持向后兼容
     # 所有业务对象类型通用字段
     common_fields = []
     
@@ -3221,28 +4040,6 @@ def get_object_field_options(object_type=None):
         ('product_situation', '品牌情况'),
         ('current_stage', '当前阶段'),
         ('delivery_forecast', '出货预测日期')
-    ]
-    
-    quotation_fields = [
-        ('quotation_code', '报价单编号'),
-        ('customer_name', '客户名称'),
-        ('valid_days', '有效期'),
-        ('currency', '币种'),
-        ('total_amount', '总金额'),
-        ('project_type', '项目类型'),
-        # 报价单明细相关字段
-        ('product_name', '产品名称'),
-        ('product_model', '产品型号'),
-        ('product_spec', '产品规格'),
-        ('product_brand', '产品品牌'),
-        ('product_unit', '产品单位'),
-        ('product_price', '产品单价'),
-        ('discount_rate', '折扣率'),
-        ('discounted_price', '折后单价'),
-        ('quantity', '数量'),
-        ('subtotal', '小计'),
-        ('product_mn', '产品编码'),
-        ('remark', '备注')
     ]
     
     customer_fields = [
@@ -3268,21 +4065,6 @@ def get_object_field_options(object_type=None):
         ('description', '订单说明')
     ]
     
-    expense_fields = [
-        ('expense_number', '报销单号'),
-        ('submitter_id', '申请人'),
-        ('submission_date', '申请日期'),
-        ('total_amount', '报销总金额'),
-        ('currency', '币种'),
-        ('customer_id', '关联客户'),
-        ('project_id', '关联项目'),
-        ('contact_person', '联系人'),
-        ('description', '报销说明'),
-        ('expense_category', '报销科目'),
-        ('expense_date', '报销日期'),
-        ('document_count', '单据数量')
-    ]
-    
     settlement_fields = [
         ('settlement_number', '结算单号'),
         ('customer_id', '客户'),
@@ -3291,24 +4073,6 @@ def get_object_field_options(object_type=None):
         ('settlement_date', '结算日期'),
         ('payment_terms', '付款条件'),
         ('description', '结算说明')
-    ]
-    
-    settlement_order_fields = [
-        ('settlement_id', '结算单'),
-        ('order_id', '订单'),
-        ('settlement_amount', '结算金额'),
-        ('settlement_ratio', '结算比例'),
-        ('remaining_amount', '剩余金额')
-    ]
-    
-    pricing_order_fields = [
-        ('pricing_number', '批价单号'),
-        ('customer_id', '客户'),
-        ('total_amount', '批价总金额'),
-        ('currency', '币种'),
-        ('pricing_date', '批价日期'),
-        ('valid_until', '有效期至'),
-        ('description', '批价说明')
     ]
     
     standard_product_fields = [
@@ -3380,21 +4144,15 @@ def get_object_field_options(object_type=None):
         ('description', '部门描述')
     ]
     
-    # 根据业务对象类型返回对应的字段列表
+    # 根据业务对象类型返回对应的字段列表（传统格式）
     if object_type == 'project':
         return common_fields + project_fields
-    elif object_type == 'quotation':
-        return common_fields + quotation_fields
     elif object_type == 'customer':
         return common_fields + customer_fields
     elif object_type == 'purchase_order':
         return common_fields + purchase_order_fields
-    elif object_type == 'expense':
-        return common_fields + expense_fields
     elif object_type == 'settlement':
         return common_fields + settlement_fields
-    elif object_type == 'pricing_order':
-        return common_fields + pricing_order_fields
     elif object_type == 'standard_product':
         return common_fields + standard_product_fields
     elif object_type == 'rd_product':
@@ -3411,9 +4169,8 @@ def get_object_field_options(object_type=None):
         return common_fields + department_fields
     else:
         # 如果没有指定业务对象类型，返回所有字段
-        all_fields = set(common_fields + project_fields + quotation_fields + customer_fields + purchase_order_fields + 
-                        expense_fields + settlement_fields + pricing_order_fields +
-                        standard_product_fields + rd_product_fields + product_analysis_fields + inventory_stock_fields +
+        all_fields = set(common_fields + project_fields + customer_fields + purchase_order_fields + 
+                        settlement_fields + standard_product_fields + rd_product_fields + product_analysis_fields + inventory_stock_fields +
                         performance_target_fields + user_fields + department_fields)
         return sorted(list(all_fields), key=lambda x: x[1])  # 按显示名称排序 
 
@@ -3489,14 +4246,10 @@ def get_pending_approval_count(user_id=None):
             try:
                 current_step_info = instance.get_current_step_info()
                 if current_step_info:
-                    # 处理快照数据（字典）
-                    if isinstance(current_step_info, dict):
-                        current_approver_id = current_step_info.get('approver_user_id')
-                    # 处理模板步骤对象
-                    else:
-                        current_approver_id = current_step_info.approver_user_id
+                    # 使用新的动态审批人确定函数
+                    actual_approver = get_step_actual_approver(current_step_info, instance)
                     
-                    if current_approver_id == user_id:
+                    if actual_approver and actual_approver.id == user_id:
                         general_count += 1
             except Exception as e:
                 current_app.logger.error(f"get_pending_approval_count: 处理审批实例 {instance.id} 失败: {e}")
@@ -3724,11 +4477,101 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                     order.status = 'rejected'
                 
                 current_app.logger.info(f"订单 {order.order_number} 状态已更新为: {order.status}")
+                
+        elif instance.object_type == 'expense':
+            # 更新报销单的状态
+            from app.models.expense import Expense
+            expense = Expense.query.get(instance.object_id)
+            
+            if expense:
+                if action == ApprovalAction.APPROVE:
+                    # 审批通过
+                    if instance.status == ApprovalStatus.APPROVED:
+                        # 流程完全通过
+                        expense.status = 'approved'
+                        expense.approved_at = datetime.now()
+                        expense.approved_by = user_id
+                        current_app.logger.info(f"报销单 {expense.expense_number} 审批完成，状态更新为: approved")
+                    else:
+                        # 还在审批中
+                        expense.status = 'pending'
+                        current_app.logger.info(f"报销单 {expense.expense_number} 审批中，状态保持为: pending")
+                elif action == ApprovalAction.REJECT:
+                    # 审批拒绝
+                    expense.status = 'rejected'
+                    # 注意：报销单模型没有rejected_at和rejected_by字段，只更新状态
+                    current_app.logger.info(f"报销单 {expense.expense_number} 审批被拒绝，状态更新为: rejected")
             
     except Exception as e:
         current_app.logger.error(f"更新业务对象审批状态失败: {str(e)}")
         import traceback
         current_app.logger.error(traceback.format_exc()) 
+
+
+def lock_expense(expense_id, user_id=None):
+    """锁定报销单，防止编辑
+    
+    Args:
+        expense_id: 报销单ID
+        user_id: 锁定人ID，默认为当前登录用户
+        
+    Returns:
+        布尔值，表示是否成功锁定
+    """
+    from app.models.expense import Expense
+    
+    expense = Expense.query.get(expense_id)
+    if not expense:
+        current_app.logger.error(f"报销单不存在: {expense_id}")
+        return False
+    
+    # 如果报销单已经被锁定，返回True
+    if expense.is_locked:
+        current_app.logger.info(f"报销单已被锁定: {expense_id}")
+        return True
+    
+    try:
+        expense.is_locked = True
+        db.session.commit()
+        current_app.logger.info(f"报销单已锁定: {expense_id}, 锁定人: {user_id}")
+        return True
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"锁定报销单失败: {expense_id}, 错误: {str(e)}")
+        return False
+
+
+def unlock_expense(expense_id, user_id=None):
+    """解锁报销单
+    
+    Args:
+        expense_id: 报销单ID
+        user_id: 解锁人ID，默认为当前登录用户
+        
+    Returns:
+        布尔值，表示是否成功解锁
+    """
+    from app.models.expense import Expense
+    
+    expense = Expense.query.get(expense_id)
+    if not expense:
+        current_app.logger.error(f"报销单不存在: {expense_id}")
+        return False
+    
+    # 如果报销单未被锁定，返回True
+    if not expense.is_locked:
+        current_app.logger.info(f"报销单未被锁定: {expense_id}")
+        return True
+    
+    try:
+        expense.is_locked = False
+        db.session.commit()
+        current_app.logger.info(f"报销单已解锁: {expense_id}, 解锁人: {user_id}")
+        return True
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"解锁报销单失败: {expense_id}, 错误: {str(e)}")
+        return False
 
 
 # ----- 以下是审批列表模板需要的业务对象获取函数 ----- #
@@ -4948,6 +5791,51 @@ def get_order_pending_count(user_id=None):
         return 0
 
 
+def get_expense_pending_count(user_id=None):
+    """获取报销单待审批数量
+    
+    Args:
+        user_id: 用户ID，默认为当前登录用户
+        
+    Returns:
+        int: 待审批的报销单数量
+    """
+    if user_id is None:
+        from flask_login import current_user
+        user_id = current_user.id
+    
+    try:
+        from app.models.user import User
+        from app.models.approval import ApprovalInstance, ApprovalStatus
+        
+        user = User.query.get(user_id)
+        if not user:
+            return 0
+        
+        expense_count = 0
+        
+        # 查询用户作为审批人的报销单实例
+        instances = ApprovalInstance.query.filter(
+            ApprovalInstance.object_type == 'expense',
+            ApprovalInstance.status == ApprovalStatus.PENDING
+        ).all()
+        
+        for instance in instances:
+            # 检查用户是否为当前步骤的审批人
+            if can_user_approve(instance.id, user_id):
+                # 验证业务对象是否存在
+                from app.models.expense import Expense
+                expense = Expense.query.get(instance.object_id)
+                if expense and expense.status == 'pending':
+                    expense_count += 1
+        
+        return expense_count
+        
+    except Exception as e:
+        current_app.logger.error(f"获取报销单待审批数量失败: {str(e)}")
+        return 0
+
+
 def get_tab_counts_for_auto_switch(user_id=None):
     """获取各个页签的审批数量，用于自动切换到有审批提醒的页签
     
@@ -4974,4 +5862,598 @@ def get_tab_counts_for_auto_switch(user_id=None):
             'pricing_order': 0,
             'order': 0,
             'created': 0
+        }
+
+
+def recall_approval_process(object_type, object_id, user_id=None):
+    """召回审批流程
+    
+    Args:
+        object_type: 业务对象类型 ('expense', 'project', 'quotation', 'customer')
+        object_id: 业务对象ID
+        user_id: 召回用户ID，默认为当前登录用户
+        
+    Returns:
+        tuple: (success, message)
+    """
+    if user_id is None:
+        user_id = current_user.id
+    
+    try:
+        # 查找相关的审批实例
+        instance = ApprovalInstance.query.filter(
+            ApprovalInstance.object_type == object_type,
+            ApprovalInstance.object_id == object_id,
+            ApprovalInstance.status == ApprovalStatus.PENDING
+        ).first()
+        
+        if not instance:
+            return False, "未找到待审批的流程实例"
+        
+        # 检查权限：只有创建者才能召回
+        if instance.created_by != user_id:
+            return False, "只有审批流程的创建者才能召回"
+        
+        # 更新审批实例状态
+        instance.status = ApprovalStatus.RECALLED
+        instance.ended_at = datetime.now()
+        
+        # 解锁业务对象并更新状态（在同一事务中）
+        if object_type == 'expense':
+            from app.models.expense import Expense
+            expense = Expense.query.get(object_id)
+            if expense:
+                expense.status = 'draft'
+                expense.is_locked = False
+                current_app.logger.info(f"报销单已解锁并状态重置: {object_id}")
+        elif object_type == 'project':
+            unlock_project(object_id, user_id)
+        elif object_type == 'quotation':
+            from app.helpers.quotation_helpers import unlock_quotation
+            unlock_quotation(object_id, user_id)
+        elif object_type == 'customer':
+            from app.helpers.customer_helpers import unlock_customer
+            unlock_customer(object_id, user_id)
+        
+        db.session.commit()
+        
+        current_app.logger.info(f"用户 {user_id} 召回了 {object_type}#{object_id} 的审批流程")
+        return True, "审批流程已成功召回"
+        
+    except Exception as e:
+        db.session.rollback()
+        error_msg = f"召回审批流程失败: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg
+
+
+def get_current_approval_step_editable_fields(object_type, object_id, user_id):
+    """
+    获取当前用户在当前审核阶段可编辑的字段列表
+    
+    Args:
+        object_type: 业务对象类型 (如 'expense')
+        object_id: 业务对象ID
+        user_id: 当前用户ID
+    
+    Returns:
+        dict: {
+            'can_edit': bool,           # 是否可以编辑
+            'editable_fields': list,    # 可编辑的字段列表
+            'step_name': str,           # 当前审核步骤名称
+            'instance_id': int          # 审核实例ID
+        }
+    """
+    try:
+        # 查找当前正在进行的审批实例
+        instance = ApprovalInstance.query.filter_by(
+            object_type=object_type,
+            object_id=object_id,
+            status=ApprovalStatus.PENDING
+        ).first()
+        
+        if not instance:
+            return {
+                'can_edit': False,
+                'editable_fields': [],
+                'step_name': '',
+                'instance_id': None
+            }
+        
+        # 获取当前步骤信息
+        current_step_info = instance.get_current_step_info()
+        if not current_step_info:
+            return {
+                'can_edit': False,
+                'editable_fields': [],
+                'step_name': '',
+                'instance_id': instance.id
+            }
+        
+        # 判断当前用户是否为当前步骤的审批人
+        if isinstance(current_step_info, dict):
+            # 快照数据
+            approver_user_id = current_step_info.get('approver_user_id')
+            step_name = current_step_info.get('step_name', '')
+            editable_fields = current_step_info.get('editable_fields', [])
+        else:
+            # 模型对象
+            approver_user_id = current_step_info.approver_user_id
+            step_name = current_step_info.step_name
+            editable_fields = current_step_info.editable_fields or []
+        
+        # 检查当前用户是否为审批人且有可编辑字段
+        can_edit = (approver_user_id == user_id and len(editable_fields) > 0)
+        
+        return {
+            'can_edit': can_edit,
+            'editable_fields': editable_fields,
+            'step_name': step_name,
+            'instance_id': instance.id
+        }
+        
+    except Exception as e:
+        current_app.logger.error(f"获取审核阶段可编辑字段失败: {str(e)}")
+        return {
+            'can_edit': False,
+            'editable_fields': [],
+            'step_name': '',
+            'instance_id': None
+        }
+
+
+def update_approval_step_fields(object_type, object_id, field_updates, user_id):
+    """
+    在审核阶段更新指定字段
+    
+    Args:
+        object_type: 业务对象类型
+        object_id: 业务对象ID  
+        field_updates: 字段更新字典 {'field_name': 'new_value'}
+        user_id: 当前用户ID
+    
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    try:
+        # 检查用户权限和可编辑字段
+        edit_info = get_current_approval_step_editable_fields(object_type, object_id, user_id)
+        
+        if not edit_info['can_edit']:
+            return False, "当前用户无权在此审核阶段编辑字段"
+        
+        # 验证更新的字段是否在允许编辑的字段列表中
+        editable_fields = edit_info['editable_fields']
+        for field_name in field_updates.keys():
+            if field_name not in editable_fields:
+                return False, f"字段 '{field_name}' 不在当前审核阶段的可编辑字段列表中"
+        
+        # 根据对象类型更新相应的业务对象
+        if object_type == 'expense':
+            return _update_expense_fields(object_id, field_updates)
+        else:
+            return False, f"不支持的对象类型: {object_type}"
+            
+    except Exception as e:
+        error_msg = f"更新审核阶段字段失败: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg
+
+
+def _update_expense_fields(expense_id, field_updates):
+    """更新报销单字段"""
+    try:
+        from app.models.expense import Expense, ExpenseDetail
+        
+        expense = Expense.query.get(expense_id)
+        if not expense:
+            return False, "报销单不存在"
+        
+        # 更新报销单主表字段
+        for field_name, field_value in field_updates.items():
+            if field_name == 'exchange_rate':
+                # 特殊处理汇率字段 - 需要更新报销明细
+                try:
+                    exchange_rate = float(field_value)
+                    if exchange_rate <= 0:
+                        return False, "汇率必须大于0"
+                    
+                    # 更新所有明细的汇率
+                    for detail in expense.details:
+                        old_rate = detail.exchange_rate or 1.0
+                        detail.exchange_rate = exchange_rate
+                        
+                        # 重新计算明细金额
+                        if detail.invoice_amount and detail.invoice_amount > 0:
+                            detail.amount = int(detail.invoice_amount * exchange_rate * 100)  # 转换为分
+                        
+                        current_app.logger.info(f"更新明细 {detail.id} 汇率: {old_rate} -> {exchange_rate}")
+                    
+                    # 重新计算报销单总金额
+                    expense.calculate_total_amount()
+                    
+                except (ValueError, TypeError):
+                    return False, "汇率格式不正确"
+            else:
+                # 其他字段的直接更新
+                if hasattr(expense, field_name):
+                    setattr(expense, field_name, field_value)
+        
+        db.session.commit()
+        current_app.logger.info(f"审核阶段字段更新成功: 报销单 {expense_id}, 字段: {list(field_updates.keys())}")
+        return True, "字段更新成功"
+        
+    except Exception as e:
+        db.session.rollback()
+        error_msg = f"更新报销单字段失败: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg
+
+
+# =============================================================================
+# 通用审批权限和字段编辑服务类
+# =============================================================================
+
+class UniversalApprovalPermissionService:
+    """
+    通用审批权限服务类
+    为不同业务模块提供统一的审批权限检查功能
+    """
+    
+    def __init__(self, object_type, model_class=None):
+        """
+        初始化权限服务
+        
+        Args:
+            object_type: 业务对象类型 (如 'expense', 'order', 'project')
+            model_class: 对应的模型类 (可选，用于类型检查)
+        """
+        self.object_type = object_type
+        self.model_class = model_class
+    
+    def check_approval_edit_permission(self, object_id, user_id):
+        """
+        检查用户在审批阶段的编辑权限
+        
+        Args:
+            object_id: 业务对象ID
+            user_id: 用户ID
+        
+        Returns:
+            dict: 权限信息和可编辑字段
+        """
+        return get_current_approval_step_editable_fields(
+            self.object_type, object_id, user_id
+        )
+    
+    def check_approval_action_permission(self, object_id, user_id, action='approve'):
+        """
+        检查用户的审批操作权限
+        
+        Args:
+            object_id: 业务对象ID
+            user_id: 用户ID
+            action: 审批动作 ('approve', 'reject')
+        
+        Returns:
+            dict: {
+                'can_action': bool,
+                'step_name': str,
+                'instance_id': int,
+                'message': str
+            }
+        """
+        try:
+            # 查找当前正在进行的审批实例
+            instance = ApprovalInstance.query.filter_by(
+                object_type=self.object_type,
+                object_id=object_id,
+                status=ApprovalStatus.PENDING
+            ).first()
+            
+            if not instance:
+                return {
+                    'can_action': False,
+                    'step_name': '',
+                    'instance_id': None,
+                    'message': '没有找到进行中的审批流程'
+                }
+            
+            # 获取当前步骤信息
+            current_step_info = instance.get_current_step_info()
+            if not current_step_info:
+                return {
+                    'can_action': False,
+                    'step_name': '',
+                    'instance_id': instance.id,
+                    'message': '无法获取当前审批步骤信息'
+                }
+            
+            # 检查审批人权限
+            if isinstance(current_step_info, dict):
+                approver_user_id = current_step_info.get('approver_user_id')
+                step_name = current_step_info.get('step_name', '')
+            else:
+                approver_user_id = current_step_info.approver_user_id
+                step_name = current_step_info.step_name
+            
+            can_action = (approver_user_id == user_id)
+            message = '有权限进行审批操作' if can_action else '当前用户不是此步骤的审批人'
+            
+            return {
+                'can_action': can_action,
+                'step_name': step_name,
+                'instance_id': instance.id,
+                'message': message
+            }
+            
+        except Exception as e:
+            current_app.logger.error(f"检查审批操作权限失败: {str(e)}")
+            return {
+                'can_action': False,
+                'step_name': '',
+                'instance_id': None,
+                'message': f'权限检查失败: {str(e)}'
+            }
+    
+    def check_submission_permission(self, object_id, user_id):
+        """
+        检查用户提交审批的权限
+        
+        Args:
+            object_id: 业务对象ID
+            user_id: 用户ID
+        
+        Returns:
+            dict: {
+                'can_submit': bool,
+                'message': str,
+                'object_status': str
+            }
+        """
+        try:
+            # 检查是否已有正在进行的审批
+            existing_instance = ApprovalInstance.query.filter_by(
+                object_type=self.object_type,
+                object_id=object_id,
+                status=ApprovalStatus.PENDING
+            ).first()
+            
+            if existing_instance:
+                return {
+                    'can_submit': False,
+                    'message': '已有审批流程正在进行中',
+                    'object_status': 'pending'
+                }
+            
+            # 如果指定了模型类，检查对象的拥有者
+            if self.model_class:
+                obj = self.model_class.query.get(object_id)
+                if obj and hasattr(obj, 'owner_id') and obj.owner_id != user_id:
+                    return {
+                        'can_submit': False,
+                        'message': '只有对象拥有者可以提交审批',
+                        'object_status': getattr(obj, 'status', 'unknown')
+                    }
+            
+            return {
+                'can_submit': True,
+                'message': '可以提交审批',
+                'object_status': 'draft'
+            }
+            
+        except Exception as e:
+            current_app.logger.error(f"检查提交权限失败: {str(e)}")
+            return {
+                'can_submit': False,
+                'message': f'权限检查失败: {str(e)}',
+                'object_status': 'error'
+            }
+
+
+class UniversalFieldEditService:
+    """
+    通用字段编辑服务类
+    为不同业务模块提供统一的审批阶段字段编辑功能
+    """
+    
+    def __init__(self, object_type):
+        """
+        初始化字段编辑服务
+        
+        Args:
+            object_type: 业务对象类型
+        """
+        self.object_type = object_type
+        self.field_updaters = {}
+        self._register_default_updaters()
+    
+    def _register_default_updaters(self):
+        """注册默认的字段更新器"""
+        if self.object_type == 'expense':
+            self.register_field_updater('exchange_rate', self._update_expense_exchange_rate)
+            self.register_field_updater('amount', self._update_expense_amount)
+        elif self.object_type == 'order':
+            # 订单的字段更新器可以在这里注册
+            pass
+        elif self.object_type == 'project':
+            # 项目的字段更新器可以在这里注册
+            pass
+    
+    def register_field_updater(self, field_name, updater_func):
+        """
+        注册字段更新器
+        
+        Args:
+            field_name: 字段名称
+            updater_func: 更新函数，接收 (object_id, field_value) 参数
+        """
+        self.field_updaters[field_name] = updater_func
+    
+    def update_fields(self, object_id, field_updates, user_id):
+        """
+        更新字段值
+        
+        Args:
+            object_id: 业务对象ID
+            field_updates: 字段更新字典
+            user_id: 用户ID
+        
+        Returns:
+            tuple: (success: bool, message: str)
+        """
+        try:
+            # 检查权限
+            edit_info = get_current_approval_step_editable_fields(
+                self.object_type, object_id, user_id
+            )
+            
+            if not edit_info['can_edit']:
+                return False, "当前用户无权在此审核阶段编辑字段"
+            
+            # 验证字段权限
+            editable_fields = edit_info['editable_fields']
+            for field_name in field_updates.keys():
+                if field_name not in editable_fields:
+                    return False, f"字段 '{field_name}' 不在当前审核阶段的可编辑字段列表中"
+            
+            # 执行字段更新
+            success_count = 0
+            error_messages = []
+            
+            for field_name, field_value in field_updates.items():
+                try:
+                    if field_name in self.field_updaters:
+                        # 使用注册的更新器
+                        success, message = self.field_updaters[field_name](object_id, field_value)
+                        if success:
+                            success_count += 1
+                        else:
+                            error_messages.append(f"{field_name}: {message}")
+                    else:
+                        # 使用通用更新逻辑
+                        success, message = self._generic_field_update(object_id, field_name, field_value)
+                        if success:
+                            success_count += 1
+                        else:
+                            error_messages.append(f"{field_name}: {message}")
+                            
+                except Exception as e:
+                    error_messages.append(f"{field_name}: {str(e)}")
+            
+            # 返回结果
+            if success_count == len(field_updates):
+                return True, f"所有字段更新成功 ({success_count}个)"
+            elif success_count > 0:
+                return False, f"部分字段更新成功 ({success_count}/{len(field_updates)}): {'; '.join(error_messages)}"
+            else:
+                return False, f"所有字段更新失败: {'; '.join(error_messages)}"
+                
+        except Exception as e:
+            current_app.logger.error(f"字段更新失败: {str(e)}")
+            return False, f"字段更新失败: {str(e)}"
+    
+    def _generic_field_update(self, object_id, field_name, field_value):
+        """通用字段更新逻辑"""
+        try:
+            # 这里可以实现通用的字段更新逻辑
+            # 暂时返回成功，具体实现根据业务需要
+            current_app.logger.info(f"通用字段更新: {self.object_type} {object_id}, {field_name} = {field_value}")
+            return True, "字段更新成功"
+        except Exception as e:
+            return False, str(e)
+    
+    def _update_expense_exchange_rate(self, expense_id, exchange_rate):
+        """更新报销单汇率"""
+        try:
+            from app.models.expense import Expense, ExpenseDetail
+            
+            # 更新报销明细中的汇率
+            details = ExpenseDetail.query.filter_by(expense_id=expense_id).all()
+            for detail in details:
+                detail.exchange_rate = float(exchange_rate)
+                # 重新计算报销金额
+                detail.amount = detail.invoice_amount * detail.exchange_rate
+            
+            db.session.commit()
+            return True, f"汇率更新为 {exchange_rate}，并重新计算了报销金额"
+            
+        except Exception as e:
+            db.session.rollback()
+            return False, f"汇率更新失败: {str(e)}"
+    
+    def _update_expense_amount(self, expense_id, amount):
+        """更新报销单金额"""
+        try:
+            from app.models.expense import Expense
+            
+            expense = Expense.query.get(expense_id)
+            if not expense:
+                return False, "报销单不存在"
+            
+            expense.total_amount = float(amount)
+            db.session.commit()
+            return True, f"报销金额更新为 {amount}"
+            
+        except Exception as e:
+            db.session.rollback()
+            return False, f"金额更新失败: {str(e)}"
+
+
+# =============================================================================
+# 便捷工厂函数
+# =============================================================================
+
+def get_approval_permission_service(object_type, model_class=None):
+    """
+    获取审批权限服务实例
+    
+    Args:
+        object_type: 业务对象类型
+        model_class: 模型类（可选）
+    
+    Returns:
+        UniversalApprovalPermissionService: 权限服务实例
+    """
+    return UniversalApprovalPermissionService(object_type, model_class)
+
+
+def get_field_edit_service(object_type):
+    """
+    获取字段编辑服务实例
+    
+    Args:
+        object_type: 业务对象类型
+    
+    Returns:
+        UniversalFieldEditService: 字段编辑服务实例
+    """
+    return UniversalFieldEditService(object_type)
+
+
+def check_universal_approval_permission(object_type, object_id, user_id, permission_type='edit'):
+    """
+    通用审批权限检查函数
+    
+    Args:
+        object_type: 业务对象类型
+        object_id: 业务对象ID
+        user_id: 用户ID
+        permission_type: 权限类型 ('edit', 'approve', 'submit')
+    
+    Returns:
+        dict: 权限检查结果
+    """
+    service = get_approval_permission_service(object_type)
+    
+    if permission_type == 'edit':
+        return service.check_approval_edit_permission(object_id, user_id)
+    elif permission_type == 'approve':
+        return service.check_approval_action_permission(object_id, user_id)
+    elif permission_type == 'submit':
+        return service.check_submission_permission(object_id, user_id)
+    else:
+        return {
+            'can_action': False,
+            'message': f'不支持的权限类型: {permission_type}'
         }

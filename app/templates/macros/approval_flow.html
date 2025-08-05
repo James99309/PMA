@@ -116,57 +116,259 @@
     </script>
 {% endmacro %}
 
-{# 标准化审批确认模态框 #}
+{# 标准化审批确认对话框 - 采用通用确认组件风格 #}
 {% macro render_approval_confirm_modal(object_type, object_id) %}
-<!-- 审批确认模态框 -->
-<div class="modal fade approval-modal" id="approvalConfirmModal" tabindex="-1" aria-labelledby="approvalConfirmModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="approvalConfirmModalLabel">
-                    <i class="fas fa-check-circle me-2"></i>审批确认
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <!-- 阶段信息 -->
-                <div class="stage-info">
-                    <div class="stage-title" id="modalStageTitle">待定阶段</div>
-                    <div class="stage-meta">
-                        <div><strong>审批人：</strong><span id="modalApproverName">待定</span></div>
-                        <div><strong>到达时间：</strong><span id="modalArrivedTime">待定</span></div>
-                    </div>
+<!-- 审批确认对话框 -->
+<div id="approvalConfirmDialog" class="approval-confirm-dialog" style="display: none;">
+    <div class="dialog-overlay"></div>
+    <div class="dialog-container">
+        <div class="dialog-content">
+            <!-- 顶部图标和标题 -->
+            <div class="dialog-header">
+                <div class="dialog-icon-wrapper">
+                    <i class="dialog-icon fas fa-check-circle"></i>
                 </div>
-                
-                <!-- 评语输入 -->
-                <div class="mb-3">
-                    <label for="approvalComment" class="comment-label">审批意见</label>
-                    <textarea 
-                        class="form-control" 
-                        id="approvalComment" 
-                        rows="3" 
-                        placeholder="请输入审批意见（可选）"
-                        maxlength="500"></textarea>
-                    <small class="form-text text-muted">最多500字符</small>
-                </div>
-                
-                <!-- 确认提示 -->
-                <div class="alert alert-info mb-3">
-                    <i class="fas fa-info-circle me-2"></i>
-                    请确认您的审批决定，审批后将自动进入下一阶段或完成审批流程。
+                <div class="dialog-title-section">
+                    <div class="dialog-title">审批确认</div>
+                    <div class="dialog-subtitle" id="approvalStageTitle">上级审批</div>
                 </div>
             </div>
-            <div class="modal-footer">
-                <!-- 审批操作按钮 -->
-                <div class="approval-actions w-100">
-                    {{ render_button('取消', type='button', color='secondary', attrs='data-bs-dismiss="modal"') }}
-                    {{ render_button('拒绝', type='button', color='danger', extra_class='btn-reject', onclick="confirmApprovalAction('reject')", icon='fas fa-times') }}
-                    {{ render_button('通过', type='button', color='success', extra_class='btn-approve', onclick="confirmApprovalAction('approve')", icon='fas fa-check') }}
+            
+            <!-- 审批者信息 -->
+            <div class="approval-info">
+                <div class="info-row">
+                    <span class="info-label">审批人：</span>
+                    <span class="info-value" id="approvalApproverName">待定</span>
                 </div>
+                <div class="info-row">
+                    <span class="info-label">到达时间：</span>
+                    <span class="info-value" id="approvalArrivedTime">待定</span>
+                </div>
+            </div>
+            
+            <!-- 审批意见输入 -->
+            <div class="approval-comment-section">
+                <label class="comment-label">审批意见</label>
+                <textarea 
+                    id="approvalComment" 
+                    class="comment-input"
+                    placeholder="请输入审批意见（可选）"
+                    maxlength="500"
+                    rows="3"></textarea>
+                <div class="comment-hint">最多500字符</div>
+            </div>
+            
+            <!-- 确认提示 -->
+            <div class="approval-notice">
+                <i class="fas fa-info-circle notice-icon"></i>
+                请确认您的审批决定，审批后将自动进入下一阶段或完成审批流程。
+            </div>
+            
+            <!-- 操作按钮 -->
+            <div class="dialog-actions">
+                {{ render_button('取消', type='button', color='secondary', extra_class='dialog-cancel-btn', size='') }}
+                {{ render_button('拒绝', type='button', color='danger', extra_class='dialog-reject-btn', icon='fas fa-times', size='') }}
+                {{ render_button('通过', type='button', color='success', extra_class='dialog-approve-btn', icon='fas fa-check', size='') }}
             </div>
         </div>
     </div>
 </div>
+
+<style>
+/* 审批确认对话框样式 - 参考通用确认组件 */
+.approval-confirm-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1060;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.approval-confirm-dialog.show {
+    opacity: 1;
+}
+
+.approval-confirm-dialog .dialog-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+}
+
+.approval-confirm-dialog .dialog-container {
+    position: relative;
+    z-index: 1;
+    transform: scale(0.9) translateY(-20px);
+    transition: transform 0.3s ease;
+}
+
+.approval-confirm-dialog.show .dialog-container {
+    transform: scale(1) translateY(0);
+}
+
+.approval-confirm-dialog .dialog-content {
+    background: #f8f9fa;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    width: 480px;
+    max-width: 90vw;
+    overflow: hidden;
+}
+
+/* 对话框头部 */
+.dialog-header {
+    padding: 24px 24px 16px 24px;
+    text-align: center;
+}
+
+.dialog-icon-wrapper {
+    margin-bottom: 12px;
+}
+
+.dialog-header .dialog-icon {
+    font-size: 32px;
+    color: #28a745; /* 绿色 - 与通用确认组件的success颜色一致 */
+}
+
+.dialog-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #343a40;
+    margin-bottom: 4px;
+}
+
+.dialog-subtitle {
+    font-size: 16px;
+    color: #6c757d;
+    font-weight: 500;
+}
+
+/* 审批者信息 */
+.approval-info {
+    padding: 0 24px;
+    margin-bottom: 20px;
+}
+
+.info-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.info-label {
+    color: #6c757d;
+    margin-right: 8px;
+    min-width: 70px;
+}
+
+.info-value {
+    color: #343a40;
+    font-weight: 500;
+}
+
+/* 审批意见区域 */
+.approval-comment-section {
+    padding: 0 24px;
+    margin-bottom: 20px;
+}
+
+.comment-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: #343a40;
+    margin-bottom: 8px;
+}
+
+.comment-input {
+    width: 100%;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 14px;
+    line-height: 1.5;
+    resize: vertical;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.comment-input:focus {
+    outline: none;
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.comment-hint {
+    font-size: 12px;
+    color: #6c757d;
+    margin-top: 4px;
+}
+
+/* 确认提示 */
+.approval-notice {
+    margin: 0 24px 20px 24px;
+    padding: 12px 16px;
+    background: #d1ecf1;
+    border: 1px solid #bee5eb;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #0c5460;
+    display: flex;
+    align-items: flex-start;
+}
+
+.notice-icon {
+    margin-right: 8px;
+    margin-top: 1px;
+    flex-shrink: 0;
+}
+
+/* 操作按钮区域 */
+.approval-confirm-dialog .dialog-actions {
+    padding: 16px 24px;
+    border-top: 1px solid #e9ecef;
+    background: #ffffff;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+/* 响应式调整 */
+@media (max-width: 576px) {
+    .approval-confirm-dialog .dialog-content {
+        width: 95vw;
+        margin: 20px;
+    }
+    
+    .dialog-header,
+    .approval-info,
+    .approval-comment-section,
+    .approval-notice {
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+    
+    .approval-confirm-dialog .dialog-actions {
+        padding: 12px 20px;
+        flex-direction: column-reverse;
+    }
+    
+    .approval-confirm-dialog .dialog-actions .btn {
+        width: 100%;
+        margin: 4px 0;
+    }
+}
+</style>
 {% endmacro %}
 
 {# 检查审批模板可用性的脚本 #}

@@ -3,7 +3,7 @@
 {% block title %}{{ _('仪表盘') }} - {{ _('项目管理系统') }}{% endblock %}
 
 {% block content %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_button %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_button, render_expense_status_badge %}
 
 <div class="container-fluid page-with-fixed-nav">
     <!-- 标准化页面头部区域：标题与操作按钮在同一行 - 使用page-header-with-actions模组 -->
@@ -169,14 +169,33 @@
                     {% if has_permission('expense', 'view') and recent_expenses and recent_expenses|length > 0 %}
                         {% for expense in recent_expenses %}
                         <li class="list-group-item">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
                                     <div class="fw-bold" style="font-size: 0.875rem;">
-                                        <a href="{{ url_for('expense.expense_detail', id=expense.id) }}" class="text-decoration-none text-primary">{{ expense.title }}</a>
+                                        <a href="{{ url_for('expense.expense_detail', id=expense.id) }}" class="text-decoration-none text-primary" title="{{ expense.title }}">
+                                            {%- if expense.title and expense.title|length > 16 -%}
+                                                {{ expense.title[:16] }}...
+                                            {%- else -%}
+                                                {{ expense.title }}
+                                            {%- endif -%}
+                                        </a>
                                     </div>
-                                    <div class="mt-2">
+                                    <div class="mt-2 d-flex flex-wrap gap-2 align-items-center">
                                         <a href="{{ url_for('expense.expense_detail', id=expense.id) }}" style="background: #f5f5f5; color: #3098af; border-radius: 8px; padding: 2px 8px; font-weight: 600; font-size: 0.75rem; text-decoration: none; display: inline-block;">{{ expense.expense_number }}</a>
+                                        {% if expense.approval_status %}
+                                            <div style="font-size: 0.7rem;">{{ render_expense_status_badge(expense.approval_status) }}</div>
+                                        {% endif %}
                                     </div>
+                                    {% if expense.project %}
+                                    <div class="mt-1" style="font-size: 0.75rem; color: #666;">
+                                        <i class="fas fa-project-diagram me-1"></i>
+                                        {%- if expense.project.project_name and expense.project.project_name|length > 20 -%}
+                                            {{ expense.project.project_name[:20] }}...
+                                        {%- else -%}
+                                            {{ expense.project.project_name }}
+                                        {%- endif -%}
+                                    </div>
+                                    {% endif %}
                                 </div>
                                 <div class="text-end" style="color: #888; font-size: 0.75rem; min-width: 90px;">
                                     <div>{{ expense.updated_at.strftime('%Y-%m-%d') if expense.updated_at else '' }}</div>

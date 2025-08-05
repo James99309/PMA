@@ -57,9 +57,35 @@
                   <div class="required-fields-list">
                     {% set field_options = get_object_field_options(template.object_type) %}
                     {% set field_dict = {} %}
-                    {% for option_code, option_name in field_options %}
-                      {% if field_dict.update({option_code: option_name}) %}{% endif %}
-                    {% endfor %}
+                    {% if field_options %}
+                      {% if (field_options is mapping) and 'master' in field_options and 'detail' in field_options %}
+                        {# 新格式：支持明细字段的对象类型 #}
+                        {% if field_options.master %}
+                          {% for item in field_options.master %}
+                            {% if item is iterable and item|length == 2 %}
+                              {% set option_code, option_name = item %}
+                              {% if field_dict.update({option_code: option_name}) %}{% endif %}
+                            {% endif %}
+                          {% endfor %}
+                        {% endif %}
+                        {% if field_options.detail %}
+                          {% for item in field_options.detail %}
+                            {% if item is iterable and item|length == 2 %}
+                              {% set option_code, option_name = item %}
+                              {% if field_dict.update({option_code: option_name}) %}{% endif %}
+                            {% endif %}
+                          {% endfor %}
+                        {% endif %}
+                      {% elif (field_options is iterable) and not (field_options is mapping) %}
+                        {# 传统格式 #}
+                        {% for item in field_options %}
+                          {% if item is iterable and item|length == 2 %}
+                            {% set option_code, option_name = item %}
+                            {% if field_dict.update({option_code: option_name}) %}{% endif %}
+                          {% endif %}
+                        {% endfor %}
+                      {% endif %}
+                    {% endif %}
                     
                     {# 对必填字段进行去重处理 #}
                     {% set unique_fields = template.required_fields|unique %}

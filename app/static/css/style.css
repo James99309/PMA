@@ -4567,6 +4567,12 @@ a:focus .badge.badge-transparent.expense-number-badge {
     border-color: rgba(32, 201, 151, var(--badge-border-opacity)) !important;
 }
 
+.badge.badge-transparent.business-type-expense {
+    background-color: rgba(253, 126, 20, var(--badge-bg-opacity)) !important;
+    color: rgba(50, 25, 4, var(--badge-text-opacity)) !important;
+    border-color: rgba(253, 126, 20, var(--badge-border-opacity)) !important;
+}
+
 .badge.badge-transparent.business-type-unknown {
     background-color: rgba(108, 117, 125, var(--badge-bg-opacity)) !important;
     color: rgba(21, 23, 25, var(--badge-text-opacity)) !important;

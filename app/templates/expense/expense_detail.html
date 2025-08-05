@@ -1,8 +1,45 @@
 {% extends "base.html" %}
 {% from 'macros/ui_helpers.html' import render_expense_status_badge, render_expense_category_badge, render_button, render_expense_number, render_data_table, render_expense_lock_status_badge, render_expense_invoice_images, render_currency_badge, render_confirm_dialog, render_top_notification %}
 {% from 'macros/expense_detail_manager.html' import render_expense_detail_table %}
+{% from 'macros/approval_flow.html' import render_complete_approval_section %}
+{% from 'macros/approval_macros.html' import render_approval_section %}
 
 {% block title %}报销单详情 - {{ expense.expense_number }}{% endblock %}
+
+{% block head %}
+{{ super() }}
+<!-- 审批流程标准化样式和脚本 -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_flow.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/approval_timeline.css') }}">
+<script src="{{ url_for('static', filename='js/approval_flow.js') }}"></script>
+<script src="{{ url_for('static', filename='js/approval_flow_utils.js') }}"></script>
+<script>
+// 设置CSRF令牌
+document.addEventListener('DOMContentLoaded', function() {
+    setGlobalCSRFToken('{{ csrf_token() }}');
+    
+    // 初始化报销单审批流程
+    setTimeout(function() {
+        console.log('[DEBUG] 初始化报销单审批流程');
+        initStandardApprovalFlow('expense', {{ expense.id }}, 'expenseApprovalFlowSection', {
+            apiBasePath: '/expense/api/approval',  // 使用报销单专用的API路径
+            autoLoad: true  // 自动加载审批流程
+        });
+    }, 500);
+    
+    // 显示权限调试信息
+    console.log('[DEBUG] 报销单权限信息:');
+    console.log('报销单ID: {{ expense.id }}');
+    console.log('报销单状态: {{ expense.status }}');
+    console.log('当前用户ID: {{ current_user.id }}');
+    console.log('创建人ID: {{ expense.owner_id }}');
+    console.log('创建人姓名: {{ expense.owner.real_name or expense.owner.username }}');
+    console.log('是否为创建人: {{ "true" if expense.owner_id == current_user.id else "false" }}');
+    
+    // 权限调试信息已移除
+});
+</script>
+{% endblock %}
 
 {% block content %}
 <!-- 顶部通知组件 -->
@@ -22,12 +59,39 @@
                 <!-- 操作按钮组 -->
                 <div class="btn-toolbar justify-content-end" role="toolbar">
                     <div class="btn-group" role="group">
-                        {{ render_button(_('返回列表'), url_for('expense.expense_list'), color='secondary') }}
-                        {% if expense.status == 'draft' and expense.owner_id == current_user.id %}
-                            {{ render_button(_('编辑报销单'), url_for('expense.edit_expense', id=expense.id), color='primary', icon='fas fa-edit') }}
+                        {{ render_button(_(return_text), return_url, color='secondary') }}
+                        
+                        <!-- 审批按钮权限调试信息 -->
+                        <!-- Debug: 当前用户ID: {{ current_user.id }}, 报销单创建人ID: {{ expense.owner_id }}, 状态: {{ expense.status }} -->
+                        
+                        <!-- 审批相关按钮 - 根据状态动态显示 -->
+                        {% if expense.owner_id == current_user.id %}
+                            {% if expense.status == 'draft' %}
+                                {{ render_button(_('提交审批'), None, color='success', icon='fas fa-paper-plane', type='button', attrs='id="submitApprovalBtn" onclick="submitExpenseApproval()"') }}
+                            {% elif expense.status == 'pending' %}
+                                {{ render_button(_('召回审批'), None, color='warning', icon='fas fa-undo', type='button', attrs='id="recallApprovalBtn" onclick="recallExpenseApproval()"') }}
+                            {% elif expense.status in ['rejected', 'recalled'] %}
+                                {{ render_button(_('重新提交'), None, color='success', icon='fas fa-redo', type='button', attrs='id="resubmitApprovalBtn" onclick="resubmitExpenseApproval()"') }}
+                            {% elif expense.status == 'approved' %}
+                                {{ render_button(_('导出报销单'), None, color='info', icon='fas fa-download', type='button', attrs='onclick="exportExpense(' ~ expense.id ~ ')"') }}
+                            {% endif %}
+                        {% else %}
+                            <!-- 非拥有者但有权限访问（如审批者）的情况，不显示权限信息 -->
                         {% endif %}
-                        {% if expense.status in ['draft', 'pending'] and expense.owner_id == current_user.id %}
-                            {{ render_button(_('删除'), None, color='danger', icon='fas fa-trash', type='button', attrs='onclick="deleteExpense(' ~ expense.id ~ ')"') }}
+                        
+                        <!-- 审核阶段字段编辑按钮 -->
+                        {% if approval_edit_info and approval_edit_info.can_edit %}
+                            {{ render_button(_('编辑字段'), url_for('expense.edit_expense', id=expense.id, approval_edit=1), color='info', icon='fas fa-edit') }}
+                        {% endif %}
+                        
+                        <!-- 编辑和删除按钮 -->
+                        {% if expense.owner_id == current_user.id %}
+                            {% if expense.status in ['draft', 'rejected', 'recalled'] and not expense.is_locked %}
+                                {{ render_button(_('编辑报销单'), url_for('expense.edit_expense', id=expense.id), color='primary', icon='fas fa-edit') }}
+                            {% endif %}
+                            {% if expense.status == 'draft' %}
+                                {{ render_button(_('删除'), None, color='danger', icon='fas fa-trash', type='button', attrs='onclick="deleteExpense(' ~ expense.id ~ ')"') }}
+                            {% endif %}
                         {% endif %}
                     </div>
                 </div>
@@ -207,50 +271,70 @@
         
         {{ render_data_table(table_config, expense.details, ajax_mode=false) }}
 
-        <!-- 审批信息部分 -->
-        {% if expense.status not in ['draft', 'pending'] %}
+        <!-- 审批流程区域 -->
         <div class="section-divider"></div>
         
-        <div class="section-header mb-3">
-            <h5 class="text-primary mb-0">
-                <i class="fas fa-check-circle me-2"></i>审批信息
-            </h5>
-        </div>
+        <!-- 集成完整的审批流程组件 -->
+        {{ render_complete_approval_section(
+            'expense', 
+            expense.id, 
+            expense.status, 
+            current_user.id, 
+            expense.owner_id, 
+            'expenseApprovalFlowSection',
+            {
+                'operation_title': '报销单审批操作',
+                'flow_title': '报销单审批流程',
+                'description': '报销单创建完成，可以提交审批流程。',
+                'warning': '提交后将进入审批流程，无法直接修改报销信息。'
+            }
+        ) }}
+        
+        <!-- 保留传统审批信息显示（作为备用） -->
+        {% if expense.status not in ['draft', 'pending'] and (expense.approver or expense.approved_at or expense.approval_notes) %}
+        <div class="card mt-4" id="legacyApprovalInfo" style="display: none;">
+            <div class="card-header">
+                <h5 class="text-muted mb-0">
+                    <i class="fas fa-info-circle me-2"></i>传统审批信息
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <!-- 审批人 -->
+                    {% if expense.approver %}
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">审批人</label>
+                        <div class="form-control-plaintext border p-2 bg-light rounded">
+                            {% if expense.approver.is_vendor_user() %}
+                                <span class="badge badge-user vendor rounded-pill">{{ expense.approver.real_name or expense.approver.username }}</span>
+                            {% else %}
+                                <span class="badge badge-user regular">{{ expense.approver.real_name or expense.approver.username }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
 
-        <div class="row">
-            <!-- 审批人 -->
-            {% if expense.approver %}
-            <div class="col-md-6 mb-3">
-                <label class="form-label">审批人</label>
-                <div class="form-control-plaintext border p-2 bg-light rounded">
-                    {% if expense.approver.is_vendor_user() %}
-                        <span class="badge badge-user vendor rounded-pill">{{ expense.approver.real_name or expense.approver.username }}</span>
-                    {% else %}
-                        <span class="badge badge-user regular">{{ expense.approver.real_name or expense.approver.username }}</span>
+                    <!-- 审批时间 -->
+                    {% if expense.approved_at %}
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">审批时间</label>
+                        <div class="form-control-plaintext border p-2 bg-light rounded">
+                            <i class="fas fa-clock me-2"></i>{{ expense.formatted_approved_at }}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- 审批备注 -->
+                    {% if expense.approval_notes %}
+                    <div class="col-12 mb-3">
+                        <label class="form-label">审批备注</label>
+                        <div class="form-control-plaintext border p-3 bg-light rounded">
+                            {{ expense.approval_notes }}
+                        </div>
+                    </div>
                     {% endif %}
                 </div>
             </div>
-            {% endif %}
-
-            <!-- 审批时间 -->
-            {% if expense.approved_at %}
-            <div class="col-md-6 mb-3">
-                <label class="form-label">审批时间</label>
-                <div class="form-control-plaintext border p-2 bg-light rounded">
-                    <i class="fas fa-clock me-2"></i>{{ expense.formatted_approved_at }}
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- 审批备注 -->
-            {% if expense.approval_notes %}
-            <div class="col-12 mb-3">
-                <label class="form-label">审批备注</label>
-                <div class="form-control-plaintext border p-3 bg-light rounded">
-                    {{ expense.approval_notes }}
-                </div>
-            </div>
-            {% endif %}
         </div>
         {% endif %}
         
@@ -367,6 +451,218 @@ function previewInvoiceImage(imagePath, filename) {
         modal.remove();
     });
 }
+
+// ==================== 审批操作函数 ====================
+
+// 提交报销单审批
+async function submitExpenseApproval() {
+    // 使用通用确认组件
+    const confirmed = await new Promise((resolve) => {
+        showConfirmDialog({
+            title: '提交审批',
+            message: '确定要提交审批吗？提交后将进入审批流程，无法直接修改报销信息。',
+            type: 'warning',
+            confirmText: '提交审批',
+            cancelText: '取消',
+            onConfirm: () => resolve(true),
+            onCancel: () => resolve(false)
+        });
+    });
+    
+    if (!confirmed) {
+        return;
+    }
+    
+    try {
+        // 禁用按钮防止重复点击
+        const btn = document.getElementById('submitApprovalBtn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>提交中...';
+        }
+        
+        const response = await fetch(`/expense/api/approval/{{ expense.id }}/submit`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            },
+            body: JSON.stringify({})
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showTopNotification('审批流程已启动', 'success');
+            // 延迟刷新页面以显示新状态
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            showTopNotification(data.message || '提交审批失败', 'error');
+            // 恢复按钮状态
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-paper-plane me-1"></i>提交审批';
+            }
+        }
+        
+    } catch (error) {
+        console.error('提交审批失败:', error);
+        showTopNotification('提交审批失败，请重试', 'error');
+        
+        // 恢复按钮状态
+        const btn = document.getElementById('submitApprovalBtn');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-paper-plane me-1"></i>提交审批';
+        }
+    }
+}
+
+// 召回报销单审批
+async function recallExpenseApproval() {
+    // 使用通用确认组件
+    const confirmed = await new Promise((resolve) => {
+        showConfirmDialog({
+            title: '召回审批',
+            message: '确定要召回审批吗？召回后流程将停止，状态将回到草稿状态。',
+            type: 'warning',
+            confirmText: '召回',
+            cancelText: '取消',
+            onConfirm: () => resolve(true),
+            onCancel: () => resolve(false)
+        });
+    });
+    
+    if (!confirmed) {
+        return;
+    }
+    
+    try {
+        // 禁用按钮防止重复点击
+        const btn = document.getElementById('recallApprovalBtn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>召回中...';
+        }
+        
+        const response = await fetch(`/expense/api/approval/{{ expense.id }}/recall`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            },
+            body: JSON.stringify({
+                reason: '用户主动召回'
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showTopNotification('审批流程已召回', 'success');
+            // 延迟刷新页面以显示新状态
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            showTopNotification(data.message || '召回审批失败', 'error');
+            // 恢复按钮状态
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-undo me-1"></i>召回审批';
+            }
+        }
+        
+    } catch (error) {
+        console.error('召回审批失败:', error);
+        showTopNotification('召回审批失败，请重试', 'error');
+        
+        // 恢复按钮状态
+        const btn = document.getElementById('recallApprovalBtn');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-undo me-1"></i>召回审批';
+        }
+    }
+}
+
+// 重新提交报销单审批
+async function resubmitExpenseApproval() {
+    // 使用通用确认组件
+    const confirmed = await new Promise((resolve) => {
+        showConfirmDialog({
+            title: '重新提交审批',
+            message: '确定要重新提交审批吗？重新提交后将重置所有审批历史，重新开始审批流程。',
+            type: 'warning',
+            confirmText: '重新提交',
+            cancelText: '取消',
+            onConfirm: () => resolve(true),
+            onCancel: () => resolve(false)
+        });
+    });
+    
+    if (!confirmed) {
+        return;
+    }
+    
+    try {
+        // 禁用按钮防止重复点击
+        const btn = document.getElementById('resubmitApprovalBtn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>提交中...';
+        }
+        
+        const response = await fetch(`/expense/api/approval/{{ expense.id }}/resubmit`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            },
+            body: JSON.stringify({})
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showTopNotification('审批流程已重新提交', 'success');
+            // 延迟刷新页面以显示新状态
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            showTopNotification(data.message || '重新提交失败', 'error');
+            // 恢复按钮状态
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-redo me-1"></i>重新提交';
+            }
+        }
+        
+    } catch (error) {
+        console.error('重新提交审批失败:', error);
+        showTopNotification('重新提交失败，请重试', 'error');
+        
+        // 恢复按钮状态
+        const btn = document.getElementById('resubmitApprovalBtn');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-redo me-1"></i>重新提交';
+        }
+    }
+}
+
+// 导出报销单（预留功能）
+function exportExpense(expenseId) {
+    showTopNotification('导出功能开发中', 'info');
+    // TODO: 实现报销单导出功能
+    // window.open(`/expense/${expenseId}/export`, '_blank');
+}
+
+// ==================== 审核阶段字段编辑功能 ====================
+// 注意：现在使用标准编辑页面，不再需要弹窗编辑功能
 </script>
 
 <style>
@@ -453,5 +749,45 @@ function previewInvoiceImage(imagePath, filename) {
     font-size: 0.875rem;
     padding: 0.4rem 0.6rem;
 }
+
+/* 审核阶段字段编辑样式 */
+.field-edit-form .alert {
+    margin-bottom: 1.5rem;
+    border-left: 4px solid #0dcaf0;
+    background: linear-gradient(135deg, #e7f9ff, #f0faff);
+}
+
+.field-edit-form .form-label {
+    font-weight: 600;
+    color: #495057;
+}
+
+.field-edit-form .form-control:focus {
+    border-color: #0dcaf0;
+    box-shadow: 0 0 0 0.2rem rgba(13, 202, 240, 0.25);
+}
+
+.field-edit-form .form-text {
+    color: #6c757d;
+    font-size: 0.875rem;
+}
+
+#fieldEditModal .modal-header {
+    background: linear-gradient(135deg, #0dcaf0, #0baccc);
+    color: white;
+    border-bottom: none;
+}
+
+#fieldEditModal .modal-header .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+#fieldEditModal .modal-title {
+    font-weight: 600;
+}
 </style>
+
+<!-- 确认对话框组件 -->
+{{ render_confirm_dialog() }}
+
 {% endblock %}

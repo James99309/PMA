@@ -46,25 +46,49 @@ approval_bp = Blueprint('approval', __name__, url_prefix='/approval')
 def center():
     """审批中心视图"""
     try:
-        # 基础参数
-        tab = request.args.get('tab', 'created')
-        object_type = request.args.get('object_type')
-        status = request.args.get('status')
-        page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 20, type=int)
-        
-        # 获取统计数据
+        # 获取统计数据（先于tab参数处理，用于智能页签选择）
         from app.helpers.approval_helpers import (
             get_pending_approval_count,
             get_pending_created_count, 
             get_pricing_order_pending_count,
-            get_order_pending_count
+            get_order_pending_count,
+            get_expense_pending_count
         )
         
         pending_count = get_pending_approval_count(current_user.id)
         created_pending_count = get_pending_created_count(current_user.id)
         pricing_order_pending_count = get_pricing_order_pending_count(current_user.id)
         order_pending_count = get_order_pending_count(current_user.id)
+        expense_pending_count = get_expense_pending_count(current_user.id)
+        
+        # 计算总的待审批数量
+        total_pending_count = pending_count + pricing_order_pending_count + order_pending_count + expense_pending_count
+        
+        # 🔥 智能页签选择：优先根据待审批数量选择，兼顾用户指定的tab参数
+        tab_param = request.args.get('tab')
+        
+        if tab_param and tab_param == 'pending' and total_pending_count == 0:
+            # 特殊情况：用户指定了pending页签但没有待审批项目，智能切换到created页签
+            tab = 'created'
+            current_app.logger.info(f'智能页签选择：用户指定pending页签但无待审批项目，自动切换到我发起的页签')
+        elif tab_param:
+            # 用户明确指定了页签且是有效的
+            tab = tab_param
+            current_app.logger.info(f'使用用户指定的页签：{tab_param}')
+        else:
+            # 智能选择：有待审批显示"待审批"页签，无则显示"我发起的"页签
+            if total_pending_count > 0:
+                tab = 'pending'
+                current_app.logger.info(f'智能页签选择：用户有{total_pending_count}个待审批项目，自动切换到待审批页签')
+            else:
+                tab = 'created'
+                current_app.logger.info('智能页签选择：用户无待审批项目，显示我发起的页签')
+        
+        # 其他基础参数
+        object_type = request.args.get('object_type')
+        status = request.args.get('status')
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
         
         # 构建通用列表配置
         list_config = build_approval_list_config(
@@ -74,7 +98,8 @@ def center():
             pending_count=pending_count,
             created_pending_count=created_pending_count,
             pricing_order_pending_count=pricing_order_pending_count,
-            order_pending_count=order_pending_count
+            order_pending_count=order_pending_count,
+            expense_pending_count=expense_pending_count
         )
         
         # 渲染模板
@@ -103,7 +128,7 @@ def detail(instance_id):
     """审批详情视图
     
     显示审批流程的详细信息，包括流程图、当前步骤和所有审批步骤
-    支持普通审批实例（数字ID）和批价单审批（po_数字格式）
+    支持普通审批实例（数字ID）、批价单审批（po_数字格式）、报销单审批（expense_数字格式）和订单审批（order_数字格式）
     """
     # 检查是否是批价单审批
     if isinstance(instance_id, str) and instance_id.startswith('po_'):
@@ -114,6 +139,28 @@ def detail(instance_id):
             return redirect(url_for('pricing_order.edit_pricing_order', order_id=pricing_order_id))
         except (ValueError, IndexError):
             flash(_('无效的批价单审批ID'), 'danger')
+            return redirect(url_for('approval.center'))
+    
+    # 检查是否是报销单审批
+    if isinstance(instance_id, str) and instance_id.startswith('expense_'):
+        # 处理报销单审批详情
+        try:
+            expense_id = int(instance_id.split('_')[1])
+            # 重定向到报销单详情页面
+            return redirect(url_for('expense.expense_detail', id=expense_id, from_approval='true'))
+        except (ValueError, IndexError):
+            flash(_('无效的报销单审批ID'), 'danger')
+            return redirect(url_for('approval.center'))
+    
+    # 检查是否是订单审批
+    if isinstance(instance_id, str) and instance_id.startswith('order_'):
+        # 处理订单审批详情
+        try:
+            order_id = int(instance_id.split('_')[1])
+            # 重定向到订单详情页面
+            return redirect(url_for('inventory.order_detail', order_id=order_id))
+        except (ValueError, IndexError):
+            flash(_('无效的订单审批ID'), 'danger')
             return redirect(url_for('approval.center'))
     
     # 处理普通审批实例
@@ -1202,7 +1249,7 @@ def get_tab_display_name(tab):
     return _('审批列表')
 
 
-def build_approval_list_config(tab, object_type=None, status=None, pending_count=0, created_pending_count=0, pricing_order_pending_count=0, order_pending_count=0):
+def build_approval_list_config(tab, object_type=None, status=None, pending_count=0, created_pending_count=0, pricing_order_pending_count=0, order_pending_count=0, expense_pending_count=0):
     """构建审批中心的通用列表配置"""
     from flask import url_for
     from flask_babel import gettext as _
@@ -1498,6 +1545,28 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
             'type': 'text',
             'width': '180px'
         }
+    elif tab == 'expense':
+        table_config['columns'][0] = {
+            'key': 'expense_number',
+            'label': _('报销单编号'),
+            'type': 'link',
+            'url_template': '/expense/expense_detail/{id}',
+            'width': '180px'
+        }
+        # 修改第二列为报销主题
+        table_config['columns'][1] = {
+            'key': 'title',
+            'label': _('报销主题'),
+            'type': 'text',
+            'width': '200px'
+        }
+        # 将报销金额信息移到第3列（业务信息列）
+        table_config['columns'][3] = {
+            'key': 'total_amount',
+            'label': _('报销金额'),
+            'type': 'currency',
+            'width': '120px'
+        }
     
     return {
         'module_name': 'approval',
@@ -1593,6 +1662,19 @@ def center_ajax():
             except Exception as e:
                 current_app.logger.error(f"get_user_order_approvals调用失败: {str(e)}")
                 approvals = create_empty_pagination(per_page)
+        elif tab == 'expense':
+            # 报销单审批
+            try:
+                approvals = get_user_created_approvals(
+                    user_id=current_user.id,
+                    object_type='expense',
+                    status=status,
+                    page=page,
+                    per_page=per_page
+                )
+            except Exception as e:
+                current_app.logger.error(f"get_expense_approvals调用失败: {str(e)}")
+                approvals = create_empty_pagination(per_page)
         elif tab == 'department':
             from app.helpers.approval_helpers import get_user_department_approvals
             try:
@@ -1664,6 +1746,9 @@ def center_ajax():
             elif tab == 'order':
                 # 订单行渲染
                 html_row = render_order_row(item)
+            elif tab == 'expense':
+                # 报销单行渲染
+                html_row = render_expense_row(item)
             else:
                 # 通用审批行渲染
                 html_row = render_approval_row(item, tab)
@@ -1678,12 +1763,16 @@ def center_ajax():
         pricing_order_count = get_pricing_order_pending_count(current_user.id)
         order_count = get_order_pending_count(current_user.id)
         
+        # 添加报销单统计（暂时使用created_count的一部分，后续可以独立统计）
+        expense_count = 0  # 报销单待审批数量，可以后续实现专门的统计函数
+        
         statistics = {
-            'total': pending_count + created_count + pricing_order_count + order_count,  # 统计总数
+            'total': pending_count + created_count + pricing_order_count + order_count + expense_count,  # 统计总数
             'pending': pending_count,
             'created': created_count,
             'pricing_order': pricing_order_count,
-            'order': order_count
+            'order': order_count,
+            'expense': expense_count
         }
         
         return jsonify({
@@ -1746,7 +1835,7 @@ def render_approval_row(item, tab='created'):
     status_display = approval_status_label(status_key, lang_code)
     status_badge = f'<span class="badge badge-pill badge-transparent approval-status-{status_key}">{status_display}</span>'
     
-    # 审批编号 - 安全的数字格式化
+    # 审批编号 - 统一使用APV格式
     try:
         approval_id = int(item.id) if item.id else 0
         approval_code = f'<span class="badge badge-pill badge-transparent approval-code-badge">APV-{approval_id:04d}</span>'
@@ -1809,9 +1898,17 @@ def render_approval_row(item, tab='created'):
             current_app.logger.warning(f"日期格式化失败: {item.started_at}, 错误: {e}")
             started_time = str(item.started_at) if item.started_at else ''
     
+    # 🔥 修复：使用业务对象的详情页URL而不是审批详情页
+    from app.helpers.approval_helpers import get_approval_object_url
+    try:
+        object_url = get_approval_object_url(item)
+    except Exception as e:
+        current_app.logger.warning(f"获取业务对象URL失败: {e}")
+        object_url = f"/approval/detail/{item.id}"  # 降级处理
+    
     return f'''
     <tr>
-        <td><a href="/approval/detail/{item.id}" class="text-decoration-none">{approval_code}</a></td>
+        <td><a href="{object_url}" class="text-decoration-none">{approval_code}</a></td>
         <td>{related_project}</td>
         <td>{item.process.name if item.process else '未知流程'}</td>
         <td>{business_info}</td>
@@ -1833,6 +1930,11 @@ def render_order_row(item):
     """渲染订单行HTML"""
     # 这里实现订单特定的行渲染逻辑  
     return render_approval_row(item, 'order')
+
+def render_expense_row(item):
+    """渲染报销单行HTML"""
+    # 这里实现报销单特定的行渲染逻辑  
+    return render_approval_row(item, 'expense')
 
 
 def get_related_project_display(approval_item):
@@ -1932,6 +2034,11 @@ def get_business_object_display(approval_item):
             'display': _('结算单'),
             'icon': 'fas fa-calculator',
             'class': 'business-type-settlement'
+        },
+        'expense': {
+            'display': _('报销单'),
+            'icon': 'fas fa-receipt',
+            'class': 'business-type-expense'
         }
     }
     
