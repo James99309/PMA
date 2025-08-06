@@ -60,6 +60,15 @@ class Expense(db.Model):
     approved_at = Column(DateTime, nullable=True)  # 审批时间
     approval_notes = Column(Text)  # 审批备注
     
+    # 支付相关字段
+    payment_status = Column(String(20), default='unpaid', nullable=False)  # unpaid, awaiting, paid
+    payment_amount = Column(Float, nullable=True)  # 实际支付金额
+    payment_date = Column(DateTime, nullable=True)  # 支付日期
+    payment_method = Column(String(50), nullable=True)  # 支付方式
+    payment_reference = Column(String(100), nullable=True)  # 支付凭证号
+    payment_notes = Column(Text)  # 支付备注
+    paid_by = Column(Integer, ForeignKey('users.id'), nullable=True)  # 支付操作人
+    
     # 系统字段
     owner_id = Column(Integer, ForeignKey('users.id'), nullable=False)  # 申请人
     created_at = Column(DateTime, default=get_local_time)
@@ -72,6 +81,7 @@ class Expense(db.Model):
     project = relationship('Project', backref='expenses')
     owner = relationship('User', foreign_keys=[owner_id], backref='owned_expenses')
     approver = relationship('User', foreign_keys=[approved_by])
+    payer = relationship('User', foreign_keys=[paid_by], backref='paid_expenses')
     
     # 一对多关系：报销单明细
     details = relationship('ExpenseDetail', backref='expense', cascade='all, delete-orphan', 

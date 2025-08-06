@@ -1036,7 +1036,7 @@
                         <div class="card-body">
                             <div class="approval-workflow">
                                 <div class="timeline">
-                                    {% set workflow_steps = get_workflow_steps(approval_instance) %}
+                                    {% set workflow_steps = get_workflow_steps(approval_instance, current_user.id if current_user else None) %}
                                     {% for step in workflow_steps %}
                                         <div class="timeline-item">
                                             <div class="timeline-marker 
@@ -1046,6 +1046,8 @@
                                                     bg-danger
                                                 {% elif step.is_current %}
                                                     bg-warning
+                                                {% elif step.is_waiting %}
+                                                    bg-primary
                                                 {% else %}
                                                     bg-secondary
                                                 {% endif %}
@@ -1055,6 +1057,8 @@
                                                     <h6 class="timeline-title">{{ _('步骤') }} {{ step.order }}: {{ step.name }}</h6>
                                                     {% if step.is_current %}
                                                         <span class="badge badge-pill badge-transparent bg-warning text-dark">{{ _('当前步骤') }}</span>
+                                                    {% elif step.is_waiting %}
+                                                        <span class="badge badge-pill badge-transparent bg-primary text-white">{{ _('等待审批') }}</span>
                                                     {% elif step.is_completed and step.action %}
                                                         {% if step.action == 'approve' %}
                                                             <span class="badge badge-pill badge-transparent bg-success text-white">{{ _('已通过') }}</span>

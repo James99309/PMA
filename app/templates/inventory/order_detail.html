@@ -11,6 +11,41 @@
 <script src="{{ url_for('static', filename='js/approval_flow.js') }}"></script>
 <script src="{{ url_for('static', filename='js/approval_flow_utils.js') }}"></script>
 <script>
+// 审批流程国际化文本
+window.approvalFlowI18n = {
+    supervisor: '{{ _("上级审批") }}',
+    financial: '{{ _("财务审批") }}',
+    generalManager: '{{ _("总经理审核") }}',
+    processed: '{{ _("处理：") }}',
+    duration: '{{ _("耗时：") }}',
+    hours: '{{ _("小时") }}',
+    days: '{{ _("天") }}',
+    arrived: '{{ _("到达：") }}',
+    staying: '{{ _("停留：") }}',
+    pending: '{{ _("待分配") }}',
+    justArrived: '{{ _("刚刚到达") }}',
+    ago: '{{ _("前") }}',
+    approve: '{{ _("同意") }}',
+    reject: '{{ _("拒绝") }}',
+    approvalFailed: '{{ _("审批处理失败：") }}',
+    networkError: '{{ _("网络错误") }}',
+    submitFailed: '{{ _("提交失败：") }}',
+    recallFailed: '{{ _("召回失败：") }}',
+    resubmitFailed: '{{ _("重新提交失败：") }}',
+    noPermissionMessage: '{{ _("当前阶段\"{stage}\"需要由 {approver} 进行审批。您暂无权限审批此阶段。") }}',
+    stageInfo: '{{ _("阶段信息：") }}',
+    approver: '{{ _("审批人：") }}',
+    status: '{{ _("状态：") }}',
+    approved: '{{ _("已通过") }}',
+    rejected: '{{ _("已拒绝") }}',
+    pending: '{{ _("待处理") }}',
+    waiting: '{{ _("等待中") }}',
+    processedTime: '{{ _("处理时间：") }}',
+    arrivedTime: '{{ _("到达时间：") }}',
+    clickToView: '{{ _("点击查看审批意见") }}',
+    noCurrentStage: '{{ _("无法找到当前审批阶段信息") }}'
+};
+
 // 设置CSRF令牌
 document.addEventListener('DOMContentLoaded', function() {
     setGlobalCSRFToken('{{ csrf_token() }}');

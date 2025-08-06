@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_expense_status_badge, render_expense_category_badge, render_button, render_expense_number, render_data_table, render_expense_lock_status_badge, render_expense_invoice_images, render_currency_badge, render_confirm_dialog, render_top_notification %}
+{% from 'macros/ui_helpers.html' import render_expense_status_badge, render_expense_category_badge, render_button, render_expense_number, render_data_table, render_expense_lock_status_badge, render_expense_invoice_images, render_currency_badge, render_confirm_dialog, render_top_notification, render_invoice_preview_dialog %}
 {% from 'macros/expense_detail_manager.html' import render_expense_detail_table %}
 {% from 'macros/approval_flow.html' import render_complete_approval_section %}
 {% from 'macros/approval_macros.html' import render_approval_section %}
 
-{% block title %}报销单详情 - {{ expense.expense_number }}{% endblock %}
+{% block title %}{{ _('报销单详情') }} - {{ expense.expense_number }}{% endblock %}
 
 {% block head %}
 {{ super() }}
@@ -14,6 +14,41 @@
 <script src="{{ url_for('static', filename='js/approval_flow.js') }}"></script>
 <script src="{{ url_for('static', filename='js/approval_flow_utils.js') }}"></script>
 <script>
+// 审批流程国际化文本
+window.approvalFlowI18n = {
+    supervisor: '{{ _("上级审批") }}',
+    financial: '{{ _("财务审批") }}',
+    generalManager: '{{ _("总经理审核") }}',
+    processed: '{{ _("处理：") }}',
+    duration: '{{ _("耗时：") }}',
+    hours: '{{ _("小时") }}',
+    days: '{{ _("天") }}',
+    arrived: '{{ _("到达：") }}',
+    staying: '{{ _("停留：") }}',
+    pending: '{{ _("待分配") }}',
+    justArrived: '{{ _("刚刚到达") }}',
+    ago: '{{ _("前") }}',
+    approve: '{{ _("同意") }}',
+    reject: '{{ _("拒绝") }}',
+    approvalFailed: '{{ _("审批处理失败：") }}',
+    networkError: '{{ _("网络错误") }}',
+    submitFailed: '{{ _("提交失败：") }}',
+    recallFailed: '{{ _("召回失败：") }}',
+    resubmitFailed: '{{ _("重新提交失败：") }}',
+    noPermissionMessage: '{{ _("当前阶段\"{stage}\"需要由 {approver} 进行审批。您暂无权限审批此阶段。") }}',
+    stageInfo: '{{ _("阶段信息：") }}',
+    approver: '{{ _("审批人：") }}',
+    status: '{{ _("状态：") }}',
+    approved: '{{ _("已通过") }}',
+    rejected: '{{ _("已拒绝") }}',
+    pending: '{{ _("待处理") }}',
+    waiting: '{{ _("等待中") }}',
+    processedTime: '{{ _("处理时间：") }}',
+    arrivedTime: '{{ _("到达时间：") }}',
+    clickToView: '{{ _("点击查看审批意见") }}',
+    noCurrentStage: '{{ _("无法找到当前审批阶段信息") }}'
+};
+
 // 设置CSRF令牌
 document.addEventListener('DOMContentLoaded', function() {
     setGlobalCSRFToken('{{ csrf_token() }}');
@@ -204,63 +239,63 @@ document.addEventListener('DOMContentLoaded', function() {
         
         <!-- 报销明细 -->
         {% set table_config = {
-            'title': '报销明细',
+            'title': _('报销明细'),
             'icon': 'fas fa-list',
             'show_header': true,
             'columns': [
                 {
                     'key': 'expense_category',
-                    'label': '报销科目',
+                    'label': _('报销科目'),
                     'type': 'badge',
                     'render': 'render_expense_category_badge',
                     'width': '120px'
                 },
                 {
                     'key': 'formatted_expense_date',
-                    'label': '发生日期',
+                    'label': _('发生日期'),
                     'type': 'text',
                     'width': '130px'
                 },
                 {
                     'key': 'description',
-                    'label': '费用描述',
+                    'label': _('费用描述'),
                     'type': 'text',
                     'width': '200px'
                 },
                 {
                     'key': 'document_count',
-                    'label': '单据数量',
+                    'label': _('单据数量'),
                     'type': 'number',
                     'align': 'center',
                     'width': '80px'
                 },
                 {
                     'key': 'formatted_invoice_amount',
-                    'label': '发票金额',
+                    'label': _('发票金额'),
                     'type': 'text',
                     'align': 'end',
                     'width': '120px',
-                    'description': '原始发票货币金额'
+                    'description': _('原始发票货币金额')
                 },
                 {
                     'key': 'formatted_exchange_rate',
-                    'label': '汇率',
+                    'label': _('汇率'),
                     'type': 'text',
                     'align': 'center',
                     'width': '80px',
-                    'description': '发票货币→报销单货币的汇率'
+                    'description': _('发票货币→报销单货币的汇率')
                 },
                 {
                     'key': 'formatted_amount',
-                    'label': '报销金额',
+                    'label': _('报销金额'),
                     'type': 'text',
                     'align': 'end',
                     'width': '120px',
-                    'description': '转换为报销单货币后的金额'
+                    'description': _('转换为报销单货币后的金额')
                 },
                 {
                     'key': 'invoice_images',
-                    'label': '发票',
+                    'label': _('发票'),
                     'type': 'custom',
                     'render': 'render_expense_invoice_images',
                     'align': 'center',
@@ -283,10 +318,10 @@ document.addEventListener('DOMContentLoaded', function() {
             expense.owner_id, 
             'expenseApprovalFlowSection',
             {
-                'operation_title': '报销单审批操作',
-                'flow_title': '报销单审批流程',
-                'description': '报销单创建完成，可以提交审批流程。',
-                'warning': '提交后将进入审批流程，无法直接修改报销信息。'
+                'operation_title': _('报销单审批操作'),
+                'flow_title': _('报销单审批流程'),
+                'description': _('报销单创建完成，可以提交审批流程。'),
+                'warning': _('提交后将进入审批流程，无法直接修改报销信息。')
             }
         ) }}
         
@@ -295,7 +330,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="card mt-4" id="legacyApprovalInfo" style="display: none;">
             <div class="card-header">
                 <h5 class="text-muted mb-0">
-                    <i class="fas fa-info-circle me-2"></i>传统审批信息
+                    <i class="fas fa-info-circle me-2"></i>{{ _('传统审批信息') }}
                 </h5>
             </div>
             <div class="card-body">
@@ -303,7 +338,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <!-- 审批人 -->
                     {% if expense.approver %}
                     <div class="col-md-6 mb-3">
-                        <label class="form-label">审批人</label>
+                        <label class="form-label">{{ _('审批人') }}</label>
                         <div class="form-control-plaintext border p-2 bg-light rounded">
                             {% if expense.approver.is_vendor_user() %}
                                 <span class="badge badge-user vendor rounded-pill">{{ expense.approver.real_name or expense.approver.username }}</span>
@@ -317,7 +352,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <!-- 审批时间 -->
                     {% if expense.approved_at %}
                     <div class="col-md-6 mb-3">
-                        <label class="form-label">审批时间</label>
+                        <label class="form-label">{{ _('审批时间') }}</label>
                         <div class="form-control-plaintext border p-2 bg-light rounded">
                             <i class="fas fa-clock me-2"></i>{{ expense.formatted_approved_at }}
                         </div>
@@ -327,7 +362,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <!-- 审批备注 -->
                     {% if expense.approval_notes %}
                     <div class="col-12 mb-3">
-                        <label class="form-label">审批备注</label>
+                        <label class="form-label">{{ _('审批备注') }}</label>
                         <div class="form-control-plaintext border p-3 bg-light rounded">
                             {{ expense.approval_notes }}
                         </div>
@@ -345,15 +380,53 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 </div>
 
+<!-- 标准化发票预览组件 -->
+{{ render_invoice_preview_dialog('expenseInvoicePreview') }}
+
 <!-- 标准确认对话框 -->
 {{ render_confirm_dialog('expenseDeleteDialog') }}
 
 <script>
+// 国际化文本定义
+window.i18nTexts = {
+    confirmDeleteTitle: '{{ _("确认删除报销单") }}',
+    confirmDeleteMessage: '{{ _("确定要删除这个报销单吗？此操作不可恢复。") }}',
+    deleteFailed: '{{ _("删除失败，请重试") }}',
+    invoiceNotExist: '{{ _("发票图片不存在或已损坏") }}',
+    invoicePreview: '{{ _("发票预览") }}',
+    invoiceImage: '{{ _("发票图片") }}',
+    download: '{{ _("下载") }}',
+    imageLoadFailed: '{{ _("图片加载失败") }}',
+    close: '{{ _("关闭") }}',
+    submitApproval: '{{ _("提交审批") }}',
+    submitApprovalConfirm: '{{ _("确定要提交审批吗？提交后将进入审批流程，无法直接修改报销信息。") }}',
+    submitting: '{{ _("提交中...") }}',
+    approvalStarted: '{{ _("审批流程已启动") }}',
+    submitApprovalFailed: '{{ _("提交审批失败") }}',
+    submitApprovalFailedRetry: '{{ _("提交审批失败，请重试") }}',
+    recallApproval: '{{ _("召回审批") }}',
+    recallApprovalConfirm: '{{ _("确定要召回审批吗？召回后流程将停止，状态将回到草稿状态。") }}',
+    recalling: '{{ _("召回中...") }}',
+    approvalRecalled: '{{ _("审批流程已召回") }}',
+    recallApprovalFailed: '{{ _("召回审批失败") }}',
+    recallApprovalFailedRetry: '{{ _("召回审批失败，请重试") }}',
+    resubmitApproval: '{{ _("重新提交审批") }}',
+    resubmitApprovalConfirm: '{{ _("确定要重新提交审批吗？重新提交后将重置所有审批历史，重新开始审批流程。") }}',
+    approvalResubmitted: '{{ _("审批流程已重新提交") }}',
+    resubmitFailed: '{{ _("重新提交失败") }}',
+    resubmitFailedRetry: '{{ _("重新提交失败，请重试") }}',
+    exportInDevelopment: '{{ _("导出功能开发中") }}',
+    cancel: '{{ _("取消") }}',
+    recall: '{{ _("召回") }}',
+    resubmit: '{{ _("重新提交") }}',
+    userRecall: '{{ _("用户主动召回") }}'
+};
+
 // 删除报销单功能
 function deleteExpense(expenseId) {
     showDeleteConfirm({
-        title: '确认删除报销单',
-        message: `确定要删除这个报销单吗？此操作不可恢复。\n\n报销单号：{{ expense.expense_number }}`,
+        title: window.i18nTexts.confirmDeleteTitle,
+        message: `${window.i18nTexts.confirmDeleteMessage}\n\n报销单号：{{ expense.expense_number }}`,
         dialogId: 'expenseDeleteDialog',
         onConfirm: function() {
             fetch(`/expense/${expenseId}/delete`, {
@@ -378,7 +451,7 @@ function deleteExpense(expenseId) {
             })
             .catch(error => {
                 console.error('Error:', error);
-                showTopNotification('删除失败，请重试', 'error');
+                showTopNotification(window.i18nTexts.deleteFailed, 'error');
             });
         }
     });
@@ -393,63 +466,29 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// 发票图片预览功能
+// 🔥 标准化发票图片预览功能 - 直接使用通用图片预览组件
 function previewInvoiceImage(imagePath, filename) {
     console.log('预览发票:', imagePath, filename);
     
     if (!imagePath || imagePath === 'undefined') {
-        alert('发票图片不存在或已损坏');
+        alert(window.i18nTexts.invoiceNotExist);
         return;
     }
 
-    // 创建模态框
-    const modal = document.createElement('div');
-    modal.className = 'modal fade';
-    modal.id = 'invoicePreviewModal';
-    modal.innerHTML = `
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">发票预览</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body text-center">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <span class="badge bg-primary">${filename || '发票图片'}</span>
-                        <a href="${imagePath}" download="${filename}" class="btn btn-outline-primary btn-sm">
-                            <i class="fas fa-download"></i> 下载
-                        </a>
-                    </div>
-                    <div class="invoice-preview-container" style="max-height: 70vh; overflow: auto;">
-                        <img src="${imagePath}" 
-                             alt="${filename}" 
-                             class="img-fluid" 
-                             style="max-width: 100%; height: auto;"
-                             onerror="this.parentElement.innerHTML='<div class=&quot;text-danger&quot;><i class=&quot;fas fa-exclamation-triangle&quot;></i><br>图片加载失败</div>'">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-                </div>
-            </div>
-        </div>
-    `;
-
-    // 移除已存在的模态框
-    const existingModal = document.getElementById('invoicePreviewModal');
-    if (existingModal) {
-        existingModal.remove();
+    // 🔥 直接使用通用图片预览组件
+    if (typeof showInvoicePreviewDialog === 'function') {
+        showInvoicePreviewDialog(
+            imagePath,
+            filename,
+            {
+                description: '报销单发票'
+            },
+            'expenseInvoicePreview'
+        );
+    } else {
+        console.error('通用图片预览组件未加载，使用备用方案');
+        window.open(imagePath, '_blank');
     }
-
-    // 添加到页面并显示
-    document.body.appendChild(modal);
-    const bsModal = new bootstrap.Modal(modal);
-    bsModal.show();
-
-    // 模态框关闭后移除DOM元素
-    modal.addEventListener('hidden.bs.modal', function() {
-        modal.remove();
-    });
 }
 
 // ==================== 审批操作函数 ====================
@@ -459,11 +498,11 @@ async function submitExpenseApproval() {
     // 使用通用确认组件
     const confirmed = await new Promise((resolve) => {
         showConfirmDialog({
-            title: '提交审批',
-            message: '确定要提交审批吗？提交后将进入审批流程，无法直接修改报销信息。',
+            title: window.i18nTexts.submitApproval,
+            message: window.i18nTexts.submitApprovalConfirm,
             type: 'warning',
-            confirmText: '提交审批',
-            cancelText: '取消',
+            confirmText: window.i18nTexts.submitApproval,
+            cancelText: window.i18nTexts.cancel,
             onConfirm: () => resolve(true),
             onCancel: () => resolve(false)
         });
@@ -478,7 +517,7 @@ async function submitExpenseApproval() {
         const btn = document.getElementById('submitApprovalBtn');
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>提交中...';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>' + window.i18nTexts.submitting;
         }
         
         const response = await fetch(`/expense/api/approval/{{ expense.id }}/submit`, {
@@ -493,13 +532,13 @@ async function submitExpenseApproval() {
         const data = await response.json();
         
         if (data.success) {
-            showTopNotification('审批流程已启动', 'success');
+            showTopNotification(window.i18nTexts.approvalStarted, 'success');
             // 延迟刷新页面以显示新状态
             setTimeout(() => {
                 window.location.reload();
             }, 1500);
         } else {
-            showTopNotification(data.message || '提交审批失败', 'error');
+            showTopNotification(data.message || window.i18nTexts.submitApprovalFailed, 'error');
             // 恢复按钮状态
             if (btn) {
                 btn.disabled = false;
@@ -509,7 +548,7 @@ async function submitExpenseApproval() {
         
     } catch (error) {
         console.error('提交审批失败:', error);
-        showTopNotification('提交审批失败，请重试', 'error');
+        showTopNotification(window.i18nTexts.submitApprovalFailedRetry, 'error');
         
         // 恢复按钮状态
         const btn = document.getElementById('submitApprovalBtn');
@@ -525,11 +564,11 @@ async function recallExpenseApproval() {
     // 使用通用确认组件
     const confirmed = await new Promise((resolve) => {
         showConfirmDialog({
-            title: '召回审批',
-            message: '确定要召回审批吗？召回后流程将停止，状态将回到草稿状态。',
+            title: window.i18nTexts.recallApproval,
+            message: window.i18nTexts.recallApprovalConfirm,
             type: 'warning',
-            confirmText: '召回',
-            cancelText: '取消',
+            confirmText: window.i18nTexts.recall,
+            cancelText: window.i18nTexts.cancel,
             onConfirm: () => resolve(true),
             onCancel: () => resolve(false)
         });
@@ -544,7 +583,7 @@ async function recallExpenseApproval() {
         const btn = document.getElementById('recallApprovalBtn');
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>召回中...';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>' + window.i18nTexts.recalling;
         }
         
         const response = await fetch(`/expense/api/approval/{{ expense.id }}/recall`, {
@@ -554,30 +593,30 @@ async function recallExpenseApproval() {
                 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
             },
             body: JSON.stringify({
-                reason: '用户主动召回'
+                reason: window.i18nTexts.userRecall
             })
         });
         
         const data = await response.json();
         
         if (data.success) {
-            showTopNotification('审批流程已召回', 'success');
+            showTopNotification(window.i18nTexts.approvalRecalled, 'success');
             // 延迟刷新页面以显示新状态
             setTimeout(() => {
                 window.location.reload();
             }, 1500);
         } else {
-            showTopNotification(data.message || '召回审批失败', 'error');
+            showTopNotification(data.message || window.i18nTexts.recallApprovalFailed, 'error');
             // 恢复按钮状态
             if (btn) {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-undo me-1"></i>召回审批';
+                btn.innerHTML = '<i class="fas fa-undo me-1"></i>' + window.i18nTexts.recallApproval;
             }
         }
         
     } catch (error) {
         console.error('召回审批失败:', error);
-        showTopNotification('召回审批失败，请重试', 'error');
+        showTopNotification(window.i18nTexts.recallApprovalFailedRetry, 'error');
         
         // 恢复按钮状态
         const btn = document.getElementById('recallApprovalBtn');
@@ -593,11 +632,11 @@ async function resubmitExpenseApproval() {
     // 使用通用确认组件
     const confirmed = await new Promise((resolve) => {
         showConfirmDialog({
-            title: '重新提交审批',
-            message: '确定要重新提交审批吗？重新提交后将重置所有审批历史，重新开始审批流程。',
+            title: window.i18nTexts.resubmitApproval,
+            message: window.i18nTexts.resubmitApprovalConfirm,
             type: 'warning',
-            confirmText: '重新提交',
-            cancelText: '取消',
+            confirmText: window.i18nTexts.resubmit,
+            cancelText: window.i18nTexts.cancel,
             onConfirm: () => resolve(true),
             onCancel: () => resolve(false)
         });
@@ -612,7 +651,7 @@ async function resubmitExpenseApproval() {
         const btn = document.getElementById('resubmitApprovalBtn');
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>提交中...';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>' + window.i18nTexts.submitting;
         }
         
         const response = await fetch(`/expense/api/approval/{{ expense.id }}/resubmit`, {
@@ -627,23 +666,23 @@ async function resubmitExpenseApproval() {
         const data = await response.json();
         
         if (data.success) {
-            showTopNotification('审批流程已重新提交', 'success');
+            showTopNotification(window.i18nTexts.approvalResubmitted, 'success');
             // 延迟刷新页面以显示新状态
             setTimeout(() => {
                 window.location.reload();
             }, 1500);
         } else {
-            showTopNotification(data.message || '重新提交失败', 'error');
+            showTopNotification(data.message || window.i18nTexts.resubmitFailed, 'error');
             // 恢复按钮状态
             if (btn) {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-redo me-1"></i>重新提交';
+                btn.innerHTML = '<i class="fas fa-redo me-1"></i>' + window.i18nTexts.resubmit;
             }
         }
         
     } catch (error) {
         console.error('重新提交审批失败:', error);
-        showTopNotification('重新提交失败，请重试', 'error');
+        showTopNotification(window.i18nTexts.resubmitFailedRetry, 'error');
         
         // 恢复按钮状态
         const btn = document.getElementById('resubmitApprovalBtn');
@@ -656,7 +695,7 @@ async function resubmitExpenseApproval() {
 
 // 导出报销单（预留功能）
 function exportExpense(expenseId) {
-    showTopNotification('导出功能开发中', 'info');
+    showTopNotification(window.i18nTexts.exportInDevelopment, 'info');
     // TODO: 实现报销单导出功能
     // window.open(`/expense/${expenseId}/export`, '_blank');
 }

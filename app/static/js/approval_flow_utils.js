@@ -185,8 +185,183 @@ document.addEventListener('approval_submitted', function(event) {
 document.addEventListener('approval_approved', function(event) {
     console.log('审批处理成功:', event.detail);
     
-    // 可以在这里添加全局的审批成功处理逻辑
+    // 重新加载审批流程数据以更新UI状态
+    const flow = window.approvalFlowInstance;
+    if (flow) {
+        console.log('重新加载审批流程数据...');
+        flow.loadApprovalFlow();
+    }
+    
+    // 🔥 新增：更新页面状态信息，支付步骤需要更长的处理时间
+    setTimeout(() => {
+        updatePageStatusAfterApproval(event.detail);
+    }, 1000); // 增加延迟时间，确保支付步骤完全处理完成
+    
+    // 显示成功消息
+    const message = event.detail.action === 'approve' ? '审批已通过' : '审批已拒绝';
+    if (typeof showSuccessMessage === 'function') {
+        showSuccessMessage(message);
+    } else {
+        console.log(message);
+    }
 });
+
+/**
+ * 审批成功后更新页面状态信息
+ */
+async function updatePageStatusAfterApproval(eventDetail, retryCount = 0) {
+    const maxRetries = 2; // 最多重试2次
+    console.log(`开始更新页面状态信息... (尝试 ${retryCount + 1}/${maxRetries + 1})`);
+    
+    try {
+        // 获取当前页面的对象类型和ID
+        const currentUrl = window.location.pathname;
+        let objectType = null;
+        let objectId = null;
+        
+        // 解析URL以确定对象类型和ID
+        if (currentUrl.includes('/expense/')) {
+            objectType = 'expense';
+            const match = currentUrl.match(/\/expense\/(\d+)/);
+            if (match) {
+                objectId = match[1];
+            }
+        } else if (currentUrl.includes('/order/')) {
+            objectType = 'order';
+            const match = currentUrl.match(/\/order\/(\d+)/);
+            if (match) {
+                objectId = match[1];
+            }
+        }
+        
+        if (!objectType || !objectId) {
+            console.log('无法解析对象类型或ID，跳过状态更新');
+            return;
+        }
+        
+        console.log(`检测到对象类型: ${objectType}, ID: ${objectId}`);
+        
+        // 调用API获取最新的对象状态
+        const response = await fetch(`/${objectType}/api/${objectId}/status`);
+        
+        if (!response.ok) {
+            console.warn('获取最新状态失败，尝试页面刷新方案');
+            // 如果API不存在，使用页面刷新作为备选方案
+            if (confirm('审批已完成，是否刷新页面以显示最新状态？')) {
+                window.location.reload();
+            }
+            return;
+        }
+        
+        const data = await response.json();
+        console.log('获取到最新状态:', data);
+        
+        if (data.success) {
+            // 更新状态徽章
+            updateStatusBadge(data.status);
+            // 更新锁定状态徽章
+            updateLockStatusBadge(data.is_locked);
+            // 更新操作按钮可见性
+            updateActionButtonsVisibility(data);
+            
+            console.log(`页面状态更新完成 - 状态: ${data.status}, 锁定: ${data.is_locked}`);
+            
+            // 🔥 特殊处理：如果是支付完成，显示特殊提示
+            if (data.status === 'paid') {
+                console.log('检测到支付完成，报销单已支付');
+                if (typeof showSuccessMessage === 'function') {
+                    showSuccessMessage('支付完成！报销单已成功支付。');
+                }
+            }
+        } else {
+            console.warn('状态API返回失败:', data.message);
+            // 🔥 新增：如果API返回失败且还有重试机会，尝试重试
+            if (retryCount < maxRetries) {
+                console.log(`状态更新失败，将在1.5秒后重试 (${retryCount + 1}/${maxRetries})`);
+                setTimeout(() => {
+                    updatePageStatusAfterApproval(eventDetail, retryCount + 1);
+                }, 1500);
+            } else {
+                console.error('状态更新失败，已达到最大重试次数');
+                if (confirm('审批已完成，但状态更新失败。是否刷新页面以显示最新状态？')) {
+                    window.location.reload();
+                }
+            }
+        }
+        
+    } catch (error) {
+        console.error('更新页面状态时出错:', error);
+        // 发生错误时，如果还有重试机会就重试，否则提供页面刷新选项
+        if (retryCount < maxRetries) {
+            console.log(`发生错误，将在1.5秒后重试 (${retryCount + 1}/${maxRetries})`);
+            setTimeout(() => {
+                updatePageStatusAfterApproval(eventDetail, retryCount + 1);
+            }, 1500);
+        } else {
+            console.error('状态更新失败，已达到最大重试次数');
+            if (confirm('审批已完成，但状态更新失败。是否刷新页面以显示最新状态？')) {
+                window.location.reload();
+            }
+        }
+    }
+}
+
+/**
+ * 更新状态徽章
+ */
+function updateStatusBadge(status) {
+    // 状态映射
+    const statusMap = {
+        'draft': { text: '草稿', class: 'bg-secondary' },
+        'pending': { text: '审批中', class: 'bg-warning' },
+        'approved': { text: '已通过', class: 'bg-success' },
+        'rejected': { text: '已拒绝', class: 'bg-danger' },
+        'recalled': { text: '已召回', class: 'bg-info' },
+        'paid': { text: '已支付', class: 'bg-primary' }
+    };
+    
+    const statusInfo = statusMap[status] || { text: status, class: 'bg-secondary' };
+    
+    // 查找状态徽章元素并更新
+    const statusBadges = document.querySelectorAll('[class*="badge"][class*="bg-"]');
+    statusBadges.forEach(badge => {
+        const parent = badge.closest('tr');
+        if (parent && parent.textContent.includes('状态')) {
+            badge.className = `badge ${statusInfo.class}`;
+            badge.textContent = statusInfo.text;
+            console.log(`状态徽章已更新为: ${statusInfo.text}`);
+        }
+    });
+}
+
+/**
+ * 更新锁定状态徽章
+ */
+function updateLockStatusBadge(isLocked) {
+    const lockInfo = isLocked ? 
+        { text: '已锁定', class: 'bg-danger' } : 
+        { text: '未锁定', class: 'bg-success' };
+    
+    // 查找锁定状态徽章元素并更新
+    const statusBadges = document.querySelectorAll('[class*="badge"][class*="bg-"]');
+    statusBadges.forEach(badge => {
+        const parent = badge.closest('tr');
+        if (parent && parent.textContent.includes('锁定状态')) {
+            badge.className = `badge ${lockInfo.class}`;
+            badge.textContent = lockInfo.text;
+            console.log(`锁定状态徽章已更新为: ${lockInfo.text}`);
+        }
+    });
+}
+
+/**
+ * 更新操作按钮可见性
+ */
+function updateActionButtonsVisibility(statusData) {
+    // 根据新状态和锁定状态显示/隐藏相应的操作按钮
+    // 这部分逻辑可以根据具体需求进一步完善
+    console.log('更新操作按钮可见性 (待完善)');
+}
 
 /**
  * 显示召回确认模态框

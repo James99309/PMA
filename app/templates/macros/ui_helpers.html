@@ -3578,7 +3578,9 @@ window.dismissStandardAlert = function() {
     'pending': '待审批',
     'approved': '已通过',
     'rejected': '已驳回',
-    'recalled': '已召回'
+    'recalled': '已召回',
+    'awaiting_payment': '待支付',
+    'paid': '已支付'
   } %}
   
   {% set status_text = status_map.get(status, status) if status else '未设置' %}
@@ -3593,6 +3595,10 @@ window.dismissStandardAlert = function() {
     <span class="badge badge-pill badge-transparent expense-status-rejected">{{ _(status_text) }}</span>
   {% elif status == 'recalled' %}
     <span class="badge badge-pill badge-transparent expense-status-recalled">{{ _(status_text) }}</span>
+  {% elif status == 'awaiting_payment' %}
+    <span class="badge badge-pill badge-transparent expense-status-awaiting-payment">{{ _(status_text) }}</span>
+  {% elif status == 'paid' %}
+    <span class="badge badge-pill badge-transparent expense-status-paid">{{ _(status_text) }}</span>
   {% else %}
     <span class="badge badge-pill badge-transparent badge-muted">{{ _(status_text) }}</span>
   {% endif %}
@@ -4072,6 +4078,837 @@ window.showDeleteConfirm = function(options = {}) {
     
     showConfirmDialog({...defaultOptions, ...options});
 };
+</script>
+{% endmacro %}
+
+{#
+=============================================================================
+🖼️ 标准化发票预览组件宏
+=============================================================================
+模仿确认组件的设计规范，提供统一的发票预览功能：
+- 按键标准化：使用render_button组件
+- 四角弧形：12px圆角设计
+- 文件信息显示：详细的文件元数据
+- 响应式设计：适配各种屏幕尺寸
+=============================================================================
+#}
+{% macro render_invoice_preview_dialog(dialog_id='standardInvoicePreviewDialog') %}
+<div id="{{ dialog_id }}" class="standard-invoice-preview-dialog" style="display: none;">
+    <div class="dialog-overlay"></div>
+    <div class="dialog-container">
+        <div class="dialog-content">
+            <!-- 头部：标题和关闭按钮 -->
+            <div class="dialog-header">
+                <h5 class="dialog-title">
+                    {{ _('发票预览') }}
+                </h5>
+                <button type="button" class="dialog-close-btn" title="{{ _('关闭') }}">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <!-- 文件信息栏 -->
+            <div class="file-info-bar">
+                <div class="file-details">
+                    <div class="file-name">{{ _('加载中...') }}</div>
+                </div>
+            </div>
+            
+            <!-- 图片预览区域 -->
+            <div class="image-preview-container">
+                <div class="image-wrapper">
+                    <img class="preview-image" alt="{{ _('发票预览') }}" style="display: none;" />
+                    <div class="image-loading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>{{ _('加载中...') }}</span>
+                    </div>
+                    <div class="image-error" style="display: none;">
+                        <i class="fas fa-exclamation-triangle text-danger"></i>
+                        <span>{{ _('图片加载失败') }}</span>
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary retry-load-btn">
+                                <i class="fas fa-redo me-1"></i>{{ _('重新加载') }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 底部操作栏 -->
+            <div class="dialog-actions">
+                {{ render_button(_('删除'), href=None, color='danger', icon='fas fa-trash', type='button', extra_class='dialog-delete-btn', size='', attrs='style="display: none;"') }}
+                {{ render_button(_('下载'), href=None, color='primary', icon='fas fa-download', type='button', extra_class='dialog-download-btn', size='') }}
+                {{ render_button(_('关闭'), href=None, color='secondary', icon='fas fa-times', type='button', extra_class='dialog-close-btn', size='') }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* 标准发票预览对话框样式 - 模仿确认组件设计 */
+.standard-invoice-preview-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1070; /* 高于 Bootstrap 模态框和确认对话框 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(3px);
+    opacity: 0;
+    transition: opacity 0.3s ease-out;
+}
+
+.standard-invoice-preview-dialog.show {
+    opacity: 1;
+}
+
+.standard-invoice-preview-dialog .dialog-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    cursor: pointer;
+}
+
+.standard-invoice-preview-dialog .dialog-container {
+    position: relative;
+    width: auto;
+    max-width: 95vw;
+    max-height: 95vh;
+    z-index: 1;
+    animation: slideInScale 0.3s ease-out;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.standard-invoice-preview-dialog .dialog-content {
+    background: #fff;
+    border-radius: 12px; /* 🔥 四角弧形 */
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    max-height: 95vh;
+    max-width: 95vw;
+    overflow: hidden;
+    min-width: 300px;
+    min-height: 200px;
+}
+
+/* 头部样式 */
+.standard-invoice-preview-dialog .dialog-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 12px 12px 0 0; /* 顶部圆角 */
+}
+
+.standard-invoice-preview-dialog .dialog-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #495057;
+    display: flex;
+    align-items: center;
+}
+
+.standard-invoice-preview-dialog .dialog-close-btn {
+    background: none;
+    border: none;
+    padding: 0.375rem;
+    cursor: pointer;
+    color: #6c757d;
+    font-size: 1.1rem;
+    border-radius: 50%;
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.standard-invoice-preview-dialog .dialog-close-btn:hover {
+    background: rgba(108, 117, 125, 0.1);
+    color: #495057;
+    transform: scale(1.1);
+}
+
+/* 文件信息栏样式 */
+.standard-invoice-preview-dialog .file-info-bar {
+    padding: 1rem 1.5rem;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-bottom: 1px solid #dee2e6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.standard-invoice-preview-dialog .file-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.standard-invoice-preview-dialog .file-name {
+    font-weight: 600;
+    color: #495057;
+    font-size: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.standard-invoice-preview-dialog .file-meta {
+    font-size: 0.875rem;
+    color: #6c757d;
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.standard-invoice-preview-dialog .file-actions {
+    flex-shrink: 0;
+}
+
+/* 图片预览区域样式 */
+.standard-invoice-preview-dialog .image-preview-container {
+    flex: 1;
+    overflow: hidden;
+    padding: 1rem;
+    background: #f8f9fa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.standard-invoice-preview-dialog .image-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+.standard-invoice-preview-dialog .preview-image {
+    max-width: calc(95vw - 2rem);
+    max-height: calc(95vh - 200px);
+    width: auto;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
+    cursor: zoom-in;
+    object-fit: contain;
+}
+
+.standard-invoice-preview-dialog .preview-image:hover {
+    transform: scale(1.02);
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.2);
+}
+
+.standard-invoice-preview-dialog .image-loading,
+.standard-invoice-preview-dialog .image-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 3rem 2rem;
+    color: #6c757d;
+    text-align: center;
+}
+
+.standard-invoice-preview-dialog .image-loading i {
+    font-size: 2.5rem;
+    color: #007bff;
+}
+
+.standard-invoice-preview-dialog .image-error i {
+    font-size: 2.5rem;
+    color: #dc3545;
+}
+
+.standard-invoice-preview-dialog .image-error span {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
+/* 底部操作栏样式 */
+.standard-invoice-preview-dialog .dialog-actions {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #e9ecef;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 0 0 12px 12px; /* 底部圆角 */
+}
+
+/* 🔥 标准化按钮样式 - 与确认组件保持一致 */
+.standard-invoice-preview-dialog .dialog-actions .btn {
+    min-width: 90px;
+    border-radius: 6px;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    transition: all 0.2s ease;
+    border-width: 1px;
+}
+
+/* PC端隐藏图标，只显示文字 */
+@media (min-width: 769px) {
+    .standard-invoice-preview-dialog .dialog-actions .btn .btn-icon {
+        display: none !important;
+    }
+}
+
+/* 移动端圆形图标按钮样式 - 使用标准按钮组件的圆形版本 */
+@media (max-width: 768px) {
+    .standard-invoice-preview-dialog .dialog-actions .btn {
+        width: 40px !important;
+        height: 40px !important;
+        min-width: 40px !important;
+        border-radius: 50% !important;
+        padding: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 16px !important;
+    }
+    
+    /* 移动端隐藏按钮文字，只显示图标 */
+    .standard-invoice-preview-dialog .dialog-actions .btn .btn-text {
+        display: none !important;
+    }
+    
+    .standard-invoice-preview-dialog .dialog-actions .btn .btn-icon {
+        margin: 0 !important;
+        font-size: 16px !important;
+        display: inline-block !important;
+    }
+}
+
+.standard-invoice-preview-dialog .dialog-actions .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.standard-invoice-preview-dialog .dialog-actions .btn:active {
+    transform: translateY(0);
+}
+
+/* 动画效果 */
+@keyframes slideInScale {
+    0% {
+        opacity: 0;
+        transform: scale(0.8) translateY(-30px);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .standard-invoice-preview-dialog .dialog-container {
+        width: 98vw;
+        max-width: 98vw;
+        max-height: 98vh;
+    }
+    
+    .standard-invoice-preview-dialog .dialog-content {
+        max-width: 98vw !important;
+        max-height: 98vh !important;
+        min-width: 280px;
+    }
+    
+    .standard-invoice-preview-dialog .dialog-header,
+    .standard-invoice-preview-dialog .file-info-bar,
+    .standard-invoice-preview-dialog .dialog-actions {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+    
+    .standard-invoice-preview-dialog .image-preview-container {
+        padding: 0.5rem;
+    }
+    
+    .standard-invoice-preview-dialog .preview-image {
+        max-width: calc(98vw - 1rem);
+        max-height: calc(98vh - 160px);
+    }
+    
+    .standard-invoice-preview-dialog .dialog-actions {
+        flex-direction: row;
+        justify-content: center;
+        gap: 1rem;
+    }
+}
+
+/* 深色模式支持 */
+@media (prefers-color-scheme: dark) {
+    .standard-invoice-preview-dialog .dialog-content {
+        background: #2d3748;
+        color: #e2e8f0;
+    }
+    
+    .standard-invoice-preview-dialog .dialog-header,
+    .standard-invoice-preview-dialog .file-info-bar,
+    .standard-invoice-preview-dialog .dialog-actions {
+        background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+        border-color: #4a5568;
+    }
+    
+    .standard-invoice-preview-dialog .image-preview-container {
+        background: #1a202c;
+    }
+    
+    .standard-invoice-preview-dialog .dialog-title {
+        color: #e2e8f0;
+    }
+    
+    .standard-invoice-preview-dialog .file-name {
+        color: #e2e8f0;
+    }
+    
+    .standard-invoice-preview-dialog .file-meta {
+        color: #a0aec0;
+    }
+}
+</style>
+
+<script>
+/**
+ * 标准化发票预览对话框功能
+ * 模仿确认组件的交互方式，提供统一的预览体验
+ */
+
+/**
+ * 显示发票预览对话框
+ * @param {string} imagePath - 图片路径
+ * @param {string} filename - 文件名
+ * @param {Object} fileInfo - 文件信息 {size, type, uploadTime, description}
+ * @param {string} dialogId - 对话框ID
+ */
+function showInvoicePreviewDialog(imagePath, filename, fileInfo = {}, dialogId = 'standardInvoicePreviewDialog', deleteInfo = null) {
+    console.log('🔥 通用预览组件被调用!', {imagePath, filename, fileInfo, dialogId, deleteInfo});
+    
+    const dialog = document.getElementById(dialogId);
+    if (!dialog) {
+        console.error(`发票预览对话框 ${dialogId} 不存在`);
+        return;
+    }
+    
+    console.log(`显示发票预览: ${filename}`, fileInfo);
+    
+    // 重置对话框状态
+    resetDialogState(dialog);
+    
+    // 更新文件信息
+    updateFileInfo(dialog, filename, fileInfo);
+    
+    // 加载图片
+    loadPreviewImage(dialog, imagePath, filename);
+    
+    // 设置下载链接
+    setupDownloadAction(dialog, imagePath, filename);
+    
+    // 🔥 设置删除功能
+    setupDeleteAction(dialog, deleteInfo);
+    
+    // 显示对话框
+    dialog.style.display = 'flex';
+    setTimeout(() => {
+        dialog.classList.add('show');
+    }, 10);
+    
+    // 设置关闭事件
+    setupCloseEvents(dialog);
+    
+    // 禁用页面滚动
+    document.body.style.overflow = 'hidden';
+}
+
+/**
+ * 重置对话框状态
+ */
+function resetDialogState(dialog) {
+    const previewImage = dialog.querySelector('.preview-image');
+    const loadingEl = dialog.querySelector('.image-loading');
+    const errorEl = dialog.querySelector('.image-error');
+    
+    previewImage.style.display = 'none';
+    loadingEl.style.display = 'flex';
+    errorEl.style.display = 'none';
+    
+    // 清除之前的图片
+    previewImage.src = '';
+}
+
+/**
+ * 更新文件信息显示
+ */
+function updateFileInfo(dialog, filename, fileInfo) {
+    const fileNameEl = dialog.querySelector('.file-name');
+    
+    // 更新文件名
+    fileNameEl.textContent = filename || '未知文件';
+    fileNameEl.title = filename || '未知文件';
+}
+
+/**
+ * 加载预览图片并根据图片尺寸调整对话框大小
+ */
+function loadPreviewImage(dialog, imagePath, filename) {
+    const previewImage = dialog.querySelector('.preview-image');
+    const loadingEl = dialog.querySelector('.image-loading');
+    const errorEl = dialog.querySelector('.image-error');
+    const retryBtn = dialog.querySelector('.retry-load-btn');
+    const dialogContent = dialog.querySelector('.dialog-content');
+    const dialogContainer = dialog.querySelector('.dialog-container');
+    
+    // 显示加载状态
+    loadingEl.style.display = 'flex';
+    errorEl.style.display = 'none';
+    previewImage.style.display = 'none';
+    
+    // 创建新的图片对象进行预加载
+    const img = new Image();
+    
+    img.onload = function() {
+        previewImage.src = imagePath;
+        previewImage.alt = filename || '发票预览';
+        
+        // 🔥 根据图片尺寸动态调整对话框大小
+        adjustDialogSize(dialog, img.naturalWidth, img.naturalHeight);
+        
+        loadingEl.style.display = 'none';
+        previewImage.style.display = 'block';
+        
+        console.log('图片加载成功:', filename, `尺寸: ${img.naturalWidth}x${img.naturalHeight}`);
+    };
+    
+    img.onerror = function() {
+        loadingEl.style.display = 'none';
+        errorEl.style.display = 'flex';
+        
+        console.error('图片加载失败:', imagePath);
+        console.error('图片加载错误详情:', {
+            src: img.src,
+            complete: img.complete,
+            naturalWidth: img.naturalWidth,
+            naturalHeight: img.naturalHeight
+        });
+        
+        // 🔥 尝试备用路径
+        const alternativePaths = [
+            imagePath.replace('/static/', '/'),  // 去掉/static/前缀
+            imagePath,  // 原路径
+            imagePath.replace('/static/uploads/', '/uploads/'),  // 修改路径格式
+        ];
+        
+        let pathIndex = 0;
+        const tryNextPath = () => {
+            if (pathIndex < alternativePaths.length) {
+                const nextPath = alternativePaths[pathIndex++];
+                console.log(`尝试备用路径 ${pathIndex}:`, nextPath);
+                
+                const testImg = new Image();
+                testImg.onload = () => {
+                    console.log('✅ 备用路径成功:', nextPath);
+                    previewImage.src = nextPath;
+                    loadingEl.style.display = 'none';
+                    errorEl.style.display = 'none';
+                    previewImage.style.display = 'block';
+                    // 根据图片尺寸调整对话框大小
+                    adjustDialogSize(dialog, testImg.naturalWidth, testImg.naturalHeight);
+                };
+                testImg.onerror = tryNextPath;
+                testImg.src = nextPath;
+            } else {
+                console.error('所有备用路径都失败了');
+                // 设置重试按钮
+                retryBtn.onclick = () => {
+                    console.log('手动重试加载图片:', imagePath);
+                    loadPreviewImage(dialog, imagePath, filename);
+                };
+            }
+        };
+        
+        // 开始尝试备用路径
+        tryNextPath();
+    };
+    
+    // 开始加载
+    img.src = imagePath;
+    
+    // 设置超时处理
+    setTimeout(() => {
+        if (img.complete === false) {
+            console.warn('图片加载超时:', imagePath);
+            img.onerror();
+        }
+    }, 10000); // 10秒超时
+}
+
+/**
+ * 🔥 根据图片尺寸动态调整对话框大小
+ */
+function adjustDialogSize(dialog, imageWidth, imageHeight) {
+    const dialogContent = dialog.querySelector('.dialog-content');
+    const dialogContainer = dialog.querySelector('.dialog-container');
+    
+    // 获取视窗尺寸
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    // 预留空间给头部、文件信息栏和按钮区域
+    const reservedHeight = 160; // 约160px给UI元素
+    const reservedWidth = 40;   // 左右预留空间
+    
+    // 计算可用空间
+    const maxWidth = Math.min(viewportWidth - reservedWidth, viewportWidth * 0.95);
+    const maxHeight = Math.min(viewportHeight - reservedHeight, viewportHeight * 0.95);
+    
+    // 计算图片显示尺寸，保持宽高比
+    let displayWidth = imageWidth;
+    let displayHeight = imageHeight;
+    
+    // 如果图片太大，等比缩放
+    if (displayWidth > maxWidth) {
+        const ratio = maxWidth / displayWidth;
+        displayWidth = maxWidth;
+        displayHeight = displayHeight * ratio;
+    }
+    
+    if (displayHeight > maxHeight - reservedHeight) {
+        const ratio = (maxHeight - reservedHeight) / displayHeight;
+        displayHeight = maxHeight - reservedHeight;
+        displayWidth = displayWidth * ratio;
+    }
+    
+    // 确保最小尺寸
+    displayWidth = Math.max(displayWidth, 300);
+    displayHeight = Math.max(displayHeight, 200);
+    
+    // 设置对话框内容尺寸
+    dialogContent.style.width = `${displayWidth + 32}px`; // +32px for padding
+    dialogContent.style.height = `${displayHeight + reservedHeight}px`;
+    
+    console.log(`调整对话框尺寸: ${displayWidth}x${displayHeight} (原图: ${imageWidth}x${imageHeight})`);
+}
+
+/**
+ * 设置下载功能
+ */
+function setupDownloadAction(dialog, imagePath, filename) {
+    const downloadBtns = dialog.querySelectorAll('.dialog-download-btn');
+    
+    downloadBtns.forEach(btn => {
+        // 移除之前的事件监听器
+        btn.replaceWith(btn.cloneNode(true));
+        const newBtn = dialog.querySelector('.dialog-download-btn');
+        
+        newBtn.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            console.log('开始下载文件:', filename);
+            
+            try {
+                const link = document.createElement('a');
+                link.href = imagePath;
+                link.download = filename || 'invoice';
+                link.style.display = 'none';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // 显示下载提示
+                if (typeof showSuccessMessage === 'function') {
+                    showSuccessMessage(`文件 "${filename}" 下载已开始`);
+                }
+            } catch (error) {
+                console.error('下载失败:', error);
+                if (typeof showErrorMessage === 'function') {
+                    showErrorMessage('文件下载失败，请重试');
+                } else {
+                    alert('文件下载失败，请重试');
+                }
+            }
+        };
+    });
+}
+
+/**
+ * 设置关闭事件
+ */
+function setupCloseEvents(dialog) {
+    const overlay = dialog.querySelector('.dialog-overlay');
+    const closeBtns = dialog.querySelectorAll('.dialog-close-btn');
+    
+    // 移除之前的事件监听器
+    const newOverlay = overlay.cloneNode(true);
+    overlay.replaceWith(newOverlay);
+    
+    // 点击遮罩层关闭
+    newOverlay.onclick = (e) => {
+        if (e.target === newOverlay) {
+            hideInvoicePreviewDialog(dialog);
+        }
+    };
+    
+    // 点击关闭按钮
+    closeBtns.forEach(btn => {
+        const newBtn = btn.cloneNode(true);
+        btn.replaceWith(newBtn);
+        
+        newBtn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            hideInvoicePreviewDialog(dialog);
+        };
+    });
+    
+    // ESC键关闭
+    const escHandler = (e) => {
+        if (e.key === 'Escape') {
+            hideInvoicePreviewDialog(dialog);
+            document.removeEventListener('keydown', escHandler);
+        }
+    };
+    
+    // 移除之前的ESC事件监听器，添加新的
+    document.removeEventListener('keydown', dialog._escHandler);
+    dialog._escHandler = escHandler;
+    document.addEventListener('keydown', escHandler);
+}
+
+/**
+ * 隐藏对话框
+ */
+function hideInvoicePreviewDialog(dialog) {
+    console.log('关闭发票预览对话框');
+    
+    dialog.classList.remove('show');
+    
+    setTimeout(() => {
+        dialog.style.display = 'none';
+        // 恢复页面滚动
+        document.body.style.overflow = '';
+        
+        // 清理事件监听器
+        if (dialog._escHandler) {
+            document.removeEventListener('keydown', dialog._escHandler);
+            dialog._escHandler = null;
+        }
+    }, 300);
+}
+
+/**
+ * 工具函数：格式化文件大小
+ */
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    if (!bytes) return '未知大小';
+    
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    if (i >= sizes.length) return '文件过大';
+    
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+/**
+ * 工具函数：格式化日期时间
+ */
+function formatDateTime(dateString) {
+    if (!dateString) return '未知时间';
+    
+    try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return '无效时间';
+        
+        const now = new Date();
+        const diff = now - date;
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        
+        if (days === 0) {
+            return '今天 ' + date.toLocaleTimeString();
+        } else if (days === 1) {
+            return '昨天 ' + date.toLocaleTimeString();
+        } else if (days < 7) {
+            return days + '天前';
+        } else {
+            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+        }
+    } catch (error) {
+        console.error('日期格式化失败:', error);
+        return '时间格式错误';
+    }
+}
+
+/**
+ * 设置删除功能
+ */
+function setupDeleteAction(dialog, deleteInfo) {
+    const deleteBtn = dialog.querySelector('.dialog-delete-btn');
+    
+    if (!deleteBtn) {
+        console.log('预览对话框中没有找到删除按钮');
+        return;
+    }
+    
+    if (deleteInfo) {
+        // 有删除信息，显示删除按钮并绑定事件
+        deleteBtn.style.display = 'inline-flex';
+        
+        // 移除之前的事件监听器
+        const newDeleteBtn = deleteBtn.cloneNode(true);
+        deleteBtn.parentNode.replaceChild(newDeleteBtn, deleteBtn);
+        
+        // 绑定删除事件
+        newDeleteBtn.addEventListener('click', function() {
+            console.log('删除按钮被点击，删除信息:', deleteInfo);
+            
+            // 调用ExpenseDetailManager的删除方法
+            if (window.expenseDetailManager && typeof window.expenseDetailManager.deleteInvoice === 'function') {
+                window.expenseDetailManager.deleteInvoice(deleteInfo);
+                hideInvoicePreviewDialog(dialog.id);
+            } else {
+                console.error('无法找到删除发票的方法');
+            }
+        });
+        
+        console.log('删除按钮已启用，删除信息:', deleteInfo);
+    } else {
+        // 没有删除信息，隐藏删除按钮
+        deleteBtn.style.display = 'none';
+        console.log('没有删除信息，隐藏删除按钮');
+    }
+}
+
+// 暴露全局函数供其他脚本调用
+window.showInvoicePreviewDialog = showInvoicePreviewDialog;
+window.hideInvoicePreviewDialog = hideInvoicePreviewDialog;
 </script>
 {% endmacro %}
 

@@ -36,12 +36,14 @@ class ApprovalActionType:
     AUTHORIZATION = "authorization"  # 授权动作
     QUOTATION_APPROVAL = "quotation_approval"  # 报价审核动作
     EMAIL_CC = "email_cc"  # 邮件抄送动作
+    PAYMENT_PROCESSING = "payment_processing"  # 支付处理动作
     
     # 动作类型标签
     ACTION_TYPE_LABELS = {
         'authorization': {'zh': '授权审批', 'en': 'Authorization'},
         'quotation_approval': {'zh': '报价审核', 'en': 'Quotation Approval'},
-        'email_cc': {'zh': '邮件抄送', 'en': 'Email CC'}
+        'email_cc': {'zh': '邮件抄送', 'en': 'Email CC'},
+        'payment_processing': {'zh': '支付处理', 'en': 'Payment Processing'}
     }
     
     @classmethod
@@ -113,6 +115,8 @@ class ApprovalStep(db.Model):
             return self._execute_quotation_approval(approval_record, target_object)
         elif self.action_type == ApprovalActionType.AUTHORIZATION:
             return self._execute_authorization(approval_record, target_object)
+        elif self.action_type == ApprovalActionType.PAYMENT_PROCESSING:
+            return self._execute_payment_processing(approval_record, target_object)
         return True
 
     def _execute_quotation_approval(self, approval_record, quotation):
@@ -160,6 +164,63 @@ class ApprovalStep(db.Model):
             print(f"执行授权动作失败: {str(e)}")
             return False
 
+    def _execute_payment_processing(self, approval_record, target_object):
+        """执行支付处理动作"""
+        try:
+            # 目前主要支持报销单的支付处理
+            if target_object.__class__.__name__ == 'Expense':
+                return self._process_expense_payment(approval_record, target_object)
+            else:
+                # 其他对象类型的支付处理可以在此扩展
+                print(f"不支持的支付处理对象类型: {target_object.__class__.__name__}")
+                return True
+        except Exception as e:
+            print(f"执行支付处理动作失败: {str(e)}")
+            return False
+
+    def _process_expense_payment(self, approval_record, expense):
+        """处理报销单支付"""
+        from app.utils.time_utils import get_local_time
+        
+        if approval_record.action == 'approve':
+            # 确认支付
+            expense.status = 'paid'
+            if hasattr(expense, 'payment_status'):
+                expense.payment_status = 'paid'
+            if hasattr(expense, 'payment_date'):
+                expense.payment_date = get_local_time()
+            if hasattr(expense, 'paid_by'):
+                expense.paid_by = approval_record.approver_id
+            
+            # 从评论中解析支付信息（如果有的话）
+            if approval_record.comment:
+                payment_info = self._parse_payment_info(approval_record.comment)
+                if hasattr(expense, 'payment_amount') and payment_info.get('amount'):
+                    expense.payment_amount = float(payment_info['amount'])
+                if hasattr(expense, 'payment_method') and payment_info.get('method'):
+                    expense.payment_method = payment_info['method']
+                if hasattr(expense, 'payment_reference') and payment_info.get('reference'):
+                    expense.payment_reference = payment_info['reference']
+                if hasattr(expense, 'payment_notes') and payment_info.get('notes'):
+                    expense.payment_notes = payment_info['notes']
+        else:
+            # 拒绝支付，转回待支付状态
+            expense.status = 'awaiting_payment'
+            if hasattr(expense, 'payment_status'):
+                expense.payment_status = 'awaiting'
+        
+        return True
+
+    def _parse_payment_info(self, comment):
+        """从评论中解析支付信息"""
+        try:
+            import json
+            # 尝试解析JSON格式的支付信息
+            return json.loads(comment)
+        except (json.JSONDecodeError, ValueError):
+            # 如果不是JSON格式，返回空字典
+            return {}
+
 
 class ApprovalInstance(db.Model):
     """流程实例"""
@@ -205,6 +266,7 @@ class ApprovalInstance(db.Model):
             # 快照数据（字典列表）
             if isinstance(steps[0], dict):
                 for step in steps:
+                    # current_step存储的是step_order，用step_order匹配
                     if step.get('step_order') == self.current_step:
                         return step
             # 模型对象列表

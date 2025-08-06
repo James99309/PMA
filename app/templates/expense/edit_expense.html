@@ -1,11 +1,10 @@
 {% extends "base.html" %}
 {% from 'macros/expense_detail_manager.html' import render_expense_detail_table, init_expense_detail_scripts %}
-{% from 'macros/ui_helpers.html' import render_button, render_expense_status_badge, render_expense_number, render_confirm_dialog %}
+{% from 'macros/ui_helpers.html' import render_button, render_expense_status_badge, render_expense_number, render_confirm_dialog, render_invoice_preview_dialog %}
 {% from 'macros/project_search.html' import render_project_search, init_project_search_scripts %}
 {% from 'macros/customer_search.html' import render_customer_search, init_customer_search_scripts %}
-{% from 'macros/hover_preview.html' import render_hover_preview_container %}
 
-{% block title %}编辑报销单 - {{ expense.expense_number }}{% endblock %}
+{% block title %}{{ _('编辑报销单') }} - {{ expense.expense_number }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid page-with-fixed-nav">
@@ -42,8 +41,8 @@
         <div class="d-flex align-items-center">
             <i class="fas fa-info-circle me-2 fs-5"></i>
             <div>
-                <strong>审核阶段编辑模式</strong><br>
-                <small>当前审核阶段：{{ approval_edit_info.step_name }} | 可编辑字段：{{ approval_edit_info.editable_fields|join(', ') }}</small>
+                <strong>{{ _('审核阶段编辑模式') }}</strong><br>
+                <small>{{ _('当前审核阶段') }}：{{ approval_edit_info.step_name }} | {{ _('可编辑字段') }}：{{ approval_edit_info.editable_fields|join(', ') }}</small>
             </div>
         </div>
     </div>
@@ -64,25 +63,22 @@
                     <div class="row">
                         <!-- 报销主题 -->
                         <div class="col-md-6 mb-3">
-                            <label for="title" class="form-label">报销主题</label>
+                            <label for="title" class="form-label">{{ _('报销主题') }}</label>
                             <input type="text" class="form-control" 
                                    id="title" name="title" 
-                                   placeholder="默认客户名称-账号-YYDDHHS"
+                                   placeholder="{{ _('默认客户名称-账号-YYDDHHS') }}"
                                    value="{{ request.form.get('title', expense.title or '') }}"
                                    {% if approval_edit_mode and approval_edit_info and 'title' not in approval_edit_info.editable_fields %}readonly{% endif %}>
                         </div>
 
                         <!-- 货币类型 -->
                         <div class="col-md-6 mb-3">
-                            <label for="currency" class="form-label">货币类型 <span class="text-danger">*</span></label>
+                            <label for="currency" class="form-label">{{ _('货币类型') }} <span class="text-danger">*</span></label>
                             <select class="form-select" id="currency" name="currency" required
                                     {% if approval_edit_mode and approval_edit_info and 'currency' not in approval_edit_info.editable_fields %}disabled{% endif %}>
-                                <option value="CNY" {% if expense.currency == 'CNY' %}selected{% endif %}>人民币 (CNY)</option>
-                                <option value="USD" {% if expense.currency == 'USD' %}selected{% endif %}>美元 (USD)</option>
-                                <option value="SGD" {% if expense.currency == 'SGD' %}selected{% endif %}>新加坡元 (SGD)</option>
-                                <option value="MYR" {% if expense.currency == 'MYR' %}selected{% endif %}>马来西亚林吉特 (MYR)</option>
-                                <option value="IDR" {% if expense.currency == 'IDR' %}selected{% endif %}>印尼盾 (IDR)</option>
-                                <option value="THB" {% if expense.currency == 'THB' %}selected{% endif %}>泰铢 (THB)</option>
+                                {% for value, label in currency_options %}
+                                <option value="{{ value }}" {% if expense.currency == value %}selected{% endif %}>{{ _(label) }} ({{ value }})</option>
+                                {% endfor %}
                             </select>
                         </div>
                     </div>
@@ -100,8 +96,8 @@
                                 "customer_id_field": "customer_id",  
                                 "customer_id_name": "customer_id",
                                 "data_element_id": "customerSearchConfig",
-                                "label": "关联客户",
-                                "placeholder": "输入公司名称进行搜索...",
+                                "label": _('关联客户'),
+                                "placeholder": _('输入公司名称进行搜索...'),
                                 "api_endpoints": {
                                     "search": "/api/export-helpers/customers/search"
                                 },
@@ -147,8 +143,8 @@
                                 "project_id_field": "project_id",
                                 "project_id_name": "project_id",
                                 "data_element_id": "projectSearchConfig",
-                                "label": "关联项目",
-                                "placeholder": "输入项目名称进行搜索...",
+                                "label": _('关联项目'),
+                                "placeholder": _('输入项目名称进行搜索...'),
                                 "show_component_badge": false,
                                 "api_endpoints": {
                                     "search": "/api/v1/search/projects/for-expense",
@@ -195,24 +191,24 @@
                     <div class="row">
                         <!-- 联系人 -->
                         <div class="col-md-6 mb-3">
-                            <label for="contact_id" class="form-label">联系人 <span class="text-danger">*</span></label>
+                            <label for="contact_id" class="form-label">{{ _('联系人') }} <span class="text-danger">*</span></label>
                             <select class="form-select" id="contact_id" name="contact_id" required
                                     {% if approval_edit_mode and approval_edit_info and 'contact_id' not in approval_edit_info.editable_fields %}disabled{% endif %}>
                                 {% if expense.contact %}
                                     <option value="{{ expense.contact.id }}" selected>{{ expense.contact.name }}{% if expense.contact.position %} ({{ expense.contact.position }}){% endif %}</option>
                                 {% else %}
-                                    <option value="">请先选择关联客户</option>
+                                    <option value="">{{ _('请先选择关联客户') }}</option>
                                 {% endif %}
                             </select>
                         </div>
 
                         <!-- 报销说明 -->
                         <div class="col-md-6 mb-3">
-                            <label for="description" class="form-label">报销说明</label>
+                            <label for="description" class="form-label">{{ _('报销说明') }}</label>
                             <textarea class="form-control" 
                                       id="description" name="description" 
                                       rows="4" 
-                                      placeholder="请描述报销的背景、目的等总体说明"
+                                      placeholder="{{ _('请描述报销的背景、目的等总体说明') }}"
                                       style="resize: vertical;"
                                       {% if approval_edit_mode and approval_edit_info and 'description' not in approval_edit_info.editable_fields %}readonly{% endif %}>{{ request.form.get('description', expense.description or '') }}</textarea>
                         </div>
@@ -221,6 +217,15 @@
                     <div class="section-divider"></div>
                     
                     <!-- 第二部分：报销明细管理 -->
+                    <script>
+// 货币选项配置
+var currency_list = [
+    {% for value, label in currency_options %}
+    {"value": "{{ value }}", "label": "{{ _(label) }}"}{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+</script>
+
                     {# 报销明细配置 #}
                     {% set expense_config = {
                         "table_id": "expenseTable",
@@ -231,91 +236,85 @@
                         "approval_edit_mode": approval_edit_mode,
                         "approval_edit_info": approval_edit_info,
                         "categories": [
-                            {"value": "entertainment", "label": "招待费", "color": "#ff6b6b"},
-                            {"value": "local_transport", "label": "市内交通", "color": "#4ecdc4"},
-                            {"value": "travel_accommodation", "label": "差旅住宿", "color": "#45b7d1"},
-                            {"value": "office_supplies", "label": "办公用品", "color": "#96ceb4"},
-                            {"value": "communication", "label": "通讯费", "color": "#ffeaa7"},
-                            {"value": "fuel", "label": "油费", "color": "#dda0dd"},
-                            {"value": "parking", "label": "停车费", "color": "#98d8c8"},
-                            {"value": "meals", "label": "餐费", "color": "#f7dc6f"},
-                            {"value": "other", "label": "其他", "color": "#aab7b8"}
+                            {"value": "entertainment", "label": _('招待费'), "color": "#ff6b6b"},
+                            {"value": "local_transport", "label": _('市内交通'), "color": "#4ecdc4"},
+                            {"value": "travel_accommodation", "label": _('差旅住宿'), "color": "#45b7d1"},
+                            {"value": "office_supplies", "label": _('办公用品'), "color": "#96ceb4"},
+                            {"value": "communication", "label": _('通讯费'), "color": "#ffeaa7"},
+                            {"value": "fuel", "label": _('油费'), "color": "#dda0dd"},
+                            {"value": "parking", "label": _('停车费'), "color": "#98d8c8"},
+                            {"value": "meals", "label": _('餐费'), "color": "#f7dc6f"},
+                            {"value": "other", "label": _('其他'), "color": "#aab7b8"}
                         ],
+                        "currency_options": "currency_list",
                         "columns": [
                             {
                                 "key": "expense_category",
-                                "label": "报销科目",
+                                "label": _('报销科目'),
                                 "type": "select",
                                 "required": true,
                                 "width": "120px"
                             },
                             {
                                 "key": "expense_date",
-                                "label": "发生日期",
+                                "label": _('发生日期'),
                                 "type": "date",
                                 "required": true,
                                 "width": "130px"
                             },
                             {
                                 "key": "description",
-                                "label": "费用描述",
+                                "label": _('费用描述'),
                                 "type": "text",
                                 "required": true,
                                 "width": "350px"
                             },
                             {
                                 "key": "document_count",
-                                "label": "单据数量",
+                                "label": _('单据数量'),
                                 "type": "number",
                                 "required": false,
                                 "width": "80px"
                             },
                             {
                                 "key": "currency",
-                                "label": "发票货币",
+                                "label": _('发票货币'),
                                 "type": "select",
                                 "required": true,
                                 "width": "120px",
-                                "options": [
-                                    {"value": "CNY", "label": "人民币"},
-                                    {"value": "USD", "label": "美元"},
-                                    {"value": "SGD", "label": "新元"},
-                                    {"value": "MYR", "label": "林吉特"},
-                                    {"value": "IDR", "label": "印尼盾"},
-                                    {"value": "THB", "label": "泰铢"}
-                                ]
+                                "options": "currency_list"
                             },
                             {
                                 "key": "invoice_amount",
-                                "label": "发票金额",
+                                "label": _('发票金额'),
                                 "type": "text-currency",
                                 "required": true,
                                 "width": "120px"
                             },
                             {
                                 "key": "exchange_rate",
-                                "label": "汇率",
+                                "label": _('汇率'),
                                 "type": "exchange_rate_input",
                                 "required": false,
                                 "width": "100px"
                             },
                             {
                                 "key": "current_amount",
-                                "label": "报销金额",
+                                "label": _('报销金额'),
                                 "type": "currency_display",
                                 "required": false,
                                 "width": "120px"
                             },
                             {
                                 "key": "invoice_images",
-                                "label": "发票",
+                                "label": _('发票'),
                                 "type": "invoice_display",
                                 "required": false,
                                 "width": "180px"
                             },
                             {
                                 "key": "actions",
-                                "label": "操作",
+                                "label": _('操作'),
                                 "type": "actions_with_invoice",
                                 "width": "120px"
                             }
@@ -452,6 +451,32 @@
 {{ init_customer_search_scripts() }}
 
 <script>
+// 国际化文本定义
+window.i18nTexts = {
+    saving: '{{ _("保存中...") }}',
+    clickToSave: '{{ _("点击保存修改") }}',
+    cannotSave: '{{ _("无法保存: ") }}',
+    pleaseSelectCustomer: '{{ _("请选择关联客户") }}',
+    pleaseSelectContact: '{{ _("请选择联系人") }}',
+    pleaseKeepOneDetail: '{{ _("请至少保留一条报销明细") }}',
+    componentNotInitialized: '{{ _("报销明细组件未正确初始化") }}',
+    amountMustBeGreaterThanZero: '{{ _("第{index}条明细的金额必须大于0") }}',
+    saveFailed: '{{ _("保存失败") }}',
+    serverResponseFormatError: '{{ _("服务器响应格式错误：") }}',
+    saveFailedWithStatus: '{{ _("保存失败 ({status}): 服务器内部错误") }}',
+    saveFailedPrefix: '{{ _("保存失败：") }}',
+    loading: '{{ _("加载中...") }}',
+    noContactsForCustomer: '{{ _("该客户暂无联系人") }}',
+    loadContactsFailed: '{{ _("加载联系人失败") }}',
+    pleaseSelectCustomerFirst: '{{ _("请先选择关联客户") }}',
+    apiRequestFailed: '{{ _("API请求失败: {status}") }}',
+    approvalEditFieldNotEditable: '{{ _("审核阶段此字段不可编辑") }}',
+    editableInCurrentStage: '{{ _("可在当前审核阶段编辑") }}',
+    approvalEditNotAllowed: '{{ _("审核阶段不可进行此操作") }}',
+    cannotUploadInApproval: '{{ _("审核阶段不可上传发票") }}',
+    editableExchangeRate: '{{ _("可在当前审核阶段编辑汇率") }}'
+};
+
 document.addEventListener('DOMContentLoaded', function() {
     // 表单提交验证和AJAX提交
     document.getElementById('expenseForm').addEventListener('submit', function(e) {
@@ -546,16 +571,16 @@ document.addEventListener('DOMContentLoaded', function() {
             if (shouldEnable) {
                 submitBtn.classList.remove('btn-secondary');
                 submitBtn.classList.add('btn-primary');
-                submitBtn.title = '点击保存修改';
+                submitBtn.title = window.i18nTexts.clickToSave;
             } else {
                 submitBtn.classList.remove('btn-primary'); 
                 submitBtn.classList.add('btn-secondary');
                 
                 let reasons = [];
-                if (!hasCustomer) reasons.push('请选择关联客户');
-                if (!hasContact) reasons.push('请选择联系人');
-                if (!hasValidDetails) reasons.push('请至少保留一条报销明细');
-                submitBtn.title = '无法保存: ' + reasons.join(', ');
+                if (!hasCustomer) reasons.push(window.i18nTexts.pleaseSelectCustomer);
+                if (!hasContact) reasons.push(window.i18nTexts.pleaseSelectContact);
+                if (!hasValidDetails) reasons.push(window.i18nTexts.pleaseKeepOneDetail);
+                submitBtn.title = window.i18nTexts.cannotSave + reasons.join(', ');
             }
         }
         
@@ -601,7 +626,7 @@ function validateExpenseForm() {
     {% else %}
     // 验证客户搜索组件
     if (!customerIdInput.value) {
-        alert('请选择关联客户');
+        alert(window.i18nTexts.pleaseSelectCustomer);
         const customerSearchInput = document.getElementById('customerSearch');
         if (customerSearchInput) {
             customerSearchInput.focus();
@@ -611,7 +636,7 @@ function validateExpenseForm() {
     
     // 验证联系人
     if (!contactIdInput.value) {
-        alert('请选择联系人');
+        alert(window.i18nTexts.pleaseSelectContact);
         contactIdInput.focus();
         return false;
     }
@@ -619,7 +644,7 @@ function validateExpenseForm() {
     
     // 验证明细数据
     if (!window.expenseDetailManager) {
-        alert('报销明细组件未正确初始化');
+        alert(window.i18nTexts.componentNotInitialized);
         return false;
     }
     
@@ -628,7 +653,7 @@ function validateExpenseForm() {
     console.log('[DEBUG] 审核编辑模式，简化明细验证');
     const expenseDetails = window.expenseDetailManager.getAllData();
     if (expenseDetails.length === 0) {
-        alert('请至少保留一条报销明细');
+        alert(window.i18nTexts.pleaseKeepOneDetail);
         return false;
     }
     {% else %}
@@ -641,7 +666,7 @@ function validateExpenseForm() {
     
     const expenseDetails = window.expenseDetailManager.getAllData();
     if (expenseDetails.length === 0) {
-        alert('请至少保留一条报销明细');
+        alert(window.i18nTexts.pleaseKeepOneDetail);
         return false;
     }
     {% endif %}
@@ -657,7 +682,7 @@ async function submitExpenseFormWithFiles() {
     
     try {
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>保存中...';
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>' + window.i18nTexts.saving;
         
         // 创建FormData对象
         const formData = new FormData();
@@ -688,7 +713,7 @@ async function submitExpenseFormWithFiles() {
             
             // 验证金额必须大于0
             if (invoiceAmount <= 0 || currentAmount <= 0) {
-                throw new Error(`第${index + 1}条明细的金额必须大于0`);
+                throw new Error(window.i18nTexts.amountMustBeGreaterThanZero.replace('{index}', index + 1));
             }
             
             formData.append(`details[${index}][currency]`, detail.currency || 'CNY');
@@ -745,7 +770,7 @@ async function submitExpenseFormWithFiles() {
                     // 成功，跳转到详情页
                     window.location.href = result.redirect_url;
                 } else {
-                    throw new Error(result.message || '保存失败');
+                    throw new Error(result.message || window.i18nTexts.saveFailed);
                 }
             } catch (jsonError) {
                 console.error('JSON解析失败:', jsonError);
@@ -753,22 +778,22 @@ async function submitExpenseFormWithFiles() {
                 if (responseText.includes('<html') || responseText.includes('<!DOCTYPE')) {
                     window.location.reload();
                 } else {
-                    throw new Error('服务器响应格式错误：' + jsonError.message);
+                    throw new Error(window.i18nTexts.serverResponseFormatError + jsonError.message);
                 }
             }
         } else {
             console.error('HTTP错误:', response.status, response.statusText);
             try {
                 const errorResult = JSON.parse(responseText);
-                throw new Error(errorResult.message || '保存失败');
+                throw new Error(errorResult.message || window.i18nTexts.saveFailed);
             } catch (jsonError) {
-                throw new Error(`保存失败 (${response.status}): 服务器内部错误`);
+                throw new Error(window.i18nTexts.saveFailedWithStatus.replace('{status}', response.status));
             }
         }
         
     } catch (error) {
         console.error('提交失败:', error);
-        alert('保存失败：' + error.message);
+        alert(window.i18nTexts.saveFailedPrefix + error.message);
         
         // 恢复按钮状态
         submitBtn.disabled = false;
@@ -781,7 +806,7 @@ async function loadCustomerContacts(customerId) {
     const contactSelect = document.getElementById('contact_id');
     
     try {
-        contactSelect.innerHTML = '<option value="">加载中...</option>';
+        contactSelect.innerHTML = '<option value="">' + window.i18nTexts.loading + '</option>';
         contactSelect.disabled = true;
         
         const response = await fetch(`/api/customers/${customerId}/contacts`, {
@@ -794,12 +819,12 @@ async function loadCustomerContacts(customerId) {
         });
         
         if (!response.ok) {
-            throw new Error(`API请求失败: ${response.status}`);
+            throw new Error(window.i18nTexts.apiRequestFailed.replace('{status}', response.status));
         }
         
         const data = await response.json();
         
-        contactSelect.innerHTML = '<option value="">请选择联系人</option>';
+        contactSelect.innerHTML = '<option value="">' + window.i18nTexts.pleaseSelectContact + '</option>';
         
         if (data.contacts && data.contacts.length > 0) {
             data.contacts.forEach(contact => {
@@ -816,13 +841,13 @@ async function loadCustomerContacts(customerId) {
             });
             contactSelect.disabled = false;
         } else {
-            contactSelect.innerHTML = '<option value="">该客户暂无联系人</option>';
+            contactSelect.innerHTML = '<option value="">' + window.i18nTexts.noContactsForCustomer + '</option>';
             contactSelect.disabled = true;
         }
         
     } catch (error) {
         console.error('加载联系人失败:', error);
-        contactSelect.innerHTML = '<option value="">加载联系人失败</option>';
+        contactSelect.innerHTML = '<option value="">' + window.i18nTexts.loadContactsFailed + '</option>';
         contactSelect.disabled = true;
     }
 }
@@ -830,7 +855,7 @@ async function loadCustomerContacts(customerId) {
 // 清空联系人选择
 function clearContactSelection() {
     const contactSelect = document.getElementById('contact_id');
-    contactSelect.innerHTML = '<option value="">请先选择关联客户</option>';
+    contactSelect.innerHTML = '<option value="">' + window.i18nTexts.pleaseSelectCustomerFirst + '</option>';
     contactSelect.disabled = true;
 }
 </script>
@@ -855,14 +880,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     field.readOnly = true;
                 }
                 field.style.backgroundColor = '#f8f9fa';
-                field.title = '审核阶段此字段不可编辑';
+                field.title = window.i18nTexts.approvalEditFieldNotEditable;
             }
         } else {
             // 如果字段可编辑，添加高亮提示
             const field = document.querySelector(`[name="${fieldName}"]`);
             if (field) {
                 field.style.backgroundColor = '#fff3cd';
-                field.title = '可在当前审核阶段编辑';
+                field.title = window.i18nTexts.editableInCurrentStage;
             }
         }
     });
@@ -874,7 +899,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (customerSearchInput) {
             customerSearchInput.readOnly = true;
             customerSearchInput.style.backgroundColor = '#f8f9fa';
-            customerSearchInput.title = '审核阶段此字段不可编辑';
+            customerSearchInput.title = window.i18nTexts.approvalEditFieldNotEditable;
         }
         if (customerClearBtn) {
             customerClearBtn.disabled = true;
@@ -889,7 +914,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (projectSearchInput) {
             projectSearchInput.readOnly = true;
             projectSearchInput.style.backgroundColor = '#f8f9fa';
-            projectSearchInput.title = '审核阶段此字段不可编辑';
+            projectSearchInput.title = window.i18nTexts.approvalEditFieldNotEditable;
         }
         if (projectClearBtn) {
             projectClearBtn.disabled = true;
@@ -915,11 +940,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         input.readOnly = true;
                     }
                     input.style.backgroundColor = '#f8f9fa';
-                    input.title = '审核阶段此字段不可编辑';
+                    input.title = window.i18nTexts.approvalEditFieldNotEditable;
                 } else {
                     // 如果字段可编辑，添加高亮提示
                     input.style.backgroundColor = '#fff3cd';
-                    input.title = '可在当前审核阶段编辑';
+                    input.title = window.i18nTexts.editableInCurrentStage;
                 }
             });
         });
@@ -934,7 +959,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 // 如果可以编辑汇率，添加特殊提示
                 input.style.backgroundColor = '#fff3cd';
-                input.title = '可在当前审核阶段编辑汇率';
+                input.title = window.i18nTexts.editableExchangeRate;
             }
         });
         
@@ -943,7 +968,7 @@ document.addEventListener('DOMContentLoaded', function() {
         actionButtons.forEach(btn => {
             btn.disabled = true;
             btn.style.opacity = '0.3';
-            btn.title = '审核阶段不可进行此操作';
+            btn.title = window.i18nTexts.approvalEditNotAllowed;
         });
         
         // 隐藏添加明细按钮（已在宏中处理，这里作为备用）
@@ -956,7 +981,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const invoiceUploadInputs = document.querySelectorAll('input[type="file"][name*="invoice"]');
         invoiceUploadInputs.forEach(input => {
             input.disabled = true;
-            input.title = '审核阶段不可上传发票';
+            input.title = window.i18nTexts.cannotUploadInApproval;
         });
         
         console.log('[DEBUG] 报销明细字段控制完成');
@@ -965,16 +990,15 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 {% endif %}
 
-<!-- 悬停图片预览容器 -->
-{{ render_hover_preview_container() }}
+<!-- 标准化发票预览组件 -->
+{{ render_invoice_preview_dialog('editExpenseInvoicePreview') }}
 
-<script src="{{ url_for('static', filename='js/hover-preview.js') }}"></script>
 
 <!-- 状态警告 -->
 {% if expense.status not in ['draft', 'pending'] %}
 <div class="alert alert-warning mt-3" role="alert">
     <i class="fas fa-exclamation-triangle me-2"></i>
-    <strong>注意：</strong>此报销单状态为"{{ render_expense_status_badge(expense.status)|striptags }}"，某些功能可能受限。
+    <strong>{{ _('注意') }}：</strong>{{ _('此报销单状态为') }}"{{ render_expense_status_badge(expense.status)|striptags }}"{{ _('，某些功能可能受限。') }}
 </div>
 {% endif %}
 

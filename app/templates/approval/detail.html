@@ -380,6 +380,7 @@
   {% if instance.status == ApprovalStatus.PENDING and can_user_approve(instance.id) %}
     {% set current_step = get_current_step_info(instance) %}
     {% set is_authorization_step = current_step and current_step.action_type == 'authorization' %}
+    {% set is_payment_step = current_step and current_step.action_type == 'payment_processing' %}
     
     {% if is_authorization_step and instance.object_type == 'project' %}
       <!-- 授权编号审批需要特殊页面 -->
@@ -402,18 +403,36 @@
       <div class="col-12">
         <div class="card">
           <div class="card-header bg-primary text-white">
-            <h5 class="mb-0"><i class="fas fa-edit me-2"></i>{{ _('审批操作') }}</h5>
+            <h5 class="mb-0">
+              {% if is_payment_step %}
+                <i class="fas fa-credit-card me-2"></i>{{ _('支付操作') }}
+              {% else %}
+                <i class="fas fa-edit me-2"></i>{{ _('审批操作') }}
+              {% endif %}
+            </h5>
           </div>
           <div class="card-body">
             <form action="{{ url_for('approval.approve', instance_id=instance.id) }}" method="POST">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <div class="form-group mb-3">
-                <label for="comment" class="form-label standard-font">{{ _('审批意见') }}</label>
-                <textarea class="form-control standard-font" id="comment" name="comment" rows="3" placeholder="{{ _('请输入您的审批意见...') }}"></textarea>
+                <label for="comment" class="form-label standard-font">
+                  {% if is_payment_step %}
+                    {{ _('支付备注') }}
+                  {% else %}
+                    {{ _('审批意见') }}
+                  {% endif %}
+                </label>
+                <textarea class="form-control standard-font" id="comment" name="comment" rows="3" 
+                  placeholder="{% if is_payment_step %}{{ _('请输入支付相关备注...') }}{% else %}{{ _('请输入您的审批意见...') }}{% endif %}"></textarea>
               </div>
               <div class="d-flex justify-content-between">
-                {{ render_button(_('同意'), color='success', type='submit', icon='fas fa-check-circle', attrs='name="action" value="approve"') }}
-                {{ render_button(_('拒绝'), color='danger', type='submit', icon='fas fa-times-circle', attrs='name="action" value="reject"') }}
+                {% if is_payment_step %}
+                  {{ render_button(_('确认支付'), color='success', type='submit', icon='fas fa-money-check', attrs='name="action" value="approve"') }}
+                  {{ render_button(_('拒绝支付'), color='danger', type='submit', icon='fas fa-ban', attrs='name="action" value="reject"') }}
+                {% else %}
+                  {{ render_button(_('同意'), color='success', type='submit', icon='fas fa-check-circle', attrs='name="action" value="approve"') }}
+                  {{ render_button(_('拒绝'), color='danger', type='submit', icon='fas fa-times-circle', attrs='name="action" value="reject"') }}
+                {% endif %}
               </div>
             </form>
           </div>

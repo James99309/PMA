@@ -59,8 +59,8 @@
         <!-- 移动端卡片式明细将由JavaScript动态生成 -->
         <div class="empty-state text-center py-4">
             <i class="fas fa-receipt text-muted mb-2" style="font-size: 2rem;"></i>
-            <p class="text-muted mb-0">暂无报销明细</p>
-            <small class="text-muted">点击下方按钮添加报销项目</small>
+            <p class="text-muted mb-0">{{ _('暂无报销明细') }}</p>
+            <small class="text-muted">{{ _('点击下方按钮添加报销项目') }}</small>
         </div>
     </div>
     
@@ -957,6 +957,32 @@ document.addEventListener('DOMContentLoaded', function() {
             
             console.log('报销明细管理器初始化完成:', config.table_id);
             
+            // 🔥 在ExpenseDetailManager初始化完成后立即注册主表货币变更监听器
+            const expenseCurrencySelector = document.getElementById('currency');
+            if (expenseCurrencySelector) {
+                // 先移除可能存在的旧监听器
+                expenseCurrencySelector.removeEventListener('change', window._expenseCurrencyChangeHandler);
+                
+                // 创建新的监听器函数
+                window._expenseCurrencyChangeHandler = function(e) {
+                    const newCurrency = e.target.value;
+                    console.log('🔄 报销单主货币已变更:', newCurrency);
+                    
+                    if (window.expenseDetailManager) {
+                        console.log('📢 通知报销明细管理器更新货币');
+                        window.expenseDetailManager.handleExpenseCurrencyChange(newCurrency);
+                    } else {
+                        console.warn('⚠️ ExpenseDetailManager 未找到，无法同步货币变更');
+                    }
+                };
+                
+                // 注册新监听器
+                expenseCurrencySelector.addEventListener('change', window._expenseCurrencyChangeHandler);
+                console.log('✅ 主货币变更监听器已注册 (通过ExpenseDetailManager初始化)');
+            } else {
+                console.warn('⚠️ 未找到主表货币选择器 #currency');
+            }
+            
         } catch (error) {
             console.error('报销明细管理器初始化失败:', error);
         }
@@ -967,108 +993,140 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 /**
- * 初始化发票预览功能
+ * 🔥 初始化发票预览功能 - 直接使用通用图片预览组件
+ * 只在详情页面（只读模式）使用，编辑/创建页面使用expense-detail-manager.js的处理
  */
 function initInvoicePreview() {
     console.log('初始化发票预览功能');
     
-    // 为只读模式的发票图标添加点击事件
+    // 🔥 检查是否为编辑或创建页面，如果是则跳过此函数
+    const isEditPage = window.location.pathname.includes('/edit') || 
+                       window.location.pathname.includes('/create') ||
+                       document.getElementById('createExpenseInvoicePreview') || 
+                       document.getElementById('editExpenseInvoicePreview');
+    
+    if (isEditPage) {
+        console.log('🔥 编辑/创建页面，跳过 initInvoicePreview，使用 expense-detail-manager.js 处理');
+        return;
+    }
+    
+    console.log('🔥 详情页面，启用 initInvoicePreview 预览功能');
+    
+    // 为发票图标添加点击事件，直接使用通用预览组件
     document.addEventListener('click', function(e) {
         if (e.target.classList.contains('invoice-preview-icon')) {
             e.preventDefault();
             
-            const imageUrl = e.target.dataset.imageUrl;
+            let imageUrl = null;
+            let filename = null;
+            let fileInfo = {};
+            
+            // 只读模式：使用 data-image-url 和 data-title
+            const singleImageUrl = e.target.dataset.imageUrl;
             const title = e.target.dataset.title;
             
-            if (imageUrl) {
-                showInvoicePreviewModal(imageUrl, title);
+            if (singleImageUrl && title) {
+                console.log('只读模式预览:', singleImageUrl, title);
+                imageUrl = singleImageUrl;
+                filename = title;
+                fileInfo = { description: '报销单发票' };
             } else {
-                console.warn('发票URL为空，无法预览');
+                // 编辑模式：使用 data-images（JSON数组）
+                const imagesJson = e.target.dataset.images;
+                const rowIndex = e.target.dataset.rowIndex;
+                
+                if (imagesJson) {
+                    try {
+                        const images = JSON.parse(imagesJson);
+                        console.log('编辑模式预览:', images);
+                        
+                        if (images && images.length > 0) {
+                            // 显示第一个图片
+                            const firstImage = images[0];
+                            imageUrl = firstImage.url || firstImage.path;
+                            filename = firstImage.filename || `发票图片_${parseInt(rowIndex) + 1}`;
+                            fileInfo = {
+                                description: '报销单发票',
+                                // 如果有更多信息可以添加
+                                size: firstImage.size,
+                                type: firstImage.type || 'image/jpeg'
+                            };
+                        } else {
+                            console.warn('发票图片数组为空');
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('解析发票图片数据失败:', error, imagesJson);
+                        return;
+                    }
+                } else {
+                    console.warn('发票预览数据缺失，无法预览');
+                    return;
+                }
+            }
+            
+            // 确定使用哪个对话框ID
+            let dialogId = 'expenseInvoicePreview'; // 默认详情页
+            
+            if (document.getElementById('createExpenseInvoicePreview')) {
+                dialogId = 'createExpenseInvoicePreview';
+            } else if (document.getElementById('editExpenseInvoicePreview')) {
+                dialogId = 'editExpenseInvoicePreview';
+            }
+            
+            // 🔥 直接使用通用图片预览组件
+            if (imageUrl && typeof showInvoicePreviewDialog === 'function') {
+                console.log('使用通用预览组件:', imageUrl, filename, dialogId);
+                showInvoicePreviewDialog(imageUrl, filename, fileInfo, dialogId);
+            } else {
+                console.error('通用预览组件未加载或图片URL为空:', {
+                    imageUrl,
+                    hasFunction: typeof showInvoicePreviewDialog === 'function'
+                });
+                // 备用方案：新窗口打开
+                if (imageUrl) {
+                    window.open(imageUrl, '_blank');
+                }
             }
         }
     });
 }
 
 /**
- * 显示发票预览模态框（用于只读模式）
+ * 🔥 兼容性函数 - 重定向到通用预览组件
+ * @deprecated 此函数仅为向后兼容，新代码请直接使用 showInvoicePreviewDialog
  */
 function showInvoicePreviewModal(imageUrl, title) {
-    // 移除现有模态框
-    const existingModal = document.getElementById('invoicePreviewModal');
-    if (existingModal) {
-        existingModal.remove();
+    console.log('兼容性调用，重定向到通用预览组件:', imageUrl, title);
+    
+    // 确定使用哪个对话框ID
+    let dialogId = 'expenseInvoicePreview';
+    
+    if (document.getElementById('createExpenseInvoicePreview')) {
+        dialogId = 'createExpenseInvoicePreview';
+    } else if (document.getElementById('editExpenseInvoicePreview')) {
+        dialogId = 'editExpenseInvoicePreview';
     }
     
-    // 创建模态框HTML
-    const modal = document.createElement('div');
-    modal.id = 'invoicePreviewModal';
-    modal.innerHTML = `
-        <div class="modal fade" tabindex="-1" style="z-index: 9999;">
-            <div class="modal-dialog modal-lg modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">${title}</h5>
-                    </div>
-                    <div class="modal-body text-center">
-                        <div class="loading-spinner mb-3">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">加载中...</span>
-                            </div>
-                            <div class="mt-2">正在加载图片...</div>
-                        </div>
-                        <img id="invoicePreviewImg" src="${imageUrl}" 
-                             class="img-fluid" style="max-height: 70vh; display: none;"
-                             alt="${title}">
-                        <div id="imageError" class="text-danger" style="display: none;">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            <div class="mt-2">图片加载失败</div>
-                        </div>
-                    </div>
-                    <div class="modal-footer justify-content-center">
-                        <button type="button" class="btn btn-primary btn-md rounded-pill py-2 px-4 text-sm d-inline-flex align-items-center min-width-md" onclick="window.open('${imageUrl}', '_blank')">
-                            <i class="fas fa-external-link-alt me-2"></i>新窗口打开
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
+    // 准备文件信息
+    const filename = title || 'invoice.jpg';
+    const fileInfo = { description: '报销单发票' };
     
-    document.body.appendChild(modal);
+    // 直接调用通用组件
+    if (typeof showInvoicePreviewDialog === 'function') {
+        showInvoicePreviewDialog(imageUrl, filename, fileInfo, dialogId);
+    } else {
+        console.error('通用预览组件未加载，使用备用方案');
+        window.open(imageUrl, '_blank');
+    }
     
-    // 获取元素
-    const modalElement = modal.querySelector('.modal');
-    const img = modal.querySelector('#invoicePreviewImg');
-    const spinner = modal.querySelector('.loading-spinner');
-    const errorDiv = modal.querySelector('#imageError');
-    
-    // 图片加载事件
-    img.onload = function() {
-        spinner.style.display = 'none';
-        img.style.display = 'block';
-    };
-    
-    img.onerror = function() {
-        spinner.style.display = 'none';
-        errorDiv.style.display = 'block';
-    };
-    
-    // 显示模态框，允许点击背景关闭
-    const bsModal = new bootstrap.Modal(modalElement, {
-        backdrop: true,
-        keyboard: true
-    });
-    bsModal.show();
-    
-    // 模态框关闭时移除DOM元素和清理URL
-    modalElement.addEventListener('hidden.bs.modal', function() {
-        // 如果是本地预览URL，需要清理以避免内存泄漏
-        if (imageUrl && imageUrl.startsWith('blob:')) {
+    // 清理本地预览URL
+    if (imageUrl && imageUrl.startsWith('blob:')) {
+        setTimeout(() => {
             URL.revokeObjectURL(imageUrl);
             console.log('清理本地预览URL:', imageUrl);
-        }
-        modal.remove();
-    });
+        }, 1000);
+    }
 }
 </script>
 {% endmacro %}

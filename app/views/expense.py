@@ -14,6 +14,7 @@ from datetime import datetime, date
 import logging
 import json
 from app.utils.access_control import get_viewable_data, can_edit_data
+from app.utils.dictionary_helpers import get_currency_type_options
 from types import SimpleNamespace
 import os
 from werkzeug.utils import secure_filename
@@ -151,7 +152,7 @@ def expense_list():
             currency=expense.currency,
             status=expense.status,
             created_at=expense.created_at,
-            customer_name=customers.get(expense.customer_id, '未指定'),
+            customer_name=customers.get(expense.customer_id, _('未指定')),
             project_name=projects.get(expense.project_id, '-'),
             owner=owner_display,
             owner_obj=user_obj,
@@ -270,24 +271,24 @@ def expense_list():
         'search_field_id': 'search',  # 搜索框ID，用于重置按钮检测
         'search_field': {
             'name': 'search',
-            'label': '搜索',
-            'placeholder': '报销单号、标题或客户名称',
+            'label': _('搜索'),
+            'placeholder': _('报销单号、标题或客户名称'),
             'value': search,
             'col_width': 4
         },
         'filter_fields': [
             {
                 'name': 'customer_id',
-                'label': '客户',
-                'all_option_text': '全部客户',
+                'label': _('客户'),
+                'all_option_text': _('全部客户'),
                 'current_value': customer_id,
                 'col_width': 2,
                 'options': [{'value': str(c.id), 'label': c.company_name, 'translate': False} for c in customers]
             },
             {
                 'name': 'owner_id',
-                'label': '申请人',
-                'all_option_text': '全部申请人',
+                'label': _('申请人'),
+                'all_option_text': _('全部申请人'),
                 'current_value': owner_id,
                 'col_width': 2,
                 'options': [{'value': str(u.id), 'label': u.real_name or u.username, 'translate': False} for u in users]
@@ -295,21 +296,21 @@ def expense_list():
             # 移除报销科目筛选，因为现在在明细表中，可以考虑后续通过明细表联查实现
             {
                 'name': 'status',
-                'label': '审批状态',
-                'all_option_text': '全部状态',
+                'label': _('审批状态'),
+                'all_option_text': _('全部状态'),
                 'current_value': status,
                 'col_width': 2,
                 'options': status_options
             }
         ],
-        'search_button_text': '搜索',
-        'reset_button_text': '重置'
+        'search_button_text': _('搜索'),
+        'reset_button_text': _('重置')
     }
     
     # 使用通用列表组件配置
     list_config = {
         'module_name': 'expense',
-        'title': '报销管理',
+        'title': _('报销管理'),
         'ajax_mode': True,
         
         # 统计卡片配置
@@ -317,36 +318,36 @@ def expense_list():
             'cards': [
                 {
                     'id': 'total',
-                    'title': '全部报销',
+                    'title': _('全部报销'),
                     'icon': 'fas fa-receipt',
                     'value': total_count,
                     'amount': total_amount / 10000,
-                    'unit': '单',
-                    'amount_unit': '万元',
+                    'unit': _('单'),
+                    'amount_unit': _('万元'),
                     'color': 'primary',
                     'clickable': True,
                     'click_params': {}
                 },
                 {
                     'id': 'pending',
-                    'title': '待审批',
+                    'title': _('待审批'),
                     'icon': 'fas fa-clock',
                     'value': pending_count,
                     'amount': pending_amount / 10000,
-                    'unit': '单',
-                    'amount_unit': '万元',
+                    'unit': _('单'),
+                    'amount_unit': _('万元'),
                     'color': 'warning',
                     'clickable': True,
                     'click_params': {'status': 'pending'}
                 },
                 {
                     'id': 'approved',
-                    'title': '已通过',
+                    'title': _('已通过'),
                     'icon': 'fas fa-check-circle',
                     'value': approved_count,
                     'amount': approved_amount / 10000,
-                    'unit': '单',
-                    'amount_unit': '万元',
+                    'unit': _('单'),
+                    'amount_unit': _('万元'),
                     'color': 'success',
                     'clickable': True,
                     'click_params': {'status': 'approved'}
@@ -360,12 +361,12 @@ def expense_list():
         # 表格配置
         'table': {
             'ajax_target': 'expenseTableBody',
-            'title': '报销列表',
+            'title': _('报销列表'),
             'icon': 'fas fa-table',
             'columns': [
                 {
                     'key': 'expense_number',
-                    'label': '报销单编号',
+                    'label': _('报销单编号'),
                     'type': 'link',
                     'url_template': '/expense/{id}',
                     'render': 'render_expense_number',
@@ -373,14 +374,14 @@ def expense_list():
                 },
                 {
                     'key': 'owner',
-                    'label': '申请人',
+                    'label': _('申请人'),
                     'type': 'text',
                     'align': 'start',
                     'width': '100px'
                 },
                 {
                     'key': 'status',
-                    'label': '状态',
+                    'label': _('状态'),
                     'type': 'badge',
                     'render': 'render_expense_status_badge',
                     'align': 'start',
@@ -388,7 +389,7 @@ def expense_list():
                 },
                 {
                     'key': 'total_amount',
-                    'label': '总金额',
+                    'label': _('总金额'),
                     'type': 'number',
                     'format': 'currency',
                     'align': 'end',
@@ -396,25 +397,25 @@ def expense_list():
                 },
                 {
                     'key': 'customer_name',
-                    'label': '客户',
+                    'label': _('客户'),
                     'type': 'text',
                     'width': '150px'
                 },
                 {
                     'key': 'contact_name',
-                    'label': '联系人',
+                    'label': _('联系人'),
                     'type': 'text',
                     'width': '120px'
                 },
                 {
                     'key': 'project_name',
-                    'label': '关联项目',
+                    'label': _('关联项目'),
                     'type': 'text',
                     'width': '150px'
                 },
                 {
                     'key': 'created_at',
-                    'label': '创建时间',
+                    'label': _('创建时间'),
                     'type': 'date',
                     'format': '%Y-%m-%d',
                     'width': '120px'
@@ -558,7 +559,7 @@ def expense_list_ajax():
                 currency=expense.currency,
                 status=expense.status,
                 created_at=expense.created_at,
-                customer_name=customers.get(expense.customer_id, '未指定'),
+                customer_name=customers.get(expense.customer_id, _('未指定')),
                 contact_name=contacts.get(expense.contact_id, '未指定'),
                 project_name=projects.get(expense.project_id, '-'),
                 owner=owner_display,
@@ -657,7 +658,7 @@ def create_expense():
             
             # 数据验证
             if not all([customer_id, contact_id]):
-                flash('请填写所有必填字段（客户和联系人）', 'error')
+                flash(_('请填写所有必填字段（客户和联系人）'), 'error')
                 return redirect(url_for('expense.create_expense'))
             
             # 获取报销明细数据 - 支持两种数据格式
@@ -733,7 +734,7 @@ def create_expense():
             
             # 验证明细数据
             if not detail_data:
-                flash('请至少添加一条报销明细', 'error')
+                flash(_('请至少添加一条报销明细'), 'error')
                 return redirect(url_for('expense.create_expense'))
             
             # 验证明细数据完整性
@@ -747,7 +748,7 @@ def create_expense():
                     required_fields = ['expense_category', 'expense_date', 'description', 'invoice_amount', 'currency']
                     for field in required_fields:
                         if not detail.get(field) or not str(detail[field]).strip():
-                            flash(f'第{index+1}个明细项目的{field}字段为必填项', 'error')
+                            flash(_('第{index}个明细项目的{field}字段为必填项').format(index=index+1, field=field), 'error')
                             return redirect(url_for('expense.create_expense'))
                     
                     # 转换数据类型
@@ -774,7 +775,7 @@ def create_expense():
                     document_count = int(detail.get('document_count', 1)) if detail.get('document_count') else 1
                     
                     if invoice_amount <= 0:
-                        flash(f'第{index+1}个明细项目的发票金额必须大于0', 'error')
+                        flash(_('第{index}个明细项目的发票金额必须大于0').format(index=index+1), 'error')
                         return redirect(url_for('expense.create_expense'))
                     
                     # 确保amount字段不为null或0
@@ -808,7 +809,7 @@ def create_expense():
                     total_amount += current_amount  # 使用转换后的金额计算总额
                     
                 except (ValueError, KeyError) as e:
-                    flash(f'第{index+1}个明细项目数据格式错误: {str(e)}', 'error')
+                    flash(_('第{index}个明细项目数据格式错误: {error}').format(index=index+1, error=str(e)), 'error')
                     return redirect(url_for('expense.create_expense'))
             
             # 如果没有填写报销主题，则自动生成
@@ -1041,7 +1042,9 @@ def create_expense():
                 flash(f'创建报销单失败: {str(e)}', 'error')
     
     # GET请求，显示创建表单
-    return render_template('expense/create_expense.html')
+    return render_template('expense/create_expense.html',
+                         currency_options=get_currency_type_options(),
+                         expense_categories=EXPENSE_CATEGORIES)
 
 @expense.route('/<int:id>')
 @login_required
@@ -1058,7 +1061,7 @@ def expense_detail(id):
     
     # 检查访问权限
     if not can_edit_data(expense_obj, current_user):
-        flash('您没有权限查看此报销单', 'error')
+        flash(_('您没有权限查看此报销单'), 'error')
         return redirect(url_for('expense.expense_list'))
     
     # 智能返回逻辑：根据用户权限和访问来源确定返回链接
@@ -1120,22 +1123,22 @@ def edit_expense(id):
         approval_edit_info = check_universal_approval_permission('expense', id, current_user.id, 'edit')
         
         if not approval_edit_info['can_edit']:
-            flash('您无权在当前审核阶段编辑此报销单', 'error')
+            flash(_('您无权在当前审核阶段编辑此报销单'), 'error')
             return redirect(url_for('expense.expense_detail', id=id))
     else:
         # 常规编辑模式的权限检查
         if not can_edit_data(expense_obj, current_user):
-            flash('您没有权限编辑此报销单', 'error')
+            flash(_('您没有权限编辑此报销单'), 'error')
             return redirect(url_for('expense.expense_detail', id=id))
         
         # 检查报销单是否可编辑：只有草稿状态和被拒绝/召回状态可以编辑
         if expense_obj.status not in ['draft', 'rejected', 'recalled']:
-            flash('当前状态的报销单不能编辑', 'error')
+            flash(_('当前状态的报销单不能编辑'), 'error')
             return redirect(url_for('expense.expense_detail', id=id))
         
         # 检查锁定状态：如果报销单被锁定（通常在审批过程中），不能编辑
         if expense_obj.is_locked:
-            flash('报销单已被锁定，无法编辑', 'error')
+            flash(_('报销单已被锁定，无法编辑'), 'error')
             return redirect(url_for('expense.expense_detail', id=id))
     
     if request.method == 'POST':
@@ -1583,7 +1586,9 @@ def edit_expense(id):
                          projects=projects,
                          expense_details_data=expense_details_data,
                          approval_edit_mode=approval_edit_mode,
-                         approval_edit_info=approval_edit_info)
+                         approval_edit_info=approval_edit_info,
+                         currency_options=get_currency_type_options(),
+                         expense_categories=EXPENSE_CATEGORIES)
 
 @expense.route('/<int:id>/delete', methods=['POST'])
 @login_required
@@ -2355,13 +2360,14 @@ def get_expense_approval_flow(expense_id):
                 # 尝试通过step_id匹配
                 step_records = [r for r in records if r.step_id == step['step_id']]
             
-            # 如果通过step_id没有找到记录，尝试通过审批者匹配（兜底逻辑）
-            if not step_records and actual_approver:
-                approver_records = [r for r in records if r.approver_id == actual_approver.id]
-                if approver_records:
-                    # 按时间排序，通常第一条记录对应该步骤
-                    approver_records.sort(key=lambda x: x.timestamp)
-                    step_records = [approver_records[0]]
+            # 注释掉错误的兜底逻辑，避免将其他审批流程的记录错误应用到当前步骤
+            # 这个逻辑会导致审批人在其他流程中的记录影响当前步骤的状态判断
+            # if not step_records and actual_approver:
+            #     approver_records = [r for r in records if r.approver_id == actual_approver.id]
+            #     if approver_records:
+            #         # 按时间排序，通常第一条记录对应该步骤
+            #         approver_records.sort(key=lambda x: x.timestamp)
+            #         step_records = [approver_records[0]]
             
             stage_data = {
                 'id': step['step_id'],
@@ -2389,12 +2395,24 @@ def get_expense_approval_flow(expense_id):
                     'approver_id': latest_record.approver_id
                 })
             elif step['step_order'] == current_step_order:
-                # 当前步骤 - 使用步骤序号而不是数组索引
+                # 当前步骤 - 使用标准权限检查
+                from app.helpers.approval_helpers import can_user_approve
+                can_approve = can_user_approve(approval_instance.id, current_user.id)
+                
                 stage_data.update({
                     'status': 'current',
                     'arrived_at': approval_instance.started_at.strftime('%Y-%m-%d %H:%M:%S'),  # 修复字段名
-                    'can_approve': actual_approver and actual_approver.id == current_user.id
+                    'can_approve': can_approve
                 })
+                
+                # 调试信息：记录can_approve计算过程
+                from flask import current_app
+                current_app.logger.info("[DEBUG] Step %s can_approve calculation:", step['step_order'])
+                current_app.logger.info("  actual_approver: %s", actual_approver)
+                current_app.logger.info("  actual_approver.id: %s", actual_approver.id if actual_approver else None)
+                current_app.logger.info("  current_user: %s", current_user)  
+                current_app.logger.info("  current_user.id: %s", current_user.id)
+                current_app.logger.info("  can_approve: %s", can_approve)
             
             stages_data.append(stage_data)
         
@@ -2512,4 +2530,36 @@ def update_approval_fields(expense_id):
         return jsonify({
             'success': False,
             'message': f'更新字段失败: {str(e)}'
+        }), 500
+
+
+@expense.route('/api/<int:expense_id>/status')
+@login_required
+def get_expense_status(expense_id):
+    """获取报销单的最新状态信息 - 用于审批后动态更新页面"""
+    try:
+        # 获取报销单
+        expense_obj = Expense.query.get_or_404(expense_id)
+        
+        # 检查访问权限
+        if not can_edit_data(expense_obj, current_user):
+            return jsonify({
+                'success': False,
+                'message': '您没有权限查看此报销单'
+            }), 403
+        
+        # 返回最新状态信息
+        return jsonify({
+            'success': True,
+            'status': expense_obj.status,
+            'is_locked': expense_obj.is_locked,
+            'updated_at': expense_obj.updated_at.strftime('%Y-%m-%d %H:%M:%S') if expense_obj.updated_at else None,
+            'message': '状态获取成功'
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"获取报销单状态失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'获取状态失败: {str(e)}'
         }), 500

@@ -2452,8 +2452,8 @@ def can_user_approve(instance_id, user_id=None):
     if not instance or instance.status != ApprovalStatus.PENDING:
         return False
     
-    # 获取当前步骤
-    current_step = get_current_step_info(instance)
+    # 获取当前步骤 - 修复：使用模板快照
+    current_step = instance.get_current_step_info()
     if not current_step:
         return False
     
@@ -3535,7 +3535,7 @@ def _get_field_display_name(field_name):
 
 
 def process_approval_with_project_type(instance_id, action, project_type=None, comment=None, user_id=None):
-    """处理审批操作，支持项目类型修改
+    """处理审批操作，支持项目类型修改 - 修复版：支付步骤保持PENDING状态
     
     Args:
         instance_id: 审批实例ID
@@ -3554,8 +3554,8 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
     if user_id is None:
         user_id = current_user.id
     
-    # 获取当前步骤
-    current_step = get_current_step_info(instance)
+    # 获取当前步骤 - 修复：使用模板快照
+    current_step = instance.get_current_step_info()
     if not current_step:
         return False
     
@@ -3565,10 +3565,13 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
         return False
     
     # 检查是否是授权编号步骤
-    is_authorization_step = (
-        hasattr(current_step, 'action_type') and 
-        current_step.action_type == 'authorization'
-    )
+    if isinstance(current_step, dict):
+        is_authorization_step = current_step.get('action_type') == 'authorization'
+    else:
+        is_authorization_step = (
+            hasattr(current_step, 'action_type') and 
+            current_step.action_type == 'authorization'
+        )
     
     # 确保action是枚举类型
     if not isinstance(action, ApprovalAction):
@@ -3582,12 +3585,16 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
     
     # 记录审批结果 - 处理模板快照的step_id类型问题
     # 对于模板快照，current_step.id可能是字符串，需要特殊处理
-    step_id_value = current_step.id
+    if isinstance(current_step, dict):
+        step_id_value = current_step.get('step_id')
+    else:
+        step_id_value = current_step.id
     if isinstance(step_id_value, str) and step_id_value.startswith('snapshot_step_'):
         # 模板快照情况：使用None作为step_id，因为step_id字段是整数外键
         # 我们将在未来版本中考虑为快照记录添加专门的字段
         step_id_value = None
-        current_app.logger.info(f"模板快照审批记录 - 实例 {instance_id}，步骤ID: {current_step.id}，使用NULL作为step_id")
+        step_id_for_log = current_step.get('step_id') if isinstance(current_step, dict) else current_step.id
+        current_app.logger.info(f"模板快照审批记录 - 实例 {instance_id}，步骤ID: {step_id_for_log}，使用NULL作为step_id")
     
     record = ApprovalRecord(
         instance_id=instance_id,
@@ -3622,36 +3629,90 @@ def process_approval_with_project_type(instance_id, action, project_type=None, c
         elif instance.object_type == 'expense':
             unlock_expense(instance.object_id, user_id)
     else:
-        # 获取下一步骤
-        next_step_order = instance.current_step + 1
-        next_step = ApprovalStep.query.filter_by(
-            process_id=instance.process_id,
-            step_order=next_step_order
-        ).first()
+        # 🔥 修复：检查是否刚完成了支付步骤
+        current_step_action_type = None
+        if isinstance(current_step, dict):
+            current_step_action_type = current_step.get('action_type')
+        elif hasattr(current_step, 'action_type'):
+            current_step_action_type = current_step.action_type
+            
+        is_payment_step_completed = (
+            current_step_action_type == 'payment_processing' and 
+            instance.object_type == 'expense'
+        )
         
-        if next_step:
-            # 更新到下一步
-            instance.current_step = next_step_order
-        else:
-            # 所有步骤已完成，流程通过
+        if is_payment_step_completed:
+            # 支付步骤完成，流程结束
             instance.status = ApprovalStatus.APPROVED
             instance.ended_at = datetime.now()
             
-            # 更新业务对象的审批状态
-            _update_business_object_approval_status(instance, action, user_id, comment)
+            # 更新报销单为已支付状态
+            from app.models.expense import Expense
+            expense = Expense.query.get(instance.object_id)
+            if expense:
+                expense.status = 'paid'
+                expense.payment_status = 'paid'
+                expense.payment_date = datetime.now()
+                expense.paid_by = user_id
+                # 🔥 修复：支付完成后保持锁定状态，确保已支付报销单不被修改
+                expense.is_locked = True
+                current_app.logger.info(f"报销单 {expense.expense_number} 支付完成，状态更新为: paid，保持锁定状态")
             
-            # 解锁对象
-            if instance.object_type == 'project':
-                unlock_project(instance.object_id, user_id)
-            elif instance.object_type == 'quotation':
-                from app.helpers.quotation_helpers import unlock_quotation
-                unlock_quotation(instance.object_id, user_id)
+            # 🔥 注释掉：支付完成的报销单应该保持锁定，不应该解锁
+            # unlock_expense(instance.object_id, user_id)
+        else:
+            # 🔥 修复：使用快照数据获取下一步骤
+            next_step_order = instance.current_step + 1
+            next_step = None
+            
+            # 从模板快照中查找下一步骤
+            steps = instance.get_steps()
+            if isinstance(steps, list) and len(steps) > 0:
+                if isinstance(steps[0], dict):
+                    # 快照数据（字典列表）
+                    for step in steps:
+                        if step.get('step_order') == next_step_order:
+                            next_step = step
+                            break
+                else:
+                    # 模型对象列表（兼容模式）
+                    for step in steps:
+                        if step.step_order == next_step_order:
+                            next_step = step
+                            break
+            
+            current_app.logger.info(f"[DEBUG] 查找下一步骤: next_step_order={next_step_order}, found={next_step is not None}")
+            
+            if next_step:
+                # 更新到下一步
+                instance.current_step = next_step_order
+                
+                # 特殊处理：如果下一步是支付步骤，需要更新业务对象状态
+                next_step_action_type = next_step.get('action_type') if isinstance(next_step, dict) else getattr(next_step, 'action_type', None)
+                if next_step_action_type == 'payment_processing' and instance.object_type == 'expense':
+                    _update_expense_status_for_payment_stage(instance, user_id, comment)
+            else:
+                # 所有步骤已完成，流程通过
+                instance.status = ApprovalStatus.APPROVED
+                instance.ended_at = datetime.now()
+                
+                # 更新业务对象的审批状态
+                _update_business_object_approval_status(instance, action, user_id, comment)
+                
+                # 解锁对象
+                if instance.object_type == 'project':
+                    unlock_project(instance.object_id, user_id)
+                elif instance.object_type == 'quotation':
+                    from app.helpers.quotation_helpers import unlock_quotation
+                    unlock_quotation(instance.object_id, user_id)
+                elif instance.object_type == 'expense':
+                    unlock_expense(instance.object_id, user_id)
     
     try:
         db.session.commit()
         
         # 如果设置了发送邮件，则发送邮件通知
-        if current_step.send_email:
+        if current_step.get('send_email', True):
             try:
                 _send_approval_notification(instance, current_step, action, comment)
             except Exception as e:
@@ -3743,14 +3804,25 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
     if user_id is None:
         user_id = current_user.id
     
-    # 获取当前步骤
-    current_step = get_current_step_info(instance)
+    # 获取当前步骤 - 修复：使用模板快照
+    current_step = instance.get_current_step_info()
     if not current_step:
         return False
     
     # 使用新的动态审批人确定函数检查权限
     actual_approver = get_step_actual_approver(current_step, instance)
+    
+    # 调试信息
+    current_app.logger.info(f"[DEBUG] process_approval 权限检查:")
+    current_app.logger.info(f"  instance_id: {instance_id}")
+    current_app.logger.info(f"  user_id: {user_id}")
+    current_app.logger.info(f"  current_step: {current_step}")
+    current_app.logger.info(f"  actual_approver: {actual_approver}")
+    current_app.logger.info(f"  actual_approver.id: {actual_approver.id if actual_approver else None}")
+    current_app.logger.info(f"  权限检查结果: {actual_approver and actual_approver.id == user_id}")
+    
     if not actual_approver or actual_approver.id != user_id:
+        current_app.logger.warning(f"审批权限检查失败: actual_approver={actual_approver}, user_id={user_id}")
         return False
     
     # 确保action是枚举类型
@@ -3763,14 +3835,24 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
             current_app.logger.error(f"无效的审批动作: {action}")
             return False
     
-    # 记录审批结果 - 处理模板快照的step_id类型问题
-    # 对于模板快照，current_step.id可能是字符串，需要特殊处理
-    step_id_value = current_step.id
+    # 记录审批结果 - 获取正确的step_id
+    # current_step是字典，应该使用step_id字段
+    step_id_value = None
+    if isinstance(current_step, dict):
+        step_id_value = current_step.get('step_id')
+    elif hasattr(current_step, 'step_id'):
+        step_id_value = current_step.step_id
+    elif hasattr(current_step, 'id'):
+        # 兼容旧的数据结构
+        step_id_value = current_step.id
+        
+    # 处理模板快照的特殊情况
     if isinstance(step_id_value, str) and step_id_value.startswith('snapshot_step_'):
         # 模板快照情况：使用None作为step_id，因为step_id字段是整数外键
-        # 我们将在未来版本中考虑为快照记录添加专门的字段
         step_id_value = None
-        current_app.logger.info(f"模板快照审批记录 - 实例 {instance_id}，步骤ID: {current_step.id}，使用NULL作为step_id")
+        current_app.logger.info(f"模板快照审批记录 - 实例 {instance_id}，步骤ID: {step_id_value}，使用NULL作为step_id")
+    
+    current_app.logger.info(f"[DEBUG] 创建审批记录 - step_id_value: {step_id_value}, current_step类型: {type(current_step)}")
     
     record = ApprovalRecord(
         instance_id=instance_id,
@@ -3800,35 +3882,89 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
         elif instance.object_type == 'expense':
             unlock_expense(instance.object_id, user_id)
     else:
-        # 获取下一步骤
-        next_step_order = instance.current_step + 1
-        next_step = ApprovalStep.query.filter_by(
-            process_id=instance.process_id,
-            step_order=next_step_order
-        ).first()
+        # 🔥 修复：检查是否刚完成了支付步骤
+        current_step_action_type = None
+        if isinstance(current_step, dict):
+            current_step_action_type = current_step.get('action_type')
+        elif hasattr(current_step, 'action_type'):
+            current_step_action_type = current_step.action_type
+            
+        is_payment_step_completed = (
+            current_step_action_type == 'payment_processing' and 
+            instance.object_type == 'expense'
+        )
         
-        if next_step:
-            # 更新到下一步
-            instance.current_step = next_step_order
-        else:
-            # 所有步骤已完成，流程通过
+        if is_payment_step_completed:
+            # 支付步骤完成，流程结束
             instance.status = ApprovalStatus.APPROVED
             instance.ended_at = datetime.now()
             
-            # 更新业务对象的审批状态
-            _update_business_object_approval_status(instance, action, user_id, comment)
+            # 更新报销单为已支付状态
+            from app.models.expense import Expense
+            expense = Expense.query.get(instance.object_id)
+            if expense:
+                expense.status = 'paid'
+                expense.payment_status = 'paid'
+                expense.payment_date = datetime.now()
+                expense.paid_by = user_id
+                # 🔥 修复：支付完成后保持锁定状态，确保已支付报销单不被修改
+                expense.is_locked = True
+                current_app.logger.info(f"报销单 {expense.expense_number} 支付完成，状态更新为: paid，保持锁定状态")
             
-            # 解锁对象
-            if instance.object_type == 'project':
-                unlock_project(instance.object_id, user_id)
-            elif instance.object_type == 'quotation':
-                from app.helpers.quotation_helpers import unlock_quotation
-                unlock_quotation(instance.object_id, user_id)
+            # 🔥 注释掉：支付完成的报销单应该保持锁定，不应该解锁
+            # unlock_expense(instance.object_id, user_id)
+        else:
+            # 🔥 修复：使用快照数据获取下一步骤
+            next_step_order = instance.current_step + 1
+            next_step = None
+            
+            # 从模板快照中查找下一步骤
+            steps = instance.get_steps()
+            if isinstance(steps, list) and len(steps) > 0:
+                if isinstance(steps[0], dict):
+                    # 快照数据（字典列表）
+                    for step in steps:
+                        if step.get('step_order') == next_step_order:
+                            next_step = step
+                            break
+                else:
+                    # 模型对象列表（兼容模式）
+                    for step in steps:
+                        if step.step_order == next_step_order:
+                            next_step = step
+                            break
+            
+            current_app.logger.info(f"[DEBUG] 查找下一步骤: next_step_order={next_step_order}, found={next_step is not None}")
+            
+            if next_step:
+                # 更新到下一步
+                instance.current_step = next_step_order
+                
+                # 特殊处理：如果下一步是支付步骤，需要更新业务对象状态
+                next_step_action_type = next_step.get('action_type') if isinstance(next_step, dict) else getattr(next_step, 'action_type', None)
+                if next_step_action_type == 'payment_processing' and instance.object_type == 'expense':
+                    _update_expense_status_for_payment_stage(instance, user_id, comment)
+            else:
+                # 所有步骤已完成，流程通过
+                instance.status = ApprovalStatus.APPROVED
+                instance.ended_at = datetime.now()
+                
+                # 更新业务对象的审批状态
+                _update_business_object_approval_status(instance, action, user_id, comment)
+                
+                # 解锁对象
+                if instance.object_type == 'project':
+                    unlock_project(instance.object_id, user_id)
+                elif instance.object_type == 'quotation':
+                    from app.helpers.quotation_helpers import unlock_quotation
+                    unlock_quotation(instance.object_id, user_id)
+                elif instance.object_type == 'expense':
+                    unlock_expense(instance.object_id, user_id)
     
     db.session.commit()
     
     # 如果设置了发送邮件，则发送邮件通知
-    if current_step.send_email:
+    if current_step.get('send_email', True):
         try:
             _send_approval_notification(instance, current_step, action, comment)
         except Exception as e:
@@ -4305,30 +4441,32 @@ def get_pending_approval_count(user_id=None):
         return 0  # 返回默认值
 
 
-def get_workflow_steps(approval_instance):
+def get_workflow_steps(approval_instance, current_user_id=None):
     """获取审批流程的步骤信息，用于在审批区域显示流程图
     
     Args:
         approval_instance: 审批实例对象
+        current_user_id: 当前用户ID，用于权限判断
         
     Returns:
         包含步骤信息的列表，每个步骤包含：
         - order: 步骤顺序
         - name: 步骤名称
         - approver: 审批人姓名
-        - is_current: 是否为当前步骤
+        - is_current: 是否为当前步骤且当前用户有权限
+        - is_waiting: 是否为当前步骤但当前用户无权限
         - is_completed: 是否已完成
         - action: 审批动作（approve/reject）
         - timestamp: 审批时间
         - comment: 审批意见
     """
-    if not approval_instance or not approval_instance.process:
+    if not approval_instance:
         return []
     
-    # 获取流程模板的所有步骤
-    template_steps = ApprovalStep.query.filter_by(
-        process_id=approval_instance.process_id
-    ).order_by(ApprovalStep.step_order.asc()).all()
+    # 优先使用模板快照，如果没有快照则回退到当前模板
+    template_steps = approval_instance.get_steps()
+    if not template_steps:
+        return []
     
     # 获取已完成的审批记录
     completed_records = ApprovalRecord.query.filter_by(
@@ -4337,28 +4475,84 @@ def get_workflow_steps(approval_instance):
     
     # 构建步骤信息
     workflow_steps = []
-    current_step_index = len(completed_records)
+    
+    # 确定当前步骤：基于审批实例的current_step字段（step_order）
+    current_step_order = approval_instance.current_step
     
     for i, step in enumerate(template_steps):
+        # 处理快照数据（字典）和模型对象两种情况
+        if isinstance(step, dict):
+            step_order = step.get('step_order')
+            step_name = step.get('step_name', '未知步骤')
+            approver_real_name = step.get('approver_real_name')
+            approver_username = step.get('approver_username')
+            approver_type = step.get('approver_type', 'user')
+        else:
+            step_order = step.step_order
+            step_name = step.step_name
+            approver_real_name = step.approver.real_name if step.approver else None
+            approver_username = step.approver.username if step.approver else None
+            approver_type = step.approver_type or 'user'
+        
+        # 确定审批人显示名称
+        if approver_type == 'next_level':
+            # 对于next_level类型，尝试获取实际审批人
+            try:
+                actual_approver = get_step_actual_approver(step, approval_instance)
+                approver_display = actual_approver.real_name or actual_approver.username if actual_approver else '待确定'
+            except:
+                approver_display = '上级领导'
+        else:
+            approver_display = approver_real_name or approver_username or '未知'
+        
+        # 🔥 修复：确定步骤状态 - 考虑用户权限
+        is_objective_current = (step_order == current_step_order) and (approval_instance.status == ApprovalStatus.PENDING)
+        is_completed = step_order < current_step_order
+        
+        # 判断当前用户是否有权限审批此步骤
+        user_can_approve = False
+        if current_user_id and is_objective_current:
+            try:
+                from flask import current_app
+                user_can_approve = can_user_approve(approval_instance.id, current_user_id)
+                current_app.logger.debug(f"步骤{step_order}权限检查: user_id={current_user_id}, can_approve={user_can_approve}")
+            except:
+                user_can_approve = False
+        
+        # 🔥 关键修复：只有当前用户有权限时才显示为current，否则显示为waiting
+        is_current = is_objective_current and user_can_approve
+        is_waiting = is_objective_current and not user_can_approve
+        
         step_info = {
-            'order': step.step_order,
-            'name': step.step_name,
-            'approver': step.approver.real_name or step.approver.username if step.approver else '未知',
-            'is_current': i == current_step_index and approval_instance.status == ApprovalStatus.PENDING,
-            'is_completed': i < len(completed_records),
+            'order': step_order,
+            'name': step_name,
+            'approver': approver_display,
+            'is_current': is_current,
+            'is_waiting': is_waiting,  # 新增：等待状态
+            'is_completed': is_completed,
             'action': None,
             'timestamp': None,
             'comment': None
         }
         
-        # 如果步骤已完成，添加审批记录信息
-        if i < len(completed_records):
-            record = completed_records[i]
-            step_info.update({
-                'action': record.action,
-                'timestamp': record.timestamp,
-                'comment': record.comment
-            })
+        # 如果步骤已完成，查找对应的审批记录
+        if is_completed:
+            # 查找匹配这个步骤的审批记录
+            matching_record = None
+            for record in completed_records:
+                # 可以通过时间顺序或其他方式匹配
+                # 这里简化处理：按顺序匹配（假设审批记录按时间顺序对应步骤顺序）
+                if not matching_record:  # 取第一个还没有被使用的记录
+                    matching_record = record
+                    break
+            
+            if matching_record:
+                step_info.update({
+                    'action': matching_record.action,
+                    'timestamp': matching_record.timestamp,
+                    'comment': matching_record.comment
+                })
+                completed_records.remove(matching_record)  # 避免重复使用
         
         workflow_steps.append(step_info)
     
@@ -4487,11 +4681,36 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                 if action == ApprovalAction.APPROVE:
                     # 审批通过
                     if instance.status == ApprovalStatus.APPROVED:
-                        # 流程完全通过
-                        expense.status = 'approved'
-                        expense.approved_at = datetime.now()
-                        expense.approved_by = user_id
-                        current_app.logger.info(f"报销单 {expense.expense_number} 审批完成，状态更新为: approved")
+                        # 流程完全通过 - 检查刚完成的步骤类型
+                        current_step_info = instance.get_current_step_info() or {}
+                        last_step_action_type = current_step_info.get('action_type')
+                        
+                        if last_step_action_type == 'payment_processing':
+                            # 刚完成的是支付步骤，更新为已支付状态
+                            expense.status = 'paid'
+                            if hasattr(expense, 'payment_status'):
+                                expense.payment_status = 'paid'
+                            if hasattr(expense, 'payment_date') and not expense.payment_date:
+                                expense.payment_date = datetime.now()
+                            if hasattr(expense, 'paid_by') and not expense.paid_by:
+                                expense.paid_by = user_id
+                            current_app.logger.info(f"报销单 {expense.expense_number} 支付审批完成，状态更新为已支付: paid")
+                        else:
+                            # 其他步骤完成，检查是否有支付步骤
+                            has_payment_steps = _has_payment_steps_in_process(instance)
+                            
+                            if has_payment_steps:
+                                # 如果有支付步骤，状态应为待支付
+                                expense.status = 'awaiting_payment'
+                                if hasattr(expense, 'payment_status'):
+                                    expense.payment_status = 'awaiting'
+                                current_app.logger.info(f"报销单 {expense.expense_number} 审批完成，状态更新为待支付: awaiting_payment")
+                            else:
+                                # 如果没有支付步骤，直接审批通过
+                                expense.status = 'approved'
+                            expense.approved_at = datetime.now()
+                            expense.approved_by = user_id
+                            current_app.logger.info(f"报销单 {expense.expense_number} 审批完成，状态更新为: approved")
                     else:
                         # 还在审批中
                         expense.status = 'pending'
@@ -4506,6 +4725,67 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
         current_app.logger.error(f"更新业务对象审批状态失败: {str(e)}")
         import traceback
         current_app.logger.error(traceback.format_exc()) 
+
+
+def _has_payment_steps_in_process(instance):
+    """检查审批流程中是否包含支付步骤
+    
+    Args:
+        instance: 审批实例对象
+        
+    Returns:
+        bool: 如果包含支付步骤返回True，否则返回False
+    """
+    try:
+        # 获取流程中的所有步骤
+        steps = instance.get_steps()
+        
+        if not steps:
+            return False
+            
+        # 检查步骤类型 - 支持快照和模型对象两种情况
+        for step in steps:
+            if isinstance(step, dict):
+                # 快照数据（字典格式）
+                action_type = step.get('action_type', '')
+            else:
+                # 模型对象
+                action_type = getattr(step, 'action_type', '')
+            
+            # 检查是否为支付处理动作
+            if action_type == 'payment_processing':
+                current_app.logger.info(f"流程 {instance.id} 包含支付步骤")
+                return True
+                
+        current_app.logger.info(f"流程 {instance.id} 不包含支付步骤")
+        return False
+        
+    except Exception as e:
+        current_app.logger.error(f"检查支付步骤失败: {str(e)}")
+        return False
+
+
+def _update_expense_status_for_payment_stage(instance, user_id, comment):
+    """当审批流程进入支付阶段时更新报销单状态
+    
+    Args:
+        instance: 审批实例对象
+        user_id: 操作人ID
+        comment: 审批意见
+    """
+    try:
+        from app.models.expense import Expense
+        expense = Expense.query.get(instance.object_id)
+        
+        if expense:
+            # 更新为待支付状态
+            expense.status = 'awaiting_payment'
+            if hasattr(expense, 'payment_status'):
+                expense.payment_status = 'awaiting'
+            current_app.logger.info(f"报销单 {expense.expense_number} 进入支付阶段，状态更新为: awaiting_payment")
+            
+    except Exception as e:
+        current_app.logger.error(f"更新报销单支付阶段状态失败: {str(e)}")
 
 
 def lock_expense(expense_id, user_id=None):

@@ -258,22 +258,46 @@ class ApprovalFlow {
         } else if (stage.status === 'current') {
             circleDiv.classList.add('current');
             if (canApprove) {
-                circleDiv.innerHTML = '<i class="fas fa-user-check"></i>';
-                circleDiv.classList.add('can-approve');
+                // 根据步骤类型选择不同图标
+                if (this.isPaymentStep(stage)) {
+                    circleDiv.innerHTML = '<i class="fas fa-credit-card"></i>';
+                    circleDiv.classList.add('can-approve', 'payment-step');
+                } else {
+                    circleDiv.innerHTML = '<i class="fas fa-user-check"></i>';
+                    circleDiv.classList.add('can-approve');
+                }
             } else {
                 // 当前阶段但无审批权限 - 观察模式，显示阶段序号
                 circleDiv.innerHTML = stage.stage_order;
             }
         } else if (stage.status === 'approved') {
             circleDiv.classList.add('completed');
-            circleDiv.innerHTML = '<i class="fas fa-check"></i>';
+            // 根据步骤类型选择不同的完成图标
+            if (this.isPaymentStep(stage)) {
+                circleDiv.innerHTML = '<i class="fas fa-money-check"></i>';
+                circleDiv.classList.add('payment-completed');
+            } else {
+                circleDiv.innerHTML = '<i class="fas fa-check"></i>';
+            }
             console.log(`✅ 步骤 ${stage.stage_order} 标记为已审批通过，添加completed类`);
         } else if (stage.status === 'rejected') {
             circleDiv.classList.add('rejected');
-            circleDiv.innerHTML = '<i class="fas fa-times"></i>';
+            // 支付步骤被拒绝显示为暂缓
+            if (this.isPaymentStep(stage)) {
+                circleDiv.innerHTML = '<i class="fas fa-pause-circle"></i>';
+                circleDiv.classList.add('payment-paused');
+            } else {
+                circleDiv.innerHTML = '<i class="fas fa-times"></i>';
+            }
         } else if (stage.status === 'waiting' || stage.status === 'pending') {
             circleDiv.classList.add('pending');
-            circleDiv.innerHTML = '<i class="fas fa-clock"></i>';
+            // 等待状态下，支付步骤和普通步骤都显示相同的灰色样式
+            if (this.isPaymentStep(stage)) {
+                circleDiv.innerHTML = '<i class="fas fa-wallet"></i>';
+                // 不添加payment-pending类，保持和其他步骤一样的灰色
+            } else {
+                circleDiv.innerHTML = '<i class="fas fa-clock"></i>';
+            }
         } else {
             // 其他未知状态，显示为pending状态
             circleDiv.classList.add('pending');
@@ -282,6 +306,18 @@ class ApprovalFlow {
         }
         
         return circleDiv;
+    }
+    
+    // 判断是否为支付步骤
+    isPaymentStep(stage) {
+        // 根据步骤名称或action_type判断是否为支付步骤
+        if (stage.action_type === 'payment_processing') {
+            return true;
+        }
+        // 也可以根据步骤名称判断（支持中英文）
+        const paymentKeywords = ['支付', '付款', 'payment', 'pay'];
+        const stageName = (stage.stage_name || '').toLowerCase();
+        return paymentKeywords.some(keyword => stageName.includes(keyword));
     }
     
     // 创建信息元素
@@ -295,7 +331,7 @@ class ApprovalFlow {
         
         const approverDiv = document.createElement('div');
         approverDiv.className = 'stage-approver';
-        approverDiv.textContent = stage.approver_name || '待分配';
+        approverDiv.textContent = stage.approver_name || (window.approvalFlowI18n?.pending || '待分配');
         
         const datesDiv = document.createElement('div');
         datesDiv.className = 'stage-dates';
@@ -304,21 +340,21 @@ class ApprovalFlow {
             // 已处理的节点：显示处理时间和处理耗时
             if (stage.processed_at) {
                 const processedDate = new Date(stage.processed_at);
-                datesDiv.innerHTML = `处理：${processedDate.toLocaleDateString()}`;
+                datesDiv.innerHTML = `${window.approvalFlowI18n?.processed || '处理：'}${processedDate.toLocaleDateString()}`;
                 
                 // 如果有到达时间，计算处理耗时
                 if (stage.arrived_at) {
                     const arrivedDate = new Date(stage.arrived_at);
                     const processingHours = Math.max(0, Math.floor((processedDate - arrivedDate) / (1000 * 60 * 60)));
                     if (processingHours < 24) {
-                        datesDiv.innerHTML += `<br>耗时：${processingHours}小时`;
+                        datesDiv.innerHTML += `<br>${window.approvalFlowI18n?.duration || '耗时：'}${processingHours}${window.approvalFlowI18n?.hours || '小时'}`;
                     } else {
                         const processingDays = Math.floor(processingHours / 24);
                         const remainingHours = processingHours % 24;
                         if (remainingHours > 0) {
-                            datesDiv.innerHTML += `<br>耗时：${processingDays}天${remainingHours}小时`;
+                            datesDiv.innerHTML += `<br>${window.approvalFlowI18n?.duration || '耗时：'}${processingDays}${window.approvalFlowI18n?.days || '天'}${remainingHours}${window.approvalFlowI18n?.hours || '小时'}`;
                         } else {
-                            datesDiv.innerHTML += `<br>耗时：${processingDays}天`;
+                            datesDiv.innerHTML += `<br>${window.approvalFlowI18n?.duration || '耗时：'}${processingDays}${window.approvalFlowI18n?.days || '天'}`;
                         }
                     }
                 }
@@ -328,8 +364,8 @@ class ApprovalFlow {
             const arrivedDate = new Date(stage.arrived_at);
             const daysDiff = Math.max(0, Math.floor((new Date() - arrivedDate) / (1000 * 60 * 60 * 24)));
             datesDiv.innerHTML = `
-                到达：${arrivedDate.toLocaleDateString()}<br>
-                停留：${daysDiff}天
+                ${window.approvalFlowI18n?.arrived || '到达：'}${arrivedDate.toLocaleDateString()}<br>
+                ${window.approvalFlowI18n?.staying || '停留：'}${daysDiff}${window.approvalFlowI18n?.days || '天'}
             `;
         }
         
@@ -416,8 +452,8 @@ class ApprovalFlow {
     // 获取可用的审批操作
     getAvailableActions(stage) {
         const defaultActions = [
-            { value: 'approve', label: '同意', color: 'success' },
-            { value: 'reject', label: '拒绝', color: 'danger' }
+            { value: 'approve', label: window.approvalFlowI18n?.approve || '同意', color: 'success' },
+            { value: 'reject', label: window.approvalFlowI18n?.reject || '拒绝', color: 'danger' }
         ];
         
         // 合并自定义操作
@@ -437,16 +473,16 @@ class ApprovalFlow {
     // 设置对话框数据
     setDialogData(stage) {
         document.getElementById('approvalStageTitle').textContent = stage.stage_name;
-        document.getElementById('approvalApproverName').textContent = stage.approver_name || '待分配';
+        document.getElementById('approvalApproverName').textContent = stage.approver_name || (window.approvalFlowI18n?.pending || '待分配');
         
         // 格式化到达时间
         if (stage.arrived_at) {
             const arrivedDate = new Date(stage.arrived_at);
             const daysDiff = Math.max(0, Math.floor((new Date() - arrivedDate) / (1000 * 60 * 60 * 24)));
             document.getElementById('approvalArrivedTime').textContent = 
-                `${arrivedDate.toLocaleDateString()} (${daysDiff}天前)`;
+                `${arrivedDate.toLocaleDateString()} (${daysDiff}${window.approvalFlowI18n?.days || '天'}${window.approvalFlowI18n?.ago || '前'})`;
         } else {
-            document.getElementById('approvalArrivedTime').textContent = '刚刚到达';
+            document.getElementById('approvalArrivedTime').textContent = window.approvalFlowI18n?.justArrived || '刚刚到达';
         }
         
         // 清空评语输入
@@ -581,10 +617,10 @@ class ApprovalFlow {
                 // 触发自定义事件
                 this.dispatchEvent('approved', { stage_id: stageId, action: action });
             } else {
-                alert('审批处理失败：' + data.message);
+                alert((window.approvalFlowI18n?.approvalFailed || '审批处理失败：') + data.message);
             }
         } catch (error) {
-            alert('审批处理失败：网络错误');
+            alert((window.approvalFlowI18n?.approvalFailed || '审批处理失败：') + (window.approvalFlowI18n?.networkError || '网络错误'));
             console.error('处理审批失败:', error);
         }
     }
@@ -610,10 +646,10 @@ class ApprovalFlow {
                 // 触发自定义事件
                 this.dispatchEvent('submitted', { object_type: this.objectType, object_id: this.objectId });
             } else {
-                alert('提交失败：' + data.message);
+                alert((window.approvalFlowI18n?.submitFailed || '提交失败：') + data.message);
             }
         } catch (error) {
-            alert('提交失败：网络错误');
+            alert((window.approvalFlowI18n?.submitFailed || '提交失败：') + (window.approvalFlowI18n?.networkError || '网络错误'));
             console.error('提交审批失败:', error);
         }
     }
@@ -639,10 +675,10 @@ class ApprovalFlow {
                 // 触发自定义事件
                 this.dispatchEvent('recalled', { object_type: this.objectType, object_id: this.objectId });
             } else {
-                alert('召回失败：' + data.message);
+                alert((window.approvalFlowI18n?.recallFailed || '召回失败：') + data.message);
             }
         } catch (error) {
-            alert('召回失败：网络错误');
+            alert((window.approvalFlowI18n?.recallFailed || '召回失败：') + (window.approvalFlowI18n?.networkError || '网络错误'));
             console.error('召回审批失败:', error);
         }
     }
@@ -665,10 +701,10 @@ class ApprovalFlow {
                 // 触发自定义事件
                 this.dispatchEvent('resubmitted', { object_type: this.objectType, object_id: this.objectId });
             } else {
-                alert('重新提交失败：' + data.message);
+                alert((window.approvalFlowI18n?.resubmitFailed || '重新提交失败：') + data.message);
             }
         } catch (error) {
-            alert('重新提交失败：网络错误');
+            alert((window.approvalFlowI18n?.resubmitFailed || '重新提交失败：') + (window.approvalFlowI18n?.networkError || '网络错误'));
             console.error('重新提交审批失败:', error);
         }
     }
@@ -683,34 +719,37 @@ class ApprovalFlow {
     
     // 显示无权限消息
     showNoPermissionMessage(stage) {
-        alert(`当前阶段"${stage.stage_name}"需要由 ${stage.approver_name} 进行审批。您暂无权限审批此阶段。`);
+        const message = (window.approvalFlowI18n?.noPermissionMessage || '当前阶段"{stage}"需要由 {approver} 进行审批。您暂无权限审批此阶段。')
+            .replace('{stage}', stage.stage_name)
+            .replace('{approver}', stage.approver_name);
+        alert(message);
     }
     
     // 显示阶段信息
     showStageInfo(stage) {
-        let message = `阶段信息：${stage.stage_name}\n`;
-        message += `审批人：${stage.approver_name}\n`;
+        let message = `${window.approvalFlowI18n?.stageInfo || '阶段信息：'}${stage.stage_name}\n`;
+        message += `${window.approvalFlowI18n?.approver || '审批人：'}${stage.approver_name}\n`;
         
         if (stage.status === 'approved') {
-            message += `状态：已通过\n`;
+            message += `${window.approvalFlowI18n?.status || '状态：'}${window.approvalFlowI18n?.approved || '已通过'}\n`;
             if (stage.processed_at) {
                 const processedDate = new Date(stage.processed_at);
-                message += `处理时间：${processedDate.toLocaleString()}`;
+                message += `${window.approvalFlowI18n?.processedTime || '处理时间：'}${processedDate.toLocaleString()}`;
             }
         } else if (stage.status === 'rejected') {
-            message += `状态：已拒绝\n`;
+            message += `${window.approvalFlowI18n?.status || '状态：'}${window.approvalFlowI18n?.rejected || '已拒绝'}\n`;
             if (stage.processed_at) {
                 const processedDate = new Date(stage.processed_at);
-                message += `处理时间：${processedDate.toLocaleString()}`;
+                message += `${window.approvalFlowI18n?.processedTime || '处理时间：'}${processedDate.toLocaleString()}`;
             }
         } else if (stage.status === 'pending') {
-            message += `状态：待处理\n`;
+            message += `${window.approvalFlowI18n?.status || '状态：'}${window.approvalFlowI18n?.pending || '待处理'}\n`;
             if (stage.arrived_at) {
                 const arrivedDate = new Date(stage.arrived_at);
-                message += `到达时间：${arrivedDate.toLocaleString()}`;
+                message += `${window.approvalFlowI18n?.arrivedTime || '到达时间：'}${arrivedDate.toLocaleString()}`;
             }
         } else {
-            message += `状态：等待中`;
+            message += `${window.approvalFlowI18n?.status || '状态：'}${window.approvalFlowI18n?.waiting || '等待中'}`;
         }
         
         alert(message);
@@ -744,7 +783,7 @@ class ApprovalFlow {
         const icon = document.createElement('div');
         icon.className = `approval-comment-icon ${action}`;
         icon.innerHTML = '<i class="fas fa-comment"></i>';
-        icon.title = '点击查看审批意见';
+        icon.title = window.approvalFlowI18n?.clickToView || '点击查看审批意见';
         
         // 创建气泡内容（隐藏）
         const bubble = document.createElement('div');
@@ -830,6 +869,6 @@ window.confirmApprovalAction = function(action) {
         // 处理审批
         currentFlow.processApproval(currentFlow.currentStage.id, action, comment);
     } else {
-        alert('无法找到当前审批阶段信息');
+        alert(window.approvalFlowI18n?.noCurrentStage || '无法找到当前审批阶段信息');
     }
 };

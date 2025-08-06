@@ -165,6 +165,31 @@
     color: white;
 }
 
+/* 支付步骤特殊样式 */
+.stage-circle.payment-step {
+    background-color: #17a2b8; /* 青色 - 支付处理中 */
+    border: 2px solid #138496;
+    color: white;
+}
+
+.stage-circle.payment-completed {
+    background-color: #20c997; /* 翠绿色 - 支付完成 */
+    border: 2px solid #1aa085;
+    color: white;
+}
+
+.stage-circle.payment-paused {
+    background-color: #fd7e14; /* 橙色 - 支付暂缓 */
+    border: 2px solid #e76500;
+    color: white;
+}
+
+.stage-circle.payment-pending {
+    background-color: #f8f9fa;
+    border: 2px solid #dee2e6;
+    color: #6c757d;
+}
+
 /* 阶段信息样式 */
 .stage-info {
     text-align: center;

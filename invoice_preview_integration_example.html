@@ -1,0 +1,366 @@
+<!-- 发票预览组件集成示例 -->
+<!-- 展示如何将新的标准化组件集成到现有页面中 -->
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>发票预览组件使用示例</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- 页面主要内容 -->
+    <div class="container mt-4">
+        <h2>发票预览组件集成示例</h2>
+        
+        <!-- 原有的发票列表 -->
+        <div class="card">
+            <div class="card-header">
+                <h5>报销单发票列表</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <!-- 发票1 - 使用新组件 -->
+                    <div class="col-md-4 mb-3">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <i class="fas fa-file-invoice fa-3x text-primary mb-3"></i>
+                                <h6>交通费发票</h6>
+                                <p class="text-muted small">invoice_001.jpg</p>
+                                <button class="btn btn-outline-primary btn-sm" 
+                                        onclick="showNewInvoicePreview('invoice_001.jpg')">
+                                    <i class="fas fa-eye me-1"></i>预览
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 发票2 - 使用新组件 -->
+                    <div class="col-md-4 mb-3">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <i class="fas fa-file-invoice fa-3x text-success mb-3"></i>
+                                <h6>餐饮费发票</h6>
+                                <p class="text-muted small">invoice_002.jpg</p>
+                                <button class="btn btn-outline-success btn-sm" 
+                                        onclick="showNewInvoicePreview('invoice_002.jpg')">
+                                    <i class="fas fa-eye me-1"></i>预览
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 发票3 - 使用新组件（带详细信息） -->
+                    <div class="col-md-4 mb-3">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <i class="fas fa-file-invoice fa-3x text-warning mb-3"></i>
+                                <h6>住宿费发票</h6>
+                                <p class="text-muted small">invoice_003.jpg</p>
+                                <button class="btn btn-outline-warning btn-sm" 
+                                        onclick="showDetailedInvoicePreview()">
+                                    <i class="fas fa-eye me-1"></i>预览
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 对比说明 -->
+                <div class="alert alert-info mt-4">
+                    <h6><i class="fas fa-info-circle me-2"></i>组件特性对比</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>🔥 新组件优势:</h6>
+                            <ul class="mb-0">
+                                <li>统一的圆角设计(12px)</li>
+                                <li>标准化按钮组件</li>
+                                <li>详细文件信息显示</li>
+                                <li>重试加载功能</li>
+                                <li>响应式设计</li>
+                                <li>深色模式支持</li>
+                                <li>键盘快捷键(ESC)</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>📊 显示信息:</h6>
+                            <ul class="mb-0">
+                                <li>文件名和类型</li>
+                                <li>文件大小</li>
+                                <li>上传时间</li>
+                                <li>文件描述</li>
+                                <li>下载功能</li>
+                                <li>加载状态</li>
+                                <li>错误处理</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 在页面底部引入新的发票预览组件 -->
+    <!-- 模拟Jinja2宏调用 -->
+    <!--
+    {% from 'macros/ui_helpers.html' import render_invoice_preview_dialog %}
+    {{ render_invoice_preview_dialog('expenseInvoicePreview') }}
+    -->
+    
+    <!-- 这里直接包含组件HTML用于演示 -->
+    <div id="expenseInvoicePreview" class="standard-invoice-preview-dialog" style="display: none;">
+        <div class="dialog-overlay"></div>
+        <div class="dialog-container">
+            <div class="dialog-content">
+                <!-- 头部：标题和关闭按钮 -->
+                <div class="dialog-header">
+                    <h5 class="dialog-title">
+                        <i class="fas fa-file-invoice text-primary me-2"></i>
+                        发票预览
+                    </h5>
+                    <button type="button" class="dialog-close-btn" title="关闭">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <!-- 文件信息栏 -->
+                <div class="file-info-bar">
+                    <div class="file-details">
+                        <div class="file-name">加载中...</div>
+                        <div class="file-meta"></div>
+                    </div>
+                    <div class="file-actions">
+                        <button type="button" class="btn btn-outline-primary btn-sm download-btn" title="下载文件">
+                            <i class="fas fa-download me-1"></i>下载
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 图片预览区域 -->
+                <div class="image-preview-container">
+                    <div class="image-wrapper">
+                        <img class="preview-image" alt="发票预览" style="display: none;" />
+                        <div class="image-loading">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>加载中...</span>
+                        </div>
+                        <div class="image-error" style="display: none;">
+                            <i class="fas fa-exclamation-triangle text-danger"></i>
+                            <span>图片加载失败</span>
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary retry-load-btn">
+                                    <i class="fas fa-redo me-1"></i>重新加载
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 底部操作栏 -->
+                <div class="dialog-actions">
+                    <button type="button" class="btn btn-primary dialog-download-btn">
+                        <i class="fas fa-download me-1"></i>下载
+                    </button>
+                    <button type="button" class="btn btn-secondary dialog-close-btn">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入组件样式 -->
+    <link rel="stylesheet" href="invoice_preview_component_styles.css">
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- 引入组件JavaScript -->
+    <script src="invoice_preview_component_script.js"></script>
+    
+    <!-- 页面特定的JavaScript -->
+    <script>
+        // 模拟发票数据
+        const invoiceData = {
+            'invoice_001.jpg': {
+                path: 'https://via.placeholder.com/800x600/007bff/ffffff?text=交通费发票',
+                size: 245760, // 240KB
+                type: 'image/jpeg',
+                uploadTime: '2025-01-15 10:30:00',
+                description: '出租车发票'
+            },
+            'invoice_002.jpg': {
+                path: 'https://via.placeholder.com/800x600/28a745/ffffff?text=餐饮费发票',
+                size: 512000, // 500KB
+                type: 'image/jpeg',
+                uploadTime: '2025-01-14 15:45:00',
+                description: '商务用餐发票'
+            },
+            'invoice_003.jpg': {
+                path: 'https://via.placeholder.com/800x600/ffc107/000000?text=住宿费发票',
+                size: 1048576, // 1MB
+                type: 'image/jpeg',
+                uploadTime: '2025-01-13 20:15:00',
+                description: '酒店住宿发票'
+            }
+        };
+
+        /**
+         * 显示简单的发票预览
+         */
+        function showNewInvoicePreview(filename) {
+            const invoice = invoiceData[filename];
+            if (!invoice) {
+                alert('发票数据不存在');
+                return;
+            }
+
+            showInvoicePreviewDialog(
+                invoice.path,
+                filename,
+                {
+                    size: invoice.size,
+                    type: invoice.type,
+                    uploadTime: invoice.uploadTime,
+                    description: invoice.description
+                },
+                'expenseInvoicePreview'
+            );
+        }
+
+        /**
+         * 显示详细信息的发票预览
+         */
+        function showDetailedInvoicePreview() {
+            const filename = 'invoice_003.jpg';
+            const invoice = invoiceData[filename];
+
+            showInvoicePreviewDialog(
+                invoice.path,
+                filename,
+                {
+                    size: invoice.size,
+                    type: invoice.type,
+                    uploadTime: invoice.uploadTime,
+                    description: invoice.description + ' - 北京华美达酒店'
+                },
+                'expenseInvoicePreview'
+            );
+        }
+
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('发票预览组件示例页面加载完成');
+            
+            // 可以在这里添加其他初始化逻辑
+            // 例如：绑定全局键盘快捷键、设置主题等
+        });
+
+        // 演示函数：显示成功消息（模拟全局函数）
+        function showSuccessMessage(message) {
+            const toast = document.createElement('div');
+            toast.className = 'position-fixed top-0 end-0 m-3 bg-success text-white p-3 rounded';
+            toast.style.zIndex = '9999';
+            toast.innerHTML = `<i class="fas fa-check-circle me-2"></i>${message}`;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        // 演示函数：显示错误消息（模拟全局函数）
+        function showErrorMessage(message) {
+            const toast = document.createElement('div');
+            toast.className = 'position-fixed top-0 end-0 m-3 bg-danger text-white p-3 rounded';
+            toast.style.zIndex = '9999';
+            toast.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>${message}`;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+    </script>
+
+    <!-- 演示用的内联样式 -->
+    <style>
+        /* 这里包含发票预览组件的所有样式 */
+        /* 在实际项目中，这些样式会在组件文件中定义 */
+        
+        /* 标准发票预览对话框样式 - 模仿确认组件设计 */
+        .standard-invoice-preview-dialog {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 1070;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(3px);
+            opacity: 0;
+            transition: opacity 0.3s ease-out;
+        }
+
+        .standard-invoice-preview-dialog.show {
+            opacity: 1;
+        }
+
+        .standard-invoice-preview-dialog .dialog-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            cursor: pointer;
+        }
+
+        .standard-invoice-preview-dialog .dialog-container {
+            position: relative;
+            width: 90vw;
+            max-width: 900px;
+            max-height: 90vh;
+            z-index: 1;
+            animation: slideInScale 0.3s ease-out;
+        }
+
+        .standard-invoice-preview-dialog .dialog-content {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            max-height: 90vh;
+            overflow: hidden;
+        }
+
+        /* 其他样式省略... 实际项目中会包含完整样式 */
+        
+        @keyframes slideInScale {
+            0% {
+                opacity: 0;
+                transform: scale(0.8) translateY(-30px);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+        
+        /* 演示页面特有样式 */
+        .card {
+            transition: transform 0.2s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+        }
+    </style>
+</body>
+</html>

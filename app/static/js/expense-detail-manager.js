@@ -105,7 +105,48 @@ class ExpenseDetailManager {
             ]
         };
         
-        return Object.assign({}, defaultConfig, config);
+        const mergedConfig = Object.assign({}, defaultConfig, config);
+        
+        // 🔥 处理字符串引用的全局变量
+        this.resolveStringReferences(mergedConfig);
+        
+        return mergedConfig;
+    }
+    
+    /**
+     * 解析配置中的字符串引用为实际的JavaScript变量
+     */
+    resolveStringReferences(config) {
+        try {
+            // 处理 currency_options 字符串引用
+            if (config.currency_options && typeof config.currency_options === 'string') {
+                const variableName = config.currency_options;
+                if (window[variableName]) {
+                    config.currency_options = window[variableName];
+                    console.log(`✅ 解析货币选项引用: ${variableName}`, config.currency_options);
+                } else {
+                    console.warn(`⚠️ 未找到全局变量: ${variableName}`);
+                }
+            }
+            
+            // 处理列配置中的 options 字符串引用
+            if (config.columns && Array.isArray(config.columns)) {
+                config.columns.forEach(column => {
+                    if (column.options && typeof column.options === 'string') {
+                        const variableName = column.options;
+                        if (window[variableName]) {
+                            column.options = window[variableName];
+                            console.log(`✅ 解析列选项引用: ${column.key}.options = ${variableName}`, column.options);
+                        } else {
+                            console.warn(`⚠️ 未找到全局变量: ${variableName}`);
+                        }
+                    }
+                });
+            }
+            
+        } catch (error) {
+            console.error('解析字符串引用失败:', error);
+        }
     }
     
     /**
@@ -284,7 +325,7 @@ class ExpenseDetailManager {
             // 添加默认选项
             const defaultOption = document.createElement('option');
             defaultOption.value = '';
-            defaultOption.textContent = '请选择货币';
+            defaultOption.textContent = window.i18nTexts?.pleaseSelectCurrency || '请选择货币';
             select.appendChild(defaultOption);
             
             // 添加货币选项
@@ -322,7 +363,7 @@ class ExpenseDetailManager {
             // 添加默认选项
             const defaultOption = document.createElement('option');
             defaultOption.value = '';
-            defaultOption.textContent = '请选择科目';
+            defaultOption.textContent = window.i18nTexts?.pleaseSelectCategory || '请选择科目';
             select.appendChild(defaultOption);
             
             // 添加科目选项
@@ -496,20 +537,25 @@ class ExpenseDetailManager {
             }
             
             const invoiceAmount = parseFloat(invoiceAmountElement.value) || 0;
-            if (invoiceAmount <= 0) {
-                console.log('发票金额为0，设置当前金额为0');
-                // 获取报销单的基准货币
-                const expenseCurrencyElement = document.getElementById('currency');
-                const expenseCurrency = expenseCurrencyElement ? expenseCurrencyElement.value : 'CNY';
-                // 如果没有发票金额，清空当前金额显示
-                this.updateCurrentAmountDisplay(currentAmountElement, 0, expenseCurrency);
-                this.calculateTotal();
-                return;
-            }
             
             // 获取报销单的基准货币
             const expenseCurrencyElement = document.getElementById('currency');
             const expenseCurrency = expenseCurrencyElement ? expenseCurrencyElement.value : 'CNY';
+            
+            if (invoiceAmount <= 0) {
+                console.log('发票金额为0，设置当前金额为0，但仍需设置正确汇率');
+                // 即使发票金额为0，也要设置正确的汇率
+                if (newCurrency === expenseCurrency) {
+                    this.updateExchangeRateInput(rowIndex, 1.0);
+                } else {
+                    // 异步获取汇率但不等待，用于下次输入金额时使用
+                    this.getExchangeRateAsync(newCurrency, expenseCurrency, rowIndex);
+                }
+                // 清空当前金额显示
+                this.updateCurrentAmountDisplay(currentAmountElement, 0, expenseCurrency);
+                this.calculateTotal();
+                return;
+            }
             
             console.log(`💱 发票金额: ${invoiceAmount} ${newCurrency}, 报销单货币: ${expenseCurrency}`);
             
@@ -550,6 +596,24 @@ class ExpenseDetailManager {
             
         } catch (error) {
             console.error('处理货币变更失败:', error);
+        }
+    }
+    
+    /**
+     * 异步获取汇率（不阻塞界面）
+     */
+    async getExchangeRateAsync(fromCurrency, toCurrency, rowIndex) {
+        try {
+            console.log(`🔄 异步获取汇率: ${fromCurrency} -> ${toCurrency}`);
+            const convertedAmount = await this.convertCurrency(1, fromCurrency, toCurrency);
+            const exchangeRate = convertedAmount / 1; // 1单位fromCurrency对应的toCurrency金额
+            
+            console.log(`✅ 异步汇率获取完成: ${fromCurrency} -> ${toCurrency} = ${exchangeRate.toFixed(4)}`);
+            this.updateExchangeRateInput(rowIndex, exchangeRate);
+        } catch (error) {
+            console.error('异步获取汇率失败:', error);
+            // 失败时设置为1.0
+            this.updateExchangeRateInput(rowIndex, 1.0);
         }
     }
     
@@ -606,12 +670,32 @@ class ExpenseDetailManager {
      * 更新汇率输入框
      */
     updateExchangeRateInput(rowIndex, exchangeRate) {
-        const exchangeRateElement = document.querySelector(`input[data-row-index="${rowIndex}"][data-field="exchange_rate"]`);
+        // 🔥 优先查找移动端汇率输入框，然后查找PC端
+        let exchangeRateElement = document.querySelector(`.expense-detail-input-card input[data-row-index="${rowIndex}"][data-field="exchange_rate"]`);
+        
+        if (!exchangeRateElement) {
+            // 如果没有找到移动端输入框，查找PC端表格中的输入框
+            exchangeRateElement = document.querySelector(`table input[data-row-index="${rowIndex}"][data-field="exchange_rate"]`);
+        }
+        
+        if (!exchangeRateElement) {
+            // 兜底：使用原来的通用选择器
+            exchangeRateElement = document.querySelector(`input[data-row-index="${rowIndex}"][data-field="exchange_rate"]`);
+        }
+        
         if (exchangeRateElement) {
             exchangeRateElement.value = exchangeRate.toFixed(4);
             // 更新行数据
             this.updateRowData(rowIndex, 'exchange_rate', exchangeRate);
-            console.log(`✅ 汇率输入框已更新: ${exchangeRate.toFixed(4)}`);
+            console.log(`✅ 汇率输入框已更新: ${exchangeRate.toFixed(4)} (元素类型: ${exchangeRateElement.closest('.expense-detail-input-card') ? '移动端' : 'PC端'})`);
+            
+            // 🔥 汇率更新后重新计算报销金额
+            this.calculateCurrentAmountMobile(rowIndex);
+            
+            // 重新计算总金额
+            this.calculateTotal();
+        } else {
+            console.warn(`❌ 未找到汇率输入框，rowIndex: ${rowIndex}`);
         }
     }
     
@@ -699,12 +783,24 @@ class ExpenseDetailManager {
     convertAmountWithDefaultRates(amount, fromCurrency, toCurrency) {
         const defaultRates = {
             'CNY': 1.0,
-            'USD': 0.14,
-            'SGD': 0.19,
+            'USD': 0.14,    // 1 CNY = 0.14 USD，即 1 USD = 7.14 CNY
+            'SGD': 0.19,    // 1 CNY = 0.19 SGD，即 1 SGD = 5.26 CNY  
+            'EUR': 0.13,    // 1 CNY = 0.13 EUR，即 1 EUR = 7.69 CNY
             'MYR': 0.65,
             'IDR': 2100.0,
             'THB': 5.0
         };
+        
+        // 检查货币是否支持
+        if (fromCurrency !== 'CNY' && !defaultRates[fromCurrency]) {
+            console.error(`❌ 不支持的货币: ${fromCurrency}`);
+            return parseFloat(amount); // 返回原金额
+        }
+        
+        if (toCurrency !== 'CNY' && !defaultRates[toCurrency]) {
+            console.error(`❌ 不支持的货币: ${toCurrency}`);
+            return parseFloat(amount); // 返回原金额
+        }
         
         let convertedAmount = parseFloat(amount);
         
@@ -1107,15 +1203,632 @@ class ExpenseDetailManager {
     }
     
     /**
+     * 编辑行 - 移动端使用
+     */
+    editRow(rowIndex) {
+        console.log('编辑明细行:', rowIndex);
+        
+        if (rowIndex < 0 || rowIndex >= this.rows.length) {
+            console.warn('无效的行索引:', rowIndex);
+            return;
+        }
+        
+        const rowData = this.rows[rowIndex];
+        console.log('编辑行数据:', rowData);
+        
+        // 🔥 在移动端，编辑操作切换到桌面视图进行编辑
+        // 或者可以打开一个编辑模态框
+        
+        // 方案1：滚动到对应行并高亮显示
+        console.log('🔍 查找表格行，rowIndex:', rowIndex);
+        
+        // 尝试多种选择器找到表格行
+        const selectors = [
+            `tr[data-row-index="${rowIndex}"]`,  // 表格行
+            `[data-row-index="${rowIndex}"]`,    // 任何带data-row-index的元素
+            `#expenseTable tr:nth-child(${rowIndex + 2})`, // 第N行（考虑表头）
+            `.expense-table-row[data-row-index="${rowIndex}"]` // 带特定类的行
+        ];
+        
+        let tableRow = null;
+        for (let selector of selectors) {
+            tableRow = document.querySelector(selector);
+            console.log(`🔍 选择器 "${selector}" 找到元素:`, tableRow);
+            if (tableRow) break;
+        }
+        
+        if (tableRow) {
+            console.log('✅ 找到表格行，开始高亮和滚动');
+            
+            // 🔥 更明显的高亮效果
+            tableRow.style.backgroundColor = '#fff3cd';
+            tableRow.style.border = '3px solid #ffc107';
+            tableRow.style.boxShadow = '0 0 15px rgba(255, 193, 7, 0.5)';
+            tableRow.style.transform = 'scale(1.02)';
+            tableRow.style.transition = 'all 0.3s ease';
+            
+            // 🔥 延长高亮时间并添加闪烁效果
+            let blinkCount = 0;
+            const blinkInterval = setInterval(() => {
+                tableRow.style.backgroundColor = tableRow.style.backgroundColor === 'rgb(255, 243, 205)' ? '#ffeb3b' : '#fff3cd';
+                blinkCount++;
+                if (blinkCount >= 6) { // 闪烁3次
+                    clearInterval(blinkInterval);
+                    tableRow.style.backgroundColor = '#fff3cd';
+                }
+            }, 300);
+            
+            // 5秒后恢复原状
+            setTimeout(() => {
+                tableRow.style.backgroundColor = '';
+                tableRow.style.border = '';
+                tableRow.style.boxShadow = '';
+                tableRow.style.transform = '';
+                tableRow.style.transition = '';
+            }, 5000);
+            
+            // 滚动到该行
+            tableRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // 聚焦到第一个可编辑字段
+            const firstInput = tableRow.querySelector('input, select, textarea');
+            console.log('🔍 找到的第一个输入字段:', firstInput);
+            if (firstInput) {
+                setTimeout(() => {
+                    firstInput.focus();
+                    firstInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    
+                    // 🔥 让输入字段也闪烁一下
+                    const originalBorder = firstInput.style.border;
+                    firstInput.style.border = '2px solid #007bff';
+                    firstInput.style.boxShadow = '0 0 10px rgba(0, 123, 255, 0.5)';
+                    
+                    setTimeout(() => {
+                        firstInput.style.border = originalBorder;
+                        firstInput.style.boxShadow = '';
+                    }, 2000);
+                }, 1000);
+            }
+        } else {
+            console.warn('❌ 未找到对应的表格行，rowIndex:', rowIndex);
+            console.log('🔍 页面中所有带data-row-index的元素:', 
+                document.querySelectorAll('[data-row-index]'));
+        }
+        
+        // 🔥 检查是否为移动端视图
+        const isMobileView = window.innerWidth <= 768 || document.querySelector('.expense-detail-mobile-cards');
+        
+        if (isMobileView && !tableRow) {
+            // 移动端且找不到表格行，说明是纯卡片视图
+            console.log('🔥 移动端卡片视图，切换为内联编辑模式');
+            this.enableInlineEditForMobile(rowIndex);
+        } else {
+            // 桌面端或混合视图，显示提示消息
+            if (window.showTopNotification) {
+                window.showTopNotification('请在上方表格中编辑明细信息', 'info');
+            } else {
+                console.log('提示：请在上方表格中编辑明细信息');
+            }
+        }
+    }
+    
+    /**
+     * 🔥 移动端内联编辑模式
+     */
+    enableInlineEditForMobile(rowIndex) {
+        console.log('🔥 启用移动端内联编辑，rowIndex:', rowIndex);
+        
+        const rowData = this.rows[rowIndex];
+        if (!rowData) {
+            console.warn('行数据不存在:', rowIndex);
+            return;
+        }
+        
+        // 查找移动端卡片
+        const mobileCard = document.querySelector(`[data-row-index="${rowIndex}"].expense-detail-card`);
+        if (!mobileCard) {
+            console.warn('未找到移动端卡片:', rowIndex);
+            return;
+        }
+        
+        console.log('✅ 找到移动端卡片，开始转换为编辑模式');
+        
+        // 创建编辑表单HTML
+        const editFormHTML = this.createMobileEditForm(rowData, rowIndex);
+        
+        // 替换卡片内容
+        mobileCard.innerHTML = editFormHTML;
+        
+        // 绑定保存和取消事件
+        this.bindMobileEditEvents(mobileCard, rowIndex, rowData);
+        
+        // 添加移动端编辑样式（如果不存在）
+        this.addMobileEditStyles();
+        
+        // 显示成功提示
+        if (window.showTopNotification) {
+            window.showTopNotification('已切换到编辑模式', 'success');
+        }
+    }
+    
+    /**
+     * 🔥 创建移动端编辑表单
+     */
+    createMobileEditForm(rowData, rowIndex) {
+        return `
+            <div class="expense-detail-mobile-edit-form">
+                <div class="mobile-edit-header">
+                    <h6 class="mb-0">编辑报销明细</h6>
+                </div>
+                
+                <div class="mobile-edit-fields">
+                    <div class="mb-3">
+                        <label class="form-label">报销科目</label>
+                        <select class="form-select" name="expense_category" data-field="expense_category">
+                            <option value="">请选择科目</option>
+                            <option value="交通费" ${rowData.expense_category === '交通费' ? 'selected' : ''}>交通费</option>
+                            <option value="餐费" ${rowData.expense_category === '餐费' ? 'selected' : ''}>餐费</option>
+                            <option value="住宿费" ${rowData.expense_category === '住宿费' ? 'selected' : ''}>住宿费</option>
+                            <option value="办公用品" ${rowData.expense_category === '办公用品' ? 'selected' : ''}>办公用品</option>
+                            <option value="其他" ${rowData.expense_category === '其他' ? 'selected' : ''}>其他</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">日期</label>
+                        <input type="date" class="form-control" name="expense_date" data-field="expense_date" value="${rowData.expense_date || ''}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">说明描述</label>
+                        <textarea class="form-control" name="description" data-field="description" rows="2" placeholder="请输入费用说明">${rowData.description || ''}</textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">发票金额</label>
+                        <input type="number" class="form-control" name="amount" data-field="amount" step="0.01" value="${rowData.amount || ''}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">币种</label>
+                        <select class="form-select" name="currency" data-field="currency">
+                            <option value="CNY" ${rowData.currency === 'CNY' ? 'selected' : ''}>人民币 (CNY)</option>
+                            <option value="USD" ${rowData.currency === 'USD' ? 'selected' : ''}>美元 (USD)</option>
+                            <option value="SGD" ${rowData.currency === 'SGD' ? 'selected' : ''}>新币 (SGD)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="mobile-edit-actions">
+                    <button type="button" class="btn btn-outline-secondary btn-cancel">取消</button>
+                    <button type="button" class="btn btn-primary btn-save">保存</button>
+                </div>
+            </div>
+        `;
+    }
+    
+    /**
+     * 🔥 绑定移动端编辑事件
+     */
+    bindMobileEditEvents(mobileCard, rowIndex, originalData) {
+        const saveBtn = mobileCard.querySelector('.btn-save');
+        const cancelBtn = mobileCard.querySelector('.btn-cancel');
+        
+        // 保存按钮
+        saveBtn.addEventListener('click', () => {
+            console.log('🔥 移动端保存编辑');
+            
+            // 收集表单数据
+            const formData = {};
+            mobileCard.querySelectorAll('[data-field]').forEach(input => {
+                formData[input.dataset.field] = input.value;
+            });
+            
+            console.log('🔥 收集的表单数据:', formData);
+            
+            // 更新行数据
+            Object.assign(this.rows[rowIndex], formData);
+            
+            // 重新渲染
+            this.renderTable();
+            
+            // 显示成功提示
+            if (window.showTopNotification) {
+                window.showTopNotification('保存成功', 'success');
+            }
+        });
+        
+        // 取消按钮
+        cancelBtn.addEventListener('click', () => {
+            console.log('🔥 移动端取消编辑');
+            
+            // 重新渲染恢复原状
+            this.renderTable();
+            
+            if (window.showTopNotification) {
+                window.showTopNotification('已取消编辑', 'info');
+            }
+        });
+    }
+    
+    /**
+     * 🔥 添加移动端编辑样式
+     */
+    addMobileEditStyles() {
+        if (document.getElementById('mobile-edit-styles')) {
+            return; // 样式已存在
+        }
+        
+        const style = document.createElement('style');
+        style.id = 'mobile-edit-styles';
+        style.textContent = `
+            .expense-detail-mobile-edit-form {
+                padding: 1rem;
+                background: #f8f9fa;
+                border-radius: 8px;
+                border: 2px solid #007bff;
+            }
+            
+            /* 🔥 移动端输入卡片样式 */
+            .expense-detail-input-card {
+                background: #fff;
+                border: 1px solid #e9ecef;
+                border-radius: 12px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                margin-bottom: 1rem;
+            }
+            
+            .mobile-input-card-content {
+                padding: 1rem;
+            }
+            
+            
+            .mobile-input-fields {
+                display: grid;
+                gap: 1rem;
+            }
+            
+            .mobile-input-row {
+                display: flex;
+                flex-direction: column;
+            }
+            
+            .mobile-input-row.full-width {
+                grid-column: 1 / -1;
+            }
+            
+            .mobile-input-label {
+                font-size: 0.875rem;
+                font-weight: 500;
+                color: #495057;
+                margin-bottom: 0.25rem;
+            }
+            
+            .mobile-input-field {
+                border-radius: 6px;
+                border: 1px solid #ced4da;
+                font-size: 1rem;
+            }
+            
+            .mobile-input-field:focus {
+                border-color: #007bff;
+                box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+            }
+            
+            /* 🔥 移动端发票区域样式 */
+            .mobile-invoice-container {
+                padding: 12px;
+                border: 1px solid #e9ecef;
+                border-radius: 12px;
+                background: #f8f9fa;
+                min-height: 56px;
+                flex: 1;
+            }
+            
+            .mobile-invoice-display {
+                min-height: 40px;
+                display: flex !important;
+                align-items: center;
+                gap: 8px;
+                position: relative;
+                width: 100%;
+            }
+            
+            .mobile-invoice-display:empty::after {
+                content: "发票图标";
+                color: #adb5bd;
+                font-size: 0.75rem;
+                opacity: 0.8;
+            }
+            
+            /* 🔥 标准按键样式支持 */
+            .min-width-sm {
+                min-width: 80px;
+            }
+            
+            .text-xs {
+                font-size: 0.75rem;
+            }
+            
+            /* 底部区域布局 */
+            .mobile-bottom-section {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                gap: 1rem;
+                margin-top: 0.5rem;
+            }
+            
+            .mobile-input-actions {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+                flex-shrink: 0;
+            }
+            
+            .mobile-input-actions .btn {
+                min-width: 40px;
+                height: 32px;
+                font-size: 0.875rem;
+                line-height: 1;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+            }
+            
+            /* 圆形按钮样式 */
+            .btn-circle {
+                width: 32px !important;
+                height: 32px !important;
+                min-width: 32px !important;
+                border-radius: 50% !important;
+                padding: 0 !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                background-color: transparent !important;
+                border: 1px solid #dee2e6 !important;
+                color: #6c757d !important;
+                transition: all 0.2s ease !important;
+            }
+            
+            .btn-circle i {
+                font-size: 14px;
+            }
+            
+            /* 悬停时显示颜色 */
+            .btn-hover-primary:hover {
+                background-color: #007bff !important;
+                border-color: #007bff !important;
+                color: white !important;
+            }
+            
+            .btn-hover-danger:hover {
+                background-color: #dc3545 !important;
+                border-color: #dc3545 !important;
+                color: white !important;
+            }
+            
+            /* 🔥 移动端发票图标样式 */
+            .mobile-invoice-display .individual-invoice-icon {
+                position: relative;
+                display: inline-flex;
+                flex-shrink: 0;
+                align-items: center;
+                justify-content: center;
+                margin: 0 4px;
+                min-width: 28px;
+                width: 28px;
+                height: 28px;
+            }
+            
+            .mobile-invoice-display .invoice-preview-icon {
+                font-size: 20px;
+                cursor: pointer;
+                transition: transform 0.2s ease;
+            }
+            
+            .mobile-invoice-display .invoice-preview-icon:hover {
+                transform: scale(1.1);
+            }
+            
+            .mobile-invoice-display .invoice-number-badge {
+                position: absolute;
+                bottom: -2px;
+                right: -2px;
+                background-color: #ffffff;
+                color: #495057;
+                border: 1px solid #dee2e6;
+                border-radius: 50%;
+                width: 14px;
+                height: 14px;
+                font-size: 8px;
+                font-weight: bold;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                line-height: 1;
+            }
+            
+            .mobile-edit-header {
+                border-bottom: 1px solid #dee2e6;
+                padding-bottom: 0.5rem;
+                margin-bottom: 1rem;
+            }
+            
+            .mobile-edit-header h6 {
+                color: #007bff;
+                font-weight: 600;
+            }
+            
+            .mobile-edit-fields .form-label {
+                font-weight: 500;
+                color: #495057;
+                margin-bottom: 0.25rem;
+            }
+            
+            .mobile-edit-fields .form-control,
+            .mobile-edit-fields .form-select {
+                border-radius: 6px;
+                border: 1px solid #ced4da;
+            }
+            
+            .mobile-edit-fields .form-control:focus,
+            .mobile-edit-fields .form-select:focus {
+                border-color: #007bff;
+                box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+            }
+            
+            .mobile-edit-actions {
+                display: flex;
+                gap: 0.5rem;
+                justify-content: flex-end;
+                margin-top: 1rem;
+                padding-top: 1rem;
+                border-top: 1px solid #dee2e6;
+            }
+            
+            .mobile-edit-actions .btn {
+                flex: 1;
+                max-width: 120px;
+            }
+        `;
+        
+        document.head.appendChild(style);
+        console.log('✅ 移动端编辑样式已添加');
+    }
+    
+    
+    /**
+     * 🔥 绑定移动端输入事件（与PC端逻辑一致）
+     */
+    bindMobileInputEvents(card, index) {
+        // 绑定输入字段变化事件
+        card.querySelectorAll('.mobile-input-field').forEach(input => {
+            input.addEventListener('change', (e) => {
+                const field = e.target.dataset.field;
+                const value = e.target.value;
+                
+                console.log(`🔥 移动端字段变化: ${field} = ${value}`);
+                
+                // 更新行数据
+                if (this.rows[index]) {
+                    this.rows[index][field] = value;
+                    
+                    // 🔥 支持新的字段名：invoice_amount
+                    if (field === 'invoice_amount') {
+                        // 同步到amount字段以保持兼容性
+                        this.rows[index]['amount'] = value;
+                    }
+                    
+                    // 🔥 与PC端相同的联动逻辑：发票金额或汇率变化时重新计算
+                    if (field === 'invoice_amount' || field === 'amount' || field === 'exchange_rate') {
+                        this.calculateCurrentAmountMobile(index);
+                    }
+                    
+                    // 🔥 货币字段由专门的事件监听器处理，这里跳过避免重复处理
+                    if (field === 'currency') {
+                        console.log('🔥 货币字段由专门的事件监听器处理，跳过通用处理');
+                        return;
+                    }
+                }
+                
+                // 更新隐藏表单字段
+                this.updateHiddenField();
+                
+                // 触发总金额计算
+                this.calculateTotal();
+            });
+            
+            // 🔥 为汇率输入框添加实时格式化
+            if (input.classList.contains('exchange-rate-input')) {
+                input.addEventListener('blur', (e) => {
+                    const value = parseFloat(e.target.value);
+                    if (!isNaN(value)) {
+                        e.target.value = value.toFixed(4);
+                        this.rows[index].exchange_rate = value.toFixed(4);
+                        this.calculateCurrentAmountMobile(index);
+                    }
+                });
+            }
+        });
+    }
+    
+    /**
+     * 🔥 计算当前金额（报销金额）- 移动端版本
+     */
+    calculateCurrentAmountMobile(index) {
+        const rowData = this.rows[index];
+        if (!rowData) return;
+        
+        // 🔥 支持新字段名：优先使用invoice_amount，fallback到amount
+        const invoiceAmount = parseFloat(rowData.invoice_amount || rowData.amount) || 0;
+        const exchangeRate = parseFloat(rowData.exchange_rate) || 1;
+        const currentAmount = invoiceAmount * exchangeRate;
+        
+        // 更新数据
+        rowData.current_amount = currentAmount.toFixed(2);
+        
+        // 更新移动端显示
+        const card = document.querySelector(`[data-row-index="${index}"].expense-detail-input-card`);
+        if (card) {
+            const currentAmountInput = card.querySelector('.current-amount-input');
+            if (currentAmountInput) {
+                currentAmountInput.value = currentAmount.toFixed(2);
+            }
+        }
+        
+        console.log(`🔥 移动端计算报销金额: ${invoiceAmount} × ${exchangeRate} = ${currentAmount.toFixed(2)}`);
+    }
+    
+    /**
+     * 🔥 计算当前金额（报销金额）- 兼容旧版本
+     */
+    calculateCurrentAmount(index) {
+        return this.calculateCurrentAmountMobile(index);
+    }
+    
+    /**
+     * 🔥 更新币种符号 - 移动端版本
+     */
+    updateCurrencySymbol(index) {
+        const rowData = this.rows[index];
+        if (!rowData) return;
+        
+        // 移动端不需要更新币种符号显示，因为没有顶部金额显示区域
+        // 但保持函数接口一致性
+        console.log(`🔥 移动端更新币种: ${rowData.currency}`);
+    }
+    
+    /**
+     * 🔥 更新移动端金额显示
+     */
+    updateMobileAmountDisplay(card, index) {
+        const rowData = this.rows[index];
+        if (!rowData) return;
+        
+        const currencySymbols = { 'CNY': '¥', 'USD': '$', 'SGD': 'S$', 'EUR': '€' };
+        const symbol = currencySymbols[rowData.currency] || '¥';
+        const amount = parseFloat(rowData.amount || 0).toFixed(2);
+        
+        const symbolEl = card.querySelector('.currency-symbol');
+        const amountEl = card.querySelector('.amount-value');
+        
+        if (symbolEl) symbolEl.textContent = symbol;
+        if (amountEl) amountEl.textContent = amount;
+    }
+    
+    /**
      * 删除行
      */
     deleteRow(rowIndex) {
         if (this.rows.length <= 1) {
             // 使用标准通知提示
             if (window.showTopNotification) {
-                window.showTopNotification('至少需要保留一条报销明细', 'warning');
+                window.showTopNotification(window.i18nTexts?.keepAtLeastOneDetail || '至少需要保留一条报销明细', 'warning');
             } else {
-                alert('至少需要保留一条报销明细');
+                alert(window.i18nTexts?.keepAtLeastOneDetail || '至少需要保留一条报销明细');
             }
             return;
         }
@@ -1127,8 +1840,8 @@ class ExpenseDetailManager {
         // 使用标准确认对话框
         if (window.showDeleteConfirm) {
             window.showDeleteConfirm({
-                title: '确认删除报销明细',
-                message: `确定要删除这条报销明细吗？\n\n明细信息：${detailInfo}\n\n此操作不可恢复。`,
+                title: window.i18nTexts?.confirmDeleteDetailTitle || '确认删除报销明细',
+                message: `${window.i18nTexts?.confirmDeleteDetailMessage || '确定要删除这条报销明细吗？'}\n\n${window.i18nTexts?.detailInfo || '明细信息：'}${detailInfo}\n\n${window.i18nTexts?.operationCannotBeUndone || '此操作不可恢复。'}`,
                 dialogId: 'expenseDetailDeleteDialog',
                 onConfirm: () => {
                     // 执行删除操作
@@ -1142,13 +1855,13 @@ class ExpenseDetailManager {
                     
                     // 显示删除成功提示
                     if (window.showTopNotification) {
-                        window.showTopNotification('报销明细删除成功', 'success');
+                        window.showTopNotification(window.i18nTexts?.detailDeletedSuccessfully || '报销明细删除成功', 'success');
                     }
                 }
             });
         } else {
             // 降级到原生确认对话框（向后兼容）
-            if (confirm('确定要删除这条报销明细吗？')) {
+            if (confirm(window.i18nTexts?.confirmDeleteDetailMessage || '确定要删除这条报销明细吗？')) {
                 this.rows.splice(rowIndex, 1);
                 this.renderTable();
                 this.updateSummary();
@@ -1201,13 +1914,29 @@ class ExpenseDetailManager {
     renderMobileCards() {
         // 使用配置中的table_id，如果没有则从表格元素获取ID
         const tableId = this.config.table_id || this.tableElement.id || this.config.tableSelector.replace('#', '');
-        const mobileContainer = document.querySelector(`#${tableId}_mobile`);
+        let mobileContainer = document.querySelector(`#${tableId}_mobile`);
+        
+        // 尝试其他可能的移动端容器选择器
+        if (!mobileContainer) {
+            mobileContainer = document.querySelector('.expense-detail-cards');
+        }
+        if (!mobileContainer) {
+            mobileContainer = document.querySelector('.expense-detail-mobile-cards');
+        }
+        
         if (!mobileContainer) {
             console.warn('移动端容器未找到:', `#${tableId}_mobile`);
             console.warn('配置中的table_id:', this.config.table_id);
             console.warn('表格元素ID:', this.tableElement.id);
+            console.warn('当前窗口宽度:', window.innerWidth);
+            console.warn('当前isMobileView():', this.isMobileView());
+            console.warn('尝试查找其他移动端容器...');
+            console.warn('可用的容器:', document.querySelectorAll('.expense-detail-cards, [id*="mobile"], [class*="mobile"]'));
             return;
         }
+        
+        console.log('✅ 找到移动端容器:', mobileContainer);
+        console.log('容器可见性:', window.getComputedStyle(mobileContainer).display);
 
         mobileContainer.innerHTML = '';
 
@@ -1215,8 +1944,8 @@ class ExpenseDetailManager {
             mobileContainer.innerHTML = `
                 <div class="empty-state text-center py-4">
                     <i class="fas fa-receipt text-muted mb-2" style="font-size: 2rem;"></i>
-                    <p class="text-muted mb-0">暂无报销明细</p>
-                    <small class="text-muted">点击下方按钮添加报销项目</small>
+                    <p class="text-muted mb-0">${window.i18nTexts?.noExpenseDetails || '暂无报销明细'}</p>
+                    <small class="text-muted">${window.i18nTexts?.clickBelowToAddExpense || '点击下方按钮添加报销项目'}</small>
                 </div>
             `;
             return;
@@ -1225,6 +1954,14 @@ class ExpenseDetailManager {
         this.rows.forEach((rowData, index) => {
             const card = this.createMobileCard(rowData, index);
             mobileContainer.appendChild(card);
+            
+            // 🔥 卡片创建后立即更新发票图标显示
+            setTimeout(() => {
+                if (rowData.invoice_images && rowData.invoice_images.length > 0) {
+                    console.log(`🔥 移动端渲染后更新发票显示 行${index}:`, rowData.invoice_images);
+                    this.updateInvoiceDisplay(index, rowData.invoice_images);
+                }
+            }, 50); // 稍长的延时确保DOM已完全渲染
         });
     }
 
@@ -1235,6 +1972,18 @@ class ExpenseDetailManager {
         const card = document.createElement('div');
         card.className = 'expense-detail-card';
         card.dataset.index = index;
+        card.dataset.rowIndex = index; // 添加row-index用于选择器
+        
+        // 🔥 检查是否为创建或编辑页面，如果是则显示输入表单
+        const isCreatePage = window.location.pathname.includes('/create') || 
+                            document.querySelector('form[action*="create"]');
+        const isEditPage = window.location.pathname.includes('/edit') || 
+                          document.querySelector('form[action*="edit"]');
+        const isInputPage = isCreatePage || isEditPage;
+        
+        if (isInputPage) {
+            return this.createMobileInputCard(rowData, index);
+        }
 
         // 格式化金额显示
         const formatAmount = (amount, currency = 'CNY') => {
@@ -1305,6 +2054,213 @@ class ExpenseDetailManager {
             </div>
         `;
 
+        return card;
+    }
+    
+    /**
+     * 🔥 创建移动端输入表单卡片（用于创建页面）
+     */
+    createMobileInputCard(rowData, index) {
+        const card = document.createElement('div');
+        card.className = 'expense-detail-card expense-detail-input-card';
+        card.dataset.index = index;
+        card.dataset.rowIndex = index;
+        
+        // 🔥 使用与PC端相同的科目配置
+        const categoryOptions = this.config.categories ? 
+            '<option value="">请选择科目</option>' + 
+            this.config.categories.map(category => 
+                `<option value="${category.value}" ${rowData.expense_category === category.value ? 'selected' : ''}>${category.label}</option>`
+            ).join('') :
+            // 备用选项（如果配置不存在）
+            [
+                { value: '', label: '请选择科目' },
+                { value: 'entertainment', label: '招待费' },
+                { value: 'local_transport', label: '市内交通' },
+                { value: 'travel_accommodation', label: '差旅住宿' },
+                { value: 'office_supplies', label: '办公用品' },
+                { value: 'communication', label: '通讯费' },
+                { value: 'fuel', label: '油费' },
+                { value: 'parking', label: '停车费' },
+                { value: 'meals', label: '餐费' },
+                { value: 'other', label: '其他' }
+            ].map(option => 
+                `<option value="${option.value}" ${rowData.expense_category === option.value ? 'selected' : ''}>${option.label}</option>`
+            ).join('');
+        
+        // 🔥 使用与PC端相同的货币配置
+        const currencyColumn = this.config.columns.find(col => col.key === 'currency');
+        const currencyOptions = currencyColumn && currencyColumn.options ? 
+            currencyColumn.options.map(option => 
+                `<option value="${option.value}" ${rowData.currency === option.value ? 'selected' : ''}>${option.label} (${option.value})</option>`
+            ).join('') :
+            // 备用选项（如果配置不存在）
+            [
+                { value: 'CNY', label: '人民币' },
+                { value: 'USD', label: '美元' },
+                { value: 'SGD', label: '新元' },
+                { value: 'MYR', label: '林吉特' },
+                { value: 'IDR', label: '印尼盾' },
+                { value: 'THB', label: '泰铢' }
+            ].map(option => 
+                `<option value="${option.value}" ${rowData.currency === option.value ? 'selected' : ''}>${option.label} (${option.value})</option>`
+            ).join('');
+        
+        // 🔥 按用户要求的顺序排列字段: 科目 -> 日期 -> 币种 -> 发票金额 -> 汇率 -> 报销金额 -> 单据数量 -> 说明描述 -> 发票图片
+        card.innerHTML = `
+            <div class="mobile-input-card-content">
+                <div class="mobile-input-fields">
+                    <!-- 科目 -->
+                    <div class="mobile-input-row">
+                        <label class="mobile-input-label">科目</label>
+                        <select name="details[${index}][expense_category]" 
+                                class="form-select mobile-input-field" 
+                                data-field="expense_category" 
+                                data-row-index="${index}"
+                                required>
+                            ${categoryOptions}
+                        </select>
+                    </div>
+                    
+                    <!-- 日期 -->
+                    <div class="mobile-input-row">
+                        <label class="mobile-input-label">日期</label>
+                        <input type="date" 
+                               name="details[${index}][expense_date]" 
+                               class="form-control mobile-input-field" 
+                               data-field="expense_date"
+                               data-row-index="${index}"
+                               value="${rowData.expense_date || ''}"
+                               required>
+                    </div>
+                    
+                    <!-- 币种 (发票金额前面) -->
+                    <div class="mobile-input-row">
+                        <label class="mobile-input-label">币种</label>
+                        <select name="details[${index}][currency]" 
+                                class="form-select mobile-input-field currency-select" 
+                                data-field="currency"
+                                data-row-index="${index}">
+                            ${currencyOptions}
+                        </select>
+                    </div>
+                    
+                    <!-- 发票金额 -->
+                    <div class="mobile-input-row">
+                        <label class="mobile-input-label">发票金额</label>
+                        <input type="number" 
+                               name="details[${index}][invoice_amount]" 
+                               class="form-control mobile-input-field invoice-amount-input" 
+                               data-field="invoice_amount"
+                               data-row-index="${index}"
+                               step="0.01" 
+                               min="0"
+                               value="${rowData.invoice_amount || rowData.amount || ''}"
+                               placeholder="0.00">
+                    </div>
+                    
+                    <!-- 汇率 (保持4位小数精度) -->
+                    <div class="mobile-input-row">
+                        <label class="mobile-input-label">汇率</label>
+                        <input type="number" 
+                               name="details[${index}][exchange_rate]" 
+                               class="form-control mobile-input-field exchange-rate-input" 
+                               data-field="exchange_rate"
+                               data-row-index="${index}"
+                               step="0.0001" 
+                               min="0"
+                               value="${parseFloat(rowData.exchange_rate || 1.0000).toFixed(4)}"
+                               placeholder="1.0000">
+                    </div>
+                    
+                    <!-- 报销金额 (汇率下面) -->
+                    <div class="mobile-input-row">
+                        <label class="mobile-input-label">报销金额</label>
+                        <input type="number" 
+                               name="details[${index}][current_amount]" 
+                               class="form-control mobile-input-field current-amount-input" 
+                               data-field="current_amount"
+                               data-row-index="${index}"
+                               step="0.01" 
+                               min="0"
+                               value="${rowData.current_amount || ''}"
+                               readonly
+                               title="根据发票金额和汇率自动计算">
+                    </div>
+                    
+                    <!-- 单据数量 -->
+                    <div class="mobile-input-row">
+                        <label class="mobile-input-label">单据数量</label>
+                        <input type="number" 
+                               name="details[${index}][document_count]" 
+                               class="form-control mobile-input-field document-count-input" 
+                               data-field="document_count"
+                               data-row-index="${index}"
+                               min="0" 
+                               value="${rowData.document_count || '0'}"
+                               placeholder="0">
+                    </div>
+                    
+                    <!-- 说明描述 -->
+                    <div class="mobile-input-row full-width">
+                        <label class="mobile-input-label">说明描述</label>
+                        <textarea name="details[${index}][description]" 
+                                  class="form-control mobile-input-field" 
+                                  data-field="description"
+                                  data-row-index="${index}"
+                                  rows="2" 
+                                  placeholder="请输入费用说明">${rowData.description || ''}</textarea>
+                    </div>
+                    
+                    <!-- 发票图片区域和操作按钮 -->
+                    <div class="mobile-input-row full-width">
+                        <div class="mobile-bottom-section">
+                            <div class="mobile-invoice-container">
+                                <div class="mobile-invoice-display" data-row-index="${index}">
+                                    <!-- 发票图标在这里显示 -->
+                                </div>
+                            </div>
+                            <!-- 操作按钮 - 圆形按钮在右下角 -->
+                            <div class="mobile-input-actions">
+                                <button type="button" 
+                                        class="btn btn-circle btn-hover-primary"
+                                        onclick="window.expenseDetailManager.triggerInvoiceUpload(${index})"
+                                        title="上传发票">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                                <button type="button" 
+                                        class="btn btn-circle btn-hover-danger"
+                                        onclick="window.expenseDetailManager.deleteRow(${index})"
+                                        title="删除此项">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // 绑定输入事件
+        this.bindMobileInputEvents(card, index);
+        
+        // 🔥 专门为移动端货币选择器添加事件监听器（与PC端保持一致）
+        const currencySelect = card.querySelector('.currency-select');
+        if (currencySelect) {
+            currencySelect.addEventListener('change', (e) => {
+                console.log(`🔥 移动端货币变更触发: ${e.target.value}`);
+                this.handleCurrencyChange(index, e.target.value);
+            });
+        }
+        
+        // 🔥 创建卡片后立即更新发票图标显示
+        setTimeout(() => {
+            if (rowData.invoice_images && rowData.invoice_images.length > 0) {
+                console.log(`🔥 移动端卡片创建后更新发票显示:`, rowData.invoice_images);
+                this.updateInvoiceDisplay(index, rowData.invoice_images);
+            }
+        }, 10);
+        
         return card;
     }
 
@@ -1511,9 +2467,10 @@ class ExpenseDetailManager {
                 
                 // 检查当前页面类型（通过URL判断）
                 const isCreatePage = window.location.pathname.includes('/create');
+                const isEditPage = window.location.pathname.includes('/edit');
                 
-                if (isCreatePage && !row.id) {
-                    // 创建页面的新行：暂时存储文件信息，等保存时再上传
+                if ((isCreatePage && !row.id) || (isEditPage && row.id)) {
+                    // 创建/编辑页面：暂时存储文件信息，等保存时再上传
                     if (!row.invoice_images) {
                         row.invoice_images = [];
                     }
@@ -1546,7 +2503,8 @@ class ExpenseDetailManager {
                         size: uploadResult.size,
                         temp_id: uploadResult.temp_id,
                         is_temp: uploadResult.is_temp || true,  // 标记为临时文件
-                        pending: false  // 明确标记为非pending状态
+                        pending: true,  // 🔥 编辑页面的新上传文件应该保持pending状态
+                        file: file  // 🔥 保持file对象用于blob URL预览
                     });
                     
                     this.updateInvoiceDisplay(rowIndex, row.invoice_images);
@@ -1658,7 +2616,48 @@ class ExpenseDetailManager {
         if (previewIcon) {
             previewIcon.addEventListener('click', (e) => {
                 const images = JSON.parse(e.target.dataset.images || '[]');
-                this.showInvoicePreview(images);
+                console.log('🔥 旧的预览逻辑被调用，传递的images:', images);
+                
+                if (images && images.length > 0) {
+                    const firstImage = images[0];
+                    console.log('🔥 第一个图片对象:', firstImage);
+                    
+                    // 🔥 根据图片状态决定URL - 和第3144行逻辑一致
+                    let imageUrl;
+                    let isPending = false;
+                    
+                    if (firstImage.pending === true && firstImage.file) {
+                        // 待上传的文件：创建本地预览URL
+                        imageUrl = URL.createObjectURL(firstImage.file);
+                        isPending = true;
+                        console.log('🔥 旧逻辑-创建本地预览URL（blob）:', imageUrl);
+                    } else {
+                        // 已上传的文件：使用服务器URL
+                        imageUrl = firstImage.url || firstImage.image_url || firstImage.path || firstImage.file_url;
+                        console.log('🔥 旧逻辑-使用服务器URL:', imageUrl);
+                        console.log('🔥 旧逻辑-发票对象调试:', {
+                            pending: firstImage.pending,
+                            hasFile: !!firstImage.file,
+                            url: firstImage.url,
+                            image_url: firstImage.image_url,
+                            path: firstImage.path,
+                            file_url: firstImage.file_url
+                        });
+                    }
+                    
+                    const title = isPending 
+                        ? `发票1: ${firstImage.filename} (本地预览)`
+                        : `发票1: ${firstImage.filename}`;
+                    
+                    this.showInvoicePreview(imageUrl, title, {
+                        rowIndex: rowIndex,
+                        invoiceIndex: 0,
+                        invoice: firstImage,
+                        isPending: isPending
+                    });
+                } else {
+                    console.warn('没有发票图片可预览');
+                }
             });
         }
     }
@@ -1667,6 +2666,15 @@ class ExpenseDetailManager {
      * 显示发票预览
      */
     showInvoicePreview(imageUrl, title, deleteInfo = null) {
+        console.log('🔥🔥🔥 showInvoicePreview 被调用，参数:', {
+            imageUrl: imageUrl,
+            title: title,
+            deleteInfo: deleteInfo,
+            imageUrlType: typeof imageUrl,
+            isBlob: imageUrl && imageUrl.startsWith('blob:')
+        });
+        console.trace('🔥 调用栈追踪:');
+        
         if (!imageUrl) {
             console.warn('发票URL为空，无法预览');
             return;
@@ -1679,9 +2687,40 @@ class ExpenseDetailManager {
     }
     
     /**
-     * 创建发票预览模态框
+     * 创建发票预览模态框 - 🔥 使用通用预览组件
      */
     createInvoiceModal(imageUrl, title, deleteInfo = null) {
+        console.log('🔥 createInvoiceModal 调用通用预览组件:', imageUrl, title);
+        
+        // 🔥 优先使用通用预览组件
+        if (typeof showInvoicePreviewDialog === 'function') {
+            // 确定使用哪个对话框ID
+            let dialogId = 'expenseInvoicePreview'; // 默认详情页
+            
+            if (document.getElementById('createExpenseInvoicePreview')) {
+                dialogId = 'createExpenseInvoicePreview';
+            } else if (document.getElementById('editExpenseInvoicePreview')) {
+                dialogId = 'editExpenseInvoicePreview';
+            }
+            
+            // 准备文件信息和删除信息
+            const filename = title || 'invoice.jpg';
+            const fileInfo = { description: '报销单发票' };
+            
+            console.log('使用通用预览组件:', imageUrl, filename, dialogId, deleteInfo);
+            
+            // 🔥 如果有删除信息，传递给通用预览组件
+            if (deleteInfo) {
+                showInvoicePreviewDialog(imageUrl, filename, fileInfo, dialogId, deleteInfo);
+            } else {
+                showInvoicePreviewDialog(imageUrl, filename, fileInfo, dialogId);
+            }
+            return;
+        }
+        
+        // 备用方案：传统模态框（如果通用组件不可用）
+        console.warn('通用预览组件不可用，使用备用模态框');
+        
         // 移除现有模态框
         const existingModal = document.getElementById('invoicePreviewModal');
         if (existingModal) {
@@ -3062,23 +4101,41 @@ class ExpenseDetailManager {
     updateInvoiceDisplay(rowIndex, invoiceImages = []) {
         console.log('🔍 updateInvoiceDisplay调用:', {rowIndex, invoiceImages});
         
-        // 尝试多种可能的选择器
-        let container = document.querySelector(`[data-row-index="${rowIndex}"] .invoice-display-column`);
-        if (!container) {
-            // 备选选择器
-            container = document.querySelector(`#expenseTable tbody tr:nth-child(${rowIndex + 1}) .invoice-display-column`);
-        }
-        if (!container) {
-            // 另一种备选选择器
-            const allRows = document.querySelectorAll('#expenseTable tbody tr');
-            if (allRows[rowIndex]) {
-                container = allRows[rowIndex].querySelector('.invoice-display-column');
+        // 根据当前视图模式选择容器
+        const isMobile = this.isMobileView();
+        console.log('🔍 当前视图模式:', isMobile ? '移动端' : 'PC端');
+        
+        let container;
+        
+        if (isMobile) {
+            // 移动端：只查找移动端容器
+            container = document.querySelector(`[data-row-index="${rowIndex}"] .mobile-invoice-display`);
+            console.log('🔍 移动端容器查找:', `[data-row-index="${rowIndex}"] .mobile-invoice-display`, container);
+        } else {
+            // PC端：查找PC端容器
+            container = document.querySelector(`[data-row-index="${rowIndex}"] .invoice-display-column`);
+            console.log('🔍 PC端容器查找:', `[data-row-index="${rowIndex}"] .invoice-display-column`, container);
+            
+            if (!container) {
+                // 备选选择器
+                container = document.querySelector(`#expenseTable tbody tr:nth-child(${rowIndex + 1}) .invoice-display-column`);
+                console.log('🔍 PC端备选容器:', container);
+            }
+            if (!container) {
+                // 另一种备选选择器
+                const allRows = document.querySelectorAll('#expenseTable tbody tr');
+                if (allRows[rowIndex]) {
+                    container = allRows[rowIndex].querySelector('.invoice-display-column');
+                    console.log('🔍 PC端表格行容器:', container);
+                }
             }
         }
         
         if (!container) {
             console.warn('未找到发票显示容器:', rowIndex);
             console.log('可用的行:', document.querySelectorAll('#expenseTable tbody tr'));
+            console.log('所有移动端容器:', document.querySelectorAll('.mobile-invoice-display'));
+            console.log('所有PC端容器:', document.querySelectorAll('.invoice-display-column'));
             return;
         }
         
@@ -3120,11 +4177,19 @@ class ExpenseDetailManager {
                 // 待上传的文件：创建本地预览URL
                 imageUrl = URL.createObjectURL(invoice.file);
                 isPending = true;
-                console.log('创建本地预览URL:', imageUrl);
+                console.log('🔥 创建本地预览URL（blob）:', imageUrl);
             } else {
                 // 已上传的文件：使用服务器URL
                 imageUrl = invoice.url || invoice.image_url || invoice.path || invoice.file_url;
-                console.log('使用服务器URL:', imageUrl);
+                console.log('🔥 使用服务器URL:', imageUrl);
+                console.log('🔥 发票对象调试:', {
+                    pending: invoice.pending,
+                    hasFile: !!invoice.file,
+                    url: invoice.url,
+                    image_url: invoice.image_url,
+                    path: invoice.path,
+                    file_url: invoice.file_url
+                });
             }
             
             if (!imageUrl) {
@@ -3149,9 +4214,10 @@ class ExpenseDetailManager {
             const icon = document.createElement('i');
             // 根据页面类型和状态设置不同的样式
             const isCreatePage = window.location.pathname.includes('/create');
+            const isEditPage = window.location.pathname.includes('/edit');
             
             if (isPending) {
-                // 创建页面的待上传文件：黄色
+                // 创建/编辑页面的待上传文件：黄色
                 icon.className = 'fas fa-file-invoice text-warning invoice-preview-icon';
                 icon.title = `发票${index + 1}: ${invoice.filename} (待上传)`;
             } else if (invoice.is_temp || invoice.temp_id) {
@@ -3243,30 +4309,24 @@ class ExpenseDetailManager {
         try {
             console.log(`🔄 报销单货币变更为: ${newExpenseCurrency}`);
             
-            // 获取所有明细行
-            const tbody = document.querySelector(`${this.config.tableSelector} tbody`);
-            const rows = tbody.querySelectorAll('tr');
+            // 🔥 优先使用内存中的行数据，而不是依赖DOM查询
+            console.log(`📋 需要更新 ${this.rows.length} 行明细的转换金额`);
             
-            console.log(`📋 需要更新 ${rows.length} 行明细的转换金额`);
+            if (this.rows.length === 0) {
+                console.log('📝 当前没有报销明细行，只更新总金额货币符号');
+                this.updateCurrencySymbol();
+                return;
+            }
             
-            for (let i = 0; i < rows.length; i++) {
-                const row = rows[i];
-                const rowIndex = i;
+            for (let rowIndex = 0; rowIndex < this.rows.length; rowIndex++) {
+                const rowData = this.rows[rowIndex];
                 
-                // 获取当前行的货币和发票金额
-                const currencyElement = row.querySelector(`select[data-field="currency"]`);
-                const invoiceAmountElement = row.querySelector(`input[data-field="invoice_amount"]`);
-                
-                if (currencyElement && invoiceAmountElement) {
-                    const detailCurrency = currencyElement.value;
-                    const invoiceAmount = parseFloat(invoiceAmountElement.value) || 0;
+                if (rowData && rowData.currency) {
+                    const invoiceAmount = parseFloat(rowData.invoice_amount) || 0;
+                    console.log(`🔄 重新计算第 ${rowIndex + 1} 行: ${invoiceAmount} ${rowData.currency} -> ${newExpenseCurrency}`);
                     
-                    if (detailCurrency && invoiceAmount > 0) {
-                        console.log(`🔄 重新计算第 ${rowIndex + 1} 行: ${invoiceAmount} ${detailCurrency} -> ${newExpenseCurrency}`);
-                        
-                        // 重新计算转换金额
-                        await this.handleCurrencyChange(rowIndex, detailCurrency);
-                    }
+                    // 即使发票金额为0，也要更新汇率以便后续输入时使用正确汇率
+                    await this.handleCurrencyChange(rowIndex, rowData.currency);
                 }
             }
             

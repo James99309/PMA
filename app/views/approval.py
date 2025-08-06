@@ -1806,7 +1806,8 @@ def render_approval_row(item, tab='created'):
         current_approver = None
         
         try:
-            current_step = get_current_step_info(item)
+            # 使用实例的get_current_step_info方法获取当前步骤
+            current_step = item.get_current_step_info()
         except Exception as e:
             current_app.logger.warning(f"获取当前步骤信息失败: {e}")
         
@@ -1815,8 +1816,17 @@ def render_approval_row(item, tab='created'):
                 last_approver = get_last_approver(item)
         except Exception as e:
             current_app.logger.warning(f"获取最后审批人失败: {e}")
-            
-        current_approver = last_approver or (current_step.approver if current_step else None)
+        
+        # 🔥 修复：使用get_step_actual_approver来确定实际审批人
+        if last_approver:
+            current_approver = last_approver
+        elif current_step:
+            from app.helpers.approval_helpers import get_step_actual_approver
+            try:
+                current_approver = get_step_actual_approver(current_step, item)
+            except Exception as e:
+                current_app.logger.warning(f"获取实际审批人失败: {e}")
+                current_approver = None
     except Exception as e:
         current_app.logger.error(f"render_approval_row 初始化失败: {e}")
         # 返回基本的错误行
