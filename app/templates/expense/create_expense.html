@@ -537,48 +537,57 @@ $(document).on('projectCleared', function(e) {
     $('#project_id').val('');
 });
 
-// 监听客户搜索组件的选择事件 - 直接在容器元素上监听
-const customerSearchContainer = document.querySelector('.customer-search-container, [data-customer-search]');
-if (customerSearchContainer) {
-    customerSearchContainer.addEventListener('customerSelected', function(e) {
-        const customer = e.detail.customer;
-        console.log('客户已选择:', customer);
-        
-        if (!customer || !customer.id) {
-            console.error('客户数据无效:', customer);
-            return;
-        }
-        
-        // 更新客户ID隐藏字段
-        $('#customer_id').val(customer.id);
-        
-        // 更新报销主题占位符
-        const titleInput = document.getElementById('title');
-        const today = new Date();
-        const timeStr = `${String(today.getFullYear()).slice(-2)}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}${String(today.getHours()).padStart(2, '0')}${String(today.getSeconds()).padStart(2, '0')}`;
-        
-        // 获取当前用户账户信息（假设在页面中有用户信息）
-        const currentUserAccount = '{{ current_user.username if current_user else "" }}';
-        titleInput.placeholder = window.i18nTexts.defaultTitleFormat.replace('{customerName}', customer.company_name || customer.name).replace('{account}', currentUserAccount).replace('{time}', timeStr);
-        
-        // 加载该客户的联系人
-        loadCustomerContacts(customer.id);
-    });
+// 监听客户搜索组件的选择事件 - 使用与编辑页面相同的方式
+$(document).ready(function() {
+    console.log('设置客户选择事件监听器');
     
-    customerSearchContainer.addEventListener('customerCleared', function(e) {
-        console.log('客户选择已清除');
+    const customerSearchContainer = document.querySelector('.customer-search-container, [data-customer-search]');
+    if (customerSearchContainer) {
+        customerSearchContainer.addEventListener('customerSelected', function(e) {
+            console.log('customerSelected事件触发:', e);
+            const customer = e.detail.customer;
+            console.log('客户已选择:', customer);
+            
+            if (!customer || !customer.id) {
+                console.error('客户数据无效:', customer);
+                return;
+            }
+            
+            // 更新客户ID隐藏字段
+            $('#customer_id').val(customer.id);
+            
+            // 更新报销主题占位符
+            const titleInput = document.getElementById('title');
+            const today = new Date();
+            const timeStr = `${String(today.getFullYear()).slice(-2)}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}${String(today.getHours()).padStart(2, '0')}${String(today.getSeconds()).padStart(2, '0')}`;
+            
+            // 获取当前用户账户信息（假设在页面中有用户信息）
+            const currentUserAccount = '{{ current_user.username if current_user else "" }}';
+            titleInput.placeholder = window.i18nTexts.defaultTitleFormat.replace('{customerName}', customer.company_name || customer.name).replace('{account}', currentUserAccount).replace('{time}', timeStr);
+            
+            // 加载该客户的联系人
+            console.log('准备加载客户联系人，客户ID:', customer.id);
+            loadCustomerContacts(customer.id);
+        });
         
-        // 清空客户ID隐藏字段
-        $('#customer_id').val('');
-        
-        // 重置报销主题占位符
-        const titleInput = document.getElementById('title');
-        titleInput.placeholder = window.i18nTexts.defaultTitlePlaceholder;
-        
-        // 清空并禁用联系人选择框
-        clearContactSelection();
-    });
-}
+        customerSearchContainer.addEventListener('customerCleared', function(e) {
+            console.log('customerCleared事件触发:', e);
+            console.log('客户选择已清除');
+            
+            // 清空客户ID隐藏字段
+            $('#customer_id').val('');
+            
+            // 重置报销主题占位符
+            const titleInput = document.getElementById('title');
+            titleInput.placeholder = window.i18nTexts.defaultTitlePlaceholder;
+            
+            // 清空并禁用联系人选择框
+            clearContactSelection();
+        });
+    } else {
+        console.error('未找到客户搜索容器');
+    }
+});
 
 // 简化：移除不必要的按键有效性测试逻辑
 // 保留基本的DOM元素引用供其他逻辑使用
@@ -586,7 +595,6 @@ const titleInput = document.getElementById('title');
 const customerIdInput = document.getElementById('customer_id');
 const contactIdInput = document.getElementById('contact_id');
 const submitBtn = document.getElementById('submit-btn');
-});
 
 function validateExpenseForm() {
     const customerIdInput = document.getElementById('customer_id');
@@ -791,7 +799,13 @@ async function submitExpenseFormWithFiles() {
 
 // 加载客户联系人
 async function loadCustomerContacts(customerId) {
+    console.log('开始加载客户联系人，客户ID:', customerId);
     const contactSelect = document.getElementById('contact_id');
+    
+    if (!contactSelect) {
+        console.error('联系人选择框元素未找到');
+        return;
+    }
     
     try {
         // 清空当前选项并显示加载状态
@@ -799,6 +813,7 @@ async function loadCustomerContacts(customerId) {
         contactSelect.disabled = true;
         
         // 获取客户联系人
+        console.log('发送API请求:', `/api/customers/${customerId}/contacts`);
         const response = await fetch(`/api/customers/${customerId}/contacts`, {
             method: 'GET',
             headers: {
@@ -813,6 +828,7 @@ async function loadCustomerContacts(customerId) {
         }
         
         const data = await response.json();
+        console.log('API响应数据:', data);
         
         // 清空并添加新选项
         contactSelect.innerHTML = '<option value="">' + window.i18nTexts.pleaseSelectContact + '</option>';
@@ -825,6 +841,7 @@ async function loadCustomerContacts(customerId) {
                 contactSelect.appendChild(option);
             });
             contactSelect.disabled = false;
+            console.log('联系人选择框已启用，选项数量:', data.contacts.length);
         } else {
             contactSelect.innerHTML = '<option value="">' + window.i18nTexts.noContactsForCustomer + '</option>';
             contactSelect.disabled = true;
