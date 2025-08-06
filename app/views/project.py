@@ -2860,9 +2860,9 @@ def _get_project_owner_options(current_user):
             return []
         
         # 只查询需要的用户，避免加载所有用户
+        # 移除活跃状态过滤，确保所有实际拥有项目的用户都出现在筛选选项中
         available_users = User.query.filter(
-            User.id.in_(unique_owner_ids),
-            User._is_active == True
+            User.id.in_(unique_owner_ids)
         ).order_by(User.real_name, User.username).all()
         
         return [
@@ -2919,9 +2919,9 @@ def _get_vendor_manager_options(current_user):
             return []
         
         # 只查询需要的用户，避免加载所有用户
+        # 移除活跃状态过滤，确保所有实际负责项目的用户都出现在筛选选项中
         available_managers = User.query.filter(
-            User.id.in_(unique_manager_ids),
-            User._is_active == True
+            User.id.in_(unique_manager_ids)
         ).order_by(User.real_name, User.username).all()
         
         return [

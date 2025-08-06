@@ -286,6 +286,7 @@ document.addEventListener('DOMContentLoaded', function() {
             { name: 'user_id' },
             { name: 'year' }
         ],
+        preserve_params: ['tab'],  // 保留tab参数
         onSuccess: function(data) {
             // 更新统计卡片
             {% if list_config.stats %}
@@ -299,16 +300,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateListItemCount(data.total_count || 0, data.loaded_count || 0, false);
             }
             
-            // 添加tab参数到URL更新
-            const currentTab = '{{ current_tab }}';
-            const form = document.getElementById('{{ list_config.filter.form_id }}');
-            if (form) {
-                const formData = new FormData(form);
-                formData.append('tab', currentTab);
-                const params = new URLSearchParams(formData);
-                const newUrl = '{{ url_for("performance.index") }}?' + params.toString();
-                window.history.pushState({}, '', newUrl);
+            // 更新月度统计部分
+            if (data.monthly_stats) {
+                updateMonthlyStatsDisplay(data.monthly_stats);
             }
+            
+            // URL更新现在由filter-search.js的updateBrowserUrl统一处理
         }
     };
     
@@ -320,11 +317,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // 手动触发初始数据加载，包含当前tab参数
     {% if list_config.ajax_mode %}
     function performManualSubmit(form, currentTab) {
-        const formData = new FormData(form);
-        formData.append('tab', currentTab);
+        // 使用统一的参数获取方式
+        const params = getGenericCurrentParams(window.filterSearchConfig);
         
-        const params = new URLSearchParams(formData);
-        const url = '{{ url_for("performance.list_ajax") }}?' + params.toString();
+        // 如果URL中没有tab参数，使用传入的参数
+        if (!params.tab && currentTab) {
+            params.tab = currentTab;
+        }
+        
+        const urlParams = new URLSearchParams(params);
+        const url = '{{ url_for("performance.list_ajax") }}?' + urlParams.toString();
         
         fetch(url)
             .then(response => response.json())
@@ -347,6 +349,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (typeof updateListItemCount === 'function') {
                         updateListItemCount(data.total_count || 0, data.loaded_count || 0, false);
                     }
+                    
+                    // 更新月度统计部分
+                    if (data.monthly_stats) {
+                        updateMonthlyStatsDisplay(data.monthly_stats);
+                    }
                 } else {
                     console.error(window.performanceI18n.dataLoadFailed + ':', data.message);
                 }
@@ -359,7 +366,15 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
         const form = document.getElementById('{{ list_config.filter.form_id }}');
         if (form) {
-            performManualSubmit(form, '{{ current_tab }}');
+            // 动态获取当前活跃标签页
+            const activeTab = document.querySelector('.nav-link.active');
+            let currentTab = '{{ current_tab }}';
+            if (activeTab && activeTab.getAttribute('href')) {
+                const href = activeTab.getAttribute('href');
+                const urlParams = new URLSearchParams(href.split('?')[1] || '');
+                currentTab = urlParams.get('tab') || '{{ current_tab }}';
+            }
+            performManualSubmit(form, currentTab);
         }
     }, 500);
     {% endif %}
@@ -367,5 +382,66 @@ document.addEventListener('DOMContentLoaded', function() {
     
     console.log('✅ ' + window.performanceI18n.performancePageInitialized);
 });
+
+// 更新月度统计显示的函数
+function updateMonthlyStatsDisplay(monthlyStats) {
+    if (!monthlyStats) return;
+    
+    console.log('更新月度统计显示:', monthlyStats);
+    
+    // 更新植入额
+    const implantActualElement = document.querySelector('.progress-item:nth-child(1) .actual-value');
+    if (implantActualElement && monthlyStats.implant_actual) {
+        implantActualElement.textContent = monthlyStats.implant_actual;
+    }
+    
+    const implantPercentageElement = document.querySelector('.progress-item:nth-child(1) .percentage');
+    if (implantPercentageElement && monthlyStats.implant_rate) {
+        implantPercentageElement.innerHTML = `(${monthlyStats.implant_rate})`;
+    }
+    
+    const implantTargetElement = document.querySelector('.progress-item:nth-child(1) .target-text');
+    if (implantTargetElement && monthlyStats.implant_target) {
+        implantTargetElement.textContent = monthlyStats.implant_target;
+    }
+    
+    // 更新销售额
+    const salesActualElement = document.querySelector('.progress-item:nth-child(2) .actual-value');
+    if (salesActualElement && monthlyStats.sales_actual) {
+        salesActualElement.textContent = monthlyStats.sales_actual;
+    }
+    
+    const salesPercentageElement = document.querySelector('.progress-item:nth-child(2) .percentage');
+    if (salesPercentageElement && monthlyStats.sales_rate) {
+        salesPercentageElement.innerHTML = `(${monthlyStats.sales_rate})`;
+    }
+    
+    const salesTargetElement = document.querySelector('.progress-item:nth-child(2) .target-text');
+    if (salesTargetElement && monthlyStats.sales_target) {
+        salesTargetElement.textContent = monthlyStats.sales_target;
+    }
+    
+    // 更新新增客户
+    const customersActualElement = document.querySelector('.progress-item:nth-child(3) .actual-value');
+    if (customersActualElement && monthlyStats.customers_actual !== undefined) {
+        customersActualElement.textContent = monthlyStats.customers_actual;
+    }
+    
+    const customersPercentageElement = document.querySelector('.progress-item:nth-child(3) .percentage');
+    if (customersPercentageElement && monthlyStats.customers_rate) {
+        customersPercentageElement.innerHTML = `(${monthlyStats.customers_rate})`;
+    }
+    
+    // 更新新增项目
+    const projectsActualElement = document.querySelector('.progress-item:nth-child(4) .actual-value');
+    if (projectsActualElement && monthlyStats.projects_actual !== undefined) {
+        projectsActualElement.textContent = monthlyStats.projects_actual;
+    }
+    
+    const projectsPercentageElement = document.querySelector('.progress-item:nth-child(4) .percentage');
+    if (projectsPercentageElement && monthlyStats.projects_rate) {
+        projectsPercentageElement.innerHTML = `(${monthlyStats.projects_rate})`;
+    }
+}
 </script>
 {% endblock %}

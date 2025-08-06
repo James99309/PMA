@@ -236,9 +236,9 @@ def list_quotations():
         unique_owner_ids = {row[0] for row in unique_owner_ids_query.all()}
         
         # 只查询需要的用户，避免加载所有用户
+        # 移除活跃状态过滤，确保所有实际拥有报价单的用户都出现在筛选选项中
         available_users = User.query.filter(
-            User.id.in_(unique_owner_ids),
-            User._is_active == True
+            User.id.in_(unique_owner_ids)
         ).order_by(User.real_name, User.username).all()
         
         # 项目阶段选项 - 优化为只显示实际存在的阶段

@@ -290,7 +290,8 @@ def list_companies():
     country_code_to_name = get_country_names(get_current_language())
     
     # 获取所有用户和唯一的owner_ids用于筛选
-    all_users = User.query.filter(User._is_active == True).order_by(User.real_name, User.username).all()
+    # 移除活跃状态过滤，确保所有实际拥有客户的用户都出现在筛选选项中
+    all_users = User.query.order_by(User.real_name, User.username).all()
     
     # 获取当前用户可见的所有公司数据（用于生成筛选器选项）
     all_viewable_companies = get_viewable_data(Company, current_user).all()
@@ -896,7 +897,8 @@ def search_companies():
     company_type_options, industry_options, status_options, country_options = get_existing_filter_options(all_viewable_companies)
     
     # 获取用户信息用于筛选器
-    all_users = User.query.filter(User._is_active == True).order_by(User.real_name, User.username).all()
+    # 移除活跃状态过滤，确保所有实际拥有客户的用户都出现在筛选选项中
+    all_users = User.query.order_by(User.real_name, User.username).all()
     unique_owner_ids = {c.owner_id for c in all_viewable_companies if c.owner_id}
     
     return render_template('customer/list.html', 

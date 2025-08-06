@@ -1293,12 +1293,97 @@ def list_ajax():
             }
         }
         
+        # 计算当月数据用于月度统计更新
+        current_month_num = datetime.now().month
+        monthly_stats_data = None
+        
+        if user_id and year:
+            current_stats = yearly_stats[current_month_num - 1] if yearly_stats and len(yearly_stats) > current_month_num - 1 else None
+            current_target = yearly_targets.get(current_month_num)
+            
+            # 计算月度统计数据
+            if current_stats or current_target:
+                # 获取用户显示货币设置
+                display_currency = 'CNY'
+                recent_target = PerformanceTarget.query.filter_by(
+                    user_id=user_id
+                ).order_by(PerformanceTarget.updated_at.desc()).first()
+                if recent_target:
+                    display_currency = recent_target.display_currency
+                
+                # 实际值数据
+                if current_stats:
+                    implant_actual_yuan = float(current_stats.implant_amount_actual or 0)
+                    sales_actual_yuan = float(current_stats.sales_amount_actual or 0)
+                    customers_actual = int(current_stats.new_customers_actual or 0)
+                    projects_actual = int(current_stats.new_projects_actual or 0)
+                    
+                    # 使用标准化金额转换
+                    implant_actual_data = prepare_stats_card_amount(implant_actual_yuan, current_language)
+                    sales_actual_data = prepare_stats_card_amount(sales_actual_yuan, current_language)
+                    
+                    implant_actual_display = f"{implant_actual_data['value']:.2f} {implant_actual_data['unit']}"
+                    sales_actual_display = f"{sales_actual_data['value']:.2f} {sales_actual_data['unit']}"
+                else:
+                    implant_actual_display = "0"
+                    sales_actual_display = "0"
+                    customers_actual = 0
+                    projects_actual = 0
+                
+                # 目标值数据
+                if current_target:
+                    implant_target_yuan = float(current_target.implant_amount_target or 0)
+                    sales_target_yuan = float(current_target.sales_amount_target or 0)
+                    
+                    # 使用标准化金额转换
+                    implant_target_data = prepare_stats_card_amount(implant_target_yuan, current_language)
+                    sales_target_data = prepare_stats_card_amount(sales_target_yuan, current_language)
+                    
+                    implant_target_display = f"目标: {implant_target_data['value']:.2f} {implant_target_data['unit']}" if not is_english else f"Target: {implant_target_data['value']:.2f} {implant_target_data['unit']}"
+                    sales_target_display = f"目标: {sales_target_data['value']:.2f} {sales_target_data['unit']}" if not is_english else f"Target: {sales_target_data['value']:.2f} {sales_target_data['unit']}"
+                    
+                    # 计算达成率
+                    if current_stats:
+                        implant_rate = PerformanceService.get_achievement_rate(
+                            implant_actual_yuan, implant_target_yuan
+                        )
+                        sales_rate = PerformanceService.get_achievement_rate(
+                            sales_actual_yuan, sales_target_yuan
+                        )
+                        customers_rate = PerformanceService.get_achievement_rate(
+                            customers_actual, current_target.new_customers_target or 0
+                        )
+                        projects_rate = PerformanceService.get_achievement_rate(
+                            projects_actual, current_target.new_projects_target or 0
+                        )
+                    else:
+                        implant_rate = sales_rate = customers_rate = projects_rate = 0
+                else:
+                    implant_target_display = "目标: 未设置" if not is_english else "Target: Not Set"
+                    sales_target_display = "目标: 未设置" if not is_english else "Target: Not Set"
+                    implant_rate = sales_rate = customers_rate = projects_rate = 0
+                
+                # 构建月度统计数据
+                monthly_stats_data = {
+                    'implant_actual': implant_actual_display,
+                    'implant_target': implant_target_display,
+                    'implant_rate': f"{int(implant_rate)}%",
+                    'sales_actual': sales_actual_display,
+                    'sales_target': sales_target_display, 
+                    'sales_rate': f"{int(sales_rate)}%",
+                    'customers_actual': customers_actual,
+                    'customers_rate': f"{int(customers_rate)}%",
+                    'projects_actual': projects_actual,
+                    'projects_rate': f"{int(projects_rate)}%"
+                }
+        
         return jsonify({
             'success': True,
             'html': '\n'.join(html_rows),
             'total_count': len(html_rows),
             'loaded_count': len(html_rows),
-            'statistics': statistics
+            'statistics': statistics,
+            'monthly_stats': monthly_stats_data
         })
     
     except Exception as e:

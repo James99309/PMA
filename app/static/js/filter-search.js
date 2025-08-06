@@ -812,7 +812,7 @@ function performGenericAjaxFilter(config) {
             }
             
             // 更新浏览器URL但不刷新页面
-            updateBrowserUrl(params);
+            updateBrowserUrl(params, config.preserve_params || []);
             
             // 检查是否有活跃的筛选条件，控制重置按钮显示
             updateResetButtonVisibility(config);
@@ -886,16 +886,31 @@ function performGenericAjaxReset(config) {
         });
     }
     
-    // 重置URL参数
+    // 重置URL参数，但保留指定参数
     const newUrl = new URL(window.location);
     const filterParams = config.filter_fields ? config.filter_fields.map(f => f.name) : [];
     if (config.search_field_id) {
         filterParams.push(config.search_field_id);
     }
     
+    // 保留指定的参数
+    const preserveParams = config.preserve_params || [];
+    const preservedValues = {};
+    preserveParams.forEach(param => {
+        if (newUrl.searchParams.has(param)) {
+            preservedValues[param] = newUrl.searchParams.get(param);
+        }
+    });
+    
     filterParams.forEach(key => {
         newUrl.searchParams.delete(key);
     });
+    
+    // 恢复保留的参数
+    Object.keys(preservedValues).forEach(param => {
+        newUrl.searchParams.set(param, preservedValues[param]);
+    });
+    
     window.history.pushState({}, '', newUrl);
     
     // 隐藏重置按钮
@@ -943,6 +958,16 @@ function getGenericCurrentParams(config) {
         });
     }
     
+    // 获取需要保留的URL参数（如tab等）
+    if (config.preserve_params) {
+        const currentUrl = new URL(window.location);
+        config.preserve_params.forEach(param => {
+            if (currentUrl.searchParams.has(param)) {
+                params[param] = currentUrl.searchParams.get(param);
+            }
+        });
+    }
+    
     return params;
 }
 
@@ -950,8 +975,18 @@ function getGenericCurrentParams(config) {
  * 更新浏览器URL
  * @param {Object} params - 筛选参数
  */
-function updateBrowserUrl(params) {
+function updateBrowserUrl(params, preserveParams = []) {
     const newUrl = new URL(window.location);
+    
+    // 保留指定的参数
+    const preservedValues = {};
+    preserveParams.forEach(param => {
+        if (newUrl.searchParams.has(param)) {
+            preservedValues[param] = newUrl.searchParams.get(param);
+        }
+    });
+    
+    // 更新筛选参数
     Object.keys(params).forEach(key => {
         if (params[key] !== '') {
             newUrl.searchParams.set(key, params[key]);
@@ -959,6 +994,12 @@ function updateBrowserUrl(params) {
             newUrl.searchParams.delete(key);
         }
     });
+    
+    // 恢复保留的参数
+    Object.keys(preservedValues).forEach(param => {
+        newUrl.searchParams.set(param, preservedValues[param]);
+    });
+    
     window.history.pushState({}, '', newUrl);
 }
 
