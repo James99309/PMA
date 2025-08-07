@@ -1085,17 +1085,42 @@ def view_project(project_id):
                 User.department == current_user.department
             ).all()
         else:
-            all_users = User.query.filter(User.id.in_([current_user.id, project.owner_id])).all()
+            # 包含有数据归属的账户，即使不在同公司/部门
+            # 1. 当前用户自己
+            # 2. 当前项目拥有者
+            base_user_ids = {current_user.id, project.owner_id}
+            
+            # 3. 通过归属关系，用户可以将数据转移给的账户
+            from app.models.user import Affiliation
+            
+            # 用户可以查看的数据的拥有者（双向关系）
+            # - 用户作为viewer，可以查看的数据的owner
+            viewer_affiliations = Affiliation.query.filter_by(viewer_id=current_user.id).all()
+            viewer_accessible_owner_ids = {a.owner_id for a in viewer_affiliations}
+            
+            # - 用户作为owner，将数据归属给的viewer（可以将数据转移给这些用户）
+            owner_affiliations = Affiliation.query.filter_by(owner_id=current_user.id).all()
+            owner_accessible_viewer_ids = {a.viewer_id for a in owner_affiliations}
+            
+            # 合并所有可访问的用户ID
+            all_accessible_user_ids = base_user_ids.union(viewer_accessible_owner_ids).union(owner_accessible_viewer_ids)
+            
+            # 查询这些用户，确保只包含活跃用户
+            all_users = User.query.filter(
+                User.id.in_(all_accessible_user_ids),
+                or_(User.role == 'admin', User._is_active == True)
+            ).all()
+            
         if not all_users:
             all_users = User.query.filter(User.id.in_([current_user.id, project.owner_id])).all()
     has_change_owner_permission = can_change_project_owner(current_user, project)
 
     # 生成用户树状数据
-    from app.utils.user_helpers import generate_user_tree_data
+    from app.utils.user_helpers import generate_user_tree_data_from_users
     user_tree_data = None
     if has_change_owner_permission:
-        filter_by_dept = not is_admin_or_ceo()
-        user_tree_data = generate_user_tree_data(filter_by_department=filter_by_dept)
+        # 使用已筛选的用户列表生成树状数据，而不是使用默认的权限过滤
+        user_tree_data = generate_user_tree_data_from_users(all_users)
 
     # 获取系统设置
     settings = {
@@ -2742,15 +2767,16 @@ def change_project_owner(project_id):
     # 检查新拥有人是否是厂商企业账户
     is_vendor_company = new_owner.is_vendor_user()
     
-    # 处理厂商销售负责人设置（可选）
-    vendor_sales_manager_id = None
+    # 处理厂商销售负责人设置（保持原有值或设置新值）
+    vendor_sales_manager_id = project.vendor_sales_manager_id  # 保持原有值
+    
     if not is_vendor_company:
         # 如果新拥有人不是厂商企业账户，允许可选设置厂商销售负责人
-        vendor_sales_manager_id = request.form.get('vendor_sales_manager_id', type=int)
+        form_vendor_id = request.form.get('vendor_sales_manager_id', type=int)
         
-        # 如果指定了厂商销售负责人，需要验证其有效性
-        if vendor_sales_manager_id:
-            vendor_sales_manager = User.query.get(vendor_sales_manager_id)
+        # 如果用户指定了新的厂商销售负责人，需要验证其有效性
+        if form_vendor_id:
+            vendor_sales_manager = User.query.get(form_vendor_id)
             if not vendor_sales_manager:
                 flash('厂商销售负责人不存在', 'danger')
                 return redirect(url_for('project.view_project', project_id=project_id))
@@ -2758,6 +2784,10 @@ def change_project_owner(project_id):
             if not vendor_sales_manager.is_vendor_user():
                 flash('厂商销售负责人必须是厂商企业账户', 'danger')
                 return redirect(url_for('project.view_project', project_id=project_id))
+            
+            # 验证通过，更新为新的厂商销售负责人
+            vendor_sales_manager_id = form_vendor_id
+        # 如果没有指定新的厂商销售负责人，保持原有值（已在上面设置）
     else:
         # 如果新拥有人是厂商企业账户，自动设置为厂商销售负责人
         vendor_sales_manager_id = new_owner_id
