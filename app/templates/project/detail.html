@@ -378,7 +378,7 @@
             </div>
 
             <!-- 项目共享设置 -->
-            {{ render_sharing_section(project, 'project', current_user, can_edit_sharing=can_edit_sharing, shareable_users_tree=shareable_users_tree) }}
+            {{ render_sharing_section(project, 'project', current_user, can_edit_sharing=can_edit_sharing, can_view_sharing=can_view_sharing, shareable_users_tree=shareable_users_tree) }}
         </div>
 
         <!-- {{ _('右侧行动记录区域') }} ({{ _('占1/3') }}) -->

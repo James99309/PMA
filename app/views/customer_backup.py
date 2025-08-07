@@ -14,6 +14,7 @@ import json
 import re
 import logging
 from app.utils.dictionary_helpers import get_company_type_options, get_industry_options, get_status_options, get_country_options, COMPANY_TYPE_LABELS, INDUSTRY_LABELS, STATUS_LABELS, COUNTRY_LABELS
+from app.utils.country_names import get_country_names
 
 # 设置日志记录器
 logger = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ def get_countries_regions():
     lang = get_current_language()
     country_names = get_country_names(lang)
     
-    # 地区数据映射（扩展支持多语言）
+    # 地区数据映射(扩展支持多语言)
     region_data = {
         "CN": {
             "zh": ["北京市", "上海市", "天津市", "重庆市", "河北省", "山西省", "辽宁省", "吉林省", "黑龙江省", 
@@ -260,7 +261,7 @@ def list_companies():
     # 计算是否还有更多数据
     has_more = (offset + limit) < total_count
     
-    # 预加载所有企业的所有者信息（优化：只加载当前页的数据）
+    # 预加载所有企业的所有者信息(优化：只加载当前页的数据)
     owner_ids = [company.owner_id for company in companies if company.owner_id]
     if owner_ids:
         owners = {user.id: user for user in User.query.filter(User.id.in_(owner_ids)).all()}
@@ -268,7 +269,7 @@ def list_companies():
             if company.owner_id and company.owner_id in owners:
                 company.owner = owners[company.owner_id]
     
-    # 为每个公司添加联系人创建者ID列表（优化：只处理当前页的数据）
+    # 为每个公司添加联系人创建者ID列表(优化：只处理当前页的数据)
     company_ids = [company.id for company in companies]
     company_contact_owners = {}
     if company_ids:
@@ -290,14 +291,14 @@ def list_companies():
     country_code_to_name = get_country_names(get_current_language())
     
     # 获取所有用户和唯一的owner_ids用于筛选
-    # 移除活跃状态过滤，确保所有实际拥有客户的用户都出现在筛选选项中
+    # 移除活跃状态过滤,确保所有实际拥有客户的用户都出现在筛选选项中
     all_users = User.query.order_by(User.real_name, User.username).all()
     
-    # 获取当前用户可见的所有公司数据（用于生成筛选器选项）
+    # 获取当前用户可见的所有公司数据(用于生成筛选器选项)
     all_viewable_companies = get_viewable_data(Company, current_user).all()
     unique_owner_ids = {c.owner_id for c in all_viewable_companies if c.owner_id}
     
-    # 获取实际存在的筛选器选项（基于当前可见数据）
+    # 获取实际存在的筛选器选项(基于当前可见数据)
     company_type_options, industry_options, status_options, country_options = get_existing_filter_options(all_viewable_companies)
     
     # 计算统计数据
@@ -307,19 +308,19 @@ def list_companies():
     # 活跃企业统计
     active_companies = all_companies_query.filter(Company.status == 'active').count()
     
-    # 直接客户统计（公司类型为user的客户数量）
+    # 直接客户统计(公司类型为user的客户数量)
     direct_customers = all_companies_query.filter(Company.company_type == 'user').count()
     
-    # 项目客户统计（客户被项目关联过的数量）
+    # 项目客户统计(客户被项目关联过的数量)
     from app.models.project import Project
     from sqlalchemy import or_
     
     # 获取所有客户公司名称
     company_names = {c.company_name for c in all_viewable_companies}
     
-    # 查询被项目关联过的公司名称（使用集合操作提高效率）
+    # 查询被项目关联过的公司名称(使用集合操作提高效率)
     if company_names:
-        # 直接使用SQL的or_条件查询，避免获取所有数据后再处理
+        # 直接使用SQL的or_条件查询,避免获取所有数据后再处理
         linked_companies_subquery = db.session.query(Company.company_name).filter(
             Company.company_name.in_(
                 db.session.query(Project.end_user).filter(Project.end_user.isnot(None)).union(
@@ -447,7 +448,7 @@ def list_companies():
     # 通用列表组件配置
     list_config = {
         'module_name': 'customer',
-        'title': None,  # 页面级标题由模板控制，此处不显示
+        'title': None,  # 页面级标题由模板控制,此处不显示
         'ajax_mode': True,
         
         # 无限滚动配置
@@ -603,6 +604,19 @@ def list_companies():
 def companies_list_ajax():
     """客户列表AJAX筛选API"""
     try:
+        logger.info(f"开始处理客户列表AJAX请求: {request.args}")
+        # 返回简单测试响应来验证API是否可达
+        return jsonify({
+            'success': True,
+            'html': '<tr><td colspan="8" class="text-center">测试响应 - API工作正常</td></tr>',
+            'total_count': 1,
+            'loaded_count': 1,
+            'has_more': False,
+            'statistics': {'total': 1, 'active': 1, 'direct_customer': 0, 'project_customers': 0}
+        })
+        
+        # 保存原来的代码,暂时注释
+        """
         # 获取搜索和筛选参数
         search = request.args.get('search', '').strip()
         owner_filter = request.args.get('owner_filter', '')
@@ -618,9 +632,10 @@ def companies_list_ajax():
         # 基础查询
         query = get_viewable_data(Company, current_user)
         
-        # 应用搜索条件
-        if search:
-            query = query.filter(Company.company_name.ilike(f'%{search}%'))
+        # 应用搜索条件 (暂时注释)
+        # if search:
+        #     query = query.filter(Company.company_name.ilike(f'%{search}%'))
+        """
         
         # 应用筛选条件
         if owner_filter:
@@ -638,10 +653,22 @@ def companies_list_ajax():
         query = query.order_by(Company.updated_at.desc())
         
         # 获取总数
-        total_count = query.count()
+        logger.info("开始获取总数")
+        try:
+            total_count = query.count()
+            logger.info(f"总数统计成功: {total_count}")
+        except Exception as e:
+            logger.error(f"总数统计失败: {str(e)}")
+            total_count = 0
         
         # 分页查询
-        companies = query.offset(offset).limit(limit).all()
+        logger.info(f"开始分页查询: offset={offset}, limit={limit}")
+        try:
+            companies = query.offset(offset).limit(limit).all()
+            logger.info(f"分页查询成功: 获取到 {len(companies)} 条记录")
+        except Exception as e:
+            logger.error(f"分页查询失败: {str(e)}")
+            companies = []
         
         # 预加载所有者信息
         owner_ids = [company.owner_id for company in companies if company.owner_id]
@@ -652,19 +679,33 @@ def companies_list_ajax():
                     company.owner = owners[company.owner_id]
         
         # 获取国际化的国家名称映射
-        from app.utils.i18n import get_current_language
-        country_code_to_name = get_country_names(get_current_language())
+        logger.info("开始获取国际化国家名称映射")
+        try:
+            from app.utils.i18n import get_current_language
+            current_lang = get_current_language()
+            logger.info(f"当前语言: {current_lang}")
+            country_code_to_name = get_country_names(current_lang)
+            logger.info(f"获取到国家名称映射: {len(country_code_to_name)} 个")
+        except Exception as e:
+            logger.error(f"获取国家名称映射失败: {str(e)}")
+            country_code_to_name = {}  # 设置默认值
         
-        # 使用通用组件的响应式渲染逻辑（与页面初始化保持一致）
+        # 使用通用组件的响应式渲染逻辑(与页面初始化保持一致)
         from app.utils.mobile_helpers import is_mobile_request
         from flask import render_template
         
+        logger.info(f"开始渲染模板,移动端: {is_mobile_request()}, 公司数量: {len(companies)}")
+        
         if is_mobile_request():
-            # 移动端：渲染卡片内容（不包含容器，因为容器已存在）
-            companies_html = render_template('customer/customer_cards.html', items=companies, country_code_to_name=country_code_to_name)
+            # 移动端：渲染卡片内容(不包含容器,因为容器已存在)
+            logger.info("渲染移动端卡片模板")
+            companies_html = render_template('customer/customer_cards.html', items=companies, country_code_to_name=country_code_to_name, current_user=current_user)
         else:
             # 桌面端：渲染表格行
-            companies_html = render_template('customer/customer_rows.html', items=companies, country_code_to_name=country_code_to_name)
+            logger.info("渲染桌面端表格行模板")
+            companies_html = render_template('customer/customer_rows.html', items=companies, country_code_to_name=country_code_to_name, current_user=current_user)
+        
+        logger.info("模板渲染成功")
         
         # 计算统计数据 - 基于当前筛选条件的结果
         # 重新构建基础查询以获取筛选后的统计数据
@@ -684,35 +725,27 @@ def companies_list_ajax():
         if status_filter:
             base_filtered_query = base_filtered_query.filter(Company.status == status_filter)
         
-        # 计算项目客户统计（基于筛选后的结果，使用优化的SQL查询）
-        # 直接使用SQL子查询统计项目关联的客户
-        linked_companies_subquery = db.session.query(Company.company_name).filter(
-            Company.company_name.in_(
-                db.session.query(Project.end_user).filter(Project.end_user.isnot(None)).union(
-                    db.session.query(Project.design_issues).filter(Project.design_issues.isnot(None))
-                ).union(
-                    db.session.query(Project.dealer).filter(Project.dealer.isnot(None))
-                ).union(
-                    db.session.query(Project.contractor).filter(Project.contractor.isnot(None))
-                ).union(
-                    db.session.query(Project.system_integrator).filter(Project.system_integrator.isnot(None))
-                )
-            )
-        ).distinct()
+        # 计算统计数据 - 使用简化版本避免复杂查询错误
+        logger.info("开始计算统计数据")
+        try:
+            statistics = {
+                'total': base_filtered_query.count(),
+                'active': base_filtered_query.filter(Company.status == 'active').count(),
+                'direct_customer': base_filtered_query.filter(Company.company_type == 'user').count(),
+                'project_customers': 0  # 临时简化,避免复杂SQL查询
+            }
+            logger.info(f"统计数据计算成功: {statistics}")
+        except Exception as e:
+            logger.error(f"统计数据计算失败: {str(e)}")
+            # 使用默认统计数据
+            statistics = {
+                'total': 0,
+                'active': 0,
+                'direct_customer': 0,
+                'project_customers': 0
+            }
         
-        # 统计筛选结果中被项目关联过的客户数量
-        filtered_project_customers = base_filtered_query.filter(
-            Company.company_name.in_(linked_companies_subquery)
-        ).count()
-        
-        statistics = {
-            'total': base_filtered_query.count(),
-            'active': base_filtered_query.filter(Company.status == 'active').count(),
-            'direct_customer': base_filtered_query.filter(Company.company_type == 'user').count(),
-            'project_customers': filtered_project_customers
-        }
-        
-        # 计算是否还有更多数据（用于无限滚动）
+        # 计算是否还有更多数据(用于无限滚动)
         has_more = (offset + len(companies)) < total_count
         
         return jsonify({
@@ -723,6 +756,7 @@ def companies_list_ajax():
             'has_more': has_more,
             'statistics': statistics
         })
+        """
         
     except Exception as e:
         logger.error(f"客户列表AJAX筛选失败: {str(e)}")
@@ -735,7 +769,7 @@ def companies_list_ajax():
 @permission_required('customer', 'view')
 def load_more_companies():
     """为滚动加载提供的API端点"""
-    # 使用与list_companies相同的逻辑，但返回JSON
+    # 使用与list_companies相同的逻辑,但返回JSON
     search = request.args.get('search', '')
     
     # 滚动加载参数
@@ -885,19 +919,19 @@ def search_companies():
     for company in companies:
         company.contact_owner_ids = company_contact_owners.get(company.id, [])
     
-    # 获取排序参数，提供默认值
+    # 获取排序参数,提供默认值
     sort_field = request.args.get('sort', 'company_name')
     sort_order = request.args.get('order', 'asc')
     
     # 获取国际化的国家名称映射
     country_code_to_name = get_country_names(get_current_language())
     
-    # 为搜索结果生成筛选器选项（基于当前可见的所有数据，不仅仅是搜索结果）
+    # 为搜索结果生成筛选器选项(基于当前可见的所有数据,不仅仅是搜索结果)
     all_viewable_companies = get_viewable_data(Company, current_user).all()
     company_type_options, industry_options, status_options, country_options = get_existing_filter_options(all_viewable_companies)
     
     # 获取用户信息用于筛选器
-    # 移除活跃状态过滤，确保所有实际拥有客户的用户都出现在筛选选项中
+    # 移除活跃状态过滤,确保所有实际拥有客户的用户都出现在筛选选项中
     all_users = User.query.order_by(User.real_name, User.username).all()
     unique_owner_ids = {c.owner_id for c in all_viewable_companies if c.owner_id}
     
@@ -940,7 +974,7 @@ def search_contacts():
         if contact.company_id and contact.company_id in companies:
             contact.company = companies[contact.company_id]
     
-    # 返回搜索结果专用模板，不使用contacts.html
+    # 返回搜索结果专用模板,不使用contacts.html
     return render_template('customer/search_results.html', contacts=contacts, search_term=search,
                           COMPANY_TYPE_OPTIONS=get_company_type_options(),
                           INDUSTRY_OPTIONS=get_industry_options(),
@@ -972,7 +1006,7 @@ def view_company(company_id):
             if contact.owner_id and contact.owner_id in owners:
                 contact.owner = owners[contact.owner_id]
     
-    # 如果需要，确保公司的动作记录已正确加载并按日期排序
+    # 如果需要,确保公司的动作记录已正确加载并按日期排序
     if hasattr(company, 'actions') and company.actions:
         company.actions.sort(key=lambda x: x.date, reverse=True)
     
@@ -1001,11 +1035,11 @@ def view_company(company_id):
     
     # 使用新的权限控制系统筛选用户有权限查看的行动记录
     all_viewable_actions = get_viewable_data(Action, current_user).all()
-    # 只显示属于当前公司的行动记录，并按时间降序排序（最新的在最前面）
+    # 只显示属于当前公司的行动记录,并按时间降序排序(最新的在最前面)
     viewable_actions = [a for a in all_viewable_actions if a.company_id == company_id]
     viewable_actions.sort(key=lambda x: x.created_at, reverse=True)
     
-    # 提前加载行动记录所有者信息，避免N+1查询
+    # 提前加载行动记录所有者信息,避免N+1查询
     action_user_ids = [action.owner_id for action in actions if action.owner_id]
     users = User.query.filter(User.id.in_(set(action_user_ids))).all()
     user_map = {user.id: user for user in users}
@@ -1017,20 +1051,7 @@ def view_company(company_id):
     from app.utils.sharing import SharingService, get_shareable_users_tree
     can_edit_sharing = SharingService.can_edit_sharing_settings(current_user, company, 'customer')
     
-    # 检查是否能查看共享设置（即使不能编辑）
-    can_view_sharing = False
-    if current_user.role == 'admin':
-        can_view_sharing = True
-    elif current_user.has_permission('customer', 'view'):
-        # 检查权限级别
-        permission_level = current_user.get_permission_level('customer')
-        if permission_level in ['system', 'company', 'department']:
-            can_view_sharing = True
-        elif permission_level == 'personal' and company.owner_id == current_user.id:
-            can_view_sharing = True
-    
-    # 如果能编辑或查看共享设置，获取可共享用户树
-    if can_edit_sharing or can_view_sharing:
+    if can_edit_sharing:
         shareable_users_tree = get_shareable_users_tree(current_user, 'customer')
     else:
         shareable_users_tree = []
@@ -1051,9 +1072,9 @@ def view_company(company_id):
                 User.department == current_user.department
             ).all()
         else:
-            # 其他情况，至少包含当前用户和当前拥有者
+            # 其他情况,至少包含当前用户和当前拥有者
             all_users = User.query.filter(User.id.in_([current_user.id, company.owner_id])).all()
-        # 保险：如果all_users为空，至少包含当前用户和当前拥有者
+        # 保险：如果all_users为空,至少包含当前用户和当前拥有者
         if not all_users:
             all_users = User.query.filter(User.id.in_([current_user.id, company.owner_id])).all()
     
@@ -1074,7 +1095,6 @@ def view_company(company_id):
                           viewable_projects=viewable_projects,
                           country_code_to_name=country_code_to_name,
                           can_edit_sharing=can_edit_sharing,
-                          can_view_sharing=can_view_sharing,
                           shareable_users_tree=shareable_users_tree,
                           COMPANY_TYPE_OPTIONS=get_company_type_options(),
                           INDUSTRY_OPTIONS=get_industry_options(),
@@ -1120,7 +1140,7 @@ def add_company():
         except Exception as e:
             db.session.rollback()
             import traceback
-            # 增强日志输出，包含表单内容和traceback
+            # 增强日志输出,包含表单内容和traceback
             flash('保存失败：' + str(e) + '<br>表单内容：' + str(dict(request.form)) + '<br>' + traceback.format_exc(), 'danger')
     
     return render_template('customer/add.html', COMPANY_TYPE_OPTIONS=get_company_type_options(),
@@ -1146,7 +1166,7 @@ def edit_company(company_id):
             old_values = ChangeTracker.capture_old_values(company)
             
             data = request.form.to_dict()
-            # 移除status字段，禁止编辑
+            # 移除status字段,禁止编辑
             data.pop('status', None)
             for key, value in data.items():
                 setattr(company, key, value)
@@ -1403,7 +1423,7 @@ def delete_company(company_id):
     # 检查是否强制删除
     force_delete = request.form.get('force_delete') == 'true'
     if not force_delete:
-        # 如果不是强制删除，重定向到确认页面
+        # 如果不是强制删除,重定向到确认页面
         return redirect(url_for('customer.delete_confirm', company_id=company_id))
 
 
@@ -1437,7 +1457,7 @@ def delete_company(company_id):
         # 找到与此公司相关的所有行动记录
         related_actions = Action.query.filter_by(company_id=company.id).all()
         
-        # 删除所有相关的行动记录（包括其回复，通过级联删除）
+        # 删除所有相关的行动记录(包括其回复,通过级联删除)
         for action in related_actions:
             db.session.delete(action)
         
@@ -1490,7 +1510,7 @@ def delete_company(company_id):
         for so in settlement_orders:
             db.session.delete(so)
             
-        # 然后删除公司 (这将级联删除联系人，因为在模型中设置了cascade='all, delete-orphan')
+        # 然后删除公司 (这将级联删除联系人,因为在模型中设置了cascade='all, delete-orphan')
         db.session.delete(company)
         db.session.commit()
         flash('企业删除成功！', 'success')
@@ -1521,15 +1541,15 @@ def list_contacts(company_id):
 @permission_required('customer', 'create')
 def add_contact(company_id):
     company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
-    # 允许所有人添加联系人，但只显示自己创建的联系人
+    # 允许所有人添加联系人,但只显示自己创建的联系人
     if request.method == 'POST':
         name = request.form['name']
-        # 查重：同公司下所有联系人（不论owner）
+        # 查重：同公司下所有联系人(不论owner)
         duplicate = Contact.query.filter_by(company_id=company_id, name=name).first()
         if duplicate:
-            # 如果当前用户不可见，提示不可见
+            # 如果当前用户不可见,提示不可见
             if duplicate.owner_id != current_user.id:
-                flash('该客户已有同名联系人（不可见）', 'danger')
+                flash('该客户已有同名联系人(不可见)', 'danger')
                 return redirect(url_for('customer.view_company', company_id=company_id))
             else:
                 flash('该客户已有同名联系人', 'danger')
@@ -1565,7 +1585,7 @@ def add_contact(company_id):
         update_active_status(company)
         db.session.commit()
         
-        # 设置为主要联系人（如果勾选）
+        # 设置为主要联系人(如果勾选)
         if request.form.get('is_primary'):
             contact.set_as_primary()
         
@@ -1601,7 +1621,7 @@ def edit_contact(company_id, contact_id):
         # 处理主要联系人状态
         if request.form.get('is_primary'):
             contact.set_as_primary()
-        elif contact.is_primary:  # 如果之前是主要联系人，现在取消了
+        elif contact.is_primary:  # 如果之前是主要联系人,现在取消了
             contact.is_primary = False
             
         # 处理共享控制设置
@@ -1629,7 +1649,7 @@ def delete_contact(company_id, contact_id):
     contact = Contact.query.get_or_404(contact_id);
     # 检查删除权限
     if not can_delete_contact(current_user, contact):
-        flash('您没有权限删除此联系人，只有联系人的创建者或管理员才能删除', 'danger')
+        flash('您没有权限删除此联系人,只有联系人的创建者或管理员才能删除', 'danger')
         return redirect(url_for('customer.list_contacts', company_id=company_id))
     
     # 记录删除历史
@@ -1660,10 +1680,10 @@ def add_action_api(contact_id):
             return jsonify({'success': False, 'message': '沟通情况不能为空'}), 400
         if not data.get('date'):
             return jsonify({'success': False, 'message': '日期不能为空'}), 400
-        # 获取项目ID，如果未选择则设为None
+        # 获取项目ID,如果未选择则设为None
         project_id = data.get('project_id') or None
         try:
-            # 解析日期，支持ISO格式
+            # 解析日期,支持ISO格式
             action_date = datetime.fromisoformat(data['date'].replace('Z', '+00:00')).date()
         except ValueError:
             # 尝试标准格式
@@ -1675,7 +1695,7 @@ def add_action_api(contact_id):
             project_id=project_id,
             communication=data['communication'],
             owner_id=current_user.id,
-            is_shared=data.get('is_shared', True)  # 默认为True（共享）
+            is_shared=data.get('is_shared', True)  # 默认为True(共享)
         )
         db.session.add(action)
         db.session.commit()
@@ -1749,11 +1769,11 @@ def search_company_api():
     if not keyword or len(keyword) < 1:
         return jsonify({'results': []})
     
-    # 优化搜索查询，提高中文单字符匹配效率
-    # 使用or_条件组合多个搜索条件，支持任意位置匹配
+    # 优化搜索查询,提高中文单字符匹配效率
+    # 使用or_条件组合多个搜索条件,支持任意位置匹配
     from sqlalchemy import or_
     
-    # 判断是否为单个中文字符（完整中文字符范围判断）
+    # 判断是否为单个中文字符(完整中文字符范围判断)
     is_single_chinese = len(keyword) == 1 and '\u4e00' <= keyword <= '\u9fff'
     
     # 构建搜索条件
@@ -1761,7 +1781,7 @@ def search_company_api():
         # 中文单字符使用包含匹配
         search_condition = Company.company_name.contains(keyword)
     else:
-        # 其他情况使用前缀匹配，效率更高
+        # 其他情况使用前缀匹配,效率更高
         search_condition = Company.company_name.ilike(f"%{keyword}%")
     
     # 执行查询
@@ -1771,7 +1791,7 @@ def search_company_api():
     user_authorized_companies = get_viewable_data(Company, current_user).all()
     authorized_ids = {c.id for c in user_authorized_companies}
     
-    # 预加载所有公司拥有者信息，避免N+1查询问题
+    # 预加载所有公司拥有者信息,避免N+1查询问题
     owner_ids = [c.owner_id for c in all_matches if c.owner_id is not None]
     owners = {}
     if owner_ids:
@@ -1836,7 +1856,7 @@ def search_contact_api():
     if not keyword or len(keyword) < 1:
         return jsonify({'results': []})
     
-    # 判断是否为单个中文字符（完整中文字符范围判断）
+    # 判断是否为单个中文字符(完整中文字符范围判断)
     is_single_chinese = len(keyword) == 1 and '\u4e00' <= keyword <= '\u9fff'
     
     # 构建搜索条件
@@ -1856,7 +1876,7 @@ def search_contact_api():
     
     results = []
     for contact in all_matches:
-        # 预加载公司信息，避免N+1查询
+        # 预加载公司信息,避免N+1查询
         company = Company.query.filter_by(id=contact.company_id, is_deleted=False).first()
         if not company:
             continue
@@ -1893,7 +1913,7 @@ def check_duplicates():
         if not current_user.role == 'admin':
             return jsonify({'success': False, 'message': '只有管理员可以使用此功能'}), 403
         
-        # 打印请求内容，帮助调试
+        # 打印请求内容,帮助调试
         print(f"收到check-duplicates请求: {request.data}")
         
         # 检查请求是否包含JSON数据
@@ -1926,8 +1946,8 @@ def check_duplicates():
                 try:
                     company_names[i] = str(name)
                 except:
-                    # 如果转换失败，则移除该元素
-                    print(f"无法将元素[{i}]转换为字符串，已移除")
+                    # 如果转换失败,则移除该元素
+                    print(f"无法将元素[{i}]转换为字符串,已移除")
                     company_names[i] = ""
         
         # 过滤掉空字符串
@@ -1956,18 +1976,18 @@ def check_duplicates():
             
             # 模糊匹配
             for existing_name, existing_id in existing_names.items():
-                # 对于中文名称，使用较高的相似度阈值以减少错误匹配
+                # 对于中文名称,使用较高的相似度阈值以减少错误匹配
                 similarity = difflib.SequenceMatcher(None, import_name, existing_name).ratio()
                 
-                # 提高阈值，只有较高相似度或完全包含才判定为冲突
+                # 提高阈值,只有较高相似度或完全包含才判定为冲突
                 if len(import_name) >= 3 and len(existing_name) >= 3:
-                    # 提取相似部分，判断是否有连续的中文字符
+                    # 提取相似部分,判断是否有连续的中文字符
                     blocks = difflib.SequenceMatcher(None, import_name, existing_name).get_matching_blocks()
                     
-                    # 判断是否有从左到右的前缀匹配（优先考虑公司名称开头部分）
+                    # 判断是否有从左到右的前缀匹配(优先考虑公司名称开头部分)
                     left_to_right_match = False
                     for block in blocks:
-                        # 检查是否为左侧开始的匹配（import_name的起始位置或existing_name的起始位置）
+                        # 检查是否为左侧开始的匹配(import_name的起始位置或existing_name的起始位置)
                         if (block.a == 0 or block.b == 0) and block.size >= 3:
                             left_to_right_match = True
                             break
@@ -1979,28 +1999,28 @@ def check_duplicates():
                         if block.size > longest_match_size:
                             longest_match_size = block.size
                         
-                        # 对于4个以上的中文字符匹配，需要进一步判断
+                        # 对于4个以上的中文字符匹配,需要进一步判断
                         if block.size >= 4:
                             # 提取匹配部分的文本
                             import_substr = import_name[block.a:block.a+block.size]
                             existing_substr = existing_name[block.b:block.b+block.size]
                             
-                            # 检查提取的子串是否含有常见的公司名称后缀（如"有限公司"、"股份"等）
+                            # 检查提取的子串是否含有常见的公司名称后缀(如"有限公司"、"股份"等)
                             common_suffixes = ["有限公司", "股份", "科技", "集团", "公司"]
                             contains_common_suffix = any(suffix in import_substr for suffix in common_suffixes) or \
                                                     any(suffix in existing_substr for suffix in common_suffixes)
                             
-                            # 如果不包含常见后缀，则更可能是实质性匹配
+                            # 如果不包含常见后缀,则更可能是实质性匹配
                             if not contains_common_suffix:
                                 continuous_match = True
                                 break
                         
-                        # 对于3个字符的匹配，只有在从左到右或相似度很高的情况下才考虑
+                        # 对于3个字符的匹配,只有在从左到右或相似度很高的情况下才考虑
                         elif block.size == 3 and (left_to_right_match or similarity > 0.75):
                             continuous_match = True
                             break
                     
-                    # 检查是否一方完全包含另一方（处理简称情况），但忽略常见后缀
+                    # 检查是否一方完全包含另一方(处理简称情况),但忽略常见后缀
                     def normalize_for_import(name):
                         # 去除常见的公司后缀
                         suffixes = ["有限公司", "有限责任公司", "股份有限公司", "股份公司", "公司"]
@@ -2039,7 +2059,7 @@ def check_duplicates():
                             'similarity': similarity
                         })
         
-        # 对于每个导入名称，只保留相似度最高的匹配项
+        # 对于每个导入名称,只保留相似度最高的匹配项
         filtered_conflicts = {}
         for conflict in conflicts:
             import_name = conflict['import_name']
@@ -2048,7 +2068,7 @@ def check_duplicates():
         
         # 添加推荐操作字段
         for import_name, conflict in filtered_conflicts.items():
-            # 根据相似度添加推荐操作：≥0.8推荐跳过，<0.8推荐添加为新用户
+            # 根据相似度添加推荐操作：≥0.8推荐跳过,<0.8推荐添加为新用户
             if conflict['similarity'] >= 0.8:
                 conflict['recommended_action'] = 'ignore'  # 建议跳过
             else:
@@ -2059,7 +2079,7 @@ def check_duplicates():
             'conflicts': list(filtered_conflicts.values())
         }
         
-        print(f"检查重复完成，返回结果: {len(filtered_conflicts)}条冲突")
+        print(f"检查重复完成,返回结果: {len(filtered_conflicts)}条冲突")
         
         return jsonify(result)
     
@@ -2114,7 +2134,7 @@ def check_contact_duplicates():
                         'name': contact.get('name', '')
                     })
             else:
-                # 记录公司ID映射，方便后续使用
+                # 记录公司ID映射,方便后续使用
                 company_map[company_name] = all_company_names[company_name]
         
         # 2. 检查联系人冲突
@@ -2204,10 +2224,10 @@ def import_contacts():
         if not owner:
             return jsonify({'success': False, 'message': '指定的归属账户不存在'}), 400
         
-        # 取得所有公司信息，用于匹配
+        # 取得所有公司信息,用于匹配
         companies = {company.company_name: company.id for company in Company.query.filter_by(is_deleted=False).all()}
         
-        # 取得所有联系人信息，用于检查冲突
+        # 取得所有联系人信息,用于检查冲突
         all_contacts = {}
         for company_id in set(companies.values()):
             all_contacts[company_id] = {
@@ -2272,7 +2292,7 @@ def import_contacts():
                         except (ValueError, TypeError):
                             pass
                             
-                    # 更新时间设置为当前时间（导入时间）
+                    # 更新时间设置为当前时间(导入时间)
                     existing_contact.updated_at = datetime.utcnow()
                     
                     db.session.commit()
@@ -2299,7 +2319,7 @@ def import_contacts():
                         except (ValueError, TypeError):
                             pass
                             
-                    # 更新时间设置为当前时间（导入时间）
+                    # 更新时间设置为当前时间(导入时间)
                     new_contact.updated_at = datetime.utcnow()
                     
                     db.session.add(new_contact)
@@ -2372,7 +2392,7 @@ def import_contacts():
                 company.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
                 update_active_status(company)
                 
-                # 如果行动记录关联了项目，也更新项目活跃度
+                # 如果行动记录关联了项目,也更新项目活跃度
                 if project_id and new_action.project:
                     update_active_status(new_action.project)
                     
@@ -2400,7 +2420,7 @@ def import_contacts():
         
         return jsonify({
             'success': True,
-            'message': f'导入完成，新增: {imported_count}，更新: {updated_count}，跳过: {skipped_count}，错误: {error_count}',
+            'message': f'导入完成,新增: {imported_count},更新: {updated_count},跳过: {skipped_count},错误: {error_count}',
             'data': {
                 'imported': imported_count,
                 'updated': updated_count,
@@ -2459,7 +2479,7 @@ def import_customers():
             print(f"conflict_actions不是字典: {conflict_actions}")
             return jsonify({'success': False, 'message': 'conflict_actions必须是字典'}), 400
             
-        # 对导入数据进行去重，确保每个公司名称只出现一次
+        # 对导入数据进行去重,确保每个公司名称只出现一次
         import_name_set = set()
         unique_customers = []
         
@@ -2485,7 +2505,7 @@ def import_customers():
                 print(f"客户数据[{i}]不是字典: {customer}")
                 invalid_customers.append({
                     'record': {'index': i, 'data': str(customer)[:100]},  # 截取前100个字符避免过长
-                    'reason': '数据格式错误，不是有效的对象'
+                    'reason': '数据格式错误,不是有效的对象'
                 })
                 continue
                 
@@ -2498,7 +2518,7 @@ def import_customers():
                 })
                 continue
                 
-            # 确保所有字符串字段的值都是字符串，并且不是'none'
+            # 确保所有字符串字段的值都是字符串,并且不是'none'
             for field in ['company_name', 'country', 'region', 'address', 'company_type', 'status']:
                 if field in customer and customer[field] is not None:
                     if not isinstance(customer[field], str):
@@ -2511,7 +2531,7 @@ def import_customers():
                                 'reason': f'字段 {field} 无法转换为字符串'
                             })
                     
-                    # 如果值是'none'或'None'，则设置为空字符串
+                    # 如果值是'none'或'None',则设置为空字符串
                     if customer[field].lower() == 'none':
                         customer[field] = ""
             
@@ -2520,7 +2540,7 @@ def import_customers():
                 if isinstance(customer['created_at'], str):
                     try:
                         print(f"尝试解析创建时间: {customer['created_at']}")
-                        # 处理ISO 8601格式的日期字符串，去掉Z后添加时区信息
+                        # 处理ISO 8601格式的日期字符串,去掉Z后添加时区信息
                         if customer['created_at'].endswith('Z'):
                             customer['created_at'] = customer['created_at'].replace('Z', '+00:00')
                         
@@ -2529,7 +2549,7 @@ def import_customers():
                             customer['created_at'] = datetime.fromisoformat(customer['created_at'])
                             print(f"成功从ISO格式解析: {customer['created_at']}")
                         except ValueError:
-                            # 如果fromisoformat失败，尝试strptime
+                            # 如果fromisoformat失败,尝试strptime
                             formats = [
                                 '%Y-%m-%dT%H:%M:%S.%f%z',  # ISO 8601 with microseconds and timezone
                                 '%Y-%m-%d %H:%M:%S',       # Standard datetime
@@ -2549,7 +2569,7 @@ def import_customers():
                                     continue
                             
                             if not parsed:
-                                print(f"无法解析创建时间: {customer['created_at']}，使用当前时间")
+                                print(f"无法解析创建时间: {customer['created_at']},使用当前时间")
                                 customer['created_at'] = datetime.utcnow()
                                 invalid_customers.append({
                                     'record': {'company_name': customer.get('company_name', '未知')},
@@ -2570,7 +2590,7 @@ def import_customers():
                         'reason': '创建时间格式不正确'
                     })
             else:
-                print("未提供创建时间，使用当前时间")
+                print("未提供创建时间,使用当前时间")
                 customer['created_at'] = datetime.utcnow()
                 
             valid_customers.append(customer)
@@ -2637,7 +2657,7 @@ def import_customers():
                         # 更新现有企业
                         company = existing_companies[company_name]
                         
-                        # 确保更新值不是'none'或'None'，使用None而不是空字符串
+                        # 确保更新值不是'none'或'None',使用None而不是空字符串
                         if 'country' in customer_data:
                             if customer_data['country'] and customer_data['country'].lower() != 'none':
                                 company.country = customer_data['country']
@@ -2670,12 +2690,12 @@ def import_customers():
                             else:
                                 company.notes = customer_data['notes']
                         
-                        # 保留原始创建时间（如果Excel中有指定且有效，则使用；否则保留数据库中现有的）
+                        # 保留原始创建时间(如果Excel中有指定且有效,则使用；否则保留数据库中现有的)
                         if 'created_at' in customer_data and customer_data['created_at'] and isinstance(customer_data['created_at'], datetime):
                             print(f"覆盖记录 - 设置创建时间: {customer_data['created_at']}")
                             company.created_at = customer_data['created_at']
                         
-                        # 更新时间设置为当前时间（导入时间）
+                        # 更新时间设置为当前时间(导入时间)
                         company.updated_at = datetime.utcnow()
                         print(f"覆盖记录 - 设置更新时间: {company.updated_at}")
                         
@@ -2683,13 +2703,13 @@ def import_customers():
                         db.session.commit()
                         updated_count += 1
                         
-                        # 标记此企业已处理，防止重复导入
+                        # 标记此企业已处理,防止重复导入
                         existing_companies.pop(company_name, None)
                         continue
                     else:  # action == 'keep'
-                        # 克隆为新记录，但使用不同名称
+                        # 克隆为新记录,但使用不同名称
                         company_name = f"{company_name}_导入_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
-                        print(f"发现同名企业，重命名为: {company_name}")
+                        print(f"发现同名企业,重命名为: {company_name}")
                 
                 # 创建新企业(action == 'keep'或不存在冲突)
                 company = Company(
@@ -2714,7 +2734,7 @@ def import_customers():
                     print(f"设置创建时间: {customer_data['created_at']}")
                     company.created_at = customer_data['created_at']
                 
-                # 更新时间设置为当前时间（导入时间）
+                # 更新时间设置为当前时间(导入时间)
                 company.updated_at = datetime.utcnow()
                 print(f"设置更新时间: {company.updated_at}")
                 
@@ -2752,7 +2772,7 @@ def import_customers():
         
         return jsonify({
             'success': True,
-            'message': f'导入完成，新增: {imported_count}，更新: {updated_count}，跳过: {skipped_count}，错误: {error_count}',
+            'message': f'导入完成,新增: {imported_count},更新: {updated_count},跳过: {skipped_count},错误: {error_count}',
             'data': {
                 'imported': imported_count,
                 'updated': updated_count,
@@ -2773,7 +2793,7 @@ def import_customers():
 def batch_delete_companies():
     """批量删除企业API"""
     try:
-        # 只要有customer.delete权限即可批量删除，但只能删除自己有权限的企业
+        # 只要有customer.delete权限即可批量删除,但只能删除自己有权限的企业
         # 检查请求是否包含JSON数据
         if not request.is_json:
             return jsonify({'success': False, 'message': '请求必须是JSON格式'}), 400
@@ -2793,7 +2813,7 @@ def batch_delete_companies():
         # 获取要删除的企业记录
         companies = Company.query.filter(Company.id.in_(company_ids), Company.is_deleted == False).all()
         
-        # 检查操作人是否有权限删除这些企业，未授权的企业自动跳过
+        # 检查操作人是否有权限删除这些企业,未授权的企业自动跳过
         unauthorized_companies = []
         deletable_companies = []
         companies_with_contacts = []  # === 新增：记录有联系人的客户 ===
@@ -2824,7 +2844,7 @@ def batch_delete_companies():
                     companies_with_projects.append(f"{company.company_name}({len(related_projects)}个项目)")
                     continue
                 
-                # 如果通过所有检查，添加到可删除列表
+                # 如果通过所有检查,添加到可删除列表
                 deletable_companies.append(company)
             else:
                 unauthorized_companies.append(company.company_name)
@@ -2866,7 +2886,7 @@ def batch_delete_companies():
                 # 找到与企业相关的所有行动记录
                 related_actions = Action.query.filter_by(company_id=company.id).all()
                 
-                # 删除所有相关的行动记录（包括其回复，通过级联删除）
+                # 删除所有相关的行动记录(包括其回复,通过级联删除)
                 for action in related_actions:
                     db.session.delete(action)
                 
@@ -2919,7 +2939,7 @@ def batch_delete_companies():
                 for so in settlement_orders:
                     db.session.delete(so)
                 
-                # 删除企业（会级联删除联系人）
+                # 删除企业(会级联删除联系人)
                 db.session.delete(company)
                 deleted_count += 1
             
@@ -2927,11 +2947,11 @@ def batch_delete_companies():
             db.session.commit()
             msg = f'成功删除{deleted_count}个企业'
             if unauthorized_companies:
-                msg += f'，无权删除: {", ".join(unauthorized_companies)}'
+                msg += f',无权删除: {", ".join(unauthorized_companies)}'
             if companies_with_contacts:
-                msg += f'，跳过有联系人的企业: {", ".join(companies_with_contacts)}'
+                msg += f',跳过有联系人的企业: {", ".join(companies_with_contacts)}'
             if companies_with_projects:
-                msg += f'，跳过被项目引用的企业: {", ".join(companies_with_projects)}'
+                msg += f',跳过被项目引用的企业: {", ".join(companies_with_projects)}'
             return jsonify({
                 'success': True,
                 'deleted_count': deleted_count,
@@ -2955,7 +2975,7 @@ def batch_delete_companies():
 @permission_required('customer', 'delete')
 def delete_action_api(action_id):
     """通过API删除行动记录"""
-    current_app.logger.info(f"开始删除行动记录，ID: {action_id}")
+    current_app.logger.info(f"开始删除行动记录,ID: {action_id}")
     try:
         action = Action.query.get_or_404(action_id)
         
@@ -3183,12 +3203,12 @@ def change_contact_owner(contact_id):
     flash('联系人拥有人已更新', 'success')
     return redirect(url_for('customer.view_contact', contact_id=contact_id))
 
-# 获取行动记录的所有回复（树形结构）
+# 获取行动记录的所有回复(树形结构)
 @customer.route('/action/<int:action_id>/replies')
 @login_required
 @permission_required('customer', 'view')
 def get_action_replies(action_id):
-    """通过API获取行动记录的所有回复（树形结构）"""
+    """通过API获取行动记录的所有回复(树形结构)"""
     action = Action.query.get_or_404(action_id)
     from app.models.action import ActionReply
     
@@ -3295,7 +3315,7 @@ def get_available_accounts_api():
                 'is_current_user': user.id == current_user.id
             })
         
-        # 按是否为当前用户排序，当前用户排在前面
+        # 按是否为当前用户排序,当前用户排在前面
         accounts.sort(key=lambda x: (not x['is_current_user'], x['name']))
         
         return jsonify({
@@ -3316,7 +3336,7 @@ def get_available_accounts_api():
 @login_required
 @permission_required('customer', 'create')
 def customer_merge_tool():
-    """智能客户合并工具页面（仅管理员可访问）"""
+    """智能客户合并工具页面(仅管理员可访问)"""
     if current_user.role != 'admin':
         flash(_('只有管理员可以使用客户合并工具'), 'error')
         return redirect(url_for('customer.list_companies'))
@@ -3378,7 +3398,7 @@ def debug_normalize():
                     norm1 = normalize_company_name(company1.company_name)
                     norm2 = normalize_company_name(company2.company_name)
                     
-                    # 计算相似度（使用与find_similar_companies相同的逻辑）
+                    # 计算相似度(使用与find_similar_companies相同的逻辑)
                     if norm1 == norm2:
                         similarity = 1.0
                     elif len(norm1) < 3 or len(norm2) < 3:
@@ -3430,11 +3450,11 @@ def detect_duplicates():
     if check_progress:
         return detect_duplicates_with_progress()
     
-    # 原有的快速检测逻辑（保持向后兼容）
+    # 原有的快速检测逻辑(保持向后兼容)
     return detect_duplicates_simple()
 
 def detect_duplicates_simple():
-    """简单的重复检测（原有逻辑）"""
+    """简单的重复检测(原有逻辑)"""
     
     try:
         current_app.logger.info("开始检测重复客户...")
@@ -3478,7 +3498,7 @@ def detect_duplicates_simple():
                 current_app.logger.error(f"查找相似公司失败 - 公司ID {company.id}: {str(e)}")
                 continue
             
-            # 去掉"至少2个重复"的限制，只要有相似公司就提供建议
+            # 去掉"至少2个重复"的限制,只要有相似公司就提供建议
             if similar_companies_data:
                 processed_companies.add(company.id)
                 
@@ -3506,7 +3526,7 @@ def detect_duplicates_simple():
                     'is_target': True
                 }
                 
-                # 构建相似公司列表（按匹配度排序）
+                # 构建相似公司列表(按匹配度排序)
                 similar_companies_list = []
                 for similar_data in similar_companies_data:
                     similar_company = similar_data['company']
@@ -3571,7 +3591,7 @@ def detect_duplicates_simple():
 @login_required
 @permission_required('customer', 'create')
 def get_merge_preview():
-    """获取详细的合并预览数据，包括重复联系人检测"""
+    """获取详细的合并预览数据,包括重复联系人检测"""
     if current_user.role != 'admin':
         return jsonify({'success': False, 'message': '只有管理员可以使用此功能'}), 403
     
@@ -3626,7 +3646,7 @@ def get_merge_preview():
                 'company_name': action.company.company_name if action.company else ''
             })
         
-        # 获取关联的项目（通过end_user字段）
+        # 获取关联的项目(通过end_user字段)
         source_companies = Company.query.filter(Company.id.in_(source_company_ids), Company.is_deleted == False).all()
         source_company_names = [c.company_name for c in source_companies]
         
@@ -3758,7 +3778,7 @@ def execute_merge():
                     # 同名联系人：合并字段信息
                     target_contact = target_contact_dict[contact.name]
                     
-                    # 字段级别合并：目标联系人字段为空时，使用源联系人的字段
+                    # 字段级别合并：目标联系人字段为空时,使用源联系人的字段
                     fields_to_merge = ['department', 'position', 'phone', 'email', 'notes']
                     updated_fields = []
                     
@@ -3766,12 +3786,12 @@ def execute_merge():
                         target_value = getattr(target_contact, field)
                         source_value = getattr(contact, field)
                         
-                        # 如果目标字段为空且源字段有值，则合并
+                        # 如果目标字段为空且源字段有值,则合并
                         if (not target_value or target_value.strip() == '') and source_value and source_value.strip():
                             setattr(target_contact, field, source_value)
                             updated_fields.append(field)
                     
-                    # 如果源联系人是主要联系人，且目标联系人不是，则更新主要联系人标识
+                    # 如果源联系人是主要联系人,且目标联系人不是,则更新主要联系人标识
                     if contact.is_primary and not target_contact.is_primary:
                         target_contact.is_primary = True
                         updated_fields.append('is_primary')
@@ -3814,10 +3834,10 @@ def execute_merge():
             ).all()
             for project in projects:
                 project.end_user = target_company.company_name
-                # 项目的归属不变，只更新end_user字段
+                # 项目的归属不变,只更新end_user字段
                 merge_summary['updated_projects'] += 1
         
-        # 4. 合并共享信息，确保被合并客户的所有者能访问目标客户
+        # 4. 合并共享信息,确保被合并客户的所有者能访问目标客户
         original_shared_users = set(target_company.shared_with_users or [])
         target_shared_users = set(target_company.shared_with_users or [])
         
@@ -3831,7 +3851,7 @@ def execute_merge():
                 target_shared_users.add(source_company.owner_id)
                 current_app.logger.info(f"将被合并客户 {source_company.company_name} 的所有者(ID: {source_company.owner_id})添加到目标客户的共享列表")
         
-        # 确保目标客户的所有者不在共享列表中（所有者默认有完全访问权限）
+        # 确保目标客户的所有者不在共享列表中(所有者默认有完全访问权限)
         if target_company.owner_id and target_company.owner_id in target_shared_users:
             target_shared_users.remove(target_company.owner_id)
         
@@ -3840,12 +3860,12 @@ def execute_merge():
         
         target_company.shared_with_users = list(target_shared_users)
         
-        # 5. 删除源公司（标记为删除）
+        # 5. 删除源公司(标记为删除)
         for source_company in source_companies:
             source_company.is_deleted = True
             merge_summary['deleted_companies'] += 1
         
-        # 6. 更新目标公司名称（如果提供了新名称）
+        # 6. 更新目标公司名称(如果提供了新名称)
         if final_company_name and final_company_name.strip():
             old_name = target_company.company_name
             target_company.company_name = final_company_name.strip()
@@ -3883,7 +3903,7 @@ def execute_merge():
         }), 500
 
 def normalize_company_name(name):
-    """标准化公司名称，用于重复检测 - 更精确的匹配逻辑"""
+    """标准化公司名称,用于重复检测 - 更精确的匹配逻辑"""
     if not name:
         return ""
     
@@ -3893,7 +3913,7 @@ def normalize_company_name(name):
     normalized = re.sub(r'\s+', '', name.strip())  # 去除所有空白字符
     normalized = re.sub(r'[^\w\u4e00-\u9fff]', '', normalized)  # 只保留字母、数字和中文
     
-    # 2. 去除地名前缀（更精确的地名识别）
+    # 2. 去除地名前缀(更精确的地名识别)
     location_prefixes = [
         # 直辖市
         "北京市", "上海市", "天津市", "重庆市",
@@ -3914,7 +3934,7 @@ def normalize_company_name(name):
         "开发区", "高新区", "工业区", "科技园"
     ]
     
-    # 按长度排序，先匹配长的地名
+    # 按长度排序,先匹配长的地名
     location_prefixes.sort(key=len, reverse=True)
     
     for prefix in location_prefixes:
@@ -3922,7 +3942,7 @@ def normalize_company_name(name):
             normalized = normalized[len(prefix):]
             break
     
-    # 3. 去除公司类型后缀（只保留核心业务相关的后缀）
+    # 3. 去除公司类型后缀(只保留核心业务相关的后缀)
     business_suffixes = [
         # 标准公司类型
         "有限责任公司", "股份有限公司", "有限公司", "股份公司",
@@ -3936,7 +3956,7 @@ def normalize_company_name(name):
         "Company", "Corporation", "Limited", "Incorporated"
     ]
     
-    # 按长度排序，先匹配长的后缀
+    # 按长度排序,先匹配长的后缀
     business_suffixes.sort(key=len, reverse=True)
     
     for suffix in business_suffixes:
@@ -3956,7 +3976,7 @@ def normalize_company_name(name):
     return result
 
 def find_similar_companies(target_company, all_companies):
-    """查找相似的公司，返回带匹配度的结果"""
+    """查找相似的公司,返回带匹配度的结果"""
     similar_companies = []
     target_normalized = normalize_company_name(target_company.company_name)
     
@@ -3970,7 +3990,7 @@ def find_similar_companies(target_company, all_companies):
         company_normalized = normalize_company_name(company.company_name)
         
         # 更严格的相似度计算逻辑
-        # 1. 首先检查原始名称的完全匹配（处理空格后）
+        # 1. 首先检查原始名称的完全匹配(处理空格后)
         target_cleaned = re.sub(r'\s+', '', target_company.company_name.strip())
         company_cleaned = re.sub(r'\s+', '', company.company_name.strip())
         
@@ -3980,11 +4000,11 @@ def find_similar_companies(target_company, all_companies):
         else:
             # 2. 检查标准化后的名称匹配
             if target_normalized == company_normalized:
-                # 标准化后相同，但原始名称不同（前缀或后缀差异）
+                # 标准化后相同,但原始名称不同(前缀或后缀差异)
                 final_score = 0.95  # 高匹配度但不是100%
                 current_app.logger.info(f"发现标准化后匹配: '{target_company.company_name}' vs '{company.company_name}' (标准化后都是: '{target_normalized}')")
             else:
-                # 3. 检查核心企业名称的长度，太短的不作为匹配候选
+                # 3. 检查核心企业名称的长度,太短的不作为匹配候选
                 if len(target_normalized) < 3 or len(company_normalized) < 3:
                     final_score = 0  # 跳过太短的名称
                 else:
@@ -3996,7 +4016,7 @@ def find_similar_companies(target_company, all_companies):
                     if len(target_normalized) >= 4 and len(company_normalized) >= 4:
                         # 只有当名称足够长时才考虑包含关系
                         if target_normalized in company_normalized or company_normalized in target_normalized:
-                            # 计算包含关系的权重，避免过度匹配
+                            # 计算包含关系的权重,避免过度匹配
                             shorter_len = min(len(target_normalized), len(company_normalized))
                             longer_len = max(len(target_normalized), len(company_normalized))
                             length_ratio = shorter_len / longer_len
@@ -4013,8 +4033,8 @@ def find_similar_companies(target_company, all_companies):
             current_app.logger.info(f"  标准化: '{target_normalized}' vs '{company_normalized}'")
             current_app.logger.info(f"  长度: {len(target_normalized)} vs {len(company_normalized)}")
         
-        # 提高匹配度阈值，减少误匹配
-        if final_score > 0.85:  # 从0.4提高到0.85，更严格的匹配
+        # 提高匹配度阈值,减少误匹配
+        if final_score > 0.85:  # 从0.4提高到0.85,更严格的匹配
             similar_companies.append({
                 'company': company,
                 'similarity': final_score,

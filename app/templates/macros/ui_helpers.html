@@ -4920,8 +4920,8 @@ window.hideInvoicePreviewDialog = hideInvoicePreviewDialog;
 支持项目、客户等模型的共享功能
 #}
 
-{% macro render_sharing_section(model_obj, model_type, current_user, action_url=None, collapsed=True, can_edit_sharing=True, shareable_users=[], shareable_users_tree=[]) %}
-{% if can_edit_sharing %}
+{% macro render_sharing_section(model_obj, model_type, current_user, action_url=None, collapsed=True, can_edit_sharing=True, can_view_sharing=False, shareable_users=[], shareable_users_tree=[]) %}
+{% if can_edit_sharing or can_view_sharing %}
 <div class="card mb-4">
     <div class="card-header bg-light" style="cursor:pointer;" data-bs-toggle="collapse" 
          data-bs-target="#sharingCollapse_{{ model_obj.id }}" aria-expanded="{{ 'false' if collapsed else 'true' }}" 
@@ -4940,7 +4940,8 @@ window.hideInvoicePreviewDialog = hideInvoicePreviewDialog;
                 <div class="mb-3">
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="share_enabled_{{ model_obj.id }}" 
-                               name="share_enabled" {% if model_obj.share_enabled %}checked{% endif %}>
+                               name="share_enabled" {% if model_obj.share_enabled %}checked{% endif %}
+                               {% if not can_edit_sharing %}disabled{% endif %}>
                         <label class="form-check-label" for="share_enabled_{{ model_obj.id }}">
                             {{ _('启用共享') }}
                         </label>
@@ -4952,7 +4953,7 @@ window.hideInvoicePreviewDialog = hideInvoicePreviewDialog;
                     <div class="mb-3">
                         <label for="shared_with_users_{{ model_obj.id }}" class="form-label">{{ _('共享给以下用户') }}：</label>
                         {% if shareable_users_tree %}
-                            {{ render_tree_user_selector(shareable_users_tree, model_obj.shared_user_ids, 'userTree_' + model_obj.id|string) }}
+                            {{ render_tree_user_selector(shareable_users_tree, model_obj.shared_user_ids, 'userTree_' + model_obj.id|string, disabled=(not can_edit_sharing)) }}
                         {% else %}
                             <!-- 备用方案：简单列表 -->
                             <div id="shared_with_users_box_{{ model_obj.id }}" 
@@ -4961,7 +4962,8 @@ window.hideInvoicePreviewDialog = hideInvoicePreviewDialog;
                                 <div class="form-check">
                                     <input class="form-check-input shared-user-checkbox-{{ model_obj.id }}" 
                                            type="checkbox" value="{{ user.id }}" id="user_checkbox_{{ model_obj.id }}_{{ user.id }}"
-                                        {% if model_obj.shared_with_users and user.id in model_obj.shared_user_ids %}checked{% endif %}>
+                                        {% if model_obj.shared_with_users and user.id in model_obj.shared_user_ids %}checked{% endif %}
+                                        {% if not can_edit_sharing %}disabled{% endif %}>
                                     <label class="form-check-label" for="user_checkbox_{{ model_obj.id }}_{{ user.id }}">
                                         {{ user.real_name or user.username }}
                                     </label>
@@ -4977,7 +4979,8 @@ window.hideInvoicePreviewDialog = hideInvoicePreviewDialog;
                     <div class="mb-3">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="share_contacts_{{ model_obj.id }}" 
-                                   name="share_contacts" {% if model_obj.share_contacts %}checked{% endif %}>
+                                   name="share_contacts" {% if model_obj.share_contacts %}checked{% endif %}
+                                   {% if not can_edit_sharing %}disabled{% endif %}>
                             <label class="form-check-label" for="share_contacts_{{ model_obj.id }}">
                                 {{ _('自动共享客户下所有联系人') }}
                             </label>
@@ -4986,9 +4989,11 @@ window.hideInvoicePreviewDialog = hideInvoicePreviewDialog;
                     {% endif %}
                 </div>
 
+                {% if can_edit_sharing %}
                 <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                     {{ render_button(_('保存共享设置'), type='submit', color='primary', icon='fas fa-save') }}
                 </div>
+                {% endif %}
             </form>
         </div>
     </div>
@@ -5064,7 +5069,7 @@ document.addEventListener('DOMContentLoaded', function() {
 支持父节点选择自动选中所有子节点
 #}
 
-{% macro render_tree_user_selector(tree_data, selected_user_ids=[], container_id="userTree") %}
+{% macro render_tree_user_selector(tree_data, selected_user_ids=[], container_id="userTree", disabled=False) %}
 <div class="tree-user-selector" id="{{ container_id }}">
     <div class="tree-container">
         {% for company in tree_data %}
@@ -5096,7 +5101,8 @@ document.addEventListener('DOMContentLoaded', function() {
                            data-type="company" 
                            data-id="{{ company.id }}"
                            data-name="{{ company.name }}"
-                           {% if company_selected_users|length > 0 and company_selected_users|length == company_all_users|length %}checked{% endif %}>
+                           {% if company_selected_users|length > 0 and company_selected_users|length == company_all_users|length %}checked{% endif %}
+                           {% if disabled %}disabled{% endif %}>
                     <label for="checkbox_{{ company.id }}" class="tree-label">
                         <span class="tree-text">{{ company.name }}</span>
                     </label>
@@ -5125,7 +5131,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                        data-id="{{ child.id }}"
                                        data-parent="{{ company.id }}"
                                        data-name="{{ child.name }}"
-                                       {% if dept_selected_users|length > 0 and dept_selected_users|length == dept_users|length %}checked{% endif %}>
+                                       {% if dept_selected_users|length > 0 and dept_selected_users|length == dept_users|length %}checked{% endif %}
+                                       {% if disabled %}disabled{% endif %}>
                                 <label for="checkbox_{{ child.id }}" class="tree-label">
                                     <span class="tree-text">{{ child.name }}</span>
                                 </label>
@@ -5145,7 +5152,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                                data-parent="{{ child.id }}"
                                                data-company="{{ company.id }}"
                                                data-name="{{ user.name }}"
-                                               {% if user.user_id in selected_user_ids %}checked{% endif %}>
+                                               {% if user.user_id in selected_user_ids %}checked{% endif %}
+                                               {% if disabled %}disabled{% endif %}>
                                         <label for="checkbox_{{ user.id }}" class="tree-label">
                                             <span class="tree-text">{{ user.name }}</span>
                                         </label>
@@ -5168,7 +5176,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                        data-user-id="{{ child.user_id }}"
                                        data-company="{{ company.id }}"
                                        data-name="{{ child.name }}"
-                                       {% if child.user_id in selected_user_ids %}checked{% endif %}>
+                                       {% if child.user_id in selected_user_ids %}checked{% endif %}
+                                       {% if disabled %}disabled{% endif %}>
                                 <label for="checkbox_{{ child.id }}" class="tree-label">
                                     <span class="tree-text">{{ child.name }}</span>
                                 </label>

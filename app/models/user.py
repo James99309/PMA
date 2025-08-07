@@ -240,9 +240,14 @@ class User(db.Model, UserMixin):
             # 合并权限检查
             user_has_permission = role_has_any_permission or personal_has_any_permission
             
-            # 3. 如果用户有权限，返回角色权限级别；否则返回个人级别
+            # 3. 权限级别优先级：个人权限设置 > 角色权限设置
             if user_has_permission:
-                final_level = role_level
+                # 如果个人权限中有设置权限级别，使用个人权限级别
+                if permission and permission.permission_level:
+                    final_level = permission.permission_level
+                else:
+                    # 否则使用角色权限级别
+                    final_level = role_level
             else:
                 final_level = 'personal'
             
@@ -404,6 +409,12 @@ class Permission(db.Model):
     can_edit = db.Column(db.Boolean, default=False)  # 编辑权限
     can_delete = db.Column(db.Boolean, default=False)  # 删除权限
     
+    # 权限级别相关字段（与角色权限表保持一致）
+    permission_level = db.Column(db.String(20), default='personal')  # 权限级别：system, company, department, personal
+    permission_level_description = db.Column(db.Text)  # 权限级别说明
+    pricing_discount_limit = db.Column(db.Float, nullable=True)  # 批价折扣下限（百分比形式）
+    settlement_discount_limit = db.Column(db.Float, nullable=True)  # 结算折扣下限（百分比形式）
+    
     __table_args__ = (
         db.UniqueConstraint('user_id', 'module', name='uix_user_module'),
     )
@@ -415,7 +426,11 @@ class Permission(db.Model):
             'can_view': self.can_view,
             'can_create': self.can_create,
             'can_edit': self.can_edit,
-            'can_delete': self.can_delete
+            'can_delete': self.can_delete,
+            'permission_level': self.permission_level,
+            'permission_level_description': self.permission_level_description,
+            'pricing_discount_limit': self.pricing_discount_limit,
+            'settlement_discount_limit': self.settlement_discount_limit
         }
     
     def __repr__(self):

@@ -811,7 +811,11 @@ def manage_permissions(user_id):
                 'can_view': perm.can_view,
                 'can_create': perm.can_create,
                 'can_edit': perm.can_edit,
-                'can_delete': perm.can_delete
+                'can_delete': perm.can_delete,
+                'permission_level': perm.permission_level or 'personal',
+                'permission_level_description': perm.permission_level_description,
+                'pricing_discount_limit': perm.pricing_discount_limit,
+                'settlement_discount_limit': perm.settlement_discount_limit
             }
         
         # 获取用户的个人权限
@@ -822,7 +826,11 @@ def manage_permissions(user_id):
                 'can_view': permission.can_view,
                 'can_create': permission.can_create,
                 'can_edit': permission.can_edit,
-                'can_delete': permission.can_delete
+                'can_delete': permission.can_delete,
+                'permission_level': permission.permission_level,
+                'permission_level_description': permission.permission_level_description,
+                'pricing_discount_limit': permission.pricing_discount_limit,
+                'settlement_discount_limit': permission.settlement_discount_limit
             }
         
         # 合并权限：个人权限可以增强角色权限，但不能减少
@@ -837,23 +845,63 @@ def manage_permissions(user_id):
         for module in personal_permissions.keys():
             all_modules.add(module)
         
-        # 为每个模块生成最终权限
+        # 为每个模块生成最终权限 - 遵循继承逻辑
         for module in all_modules:
-            role_perm = role_permissions.get(module, {
-                'can_view': False,
-                'can_create': False,
-                'can_edit': False,
-                'can_delete': False
-            })
+            role_perm = role_permissions.get(module)
             personal_perm = personal_permissions.get(module, None)
             
-            # 合并权限：个人权限可以增强角色权限，但不能减少
+            if role_perm:
+                # 如果角色权限中有此模块，使用角色权限作为基础，个人权限可以增强
+                effective_can_view = role_perm['can_view'] or (personal_perm['can_view'] if personal_perm else False)
+                effective_can_create = role_perm['can_create'] or (personal_perm['can_create'] if personal_perm else False)
+                effective_can_edit = role_perm['can_edit'] or (personal_perm['can_edit'] if personal_perm else False)
+                effective_can_delete = role_perm['can_delete'] or (personal_perm['can_delete'] if personal_perm else False)
+                # 权限级别：个人权限设置 > 角色权限设置
+                effective_level = (personal_perm['permission_level'] if personal_perm and personal_perm.get('permission_level') else role_perm['permission_level'])
+            elif personal_perm:
+                # 如果角色权限中没有此模块，但个人权限中有，使用个人权限
+                effective_can_view = personal_perm['can_view']
+                effective_can_create = personal_perm['can_create']
+                effective_can_edit = personal_perm['can_edit']
+                effective_can_delete = personal_perm['can_delete']
+                effective_level = personal_perm['permission_level']
+            else:
+                # 如果角色权限和个人权限中都没有此模块，默认为关闭状态
+                effective_can_view = False
+                effective_can_create = False
+                effective_can_edit = False
+                effective_can_delete = False
+                effective_level = 'personal'
+            
+            # 折扣限制取更严格的（较高的数值）
+            if role_perm and personal_perm:
+                # 如果都有设置，取更严格的限制
+                effective_pricing_limit = (personal_perm.get('pricing_discount_limit') if personal_perm.get('pricing_discount_limit') is not None 
+                                         else role_perm.get('pricing_discount_limit'))
+                effective_settlement_limit = (personal_perm.get('settlement_discount_limit') if personal_perm.get('settlement_discount_limit') is not None 
+                                            else role_perm.get('settlement_discount_limit'))
+            elif role_perm:
+                # 只有角色权限
+                effective_pricing_limit = role_perm.get('pricing_discount_limit')
+                effective_settlement_limit = role_perm.get('settlement_discount_limit')
+            elif personal_perm:
+                # 只有个人权限
+                effective_pricing_limit = personal_perm.get('pricing_discount_limit')
+                effective_settlement_limit = personal_perm.get('settlement_discount_limit')
+            else:
+                # 都没有
+                effective_pricing_limit = None
+                effective_settlement_limit = None
+            
             permissions_dict[module] = {
                 'module': module,
-                'can_view': role_perm['can_view'] or (personal_perm is not None and personal_perm['can_view'] == True),
-                'can_create': role_perm['can_create'] or (personal_perm is not None and personal_perm['can_create'] == True),
-                'can_edit': role_perm['can_edit'] or (personal_perm is not None and personal_perm['can_edit'] == True),
-                'can_delete': role_perm['can_delete'] or (personal_perm is not None and personal_perm['can_delete'] == True)
+                'can_view': effective_can_view,
+                'can_create': effective_can_create,
+                'can_edit': effective_can_edit,
+                'can_delete': effective_can_delete,
+                'permission_level': effective_level,
+                'pricing_discount_limit': effective_pricing_limit,
+                'settlement_discount_limit': effective_settlement_limit
             }
         
         ROLE_DICT = {d.key: d.value for d in Dictionary.query.filter_by(type='role').all()}
@@ -911,14 +959,23 @@ def manage_permissions(user_id):
                 if not role_perm['can_delete'] and wants_delete:
                     personal_permissions['can_delete'] = True
                 
+                # 获取权限级别设置
+                permission_level = form_data.get(f"permission_level_{module}", 'personal')
+                
                 # 只有当至少有一个权限需要设置时，才创建个人权限记录
                 if personal_permissions:
+                    # 确保如果模块没有任何权限，权限级别强制设置为personal
+                    has_any_perm = any(personal_permissions.values())
+                    if not has_any_perm:
+                        permission_level = 'personal'
+                    
                     permission = {
                         "module": module,
                         "can_view": personal_permissions.get('can_view', False),
                         "can_create": personal_permissions.get('can_create', False),
                         "can_edit": personal_permissions.get('can_edit', False),
-                        "can_delete": personal_permissions.get('can_delete', False)
+                        "can_delete": personal_permissions.get('can_delete', False),
+                        "permission_level": permission_level
                     }
                     permissions.append(permission)
             
@@ -936,7 +993,8 @@ def manage_permissions(user_id):
                     can_view=bool(perm.get('can_view', False)),
                     can_create=bool(perm.get('can_create', False)),
                     can_edit=bool(perm.get('can_edit', False)),
-                    can_delete=bool(perm.get('can_delete', False))
+                    can_delete=bool(perm.get('can_delete', False)),
+                    permission_level=perm.get('permission_level', 'personal')
                 )
                 db.session.add(permission)
                 
@@ -1815,29 +1873,90 @@ def profile():
             logger.error(f"个人信息更新失败: {str(e)}", exc_info=True)
             flash(_('更新失败') + f': {str(e)}', 'danger')
             
-    # 获取用户权限信息
+    # 获取用户权限信息（包含权限级别等完整信息）
+    # 首先获取角色权限作为基础
+    from app.models.role_permissions import RolePermission
+    role_perms = RolePermission.query.filter_by(role=user.role).all()
+    role_permissions = {}
+    for perm in role_perms:
+        role_permissions[perm.module] = {
+            'can_view': perm.can_view,
+            'can_create': perm.can_create,
+            'can_edit': perm.can_edit,
+            'can_delete': perm.can_delete,
+            'permission_level': perm.permission_level or 'personal',
+            'permission_level_description': perm.permission_level_description,
+            'pricing_discount_limit': perm.pricing_discount_limit,
+            'settlement_discount_limit': perm.settlement_discount_limit
+        }
+    
+    # 然后获取个人权限
     personal_perms = list(user.permissions) if hasattr(user, 'permissions') else []
+    personal_permissions = {}
+    for perm in personal_perms:
+        personal_permissions[perm.module] = {
+            'can_view': perm.can_view,
+            'can_create': perm.can_create,
+            'can_edit': perm.can_edit,
+            'can_delete': perm.can_delete,
+            'permission_level': perm.permission_level or 'personal',
+            'permission_level_description': perm.permission_level_description,
+            'pricing_discount_limit': perm.pricing_discount_limit,
+            'settlement_discount_limit': perm.settlement_discount_limit
+        }
+    
+    # 获取所有模块
+    modules = get_default_modules()
     permissions = []
-    if personal_perms:
-        for perm in personal_perms:
-            permissions.append({
-                'module': perm.module,
-                'can_view': perm.can_view,
-                'can_create': perm.can_create,
-                'can_edit': perm.can_edit,
-                'can_delete': perm.can_delete
-            })
-    else:
-        from app.models.role_permissions import RolePermission
-        perms = RolePermission.query.filter_by(role=user.role).all()
-        for perm in perms:
-            permissions.append({
-                'module': perm.module,
-                'can_view': perm.can_view,
-                'can_create': perm.can_create,
-                'can_edit': perm.can_edit,
-                'can_delete': perm.can_delete
-            })
+    
+    # 为每个模块生成最终权限
+    for module in modules:
+        module_id = module['id']
+        role_perm = role_permissions.get(module_id)
+        personal_perm = personal_permissions.get(module_id)
+        
+        if role_perm:
+            # 如果角色权限中有此模块，使用角色权限作为基础，个人权限可以增强
+            final_perm = {
+                'module': module_id,
+                'can_view': role_perm['can_view'] or (personal_perm['can_view'] if personal_perm else False),
+                'can_create': role_perm['can_create'] or (personal_perm['can_create'] if personal_perm else False),
+                'can_edit': role_perm['can_edit'] or (personal_perm['can_edit'] if personal_perm else False),
+                'can_delete': role_perm['can_delete'] or (personal_perm['can_delete'] if personal_perm else False),
+                # 权限级别：个人权限设置 > 角色权限设置
+                'permission_level': (personal_perm['permission_level'] if personal_perm and personal_perm['permission_level'] else role_perm['permission_level']),
+                'permission_level_description': (personal_perm['permission_level_description'] if personal_perm else role_perm['permission_level_description']),
+                'pricing_discount_limit': (personal_perm['pricing_discount_limit'] if personal_perm and personal_perm['pricing_discount_limit'] is not None else role_perm['pricing_discount_limit']),
+                'settlement_discount_limit': (personal_perm['settlement_discount_limit'] if personal_perm and personal_perm['settlement_discount_limit'] is not None else role_perm['settlement_discount_limit'])
+            }
+        elif personal_perm:
+            # 如果角色权限中没有此模块，但个人权限中有，使用个人权限
+            final_perm = {
+                'module': module_id,
+                'can_view': personal_perm['can_view'],
+                'can_create': personal_perm['can_create'],
+                'can_edit': personal_perm['can_edit'],
+                'can_delete': personal_perm['can_delete'],
+                'permission_level': personal_perm['permission_level'],
+                'permission_level_description': personal_perm['permission_level_description'],
+                'pricing_discount_limit': personal_perm['pricing_discount_limit'],
+                'settlement_discount_limit': personal_perm['settlement_discount_limit']
+            }
+        else:
+            # 如果角色权限和个人权限中都没有此模块，默认为关闭状态
+            final_perm = {
+                'module': module_id,
+                'can_view': False,
+                'can_create': False,
+                'can_edit': False,
+                'can_delete': False,
+                'permission_level': 'personal',
+                'permission_level_description': None,
+                'pricing_discount_limit': None,
+                'settlement_discount_limit': None
+            }
+        
+        permissions.append(final_perm)
             
     # 获取用户归属关系信息
     affiliation_users = []

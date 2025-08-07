@@ -845,8 +845,35 @@ def view_project(project_id):
     # 厂商销售负责人可以查看自己负责的项目
     elif project.vendor_sales_manager_id == current_user.id:
         has_permission = True
+    
+    # 基于四级权限系统的访问控制
+    if not has_permission and current_user.has_permission('project', 'view'):
+        permission_level = current_user.get_permission_level('project')
+        logger.debug(f"用户 {current_user.username} 的项目权限级别: {permission_level}")
+        
+        if permission_level == 'system':
+            # 系统级权限：可以查看所有项目
+            has_permission = True
+            logger.debug(f"系统级权限 - 允许访问项目 {project_id}")
+        elif permission_level == 'company':
+            # 公司级权限：可以查看同公司的所有项目
+            if current_user.company_name:
+                project_owner = User.query.get(project.owner_id)
+                if project_owner and project_owner.company_name == current_user.company_name:
+                    has_permission = True
+                    logger.debug(f"公司级权限 - 同公司项目 - 允许访问项目 {project_id}")
+        elif permission_level == 'department':
+            # 部门级权限：可以查看同部门的项目
+            if current_user.department and current_user.company_name:
+                project_owner = User.query.get(project.owner_id)
+                if (project_owner and 
+                    project_owner.department == current_user.department and 
+                    project_owner.company_name == current_user.company_name):
+                    has_permission = True
+                    logger.debug(f"部门级权限 - 同部门项目 - 允许访问项目 {project_id}")
+    
     # 通过归属关系获得权限
-    else:
+    if not has_permission:
         allowed_user_ids = current_user.get_viewable_user_ids() if hasattr(current_user, 'get_viewable_user_ids') else [current_user.id]
         if project.owner_id in allowed_user_ids:
             has_permission = True
@@ -1118,6 +1145,13 @@ def view_project(project_id):
     from app.utils.sharing import SharingService, get_shareable_users_tree
     can_edit_sharing = SharingService.can_edit_sharing_settings(current_user, project, 'project')
     
+    # 检查是否能查看共享设置（即使不能编辑）
+    can_view_sharing = False
+    if current_user.has_permission('project', 'view'):
+        permission_level = current_user.get_permission_level('project')
+        if permission_level in ['system', 'company', 'department']:
+            can_view_sharing = True
+    
     if can_edit_sharing:
         shareable_users_tree = get_shareable_users_tree(current_user, 'project')
         logger.info(f"用户 {current_user.username} 的共享用户树结构已生成")
@@ -1148,6 +1182,7 @@ def view_project(project_id):
                          current_language=current_language,
                          # 共享权限和用户
                          can_edit_sharing=can_edit_sharing,
+                         can_view_sharing=can_view_sharing,
                          shareable_users_tree=shareable_users_tree)
 
 @project.route('/add', methods=['GET', 'POST'])

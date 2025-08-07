@@ -64,7 +64,7 @@ def main():
         if args.port:
             port = args.port
         else:
-            port = 5000  # 默认端口5000
+            port = 5011  # 默认端口5011
         
         logger.info(f"PMA系统启动中...")
         logger.info(f"环境: {os.environ.get('FLASK_ENV', 'local')}")

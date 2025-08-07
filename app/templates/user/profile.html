@@ -180,11 +180,22 @@
             <div class="alert alert-info">
                 <i class="fas fa-info-circle"></i> {{ _('权限由系统管理员配置，如需调整请联系管理员') }}
             </div>
+            
+            <div class="mb-3">
+                <h6>{{ _('权限级别说明') }}:</h6>
+                <ul class="list-unstyled small">
+                    <li><span class="badge bg-danger me-1">{{ _('系统级') }}</span> {{ _('可以访问系统内所有数据，不受数据归属限制') }}</li>
+                    <li><span class="badge bg-warning me-1">{{ _('企业级') }}</span> {{ _('可以访问本企业内所有数据') }}</li>
+                    <li><span class="badge bg-info me-1">{{ _('部门级') }}</span> {{ _('可以访问本部门内所有数据') }}</li>
+                    <li><span class="badge bg-secondary me-1">{{ _('个人级') }}</span> {{ _('只能访问自己创建或被分享的数据') }}</li>
+                </ul>
+            </div>
             <div class="table-responsive">
                 <table class="table table-bordered table-hover permission-matrix">
                     <thead class="table-light">
                         <tr>
                             <th>{{ _('模块') }}</th>
+                            <th class="text-center">{{ _('权限级别') }}</th>
                             <th class="text-center">{{ _('查看') }}</th>
                             <th class="text-center">{{ _('创建') }}</th>
                             <th class="text-center">{{ _('编辑') }}</th>
@@ -198,12 +209,28 @@
                         {% set _ = permission_map.update({perm.module: perm}) %}
                     {% endfor %}
                     {% for module in modules %}
-                        {% set perm = permission_map.get(module.id, {'can_view': false, 'can_create': false, 'can_edit': false, 'can_delete': false}) %}
+                        {% set perm = permission_map.get(module.id, {'can_view': false, 'can_create': false, 'can_edit': false, 'can_delete': false, 'permission_level': 'personal'}) %}
                     <tr>
                         <td>
                             {{ module_name_map.get(module.id, module.id) }}
                             {% if module_desc_map.get(module.id) %}
                                 <small class="text-muted d-block">{{ module_desc_map.get(module.id) }}</small>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if perm.can_view or perm.can_create or perm.can_edit or perm.can_delete %}
+                                {% set level = perm.permission_level or 'personal' %}
+                                {% if level == 'system' %}
+                                    <span class="badge bg-danger">{{ _('系统级') }}</span>
+                                {% elif level == 'company' %}
+                                    <span class="badge bg-warning">{{ _('企业级') }}</span>
+                                {% elif level == 'department' %}
+                                    <span class="badge bg-info">{{ _('部门级') }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ _('个人级') }}</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">-</span>
                             {% endif %}
                         </td>
                         <td class="text-center">{% if perm.can_view %}<i class="fas fa-check text-success"></i>{% else %}<i class="fas fa-times text-danger"></i>{% endif %}</td>
@@ -213,7 +240,7 @@
                     </tr>
                     {% endfor %}
                 {% else %}
-                    <tr><td colspan="5" class="text-muted text-center">{{ _('暂无权限模块') }}</td></tr>
+                    <tr><td colspan="6" class="text-muted text-center">{{ _('暂无权限模块') }}</td></tr>
                 {% endif %}
                     </tbody>
                 </table>

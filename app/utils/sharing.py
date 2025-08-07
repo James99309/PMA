@@ -179,36 +179,70 @@ class SharingService:
         返回:
             bool: 是否有权限编辑共享设置
         """
-        # 管理员和管理角色有全部权限
-        if user.role in ['admin', 'product_manager', 'solution_manager', 'finance_director']:
+        # 管理员有全部权限
+        if user.role == 'admin':
             return True
         
-        # 数据拥有者可以编辑
-        if hasattr(data_obj, 'owner_id') and data_obj.owner_id == user.id:
-            return True
+        # 首先检查基本的编辑权限
+        from app.utils.access_control import can_edit_data
+        if not can_edit_data(data_obj, user):
+            return False
         
-        # 模型特定的权限检查
+        # 基本编辑权限检查通过后，进一步检查模块权限和权限级别
         if model_type == 'project':
-            # 项目厂商销售负责人可以编辑
-            if hasattr(data_obj, 'vendor_sales_manager_id') and data_obj.vendor_sales_manager_id == user.id:
-                return True
-        
-        elif model_type == 'company':
-            # 客户的归属关系权限检查
-            from app.models.user import Affiliation
-            affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-            if data_obj.owner_id in [aff.owner_id for aff in affiliations]:
-                return True
+            # 检查用户是否有项目模块的编辑权限
+            if not user.has_permission('project', 'edit'):
+                return False
             
-            # 商务助理的部门权限
-            if user.role.strip() == 'business_admin' and user.department and user.company_name:
+            # 检查权限级别
+            permission_level = user.get_permission_level('project')
+            
+            if permission_level == 'system':
+                # 系统级权限：可以编辑所有项目的共享设置
+                return True
+            elif permission_level == 'company' and user.company_name:
+                # 企业级权限：可以编辑企业下所有项目的共享设置
                 from app.models.user import User
                 data_owner = User.query.get(data_obj.owner_id)
-                if (data_owner and data_owner.department == user.department and 
-                    data_owner.company_name == user.company_name):
-                    return True
+                return data_owner and data_owner.company_name == user.company_name
+            elif permission_level == 'department' and user.department and user.company_name:
+                # 部门级权限：可以编辑部门下所有项目的共享设置
+                from app.models.user import User
+                data_owner = User.query.get(data_obj.owner_id)
+                return (data_owner and data_owner.department == user.department and 
+                       data_owner.company_name == user.company_name)
+            else:
+                # 个人级权限：只能编辑自己的项目或厂商负责的项目（已在can_edit_data中检查）
+                return True
         
-        return False
+        elif model_type in ['customer', 'company']:
+            # 检查用户是否有客户模块的编辑权限
+            if not user.has_permission('customer', 'edit'):
+                return False
+            
+            # 检查权限级别
+            permission_level = user.get_permission_level('customer')
+            
+            if permission_level == 'system':
+                # 系统级权限：可以编辑所有客户的共享设置
+                return True
+            elif permission_level == 'company' and user.company_name:
+                # 企业级权限：可以编辑企业下所有客户的共享设置
+                from app.models.user import User
+                data_owner = User.query.get(data_obj.owner_id)
+                return data_owner and data_owner.company_name == user.company_name
+            elif permission_level == 'department' and user.department and user.company_name:
+                # 部门级权限：可以编辑部门下所有客户的共享设置
+                from app.models.user import User
+                data_owner = User.query.get(data_obj.owner_id)
+                return (data_owner and data_owner.department == user.department and 
+                       data_owner.company_name == user.company_name)
+            else:
+                # 个人级权限：只能编辑自己创建的客户（已在can_edit_data中检查）
+                return True
+        
+        # 其他模型类型或没有指定模型类型时，依赖基本编辑权限检查
+        return True
     
     @staticmethod
     def update_sharing_from_request(data_obj, user, model_type=None):

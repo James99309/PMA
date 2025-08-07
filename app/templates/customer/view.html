@@ -183,7 +183,8 @@
     <!-- 客户共享设置 -->
     {{ render_sharing_section(company, 'customer', current_user, 
                               action_url=url_for('customer.update_company_sharing', company_id=company.id),
-                              can_edit_sharing=can_edit_sharing, 
+                              can_edit_sharing=can_edit_sharing,
+                              can_view_sharing=can_view_sharing,
                               shareable_users_tree=shareable_users_tree) }}
 
     <!-- 联系人列表 -->

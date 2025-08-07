@@ -713,15 +713,60 @@ def can_edit_data(model_obj, user):
         # 其他数据按默认规则
         return model_obj.owner_id == user.id
     
-    # 项目特殊处理：厂商负责人享有与拥有人同等权限
+    # 项目特殊处理：基于权限级别的编辑权限控制
     if model_name == 'Project':
-        # 项目拥有人可以编辑
-        if model_obj.owner_id == user.id:
+        # 检查用户是否有项目模块的编辑权限
+        if not user.has_permission('project', 'edit'):
+            return False
+        
+        # 检查权限级别
+        permission_level = user.get_permission_level('project')
+        
+        if permission_level == 'system':
+            # 系统级权限：可以编辑所有项目
             return True
-        # 厂商负责人可以编辑
-        if hasattr(model_obj, 'vendor_sales_manager_id') and model_obj.vendor_sales_manager_id == user.id:
+        elif permission_level == 'company' and user.company_name:
+            # 企业级权限：可以编辑企业下所有项目
+            data_owner = User.query.get(model_obj.owner_id)
+            return data_owner and data_owner.company_name == user.company_name
+        elif permission_level == 'department' and user.department and user.company_name:
+            # 部门级权限：可以编辑部门下所有项目
+            data_owner = User.query.get(model_obj.owner_id)
+            return (data_owner and data_owner.department == user.department and 
+                   data_owner.company_name == user.company_name)
+        else:
+            # 个人级权限：只能编辑自己的项目或厂商负责的项目
+            if model_obj.owner_id == user.id:
+                return True
+            # 厂商负责人可以编辑
+            if hasattr(model_obj, 'vendor_sales_manager_id') and model_obj.vendor_sales_manager_id == user.id:
+                return True
+            return False
+    
+    # 客户特殊处理：基于权限级别的编辑权限控制
+    if model_name == 'Company':
+        # 检查用户是否有客户模块的编辑权限
+        if not user.has_permission('customer', 'edit'):
+            return False
+        
+        # 检查权限级别
+        permission_level = user.get_permission_level('customer')
+        
+        if permission_level == 'system':
+            # 系统级权限：可以编辑所有客户
             return True
-        return False
+        elif permission_level == 'company' and user.company_name:
+            # 企业级权限：可以编辑企业下所有客户
+            data_owner = User.query.get(model_obj.owner_id)
+            return data_owner and data_owner.company_name == user.company_name
+        elif permission_level == 'department' and user.department and user.company_name:
+            # 部门级权限：可以编辑部门下所有客户
+            data_owner = User.query.get(model_obj.owner_id)
+            return (data_owner and data_owner.department == user.department and 
+                   data_owner.company_name == user.company_name)
+        else:
+            # 个人级权限：只能编辑自己创建的客户
+            return model_obj.owner_id == user.id
     
     # 报价单特殊处理：项目的厂商负责人可以编辑相关报价单
     if model_name == 'Quotation':
@@ -851,42 +896,59 @@ def can_view_company(user, company):
         logger.debug(f"[权限检查] 企业拥有者权限 - 允许访问")
         return True
     
-    # 商务助理：可以查看同部门用户和归属关系授权用户的客户
-    user_role = user.role.strip() if user.role else ''
-    if user_role == 'business_admin':
-        # 检查是否是同部门用户的客户
+    # 首先检查用户是否有客户查看权限
+    if not user.has_permission('customer', 'view'):
+        logger.debug(f"[权限检查] 用户无客户查看权限 - 拒绝访问")
+        return False
+    
+    # 基于四级权限系统的访问控制
+    permission_level = user.get_permission_level('customer')
+    logger.debug(f"[权限检查] 用户 {user.username} 的客户权限级别: {permission_level}")
+    
+    if permission_level == 'system':
+        # 系统级权限：可以查看所有客户
+        logger.debug(f"[权限检查] 系统级权限 - 允许访问")
+        return True
+    elif permission_level == 'company':
+        # 公司级权限：可以查看同公司的所有客户
+        if user.company_name:
+            company_owner = User.query.get(company.owner_id)
+            if company_owner and company_owner.company_name == user.company_name:
+                logger.debug(f"[权限检查] 公司级权限 - 同公司客户 - 允许访问")
+                return True
+    elif permission_level == 'department':
+        # 部门级权限：可以查看同部门的客户
         if user.department and user.company_name:
             company_owner = User.query.get(company.owner_id)
             if (company_owner and 
                 company_owner.department == user.department and 
                 company_owner.company_name == user.company_name):
+                logger.debug(f"[权限检查] 部门级权限 - 同部门客户 - 允许访问")
                 return True
-        
-        # 检查是否是归属关系授权的用户的客户
-        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-        if company.owner_id in [aff.owner_id for aff in affiliations]:
-            return True
     
     # 判断是否通过共享获得权限
     if hasattr(company, 'shared_with_users') and company.shared_with_users:
         if user.id in company.shared_with_users:
             logger.debug(f"[权限检查] 企业共享权限 - 允许访问")
             return True
+            
     # 判断是否通过归属关系获得权限
-    affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-    if company.owner_id in [affiliation.owner_id for affiliation in affiliations]:
-        logger.debug(f"[权限检查] 归属关系权限 - 允许访问")
-        return True
+    try:
+        from app.models.affiliation import Affiliation
+        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+        if company.owner_id in [affiliation.owner_id for affiliation in affiliations]:
+            logger.debug(f"[权限检查] 归属关系权限 - 允许访问")
+            return True
+    except ImportError:
+        # 如果Affiliation模型不存在，跳过归属关系检查
+        pass
+    
     # 判断是否创建了该公司下的联系人
+    from app.models.customer import Contact
     contact_count = Contact.query.filter_by(company_id=company.id, owner_id=user.id).count()
     if contact_count > 0:
         logger.debug(f"[权限检查] 联系人创建权限 - 允许访问")
         return True
-    
-    # 移除厂商负责人可以查看项目相关客户的逻辑
-    # 这个权限过于宽泛，会导致用户能够查看其他账户拥有的企业详情
-    # 即使用户是项目的厂商销售负责人，也不应该允许查看其他账户的企业信息
-    
     
     logger.debug(f"[权限检查] 所有权限检查失败 - 拒绝访问")
     return False
