@@ -88,6 +88,7 @@ def has_approval_permission(user, model_obj):
 
 def get_projects_through_customer_sharing_condition(user, model_class):
     """
+    DEPRECATED: 此函数已废弃，客户不再自动共享项目
     获取通过客户共享获得的项目访问权限的查询条件
     
     参数:
@@ -95,39 +96,11 @@ def get_projects_through_customer_sharing_condition(user, model_class):
         model_class: Project模型类
     
     返回:
-        SQLAlchemy查询条件或None
+        None - 已禁用客户自动项目共享功能
     """
-    try:
-        # 获取用户有访问权限且启用项目共享的客户名称
-        accessible_companies = Company.query.filter(
-            Company.is_deleted == False,
-            Company.share_related_projects == True,
-            cast(Company.shared_with_users, JSONB).op('@>')(text(f"'{user.id}'"))
-        ).all()
-        
-        if not accessible_companies:
-            return None
-        
-        # 获取这些客户的名称
-        company_names = [c.company_name for c in accessible_companies if c.company_name]
-        
-        if not company_names:
-            return None
-        
-        # 构建项目关联客户的查询条件
-        customer_related_condition = or_(
-            model_class.end_user.in_(company_names),
-            model_class.dealer.in_(company_names),
-            model_class.contractor.in_(company_names),
-            model_class.system_integrator.in_(company_names),
-            model_class.design_issues.in_(company_names)
-        )
-        
-        return customer_related_condition
-        
-    except Exception as e:
-        logger.error(f"获取客户共享项目权限时出错: {e}")
-        return None
+    # 客户共享项目的功能已被移除，改为使用项目直接共享机制
+    logger.info("客户自动项目共享功能已被禁用，请使用项目直接共享功能")
+    return None
 
 def get_viewable_data(model_class, user, special_filters=None):
     """
@@ -274,10 +247,11 @@ def get_viewable_data(model_class, user, special_filters=None):
                 model_class.vendor_sales_manager_id == user.id  # 作为厂商销售负责人的项目
             ]
             
-            # 添加通过客户共享获得的项目访问权限
-            customer_shared_condition = get_projects_through_customer_sharing_condition(user, model_class)
-            if customer_shared_condition is not None:
-                basic_permission_conditions.append(customer_shared_condition)
+            # 添加通用共享机制的项目访问权限
+            from app.utils.sharing import SharingService
+            project_sharing_condition = SharingService.get_sharing_query_condition(model_class, user.id)
+            if project_sharing_condition is not None:
+                basic_permission_conditions.append(project_sharing_condition)
             
             # 基于权限管理系统的数据访问控制
             return model_class.query.filter(
@@ -496,17 +470,13 @@ def get_viewable_data(model_class, user, special_filters=None):
         # 1. 基于owner_id的权限
         permission_conditions.append(model_class.owner_id.in_(viewable_user_ids))
         
-        # 2. 基于shared_with_users的权限（仅适用于Company模型）
+        # 2. 基于通用共享机制的权限（适用于Company模型）
         if model_class.__name__ == 'Company':
-            # 添加共享权限：用户ID在shared_with_users字段中
-            # 使用@>操作符检查JSON数组是否包含用户ID
-            from sqlalchemy import cast, text
-            from sqlalchemy.dialects.postgresql import JSONB
-            permission_conditions.append(
-                cast(model_class.shared_with_users, JSONB).op('@>')(
-                    text(f"'{user.id}'")
-                )
-            )
+            # 添加通用共享权限
+            from app.utils.sharing import SharingService
+            company_sharing_condition = SharingService.get_sharing_query_condition(model_class, user.id)
+            if company_sharing_condition is not None:
+                permission_conditions.append(company_sharing_condition)
         
         # 使用OR条件组合所有权限
         from sqlalchemy import or_
@@ -1149,21 +1119,14 @@ def can_view_project(user, project):
         # 其他角色可以查看所有归属关系项目
         return True
     
-    # 检查通过客户共享获得的项目访问权限
-    customer_shared_condition = get_projects_through_customer_sharing_condition(user, Project)
-    if customer_shared_condition is not None:
-        # 检查当前项目是否满足客户共享条件
-        try:
-            # 构建查询条件检查当前项目
-            project_query = Project.query.filter(
-                Project.id == project.id,
-                customer_shared_condition
-            )
-            shared_project = project_query.first()
-            if shared_project:
-                return True
-        except Exception as e:
-            logger.debug(f"检查项目客户共享权限时出错: {e}")
+    # 检查通过项目直接共享获得的访问权限
+    try:
+        from app.utils.sharing import SharingService
+        if (hasattr(project, 'share_enabled') and project.share_enabled and 
+            hasattr(project, 'is_shared_with_user') and project.is_shared_with_user(user.id)):
+            return True
+    except Exception as e:
+        logger.debug(f"检查项目直接共享权限时出错: {e}")
     
     return False
 

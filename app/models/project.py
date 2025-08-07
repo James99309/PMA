@@ -4,13 +4,15 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import event, Date, Column, Integer, String, DateTime, Text, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.dialects.postgresql import JSON
 from app.utils.authorization import generate_authorization_code as gen_auth_code
+from app.utils.sharing import SharingMixin
 
 def get_local_time():
     """获取本地时间（北京时区）"""
     return datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
 
-class Project(db.Model):
+class Project(SharingMixin, db.Model):
     __tablename__ = 'projects'
 
     id = Column(Integer, primary_key=True)
@@ -53,6 +55,10 @@ class Project(db.Model):
     
     # 行业字段
     industry = Column(String(50), nullable=True)  # 项目所属行业
+    
+    # 通用共享字段
+    shared_with_users = Column(JSON, default=list, nullable=True)  # 共享给的用户ID列表
+    share_enabled = Column(Boolean, default=False, nullable=False)  # 是否启用共享
     
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, default=get_local_time)

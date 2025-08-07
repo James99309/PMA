@@ -2976,10 +2976,10 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
                 {% set full_url = tab_url %}
             {% elif base_url %}
                 {% set url_params = {'tab': tab_key} %}
-                {% set _ = url_params.update(extra_params) %}
+                {% set dummy = url_params.update(extra_params) %}
                 {% set param_list = [] %}
                 {% for k, v in url_params.items() %}
-                    {% set _ = param_list.append(k + '=' + (v|string)) %}
+                    {% set dummy = param_list.append(k + '=' + (v|string)) %}
                 {% endfor %}
                 {% set param_str = '&'.join(param_list) %}
                 {% set full_url = base_url + '?' + param_str %}
@@ -4909,6 +4909,563 @@ function setupDeleteAction(dialog, deleteInfo) {
 // 暴露全局函数供其他脚本调用
 window.showInvoicePreviewDialog = showInvoicePreviewDialog;
 window.hideInvoicePreviewDialog = hideInvoicePreviewDialog;
+</script>
+{% endmacro %}
+
+{#
+=============================================================================
+通用共享组件宏
+=============================================================================
+为各种数据模型提供标准化的共享设置界面
+支持项目、客户等模型的共享功能
+#}
+
+{% macro render_sharing_section(model_obj, model_type, current_user, action_url=None, collapsed=True, can_edit_sharing=True, shareable_users=[], shareable_users_tree=[]) %}
+{% if can_edit_sharing %}
+<div class="card mb-4">
+    <div class="card-header bg-light" style="cursor:pointer;" data-bs-toggle="collapse" 
+         data-bs-target="#sharingCollapse_{{ model_obj.id }}" aria-expanded="{{ 'false' if collapsed else 'true' }}" 
+         aria-controls="sharingCollapse_{{ model_obj.id }}">
+        <div class="d-flex justify-content-between align-items-center">
+            <span>{{ _('共享设置') }}</span>
+            <i class="fas fa-chevron-down" id="sharingCollapseIcon_{{ model_obj.id }}"></i>
+        </div>
+    </div>
+    <div id="sharingCollapse_{{ model_obj.id }}" class="collapse{% if not collapsed %} show{% endif %}">
+        <div class="card-body">
+            <form method="POST" action="{{ action_url or url_for(model_type + '.update_' + model_type + '_sharing', **{model_type + '_id': model_obj.id}) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                
+                <!-- 启用共享选项 -->
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="share_enabled_{{ model_obj.id }}" 
+                               name="share_enabled" {% if model_obj.share_enabled %}checked{% endif %}>
+                        <label class="form-check-label" for="share_enabled_{{ model_obj.id }}">
+                            {{ _('启用共享') }}
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 用户选择区域 -->
+                <div id="shared_users_section_{{ model_obj.id }}" style="display: {% if model_obj.share_enabled %}block{% else %}none{% endif %};">
+                    <div class="mb-3">
+                        <label for="shared_with_users_{{ model_obj.id }}" class="form-label">{{ _('共享给以下用户') }}：</label>
+                        {% if shareable_users_tree %}
+                            {{ render_tree_user_selector(shareable_users_tree, model_obj.shared_user_ids, 'userTree_' + model_obj.id|string) }}
+                        {% else %}
+                            <!-- 备用方案：简单列表 -->
+                            <div id="shared_with_users_box_{{ model_obj.id }}" 
+                                 style="border:1px solid #ced4da;border-radius:0.375rem;height:120px;overflow-y:auto;padding:6px;">
+                                {% for user in shareable_users %}
+                                <div class="form-check">
+                                    <input class="form-check-input shared-user-checkbox-{{ model_obj.id }}" 
+                                           type="checkbox" value="{{ user.id }}" id="user_checkbox_{{ model_obj.id }}_{{ user.id }}"
+                                        {% if model_obj.shared_with_users and user.id in model_obj.shared_user_ids %}checked{% endif %}>
+                                    <label class="form-check-label" for="user_checkbox_{{ model_obj.id }}_{{ user.id }}">
+                                        {{ user.real_name or user.username }}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <input type="hidden" name="shared_with_users" id="shared_with_users_hidden_{{ model_obj.id }}">
+                    </div>
+
+                    <!-- 模型特定的共享选项 -->
+                    {% if model_type == 'customer' %}
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="share_contacts_{{ model_obj.id }}" 
+                                   name="share_contacts" {% if model_obj.share_contacts %}checked{% endif %}>
+                            <label class="form-check-label" for="share_contacts_{{ model_obj.id }}">
+                                {{ _('自动共享客户下所有联系人') }}
+                            </label>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    {{ render_button(_('保存共享设置'), type='submit', color='primary', icon='fas fa-save') }}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 共享启用切换控制
+    const shareEnabledCheckbox = document.getElementById('share_enabled_{{ model_obj.id }}');
+    const sharedUsersSection = document.getElementById('shared_users_section_{{ model_obj.id }}');
+    
+    if (shareEnabledCheckbox) {
+        shareEnabledCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                sharedUsersSection.style.display = 'block';
+            } else {
+                sharedUsersSection.style.display = 'none';
+                // 清空用户选择
+                document.querySelectorAll('.shared-user-checkbox-{{ model_obj.id }}').forEach(function(cb) {
+                    cb.checked = false;
+                });
+            }
+        });
+    }
+
+    // 表单提交前同步用户选择到隐藏字段
+    const form = shareEnabledCheckbox.closest('form');
+    if (form) {
+        form.addEventListener('submit', function() {
+            const ids = [];
+            // 检查是否使用树状选择器
+            const treeContainer = document.getElementById('userTree_{{ model_obj.id|string }}');
+            if (treeContainer) {
+                // 树状选择器：收集所有选中的用户节点
+                treeContainer.querySelectorAll('input[data-type="user"]:checked').forEach(function(cb){
+                    ids.push(cb.getAttribute('data-user-id'));
+                });
+            } else {
+                // 简单列表选择器
+                document.querySelectorAll('.shared-user-checkbox-{{ model_obj.id }}:checked').forEach(function(cb){
+                    ids.push(cb.value);
+                });
+            }
+            document.getElementById('shared_with_users_hidden_{{ model_obj.id }}').value = ids.join(',');
+        });
+    }
+
+    // 折叠状态切换图标
+    const collapseEl = document.getElementById('sharingCollapse_{{ model_obj.id }}');
+    const icon = document.getElementById('sharingCollapseIcon_{{ model_obj.id }}');
+    
+    if (collapseEl && icon) {
+        collapseEl.addEventListener('shown.bs.collapse', function() {
+            icon.classList.remove('fa-chevron-down');
+            icon.classList.add('fa-chevron-up');
+        });
+        
+        collapseEl.addEventListener('hidden.bs.collapse', function() {
+            icon.classList.remove('fa-chevron-up');
+            icon.classList.add('fa-chevron-down');
+        });
+    }
+});
+</script>
+{% endif %}
+{% endmacro %}
+
+{#
+=============================================================================
+树状用户选择器组件宏
+=============================================================================
+提供层级式的用户选择功能，支持公司-部门-用户三层结构
+支持父节点选择自动选中所有子节点
+#}
+
+{% macro render_tree_user_selector(tree_data, selected_user_ids=[], container_id="userTree") %}
+<div class="tree-user-selector" id="{{ container_id }}">
+    <div class="tree-container">
+        {% for company in tree_data %}
+        <div class="tree-node company-node" data-type="company" data-id="{{ company.id }}">
+            <div class="tree-node-content">
+                <span class="tree-toggle" data-target="{{ company.id }}">
+                    <i class="fas fa-chevron-right"></i>
+                </span>
+                <div class="tree-checkbox-wrapper">
+                    {% set company_all_users = [] %}
+                    {% for child in company.children %}
+                        {% if child.type == 'user' %}
+                            {% set _ = company_all_users.append(child) %}
+                        {% elif child.type == 'department' %}
+                            {% for user in child.children %}
+                                {% set _ = company_all_users.append(user) %}
+                            {% endfor %}
+                        {% endif %}
+                    {% endfor %}
+                    {% set company_selected_users = [] %}
+                    {% for user in company_all_users %}
+                        {% if user.user_id in selected_user_ids %}
+                            {% set _ = company_selected_users.append(user) %}
+                        {% endif %}
+                    {% endfor %}
+                    <input type="checkbox" 
+                           class="tree-checkbox company-checkbox" 
+                           id="checkbox_{{ company.id }}" 
+                           data-type="company" 
+                           data-id="{{ company.id }}"
+                           data-name="{{ company.name }}"
+                           {% if company_selected_users|length > 0 and company_selected_users|length == company_all_users|length %}checked{% endif %}>
+                    <label for="checkbox_{{ company.id }}" class="tree-label">
+                        <span class="tree-text">{{ company.name }}</span>
+                    </label>
+                </div>
+            </div>
+            <div class="tree-children" id="children_{{ company.id }}" style="display: none;">
+                {% for child in company.children %}
+                    {% if child.type == 'department' %}
+                    <div class="tree-node department-node" data-type="department" data-id="{{ child.id }}" data-parent="{{ company.id }}">
+                        <div class="tree-node-content">
+                            <span class="tree-toggle" data-target="{{ child.id }}">
+                                <i class="fas fa-chevron-right"></i>
+                            </span>
+                            <div class="tree-checkbox-wrapper">
+                                {% set dept_users = child.children %}
+                                {% set dept_selected_users = [] %}
+                                {% for user in dept_users %}
+                                    {% if user.user_id in selected_user_ids %}
+                                        {% set _ = dept_selected_users.append(user) %}
+                                    {% endif %}
+                                {% endfor %}
+                                <input type="checkbox" 
+                                       class="tree-checkbox department-checkbox" 
+                                       id="checkbox_{{ child.id }}" 
+                                       data-type="department" 
+                                       data-id="{{ child.id }}"
+                                       data-parent="{{ company.id }}"
+                                       data-name="{{ child.name }}"
+                                       {% if dept_selected_users|length > 0 and dept_selected_users|length == dept_users|length %}checked{% endif %}>
+                                <label for="checkbox_{{ child.id }}" class="tree-label">
+                                    <span class="tree-text">{{ child.name }}</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="tree-children" id="children_{{ child.id }}" style="display: none;">
+                            {% for user in child.children %}
+                            <div class="tree-node user-node" data-type="user" data-id="{{ user.id }}" data-parent="{{ child.id }}" data-company="{{ company.id }}">
+                                <div class="tree-node-content">
+                                    <div class="tree-checkbox-wrapper user-checkbox-wrapper">
+                                        <input type="checkbox" 
+                                               class="tree-checkbox user-checkbox" 
+                                               id="checkbox_{{ user.id }}" 
+                                               data-type="user" 
+                                               data-id="{{ user.id }}"
+                                               data-user-id="{{ user.user_id }}"
+                                               data-parent="{{ child.id }}"
+                                               data-company="{{ company.id }}"
+                                               data-name="{{ user.name }}"
+                                               {% if user.user_id in selected_user_ids %}checked{% endif %}>
+                                        <label for="checkbox_{{ user.id }}" class="tree-label">
+                                            <span class="tree-text">{{ user.name }}</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% elif child.type == 'user' %}
+                    <!-- 直接属于公司的用户（无部门） -->
+                    <div class="tree-node user-node company-direct-user" data-type="user" data-id="{{ child.id }}" data-company="{{ company.id }}">
+                        <div class="tree-node-content">
+                            <div class="tree-checkbox-wrapper user-checkbox-wrapper">
+                                <input type="checkbox" 
+                                       class="tree-checkbox user-checkbox" 
+                                       id="checkbox_{{ child.id }}" 
+                                       data-type="user" 
+                                       data-id="{{ child.id }}"
+                                       data-user-id="{{ child.user_id }}"
+                                       data-company="{{ company.id }}"
+                                       data-name="{{ child.name }}"
+                                       {% if child.user_id in selected_user_ids %}checked{% endif %}>
+                                <label for="checkbox_{{ child.id }}" class="tree-label">
+                                    <span class="tree-text">{{ child.name }}</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+/* 树状选择器样式 */
+.tree-user-selector {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    max-height: 300px;
+    overflow-y: auto;
+    background: white;
+}
+
+.tree-container {
+    padding: 8px;
+}
+
+.tree-node {
+    margin: 2px 0;
+}
+
+.tree-node-content {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background-color 0.15s ease;
+}
+
+.tree-node-content:hover {
+    background-color: #f8f9fa;
+}
+
+.tree-toggle {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    margin-right: 4px;
+    border-radius: 3px;
+    transition: transform 0.2s ease;
+}
+
+.tree-toggle:hover {
+    background-color: #e9ecef;
+}
+
+.tree-toggle.expanded i {
+    transform: rotate(90deg);
+}
+
+.tree-checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+}
+
+.tree-checkbox {
+    margin-right: 8px;
+}
+
+.tree-label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+}
+
+.tree-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.875rem; /* 缩小字体 */
+}
+
+/* 不同层级的缩进 */
+.company-node .tree-node-content {
+    padding-left: 8px;
+}
+
+.department-node .tree-node-content {
+    padding-left: 28px;
+}
+
+.user-node .tree-node-content {
+    padding-left: 48px;
+}
+
+.department-node .user-node .tree-node-content {
+    padding-left: 48px;
+}
+
+/* 公司直属用户与部门平级显示 */
+.company-direct-user .tree-node-content {
+    padding-left: 28px; /* 与部门相同的层级 */
+}
+
+/* 公司直属用户的复选框间距调整 */
+.company-direct-user .user-checkbox-wrapper {
+    margin-left: 0; /* 取消额外的左边距 */
+}
+
+/* 图标样式已删除 */
+
+/* 无展开箭头的用户节点 */
+.user-checkbox-wrapper {
+    margin-left: 24px;
+}
+
+/* 选中状态样式 */
+.tree-node.selected > .tree-node-content {
+    background-color: #e3f2fd;
+}
+
+.tree-node.partial-selected > .tree-node-content {
+    background-color: #fff3cd;
+}
+</style>
+
+<script>
+// 树状选择器JavaScript逻辑
+function initTreeUserSelector(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    // 展开/折叠功能
+    container.addEventListener('click', function(e) {
+        if (e.target.closest('.tree-toggle')) {
+            const toggle = e.target.closest('.tree-toggle');
+            const targetId = toggle.getAttribute('data-target');
+            const children = document.getElementById('children_' + targetId);
+            
+            if (children) {
+                const isExpanded = children.style.display !== 'none';
+                children.style.display = isExpanded ? 'none' : 'block';
+                toggle.classList.toggle('expanded', !isExpanded);
+            }
+        }
+    });
+    
+    // 复选框级联选择逻辑
+    container.addEventListener('change', function(e) {
+        if (e.target.classList.contains('tree-checkbox')) {
+            const checkbox = e.target;
+            const isChecked = checkbox.checked;
+            const nodeType = checkbox.getAttribute('data-type');
+            const nodeId = checkbox.getAttribute('data-id');
+            
+            if (nodeType === 'company') {
+                // 选中公司时，选中/取消选中所有子节点
+                selectCompanyChildren(nodeId, isChecked);
+            } else if (nodeType === 'department') {
+                // 选中部门时，选中/取消选中部门下的所有用户
+                selectDepartmentChildren(nodeId, isChecked);
+                // 更新公司的选中状态
+                updateCompanyStatus(checkbox.getAttribute('data-parent'));
+            } else if (nodeType === 'user') {
+                // 选中用户时，更新父级状态
+                const departmentId = checkbox.getAttribute('data-parent');
+                const companyId = checkbox.getAttribute('data-company');
+                
+                if (departmentId && departmentId !== companyId) {
+                    updateDepartmentStatus(departmentId);
+                    updateCompanyStatus(companyId);
+                } else {
+                    updateCompanyStatus(companyId);
+                }
+            }
+        }
+    });
+    
+    // 选中公司的所有子节点
+    function selectCompanyChildren(companyId, isChecked) {
+        const companyNode = container.querySelector(`[data-id="${companyId}"][data-type="company"]`);
+        if (!companyNode) return;
+        
+        // 选中/取消选中所有子用户
+        const childUsers = container.querySelectorAll(`[data-company="${companyId}"].user-checkbox`);
+        childUsers.forEach(userCheckbox => {
+            userCheckbox.checked = isChecked;
+        });
+        
+        // 选中/取消选中所有子部门
+        const childDepartments = container.querySelectorAll(`[data-parent="${companyId}"].department-checkbox`);
+        childDepartments.forEach(deptCheckbox => {
+            deptCheckbox.checked = isChecked;
+        });
+    }
+    
+    // 选中部门的所有子用户
+    function selectDepartmentChildren(departmentId, isChecked) {
+        const childUsers = container.querySelectorAll(`[data-parent="${departmentId}"].user-checkbox`);
+        childUsers.forEach(userCheckbox => {
+            userCheckbox.checked = isChecked;
+        });
+    }
+    
+    // 更新公司的选中状态
+    function updateCompanyStatus(companyId) {
+        const companyCheckbox = container.querySelector(`[data-id="${companyId}"][data-type="company"]`);
+        if (!companyCheckbox) return;
+        
+        const allUsers = container.querySelectorAll(`[data-company="${companyId}"].user-checkbox`);
+        const checkedUsers = container.querySelectorAll(`[data-company="${companyId}"].user-checkbox:checked`);
+        
+        if (checkedUsers.length === 0) {
+            companyCheckbox.checked = false;
+            companyCheckbox.indeterminate = false;
+        } else if (checkedUsers.length === allUsers.length) {
+            companyCheckbox.checked = true;
+            companyCheckbox.indeterminate = false;
+        } else {
+            companyCheckbox.checked = false;
+            companyCheckbox.indeterminate = true;
+        }
+    }
+    
+    // 更新部门的选中状态
+    function updateDepartmentStatus(departmentId) {
+        const departmentCheckbox = container.querySelector(`[data-id="${departmentId}"][data-type="department"]`);
+        if (!departmentCheckbox) return;
+        
+        const allUsers = container.querySelectorAll(`[data-parent="${departmentId}"].user-checkbox`);
+        const checkedUsers = container.querySelectorAll(`[data-parent="${departmentId}"].user-checkbox:checked`);
+        
+        if (checkedUsers.length === 0) {
+            departmentCheckbox.checked = false;
+            departmentCheckbox.indeterminate = false;
+        } else if (checkedUsers.length === allUsers.length) {
+            departmentCheckbox.checked = true;
+            departmentCheckbox.indeterminate = false;
+        } else {
+            departmentCheckbox.checked = false;
+            departmentCheckbox.indeterminate = true;
+        }
+    }
+    
+    // 初始化时更新所有父级状态
+    function initializeParentStates() {
+        // 获取所有部门，从下往上更新状态
+        const departments = container.querySelectorAll('[data-type="department"]');
+        departments.forEach(dept => {
+            const deptId = dept.getAttribute('data-id');
+            updateDepartmentStatus(deptId);
+        });
+        
+        // 获取所有公司，更新状态
+        const companies = container.querySelectorAll('[data-type="company"]');
+        companies.forEach(company => {
+            const companyId = company.getAttribute('data-id');
+            updateCompanyStatus(companyId);
+        });
+    }
+    
+    // 立即初始化父级状态，然后再设置一个较长延迟确保所有状态正确
+    initializeParentStates();
+    
+    // 再次延迟执行以确保所有DOM元素和状态都已正确设置
+    setTimeout(function() {
+        initializeParentStates();
+    }, 500);
+    
+    // 获取所有选中用户的ID
+    window.getSelectedUserIds = function(containerId) {
+        const container = document.getElementById(containerId);
+        const selectedUsers = container.querySelectorAll('.user-checkbox:checked');
+        return Array.from(selectedUsers).map(checkbox => 
+            checkbox.getAttribute('data-user-id')
+        ).filter(id => id); // 过滤掉空值
+    };
+}
+
+// 页面加载完成后初始化树状选择器
+document.addEventListener('DOMContentLoaded', function() {
+    // 延迟以确保DOM完全加载
+    setTimeout(function() {
+        initTreeUserSelector('{{ container_id }}');
+    }, 100);
+});
 </script>
 {% endmacro %}
 

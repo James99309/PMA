@@ -3,6 +3,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import random
 import string
+from app.utils.sharing import SharingMixin
 
 def get_local_time():
     """获取本地时间（北京时区）"""
@@ -42,7 +43,7 @@ def generate_company_code():
     
     return code
 
-class Company(db.Model):
+class Company(SharingMixin, db.Model):
     __tablename__ = 'companies'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -59,10 +60,13 @@ class Company(db.Model):
     notes = db.Column(db.Text)  # 备注
     is_deleted = db.Column(db.Boolean, default=False)  # 是否删除
     
-    # 客户共享字段
+    # 通用共享字段（与项目保持一致）
     shared_with_users = db.Column(db.JSON, default=list)  # 被共享用户ID列表，如 [3, 5]
+    share_enabled = db.Column(db.Boolean, default=False)  # 是否启用共享
+    
+    # 客户特有的共享字段
     share_contacts = db.Column(db.Boolean, default=True)  # 是否共享该客户下所有联系人
-    share_related_projects = db.Column(db.Boolean, default=True)  # 是否共享相关项目
+    # 注意：移除 share_related_projects 字段，改用项目直接共享机制
     
     # 所有者字段（关联到用户表）
     owner_id = db.Column(db.Integer, db.ForeignKey('users.id'))

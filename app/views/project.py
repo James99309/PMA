@@ -851,6 +851,14 @@ def view_project(project_id):
         if project.owner_id in allowed_user_ids:
             has_permission = True
         
+        # 通过项目直接共享获得权限
+        if not has_permission:
+            if (hasattr(project, 'share_enabled') and project.share_enabled and 
+                hasattr(project, 'shared_with_users') and project.shared_with_users and
+                current_user.id in project.shared_user_ids):
+                has_permission = True
+                logger.debug(f"用户 {current_user.username} 通过项目直接共享权限访问项目 {project_id}")
+        
         # 通过客户共享获得权限
         if not has_permission:
             from app.utils.access_control import get_projects_through_customer_sharing_condition
@@ -1106,6 +1114,16 @@ def view_project(project_id):
     from app.utils.i18n import get_current_language
     current_language = get_current_language()
     
+    # 检查共享权限和获取可共享用户
+    from app.utils.sharing import SharingService, get_shareable_users_tree
+    can_edit_sharing = SharingService.can_edit_sharing_settings(current_user, project, 'project')
+    
+    if can_edit_sharing:
+        shareable_users_tree = get_shareable_users_tree(current_user, 'project')
+        logger.info(f"用户 {current_user.username} 的共享用户树结构已生成")
+    else:
+        shareable_users_tree = []
+    
     return render_template("project/detail.html", 
                          project=project, 
                          Quotation=Quotation, 
@@ -1127,7 +1145,10 @@ def view_project(project_id):
                          get_available_templates=get_available_templates,
                          can_start_approval=can_start_approval,
                          # 添加语言支持
-                         current_language=current_language)
+                         current_language=current_language,
+                         # 共享权限和用户
+                         can_edit_sharing=can_edit_sharing,
+                         shareable_users_tree=shareable_users_tree)
 
 @project.route('/add', methods=['GET', 'POST'])
 @permission_required('project', 'create')
@@ -1397,6 +1418,11 @@ def edit_project(project_id):
             }.get(new_project_type, 'normal')
             if new_project_type != project.project_type:
                 project.project_type = new_project_type
+            
+            # 更新项目共享设置
+            from app.utils.sharing import SharingService
+            SharingService.update_sharing_from_request(project, current_user, 'project')
+            
             db.session.commit()
             
             # 记录变更历史
@@ -3045,3 +3071,32 @@ def _calculate_project_stats_with_filters(current_user, search=None, owner_id=No
             'lost': 0,
             'paused': 0
         }
+
+@project.route('/update_project_sharing/<int:project_id>', methods=['POST'])
+@login_required
+@permission_required('project', 'edit')
+def update_project_sharing(project_id):
+    """更新项目共享设置"""
+    try:
+        project_obj = Project.query.get_or_404(project_id)
+        
+        # 检查用户是否有权限编辑项目共享设置
+        from app.utils.sharing import SharingService
+        if not SharingService.can_edit_sharing_settings(current_user, project_obj, 'project'):
+            flash(_('您没有权限编辑此项目的共享设置'), 'error')
+            return redirect(url_for('project.view_project', project_id=project_id))
+        
+        # 更新共享设置
+        if SharingService.update_sharing_from_request(project_obj, current_user, 'project'):
+            db.session.commit()
+            flash(_('项目共享设置已更新'), 'success')
+            logger.info(f"用户 {current_user.username} 更新了项目 {project_obj.project_name} (ID: {project_id}) 的共享设置")
+        else:
+            flash(_('更新共享设置失败'), 'error')
+            
+    except Exception as e:
+        db.session.rollback()
+        flash(_('更新共享设置时发生错误'), 'error')
+        logger.error(f"更新项目共享设置失败: {e}")
+    
+    return redirect(url_for('project.view_project', project_id=project_id))

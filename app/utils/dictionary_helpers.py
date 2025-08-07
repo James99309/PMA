@@ -241,36 +241,52 @@ def prepare_stats_card_amount(amount_yuan, language=None):
     返回：
     - 包含value、unit等字段的字典，可直接用于stats_card配置
     """
-    if language is None:
-        try:
-            from app.utils.i18n import get_current_language
-            language = get_current_language()
-        except:
-            language = 'zh'
-    
-    # 调试信息
-    print(f"💰 prepare_stats_card_amount 调用: amount_yuan={amount_yuan}, language={language}")
-    
-    if language == 'zh' or language.startswith('zh'):
-        # 中文：元 -> 万元
-        display_value = amount_yuan / 10000
-        unit = '万元'
-        print(f"💰 中文转换: {amount_yuan}元 ÷ 10000 = {display_value}万元")
-    else:
-        # 英文：元 -> M（百万）
-        display_value = amount_yuan / 1000000
-        unit = 'M'
-        print(f"💰 英文转换: {amount_yuan}元 ÷ 1000000 = {display_value}M")
-    
-    result = {
-        'value': round(display_value, 2),
-        'unit': unit,
-        'currency_symbol': '¥',
-        'format_type': 'wan' if language == 'zh' else 'million'
-    }
-    
-    print(f"💰 转换结果: {result}")
-    return result
+    try:
+        # 确保输入值是数值类型
+        if amount_yuan is None:
+            amount_yuan = 0
+        amount_yuan = float(amount_yuan)
+        
+        if language is None:
+            try:
+                from app.utils.i18n import get_current_language
+                language = get_current_language()
+            except:
+                language = 'zh'
+        
+        # 调试信息
+        print(f"💰 prepare_stats_card_amount 调用: amount_yuan={amount_yuan}, language={language}")
+        
+        if language == 'zh' or language.startswith('zh'):
+            # 中文：元 -> 万元
+            display_value = amount_yuan / 10000
+            unit = '万元'
+            print(f"💰 中文转换: {amount_yuan}元 ÷ 10000 = {display_value}万元")
+        else:
+            # 英文：元 -> M（百万）
+            display_value = amount_yuan / 1000000
+            unit = 'M'
+            print(f"💰 英文转换: {amount_yuan}元 ÷ 1000000 = {display_value}M")
+        
+        result = {
+            'value': round(display_value, 2),
+            'unit': unit,
+            'currency_symbol': '¥',
+            'format_type': 'wan' if language == 'zh' else 'million'
+        }
+        
+        print(f"💰 转换结果: {result}")
+        return result
+        
+    except Exception as e:
+        print(f"❌ prepare_stats_card_amount 异常: {e}")
+        # 返回默认值，确保不会返回 None
+        return {
+            'value': 0.0,
+            'unit': '万元',
+            'currency_symbol': '¥',
+            'format_type': 'wan'
+        }
 
 def prepare_stats_card_amount_from_wan(amount_wan, language=None):
     """

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_currency_with_symbol, render_quotation_number, render_project_stage, render_project_rating, render_rating_input, render_confirmation_badge, render_report_source_badge, render_product_situation_badge, render_industry_badge, render_button, render_status_badge, render_lock_status_badge, render_authorization_status_badge %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_currency_with_symbol, render_quotation_number, render_project_stage, render_project_rating, render_rating_input, render_confirmation_badge, render_report_source_badge, render_product_situation_badge, render_industry_badge, render_button, render_status_badge, render_lock_status_badge, render_authorization_status_badge, render_sharing_section, render_tree_user_selector %}
 {% import 'macros/ui_helpers.html' as ui %}
 {% from 'macros/approval_macros.html' import render_approval_timeline, render_approval_form, render_start_approval_button, render_approval_section %}
 {% from 'macros/ui_modals.html' import render_change_project_owner_modal %}
@@ -376,6 +376,9 @@
                     </div>
                 </div>
             </div>
+
+            <!-- 项目共享设置 -->
+            {{ render_sharing_section(project, 'project', current_user, can_edit_sharing=can_edit_sharing, shareable_users_tree=shareable_users_tree) }}
         </div>
 
         <!-- {{ _('右侧行动记录区域') }} ({{ _('占1/3') }}) -->

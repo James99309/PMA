@@ -3528,6 +3528,27 @@ msgstr "Business Type"
 msgid "共享设置"
 msgstr "Sharing Settings"
 
+msgid "启用共享"
+msgstr "Enable Sharing"
+
+msgid "启用后，可以将此"
+msgstr "After enabling, you can share this "
+
+msgid "共享给指定用户查看"
+msgstr " with specified users for viewing"
+
+msgid "项目共享设置已更新"
+msgstr "Project sharing settings have been updated"
+
+msgid "更新共享设置失败"
+msgstr "Failed to update sharing settings"
+
+msgid "更新共享设置时发生错误"
+msgstr "An error occurred while updating sharing settings"
+
+msgid "您没有权限编辑此项目的共享设置"
+msgstr "You don't have permission to edit sharing settings for this project"
+
 msgid "审批详情"
 msgstr "Approval Details"
 

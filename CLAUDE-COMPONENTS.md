@@ -686,6 +686,357 @@ formatted_row = SimpleNamespace(
 - **加载提示**：超过 1 秒的操作必须显示加载状态
 - **错误处理**：所有 AJAX 请求必须有错误处理
 
+## 🤝 共享功能组件规范
+
+### **共享组件系统概述**
+
+项目提供**统一的共享功能组件系统**，支持项目、客户等数据的用户共享功能。系统采用树状用户选择器，支持公司、部门、用户的层级结构显示和批量选择。
+
+### **核心组件**
+
+#### **主要组件宏**
+- `render_sharing_section()` - 完整的共享设置区域
+- `render_tree_user_selector()` - 树状用户选择器
+- `SharingMixin` - 数据模型共享功能混入类
+- `SharingService` - 共享服务类
+
+#### **支持文件**
+- `app/utils/sharing.py` - 共享功能后端服务
+- `app/templates/macros/ui_helpers.html` - 共享组件模板
+- CSS 样式集成在组件内部
+
+### **使用方法**
+
+#### **1. 数据模型配置**
+
+**数据库字段要求**：
+```python
+# 模型中必须包含以下字段
+class YourModel(db.Model, SharingMixin):
+    # ... 其他字段
+    share_enabled = db.Column(db.Boolean, default=False)      # 是否启用共享
+    shared_with_users = db.Column(db.JSON, default=[])       # 共享用户ID列表
+```
+
+**混入类使用**：
+```python
+from app.utils.sharing import SharingMixin
+
+class Project(db.Model, SharingMixin):
+    # 自动获得以下属性和方法：
+    # - shared_user_ids (属性)
+    # - is_shared (属性)  
+    # - is_shared_with_user(user_id)
+    # - add_shared_user(user_id)
+    # - remove_shared_user(user_id)
+    # - set_shared_users(user_ids)
+```
+
+#### **2. 后端路由配置**
+
+**基本配置**：
+```python
+from app.utils.sharing import SharingService, get_shareable_users_tree
+
+@blueprint.route('/detail/<int:id>')
+@login_required
+@permission_required('module', 'view')
+def detail(id):
+    item = Model.query.get_or_404(id)
+    
+    # 权限检查
+    can_edit_sharing = SharingService.can_edit_sharing_settings(
+        current_user, item, 'model_type'
+    )
+    
+    # 获取可共享用户树（仅在可以编辑时）
+    shareable_users_tree = []
+    if can_edit_sharing:
+        shareable_users_tree = get_shareable_users_tree(current_user, 'model_type')
+    
+    return render_template('template.html',
+                         item=item,
+                         can_edit_sharing=can_edit_sharing,
+                         shareable_users_tree=shareable_users_tree)
+```
+
+**共享更新路由**：
+```python
+@blueprint.route('/update_sharing/<int:id>', methods=['POST'])
+@login_required
+@permission_required('module', 'edit')
+def update_sharing(id):
+    item = Model.query.get_or_404(id)
+    
+    # 使用统一服务更新共享设置
+    if SharingService.update_sharing_from_request(item, current_user, 'model_type'):
+        try:
+            db.session.commit()
+            flash('共享设置保存成功', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash('保存失败，请重试', 'danger')
+    else:
+        flash('没有权限或保存失败', 'danger')
+    
+    return redirect(url_for('module.detail', id=id))
+```
+
+#### **3. 模板中使用**
+
+**导入组件**：
+```html
+{% from 'macros/ui_helpers.html' import render_sharing_section %}
+```
+
+**基本使用**：
+```html
+<!-- 在详情页面中添加共享设置区域 -->
+{{ render_sharing_section(
+    model_obj=project,                    # 数据对象
+    model_type='project',                 # 模型类型
+    current_user=current_user,            # 当前用户
+    can_edit_sharing=can_edit_sharing,    # 编辑权限
+    shareable_users_tree=shareable_users_tree  # 可共享用户树
+) }}
+```
+
+**带自定义参数**：
+```html
+{{ render_sharing_section(
+    model_obj=company,
+    model_type='customer',
+    current_user=current_user,
+    action_url=url_for('customer.update_company_sharing', company_id=company.id),
+    collapsed=False,                      # 默认展开
+    can_edit_sharing=can_edit_sharing,
+    shareable_users_tree=shareable_users_tree
+) }}
+```
+
+### **组件参数说明**
+
+#### **render_sharing_section() 参数**
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `model_obj` | Model对象 | ✅ | 要共享的数据对象 |
+| `model_type` | String | ✅ | 模型类型标识 ('project', 'customer') |
+| `current_user` | User对象 | ✅ | 当前登录用户 |
+| `action_url` | String | ❌ | 提交URL（默认当前页面） |
+| `collapsed` | Boolean | ❌ | 是否默认收起 (默认True) |
+| `can_edit_sharing` | Boolean | ❌ | 是否可编辑 (默认True) |
+| `shareable_users_tree` | Array | ❌ | 可共享用户树数据 |
+
+#### **get_shareable_users_tree() 返回格式**
+```python
+[
+    {
+        'id': 'company_1',
+        'name': '公司A',
+        'type': 'company',
+        'selectable': True,
+        'children': [
+            {
+                'id': 'dept_1',
+                'name': '销售部',
+                'type': 'department', 
+                'selectable': True,
+                'children': [
+                    {
+                        'id': 'user_1',
+                        'name': '张三',
+                        'type': 'user',
+                        'user_id': 1,
+                        'selectable': True
+                    }
+                ]
+            },
+            {
+                'id': 'user_2',
+                'name': '李四',     # 公司直属用户
+                'type': 'user',
+                'user_id': 2,
+                'selectable': True
+            }
+        ]
+    }
+]
+```
+
+### **权限控制规范**
+
+#### **权限等级**
+1. **管理员权限**: `admin`, `product_manager`, `solution_manager`, `finance_director`
+2. **拥有者权限**: 数据的 `owner_id` 等于当前用户ID
+3. **特定权限**: 
+   - 项目：`vendor_sales_manager_id` 等于当前用户ID
+   - 客户：归属关系权限、商务助理部门权限
+
+#### **权限检查方法**
+```python
+# 检查是否可以编辑共享设置
+can_edit = SharingService.can_edit_sharing_settings(user, data_obj, model_type)
+
+# 检查是否可以查看共享数据
+can_view = SharingPermissionHelper.can_view_shared_data(user, data_obj)
+```
+
+### **用户筛选规则**
+
+#### **管理员用户**
+- 可以共享给系统内所有活跃用户
+- 不受公司和部门限制
+
+#### **普通用户**
+- 只能共享给同公司用户
+- 项目/报价单类型：优先业务相关用户（销售、产品、管理等角色）
+- 其他类型：同公司所有用户
+
+#### **用户活跃状态判断**
+```python
+# 活跃用户条件（二选一）
+User.role == 'admin'        # 管理员总是活跃
+User._is_active == True     # 其他用户根据状态字段
+```
+
+### **树状选择器特性**
+
+#### **层级结构**
+- **层级0**: 🏛️ 公司 (`padding-left: 8px`)
+- **层级1**: 🏢 部门 和 👤 公司直属用户 (`padding-left: 28px`)
+- **层级2**: 👤 部门下用户 (`padding-left: 48px`)
+
+#### **交互功能**
+- ✅ **级联选择**: 选中父级时自动选中所有子级
+- ✅ **状态显示**: 支持全选、半选、未选三种状态
+- ✅ **展开收起**: 支持点击展开/收起子级
+- ✅ **服务器端状态**: 页面加载时根据保存的数据正确显示状态
+- ✅ **排除当前用户**: 自动排除操作者本身
+
+#### **状态映射规则**
+- **全选中**: 父级下所有用户都被选中 → 父级显示为选中 (`checked=true`)
+- **半选中**: 父级下部分用户被选中 → 父级显示为半选 (`indeterminate=true`) 
+- **未选中**: 父级下无用户被选中 → 父级显示为未选 (`checked=false`)
+
+### **AJAX 数据处理**
+
+#### **表单数据格式**
+```javascript
+// JavaScript 获取选中用户ID
+const selectedUserIds = getSelectedUserIds('userTree_123');
+// 返回: ['12', '29', '35']
+
+// 表单提交数据
+shared_with_users: ['12', '29', '35']  // 数组格式
+// 或
+shared_with_users: '12,29,35'          // 逗号分隔字符串（自动解析）
+```
+
+#### **后端数据处理**
+```python
+# SharingService.update_sharing_from_request() 自动处理
+# 支持数组格式: ['12', '29', '35']  
+# 支持逗号分隔: ['12,29,35'] -> ['12', '29', '35']
+```
+
+### **样式定制**
+
+#### **主要CSS类**
+```css
+/* 树状选择器容器 */
+.tree-user-selector {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* 层级缩进 */
+.company-node .tree-node-content { padding-left: 8px; }
+.department-node .tree-node-content { padding-left: 28px; }
+.user-node .tree-node-content { padding-left: 48px; }
+.company-direct-user .tree-node-content { padding-left: 28px; }
+
+/* 文本大小 */
+.tree-text { font-size: 0.875rem; }
+```
+
+### **最佳实践**
+
+#### **1. 数据模型设计**
+```python
+class YourModel(db.Model, SharingMixin):
+    # 必需字段
+    share_enabled = db.Column(db.Boolean, default=False)
+    shared_with_users = db.Column(db.JSON, default=lambda: [])  # 使用lambda避免可变默认值
+    
+    # 可选：拥有者字段（推荐）
+    owner_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+```
+
+#### **2. 路由设计模式**
+```python
+# 详情页面路由
+@blueprint.route('/<int:id>')
+def detail(id):
+    # 获取数据 + 权限检查 + 获取可共享用户
+
+# 共享设置更新路由  
+@blueprint.route('/<int:id>/update_sharing', methods=['POST'])
+def update_sharing(id):
+    # 权限检查 + 数据更新 + 重定向
+```
+
+#### **3. 权限集成**
+- 在数据查询中集成共享权限检查
+- 使用 `SharingService.get_shared_data_query()` 获取共享数据
+- 在访问控制中检查直接共享权限
+
+#### **4. 用户体验优化**
+- 共享设置默认收起（`collapsed=True`）
+- 无编辑权限时隐藏组件
+- 提供清晰的权限提示信息
+- 保存后给予明确反馈
+
+#### **5. 性能考虑**
+- 只在需要时获取 `shareable_users_tree`
+- 使用JOIN查询减少数据库访问
+- 合理使用缓存（如用户树结构）
+
+### **错误处理和调试**
+
+#### **常见问题**
+1. **状态不同步**: 检查 `SharingMixin` 是否正确继承
+2. **权限错误**: 验证 `can_edit_sharing_settings()` 逻辑
+3. **树状结构异常**: 检查 `get_shareable_users_tree()` 数据格式
+4. **保存失败**: 检查表单字段名称和数据类型
+
+#### **调试方法**
+```python
+# 后端调试
+logger.info(f"共享用户ID: {model.shared_user_ids}")
+logger.info(f"编辑权限: {can_edit_sharing}")
+
+# 前端调试（浏览器控制台）
+console.log('选中用户:', getSelectedUserIds('userTree_123'));
+```
+
+### **版本兼容性**
+
+#### **当前版本**: v2.0
+- ✅ 支持树状用户选择器
+- ✅ 服务器端状态渲染 
+- ✅ 层级权限控制
+- ✅ 公司直属用户层级修复
+- ✅ 级联选择和状态同步
+
+#### **升级指南**
+从旧版本升级时：
+1. 将 `SharingMixin` 添加到模型类
+2. 更新模板使用 `render_sharing_section()`
+3. 使用 `SharingService` 替换自定义权限逻辑
+4. 测试树状选择器功能和权限控制
+
 ## 📁 文件结构规范
 
 ### **模板组织**

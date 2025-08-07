@@ -37,14 +37,18 @@ def index():
         current_tab = request.args.get('tab', 'overview')
         
         # 获取可访问的用户列表（基于权限）
+        print(f"🔍 开始获取可访问用户列表，当前用户: {current_user.username}")
         accessible_users = get_accessible_users(current_user, 'performance_management')
+        print(f"✅ 获取到 {len(accessible_users)} 个可访问用户")
         
         # 获取有绩效目标设置的用户列表
+        print(f"🔍 开始获取有绩效目标的用户...")
         users_with_targets = db.session.query(User).join(
             PerformanceTarget, User.id == PerformanceTarget.user_id
         ).filter(
             User.id.in_([u.id for u in accessible_users])
         ).distinct().all()
+        print(f"✅ 获取到 {len(users_with_targets)} 个有绩效目标的用户")
         
         # 获取有绩效数据的年份列表
         available_years = db.session.query(PerformanceTarget.year).filter(
@@ -302,7 +306,17 @@ def index():
             target_text = '目标'
         
         # 构建通用组件配置
-        list_config = {
+        print(f"🔧 开始构建 list_config...")
+        print(f"  implant_actual_data: {implant_actual_data}")
+        print(f"  implant_target_data: {implant_target_data}")
+        print(f"  sales_actual_data: {sales_actual_data}")
+        print(f"  sales_target_data: {sales_target_data}")
+        print(f"  implant_title: {implant_title}")
+        print(f"  sales_title: {sales_title}")
+        print(f"  is_english: {is_english}")
+        
+        try:
+            list_config = {
             'module_name': 'performance',
             'title': '绩效管理',
             'ajax_mode': True,
@@ -479,7 +493,30 @@ def index():
                     }
                 ]
             }
-        }
+            }
+        
+            print(f"✅ list_config 构建成功")
+        
+        except Exception as list_config_error:
+            print(f"❌ list_config 构建失败: {list_config_error}")
+            import traceback
+            print(f"list_config错误堆栈: {traceback.format_exc()}")
+            list_config = None
+        
+        # 模板渲染前的变量验证
+        print(f"🔧 准备渲染模板，开始验证关键变量:")
+        print(f"  selected_user: {selected_user.username if selected_user else 'None'}")
+        print(f"  accessible_users: {len(accessible_users) if accessible_users else 'None'}")
+        print(f"  list_config: {type(list_config) if list_config else 'None'}")
+        print(f"  current_tab: {current_tab}")
+        print(f"  current_year: {current_year}")
+        
+        if list_config:
+            print(f"  list_config.stats: {type(list_config.get('stats')) if list_config.get('stats') else 'None'}")
+            print(f"  list_config.filter: {type(list_config.get('filter')) if list_config.get('filter') else 'None'}")
+            print(f"  list_config.table: {type(list_config.get('table')) if list_config.get('table') else 'None'}")
+        
+        print(f"🎯 开始渲染绩效看板模板...")
         
         return render_template('performance/index.html',
                              selected_user=selected_user,
@@ -508,8 +545,17 @@ def index():
         
         # 记录详细错误信息
         import traceback
-        print(f"绩效数据加载错误: {str(e)}")
-        print(f"错误堆栈: {traceback.format_exc()}")
+        import sys
+        print(f"🚨 绩效数据加载错误详情:")
+        print(f"  错误类型: {type(e).__name__}")
+        print(f"  错误消息: {str(e)}")
+        print(f"  错误发生位置: {sys.exc_info()}")
+        print(f"  当前用户: {current_user.username if current_user else 'None'}")
+        print(f"  请求参数: {dict(request.args)}")
+        print(f"  请求方法: {request.method}")
+        print(f"  请求URL: {request.url}")
+        print(f"📋 完整错误堆栈:")
+        print(traceback.format_exc())
         
         flash(f'加载绩效数据失败: {str(e)}', 'error')
         

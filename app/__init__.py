@@ -742,6 +742,12 @@ def create_app(config_class=Config):
     # 添加语言相关函数到模板上下文
     from app.context_processors import inject_language_functions
     app.context_processor(inject_language_functions)
+    
+    # 将翻译函数注册到 Jinja2 全局环境（备用方案）
+    from flask_babel import gettext, ngettext
+    app.jinja_env.globals['_'] = gettext
+    app.jinja_env.globals['gettext'] = gettext
+    app.jinja_env.globals['ngettext'] = ngettext
 
     # 添加项目阶段配置函数到模板上下文
     from app.context_processors import inject_project_stages_config
@@ -946,5 +952,9 @@ def create_app(config_class=Config):
     # 注册上下文处理器
     from app.utils.access_control import register_context_processors
     register_context_processors(app)
+    
+    # 注册共享模块上下文处理器
+    from app.utils.sharing import register_sharing_context_processors
+    register_sharing_context_processors(app)
 
     return app 

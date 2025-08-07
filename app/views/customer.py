@@ -1013,15 +1013,14 @@ def view_company(company_id):
         if action.owner_id and action.owner_id in user_map:
             action.owner = user_map[action.owner_id]
     
-    # 获取所有可选用户列表（用于共享设置）
-    # 修复：直接使用_is_active字段会漏掉管理员用户，需要改用属性方法判断
-    # 通过SQL表达式实现：管理员用户或_is_active=True的用户
-    all_users = User.query.filter(
-        or_(
-            User.role == 'admin',  # 管理员用户
-            User._is_active == True  # 活跃用户
-        )
-    ).all()
+    # 获取共享相关数据
+    from app.utils.sharing import SharingService, get_shareable_users_tree
+    can_edit_sharing = SharingService.can_edit_sharing_settings(current_user, company, 'customer')
+    
+    if can_edit_sharing:
+        shareable_users_tree = get_shareable_users_tree(current_user, 'customer')
+    else:
+        shareable_users_tree = []
     
     # 获取国际化的国家名称映射
     from app.utils.i18n import get_current_language
@@ -1061,7 +1060,8 @@ def view_company(company_id):
                           projects=projects,
                           viewable_projects=viewable_projects,
                           country_code_to_name=country_code_to_name,
-                          all_users=all_users,
+                          can_edit_sharing=can_edit_sharing,
+                          shareable_users_tree=shareable_users_tree,
                           COMPANY_TYPE_OPTIONS=get_company_type_options(),
                           INDUSTRY_OPTIONS=get_industry_options(),
                           STATUS_OPTIONS=get_status_options(),
@@ -3103,20 +3103,21 @@ def add_action_for_company(company_id):
 @permission_required('customer', 'edit')
 def update_company_sharing(company_id):
     company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
-    if not can_edit_company_sharing(current_user, company):
+    
+    # 使用通用共享服务更新共享设置
+    from app.utils.sharing import SharingService
+    success = SharingService.update_sharing_from_request(company, current_user, 'customer')
+    
+    if not success:
         flash('您没有权限编辑此客户的共享设置', 'danger')
         return redirect(url_for('customer.view_company', company_id=company_id))
-    shared_with_users = request.form.get('shared_with_users', '')
-    if isinstance(shared_with_users, str):
-        shared_with_users = [uid for uid in shared_with_users.split(',') if uid.strip()]
-    # 兼容老的getlist方式
-    if not shared_with_users:
-        shared_with_users = request.form.getlist('shared_with_users')
-    share_contacts = 'share_contacts' in request.form
-    share_related_projects = 'share_related_projects' in request.form
-    company.shared_with_users = [int(uid) for uid in shared_with_users]
-    company.share_contacts = share_contacts
-    company.share_related_projects = share_related_projects
+    
+    # 处理客户特有的共享选项
+    if hasattr(company, 'share_contacts'):
+        company.share_contacts = 'share_contacts' in request.form
+    if hasattr(company, 'share_related_projects'):
+        company.share_related_projects = 'share_related_projects' in request.form
+    
     db.session.commit()
     flash('客户共享设置已更新', 'success')
     return redirect(url_for('customer.view_company', company_id=company_id))

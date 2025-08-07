@@ -925,6 +925,51 @@ function performGenericAjaxReset(config) {
  * @param {Object} config - 配置对象
  * @returns {Object} 筛选参数对象
  */
+/**
+ * 从URL初始化表单值
+ * @param {Object} config - 筛选配置对象
+ */
+function initializeFormFromUrl(config) {
+    const form = document.getElementById(config.form_id);
+    if (!form) {
+        console.warn('⚠️ 找不到筛选表单，无法初始化表单值');
+        return;
+    }
+    
+    const currentUrl = new URL(window.location);
+    console.log('🔄 从URL初始化表单值:', currentUrl.search);
+    
+    // 初始化搜索字段
+    if (config.search_field_id) {
+        const searchInput = form.querySelector(`#${config.search_field_id}`);
+        if (searchInput && currentUrl.searchParams.has(config.search_field_id)) {
+            const urlValue = currentUrl.searchParams.get(config.search_field_id);
+            searchInput.value = urlValue;
+            console.log(`📝 设置搜索字段 ${config.search_field_id} = ${urlValue}`);
+        }
+    } else {
+        // 备用逻辑：处理标准的搜索字段
+        const searchInput = form.querySelector('input[name="search"]');
+        if (searchInput && currentUrl.searchParams.has('search')) {
+            const urlValue = currentUrl.searchParams.get('search');
+            searchInput.value = urlValue;
+            console.log(`📝 设置搜索字段 search = ${urlValue}`);
+        }
+    }
+    
+    // 初始化筛选字段
+    if (config.filter_fields) {
+        config.filter_fields.forEach(field => {
+            const element = form.querySelector(`#${field.name}`);
+            if (element && currentUrl.searchParams.has(field.name)) {
+                const urlValue = currentUrl.searchParams.get(field.name);
+                element.value = urlValue;
+                console.log(`📝 设置筛选字段 ${field.name} = ${urlValue}`);
+            }
+        });
+    }
+}
+
 function getGenericCurrentParams(config) {
     const form = document.getElementById(config.form_id);
     if (!form) {

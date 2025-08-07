@@ -30,14 +30,14 @@
     
     {% if list_config %}
         <!-- 统计卡片 - 年度汇总指标 -->
-        {% if list_config.stats %}
+        {% if list_config and list_config.stats %}
             <div class="mb-4">
                 {{ render_stats_cards(list_config.stats, language_aware=False, translate_units=False, translate_titles=True) }}
             </div>
         {% endif %}
         
         <!-- 筛选搜索组件 -->
-        {% if list_config.filter %}
+        {% if list_config and list_config.filter %}
             <div class="card mb-4">
                 <div class="card-body">
                     {{ render_filter_search_form(list_config.filter) }}
@@ -53,18 +53,26 @@
             {'key': 'analysis', 'label': _('趋势分析'), 'icon': 'fas fa-chart-line', 'disabled': True}
         ] %}
         
-        {{ render_universal_tabs(performance_tabs, current_tab, url_for('performance.index')) }}
+        {% set tab_extra_params = {} %}
+        {% if selected_user %}
+            {% set dummy = tab_extra_params.update({'user_id': selected_user.id}) %}
+        {% endif %}
+        {% if current_year %}
+            {% set dummy = tab_extra_params.update({'year': current_year}) %}
+        {% endif %}
+        
+        {{ render_universal_tabs(performance_tabs, current_tab, url_for('performance.index'), tab_extra_params) }}
         
         <!-- 列表内容 -->
         <div class="mt-4">
-            {% if list_config.table %}
+            {% if list_config and list_config.table %}
                 {{ render_data_table(list_config.table, [], ajax_mode=list_config.ajax_mode) }}
             {% endif %}
         </div>
     {% else %}
         <div class="alert alert-warning">
             <i class="fas fa-exclamation-triangle me-2"></i>
-            {{ _('绩效数据加载失败，请刷新页面重试') }}
+            {{ _('绩效数据加载失败，请刷新页面重试') if _ else '绩效数据加载失败，请刷新页面重试' }}
         </div>
     {% endif %}
     
@@ -76,7 +84,10 @@
                 <div class="card-header">
                     <h6 class="mb-0">
                         <i class="fas fa-calendar-check me-2"></i>
-                        {% set is_english = (_('搜索') == 'Search') %}
+                        {% set is_english = False %}
+                        {% if _ %}
+                            {% set is_english = (_('搜索') == 'Search') %}
+                        {% endif %}
                         {% if is_english %}
                             {{ _('进度追踪') }} - {{ _('月') }} {{ current_month }}
                         {% else %}
@@ -89,46 +100,46 @@
                         {% set current_stats = yearly_stats[current_month-1] %}
                         {% set current_target = yearly_targets.get(current_month) %}
                         <div class="progress-item">
-                            <span>{{ _('植入额') }}</span>
+                            <span>{{ _('植入额') if _ else '植入额' }}</span>
                             <div class="progress-value">
-                                {% if monthly_converted_amounts and monthly_converted_amounts.implant_actual %}
+                                {% if monthly_converted_amounts and monthly_converted_amounts.implant_actual and monthly_converted_amounts.implant_actual[current_month-1] %}
                                     {% set converted_data = monthly_converted_amounts.implant_actual[current_month-1] %}
                                     <span class="actual-value">{{ "{:,.2f}".format(converted_data.value) }} {{ converted_data.unit }}</span>
                                 {% else %}
                                     <span class="actual-value">0</span>
                                 {% endif %}
                                 <span class="percentage">({{ monthly_rates[current_month]['implant']|format_achievement_rate(current_target.implant_rate if current_target else None)|safe if monthly_rates.get(current_month) else "0%" }})</span>
-                                {% if monthly_converted_amounts and monthly_converted_amounts.implant_target %}
+                                {% if monthly_converted_amounts and monthly_converted_amounts.implant_target and monthly_converted_amounts.implant_target[current_month-1] %}
                                     {% set target_data = monthly_converted_amounts.implant_target[current_month-1] %}
-                                    <div class="target-text">{{ _('目标') }}: {{ "{:,.2f}".format(target_data.value) }} {{ target_data.unit }}</div>
+                                    <div class="target-text">{{ _('目标') if _ else '目标' }}: {{ "{:,.2f}".format(target_data.value) }} {{ target_data.unit }}</div>
                                 {% endif %}
                             </div>
                         </div>
                         <div class="progress-item">
-                            <span>{{ _('销售额') }}</span>
+                            <span>{{ _('销售额') if _ else '销售额' }}</span>
                             <div class="progress-value">
-                                {% if monthly_converted_amounts and monthly_converted_amounts.sales_actual %}
+                                {% if monthly_converted_amounts and monthly_converted_amounts.sales_actual and monthly_converted_amounts.sales_actual[current_month-1] %}
                                     {% set converted_data = monthly_converted_amounts.sales_actual[current_month-1] %}
                                     <span class="actual-value">{{ "{:,.2f}".format(converted_data.value) }} {{ converted_data.unit }}</span>
                                 {% else %}
                                     <span class="actual-value">0</span>
                                 {% endif %}
                                 <span class="percentage">({{ monthly_rates[current_month]['sales']|format_achievement_rate(current_target.sales_rate if current_target else None)|safe if monthly_rates.get(current_month) else "0%" }})</span>
-                                {% if monthly_converted_amounts and monthly_converted_amounts.sales_target %}
+                                {% if monthly_converted_amounts and monthly_converted_amounts.sales_target and monthly_converted_amounts.sales_target[current_month-1] %}
                                     {% set target_data = monthly_converted_amounts.sales_target[current_month-1] %}
-                                    <div class="target-text">{{ _('目标') }}: {{ "{:,.2f}".format(target_data.value) }} {{ target_data.unit }}</div>
+                                    <div class="target-text">{{ _('目标') if _ else '目标' }}: {{ "{:,.2f}".format(target_data.value) }} {{ target_data.unit }}</div>
                                 {% endif %}
                             </div>
                         </div>
                         <div class="progress-item">
-                            <span>{{ _('新增客户') }}</span>
+                            <span>{{ _('新增客户') if _ else '新增客户' }}</span>
                             <div class="progress-value">
                                 <span class="actual-value">{{ (current_stats.new_customers_actual or 0) if current_stats else "0" }}</span>
                                 <span class="percentage">({{ monthly_rates[current_month]['customers']|format_achievement_rate(current_target.customers_rate if current_target else None)|safe if monthly_rates.get(current_month) else "0%" }})</span>
                             </div>
                         </div>
                         <div class="progress-item">
-                            <span>{{ _('新增项目') }}</span>
+                            <span>{{ _('新增项目') if _ else '新增项目' }}</span>
                             <div class="progress-value">
                                 <span class="actual-value">{{ (current_stats.new_projects_actual or 0) if current_stats else "0" }}</span>
                                 <span class="percentage">({{ monthly_rates[current_month]['projects']|format_achievement_rate(current_target.projects_rate if current_target else None)|safe if monthly_rates.get(current_month) else "0%" }})</span>
@@ -137,7 +148,7 @@
                     {% else %}
                         <div class="text-center">
                             <i class="fas fa-chart-line mb-2" style="font-size: 2rem; opacity: 0.7;"></i>
-                            <p class="mb-0">{{ _('暂无当月数据') }}</p>
+                            <p class="mb-0">{{ _('暂无当月数据') if _ else '暂无当月数据' }}</p>
                         </div>
                     {% endif %}
                 </div>
@@ -150,7 +161,7 @@
                 <div class="card-header">
                     <h6 class="mb-0">
                         <i class="fas fa-industry me-2"></i>
-                        {{ _('行业分布概览') }}
+                        {{ _('行业分布概览') if _ else '行业分布概览' }}
                     </h6>
                 </div>
                 <div class="card-body">
@@ -160,7 +171,7 @@
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <span class="text-sm">
                                     {% if industry == '未分类' %}
-                                        {{ _('未分类') }}
+                                        {{ _('未分类') if _ else '未分类' }}
                                     {% else %}
                                         {% set industry_names = {
                                             'manufacturing': _('制造业'),
@@ -259,16 +270,33 @@
 <script>
 // 国际化文本对象
 window.performanceI18n = {
-    noData: '{{ _("暂无数据") }}',
-    dataLoadFailed: '{{ _("数据加载失败") }}',
-    ajaxRequestFailed: '{{ _("请求失败") }}',
-    performancePageInitialized: '{{ _("绩效管理页面初始化完成") }}'
+    noData: '{{ _("暂无数据") if _ else "暂无数据" }}',
+    dataLoadFailed: '{{ _("数据加载失败") if _ else "数据加载失败" }}',
+    ajaxRequestFailed: '{{ _("请求失败") if _ else "请求失败" }}',
+    performancePageInitialized: '{{ _("绩效管理页面初始化完成") if _ else "绩效管理页面初始化完成" }}'
 };
 
+// 全局错误捕获
+window.addEventListener('error', function(e) {
+    console.error('🚨 绩效看板JavaScript错误:', e.error);
+    console.error('错误消息:', e.message);
+    console.error('错误文件:', e.filename);
+    console.error('错误行号:', e.lineno);
+    console.error('错误列号:', e.colno);
+    console.error('错误堆栈:', e.error ? e.error.stack : 'No stack trace');
+});
+
 document.addEventListener('DOMContentLoaded', function() {
-    {% if list_config %}
+    console.log('🚀 绩效看板页面开始初始化');
+    console.log('📊 list_config状态:', {{ 'true' if list_config else 'false' }});
+    
+    try {
+        // 确保try块始终有内容
+        console.log('🔧 开始绩效看板配置...');
+        
+        {% if list_config %}
     // 配置筛选搜索组件
-    {% if list_config.filter %}
+    {% if list_config and list_config.filter %}
     const performanceFilterConfig = {
         form_id: '{{ list_config.filter.form_id }}',
         search_field_id: 'search',
@@ -289,7 +317,7 @@ document.addEventListener('DOMContentLoaded', function() {
         preserve_params: ['tab'],  // 保留tab参数
         onSuccess: function(data) {
             // 更新统计卡片
-            {% if list_config.stats %}
+            {% if list_config and list_config.stats %}
             if (data.statistics) {
                 updateStatsFromAjax({ stats: {{ list_config.stats | tojson | safe }} }, data.statistics);
             }
@@ -311,8 +339,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 设置全局配置供重置按钮使用
     window.filterSearchConfig = performanceFilterConfig;
+    
+    // 从URL初始化表单值
+    initializeFormFromUrl(performanceFilterConfig);
+    
     setupFilterSearch(performanceFilterConfig);
-    {% endif %}
     
     // 手动触发初始数据加载，包含当前tab参数
     {% if list_config.ajax_mode %}
@@ -333,13 +364,17 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 if (data.success) {
                     // 更新表格内容
+                    {% if list_config and list_config.table %}
                     const targetElement = document.querySelector('#{{ list_config.table.ajax_target }}');
+                    {% else %}
+                    const targetElement = null;
+                    {% endif %}
                     if (targetElement) {
                         targetElement.innerHTML = data.html || '<tr><td colspan="9" class="text-center py-4">' + window.performanceI18n.noData + '</td></tr>';
                     }
                     
                     // 更新统计卡片
-                    {% if list_config.stats %}
+                    {% if list_config and list_config.stats %}
                     if (data.statistics) {
                         updateStatsFromAjax({ stats: {{ list_config.stats | tojson | safe }} }, data.statistics);
                     }
@@ -364,7 +399,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     setTimeout(() => {
+        {% if list_config and list_config.filter %}
         const form = document.getElementById('{{ list_config.filter.form_id }}');
+        {% else %}
+        const form = null;
+        {% endif %}
         if (form) {
             // 动态获取当前活跃标签页
             const activeTab = document.querySelector('.nav-link.active');
@@ -379,8 +418,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 500);
     {% endif %}
     {% endif %}
+    {% else %}
+        console.log('⚠️ list_config为空，跳过配置步骤');
+    {% endif %}
     
     console.log('✅ ' + window.performanceI18n.performancePageInitialized);
+    
+    } catch (error) {
+        console.error('🚨 绩效看板初始化过程中发生错误:', error);
+        console.error('错误堆栈:', error.stack);
+        alert('绩效看板初始化失败，请刷新页面重试。错误: ' + error.message);
+    }
 });
 
 // 更新月度统计显示的函数

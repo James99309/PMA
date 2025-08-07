@@ -169,9 +169,13 @@ def inject_language_functions():
     向模板上下文注入语言相关函数，供模板使用
     """
     from app.utils.i18n import get_current_language
+    from flask_babel import gettext, ngettext
     
     return {
-        'get_current_language': get_current_language
+        'get_current_language': get_current_language,
+        '_': gettext,
+        'gettext': gettext,
+        'ngettext': ngettext
     }
 
 # 添加项目阶段配置上下文处理器
