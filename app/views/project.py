@@ -318,16 +318,16 @@ def list_projects():
         'reset_url': url_for('project.list_projects'),
         'search_field': {
             'name': 'search',
-            'label': '搜索',
-            'placeholder': '项目名称或客户名称',
+            'label': _('搜索'),
+            'placeholder': _('项目名称或客户名称'),
             'value': search,
             'col_width': 4
         },
         'filter_fields': [
             {
                 'name': 'owner_id',
-                'label': '拥有人',
-                'all_option_text': '全部拥有人',
+                'label': _('拥有人'),
+                'all_option_text': _('全部拥有人'),
                 'current_value': request.args.get('owner_id', ''),
                 'col_width': 2,
                 'options': _get_project_owner_options(current_user)
@@ -375,8 +375,8 @@ def list_projects():
             },
             {
                 'name': 'current_stage',
-                'label': '项目阶段',
-                'all_option_text': '全部阶段',
+                'label': _('项目阶段'),
+                'all_option_text': _('全部阶段'),
                 'current_value': request.args.get('current_stage', ''),
                 'col_width': 3,
                 'options': [
@@ -403,8 +403,8 @@ def list_projects():
                 ]
             }
         ],
-        'search_button_text': '搜索',
-        'reset_button_text': '重置',
+        'search_button_text': _('搜索'),
+        'reset_button_text': _('重置'),
         # 添加关键配置，与报价单模块保持一致
         'auto_submit': True,           # 启用自动提交，确保初始数据加载
         'ajax_mode': True,            # 启用AJAX模式
