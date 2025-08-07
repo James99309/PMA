@@ -2742,23 +2742,22 @@ def change_project_owner(project_id):
     # 检查新拥有人是否是厂商企业账户
     is_vendor_company = new_owner.is_vendor_user()
     
-    # 如果新拥有人不是厂商企业账户，需要设置厂商销售负责人
+    # 处理厂商销售负责人设置（可选）
     vendor_sales_manager_id = None
     if not is_vendor_company:
+        # 如果新拥有人不是厂商企业账户，允许可选设置厂商销售负责人
         vendor_sales_manager_id = request.form.get('vendor_sales_manager_id', type=int)
-        if not vendor_sales_manager_id:
-            flash('当项目拥有人不是厂商企业账户时，必须指定厂商销售负责人', 'danger')
-            return redirect(url_for('project.view_project', project_id=project_id))
         
-        # 验证厂商销售负责人是否存在且是厂商企业账户
-        vendor_sales_manager = User.query.get(vendor_sales_manager_id)
-        if not vendor_sales_manager:
-            flash('厂商销售负责人不存在', 'danger')
-            return redirect(url_for('project.view_project', project_id=project_id))
-        
-        if not vendor_sales_manager.is_vendor_user():
-            flash('厂商销售负责人必须是厂商企业账户', 'danger')
-            return redirect(url_for('project.view_project', project_id=project_id))
+        # 如果指定了厂商销售负责人，需要验证其有效性
+        if vendor_sales_manager_id:
+            vendor_sales_manager = User.query.get(vendor_sales_manager_id)
+            if not vendor_sales_manager:
+                flash('厂商销售负责人不存在', 'danger')
+                return redirect(url_for('project.view_project', project_id=project_id))
+            
+            if not vendor_sales_manager.is_vendor_user():
+                flash('厂商销售负责人必须是厂商企业账户', 'danger')
+                return redirect(url_for('project.view_project', project_id=project_id))
     else:
         # 如果新拥有人是厂商企业账户，自动设置为厂商销售负责人
         vendor_sales_manager_id = new_owner_id

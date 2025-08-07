@@ -294,9 +294,12 @@ def get_shareable_users(current_user, model_type=None):
     """
     获取可以共享给的用户列表
     
+    根据业务需求，允许用户将数据分享给系统中的所有活跃用户，
+    不受公司边界限制，以支持跨公司协作和灵活的数据共享需求。
+    
     参数:
         current_user: 当前用户
-        model_type: 模型类型（用于特定的用户筛选）
+        model_type: 模型类型（保留参数以兼容现有调用）
         
     返回:
         用户查询对象
@@ -314,36 +317,15 @@ def get_shareable_users(current_user, model_type=None):
         )
     )
     
-    # 根据用户角色和模型类型进一步筛选
-    if current_user.role == 'admin':
-        # 管理员可以共享给所有用户
-        return base_query
+    # 移除公司限制，允许分享给所有系统中的活跃用户
+    # 这样支持：
+    # 1. 跨公司业务协作
+    # 2. 客户与供应商之间的信息共享
+    # 3. 项目中多方参与的协作需求
+    # 4. 更灵活的数据共享策略
     
-    elif current_user.company_name:
-        # 同公司用户
-        company_users = base_query.filter(User.company_name == current_user.company_name)
-        
-        # 根据模型类型进一步限制
-        if model_type in ['project', 'quotation']:
-            # 项目和报价单：限制为同公司的业务相关用户
-            business_roles = ['sales', 'sales_manager', 'sales_director', 'business_admin', 
-                            'product_manager', 'solution_manager', 'channel_manager', 'admin']
-            business_users = company_users.filter(User.role.in_(business_roles))
-            
-            # 如果没有找到业务相关用户，返回同公司所有用户作为备选
-            if business_users.count() == 0:
-                logger.info(f"未找到同公司的业务相关用户，返回同公司所有用户")
-                return company_users
-            else:
-                return business_users
-        else:
-            # 其他类型：同公司所有用户
-            return company_users
-    
-    else:
-        # 无公司信息的用户，返回所有活跃用户（更宽松的策略）
-        logger.info(f"用户 {current_user.username} 无公司信息，返回所有活跃用户")
-        return base_query
+    logger.debug(f"用户 {current_user.username} 可分享给所有系统活跃用户，支持跨公司协作")
+    return base_query
 
 def get_shareable_users_tree(current_user, model_type=None):
     """
