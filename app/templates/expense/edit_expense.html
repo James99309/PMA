@@ -83,8 +83,24 @@
                         </div>
                     </div>
                     
+                    <!-- 不关联客户模式选项 -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="noCustomerMode" name="no_customer_mode" value="1" 
+                                       {% if not expense.customer_id %}checked{% endif %} disabled>
+                                <label class="form-check-label" for="noCustomerMode">
+                                    {{ _('不关联客户模式') }}
+                                    {% if not expense.customer_id %}
+                                        <small class="text-muted">（此报销单创建时未关联客户，无法修改）</small>
+                                    {% endif %}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- 第二行：关联客户 | 关联项目 -->
-                    <div class="row">
+                    <div class="row" id="customerRelatedFields">
                         <!-- 关联客户 -->
                         <div class="col-md-6 mb-3">
                             {# 客户搜索配置 #}
@@ -558,13 +574,25 @@ document.addEventListener('DOMContentLoaded', function() {
     const submitBtn = document.getElementById('submit-btn'); // 更新ID
     
     if (submitBtn) {
-        function updateSubmitButton() {
+        window.updateSubmitButton = function updateSubmitButton() {
             const hasCustomer = customerIdInput.value !== '';
             const hasContact = contactIdInput.value !== '';
             const hasValidDetails = window.expenseDetailManager && 
                                    window.expenseDetailManager.getAllData().length > 0;
             
-            const shouldEnable = hasCustomer && hasContact && hasValidDetails;
+            // 检查是否为不关联客户模式
+            const noCustomerMode = {% if not expense.customer_id %}true{% else %}false{% endif %};
+            
+            // 根据模式决定启用条件
+            let shouldEnable;
+            if (noCustomerMode) {
+                // 不关联客户模式：只需要有明细数据
+                shouldEnable = hasValidDetails;
+            } else {
+                // 常规模式：需要客户、联系人和明细数据
+                shouldEnable = hasCustomer && hasContact && hasValidDetails;
+            }
+            
             submitBtn.disabled = !shouldEnable;
             
             // 更新按钮样式以提供视觉反馈
@@ -577,33 +605,39 @@ document.addEventListener('DOMContentLoaded', function() {
                 submitBtn.classList.add('btn-secondary');
                 
                 let reasons = [];
-                if (!hasCustomer) reasons.push(window.i18nTexts.pleaseSelectCustomer);
-                if (!hasContact) reasons.push(window.i18nTexts.pleaseSelectContact);
-                if (!hasValidDetails) reasons.push(window.i18nTexts.pleaseKeepOneDetail);
+                if (noCustomerMode) {
+                    // 不关联客户模式：只检查明细数据
+                    if (!hasValidDetails) reasons.push(window.i18nTexts.pleaseKeepOneDetail);
+                } else {
+                    // 常规模式：检查所有必填项
+                    if (!hasCustomer) reasons.push(window.i18nTexts.pleaseSelectCustomer);
+                    if (!hasContact) reasons.push(window.i18nTexts.pleaseSelectContact);
+                    if (!hasValidDetails) reasons.push(window.i18nTexts.pleaseKeepOneDetail);
+                }
                 submitBtn.title = window.i18nTexts.cannotSave + reasons.join(', ');
             }
         }
         
-        contactIdInput.addEventListener('change', updateSubmitButton);
+        contactIdInput.addEventListener('change', window.updateSubmitButton);
         
         // 监听客户搜索组件变化
         if (customerSearchContainer) {
             customerSearchContainer.addEventListener('customerSelected', function() {
-                setTimeout(updateSubmitButton, 100);
+                setTimeout(window.updateSubmitButton, 100);
             });
             customerSearchContainer.addEventListener('customerCleared', function() {
-                setTimeout(updateSubmitButton, 100);
+                setTimeout(window.updateSubmitButton, 100);
             });
         }
         
         // 监听明细管理器变化事件
         document.addEventListener('expenseDetailChanged', function(e) {
             console.log('明细数据变化事件:', e.detail);
-            updateSubmitButton();
+            window.updateSubmitButton();
         });
         
         // 页面加载后立即检查一次
-        setTimeout(updateSubmitButton, 500);
+        setTimeout(window.updateSubmitButton, 500);
     }
     
     // 如果已有联系人，在客户搜索组件加载后加载联系人列表
@@ -614,31 +648,67 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }, 1000);
     {% endif %}
+    
+    // 初始化不关联客户模式显示
+    const noCustomerMode = {% if not expense.customer_id %}true{% else %}false{% endif %};
+    const customerRelatedFields = document.getElementById('customerRelatedFields');
+    const contactIdSelect = document.getElementById('contact_id');
+    
+    if (noCustomerMode) {
+        // 隐藏客户相关字段
+        if (customerRelatedFields) {
+            customerRelatedFields.style.display = 'none';
+        }
+        
+        // 设置联系人字段为"无效"状态
+        if (contactIdSelect) {
+            contactIdSelect.innerHTML = '<option value="" selected disabled>{{ _("不关联客户模式下无需选择联系人") }}</option>';
+            contactIdSelect.disabled = true;
+            contactIdSelect.removeAttribute('required');
+        }
+        
+        // 移除客户搜索输入框的required属性
+        const customerSearchInput = document.getElementById('customerSearch');
+        if (customerSearchInput) {
+            customerSearchInput.removeAttribute('required');
+        }
+        
+        // 在不关联客户模式下，立即更新按钮状态
+        setTimeout(() => {
+            if (window.updateSubmitButton && typeof window.updateSubmitButton === 'function') {
+                window.updateSubmitButton();
+            }
+        }, 500);
+    }
 });
 
 function validateExpenseForm() {
     const customerIdInput = document.getElementById('customer_id');
     const contactIdInput = document.getElementById('contact_id');
+    const noCustomerMode = {% if not expense.customer_id %}true{% else %}false{% endif %};
     
     // 在审核编辑模式下，跳过基本字段验证（这些字段可能被禁用）
     {% if approval_edit_mode %}
     console.log('[DEBUG] 审核编辑模式，跳过基本字段验证');
     {% else %}
-    // 验证客户搜索组件
-    if (!customerIdInput.value) {
-        alert(window.i18nTexts.pleaseSelectCustomer);
-        const customerSearchInput = document.getElementById('customerSearch');
-        if (customerSearchInput) {
-            customerSearchInput.focus();
+    // 只在非不关联客户模式下验证客户和联系人
+    if (!noCustomerMode) {
+        // 验证客户搜索组件
+        if (!customerIdInput.value) {
+            alert(window.i18nTexts.pleaseSelectCustomer);
+            const customerSearchInput = document.getElementById('customerSearch');
+            if (customerSearchInput) {
+                customerSearchInput.focus();
+            }
+            return false;
         }
-        return false;
-    }
-    
-    // 验证联系人
-    if (!contactIdInput.value) {
-        alert(window.i18nTexts.pleaseSelectContact);
-        contactIdInput.focus();
-        return false;
+        
+        // 验证联系人
+        if (!contactIdInput.value) {
+            alert(window.i18nTexts.pleaseSelectContact);
+            contactIdInput.focus();
+            return false;
+        }
     }
     {% endif %}
     
@@ -688,11 +758,24 @@ async function submitExpenseFormWithFiles() {
         const formData = new FormData();
         
         // 添加基本表单数据
+        const noCustomerMode = {% if not expense.customer_id %}true{% else %}false{% endif %};
+        
         formData.append('title', document.getElementById('title').value.trim());
         formData.append('description', document.getElementById('description').value);
-        formData.append('customer_id', document.getElementById('customer_id').value);
-        formData.append('contact_id', document.getElementById('contact_id').value);
-        formData.append('project_id', document.getElementById('project_id').value);
+        formData.append('no_customer_mode', noCustomerMode ? '1' : '0');
+        
+        if (!noCustomerMode) {
+            // 常规模式：添加客户相关信息
+            formData.append('customer_id', document.getElementById('customer_id').value);
+            formData.append('contact_id', document.getElementById('contact_id').value);
+            formData.append('project_id', document.getElementById('project_id').value);
+        } else {
+            // 不关联客户模式：设置空值
+            formData.append('customer_id', '');
+            formData.append('contact_id', '');
+            formData.append('project_id', '');
+        }
+        
         formData.append('currency', document.getElementById('currency').value);
         
         // 获取明细数据

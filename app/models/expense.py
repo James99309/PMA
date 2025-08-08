@@ -40,8 +40,8 @@ class Expense(db.Model):
     description = Column(Text)  # 报销说明
     
     # 关联信息
-    customer_id = Column(Integer, ForeignKey('companies.id'), nullable=False)  # 客户（必须）
-    contact_id = Column(Integer, ForeignKey('contacts.id'), nullable=False)  # 联系人（必须）
+    customer_id = Column(Integer, ForeignKey('companies.id'), nullable=True)  # 客户（支持不关联模式）
+    contact_id = Column(Integer, ForeignKey('contacts.id'), nullable=True)  # 联系人（支持不关联模式）
     project_id = Column(Integer, ForeignKey('projects.id'), nullable=True)  # 项目（可选）
     # 移除action_id，因为明细表中会有具体的描述
     

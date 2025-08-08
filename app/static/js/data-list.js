@@ -105,8 +105,9 @@ function setupDataList(config) {
             config.filter.ajax_params.mobile = isMobileDevice() ? 'true' : 'false';
             
             // 传递无限滚动配置给筛选搜索组件
-            if (config.infinite_scroll) {
-                config.filter.infinite_scroll = config.infinite_scroll;
+            const infiniteScrollConfig = config.table && config.table.infinite_scroll ? config.table.infinite_scroll : config.infinite_scroll;
+            if (infiniteScrollConfig) {
+                config.filter.infinite_scroll = infiniteScrollConfig;
             }
             
             // 添加数据列表的成功回调
@@ -133,10 +134,11 @@ function setupDataList(config) {
                 updateListItemCount(data.total_count || 0, data.total_count || 0, isFiltered);
                 
                 // 更新无限滚动状态
-                if (config.infinite_scroll && config.infinite_scroll.enabled) {
+                const infiniteScrollConfig = config.table && config.table.infinite_scroll ? config.table.infinite_scroll : config.infinite_scroll;
+                if (infiniteScrollConfig && infiniteScrollConfig.enabled) {
                     // 筛选时重置状态
                     resetInfiniteScrollState();
-                    // 设置正确的当前偏移量（基于实际加载的数据量）
+                    // 设置正确的当前偏移量（筛选后重新开始，使用实际加载的数据量）
                     infiniteScrollState.currentOffset = data.loaded_count || 0;
                     // 更新hasMore状态
                     infiniteScrollState.hasMore = data.has_more !== false; // 默认为true，除非明确为false
@@ -165,15 +167,18 @@ function setupDataList(config) {
     }
     
     // 自动初始化无限滚动功能（如果启用）
+    const infiniteScrollConfig = config.table && config.table.infinite_scroll ? config.table.infinite_scroll : config.infinite_scroll;
     console.log('🔍 检查无限滚动配置:', {
         ajax_mode: config.ajax_mode,
-        infinite_scroll: config.infinite_scroll,
-        enabled: config.infinite_scroll && config.infinite_scroll.enabled
+        infinite_scroll: infiniteScrollConfig,
+        enabled: infiniteScrollConfig && infiniteScrollConfig.enabled
     });
     
-    if (config.ajax_mode && config.infinite_scroll && config.infinite_scroll.enabled) {
+    if (config.ajax_mode && infiniteScrollConfig && infiniteScrollConfig.enabled) {
         console.log('🔄 自动初始化无限滚动功能');
-        setupInfiniteScroll(config);
+        // 将无限滚动配置传递给setupInfiniteScroll函数
+        const configWithInfiniteScroll = { ...config, infinite_scroll: infiniteScrollConfig };
+        setupInfiniteScroll(configWithInfiniteScroll);
     } else {
         console.log('⚠️ 无限滚动未启用或配置不完整');
     }
@@ -397,8 +402,9 @@ function loadInitialData(config) {
     url.searchParams.set('offset', 0);
     
     // 使用无限滚动配置的分页大小，如果没有配置则使用默认20
-    const pageSize = (config.infinite_scroll && config.infinite_scroll.page_size) ? 
-        config.infinite_scroll.page_size : 20;
+    const infiniteScrollConfig = config.table && config.table.infinite_scroll ? config.table.infinite_scroll : config.infinite_scroll;
+    const pageSize = (infiniteScrollConfig && infiniteScrollConfig.page_size) ? 
+        infiniteScrollConfig.page_size : 20;
     url.searchParams.set('limit', pageSize);
     
     // 发送AJAX请求
@@ -426,6 +432,14 @@ function loadInitialData(config) {
             // 根据实际加载的数据量更新当前偏移量
             infiniteScrollState.currentOffset = data.loaded_count || 0;
             infiniteScrollState.hasMore = data.has_more !== false;
+            
+            // 如果初始加载就有数据且还有更多数据，立即尝试检查滚动位置
+            if (data.loaded_count > 0 && data.has_more && window.debugInfiniteScroll) {
+                setTimeout(() => {
+                    console.log('🔄 初始加载完成，检查是否需要自动加载更多数据...');
+                    window.debugInfiniteScroll.checkScrollPosition();
+                }, 100);
+            }
             
             console.log('🔄 初始加载完成，设置无限滚动状态:', {
                 initialLoadComplete: infiniteScrollState.initialLoadComplete,
@@ -632,6 +646,19 @@ function setupInfiniteScroll(config) {
             const tableRect = targetContainer.getBoundingClientRect();
             const tableBottom = tableRect.bottom + windowScrollTop;
             
+            // 调试日志：显示滚动检测参数
+            console.log(`📏 滚动检测参数:`, {
+                windowScrollTop: Math.round(windowScrollTop),
+                windowHeight: Math.round(windowHeight),
+                tableBottom: Math.round(tableBottom),
+                scrollThreshold: scrollThreshold,
+                triggerPoint: Math.round(tableBottom - scrollThreshold),
+                currentPosition: Math.round(windowScrollTop + windowHeight),
+                shouldTrigger: windowScrollTop + windowHeight >= tableBottom - scrollThreshold,
+                hasMore: infiniteScrollState.hasMore,
+                isLoading: infiniteScrollState.isLoading
+            });
+            
             // 当滚动接近表格底部时触发加载
             if (windowScrollTop + windowHeight >= tableBottom - scrollThreshold) {
                 console.log(`🔄 窗口滚动触发加载更多数据 (阈值: ${scrollThreshold}px, 设备: ${isMobile ? '移动端' : '桌面端'})`);
@@ -760,6 +787,15 @@ function setupInfiniteScroll(config) {
     
     // 监听筛选重置事件（全局状态管理，不需要本地重置函数）
     document.addEventListener('filterReset', resetInfiniteScrollState);
+    
+    // 暴露调试方法到全局作用域
+    window.debugInfiniteScroll = {
+        checkScrollPosition: checkScrollPosition,
+        loadMoreData: loadMoreData,
+        getState: () => infiniteScrollState,
+        resetState: resetInfiniteScrollState,
+        getConfig: () => scrollConfig
+    };
     document.addEventListener('filterSubmit', resetInfiniteScrollState);
     
     console.log('✅ 无限滚动功能初始化完成');

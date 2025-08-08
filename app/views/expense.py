@@ -650,16 +650,24 @@ def create_expense():
             # 获取主表表单数据
             title = request.form.get('title', '').strip()
             description = request.form.get('description', '').strip()
-            customer_id = request.form.get('customer_id', type=int)
-            contact_id = request.form.get('contact_id', type=int)
-            project_id = request.form.get('project_id', type=int) or None
+            no_customer_mode = request.form.get('no_customer_mode') == '1'
+            customer_id = request.form.get('customer_id', type=int) if not no_customer_mode else None
+            contact_id = request.form.get('contact_id', type=int) if not no_customer_mode else None
+            project_id = request.form.get('project_id', type=int) if not no_customer_mode else None
             expense_currency = request.form.get('currency', 'CNY').strip()  # 报销单主货币
-            logger.info(f"用户选择的报销单主货币: {expense_currency}")
+            logger.info(f"用户选择的报销单主货币: {expense_currency}, 不关联客户模式: {no_customer_mode}")
             
             # 数据验证
-            if not all([customer_id, contact_id]):
-                flash(_('请填写所有必填字段（客户和联系人）'), 'error')
-                return redirect(url_for('expense.create_expense'))
+            if no_customer_mode:
+                # 不关联客户模式：验证报销说明必填
+                if not description:
+                    flash(_('不关联客户模式下，报销说明为必填项'), 'error')
+                    return redirect(url_for('expense.create_expense'))
+            else:
+                # 常规模式：验证客户和联系人
+                if not all([customer_id, contact_id]):
+                    flash(_('请填写所有必填字段（客户和联系人）'), 'error')
+                    return redirect(url_for('expense.create_expense'))
             
             # 获取报销明细数据 - 支持两种数据格式
             detail_data = {}
@@ -812,10 +820,6 @@ def create_expense():
             
             # 如果没有填写报销主题，则自动生成
             if not title:
-                # 获取客户信息
-                customer = Company.query.get(customer_id)
-                customer_name = customer.company_name if customer else '未知客户'
-                
                 # 获取当前用户账户
                 current_user_account = current_user.username if current_user else ''
                 
@@ -823,8 +827,15 @@ def create_expense():
                 now = datetime.now()
                 time_str = now.strftime('%y%m%d%H%S')
                 
-                # 生成报销主题：客户名称-用户账户-YYDDHHS
-                title = f"{customer_name}-{current_user_account}-{time_str}"
+                if no_customer_mode:
+                    # 不关联客户模式：不关联（报销说明前6个字）-账号-序号
+                    description_prefix = description[:6] if description else '报销'
+                    title = f"不关联（{description_prefix}）-{current_user_account}-{time_str}"
+                else:
+                    # 常规模式：客户名称-用户账户-YYDDHHS
+                    customer = Company.query.get(customer_id)
+                    customer_name = customer.company_name if customer else '未知客户'
+                    title = f"{customer_name}-{current_user_account}-{time_str}"
             
             # 创建报销单（主表）
             expense_obj = Expense(
@@ -1043,9 +1054,22 @@ def create_expense():
                 flash(f'创建报销单失败: {str(e)}', 'error')
     
     # GET请求，显示创建表单
+    # 获取用户最近一次报销的货币作为默认值
+    last_expense_currency = 'CNY'  # 默认人民币
+    try:
+        last_expense = Expense.query.filter_by(owner_id=current_user.id)\
+                                   .order_by(Expense.created_at.desc())\
+                                   .first()
+        if last_expense and last_expense.currency:
+            last_expense_currency = last_expense.currency
+            logger.info(f"用户 {current_user.username} 最近报销货币: {last_expense_currency}")
+    except Exception as e:
+        logger.warning(f"获取最近报销货币失败: {e}")
+    
     return render_template('expense/create_expense.html',
                          currency_options=get_currency_type_options(),
-                         expense_categories=EXPENSE_CATEGORIES)
+                         expense_categories=EXPENSE_CATEGORIES,
+                         default_currency=last_expense_currency)
 
 @expense.route('/<int:id>')
 @login_required
@@ -1192,20 +1216,32 @@ def edit_expense(id):
                 title = request.form.get('title', '').strip()
                 if not title:
                     return jsonify({'success': False, 'message': '报销主题不能为空'}), 400
-                    
-                customer_id = request.form.get('customer_id', type=int)
-                if not customer_id:
-                    return jsonify({'success': False, 'message': '请选择关联客户'}), 400
-                    
-                contact_id = request.form.get('contact_id', type=int)
-                if not contact_id:
-                    return jsonify({'success': False, 'message': '请选择联系人'}), 400
+                
+                # 检查不关联客户模式
+                no_customer_mode = request.form.get('no_customer_mode') == '1'
+                logger.info(f"编辑模式检测到不关联客户模式: {no_customer_mode}")
+                
+                if not no_customer_mode:
+                    # 常规模式：验证客户和联系人
+                    customer_id = request.form.get('customer_id', type=int)
+                    if not customer_id:
+                        return jsonify({'success': False, 'message': '请选择关联客户'}), 400
+                        
+                    contact_id = request.form.get('contact_id', type=int)
+                    if not contact_id:
+                        return jsonify({'success': False, 'message': '请选择联系人'}), 400
+                        
+                    expense_obj.customer_id = customer_id
+                    expense_obj.contact_id = contact_id
+                    expense_obj.project_id = request.form.get('project_id', type=int) or None
+                else:
+                    # 不关联客户模式：设置为空值
+                    expense_obj.customer_id = None
+                    expense_obj.contact_id = None
+                    expense_obj.project_id = None
                 
                 expense_obj.title = title
                 expense_obj.description = request.form.get('description', '').strip()
-                expense_obj.customer_id = customer_id
-                expense_obj.contact_id = contact_id
-                expense_obj.project_id = request.form.get('project_id', type=int) or None
                 
                 # 保存用户明确选择的货币，确保不被后续逻辑覆盖
                 user_selected_currency = request.form.get('currency', 'CNY')

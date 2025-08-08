@@ -101,15 +101,32 @@ def get_next_level_approver(user):
     
     current_app.logger.debug(f"查找用户 {user.username} 的上一级领导")
     
-    # 如果用户本身就是管理员，寻找其他管理员作为托底审批人
+    # 如果用户本身就是管理员，处理管理员审批逻辑
     if user.role == 'admin':
-        current_app.logger.debug(f"用户 {user.username} 是管理员，寻找其他管理员作为托底审批人")
+        current_app.logger.debug(f"用户 {user.username} 是管理员，处理管理员审批逻辑")
         
-        # 查找其他管理员（排除自己）
-        other_admin = User.query.filter_by(role='admin').filter(User.id != user.id).first()
-        if other_admin:
-            current_app.logger.debug(f"找到其他管理员作为托底审批人: {other_admin.username}")
-            return other_admin
+        # 优先查找主管理员（username='admin'）作为审批人
+        main_admin = User.query.filter_by(role='admin', username='admin').first()
+        
+        if main_admin:
+            if user.id != main_admin.id:
+                # 如果当前用户不是主管理员，由主管理员审批
+                current_app.logger.debug(f"找到主管理员作为审批人: {main_admin.username}")
+                return main_admin
+            else:
+                # 如果当前用户就是主管理员，返回自己（自审）
+                current_app.logger.debug(f"主管理员自审: {main_admin.username}")
+                return main_admin
+        else:
+            # 如果没有找到主管理员，查找ID最小的管理员作为主管理员
+            primary_admin = User.query.filter_by(role='admin').order_by(User.id.asc()).first()
+            if primary_admin:
+                if user.id != primary_admin.id:
+                    current_app.logger.debug(f"找到首个管理员作为审批人: {primary_admin.username}")
+                    return primary_admin
+                else:
+                    current_app.logger.debug(f"首个管理员自审: {primary_admin.username}")
+                    return primary_admin
         
         # 如果没有其他管理员，查找CEO
         ceo = User.query.filter_by(role='ceo').filter(User.id != user.id).first()

@@ -215,7 +215,14 @@ def list_users():
             'show_header': True,
             'enhanced_striping': True,  # 启用斑马线
             'fixed_height_scroll': False,  # 暂时禁用内部滚动
-            'infinite_scroll': False,  # 暂时禁用无限加载
+            'infinite_scroll': {  # 无限滚动配置
+                'enabled': True,
+                'page_size': 30,  # 增加初始加载数量，确保产生滚动条
+                'scroll_threshold': 300,  # 增加触发阈值，更容易触发
+                'container_selector': '.table-responsive',
+                'scroll_mode': 'window'
+            },
+            'min_height': 'calc(100vh - 300px)',  # 设置表格最小高度，确保产生滚动条
             'columns': [
                 {
                     'key': 'id',
@@ -300,9 +307,11 @@ def list_users():
 def list_users_ajax():
     """用户列表AJAX筛选API"""
     try:
-        # 第一步：测试参数获取
+        # 获取所有筛选参数
         search = request.args.get('search', '').strip()
         status = request.args.get('status', '')
+        role = request.args.get('role', '')
+        company = request.args.get('company', '')
         offset = request.args.get('offset', 0, type=int)
         limit = request.args.get('limit', 20, type=int)
         
@@ -315,10 +324,18 @@ def list_users_ajax():
                 db.or_(
                     User.username.ilike(f'%{search}%'),
                     User.real_name.ilike(f'%{search}%'),
-                    User.company.ilike(f'%{search}%'),
+                    User.company_name.ilike(f'%{search}%'),
                     User.email.ilike(f'%{search}%')
                 )
             )
+        
+        # 应用角色筛选
+        if role:
+            query = query.filter(User.role == role)
+        
+        # 应用公司筛选
+        if company:
+            query = query.filter(User.company_name == company)
         
         # 应用状态筛选
         if status == 'active':
@@ -432,9 +449,11 @@ def list_users_ajax():
 def list_users_ajax_full():
     """用户列表AJAX筛选API"""
     try:
-        # 获取搜索和筛选参数
+        # 获取所有筛选参数
         search = request.args.get('search', '').strip()
         status = request.args.get('status', '')
+        role = request.args.get('role', '')
+        company = request.args.get('company', '')
         
         # 分页参数
         offset = request.args.get('offset', 0, type=int)
@@ -449,10 +468,18 @@ def list_users_ajax_full():
                 db.or_(
                     User.username.ilike(f'%{search}%'),
                     User.real_name.ilike(f'%{search}%'),
-                    User.company.ilike(f'%{search}%'),
+                    User.company_name.ilike(f'%{search}%'),
                     User.email.ilike(f'%{search}%')
                 )
             )
+        
+        # 应用角色筛选
+        if role:
+            query = query.filter(User.role == role)
+        
+        # 应用公司筛选
+        if company:
+            query = query.filter(User.company_name == company)
         
         # 应用状态筛选
         if status == 'active':

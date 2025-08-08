@@ -2037,7 +2037,9 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
     <div class="card-body p-0">
         <!-- 桌面端表格布局 -->
         <div class="table-responsive data-list-table-responsive{% if table_config.fixed_height_scroll %} fixed-height-scroll{% endif %}{% if table_config.infinite_scroll %} infinite-scroll-container{% endif %}"
-             {% if table_config.max_height %}style="max-height: {{ table_config.max_height }}; overflow-y: auto;"{% endif %}>
+             {% if table_config.max_height or table_config.min_height %}
+             style="{% if table_config.max_height %}max-height: {{ table_config.max_height }}; overflow-y: auto;{% endif %}{% if table_config.min_height %}min-height: {{ table_config.min_height }};{% endif %}"
+             {% endif %}>
             <table class="table table-hover mb-0 data-list-table{% if table_config.enhanced_striping %} table-striped{% endif %}{% if table_config.compact %} table-sm{% endif %}"
                 {% if table_config.show_header|default(true) %}
                 <thead class="table-light">
