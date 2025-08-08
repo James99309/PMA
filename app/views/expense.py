@@ -668,7 +668,6 @@ def create_expense():
             expense_details_json = request.form.get('expense_details')
             if expense_details_json:
                 try:
-                    import json
                     detail_list = json.loads(expense_details_json)
                     for index, detail in enumerate(detail_list):
                         detail_data[index] = detail
@@ -788,7 +787,6 @@ def create_expense():
                     if isinstance(invoice_images, str):
                         # 如果是字符串，尝试解析为JSON
                         try:
-                            import json
                             invoice_images = json.loads(invoice_images)
                         except (json.JSONDecodeError, ValueError):
                             invoice_images = []
@@ -961,8 +959,11 @@ def create_expense():
                 
                 # 更新明细的发票数据
                 if processed_images:
-                    import json
                     detail_obj.invoice_images = json.dumps(processed_images)
+                    logger.info(f"明细 {index}: 最终保存 {len(processed_images)} 张图片到数据库")
+                else:
+                    detail_obj.invoice_images = None
+                    logger.info(f"明细 {index}: 清空图片数据（无图片）")
             
             # 确保用户选择的货币不被覆盖
             if expense_obj.currency != expense_currency:
@@ -1309,17 +1310,20 @@ def edit_expense(id):
                 expense_obj.total_amount = total_amount
                 
             else:
-                # 常规编辑模式：删除并重新创建所有明细
-                logger.info("常规编辑模式：重新创建所有明细")
-                existing_details = ExpenseDetail.query.filter_by(expense_id=expense_obj.id).all()
-                for detail in existing_details:
-                    db.session.delete(detail)
-                db.session.flush()  # 确保删除操作被执行
+                # 新的简单编辑模式：智能增量更新，无需删除重建
+                logger.info("简单编辑模式：智能增量更新明细")
                 
-                # 重新创建明细
+                # 获取现有明细，按ID排序以保持顺序
+                existing_details = ExpenseDetail.query.filter_by(expense_id=expense_obj.id).order_by(ExpenseDetail.id).all()
+                existing_detail_ids = [d.id for d in existing_details]
+                logger.info(f"现有明细数量: {len(existing_details)}, IDs: {existing_detail_ids}")
+                
                 total_amount = 0.0
+                processed_detail_ids = set()
+                
                 for index in sorted(detail_data.keys()):
                     detail = detail_data[index]
+                    logger.info(f"处理明细 {index}: {detail.get('description', 'N/A')}")
                     
                     # 验证必填字段
                     required_fields = ['expense_category', 'expense_date', 'description', 'invoice_amount', 'currency']
@@ -1337,172 +1341,170 @@ def edit_expense(id):
                     if invoice_amount <= 0:
                         return jsonify({'success': False, 'message': f'第{index+1}条明细的发票金额必须大于0'}), 400
                     
-                    # 先创建明细对象（不包含发票数据）
-                    detail_obj = ExpenseDetail(
-                        expense_id=expense_obj.id,
-                        expense_date=expense_date,
-                        expense_category=detail['expense_category'],
-                        description=detail['description'].strip(),
-                        document_count=document_count,
-                        currency=detail['currency'],
-                        invoice_amount=invoice_amount,
-                        current_amount=current_amount,
-                        amount=current_amount,  # 向后兼容
-                        exchange_rate=exchange_rate,
-                        invoice_images=None  # 先不设置发票数据
-                    )
-                    db.session.add(detail_obj)
-                    db.session.flush()  # 获取明细ID
-                
-                # 处理发票图片数据（使用与创建报销单相同的逻辑）
-                processed_images = []
-                
-                # 处理新上传的文件（AJAX FormData方式）
-                if index in file_data and 'files' in file_data[index]:
-                    for file_index, file_obj in file_data[index]['files'].items():
-                        if file_obj and file_obj.filename:
+                    # 智能处理明细：更新现有或创建新的
+                    detail_obj = None
+                    if index < len(existing_details):
+                        # 更新现有明细
+                        detail_obj = existing_details[index]
+                        logger.info(f"更新现有明细 ID={detail_obj.id}")
+                        
+                        detail_obj.expense_date = expense_date
+                        detail_obj.expense_category = detail['expense_category']
+                        detail_obj.description = detail['description'].strip()
+                        detail_obj.document_count = document_count
+                        detail_obj.currency = detail['currency']
+                        detail_obj.invoice_amount = invoice_amount
+                        detail_obj.current_amount = current_amount
+                        detail_obj.amount = current_amount  # 向后兼容
+                        detail_obj.exchange_rate = exchange_rate
+                        
+                        processed_detail_ids.add(detail_obj.id)
+                        
+                    else:
+                        # 创建新明细
+                        logger.info(f"创建新明细 {index}")
+                        detail_obj = ExpenseDetail(
+                            expense_id=expense_obj.id,
+                            expense_date=expense_date,
+                            expense_category=detail['expense_category'],
+                            description=detail['description'].strip(),
+                            document_count=document_count,
+                            currency=detail['currency'],
+                            invoice_amount=invoice_amount,
+                            current_amount=current_amount,
+                            amount=current_amount,  # 向后兼容
+                            exchange_rate=exchange_rate,
+                            invoice_images=None  # 稍后处理图片
+                        )
+                        db.session.add(detail_obj)
+                        db.session.flush()  # 获取ID
+                        processed_detail_ids.add(detail_obj.id)
+                    
+                    # 处理该明细的图片数据（智能保留现有+添加新的）
+                    processed_images = []
+                    
+                    # 1. 保留现有图片（如果是更新模式且明细已存在）
+                    if index < len(existing_details) and detail_obj.invoice_images:
+                        try:
+                            existing_images = json.loads(detail_obj.invoice_images)
+                            if isinstance(existing_images, list):
+                                processed_images.extend(existing_images)
+                                logger.info(f"明细 {index}: 保留了 {len(existing_images)} 张现有图片")
+                        except (json.JSONDecodeError, TypeError):
+                            logger.warning(f"明细 {index}: 无法解析现有图片数据")
+                    
+                    # 2. 处理通过表单传递的现有图片（前端已存在的图片）
+                    existing_images_count = 0
+                    for key, value in request.form.items():
+                        if key.startswith(f'details[{index}][existing_invoices][') and key.endswith('][url]'):
+                            # 解析已存在文件信息
+                            file_index = key.split('][')[2]
+                            existing_url = value
+                            existing_filename = request.form.get(f'details[{index}][existing_invoices][{file_index}][filename]', '')
+                            existing_size_str = request.form.get(f'details[{index}][existing_invoices][{file_index}][size]', '0')
+                            
                             try:
-                                # 验证文件类型
-                                allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'heif', 'pdf'}
-                                file_ext = file_obj.filename.rsplit('.', 1)[1].lower() if '.' in file_obj.filename else ''
-                                if file_ext not in allowed_extensions:
-                                    current_app.logger.warning(f"不支持的文件类型: {file_obj.filename}")
-                                    continue
-                                
-                                # 检查文件大小 (最大5MB)
-                                file_obj.seek(0, 2)
-                                file_size = file_obj.tell()
-                                file_obj.seek(0)
-                                
-                                max_size = 5 * 1024 * 1024  # 5MB
-                                if file_size > max_size:
-                                    current_app.logger.warning(f"文件过大: {file_obj.filename} ({file_size} bytes)")
-                                    continue
-                                
-                                # 检测运行环境 - 优先判断是否在云端部署
-                                current_app.logger.info(f"开始处理文件上传: {file_obj.filename}, 大小: {file_size} bytes")
-                                cloud_env = is_cloud_environment()
-                                current_app.logger.info(f"环境检测结果: 云端环境={cloud_env}")
-                                if cloud_env:
-                                    # 云端环境，使用Supabase存储
-                                    try:
-                                        from app.utils.supabase_client import get_supabase_client
-                                        supabase_client = get_supabase_client()
-                                        
-                                        # 生成文件名
-                                        import uuid
-                                        filename = f"expense_invoice_{detail_obj.id}_{uuid.uuid4().hex[:8]}.{file_ext}"
-                                        
-                                        # 上传到Supabase
-                                        image_url = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, filename)
-                                        
-                                        if not image_url:
-                                            raise Exception("Supabase上传失败")
-                                            
-                                        current_app.logger.info(f"发票文件上传到Supabase成功: {image_url}")
-                                        
-                                    except Exception as supabase_error:
-                                        current_app.logger.error(f"云端Supabase上传失败: {str(supabase_error)}")
-                                        # 添加详细错误信息
-                                        import traceback
-                                        current_app.logger.error(f"Supabase上传详细错误: {traceback.format_exc()}")
-                                        current_app.logger.error(f"文件信息: filename={file_obj.filename}, size={file_size}, ext={file_ext}")
-                                        # 云端上传失败，跳过这个文件
-                                        continue
-                                else:
-                                    # 本地环境，使用本地文件系统
-                                    import uuid
-                                    upload_dir = os.path.join(current_app.static_folder, 'uploads', 'invoices', str(detail_obj.id))
-                                    os.makedirs(upload_dir, exist_ok=True)
-                                    
-                                    # 生成文件名
-                                    filename = f"invoice_{uuid.uuid4().hex[:8]}.{file_ext}"
-                                    file_path = os.path.join(upload_dir, filename)
-                                    
-                                    # 保存文件
-                                    file_obj.save(file_path)
-                                    
-                                    # 生成URL
-                                    relative_path = os.path.join('uploads', 'invoices', str(detail_obj.id), filename).replace('\\', '/')
-                                    raw_url = f"/static/{relative_path}"
-                                    image_url = normalize_file_url(raw_url, 'invoice_image')
-                                
-                                # 获取原始文件名（如果有元数据）
-                                original_filename = file_obj.filename
-                                if index in file_data and 'meta' in file_data[index] and file_index in file_data[index]['meta']:
-                                    original_filename = file_data[index]['meta'][file_index].get('filename', file_obj.filename)
-                                
-                                # 添加到处理后的图片列表
+                                existing_size = int(existing_size_str) if existing_size_str else 0
+                            except (ValueError, TypeError):
+                                existing_size = 0
+                            
+                            # 保留现有图片记录（即使URL为空）
+                            if existing_filename or existing_url or existing_size:
                                 processed_images.append({
-                                    'filename': original_filename,
-                                    'url': image_url,
-                                    'size': file_size,
-                                    'uploaded_at': datetime.now().isoformat()
+                                    'filename': existing_filename,
+                                    'url': existing_url,
+                                    'size': existing_size
                                 })
-                                
-                                current_app.logger.info(f"发票图片保存成功: {image_url}")
-                                
-                            except Exception as file_error:
-                                current_app.logger.error(f"发票图片处理失败: {file_error}")
-                                continue
+                                existing_images_count += 1
+                                logger.info(f"明细 {index}: 保留现有图片 - {existing_filename}")
+                    
+                    # 3. 处理新上传的文件（简化逻辑）
+                    if index in file_data and 'files' in file_data[index]:
+                        for file_index, file_obj in file_data[index]['files'].items():
+                            if file_obj and file_obj.filename:
+                                # 使用现有的文件上传逻辑（简化版本）
+                                try:
+                                    # 验证文件类型
+                                    allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'heif', 'pdf'}
+                                    file_ext = file_obj.filename.rsplit('.', 1)[1].lower() if '.' in file_obj.filename else ''
+                                    if file_ext not in allowed_extensions:
+                                        logger.warning(f"明细 {index}: 不支持的文件类型 - {file_obj.filename}")
+                                        continue
+                                    
+                                    # 检查文件大小
+                                    file_obj.seek(0, 2)
+                                    file_size = file_obj.tell()
+                                    file_obj.seek(0)
+                                    
+                                    max_size = 5 * 1024 * 1024  # 5MB
+                                    if file_size > max_size:
+                                        logger.warning(f"明细 {index}: 文件过大 - {file_obj.filename}")
+                                        continue
+                                    
+                                    # 云端上传逻辑
+                                    cloud_env = is_cloud_environment()
+                                    if cloud_env:
+                                        try:
+                                            from app.utils.supabase_client import get_supabase_client
+                                            supabase_client = get_supabase_client()
+                                            
+                                            import uuid
+                                            filename = f"expense_invoice_{detail_obj.id}_{uuid.uuid4().hex[:8]}.{file_ext}"
+                                            image_url = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, filename)
+                                            
+                                            if not image_url:
+                                                raise Exception("Supabase上传失败")
+                                                
+                                            logger.info(f"明细 {index}: Supabase上传成功 - {image_url}")
+                                            
+                                        except Exception as supabase_error:
+                                            logger.error(f"明细 {index}: Supabase上传失败 - {supabase_error}")
+                                            continue
+                                    else:
+                                        # 本地上传逻辑
+                                        import uuid
+                                        upload_dir = os.path.join(current_app.static_folder, 'uploads', 'invoices', str(detail_obj.id))
+                                        os.makedirs(upload_dir, exist_ok=True)
+                                        
+                                        filename = f"invoice_{uuid.uuid4().hex[:8]}.{file_ext}"
+                                        file_path = os.path.join(upload_dir, filename)
+                                        file_obj.save(file_path)
+                                        
+                                        relative_path = os.path.join('uploads', 'invoices', str(detail_obj.id), filename).replace('\\', '/')
+                                        image_url = f"/static/{relative_path}"
+                                    
+                                    # 添加到图片列表
+                                    processed_images.append({
+                                        'filename': file_obj.filename,
+                                        'url': image_url,
+                                        'size': file_size,
+                                        'uploaded_at': datetime.now().isoformat()
+                                    })
+                                    logger.info(f"明细 {index}: 新增图片 - {file_obj.filename}")
+                                    
+                                except Exception as file_error:
+                                    logger.error(f"明细 {index}: 文件处理异常 - {file_error}")
+                                    continue
+                    
+                    # 4. 保存图片数据到数据库
+                    if processed_images:
+                        detail_obj.invoice_images = json.dumps(processed_images)
+                        logger.info(f"明细 {index}: 最终保存 {len(processed_images)} 张图片到数据库")
+                    else:
+                        detail_obj.invoice_images = None
+                        logger.info(f"明细 {index}: 无图片数据")
+                    
+                    # 累计总金额
+                    total_amount += current_amount
                 
-                # 处理临时上传的文件（通过表单数据传递）
-                for key, value in request.form.items():
-                    if key.startswith(f'details[{index}][temp_invoices][') and key.endswith('][url]'):
-                        # 解析临时文件信息
-                        file_index = key.split('][')[2]
-                        temp_url = value
-                        temp_filename = request.form.get(f'details[{index}][temp_invoices][{file_index}][filename]', '')
-                        temp_size_str = request.form.get(f'details[{index}][temp_invoices][{file_index}][size]', '0')
-                        
-                        try:
-                            temp_size = int(temp_size_str) if temp_size_str else 0
-                        except (ValueError, TypeError):
-                            temp_size = 0
-                        
-                        if temp_url:
-                            processed_images.append({
-                                'filename': temp_filename,
-                                'url': temp_url,
-                                'size': temp_size,
-                                'uploaded_at': datetime.now().isoformat()
-                            })
+                # 删除未处理的旧明细（如果有的话）
+                for old_detail in existing_details:
+                    if old_detail.id not in processed_detail_ids:
+                        logger.info(f"删除未使用的明细 ID={old_detail.id}")
+                        db.session.delete(old_detail)
                 
-                # 处理已存在的文件（通过表单数据传递）
-                for key, value in request.form.items():
-                    if key.startswith(f'details[{index}][existing_invoices][') and key.endswith('][url]'):
-                        # 解析已存在文件信息
-                        file_index = key.split('][')[2]
-                        existing_url = value
-                        existing_filename = request.form.get(f'details[{index}][existing_invoices][{file_index}][filename]', '')
-                        existing_size_str = request.form.get(f'details[{index}][existing_invoices][{file_index}][size]', '0')
-                        
-                        try:
-                            existing_size = int(existing_size_str) if existing_size_str else 0
-                        except (ValueError, TypeError):
-                            existing_size = 0
-                        
-                        if existing_url:
-                            processed_images.append({
-                                'filename': existing_filename,
-                                'url': existing_url,
-                                'size': existing_size
-                            })
-                
-                # 处理已有的发票数据（JSON格式，向后兼容）
-                if detail.get('invoice_images'):
-                    for invoice in detail['invoice_images']:
-                        if not invoice.get('pending') and (invoice.get('url') or invoice.get('path')):
-                            processed_images.append(invoice)
-                
-                # 更新明细的发票数据
-                if processed_images:
-                    import json
-                    detail_obj.invoice_images = json.dumps(processed_images)
-                total_amount += current_amount
-            
-            # 更新报销单总金额
-            expense_obj.total_amount = total_amount
+                # 更新报销单总金额
+                expense_obj.total_amount = total_amount
             
             # 确保用户选择的货币不被覆盖（仅在常规编辑模式下）
             if not approval_edit_mode:
@@ -1563,7 +1565,6 @@ def edit_expense(id):
             # 处理发票图片数据
             if detail.invoice_images:
                 try:
-                    import json
                     images_data = json.loads(detail.invoice_images) if isinstance(detail.invoice_images, str) else detail.invoice_images
                     if isinstance(images_data, list):
                         for img in images_data:

@@ -736,8 +736,8 @@ async function submitExpenseFormWithFiles() {
                         formData.append(`details[${index}][temp_invoices][${fileIndex}][url]`, invoice.url || '');
                         formData.append(`details[${index}][temp_invoices][${fileIndex}][filename]`, invoice.filename || '');
                         formData.append(`details[${index}][temp_invoices][${fileIndex}][size]`, invoice.size || 0);
-                    } else if (invoice.url) {
-                        // 已存在的文件，传递元数据
+                    } else if (invoice.url || !invoice.pending) {
+                        // 已存在的文件，传递元数据（包括url为空的现有图片）
                         formData.append(`details[${index}][existing_invoices][${fileIndex}][url]`, invoice.url || '');
                         formData.append(`details[${index}][existing_invoices][${fileIndex}][filename]`, invoice.filename || '');
                         formData.append(`details[${index}][existing_invoices][${fileIndex}][size]`, invoice.size || 0);

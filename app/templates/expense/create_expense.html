@@ -708,7 +708,7 @@ async function submitExpenseFormWithFiles() {
                         formData.append(`details[${index}][invoice_files][${fileIndex}]`, invoice.file);
                         formData.append(`details[${index}][invoice_meta][${fileIndex}][filename]`, invoice.filename || '');
                         formData.append(`details[${index}][invoice_meta][${fileIndex}][size]`, invoice.size || 0);
-                    } else if (invoice.url) {
+                    } else if (invoice.url || !invoice.pending) {
                         // 已上传的文件，只传递元数据（避免JSON嵌套问题）
                         formData.append(`details[${index}][existing_invoices][${fileIndex}][url]`, invoice.url || '');
                         formData.append(`details[${index}][existing_invoices][${fileIndex}][filename]`, invoice.filename || '');
