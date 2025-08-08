@@ -16,9 +16,12 @@
                 <span class="ms-3 text-muted fs-5">{{ _('欢迎') }}, {{ current_user.real_name or current_user.username or session.get('username', _('访客')) }}</span>
             </div>
             <div class="col-auto text-end">
-                <!-- 操作按钮组 -->
-                <div class="btn-toolbar justify-content-end" role="toolbar">
-                    <!-- 仪表盘通常没有页面级操作按钮 -->
+                <!-- 当前版本号显示 -->
+                <div class="version-display">
+                    <span class="text-muted me-1">{{ _('版本号') }}</span>
+                    <span style="font-family: 'Roboto Mono', 'Courier New', monospace; font-weight: 500;">
+                        {{ app_version if app_version else '1.3.5' }}
+                    </span>
                 </div>
             </div>
         </div>
@@ -129,7 +132,7 @@
                                         <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="text-decoration-none text-primary">{{ company.company_name }}</a>
                                     </div>
                                     <div class="mt-2">
-                                        <span style="background: #f5f5f5; color: #3098af; border-radius: 8px; padding: 2px 8px; font-weight: 600; font-size: 0.75rem; display: inline-block;">{{ company.company_type|company_type_label if company.company_type else _('未分类') }}</span>
+                                        <span style="background: #f5f5f5; color: #3098af; border-radius: 8px; padding: 2px 8px; font-weight: 600; font-size: 0.75rem; display: inline-block;">{{ company.company_type|company_type_label(get_current_language()) if company.company_type else _('未分类') }}</span>
                                     </div>
                                 </div>
                                 <div class="text-end" style="color: #888; font-size: 0.75rem; min-width: 90px;">
@@ -406,11 +409,15 @@
                     </li>
                     <li class="list-group-item d-flex justify-content-between">
                         <span>{{ _('系统版本') }}:</span>
-                        <span>{{ current_version_number or '1.2.0' }}</span>
+                        <span style="font-family: 'Roboto Mono', 'Courier New', monospace; font-weight: 500;">{{ current_version_number or '1.3.5' }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>{{ _('最近升级时间') }}:</span>
+                        <span style="font-family: 'Roboto Mono', 'Courier New', monospace; font-weight: 400;">{{ last_upgrade_time.strftime('%Y-%m-%d %H:%M') if last_upgrade_time else '2025-08-07 17:07' }}</span>
                     </li>
                     <li class="list-group-item d-flex justify-content-between">
                         <span>{{ _('上次登录') }}:</span>
-                        <span>{{ now.strftime('%Y-%m-%d %H:%M:%S') if now is defined else _('暂无记录') }}</span>
+                        <span style="font-family: 'Roboto Mono', 'Courier New', monospace; font-weight: 400;">{{ now.strftime('%Y-%m-%d %H:%M:%S') if now is defined else _('暂无记录') }}</span>
                     </li>
                 </ul>
             </div>
@@ -466,7 +473,9 @@ window.i18nTexts = {
     replyDeleteSuccess: '{{ _("回复删除成功") }}',
     loadRepliesFailed: '{{ _("加载回复失败") }}',
     submitFailed: '{{ _("提交失败") }}',
-    deleteFailed: '{{ _("删除失败") }}'
+    deleteFailed: '{{ _("删除失败") }}',
+    replied: '{{ _("已回复") }}',
+    noReplyBadge: '{{ _("无回复") }}'
 };
 
 // 最近工作记录功能
@@ -694,8 +703,8 @@ function renderTableRecords(records) {
             <td class="text-center" style="white-space: nowrap; font-size: 0.9rem;">
                 <div>
                     ${record.has_reply ? 
-                        `<span class="badge bg-success" style="cursor: pointer;" onclick="toggleRepliesView(${record.id})">已回复 (${record.reply_count})</span>` : 
-                        `<span class="badge bg-secondary" style="cursor: pointer;" onclick="toggleReplyForm(${record.id})">无回复</span>`
+                        `<span class="badge bg-success" style="cursor: pointer;" onclick="toggleRepliesView(${record.id})">${window.i18nTexts.replied} (${record.reply_count})</span>` : 
+                        `<span class="badge bg-secondary" style="cursor: pointer;" onclick="toggleReplyForm(${record.id})">${window.i18nTexts.noReplyBadge}</span>`
                     }
                     <!-- 回复输入框 -->
                     <div class="reply-form-container mt-2" id="reply-form-${record.id}" style="display: none;">
@@ -747,7 +756,7 @@ function renderTableRecords(records) {
                                              id="new-reply-content-${record.id}"></textarea>
                                     <div class="d-flex gap-1">
                                         <button class="btn btn-primary btn-sm" onclick="submitNewReply(${record.id})">
-                                            <i class="fas fa-paper-plane me-1"></i>${window.i18nTexts.submit}回复
+                                            <i class="fas fa-paper-plane me-1"></i>${window.i18nTexts.submitReply}
                                         </button>
                                         <button class="btn btn-secondary btn-sm" onclick="cancelNewReply(${record.id})">
                                             ${window.i18nTexts.cancel}
@@ -815,8 +824,8 @@ function createMobileCard(record) {
             </div>
             <div>
                 ${record.has_reply ? 
-                    `<span class="badge bg-success" style="cursor: pointer; font-size: 0.9rem;" onclick="toggleRepliesView(${record.id})">已回复 (${record.reply_count})</span>` : 
-                    `<span class="badge bg-secondary" style="cursor: pointer; font-size: 0.9rem;" onclick="toggleReplyForm(${record.id})">无回复</span>`
+                    `<span class="badge bg-success" style="cursor: pointer; font-size: 0.9rem;" onclick="toggleRepliesView(${record.id})">${window.i18nTexts.replied} (${record.reply_count})</span>` : 
+                    `<span class="badge bg-secondary" style="cursor: pointer; font-size: 0.9rem;" onclick="toggleReplyForm(${record.id})">${window.i18nTexts.noReplyBadge}</span>`
                 }
             </div>
         </div>
@@ -884,7 +893,7 @@ function createMobileCard(record) {
             <div class="card border-0 shadow-sm">
                 <div class="card-body p-2">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="card-title mb-0 text-primary" style="font-size: 0.9rem;">回复记录</h6>
+                        <h6 class="card-title mb-0 text-primary" style="font-size: 0.9rem;">${window.i18nTexts.replyRecord}</h6>
                         <div>
                             <button class="btn btn-sm btn-outline-primary me-1" onclick="addNewReply(${record.id})" style="font-size: 0.8rem;">
                                 <i class="fas fa-plus me-1"></i>${window.i18nTexts.reply}
@@ -910,7 +919,7 @@ function createMobileCard(record) {
                                  id="new-reply-content-${record.id}"></textarea>
                         <div class="d-flex gap-1">
                             <button class="btn btn-primary btn-sm" onclick="submitNewReply(${record.id})">
-                                <i class="fas fa-paper-plane me-1"></i>${window.i18nTexts.submit}回复
+                                <i class="fas fa-paper-plane me-1"></i>${window.i18nTexts.submitReply}
                             </button>
                             <button class="btn btn-secondary btn-sm" onclick="cancelNewReply(${record.id})">
                                 ${window.i18nTexts.cancel}

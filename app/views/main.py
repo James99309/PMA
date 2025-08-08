@@ -22,14 +22,25 @@ def index():
     logger.info('Accessing index page')
     logger.info('User logged in, rendering index page')
     
-    # 获取当前版本信息
+    # 获取当前版本信息和最近升级时间
     try:
         from app.models.version_management import VersionRecord
+        from app.utils.version_auto_generator import get_current_app_version
+        
         current_version = VersionRecord.get_current_version()
-        version_number = current_version.version_number if current_version else '1.2.0'
+        version_number = current_version.version_number if current_version else '1.3.5'
+        
+        # 获取统一的应用版本
+        app_version = get_current_app_version()
+        
+        # 获取最近升级时间
+        last_upgrade_time = current_version.release_date if current_version else None
+        
     except Exception as e:
         logger.warning(f"获取版本信息失败: {str(e)}")
-        version_number = '1.2.0'  # 默认版本号
+        version_number = '1.3.5'  # 默认版本号
+        app_version = '1.3.5'
+        last_upgrade_time = None
     
     # 查询当前用户可见的最近5个项目，按更新时间倒序
     recent_projects = []
@@ -147,7 +158,9 @@ def index():
                          recent_quotations=recent_quotations, 
                          recent_companies=recent_companies,
                          recent_expenses=recent_expenses,
-                         current_version_number=version_number)
+                         current_version_number=version_number,
+                         app_version=app_version,
+                         last_upgrade_time=last_upgrade_time)
 
 @main.route('/api/recent_work_records')
 @login_required

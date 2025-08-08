@@ -15,10 +15,13 @@ from flask_login import login_required, current_user
 from app.extensions import db
 from app.models.version_management import VersionRecord, UpgradeLog, FeatureChange, SystemMetrics
 from app.utils.version_check import get_app_version, update_version_check
+from app.utils.version_auto_generator import version_generator, get_current_app_version, auto_upgrade_version, get_upgrade_info
 from app.decorators import admin_required
 from datetime import datetime, timedelta
 import json
 import os
+import re
+import glob
 import logging
 
 logger = logging.getLogger(__name__)
@@ -415,4 +418,318 @@ def api_record_system_metrics():
     except Exception as e:
         db.session.rollback()
         logger.error(f"记录系统指标失败: {str(e)}")
-        return jsonify({'success': False, 'message': '记录系统指标失败', 'error': str(e)}), 500 
+        return jsonify({'success': False, 'message': '记录系统指标失败', 'error': str(e)}), 500
+
+@version_management_bp.route('/api/versions')
+@login_required
+def api_versions():
+    """获取版本列表API - 支持分页"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        
+        # 限制每页数量，防止过量请求
+        if per_page > 50:
+            per_page = 50
+        
+        versions = VersionRecord.query.order_by(VersionRecord.release_date.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        
+        result = {
+            'versions': [version.to_dict() for version in versions.items],
+            'total': versions.total,
+            'pages': versions.pages,
+            'current_page': page,
+            'per_page': per_page,
+            'has_next': versions.has_next,
+            'has_prev': versions.has_prev
+        }
+        
+        return jsonify({'success': True, 'data': result})
+        
+    except Exception as e:
+        logger.error(f"获取版本列表失败: {str(e)}")
+        return jsonify({'success': False, 'message': '获取版本列表失败', 'error': str(e)}), 500
+
+@version_management_bp.route('/api/upgrade-statistics')
+@login_required
+def api_upgrade_statistics():
+    """获取升级统计信息API"""
+    try:
+        stats = {
+            'total_upgrades': UpgradeLog.query.count(),
+            'success_count': UpgradeLog.query.filter_by(status='success').count(),
+            'failed_count': UpgradeLog.query.filter_by(status='failed').count(),
+            'rollback_count': UpgradeLog.query.filter_by(status='rollback').count()
+        }
+        
+        return jsonify({'success': True, 'data': stats})
+        
+    except Exception as e:
+        logger.error(f"获取升级统计信息失败: {str(e)}")
+        return jsonify({'success': False, 'message': '获取升级统计信息失败', 'error': str(e)}), 500
+
+@version_management_bp.route('/api/auto-upgrade', methods=['POST'])
+@login_required
+@admin_required
+def api_auto_upgrade():
+    """自动升级版本API"""
+    try:
+        # 执行自动版本升级
+        new_version = auto_upgrade_version()
+        
+        if new_version:
+            return jsonify({
+                'success': True, 
+                'message': '自动升级成功',
+                'data': new_version.to_dict()
+            })
+        else:
+            return jsonify({
+                'success': False, 
+                'message': '自动升级失败，可能没有新的Git提交'
+            }), 400
+            
+    except Exception as e:
+        logger.error(f"自动升级版本失败: {str(e)}")
+        return jsonify({'success': False, 'message': '自动升级失败', 'error': str(e)}), 500
+
+@version_management_bp.route('/api/generate-next-version', methods=['POST'])
+@login_required
+@admin_required
+def api_generate_next_version():
+    """生成下一个版本号API"""
+    try:
+        data = request.get_json()
+        change_type = data.get('change_type', 'patch')  # major, minor, patch
+        
+        # 生成下一个版本号
+        next_version = version_generator.generate_next_version(change_type)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'next_version': next_version,
+                'change_type': change_type
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"生成下一个版本号失败: {str(e)}")
+        return jsonify({'success': False, 'message': '生成版本号失败', 'error': str(e)}), 500
+
+@version_management_bp.route('/api/upgrade-info')
+@login_required
+def api_upgrade_info():
+    """获取当前版本升级信息API"""
+    try:
+        version_number = request.args.get('version')
+        logger.info(f"获取版本升级信息: {version_number}")
+        
+        upgrade_info = get_upgrade_info(version_number)
+        logger.info(f"基础升级信息获取: {'成功' if upgrade_info else '失败'}")
+        
+        # 获取完整的版本升级文档
+        if upgrade_info:
+            try:
+                # 获取当前版本记录对象
+                current_version_record = VersionRecord.get_current_version()
+                
+                # 读取详细的升级文档
+                upgrade_docs = get_detailed_upgrade_docs(current_version_record)
+                logger.info(f"详细文档获取: {'成功' if upgrade_docs else '失败'}")
+                
+                if upgrade_docs:
+                    # 限制文档数量和大小以避免响应过大
+                    if len(upgrade_docs) > 5:
+                        upgrade_docs = upgrade_docs[:5]
+                        logger.info("限制文档数量为5个")
+                    
+                    # 限制每个文档的章节内容长度
+                    for doc in upgrade_docs:
+                        if doc.get('sections'):
+                            for section_key, section_content in doc['sections'].items():
+                                if len(section_content) > 2000:
+                                    doc['sections'][section_key] = section_content[:2000] + '...'
+                    
+                    upgrade_info['detailed_docs'] = upgrade_docs
+                    logger.info(f"添加了 {len(upgrade_docs)} 个详细文档")
+                
+            except Exception as doc_error:
+                logger.warning(f"获取详细文档失败，使用基础信息: {str(doc_error)}")
+                # 即使详细文档失败，仍然返回基础信息
+                pass
+            
+            return jsonify({'success': True, 'data': upgrade_info})
+        else:
+            logger.warning("未找到版本升级信息")
+            return jsonify({'success': False, 'message': '未找到版本升级信息'}), 404
+            
+    except Exception as e:
+        logger.error(f"获取版本升级信息失败: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': '获取升级信息失败', 'error': str(e)}), 500
+
+
+def get_detailed_upgrade_docs(version_record):
+    """获取版本的详细升级文档"""
+    if not version_record or not version_record.git_commit:
+        return None
+    
+    try:
+        # 基于Git提交查找相关的文档文件
+        docs = []
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+        
+        # 查找可能的升级文档文件
+        doc_patterns = [
+            '*IMPROVEMENTS_SUMMARY.md',
+            '*EXPANSION_SUMMARY.md', 
+            '*UPGRADE_SUMMARY.md',
+            '*CHANGES.md'
+        ]
+        
+        for pattern in doc_patterns:
+            matching_files = glob.glob(os.path.join(project_root, pattern))
+            for file_path in matching_files:
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        
+                        # 解析文档内容
+                        doc_info = parse_upgrade_document(content, os.path.basename(file_path))
+                        if doc_info:
+                            docs.append(doc_info)
+                            
+                except Exception as e:
+                    logger.warning(f"读取升级文档失败 {file_path}: {str(e)}")
+                    continue
+        
+        return docs if docs else None
+        
+    except Exception as e:
+        logger.error(f"获取详细升级文档失败: {str(e)}")
+        return None
+
+
+def parse_upgrade_document(content, filename):
+    """解析升级文档内容"""
+    try:
+        lines = content.split('\n')
+        
+        # 提取标题
+        title = ""
+        for line in lines[:5]:
+            if line.startswith('# '):
+                title = line[2:].strip()
+                break
+        
+        # 提取主要章节
+        sections = {}
+        current_section = None
+        current_content = []
+        
+        for line in lines:
+            # 检测章节标题
+            if line.startswith('## '):
+                if current_section and current_content:
+                    sections[current_section] = '\n'.join(current_content).strip()
+                current_section = line[3:].strip()
+                current_content = []
+            elif current_section:
+                current_content.append(line)
+        
+        # 添加最后一个章节
+        if current_section and current_content:
+            sections[current_section] = '\n'.join(current_content).strip()
+        
+        # 提取关键信息
+        doc_info = {
+            'filename': filename,
+            'title': title or filename.replace('.md', '').replace('_', ' ').title(),
+            'sections': sections
+        }
+        
+        # 提取改进统计
+        stats = extract_improvement_stats(content)
+        if stats:
+            doc_info['stats'] = stats
+            
+        # 提取主要改进点
+        improvements = extract_key_improvements(content)
+        if improvements:
+            doc_info['key_improvements'] = improvements
+            
+        return doc_info
+        
+    except Exception as e:
+        logger.error(f"解析升级文档失败: {str(e)}")
+        return None
+
+
+def extract_improvement_stats(content):
+    """提取改进统计信息"""
+    try:
+        stats = {}
+        
+        # 查找统计信息
+        patterns = [
+            (r'(\d+).*文件.*变更', 'files_changed'),
+            (r'(\d+).*行.*增加', 'lines_added'),
+            (r'(\d+).*行.*删除', 'lines_removed'),
+            (r'(\d+).*功能', 'features'),
+            (r'(\d+).*修复', 'fixes'),
+            (r'(\d+).*改进', 'improvements')
+        ]
+        
+        for pattern, key in patterns:
+            matches = re.findall(pattern, content)
+            if matches:
+                stats[key] = int(matches[0])
+        
+        return stats if stats else None
+        
+    except Exception as e:
+        return None
+
+
+def extract_key_improvements(content):
+    """提取关键改进点"""
+    try:
+        improvements = []
+        
+        # 查找改进点标记
+        lines = content.split('\n')
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+            
+            # 查找标记改进的行
+            if any(marker in line_stripped for marker in ['✅', '🎯', '💡', '🛠️', '🚀']):
+                # 提取改进描述
+                improvement_text = re.sub(r'^[✅🎯💡🛠️🚀\s\*\-\d\.]*', '', line_stripped).strip()
+                if improvement_text and len(improvement_text) > 10:
+                    improvements.append({
+                        'text': improvement_text,
+                        'type': get_improvement_type(line_stripped)
+                    })
+        
+        return improvements[:10] if improvements else None  # 限制最多10个要点
+        
+    except Exception as e:
+        return None
+
+
+def get_improvement_type(line):
+    """根据标记获取改进类型"""
+    if '✅' in line:
+        return 'completed'
+    elif '🎯' in line:
+        return 'target'
+    elif '💡' in line:
+        return 'insight'
+    elif '🛠️' in line:
+        return 'fix'
+    elif '🚀' in line:
+        return 'enhancement'
+    else:
+        return 'general' 

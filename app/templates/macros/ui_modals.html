@@ -38,7 +38,7 @@
 {% endmacro %}
 
 {% macro render_change_project_owner_modal(modal_id, action_url, all_users, current_owner_id, user_tree_data=None) %}
-<!-- 创建只包含厂商企业用户的树形数据 -->
+<!-- 项目拥有者选择支持所有企业用户（包括归属关系下的非厂商企业用户） -->
 {% set vendor_tree_data = [] %}
 {% if user_tree_data %}
   {% for company in user_tree_data %}

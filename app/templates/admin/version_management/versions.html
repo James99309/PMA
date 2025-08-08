@@ -1,0 +1,574 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button %}
+
+{% block title %}版本列表 - PMA系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 标准化页面头部区域 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">版本列表</h1>
+            </div>
+            <div class="col text-end">
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    <button class="btn btn-primary me-2" onclick="showCreateVersionModal()">
+                        <i class="fas fa-plus"></i> 创建新版本
+                    </button>
+                    <a href="{{ url_for('version_management.index') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> 返回主页
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 版本统计概览 -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card bg-gradient-primary text-white">
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <h3 class="mb-0" id="total-versions">{{ versions.total }}</h3>
+                            <small>总版本数</small>
+                        </div>
+                        <div class="col-md-3">
+                            <h3 class="mb-0" id="current-version-display">
+                                {% for version in versions.items %}
+                                    {% if version.is_current %}{{ version.version_number }}{% endif %}
+                                {% endfor %}
+                            </h3>
+                            <small>当前版本</small>
+                        </div>
+                        <div class="col-md-3">
+                            <h3 class="mb-0" id="latest-release">
+                                {% if versions.items %}{{ versions.items[0].release_date.strftime('%Y-%m-%d') }}{% endif %}
+                            </h3>
+                            <small>最新发布</small>
+                        </div>
+                        <div class="col-md-3">
+                            <h3 class="mb-0" id="total-features">
+                                {% set total_features = versions.items | sum(attribute='total_features') %}
+                                {{ total_features }}
+                            </h3>
+                            <small>累计功能数</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 版本时间轴容器 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-timeline"></i> 版本发展时间轴
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- 版本时间轴 -->
+                    <div class="version-timeline" id="version-timeline">
+                        <!-- 动态加载的版本内容将在这里显示 -->
+                    </div>
+                    
+                    <!-- 加载更多按钮 -->
+                    <div class="text-center mt-4" id="load-more-container">
+                        <button class="btn btn-outline-primary" id="load-more-btn" onclick="loadMoreVersions()">
+                            <i class="fas fa-chevron-down"></i> 加载更多版本
+                        </button>
+                    </div>
+                    
+                    <!-- 加载状态 -->
+                    <div class="text-center mt-3" id="loading-indicator" style="display: none;">
+                        <i class="fas fa-spinner fa-spin"></i> 正在加载...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 创建版本模态框 -->
+<div class="modal fade" id="createVersionModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">创建新版本</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <form id="createVersionForm">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="version_number">版本号 *</label>
+                                <input type="text" class="form-control" id="version_number" name="version_number" 
+                                       placeholder="例如: 1.0.0" required>
+                                <small class="form-text text-muted">建议使用语义化版本号</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="version_name">版本名称 *</label>
+                                <input type="text" class="form-control" id="version_name" name="version_name" 
+                                       placeholder="例如: 重大功能更新" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="description">版本描述 *</label>
+                        <textarea class="form-control" id="description" name="description" rows="3" 
+                                  placeholder="描述此版本的主要功能和改进..." required></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="total_features">新增功能数</label>
+                                <input type="number" class="form-control" id="total_features" name="total_features" 
+                                       value="0" min="0">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="total_fixes">修复问题数</label>
+                                <input type="number" class="form-control" id="total_fixes" name="total_fixes" 
+                                       value="0" min="0">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="total_improvements">改进数量</label>
+                                <input type="number" class="form-control" id="total_improvements" name="total_improvements" 
+                                       value="0" min="0">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="is_current" name="is_current">
+                        <label class="form-check-label" for="is_current">
+                            设置为当前版本
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">创建版本</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+.version-timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.version-timeline::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, #007bff, #28a745);
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 30px;
+    padding-left: 40px;
+    animation: fadeInUp 0.6s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -23px;
+    top: 0;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    border: 3px solid #007bff;
+    z-index: 2;
+}
+
+.timeline-item.current::before {
+    background: #28a745;
+    border-color: #28a745;
+    box-shadow: 0 0 0 4px rgba(40, 167, 69, 0.2);
+}
+
+.timeline-content {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.timeline-content:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
+}
+
+.version-header {
+    display: flex;
+    justify-content: between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.version-number {
+    font-size: 1.4em;
+    font-weight: 600;
+    color: #495057;
+    margin: 0;
+}
+
+.version-date {
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+.version-name {
+    font-size: 1.1em;
+    color: #007bff;
+    margin: 5px 0;
+    font-weight: 500;
+}
+
+.version-stats {
+    display: flex;
+    gap: 15px;
+    margin: 15px 0;
+    flex-wrap: wrap;
+}
+
+.stat-badge {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 0.85em;
+    white-space: nowrap;
+}
+
+.stat-badge.features { border-color: #28a745; color: #28a745; }
+.stat-badge.fixes { border-color: #dc3545; color: #dc3545; }
+.stat-badge.improvements { border-color: #ffc107; color: #856404; }
+
+.version-description {
+    color: #6c757d;
+    line-height: 1.5;
+    margin-bottom: 15px;
+}
+
+.version-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.feature-preview {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 12px;
+    margin-top: 10px;
+}
+
+.feature-preview h6 {
+    color: #495057;
+    margin-bottom: 8px;
+    font-size: 0.9em;
+    font-weight: 600;
+}
+
+.feature-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.feature-list li {
+    padding: 3px 0;
+    font-size: 0.85em;
+    color: #6c757d;
+}
+
+.feature-list li::before {
+    content: '•';
+    color: #007bff;
+    margin-right: 8px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .version-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .version-stats {
+        justify-content: center;
+    }
+    
+    .timeline-item {
+        padding-left: 20px;
+    }
+    
+    .timeline-item::before {
+        left: -13px;
+        width: 12px;
+        height: 12px;
+    }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+let totalPages = {{ versions.pages }};
+let loading = false;
+
+$(document).ready(function() {
+    // 初始加载第一页数据
+    loadVersionsPage(1);
+});
+
+function loadVersionsPage(page) {
+    if (loading) return;
+    loading = true;
+    
+    $('#loading-indicator').show();
+    
+    $.get('/admin/version/api/versions', { page: page })
+        .done(function(response) {
+            if (response.success) {
+                renderVersions(response.data.versions, page === 1);
+                totalPages = response.data.total_pages;
+                currentPage = page;
+                
+                // 更新加载更多按钮状态
+                if (currentPage >= totalPages) {
+                    $('#load-more-container').hide();
+                } else {
+                    $('#load-more-container').show();
+                }
+            } else {
+                showAlert('加载版本失败: ' + response.message, 'danger');
+            }
+        })
+        .fail(function() {
+            showAlert('网络错误', 'danger');
+        })
+        .always(function() {
+            loading = false;
+            $('#loading-indicator').hide();
+        });
+}
+
+function loadMoreVersions() {
+    if (currentPage < totalPages) {
+        loadVersionsPage(currentPage + 1);
+    }
+}
+
+function renderVersions(versions, isFirstPage) {
+    const timeline = $('#version-timeline');
+    
+    if (isFirstPage) {
+        timeline.empty();
+    }
+    
+    versions.forEach(function(version) {
+        const versionHtml = createVersionItem(version);
+        timeline.append(versionHtml);
+    });
+}
+
+function createVersionItem(version) {
+    const currentBadge = version.is_current ? '<span class="badge badge-success ml-2">当前版本</span>' : '';
+    const currentClass = version.is_current ? 'current' : '';
+    
+    // 格式化日期
+    const releaseDate = new Date(version.release_date).toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+    
+    // 创建功能预览
+    let featurePreview = '';
+    if (version.total_features > 0 || version.total_fixes > 0 || version.total_improvements > 0) {
+        featurePreview = `
+            <div class="feature-preview">
+                <h6>版本亮点</h6>
+                <div class="feature-list">
+                    ${version.total_features > 0 ? `<li>新增 ${version.total_features} 个功能</li>` : ''}
+                    ${version.total_fixes > 0 ? `<li>修复 ${version.total_fixes} 个问题</li>` : ''}
+                    ${version.total_improvements > 0 ? `<li>优化 ${version.total_improvements} 项改进</li>` : ''}
+                </div>
+            </div>
+        `;
+    }
+    
+    return `
+        <div class="timeline-item ${currentClass}">
+            <div class="timeline-content">
+                <div class="version-header">
+                    <div>
+                        <h4 class="version-number">v${version.version_number}${currentBadge}</h4>
+                        <h5 class="version-name">${version.version_name || '未命名版本'}</h5>
+                    </div>
+                    <div class="version-date">${releaseDate}</div>
+                </div>
+                
+                <div class="version-stats">
+                    <span class="stat-badge features">
+                        <i class="fas fa-plus-circle"></i> ${version.total_features} 新功能
+                    </span>
+                    <span class="stat-badge fixes">
+                        <i class="fas fa-bug"></i> ${version.total_fixes} 修复
+                    </span>
+                    <span class="stat-badge improvements">
+                        <i class="fas fa-arrow-up"></i> ${version.total_improvements} 改进
+                    </span>
+                    <span class="stat-badge">
+                        <i class="fas fa-server"></i> ${version.environment}
+                    </span>
+                </div>
+                
+                <div class="version-description">
+                    ${version.description || '暂无描述'}
+                </div>
+                
+                ${featurePreview}
+                
+                <div class="version-actions">
+                    <a href="/admin/version/version/${version.id}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-eye"></i> 查看详情
+                    </a>
+                    ${!version.is_current ? `
+                        <button class="btn btn-sm btn-outline-success" onclick="setCurrentVersion('${version.version_number}')">
+                            <i class="fas fa-check"></i> 设为当前版本
+                        </button>
+                    ` : ''}
+                    <button class="btn btn-sm btn-outline-info" onclick="addFeatureChange(${version.id})">
+                        <i class="fas fa-plus"></i> 添加变更
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function setCurrentVersion(versionNumber) {
+    if (!confirm('确定要设置 v' + versionNumber + ' 为当前版本吗？')) {
+        return;
+    }
+    
+    $.ajax({
+        url: '/admin/version/api/set-current-version',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ version_number: versionNumber }),
+        success: function(response) {
+            if (response.success) {
+                showAlert('当前版本设置成功', 'success');
+                location.reload();
+            } else {
+                showAlert('设置失败: ' + response.message, 'danger');
+            }
+        },
+        error: function() {
+            showAlert('网络错误', 'danger');
+        }
+    });
+}
+
+function addFeatureChange(versionId) {
+    // 这里可以实现添加功能变更的模态框
+    showAlert('功能开发中...', 'info');
+}
+
+function showCreateVersionModal() {
+    $('#createVersionModal').modal('show');
+}
+
+$('#createVersionForm').on('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        version_number: $('#version_number').val(),
+        version_name: $('#version_name').val(),
+        description: $('#description').val(),
+        total_features: parseInt($('#total_features').val()) || 0,
+        total_fixes: parseInt($('#total_fixes').val()) || 0,
+        total_improvements: parseInt($('#total_improvements').val()) || 0,
+        environment: 'production',
+        is_current: $('#is_current').is(':checked')
+    };
+    
+    $.ajax({
+        url: '/admin/version/api/create-version',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(formData),
+        success: function(response) {
+            if (response.success) {
+                showAlert('版本创建成功', 'success');
+                $('#createVersionModal').modal('hide');
+                location.reload();
+            } else {
+                showAlert('创建失败: ' + response.message, 'danger');
+            }
+        },
+        error: function() {
+            showAlert('网络错误', 'danger');
+        }
+    });
+});
+
+function showAlert(message, type) {
+    const alert = $('<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
+        message +
+        '<button type="button" class="close" data-dismiss="alert">' +
+        '<span>&times;</span>' +
+        '</button>' +
+        '</div>');
+    
+    $('.container-fluid').prepend(alert);
+    
+    setTimeout(function() {
+        alert.alert('close');
+    }, 5000);
+}
+</script>
+{% endblock %}

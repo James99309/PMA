@@ -11,136 +11,54 @@
             <div class="col-auto">
                 <h1 class="page-title mb-0">版本管理</h1>
             </div>
-            <div class="col text-end">
-                <!-- 操作按钮组 -->
-                <div class="btn-toolbar justify-content-end" role="toolbar">
-                    <button class="btn btn-primary me-2" onclick="showCreateVersionModal()">
-                        <i class="fas fa-plus"></i> 创建新版本
-                    </button>
-                    <button class="btn btn-secondary" onclick="refreshVersionCheck()">
-                        <i class="fas fa-sync"></i> 刷新版本检查
-                    </button>
-                </div>
-            </div>
+            <!-- 操作按钮组已移除 -->
         </div>
     </div>
 
-    <!-- 版本统计卡片 -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="card-title">{{ version_stats.total_versions }}</h4>
-                            <p class="card-text">总版本数</p>
-                        </div>
-                        <div class="align-self-center">
-                            <i class="fas fa-tags fa-2x"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="card-title">{{ version_stats.successful_upgrades }}</h4>
-                            <p class="card-text">成功升级</p>
-                        </div>
-                        <div class="align-self-center">
-                            <i class="fas fa-check-circle fa-2x"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-warning text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="card-title">{{ version_stats.failed_upgrades }}</h4>
-                            <p class="card-text">失败升级</p>
-                        </div>
-                        <div class="align-self-center">
-                            <i class="fas fa-exclamation-triangle fa-2x"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="card-title">{{ version_stats.total_upgrades }}</h4>
-                            <p class="card-text">总升级次数</p>
-                        </div>
-                        <div class="align-self-center">
-                            <i class="fas fa-arrow-up fa-2x"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- 版本统计卡片已移除 -->
 
     <div class="row">
-        <!-- 当前版本信息 -->
+        <!-- 版本信息 -->
         <div class="col-md-6">
-            <div class="card">
+            <div class="card h-100">
                 <div class="card-header">
                     <h5 class="card-title">
-                        <i class="fas fa-star"></i> 当前版本信息
+                        <i class="fas fa-info-circle"></i> 版本信息
                     </h5>
                 </div>
-                <div class="card-body">
+                <div class="card-body" style="overflow-y: auto; max-height: 600px;">
                     {% if current_version %}
-                    <div class="version-info">
-                        <div class="row">
-                            <div class="col-sm-4"><strong>版本号:</strong></div>
-                            <div class="col-sm-8">
-                                <span class="badge badge-primary">{{ current_version.version_number }}</span>
+                    <div class="current-version-info">
+                        <!-- 当前版本号显示 -->
+                        <div class="current-version-header mb-3">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div class="version-display">
+                                    <h3 class="version-number mb-1">
+                                        v{{ current_version.version_number }}
+                                        <span class="badge bg-success text-white ms-2">当前版本</span>
+                                    </h3>
+                                    <div class="version-meta text-muted">
+                                        <small>
+                                            <i class="fas fa-calendar-alt"></i> 
+                                            {{ current_version.release_date.strftime('%Y年%m月%d日 %H:%M') }}
+                                            {% if current_version.git_commit %}
+                                            <span class="ml-3">
+                                                <i class="fab fa-git-alt"></i> 
+                                                {{ current_version.git_commit }}
+                                            </span>
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div class="row mt-2">
-                            <div class="col-sm-4"><strong>版本名称:</strong></div>
-                            <div class="col-sm-8">{{ current_version.version_name or '未设置' }}</div>
-                        </div>
-                        <div class="row mt-2">
-                            <div class="col-sm-4"><strong>发布日期:</strong></div>
-                            <div class="col-sm-8">{{ current_version.release_date.strftime('%Y-%m-%d %H:%M:%S') }}</div>
-                        </div>
-                        <div class="row mt-2">
-                            <div class="col-sm-4"><strong>环境:</strong></div>
-                            <div class="col-sm-8">
-                                <span class="badge badge-{{ 'success' if current_version.environment == 'production' else 'warning' }}">
-                                    {{ current_version.environment }}
-                                </span>
+                        
+                        <!-- 版本升级信息 -->
+                        <div class="version-upgrade-info" id="version-upgrade-info">
+                            <div class="text-center">
+                                <i class="fas fa-spinner fa-spin"></i> 正在加载升级信息...
                             </div>
                         </div>
-                        <div class="row mt-2">
-                            <div class="col-sm-4"><strong>功能统计:</strong></div>
-                            <div class="col-sm-8">
-                                <small class="text-muted">
-                                    新功能: {{ current_version.total_features }} | 
-                                    修复: {{ current_version.total_fixes }} | 
-                                    改进: {{ current_version.total_improvements }}
-                                </small>
-                            </div>
-                        </div>
-                        {% if current_version.description %}
-                        <div class="row mt-3">
-                            <div class="col-12">
-                                <strong>版本描述:</strong>
-                                <p class="mt-1">{{ current_version.description }}</p>
-                            </div>
-                        </div>
-                        {% endif %}
                     </div>
                     {% else %}
                     <div class="text-center text-muted">
@@ -155,7 +73,7 @@
 
         <!-- 系统状态 -->
         <div class="col-md-6">
-            <div class="card">
+            <div class="card h-100">
                 <div class="card-header">
                     <h5 class="card-title">
                         <i class="fas fa-heartbeat"></i> 系统状态
@@ -172,98 +90,7 @@
         </div>
     </div>
 
-    <!-- 最近版本和升级日志 -->
-    <div class="row mt-4">
-        <!-- 最近版本 -->
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-history"></i> 最近版本
-                    </h5>
-                    <a href="{{ url_for('version_management.versions') }}" class="btn btn-sm btn-outline-primary">
-                        查看全部
-                    </a>
-                </div>
-                <div class="card-body">
-                    {% if recent_versions %}
-                    <div class="list-group list-group-flush">
-                        {% for version in recent_versions %}
-                        <div class="list-group-item d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="mb-1">
-                                    {{ version.version_number }}
-                                    {% if version.is_current %}
-                                    <span class="badge badge-success">当前</span>
-                                    {% endif %}
-                                </h6>
-                                <p class="mb-1 text-muted">{{ version.version_name or '未命名版本' }}</p>
-                                <small class="text-muted">{{ version.release_date.strftime('%Y-%m-%d') }}</small>
-                            </div>
-                            <div>
-                                <a href="{{ url_for('version_management.version_detail', version_id=version.id) }}" 
-                                   class="btn btn-sm btn-outline-info">详情</a>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% else %}
-                    <div class="text-center text-muted">
-                        <i class="fas fa-inbox fa-2x mb-2"></i>
-                        <p>暂无版本记录</p>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-
-        <!-- 最近升级日志 -->
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-upload"></i> 最近升级
-                    </h5>
-                    <a href="{{ url_for('version_management.upgrade_logs') }}" class="btn btn-sm btn-outline-primary">
-                        查看全部
-                    </a>
-                </div>
-                <div class="card-body">
-                    {% if recent_upgrades %}
-                    <div class="list-group list-group-flush">
-                        {% for upgrade in recent_upgrades %}
-                        <div class="list-group-item">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">
-                                        {% if upgrade.from_version %}
-                                        {{ upgrade.from_version }} → {{ upgrade.to_version }}
-                                        {% else %}
-                                        初始版本 {{ upgrade.to_version }}
-                                        {% endif %}
-                                    </h6>
-                                    <p class="mb-1 text-muted">{{ upgrade.operator_name or '系统' }}</p>
-                                    <small class="text-muted">{{ upgrade.upgrade_date.strftime('%Y-%m-%d %H:%M') }}</small>
-                                </div>
-                                <div>
-                                    <span class="badge badge-{{ 'success' if upgrade.status == 'success' else 'danger' if upgrade.status == 'failed' else 'warning' }}">
-                                        {{ upgrade.status }}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% else %}
-                    <div class="text-center text-muted">
-                        <i class="fas fa-inbox fa-2x mb-2"></i>
-                        <p>暂无升级记录</p>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- 最近版本和升级日志部分已移除 -->
 </div>
 
 <!-- 创建版本模态框 -->
@@ -362,6 +189,7 @@
 <script>
 $(document).ready(function() {
     loadSystemStatus();
+    loadVersionUpgradeInfo();
 });
 
 function showCreateVersionModal() {
@@ -388,9 +216,12 @@ function displaySystemStatus(data) {
     
     let html = '<div class="row">';
     
-    // 应用版本
+    // 应用版本（使用统一版本管理）
     html += '<div class="col-12 mb-2">';
-    html += '<strong>应用版本:</strong> <span class="badge badge-info">' + (appInfo.app_version || '未知') + '</span>';
+    html += '<strong>统一版本:</strong> <span class="badge badge-primary">' + (appInfo.app_version || '未知') + '</span>';
+    if (dbVersion && dbVersion.version_number) {
+        html += ' <small class="text-muted">(数据库: ' + dbVersion.version_number + ')</small>';
+    }
     html += '</div>';
     
     // 环境信息
@@ -417,6 +248,186 @@ function displaySystemStatus(data) {
     html += '</div>';
     
     $('#system-status').html(html);
+}
+
+function loadVersionUpgradeInfo() {
+    console.log('🔄 开始加载版本升级信息...');
+    $.get('/admin/version/api/upgrade-info')
+        .done(function(response) {
+            console.log('📥 升级信息API响应:', response);
+            if (response.success && response.data) {
+                displayVersionUpgradeInfo(response.data);
+            } else {
+                console.log('⚠️ 无升级信息数据');
+                $('#version-upgrade-info').html('<div class="text-muted"><i class="fas fa-info-circle"></i> 暂无升级信息</div>');
+            }
+        })
+        .fail(function(xhr, status, error) {
+            console.error('❌ 升级信息加载失败:', error);
+            $('#version-upgrade-info').html('<div class="text-danger"><i class="fas fa-exclamation-triangle"></i> 加载升级信息失败: ' + error + '</div>');
+        });
+}
+
+function displayVersionUpgradeInfo(data) {
+    console.log('🎨 显示版本升级信息:', data);
+    
+    if (!data || !data.version) {
+        $('#version-upgrade-info').html('<div class="text-muted text-center"><i class="fas fa-info-circle"></i> 暂无升级信息</div>');
+        return;
+    }
+    
+    const version = data.version;
+    const changesByType = data.changes_by_type || {};
+    const detailedDocs = data.detailed_docs || [];
+    
+    let html = '<div class="upgrade-info-content">';
+    
+    // 显示详细升级文档
+    if (detailedDocs && detailedDocs.length > 0) {
+        html += '<div class="detailed-docs-section mb-3">';
+        html += '<div class="docs-header">';
+        html += '<h6><i class="fas fa-file-alt text-primary"></i> 详细升级说明</h6>';
+        html += '</div>';
+        
+        detailedDocs.forEach(function(doc, index) {
+            html += '<div class="upgrade-doc mb-3">';
+            html += '<div class="doc-title">' + doc.title + '</div>';
+            
+            // 显示关键改进点
+            if (doc.key_improvements && doc.key_improvements.length > 0) {
+                html += '<div class="key-improvements">';
+                doc.key_improvements.slice(0, 5).forEach(function(improvement) {
+                    const typeIcon = getImprovementIcon(improvement.type);
+                    html += '<div class="improvement-item">';
+                    html += '<i class="' + typeIcon + '"></i> ' + improvement.text;
+                    html += '</div>';
+                });
+                html += '</div>';
+            }
+            
+            // 显示统计信息
+            if (doc.stats) {
+                html += '<div class="doc-stats">';
+                if (doc.stats.files_changed) html += '<small class="text-muted me-3"><i class="fas fa-file"></i> ' + doc.stats.files_changed + ' 个文件</small>';
+                if (doc.stats.lines_added) html += '<small class="text-muted me-3"><i class="fas fa-plus text-success"></i> +' + doc.stats.lines_added + ' 行</small>';
+                if (doc.stats.lines_removed) html += '<small class="text-muted me-3"><i class="fas fa-minus text-danger"></i> -' + doc.stats.lines_removed + ' 行</small>';
+                html += '</div>';
+            }
+            
+            // 添加展开/收起按钮
+            if (Object.keys(doc.sections).length > 0) {
+                html += '<div class="doc-toggle mt-2">';
+                html += '<button class="btn btn-sm btn-outline-secondary" onclick="toggleDocDetails(' + index + ')">查看详细内容 <i class="fas fa-chevron-down"></i></button>';
+                html += '</div>';
+                
+                // 详细章节内容（默认隐藏）
+                html += '<div class="doc-details" id="doc-details-' + index + '" style="display: none;">';
+                html += '<div class="doc-content-scrollable">';
+                Object.keys(doc.sections).forEach(function(sectionTitle) {
+                    if (doc.sections[sectionTitle] && doc.sections[sectionTitle].trim()) {
+                        html += '<div class="doc-section mt-3">';
+                        html += '<h6 class="section-title">' + sectionTitle + '</h6>';
+                        html += '<div class="section-content">' + formatDocContent(doc.sections[sectionTitle]) + '</div>';
+                        html += '</div>';
+                    }
+                });
+                html += '</div>';
+                html += '</div>';
+            }
+            
+            html += '</div>';
+        });
+        
+        html += '</div>';
+    } else {
+        // 显示基础变更记录
+        let hasDetailedChanges = false;
+        const changeTypes = [
+            {key: 'feature', title: '新增功能', icon: 'fas fa-star text-success', limit: 3},
+            {key: 'fix', title: '问题修复', icon: 'fas fa-bug text-danger', limit: 3}, 
+            {key: 'improvement', title: '功能改进', icon: 'fas fa-arrow-up text-info', limit: 2}
+        ];
+        
+        changeTypes.forEach(function(type) {
+            const changes = changesByType[type.key] || [];
+            if (changes.length > 0) {
+                html += '<div class="change-section mb-3">';
+                html += '<div class="change-title"><i class="' + type.icon + '"></i> ' + type.title + '</div>';
+                html += '<ul class="change-list-simple">';
+                changes.slice(0, type.limit).forEach(function(change) {
+                    html += '<li>' + change.title + '</li>';
+                });
+                if (changes.length > type.limit) {
+                    html += '<li class="text-muted"><small>... 还有 ' + (changes.length - type.limit) + ' 项</small></li>';
+                }
+                html += '</ul>';
+                html += '</div>';
+                hasDetailedChanges = true;
+            }
+        });
+        
+        if (!hasDetailedChanges) {
+            html += '<div class="text-center text-muted">';
+            html += '<i class="fas fa-rocket"></i><br>';
+            html += '<small>当前版本包含完整的项目管理功能</small>';
+            html += '</div>';
+        }
+    }
+    
+    html += '</div>';
+    
+    console.log('✅ 版本升级信息HTML已生成');
+    $('#version-upgrade-info').html(html);
+}
+
+function getImprovementIcon(type) {
+    const icons = {
+        'completed': 'fas fa-check-circle text-success',
+        'target': 'fas fa-bullseye text-warning',
+        'insight': 'fas fa-lightbulb text-info',
+        'fix': 'fas fa-wrench text-danger',
+        'enhancement': 'fas fa-rocket text-primary',
+        'general': 'fas fa-circle text-muted'
+    };
+    return icons[type] || icons['general'];
+}
+
+function toggleDocDetails(index) {
+    const detailsDiv = $('#doc-details-' + index);
+    const button = detailsDiv.siblings('.doc-toggle').find('button');
+    const icon = button.find('i');
+    
+    if (detailsDiv.is(':visible')) {
+        detailsDiv.slideUp();
+        button.html('查看详细内容 <i class="fas fa-chevron-down"></i>');
+    } else {
+        detailsDiv.slideDown();
+        button.html('收起详细内容 <i class="fas fa-chevron-up"></i>');
+    }
+}
+
+function formatDocContent(content) {
+    if (!content) return '';
+    
+    // 简单的 Markdown 格式化
+    let formatted = content
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // 粗体
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')  // 斜体
+        .replace(/`(.*?)`/g, '<code>$1</code>')  // 代码
+        .replace(/^- (.*$)/gm, '<li>$1</li>')  // 列表项
+        .replace(/^\d+\. (.*$)/gm, '<li>$1</li>');  // 数字列表
+    
+    // 包装列表
+    formatted = formatted.replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>');
+    
+    // 处理换行
+    formatted = formatted.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>');
+    
+    if (formatted && !formatted.startsWith('<')) {
+        formatted = '<p>' + formatted + '</p>';
+    }
+    
+    return formatted;
 }
 
 function refreshVersionCheck() {
@@ -492,5 +503,458 @@ function showAlert(message, type) {
         alert.alert('close');
     }, 5000);
 }
+
+
+// 自动升级版本
+function autoUpgradeVersion() {
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 升级中...';
+    btn.disabled = true;
+    
+    if (!confirm('确认要基于最新Git提交自动升级版本吗？这将创建一个新的版本记录。')) {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        return;
+    }
+    
+    $.post('/admin/version/api/auto-upgrade')
+        .done(function(response) {
+            if (response.success) {
+                showAlert('自动升级成功：' + response.data.version_number, 'success');
+                setTimeout(function() {
+                    location.reload();
+                }, 2000);
+            } else {
+                showAlert('自动升级失败: ' + response.message, 'warning');
+            }
+        })
+        .fail(function() {
+            showAlert('网络错误', 'danger');
+        })
+        .always(function() {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
+}
+
+// 生成下一个版本号
+function generateNextVersion() {
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 生成中...';
+    btn.disabled = true;
+    
+    // 弹框选择版本类型
+    const changeType = prompt('请选择版本类型：\n- major (主版本，如 1.0.0 → 2.0.0)\n- minor (次版本，如 1.0.0 → 1.1.0)\n- patch (补丁版本，如 1.0.0 → 1.0.1)\n\n请输入类型名称:', 'patch');
+    
+    if (!changeType) {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        return;
+    }
+    
+    if (!['major', 'minor', 'patch'].includes(changeType.toLowerCase())) {
+        showAlert('版本类型必须是 major、minor 或 patch', 'warning');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        return;
+    }
+    
+    $.ajax({
+        url: '/admin/version/api/generate-next-version',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ change_type: changeType.toLowerCase() }),
+        success: function(response) {
+            if (response.success) {
+                // 将生成的版本号填入创建版本表单
+                $('#version_number').val(response.data.next_version);
+                $('#version_name').val(changeType === 'major' ? '重大版本更新' : 
+                                     changeType === 'minor' ? '功能增强版本' : '问题修复版本');
+                showCreateVersionModal();
+                showAlert('已生成版本号：' + response.data.next_version + '，请完善版本信息', 'info');
+            } else {
+                showAlert('生成版本号失败: ' + response.message, 'danger');
+            }
+        },
+        error: function() {
+            showAlert('网络错误', 'danger');
+        }
+    }).always(function() {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    });
+}
 </script>
+
+<!-- 添加样式 -->
+<style>
+.current-version-info {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.version-header .version-number {
+    color: #495057;
+    font-weight: 600;
+    margin: 0;
+}
+
+.version-header .version-name {
+    color: #007bff;
+    font-weight: 500;
+    margin: 0;
+}
+
+.stat-card {
+    padding: 15px 10px;
+    border-radius: 8px;
+    margin-bottom: 0;
+    transition: transform 0.2s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+}
+
+.stat-card .stat-number {
+    font-size: 1.8em;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.stat-card .stat-label {
+    font-size: 0.85em;
+    opacity: 0.9;
+    margin-top: 5px;
+}
+
+.version-details {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 15px;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.detail-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.detail-label {
+    color: #6c757d;
+    font-weight: 500;
+    font-size: 0.9em;
+}
+
+.detail-value {
+    color: #495057;
+    font-weight: 500;
+}
+
+.version-description {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 15px;
+}
+
+.version-description h6 {
+    margin-bottom: 10px;
+    font-weight: 600;
+}
+
+.description-content {
+    color: #6c757d;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.quick-actions {
+    text-align: center;
+}
+
+.quick-actions .btn-group .btn {
+    padding: 8px 15px;
+}
+
+/* 当前版本号显示样式 */
+.current-version-header {
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 15px;
+}
+
+.version-number {
+    color: #2c3e50;
+    font-weight: 700;
+    font-size: 1.8em;
+    margin: 0;
+}
+
+.version-meta {
+    margin-top: 5px;
+}
+
+.version-meta i {
+    margin-right: 4px;
+}
+
+.badge-success {
+    background-color: #28a745;
+    font-size: 0.75em;
+    padding: 4px 8px;
+}
+
+/* 升级信息样式 - 简化版 */
+.version-upgrade-info {
+    padding: 15px 0 10px 0;
+}
+
+.upgrade-info-content {
+    font-size: 0.9em;
+}
+
+.change-section {
+    margin-left: 0;
+    padding-left: 0;
+}
+
+.change-title {
+    font-size: 0.95em;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 10px;
+}
+
+.change-list {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.change-list li {
+    margin-bottom: 8px;
+    line-height: 1.5;
+}
+
+.change-list li:last-child {
+    margin-bottom: 0;
+}
+
+.change-section.feature {
+    border-left-color: #28a745;
+}
+
+.change-section.fix {
+    border-left-color: #dc3545;
+}
+
+.change-section.improvement {
+    border-left-color: #17a2b8;
+}
+
+.change-section.security {
+    border-left-color: #ffc107;
+}
+
+/* 简单变更列表 */
+.change-list-simple {
+    margin: 8px 0;
+    padding-left: 20px;
+    font-size: 0.9em;
+}
+
+.change-list-simple li {
+    margin-bottom: 6px;
+    line-height: 1.5;
+    color: #495057;
+}
+
+/* 详细升级文档样式 */
+.detailed-docs-section {
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 15px;
+    background: #f8f9fa;
+}
+
+.docs-header h6 {
+    margin: 0;
+    font-weight: 600;
+    color: #495057;
+}
+
+.upgrade-doc {
+    background: white;
+    border-radius: 4px;
+    padding: 12px;
+    border-left: 3px solid #007bff;
+}
+
+.doc-title {
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 10px;
+    font-size: 0.95em;
+}
+
+.key-improvements {
+    margin: 10px 0;
+}
+
+.improvement-item {
+    padding: 4px 0;
+    font-size: 0.85em;
+    color: #495057;
+    line-height: 1.4;
+}
+
+.improvement-item i {
+    margin-right: 6px;
+    width: 12px;
+}
+
+.doc-stats {
+    margin: 8px 0;
+    padding: 6px 0;
+    border-top: 1px solid #e9ecef;
+}
+
+.doc-toggle button {
+    font-size: 0.8em;
+    padding: 4px 10px;
+}
+
+.doc-details {
+    margin-top: 10px;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    background: white;
+}
+
+.doc-content-scrollable {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 15px;
+}
+
+.doc-section {
+    border-bottom: 1px solid #f1f3f4;
+    padding-bottom: 15px;
+}
+
+.doc-section:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.section-title {
+    font-size: 0.9em;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.section-content {
+    font-size: 0.85em;
+    line-height: 1.6;
+    color: #6c757d;
+}
+
+.section-content code {
+    background: #f8f9fa;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-size: 0.9em;
+}
+
+.section-content ul {
+    margin: 8px 0;
+    padding-left: 20px;
+}
+
+.section-content li {
+    margin-bottom: 4px;
+}
+
+/* 紧凑型变更列表 */
+.change-list-compact {
+    margin: 5px 0;
+    padding-left: 15px;
+    font-size: 0.85em;
+}
+
+.change-list-compact li {
+    margin-bottom: 4px;
+    line-height: 1.4;
+}
+
+.version-info-header {
+    background: #f8f9fa;
+    border-radius: 4px;
+    padding: 10px;
+    border-left: 3px solid #007bff;
+}
+
+.change-title {
+    font-size: 0.9em;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 5px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .version-header .d-flex {
+        flex-direction: column;
+        align-items: flex-start !important;
+    }
+    
+    .version-actions {
+        margin-top: 10px;
+        width: 100%;
+    }
+    
+    .version-actions .btn {
+        width: 100%;
+    }
+    
+    .detail-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+    
+    .quick-actions .btn-group {
+        width: 100%;
+    }
+    
+    .quick-actions .btn {
+        flex: 1;
+    }
+    
+    .upgrade-summary .row {
+        justify-content: center;
+    }
+    
+    .upgrade-summary .col-3 {
+        flex: 0 0 auto;
+        margin: 0 10px 10px 0;
+    }
+    
+    .change-section {
+        margin-left: 5px;
+        padding-left: 10px;
+    }
+}
+</style>
+
 {% endblock %} 

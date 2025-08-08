@@ -1088,7 +1088,7 @@ class ExpenseDetailManager {
         fileInput.type = 'file';
         fileInput.className = 'invoice-upload-input';
         fileInput.id = `invoiceInput_${rowIndex}`;
-        fileInput.accept = 'image/*';
+        fileInput.accept = 'image/*,application/pdf,.heic,.heif';
         fileInput.multiple = true;
         fileInput.style.display = 'none';
         
@@ -2423,7 +2423,7 @@ class ExpenseDetailManager {
                 <input type="file" 
                        class="invoice-upload-input" 
                        id="invoiceInput_${rowIndex}" 
-                       accept="image/*" 
+                       accept="image/*,application/pdf,.heic,.heif" 
                        multiple>
                 <div class="invoice-upload-btn ${hasImages ? 'has-images' : ''}" 
                      onclick="document.getElementById('invoiceInput_${rowIndex}').click()">
@@ -2530,9 +2530,9 @@ class ExpenseDetailManager {
      */
     validateInvoiceFile(file) {
         // 检查文件类型
-        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'];
         if (!allowedTypes.includes(file.type)) {
-            this.showNotification('只支持图片格式：JPG、PNG、GIF、WEBP', 'error');
+            this.showNotification('支持格式：JPG、PNG、GIF、WEBP、HEIC、PDF', 'error');
             return false;
         }
         

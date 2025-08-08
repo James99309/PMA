@@ -1,0 +1,666 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button %}
+
+{% block title %}版本详情 - {{ version.version_number }} - PMA系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 标准化页面头部区域 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">
+                    版本详情 - v{{ version.version_number }}
+                    {% if version.is_current %}
+                    <span class="badge badge-success ml-2">当前版本</span>
+                    {% endif %}
+                </h1>
+            </div>
+            <div class="col text-end">
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    <button class="btn btn-primary me-2" onclick="showAddChangeModal()">
+                        <i class="fas fa-plus"></i> 添加功能变更
+                    </button>
+                    {% if not version.is_current %}
+                    <button class="btn btn-success me-2" onclick="setCurrentVersion('{{ version.version_number }}')">
+                        <i class="fas fa-check"></i> 设为当前版本
+                    </button>
+                    {% endif %}
+                    <a href="{{ url_for('version_management.versions') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> 返回版本列表
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- 版本基本信息 -->
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-info-circle"></i> 版本基本信息
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="info-group">
+                                <label class="info-label">版本号</label>
+                                <div class="info-value">
+                                    <span class="version-badge">v{{ version.version_number }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-group">
+                                <label class="info-label">版本名称</label>
+                                <div class="info-value">{{ version.version_name or '未命名版本' }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="info-group">
+                                <label class="info-label">发布日期</label>
+                                <div class="info-value">
+                                    <i class="fas fa-calendar"></i>
+                                    {{ version.release_date.strftime('%Y年%m月%d日 %H:%M') }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-group">
+                                <label class="info-label">运行环境</label>
+                                <div class="info-value">
+                                    <span class="badge badge-{{ 'success' if version.environment == 'production' else 'warning' }}">
+                                        {{ version.environment }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% if version.description %}
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="info-group">
+                                <label class="info-label">版本描述</label>
+                                <div class="info-value description-text">
+                                    {{ version.description }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if version.git_commit %}
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="info-group">
+                                <label class="info-label">Git提交</label>
+                                <div class="info-value">
+                                    <code>{{ version.git_commit }}</code>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 版本统计 -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-chart-bar"></i> 版本统计
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="stat-item">
+                        <div class="stat-icon bg-success">
+                            <i class="fas fa-plus-circle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number">{{ version.total_features }}</div>
+                            <div class="stat-label">新增功能</div>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-icon bg-danger">
+                            <i class="fas fa-bug"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number">{{ version.total_fixes }}</div>
+                            <div class="stat-label">问题修复</div>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-icon bg-warning">
+                            <i class="fas fa-arrow-up"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number">{{ version.total_improvements }}</div>
+                            <div class="stat-label">功能改进</div>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-icon bg-info">
+                            <i class="fas fa-list"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number">{{ changes_by_type.values() | list | sum(attribute='|length') | default(0) }}</div>
+                            <div class="stat-label">总变更数</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 升级日志 -->
+            {% if upgrade_logs %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-history"></i> 升级日志
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% for log in upgrade_logs %}
+                    <div class="upgrade-log-item">
+                        <div class="log-header">
+                            {% if log.from_version %}
+                            <small class="text-muted">{{ log.from_version }} → {{ log.to_version }}</small>
+                            {% else %}
+                            <small class="text-muted">初始版本 {{ log.to_version }}</small>
+                            {% endif %}
+                            <span class="badge badge-{{ 'success' if log.status == 'success' else 'danger' if log.status == 'failed' else 'warning' }}">
+                                {{ log.status }}
+                            </span>
+                        </div>
+                        <div class="log-content">
+                            <small>{{ log.upgrade_date.strftime('%Y-%m-%d %H:%M') }}</small>
+                            <br>
+                            <small>操作者: {{ log.operator_name or '系统' }}</small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 功能变更详情 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-code-branch"></i> 功能变更详情
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if changes_by_type %}
+                    <div class="change-tabs">
+                        <!-- 变更类型导航 -->
+                        <ul class="nav nav-tabs" role="tablist">
+                            {% set change_types = {
+                                'feature': {'name': '新功能', 'icon': 'fas fa-plus-circle', 'color': 'success'},
+                                'fix': {'name': '问题修复', 'icon': 'fas fa-bug', 'color': 'danger'},
+                                'improvement': {'name': '功能改进', 'icon': 'fas fa-arrow-up', 'color': 'warning'},
+                                'security': {'name': '安全更新', 'icon': 'fas fa-shield-alt', 'color': 'info'}
+                            } %}
+                            
+                            {% for change_type, type_info in change_types.items() %}
+                                {% if changes_by_type.get(change_type) %}
+                                <li class="nav-item">
+                                    <a class="nav-link {{ 'active' if loop.first }}" data-toggle="tab" href="#tab-{{ change_type }}">
+                                        <i class="{{ type_info.icon }}"></i>
+                                        {{ type_info.name }}
+                                        <span class="badge badge-{{ type_info.color }} ml-1">
+                                            {{ changes_by_type[change_type]|length }}
+                                        </span>
+                                    </a>
+                                </li>
+                                {% endif %}
+                            {% endfor %}
+                        </ul>
+
+                        <!-- 变更内容 -->
+                        <div class="tab-content">
+                            {% for change_type, type_info in change_types.items() %}
+                                {% if changes_by_type.get(change_type) %}
+                                <div class="tab-pane fade {{ 'show active' if loop.first }}" id="tab-{{ change_type }}">
+                                    <div class="changes-list">
+                                        {% for change in changes_by_type[change_type] %}
+                                        <div class="change-item">
+                                            <div class="change-header">
+                                                <h6 class="change-title">
+                                                    <i class="{{ type_info.icon }} text-{{ type_info.color }}"></i>
+                                                    {{ change.title }}
+                                                </h6>
+                                                <div class="change-meta">
+                                                    {% if change.module_name %}
+                                                    <span class="badge badge-light">{{ change.module_name }}</span>
+                                                    {% endif %}
+                                                    <span class="badge badge-{{ 'success' if change.priority == 'high' else 'warning' if change.priority == 'medium' else 'secondary' }}">
+                                                        {{ change.priority }}
+                                                    </span>
+                                                    <span class="badge badge-outline-{{ type_info.color }}">
+                                                        {{ change.impact_level }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            {% if change.description %}
+                                            <div class="change-description">
+                                                {{ change.description }}
+                                            </div>
+                                            {% endif %}
+                                            <div class="change-footer">
+                                                <small class="text-muted">
+                                                    {% if change.developer_name %}
+                                                    <i class="fas fa-user"></i> {{ change.developer_name }}
+                                                    {% endif %}
+                                                    {% if change.completed_at %}
+                                                    <i class="fas fa-clock ml-2"></i> {{ change.completed_at.strftime('%m-%d %H:%M') }}
+                                                    {% endif %}
+                                                    {% if change.test_status %}
+                                                    <span class="badge badge-{{ 'success' if change.test_status == 'passed' else 'warning' if change.test_status == 'pending' else 'danger' }} ml-2">
+                                                        {{ change.test_status }}
+                                                    </span>
+                                                    {% endif %}
+                                                </small>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-inbox fa-3x mb-3"></i>
+                        <h5>暂无功能变更记录</h5>
+                        <p>点击上方"添加功能变更"按钮来记录此版本的变更内容</p>
+                        <button class="btn btn-primary" onclick="showAddChangeModal()">
+                            <i class="fas fa-plus"></i> 添加功能变更
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加功能变更模态框 -->
+<div class="modal fade" id="addChangeModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">添加功能变更 - v{{ version.version_number }}</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <form id="addChangeForm">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="change_type">变更类型 *</label>
+                                <select class="form-control" id="change_type" name="change_type" required>
+                                    <option value="">请选择</option>
+                                    <option value="feature">新功能</option>
+                                    <option value="fix">问题修复</option>
+                                    <option value="improvement">功能改进</option>
+                                    <option value="security">安全更新</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="module_name">所属模块</label>
+                                <input type="text" class="form-control" id="module_name" name="module_name" 
+                                       placeholder="如: user, project, quotation">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="title">变更标题 *</label>
+                        <input type="text" class="form-control" id="title" name="title" 
+                               placeholder="简要描述此次变更" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="description">详细描述</label>
+                        <textarea class="form-control" id="description" name="description" rows="3" 
+                                  placeholder="详细描述变更的内容和影响..."></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="priority">优先级</label>
+                                <select class="form-control" id="priority" name="priority">
+                                    <option value="low">低</option>
+                                    <option value="medium" selected>中</option>
+                                    <option value="high">高</option>
+                                    <option value="critical">紧急</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="impact_level">影响级别</label>
+                                <select class="form-control" id="impact_level" name="impact_level">
+                                    <option value="minor" selected>轻微</option>
+                                    <option value="major">重大</option>
+                                    <option value="breaking">破坏性</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="test_notes">测试说明</label>
+                        <textarea class="form-control" id="test_notes" name="test_notes" rows="2" 
+                                  placeholder="测试方法和结果..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">添加变更</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+.info-group {
+    margin-bottom: 20px;
+}
+
+.info-label {
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.9em;
+    margin-bottom: 5px;
+    display: block;
+}
+
+.info-value {
+    color: #6c757d;
+    font-size: 1em;
+    line-height: 1.5;
+}
+
+.version-badge {
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 1.1em;
+}
+
+.description-text {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #007bff;
+    margin-top: 5px;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.stat-item:hover {
+    background: #e9ecef;
+    transform: translateY(-2px);
+}
+
+.stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 15px;
+    color: white;
+}
+
+.stat-content {
+    flex: 1;
+}
+
+.stat-number {
+    font-size: 2em;
+    font-weight: 600;
+    color: #495057;
+    line-height: 1;
+}
+
+.stat-label {
+    color: #6c757d;
+    font-size: 0.9em;
+    margin-top: 5px;
+}
+
+.upgrade-log-item {
+    padding: 12px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.upgrade-log-item:last-child {
+    border-bottom: none;
+}
+
+.log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.change-tabs .nav-tabs {
+    border-bottom: 2px solid #e9ecef;
+}
+
+.change-tabs .nav-link {
+    border: none;
+    color: #6c757d;
+    font-weight: 500;
+    padding: 12px 20px;
+    transition: all 0.3s ease;
+}
+
+.change-tabs .nav-link:hover {
+    border-color: transparent;
+    color: #007bff;
+    background: rgba(0, 123, 255, 0.1);
+}
+
+.change-tabs .nav-link.active {
+    background: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+.tab-content {
+    padding: 20px 0;
+}
+
+.changes-list {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.change-item {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 15px;
+    transition: all 0.3s ease;
+}
+
+.change-item:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+
+.change-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.change-title {
+    color: #495057;
+    font-size: 1.1em;
+    font-weight: 600;
+    margin: 0;
+    flex: 1;
+}
+
+.change-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.change-description {
+    color: #6c757d;
+    line-height: 1.6;
+    margin: 12px 0;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
+
+.change-footer {
+    padding-top: 12px;
+    border-top: 1px solid #e9ecef;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .change-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .change-meta {
+        margin-top: 10px;
+    }
+    
+    .stat-item {
+        text-align: center;
+        flex-direction: column;
+    }
+    
+    .stat-icon {
+        margin-right: 0;
+        margin-bottom: 10px;
+    }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showAddChangeModal() {
+    $('#addChangeModal').modal('show');
+}
+
+function setCurrentVersion(versionNumber) {
+    if (!confirm('确定要设置 v' + versionNumber + ' 为当前版本吗？')) {
+        return;
+    }
+    
+    $.ajax({
+        url: '/admin/version/api/set-current-version',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ 
+            version_number: versionNumber,
+            notes: '通过版本详情页面设置当前版本'
+        }),
+        success: function(response) {
+            if (response.success) {
+                showAlert('当前版本设置成功', 'success');
+                location.reload();
+            } else {
+                showAlert('设置失败: ' + response.message, 'danger');
+            }
+        },
+        error: function() {
+            showAlert('网络错误', 'danger');
+        }
+    });
+}
+
+$('#addChangeForm').on('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        version_id: {{ version.id }},
+        change_type: $('#change_type').val(),
+        module_name: $('#module_name').val(),
+        title: $('#title').val(),
+        description: $('#description').val(),
+        priority: $('#priority').val(),
+        impact_level: $('#impact_level').val(),
+        test_notes: $('#test_notes').val(),
+        test_status: 'pending'
+    };
+    
+    $.ajax({
+        url: '/admin/version/api/add-feature-change',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(formData),
+        success: function(response) {
+            if (response.success) {
+                showAlert('功能变更添加成功', 'success');
+                $('#addChangeModal').modal('hide');
+                location.reload();
+            } else {
+                showAlert('添加失败: ' + response.message, 'danger');
+            }
+        },
+        error: function() {
+            showAlert('网络错误', 'danger');
+        }
+    });
+});
+
+function showAlert(message, type) {
+    const alert = $('<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
+        message +
+        '<button type="button" class="close" data-dismiss="alert">' +
+        '<span>&times;</span>' +
+        '</button>' +
+        '</div>');
+    
+    $('.container-fluid').prepend(alert);
+    
+    setTimeout(function() {
+        alert.alert('close');
+    }, 5000);
+}
+</script>
+{% endblock %}

@@ -871,7 +871,7 @@ def create_expense():
                         if file_obj and file_obj.filename:
                             try:
                                 # 验证文件类型
-                                allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+                                allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'heif', 'pdf'}
                                 file_ext = file_obj.filename.rsplit('.', 1)[1].lower() if '.' in file_obj.filename else ''
                                 if file_ext not in allowed_extensions:
                                     current_app.logger.warning(f"不支持的文件类型: {file_obj.filename}")
@@ -1363,7 +1363,7 @@ def edit_expense(id):
                         if file_obj and file_obj.filename:
                             try:
                                 # 验证文件类型
-                                allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+                                allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'heif', 'pdf'}
                                 file_ext = file_obj.filename.rsplit('.', 1)[1].lower() if '.' in file_obj.filename else ''
                                 if file_ext not in allowed_extensions:
                                     current_app.logger.warning(f"不支持的文件类型: {file_obj.filename}")
@@ -1703,9 +1703,9 @@ def upload_invoice_temp():
             return jsonify({'success': False, 'message': '未选择文件'})
         
         # 验证文件类型
-        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'pdf'}
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'heif', 'pdf'}
         if not ('.' in file.filename and file.filename.rsplit('.', 1)[1].lower() in allowed_extensions):
-            return jsonify({'success': False, 'message': '不支持的文件格式'})
+            return jsonify({'success': False, 'message': '不支持的文件格式，支持：PNG、JPG、JPEG、GIF、WEBP、HEIC、PDF'})
         
         # 生成临时文件名
         import uuid
@@ -1735,10 +1735,20 @@ def upload_invoice_temp():
                 
                 # 直接使用Supabase存储API
                 file_content = file.read()
+                
+                # 根据文件扩展名确定content-type
+                file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+                content_type_map = {
+                    'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+                    'png': 'image/png', 'gif': 'image/gif', 'webp': 'image/webp',
+                    'heic': 'image/heic', 'heif': 'image/heif', 'pdf': 'application/pdf'
+                }
+                content_type = content_type_map.get(file_ext, 'application/octet-stream')
+                
                 result = supabase_client.supabase.storage.from_(supabase_client.bucket_name).upload(
                     path=storage_path,
                     file=file_content,
-                    file_options={"content-type": "image/jpeg", "upsert": True}
+                    file_options={"content-type": content_type, "upsert": True}
                 )
                 
                 if result.path:
@@ -1832,7 +1842,7 @@ def upload_invoice_image(detail_id):
             }), 400
         
         # 验证文件类型
-        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'heif', 'pdf'}
         file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
         if file_ext not in allowed_extensions:
             return jsonify({

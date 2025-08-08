@@ -62,7 +62,8 @@
                         <div class="col-md-6">
                             <label for="email" class="form-label">{{ _('邮箱地址') }}</label>
                             <input type="email" class="form-control" id="email" name="email"
-                                   value="{{ user.email if user else '' }}">
+                                   value="{{ user.email if user else '' }}"
+                                   style="font-family: 'Roboto Mono', 'Courier New', monospace; font-weight: 400;">
                             <div class="invalid-feedback">
                                 {{ _('请输入有效的邮箱地址') }}
                             </div>
@@ -70,7 +71,8 @@
                         <div class="col-md-6">
                             <label for="phone" class="form-label">{{ _('联系电话') }}</label>
                             <input type="text" class="form-control" id="phone" name="phone"
-                                   value="{{ user.phone if user else '' }}">
+                                   value="{{ user.phone if user else '' }}"
+                                   style="font-family: 'Roboto Mono', 'Courier New', monospace; font-weight: 400;">
                         </div>
                     </div>
 

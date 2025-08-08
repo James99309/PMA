@@ -90,8 +90,9 @@ def create_app(config_class=Config):
     except Exception as e:
         logger.error(f"加载Supabase配置时出错: {e}")
     
-    # 设置应用版本
-    app.config['APP_VERSION'] = '1.0.1'  # 根据实际版本修改
+    # 统一版本号管理 - 优先使用配置文件中的版本号
+    if not app.config.get('APP_VERSION'):
+        app.config['APP_VERSION'] = '1.2.2'  # 兜底版本号
     
     # 添加Jinja扩展 - 支持try/except块
     app.jinja_env.add_extension('jinja2.ext.do')

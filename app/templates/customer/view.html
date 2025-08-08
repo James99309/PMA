@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_owner, render_date, render_project_type, render_button, render_primary_contact_badge, render_project_stage, render_confirm_cancel, render_status_badge, render_sharing_section %}
+{% from 'macros/ui_helpers.html' import render_owner, render_date, render_project_type, render_button, render_primary_contact_badge, render_project_stage, render_confirm_cancel, render_status_badge, render_sharing_section, render_report_source_badge, render_product_situation_badge, render_company_type_badge, render_industry_badge %}
 {% from 'macros/ui_modals.html' import render_change_owner_modal with context %}
 {% from 'macros/approval_macros.html' import render_approval_section with context %}
 
@@ -66,8 +66,8 @@
                     <div class="border rounded-3 p-2 mb-2">
                         <div class="fw-bold text-secondary small mb-1">{{ _('基本信息') }}</div>
                         <div class="row g-1 small">
-                            <div class="col-6">{{ _('企业类型') }}：{{ company.company_type|company_type_label if company.company_type else _('未指定') }}</div>
-                            <div class="col-6">{{ _('行业') }}：{{ company.industry|industry_label if company.industry else _('未指定') }}</div>
+                            <div class="col-6">{{ _('企业类型') }}：{% if company.company_type %}{{ render_company_type_badge(company.company_type, get_current_language()) }}{% else %}{{ _('未指定') }}{% endif %}</div>
+                            <div class="col-6">{{ _('行业') }}：{% if company.industry %}{{ render_industry_badge(company.industry, get_current_language()) }}{% else %}{{ _('未指定') }}{% endif %}</div>
                             <div class="col-6">{{ _('国家/地区') }}：{{ country_code_to_name[company.country] if company.country in country_code_to_name else company.country or _('未指定') }}</div>
                             <div class="col-6">{{ _('省/州') }}：{{ company.region or _('未指定') }}</div>
                         </div>
@@ -117,11 +117,11 @@
                         <div class="row">
                             <div class="col-md-3">
                                 <label class="info-label text-secondary">{{ _('企业类型') }}</label>
-                                <div>{{ company.company_type|company_type_label if company.company_type else _('未指定') }}</div>
+                                <div>{% if company.company_type %}{{ render_company_type_badge(company.company_type, get_current_language()) }}{% else %}{{ _('未指定') }}{% endif %}</div>
                             </div>
                             <div class="col-md-3">
                                 <label class="info-label text-secondary">{{ _('行业') }}</label>
-                                <div>{{ company.industry|industry_label if company.industry else _('未指定') }}</div>
+                                <div>{% if company.industry %}{{ render_industry_badge(company.industry, get_current_language()) }}{% else %}{{ _('未指定') }}{% endif %}</div>
                             </div>
                             <div class="col-md-3">
                                 <label class="info-label text-secondary">{{ _('国家/地区') }}</label>
@@ -358,7 +358,7 @@
             <div class="card-body p-3">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="badge bg-info">{{ project.project_code }}</span>
-                    {{ render_project_stage(project.current_stage|project_stage_label('zh')) if project.current_stage else render_project_stage('无') }}
+                    {{ render_project_stage(project.current_stage|project_stage_label(get_current_language())) if project.current_stage else render_project_stage(_('无')) }}
                 </div>
                 
                 <h5 class="card-title mb-2">
@@ -368,13 +368,17 @@
                 </h5>
                 
                 <div class="small text-muted mb-2">
-                    {{ render_project_type(project.project_type) }}
-                    {% if project.product_situation %} · {{ project.product_situation }}{% endif %}
+                    {% if project.project_type %}{{ render_project_type(project.project_type) }}{% endif %}
+                    {% if project.product_situation %}
+                        {% if project.project_type %} {% endif %}{{ render_product_situation_badge(project.product_situation, get_current_language()) }}
+                    {% endif %}
                 </div>
                 
+                {% if project.end_user %}
                 <div class="small mb-1">
-                    <i class="fas fa-building text-secondary me-1"></i> {{ _('直接用户') }}: {{ project.end_user or _('未设置') }}
+                    <i class="fas fa-building text-secondary me-1"></i> {{ _('直接用户') }}: {{ project.end_user }}
                 </div>
+                {% endif %}
                 
                 {% if project.quotation_customer %}
                 <div class="small mb-1">
@@ -384,7 +388,7 @@
                 
                 <div class="small mb-1">
                     <i class="fas fa-clock text-secondary me-1"></i> 报备: {{ render_date(project.report_time) }}
-                    {% if project.report_source %} ({{ project.report_source|report_source_label('zh') }}){% endif %}
+                    {% if project.report_source %} {{ render_report_source_badge(project.report_source, get_current_language()) }}{% endif %}
                 </div>
                 
                 {% if project.delivery_forecast %}
@@ -434,15 +438,15 @@
                                     </a>
                                 </td>
                                 <td>{{ render_date(project.report_time) }}</td>
-                                <td>{% if project.report_source %}{{ project.report_source|report_source_label('zh') }}{% else %}{{ _('无') }}{% endif %}</td>
-                                <td>{% if project.project_type %}{{ project.project_type|project_type_label('zh') }}{% else %}{{ _('无') }}{% endif %}</td>
-                                <td>{% if project.product_situation %}{{ project.product_situation|product_situation_label('zh') }}{% else %}{{ _('无') }}{% endif %}</td>
-                                <td>{{ render_project_stage(project.current_stage|project_stage_label('zh')) if project.current_stage else render_project_stage(_('无')) }}</td>
+                                <td>{% if project.report_source %}{{ render_report_source_badge(project.report_source, get_current_language()) }}{% endif %}</td>
+                                <td>{% if project.project_type %}{{ render_project_type(project.project_type) }}{% endif %}</td>
+                                <td>{% if project.product_situation %}{{ render_product_situation_badge(project.product_situation, get_current_language()) }}{% endif %}</td>
+                                <td>{{ render_project_stage(project.current_stage|project_stage_label(get_current_language())) if project.current_stage else render_project_stage(_('无')) }}</td>
                                 <td>{{ '{:,.2f}'.format(project.quotation_customer) if project.quotation_customer }}</td>
-                                <td>{{ project.end_user }}</td>
-                                <td>{{ project.design_issues }}</td>
-                                <td>{{ project.contractor }}</td>
-                                <td>{{ project.system_integrator }}</td>
+                                <td>{{ project.end_user if project.end_user else '' }}</td>
+                                <td>{{ project.design_issues if project.design_issues else '' }}</td>
+                                <td>{{ project.contractor if project.contractor else '' }}</td>
+                                <td>{{ project.system_integrator if project.system_integrator else '' }}</td>
                                 <td>{{ render_date(project.delivery_forecast) }}</td>
                                 <td>{{ render_owner(project.owner) }}</td>
                             </tr>

@@ -1,0 +1,517 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button %}
+
+{% block title %}升级日志 - PMA系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 标准化页面头部区域 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">升级日志</h1>
+            </div>
+            <div class="col text-end">
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    <div class="btn-group me-2">
+                        <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-toggle="dropdown">
+                            <i class="fas fa-filter"></i> 
+                            {% if status_filter %}
+                                {{ status_filter }}
+                            {% else %}
+                                所有状态
+                            {% endif %}
+                        </button>
+                        <div class="dropdown-menu">
+                            <a class="dropdown-item" href="{{ url_for('version_management.upgrade_logs') }}">
+                                <i class="fas fa-list"></i> 所有状态
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item" href="{{ url_for('version_management.upgrade_logs', status='success') }}">
+                                <i class="fas fa-check-circle text-success"></i> 成功
+                            </a>
+                            <a class="dropdown-item" href="{{ url_for('version_management.upgrade_logs', status='failed') }}">
+                                <i class="fas fa-times-circle text-danger"></i> 失败
+                            </a>
+                            <a class="dropdown-item" href="{{ url_for('version_management.upgrade_logs', status='rollback') }}">
+                                <i class="fas fa-undo text-warning"></i> 回滚
+                            </a>
+                        </div>
+                    </div>
+                    <a href="{{ url_for('version_management.index') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> 返回主页
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 升级统计概览 -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-upload fa-2x mb-2"></i>
+                    <h3>{{ logs.total }}</h3>
+                    <small>总升级次数</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-check-circle fa-2x mb-2"></i>
+                    <h3 id="success-count">-</h3>
+                    <small>成功升级</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-times-circle fa-2x mb-2"></i>
+                    <h3 id="failed-count">-</h3>
+                    <small>失败升级</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-undo fa-2x mb-2"></i>
+                    <h3 id="rollback-count">-</h3>
+                    <small>回滚升级</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 升级日志列表 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-list"></i> 升级历史记录
+                        {% if status_filter %}
+                        <small class="text-muted">- 筛选: {{ status_filter }}</small>
+                        {% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if logs.items %}
+                    <div class="upgrade-timeline">
+                        {% for log in logs.items %}
+                        <div class="timeline-item {{ log.status }}">
+                            <div class="timeline-marker">
+                                {% if log.status == 'success' %}
+                                <i class="fas fa-check-circle text-success"></i>
+                                {% elif log.status == 'failed' %}
+                                <i class="fas fa-times-circle text-danger"></i>
+                                {% elif log.status == 'rollback' %}
+                                <i class="fas fa-undo text-warning"></i>
+                                {% else %}
+                                <i class="fas fa-clock text-info"></i>
+                                {% endif %}
+                            </div>
+                            <div class="timeline-content">
+                                <div class="upgrade-card">
+                                    <div class="upgrade-header">
+                                        <div class="upgrade-title">
+                                            <h6 class="mb-1">
+                                                {% if log.from_version %}
+                                                v{{ log.from_version }} <i class="fas fa-arrow-right mx-2"></i> v{{ log.to_version }}
+                                                {% else %}
+                                                初始版本 v{{ log.to_version }}
+                                                {% endif %}
+                                                <span class="badge badge-{{ 'success' if log.status == 'success' else 'danger' if log.status == 'failed' else 'warning' }}">
+                                                    {% if log.status == 'success' %}
+                                                    成功
+                                                    {% elif log.status == 'failed' %}
+                                                    失败
+                                                    {% elif log.status == 'rollback' %}
+                                                    回滚
+                                                    {% else %}
+                                                    {{ log.status }}
+                                                    {% endif %}
+                                                </span>
+                                            </h6>
+                                            <small class="text-muted">
+                                                <i class="fas fa-calendar"></i> {{ log.upgrade_date.strftime('%Y年%m月%d日 %H:%M:%S') }}
+                                            </small>
+                                        </div>
+                                        <div class="upgrade-meta">
+                                            {% if log.duration_seconds %}
+                                            <span class="badge badge-info">
+                                                <i class="fas fa-clock"></i>
+                                                {% if log.duration_seconds < 60 %}
+                                                {{ log.duration_seconds }}秒
+                                                {% else %}
+                                                {{ (log.duration_seconds // 60) }}分{{ (log.duration_seconds % 60) }}秒
+                                                {% endif %}
+                                            </span>
+                                            {% endif %}
+                                            <span class="badge badge-secondary">
+                                                <i class="fas fa-cog"></i> {{ log.upgrade_type }}
+                                            </span>
+                                            {% if log.environment %}
+                                            <span class="badge badge-outline-primary">
+                                                <i class="fas fa-server"></i> {{ log.environment }}
+                                            </span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="upgrade-details">
+                                        <div class="row">
+                                            <div class="col-md-8">
+                                                {% if log.upgrade_notes %}
+                                                <div class="upgrade-notes">
+                                                    <h6><i class="fas fa-sticky-note"></i> 升级说明</h6>
+                                                    <p class="text-muted">{{ log.upgrade_notes }}</p>
+                                                </div>
+                                                {% endif %}
+                                                
+                                                {% if log.error_message %}
+                                                <div class="error-message">
+                                                    <h6><i class="fas fa-exclamation-triangle text-danger"></i> 错误信息</h6>
+                                                    <div class="alert alert-danger">
+                                                        <code>{{ log.error_message }}</code>
+                                                    </div>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="operator-info">
+                                                    <h6><i class="fas fa-user"></i> 操作信息</h6>
+                                                    <ul class="list-unstyled">
+                                                        <li><strong>操作人员:</strong> {{ log.operator_name or '系统' }}</li>
+                                                        {% if log.server_info %}
+                                                        <li><strong>服务器:</strong> {{ log.server_info }}</li>
+                                                        {% endif %}
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {% if log.status == 'failed' %}
+                                    <div class="upgrade-actions">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="showRetryModal({{ log.id }}, '{{ log.to_version }}')">
+                                            <i class="fas fa-redo"></i> 重试升级
+                                        </button>
+                                        {% if log.from_version %}
+                                        <button class="btn btn-sm btn-outline-warning" onclick="showRollbackModal({{ log.id }}, '{{ log.from_version }}')">
+                                            <i class="fas fa-undo"></i> 回滚到 v{{ log.from_version }}
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <!-- 分页 -->
+                    {% if logs.pages > 1 %}
+                    <div class="d-flex justify-content-between align-items-center mt-4">
+                        <div>
+                            <small class="text-muted">
+                                显示第 {{ logs.per_page * (logs.page - 1) + 1 }} - 
+                                {{ logs.per_page * (logs.page - 1) + logs.items|length }} 条，
+                                共 {{ logs.total }} 条记录
+                            </small>
+                        </div>
+                        <nav>
+                            <ul class="pagination pagination-sm">
+                                {% if logs.has_prev %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('version_management.upgrade_logs', page=logs.prev_num, status=status_filter) }}">上一页</a>
+                                </li>
+                                {% endif %}
+                                
+                                {% for page_num in logs.iter_pages() %}
+                                    {% if page_num %}
+                                        {% if page_num != logs.page %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="{{ url_for('version_management.upgrade_logs', page=page_num, status=status_filter) }}">{{ page_num }}</a>
+                                        </li>
+                                        {% else %}
+                                        <li class="page-item active">
+                                            <span class="page-link">{{ page_num }}</span>
+                                        </li>
+                                        {% endif %}
+                                    {% else %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link">...</span>
+                                    </li>
+                                    {% endif %}
+                                {% endfor %}
+                                
+                                {% if logs.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('version_management.upgrade_logs', page=logs.next_num, status=status_filter) }}">下一页</a>
+                                </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+                    {% endif %}
+                    
+                    {% else %}
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-inbox fa-3x mb-3"></i>
+                        <h5>暂无升级日志</h5>
+                        {% if status_filter %}
+                        <p>没有找到状态为 "{{ status_filter }}" 的升级记录</p>
+                        <a href="{{ url_for('version_management.upgrade_logs') }}" class="btn btn-outline-primary">
+                            查看所有升级记录
+                        </a>
+                        {% else %}
+                        <p>系统尚未进行过版本升级</p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+.upgrade-timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.upgrade-timeline::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, #007bff, #6c757d);
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 30px;
+    padding-left: 40px;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -23px;
+    top: 20px;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: white;
+    border-radius: 50%;
+    z-index: 2;
+}
+
+.timeline-content {
+    width: 100%;
+}
+
+.upgrade-card {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.upgrade-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
+}
+
+.timeline-item.success .upgrade-card {
+    border-left: 4px solid #28a745;
+}
+
+.timeline-item.failed .upgrade-card {
+    border-left: 4px solid #dc3545;
+}
+
+.timeline-item.rollback .upgrade-card {
+    border-left: 4px solid #ffc107;
+}
+
+.upgrade-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.upgrade-title h6 {
+    color: #495057;
+    font-weight: 600;
+    font-size: 1.1em;
+}
+
+.upgrade-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.upgrade-details {
+    margin-bottom: 15px;
+}
+
+.upgrade-notes, .error-message, .operator-info {
+    margin-bottom: 15px;
+}
+
+.upgrade-notes h6, .error-message h6, .operator-info h6 {
+    color: #495057;
+    font-size: 0.9em;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.upgrade-notes p {
+    margin-bottom: 0;
+    line-height: 1.5;
+}
+
+.error-message .alert {
+    margin-bottom: 0;
+    padding: 10px;
+}
+
+.operator-info ul li {
+    font-size: 0.9em;
+    margin-bottom: 5px;
+}
+
+.upgrade-actions {
+    padding-top: 15px;
+    border-top: 1px solid #e9ecef;
+    display: flex;
+    gap: 10px;
+}
+
+/* 状态特定样式 */
+.timeline-item.success .timeline-marker {
+    background: #28a745;
+}
+
+.timeline-item.failed .timeline-marker {
+    background: #dc3545;
+}
+
+.timeline-item.rollback .timeline-marker {
+    background: #ffc107;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .upgrade-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .upgrade-meta {
+        margin-top: 10px;
+        justify-content: flex-start;
+    }
+    
+    .upgrade-timeline {
+        padding-left: 20px;
+    }
+    
+    .timeline-item {
+        padding-left: 30px;
+    }
+    
+    .timeline-marker {
+        left: -18px;
+        width: 12px;
+        height: 12px;
+    }
+    
+    .upgrade-actions {
+        flex-direction: column;
+    }
+    
+    .upgrade-actions .btn {
+        width: 100%;
+    }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    loadUpgradeStatistics();
+});
+
+function loadUpgradeStatistics() {
+    $.get('/admin/version/api/upgrade-statistics')
+        .done(function(response) {
+            if (response.success) {
+                $('#success-count').text(response.data.success_count);
+                $('#failed-count').text(response.data.failed_count);
+                $('#rollback-count').text(response.data.rollback_count);
+            }
+        })
+        .fail(function() {
+            // 如果API不存在，从页面数据计算
+            calculateStatistics();
+        });
+}
+
+function calculateStatistics() {
+    const successCount = $('.timeline-item.success').length;
+    const failedCount = $('.timeline-item.failed').length;
+    const rollbackCount = $('.timeline-item.rollback').length;
+    
+    $('#success-count').text(successCount);
+    $('#failed-count').text(failedCount);
+    $('#rollback-count').text(rollbackCount);
+}
+
+function showRetryModal(logId, version) {
+    if (confirm('确定要重试升级到版本 v' + version + ' 吗？')) {
+        showAlert('重试升级功能开发中...', 'info');
+    }
+}
+
+function showRollbackModal(logId, version) {
+    if (confirm('确定要回滚到版本 v' + version + ' 吗？这可能会影响现有功能。')) {
+        showAlert('回滚功能开发中...', 'info');
+    }
+}
+
+function showAlert(message, type) {
+    const alert = $('<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
+        message +
+        '<button type="button" class="close" data-dismiss="alert">' +
+        '<span>&times;</span>' +
+        '</button>' +
+        '</div>');
+    
+    $('.container-fluid').prepend(alert);
+    
+    setTimeout(function() {
+        alert.alert('close');
+    }, 5000);
+}
+</script>
+{% endblock %}

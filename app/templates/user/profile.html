@@ -85,11 +85,13 @@
                     </div>
                     <div class="mb-3">
                         <label for="email" class="form-label">{{ _('邮箱地址') }}</label>
-                        <input type="email" class="form-control" id="email" name="email" value="{{ user.email or '' }}" required>
+                        <input type="email" class="form-control" id="email" name="email" value="{{ user.email or '' }}" 
+                               style="font-family: 'Roboto Mono', 'Courier New', monospace; font-weight: 400;" required>
                     </div>
                     <div class="mb-3">
                         <label for="phone" class="form-label">{{ _('电话号码') }}</label>
-                        <input type="text" class="form-control" id="phone" name="phone" value="{{ user.phone or '' }}">
+                        <input type="text" class="form-control" id="phone" name="phone" value="{{ user.phone or '' }}"
+                               style="font-family: 'Roboto Mono', 'Courier New', monospace; font-weight: 400;">
                     </div>
                     <div class="mb-3">
                         <label for="company_name" class="form-label">{{ _('公司') }}</label>
