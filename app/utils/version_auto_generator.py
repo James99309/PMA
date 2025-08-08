@@ -58,8 +58,14 @@ class VersionAutoGenerator:
                 if current_db_version:
                     # 检查数据库版本的Git提交是否与最新提交不同
                     if current_db_version.git_commit != latest_commit['hash']:
-                        logger.info(f"检测到新的Git提交，当前版本可能已过时")
-                        # 可以选择自动创建新版本，但这里只做日志记录
+                        logger.info(f"检测到新的Git提交，开始自动创建新版本")
+                        # 自动创建基于新Git提交的版本
+                        new_version = self.auto_create_version_from_git()
+                        if new_version:
+                            logger.info(f"自动创建版本成功: {new_version.version_number}")
+                            return new_version.version_number
+                        else:
+                            logger.warning("自动创建版本失败，使用当前数据库版本")
                     return current_db_version.version_number
                 
             # 3. 数据库当前版本
