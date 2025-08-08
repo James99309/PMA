@@ -1383,17 +1383,7 @@ def edit_expense(id):
                     # 处理该明细的图片数据（智能保留现有+添加新的）
                     processed_images = []
                     
-                    # 1. 保留现有图片（如果是更新模式且明细已存在）
-                    if index < len(existing_details) and detail_obj.invoice_images:
-                        try:
-                            existing_images = json.loads(detail_obj.invoice_images)
-                            if isinstance(existing_images, list):
-                                processed_images.extend(existing_images)
-                                logger.info(f"明细 {index}: 保留了 {len(existing_images)} 张现有图片")
-                        except (json.JSONDecodeError, TypeError):
-                            logger.warning(f"明细 {index}: 无法解析现有图片数据")
-                    
-                    # 2. 处理通过表单传递的现有图片（前端已存在的图片）
+                    # 1. 处理通过表单传递的现有图片（前端传递的现有图片）
                     existing_images_count = 0
                     for key, value in request.form.items():
                         if key.startswith(f'details[{index}][existing_invoices][') and key.endswith('][url]'):
@@ -1418,7 +1408,7 @@ def edit_expense(id):
                                 existing_images_count += 1
                                 logger.info(f"明细 {index}: 保留现有图片 - {existing_filename}")
                     
-                    # 3. 处理新上传的文件（简化逻辑）
+                    # 2. 处理新上传的文件（简化逻辑）
                     if index in file_data and 'files' in file_data[index]:
                         for file_index, file_obj in file_data[index]['files'].items():
                             if file_obj and file_obj.filename:
@@ -1486,7 +1476,7 @@ def edit_expense(id):
                                     logger.error(f"明细 {index}: 文件处理异常 - {file_error}")
                                     continue
                     
-                    # 4. 保存图片数据到数据库
+                    # 3. 保存图片数据到数据库
                     if processed_images:
                         detail_obj.invoice_images = json.dumps(processed_images)
                         logger.info(f"明细 {index}: 最终保存 {len(processed_images)} 张图片到数据库")
