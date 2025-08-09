@@ -239,10 +239,11 @@ class ProjectStageProgress {
                 stageMarker.addEventListener('mouseleave', () => {
                     stageMarker.classList.remove('stage-current');
                 });
-                // 点击推进 - 修复：不再直接更新this.currentStage，而是直接调用API
-                stageMarker.addEventListener('click', () => {
-                    // 不再本地更新状态，直接调用API
-                    this.updateStage(stage.key);
+                // 点击推进 - 显示确认对话框
+                stageMarker.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.showStageProgressConfirmation(stage);
                 });
                 progressBar.appendChild(stageMarker);
                 return;
@@ -351,14 +352,10 @@ class ProjectStageProgress {
                 branchDot.style.cursor = 'pointer';
                 branchDot.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    let msg = this.currentStage === branch.key
-                        ? `确定要恢复到主线阶段吗？`
-                        : `确定要将项目阶段切换为"${branch.key}"吗？`;
-                    if (window.confirm(msg)) {
-                        // 统一通过API切换，无论是分支还是恢复主线
-                        let targetStage = (this.currentStage === branch.key) ? this.lastMainStage : branch.key;
-                        this.updateStage(targetStage);
-                    }
+                    // 显示分支阶段确认对话框
+                    let targetStage = (this.currentStage === branch.key) ? this.lastMainStage : branch.key;
+                    let isRestore = (this.currentStage === branch.key);
+                    this.showBranchStageConfirmation(branch, targetStage, isRestore);
                 });
             } else {
                 branchDot.classList.add('dot-disabled');
@@ -417,69 +414,256 @@ class ProjectStageProgress {
         container.innerHTML = '';
         container.appendChild(progressContainer);
 
-        // 添加确认推进模态框
-        this.renderAdvanceModal(container);
+        // 确认推进对话框已集成到点击事件中
     }
 
-    /**
-     * 渲染确认推进模态框
-     */
-    renderAdvanceModal(container) {
-        const nextStage = this.getNextStage();
-        if (!nextStage) return;
-
-        const modalHtml = `
-            <div class="modal fade advance-modal" id="advanceStageModal" tabindex="-1" aria-hidden="true">
-                <div class="modal-dialog">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">确认推进项目阶段</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            <p>您确定要将项目从 <strong>${this.currentStage}</strong> 阶段推进到 <strong class="next-stage">${nextStage.name}</strong> 阶段吗？</p>
-                            <p>此操作将更新项目的当前阶段状态，不可回退。</p>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                            <button type="button" class="btn btn-success" id="confirmAdvanceBtn">确认推进</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        // 添加模态框到DOM
-        const modalContainer = document.createElement('div');
-        modalContainer.innerHTML = modalHtml;
-        container.appendChild(modalContainer);
-    }
 
     /**
      * 绑定事件
      */
     bindEvents() {
-        const container = document.getElementById(this.containerId);
-        if (!container) return;
-
-        // 当前阶段点击事件（推进阶段）
-        const currentStage = container.querySelector('.stage-current.stage-actionable');
-        if (currentStage) {
-            currentStage.addEventListener('click', (e) => {
-                // 处理点击确认弹窗
-                const modal = new bootstrap.Modal(document.getElementById('advanceStageModal'));
-                modal.show();
-            });
-        }
-
-        // 确认推进按钮点击事件
-        const confirmBtn = container.querySelector('#confirmAdvanceBtn');
-        if (confirmBtn) {
-            confirmBtn.addEventListener('click', () => {
-                this.advanceStage();
-            });
-        }
+        // 事件绑定已在 render 方法中完成
+        // 所有的点击事件都直接绑定到对应的元素上
     }
+
+    /**
+     * 显示阶段推进确认对话框
+     */
+    showStageProgressConfirmation(nextStage) {
+        const currentStageName = this.getStageDisplayName(this.currentStage);
+        const nextStageName = nextStage.name;
+        
+        // 特殊处理：批价到签约阶段
+        if (this.currentStage === 'quoted' && nextStage.key === 'signed') {
+            // 批价到签约需要检查批价流程，但不需要用户确认
+            // 直接调用updateStage，让后端处理批价流程检测
+            this.updateStage(nextStage.key);
+            return;
+        }
+
+        // 其他阶段推进需要确认
+        this.showConfirmDialog({
+            title: '确认阶段推进',
+            message: `您确定要将项目从「${currentStageName}」阶段推进到「${nextStageName}」阶段吗？`,
+            detail: '此操作将更新项目的当前阶段状态，推进后将无法直接回退。',
+            confirmText: '确认推进',
+            cancelText: '取消',
+            type: 'warning',
+            icon: 'fas fa-arrow-right',
+            onConfirm: () => {
+                this.updateStage(nextStage.key);
+            }
+        });
+    }
+
+    /**
+     * 显示分支阶段确认对话框
+     */
+    showBranchStageConfirmation(branch, targetStage, isRestore) {
+        let title, message, detail, confirmText;
+        
+        if (isRestore) {
+            const lastMainStageName = this.getStageDisplayName(this.lastMainStage);
+            title = '确认恢复到主线';
+            message = `您确定要将项目从「${branch.name}」状态恢复到主线「${lastMainStageName}」阶段吗？`;
+            detail = '项目将重新进入正常的阶段流程中。';
+            confirmText = '确认恢复';
+        } else {
+            const currentStageName = this.getStageDisplayName(this.currentStage);
+            title = '确认切换到分支状态';
+            message = `您确定要将项目从「${currentStageName}」阶段切换为「${branch.name}」状态吗？`;
+            detail = branch.key === 'lost' ? '项目将被标记为失败状态。' : '项目将被暂时搁置。';
+            confirmText = '确认切换';
+        }
+
+        this.showConfirmDialog({
+            title: title,
+            message: message,
+            detail: detail,
+            confirmText: confirmText,
+            cancelText: '取消',
+            type: branch.key === 'lost' ? 'danger' : 'warning',
+            icon: branch.key === 'lost' ? 'fas fa-times-circle' : 'fas fa-pause-circle',
+            onConfirm: () => {
+                this.updateStage(targetStage);
+            }
+        });
+    }
+
+    /**
+     * 通用确认对话框显示方法 - 使用项目标准确认对话框组件
+     */
+    showConfirmDialog(options) {
+        // 使用项目的标准确认对话框组件
+        this.showStandardConfirmDialog({
+            title: options.title,
+            message: options.message,
+            type: options.type || 'warning',
+            confirmText: options.confirmText || '确认',
+            cancelText: options.cancelText || '取消',
+            dialogId: 'stageProgressConfirmDialog',
+            onConfirm: options.onConfirm
+        });
+    }
+
+    /**
+     * 显示标准确认对话框
+     * 根据 CLAUDE-COMPONENTS.md 中的规范实现
+     */
+    showStandardConfirmDialog(options) {
+        const dialog = document.getElementById(options.dialogId);
+        if (!dialog) {
+            console.error('找不到确认对话框容器:', options.dialogId);
+            return;
+        }
+
+        // 设置对话框内容
+        const titleElement = dialog.querySelector('.message-title');
+        const textElement = dialog.querySelector('.message-text');
+        const iconElement = dialog.querySelector('.dialog-icon');
+        const confirmBtn = dialog.querySelector('.dialog-confirm-btn');
+        const cancelBtn = dialog.querySelector('.dialog-cancel-btn');
+
+        if (titleElement) titleElement.textContent = options.title;
+        if (textElement) textElement.innerHTML = options.message.replace(/\n/g, '<br>');
+        
+        // 设置图标
+        if (iconElement) {
+            iconElement.className = 'dialog-icon ' + this.getIconClassByType(options.type);
+        }
+
+        // 设置确认按钮文本和样式
+        if (confirmBtn) {
+            confirmBtn.textContent = options.confirmText;
+            // 重置按钮样式
+            confirmBtn.className = confirmBtn.className.replace(/btn-\w+/g, '');
+            confirmBtn.classList.add('btn', 'btn-' + this.getButtonColorByType(options.type), 'dialog-confirm-btn');
+        }
+
+        // 设置取消按钮文本
+        if (cancelBtn) {
+            cancelBtn.textContent = options.cancelText;
+        }
+
+        // 绑定事件
+        const confirmHandler = () => {
+            this.hideConfirmDialog(options.dialogId);
+            if (options.onConfirm) {
+                options.onConfirm();
+            }
+        };
+
+        const cancelHandler = () => {
+            this.hideConfirmDialog(options.dialogId);
+        };
+
+        // 移除旧的事件监听器并添加新的
+        if (confirmBtn) {
+            confirmBtn.replaceWith(confirmBtn.cloneNode(true));
+            const newConfirmBtn = dialog.querySelector('.dialog-confirm-btn');
+            newConfirmBtn.addEventListener('click', confirmHandler);
+        }
+
+        if (cancelBtn) {
+            cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+            const newCancelBtn = dialog.querySelector('.dialog-cancel-btn');
+            newCancelBtn.addEventListener('click', cancelHandler);
+        }
+
+        // 绑定遮罩层点击事件
+        const overlay = dialog.querySelector('.dialog-overlay');
+        if (overlay) {
+            overlay.replaceWith(overlay.cloneNode(true));
+            const newOverlay = dialog.querySelector('.dialog-overlay');
+            newOverlay.addEventListener('click', cancelHandler);
+        }
+
+        // 显示对话框
+        this.showConfirmDialog_display(options.dialogId);
+    }
+
+    /**
+     * 显示确认对话框
+     */
+    showConfirmDialog_display(dialogId) {
+        const dialog = document.getElementById(dialogId);
+        if (!dialog) return;
+
+        dialog.style.display = 'flex';
+        setTimeout(() => {
+            dialog.classList.add('show');
+        }, 10);
+
+        // ESC键关闭
+        const handleEsc = (e) => {
+            if (e.key === 'Escape') {
+                this.hideConfirmDialog(dialogId);
+                document.removeEventListener('keydown', handleEsc);
+            }
+        };
+        document.addEventListener('keydown', handleEsc);
+    }
+
+    /**
+     * 隐藏确认对话框
+     */
+    hideConfirmDialog(dialogId) {
+        const dialog = document.getElementById(dialogId);
+        if (!dialog) return;
+
+        dialog.classList.remove('show');
+        setTimeout(() => {
+            dialog.style.display = 'none';
+        }, 300);
+    }
+
+    /**
+     * 根据类型获取图标类名
+     */
+    getIconClassByType(type) {
+        const iconMap = {
+            'danger': 'fas fa-exclamation-triangle',
+            'warning': 'fas fa-exclamation-triangle', 
+            'info': 'fas fa-info-circle',
+            'success': 'fas fa-check-circle'
+        };
+        return iconMap[type] || 'fas fa-exclamation-triangle';
+    }
+
+    /**
+     * 根据类型获取按钮颜色
+     */
+    getButtonColorByType(type) {
+        const colorMap = {
+            'danger': 'danger',
+            'warning': 'warning',
+            'info': 'primary',
+            'success': 'success'
+        };
+        return colorMap[type] || 'primary';
+    }
+
+    /**
+     * 根据类型获取图标颜色
+     */
+    getIconColorByType(type) {
+        const colorMap = {
+            'danger': '#e74c3c',
+            'warning': '#f39c12',
+            'info': '#3498db',
+            'success': '#28a745'
+        };
+        return colorMap[type] || '#f39c12';
+    }
+
+    /**
+     * 获取阶段显示名称
+     */
+    getStageDisplayName(stageKey) {
+        const stage = this.stages.find(s => s.key === stageKey);
+        return stage ? stage.name : stageKey;
+    }
+
 
     /**
      * 通用阶段切换方法，调用后端API
@@ -535,8 +719,10 @@ class ProjectStageProgress {
         .then(data => {
             if (data.success) {
                 
-                // 移除加载指示器
-                document.body.removeChild(loadingOverlay);
+                // 安全移除加载指示器
+                if (loadingOverlay && loadingOverlay.parentNode) {
+                    document.body.removeChild(loadingOverlay);
+                }
                 
                 // **新增: 处理批价流程信息**
                 if (data.pricing_flow) {
@@ -549,16 +735,21 @@ class ProjectStageProgress {
                 const errorMsg = data.message || '未知错误';
                 console.error('更新阶段失败: ' + errorMsg);
                 alert('更新阶段失败: ' + errorMsg);
-                // 移除加载指示器
-                document.body.removeChild(loadingOverlay);
+                // 安全移除加载指示器
+                if (loadingOverlay && loadingOverlay.parentNode) {
+                    document.body.removeChild(loadingOverlay);
+                }
             }
         })
         .catch(error => {
-            // 移除加载指示器
-            document.body.removeChild(loadingOverlay);
+            // 安全移除加载指示器
+            if (loadingOverlay && loadingOverlay.parentNode) {
+                document.body.removeChild(loadingOverlay);
+            }
             
             if (error instanceof BlockedProgressError) {
                 // 处理阻塞的进度推进（批价流程检查失败）
+                console.log('处理阻塞的进度推进，错误数据:', error.data);
                 
                 if (error.data.pricing_flow) {
                     // 显示批价流程相关的提示
@@ -575,9 +766,80 @@ class ProjectStageProgress {
     }
     
     /**
-     * 处理批价流程提示
+     * 处理批价流程提示 - 使用通用确认对话框优化版
      */
     handlePricingFlowPrompt(pricingFlow) {
+        // 根据不同的操作要求，使用通用确认对话框
+        if (pricingFlow.action_required === 'create_quotation') {
+            this.showPricingFlowDialog({
+                type: 'warning',
+                title: '签约流程 - 报价单缺失',
+                message: `${pricingFlow.message}\n\n建议您先创建报价单，完善产品明细并完成审批流程。`,
+                confirmText: '创建报价单',
+                cancelText: '稍后处理',
+                onConfirm: () => {
+                    window.open(`/quotation/create?project_id=${this.projectId}`, '_blank');
+                    this.refreshPage();
+                }
+            });
+        } else if (pricingFlow.action_required === 'complete_quotation_approval') {
+            this.showPricingFlowDialog({
+                type: 'warning',
+                title: '签约流程 - 审核缺失',
+                message: `${pricingFlow.message}\n\n请先完成报价单审核流程，然后重新推进到签约阶段。`,
+                confirmText: '查看报价单',
+                cancelText: '知道了',
+                onConfirm: () => {
+                    window.open(`/quotation/${pricingFlow.quotation_id}/detail`, '_blank');
+                    this.refreshPage();
+                }
+            });
+        } else if (pricingFlow.action_required === 'create_pricing_order') {
+            this.showPricingFlowDialog({
+                type: 'success',
+                title: '签约流程 - 批价单创建',
+                message: `项目已成功推进到签约阶段！\n\n发现已审核报价单：${pricingFlow.quotation_number}\n${pricingFlow.message}`,
+                confirmText: '创建批价单',
+                cancelText: '稍后处理',
+                onConfirm: () => {
+                    this.createPricingOrder(pricingFlow.quotation_id);
+                }
+            });
+        } else if (pricingFlow.action_required === 'view_pricing_order') {
+            this.showPricingFlowDialog({
+                type: 'info',
+                title: '签约流程 - 批价单状态',
+                message: `项目已成功推进到签约阶段！\n\n已存在批价单：${pricingFlow.pricing_order_number}\n状态：${this.getPricingOrderStatusLabel(pricingFlow.pricing_order_status)}`,
+                confirmText: '查看批价单',
+                cancelText: '关闭',
+                onConfirm: () => {
+                    window.location.href = `/pricing_order/${pricingFlow.pricing_order_id}`;
+                }
+            });
+        } else {
+            // 降级到原有的复杂对话框实现
+            this.handlePricingFlowPrompt_original(pricingFlow);
+        }
+    }
+
+    /**
+     * 显示批价流程对话框 - 使用通用组件
+     */
+    showPricingFlowDialog(options) {
+        this.showConfirmDialog({
+            title: options.title,
+            message: options.message,
+            type: options.type,
+            confirmText: options.confirmText,
+            cancelText: options.cancelText,
+            onConfirm: options.onConfirm
+        });
+    }
+
+    /**
+     * 原有批价流程提示实现 - 作为降级选项保留
+     */
+    handlePricingFlowPrompt_original(pricingFlow) {
         const modalId = 'pricingFlowModal';
         let modalHtml = '';
         
@@ -922,12 +1184,13 @@ class ProjectStageProgress {
     }
 
     /**
-     * 推进到下一阶段
+     * 推进到下一阶段 (已废弃，现在使用确认对话框)
      */
     advanceStage() {
+        // 此方法已被 showStageProgressConfirmation 替代
         const nextStage = this.getNextStage();
         if (!nextStage) return;
-        this.updateStage(nextStage.key);
+        this.showStageProgressConfirmation(nextStage);
     }
 
     /**

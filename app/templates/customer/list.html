@@ -2289,7 +2289,7 @@ function executeBatchDelete() {
     const currentCompany = batchDeleteQueue[currentBatchIndex];
     const companyId = currentCompany.company.id;
     
-    fetch('{{ url_for("customer.delete_company", company_id=0) }}'.replace('0', companyId), {
+    fetch(`{{ url_for("customer.delete_company", company_id=0) }}`.replace('0', companyId), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',

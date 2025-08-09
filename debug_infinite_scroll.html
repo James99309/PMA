@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>无限滚动调试工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .debug-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-good { background-color: #28a745; }
+        .status-warning { background-color: #ffc107; }
+        .status-error { background-color: #dc3545; }
+        
+        .debug-info {
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+        }
+        
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        
+        button:hover {
+            background: #0056b3;
+        }
+        
+        .log-entry {
+            padding: 4px 8px;
+            margin: 2px 0;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        
+        .log-info { background: #d1ecf1; }
+        .log-warn { background: #fff3cd; }
+        .log-error { background: #f8d7da; }
+        
+        #scrollTest {
+            height: 100px;
+            overflow-y: scroll;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        
+        #scrollContent {
+            height: 300px;
+            background: linear-gradient(to bottom, #e3f2fd, #bbdefb);
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 无限滚动调试工具</h1>
+    
+    <div class="debug-panel">
+        <h2>📊 系统检测</h2>
+        <div id="systemStatus">检测中...</div>
+    </div>
+    
+    <div class="debug-panel">
+        <h2>🎛️ 控制面板</h2>
+        <button onclick="checkScrollPosition()">检查滚动位置</button>
+        <button onclick="simulateScrollToBottom()">模拟滚动到底部</button>
+        <button onclick="testContainerDetection()">测试容器检测</button>
+        <button onclick="testScrollEvent()">测试滚动事件</button>
+        <button onclick="clearLog()">清空日志</button>
+    </div>
+    
+    <div class="debug-panel">
+        <h2>📏 滚动测试区域</h2>
+        <div id="scrollTest">
+            <div id="scrollContent">
+                <h3>滚动测试内容</h3>
+                <p>向下滚动这个区域来测试滚动检测...</p>
+                <p>当前时间：<span id="currentTime"></span></p>
+                <div style="margin-top: 150px;">
+                    <p>滚动检测测试完成</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="debug-panel">
+        <h2>📝 实时日志</h2>
+        <div id="debugLog" style="max-height: 300px; overflow-y: auto;"></div>
+    </div>
+
+    <script>
+        // 日志系统
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('debugLog');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        function clearLog() {
+            document.getElementById('debugLog').innerHTML = '';
+        }
+        
+        // 更新当前时间
+        function updateTime() {
+            document.getElementById('currentTime').textContent = new Date().toLocaleTimeString();
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
+        
+        // 系统检测
+        function detectSystem() {
+            const status = document.getElementById('systemStatus');
+            let html = '';
+            
+            // 检查必要的元素
+            const checks = [
+                {
+                    name: '页面是否在PMA系统中',
+                    test: () => window.location.host.includes('localhost') || window.location.pathname.includes('user'),
+                    fix: '请在PMA系统的用户列表页面中运行此调试工具'
+                },
+                {
+                    name: '是否有.table-responsive容器',
+                    test: () => document.querySelector('.table-responsive') !== null,
+                    fix: '页面缺少.table-responsive容器'
+                },
+                {
+                    name: '是否有userTableBody元素',
+                    test: () => document.getElementById('userTableBody') !== null,
+                    fix: '页面缺少#userTableBody元素'
+                },
+                {
+                    name: 'window.infiniteScrollState是否存在',
+                    test: () => window.infiniteScrollState !== undefined,
+                    fix: '无限滚动状态对象未初始化'
+                },
+                {
+                    name: '滚动事件监听器是否活跃',
+                    test: () => window.getEventListeners && window.getEventListeners(window).scroll,
+                    fix: '滚动事件监听器可能未正确绑定'
+                }
+            ];
+            
+            checks.forEach(check => {
+                const passed = check.test();
+                const indicator = passed ? 'status-good' : 'status-error';
+                html += `<div><span class="status-indicator ${indicator}"></span>${check.name}: ${passed ? '✅' : '❌'}</div>`;
+                if (!passed) {
+                    html += `<div style="margin-left: 20px; color: #6c757d; font-size: 0.9em;">${check.fix}</div>`;
+                }
+                
+                addLog(`${check.name}: ${passed ? 'PASS' : 'FAIL'}`, passed ? 'info' : 'error');
+            });
+            
+            status.innerHTML = html;
+        }
+        
+        // 检查滚动位置
+        function checkScrollPosition() {
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            const windowHeight = window.innerHeight;
+            const documentHeight = document.documentElement.scrollHeight;
+            
+            const container = document.querySelector('.table-responsive');
+            let containerInfo = 'N/A';
+            
+            if (container) {
+                const rect = container.getBoundingClientRect();
+                containerInfo = `位置: ${Math.round(rect.top)}px, 高度: ${Math.round(rect.height)}px`;
+            }
+            
+            const info = `
+窗口滚动位置: ${scrollTop}px
+窗口高度: ${windowHeight}px
+文档总高度: ${documentHeight}px
+距离底部: ${documentHeight - (scrollTop + windowHeight)}px
+表格容器: ${containerInfo}
+            `;
+            
+            addLog(`滚动位置检查:\n${info}`, 'info');
+        }
+        
+        // 模拟滚动到底部
+        function simulateScrollToBottom() {
+            addLog('模拟滚动到页面底部...', 'info');
+            
+            const documentHeight = document.documentElement.scrollHeight;
+            const windowHeight = window.innerHeight;
+            const targetScroll = documentHeight - windowHeight - 50; // 留50px触发阈值
+            
+            window.scrollTo({
+                top: targetScroll,
+                behavior: 'smooth'
+            });
+            
+            setTimeout(() => {
+                addLog(`滚动完成，当前位置: ${window.pageYOffset}px`, 'info');
+                checkScrollPosition();
+            }, 1000);
+        }
+        
+        // 测试容器检测
+        function testContainerDetection() {
+            const selectors = ['.table-responsive', '.container', '.page-with-fixed-nav', 'table'];
+            
+            addLog('开始容器检测...', 'info');
+            
+            selectors.forEach(selector => {
+                const element = document.querySelector(selector);
+                if (element) {
+                    const rect = element.getBoundingClientRect();
+                    addLog(`找到容器 ${selector}: 位置(${Math.round(rect.top)}, ${Math.round(rect.left)}), 尺寸(${Math.round(rect.width)}×${Math.round(rect.height)})`, 'info');
+                } else {
+                    addLog(`未找到容器 ${selector}`, 'warn');
+                }
+            });
+        }
+        
+        // 测试滚动事件
+        function testScrollEvent() {
+            addLog('开始测试滚动事件...', 'info');
+            
+            let scrollCount = 0;
+            
+            function testScrollHandler() {
+                scrollCount++;
+                addLog(`滚动事件触发 #${scrollCount}, 位置: ${window.pageYOffset}px`, 'info');
+                
+                if (scrollCount >= 5) {
+                    window.removeEventListener('scroll', testScrollHandler);
+                    addLog('滚动事件测试完成', 'info');
+                }
+            }
+            
+            window.addEventListener('scroll', testScrollHandler, { passive: true });
+            
+            // 自动触发一些滚动
+            setTimeout(() => window.scrollBy(0, 100), 500);
+            setTimeout(() => window.scrollBy(0, 100), 1000);
+            setTimeout(() => window.scrollBy(0, -200), 1500);
+        }
+        
+        // 页面加载时自动检测
+        window.addEventListener('DOMContentLoaded', () => {
+            addLog('调试工具已加载', 'info');
+            detectSystem();
+        });
+        
+        // 如果页面已经加载完成
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            addLog('调试工具已加载（页面已就绪）', 'info');
+            detectSystem();
+        }
+        
+        // 监听滚动事件用于调试
+        let lastScrollTime = 0;
+        window.addEventListener('scroll', () => {
+            const now = Date.now();
+            if (now - lastScrollTime > 1000) { // 每秒最多记录一次
+                lastScrollTime = now;
+                addLog(`页面滚动: ${window.pageYOffset}px`, 'info');
+            }
+        }, { passive: true });
+        
+        // 监听无限滚动相关的全局变量变化
+        if (typeof window.infiniteScrollState === 'object') {
+            const originalState = window.infiniteScrollState;
+            let lastStateLog = JSON.stringify(originalState);
+            
+            setInterval(() => {
+                const currentStateLog = JSON.stringify(originalState);
+                if (currentStateLog !== lastStateLog) {
+                    addLog(`无限滚动状态变化: ${currentStateLog}`, 'info');
+                    lastStateLog = currentStateLog;
+                }
+            }, 1000);
+        }
+    </script>
+</body>
+</html>

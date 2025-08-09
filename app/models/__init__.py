@@ -10,6 +10,7 @@ from app.models.approval import ApprovalProcessTemplate, ApprovalStep, ApprovalI
 from app.models.pricing_order import PricingOrder, PricingOrderDetail, SettlementOrderDetail, PricingOrderApprovalRecord
 from app.models.performance import PerformanceTarget, PerformanceStatistics, FiveStarProjectBaseline
 from app.models.expense import Expense, Department
+from app.models.project_customer_association import ProjectCustomerAssociation
 
 __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 
            'ProductCategory', 'ProductSubcategory', 'ProductRegion', 'ProductCodeField', 
@@ -18,4 +19,5 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product',
            'ApprovalProcessTemplate', 'ApprovalStep', 'ApprovalInstance', 'ApprovalRecord',
            'ApprovalStatus', 'ApprovalAction', 'PricingOrder', 'PricingOrderDetail', 
            'SettlementOrderDetail', 'PricingOrderApprovalRecord', 'PerformanceTarget',
-           'PerformanceStatistics', 'FiveStarProjectBaseline', 'Expense', 'Department'] 
+           'PerformanceStatistics', 'FiveStarProjectBaseline', 'Expense', 'Department',
+           'ProjectCustomerAssociation'] 

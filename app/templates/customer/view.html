@@ -1017,7 +1017,7 @@ document.addEventListener('DOMContentLoaded', function() {
         deleteModal.show();
         
         // 获取删除确认数据
-        fetch('{{ url_for("customer.api_delete_confirm", company_id=0) }}'.replace('0', companyId))
+        fetch('{{ url_for("customer.api_delete_confirm", company_id=company.id) }}')
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
@@ -1040,7 +1040,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function executeDelete(companyId) {
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = '{{ url_for("customer.delete_company", company_id=0) }}'.replace('0', companyId);
+        form.action = '{{ url_for("customer.delete_company", company_id=company.id) }}';
         
         const csrfInput = document.createElement('input');
         csrfInput.type = 'hidden';

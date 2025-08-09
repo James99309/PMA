@@ -1060,9 +1060,15 @@ def view_project(project_id):
                 'endDate': None
             })
 
-    # 查询项目相关的行动记录，按时间倒序排列（应用共享权限过滤）
+    # 查询项目相关的行动记录，按时间倒序排列
     from app.utils.access_control import get_viewable_data
-    project_actions = get_viewable_data(Action, current_user, special_filters=[Action.project_id == project_id]).order_by(Action.date.desc(), Action.created_at.desc()).all()
+    
+    # 如果是项目拥有者，可以看到所有相关的行动记录
+    if current_user.id == project.owner_id or current_user.role == 'admin':
+        project_actions = Action.query.filter_by(project_id=project_id).order_by(Action.date.desc(), Action.created_at.desc()).all()
+    else:
+        # 其他用户只能看到有权限查看的行动记录
+        project_actions = get_viewable_data(Action, current_user, special_filters=[Action.project_id == project_id]).order_by(Action.date.desc(), Action.created_at.desc()).all()
 
     # 传递原始阶段key给前端用于条件判断，避免语言切换时的问题
     current_stage_key = project.current_stage
@@ -1183,6 +1189,10 @@ def view_project(project_id):
     else:
         shareable_users_tree = []
     
+    # 检查用户是否可以添加客户关联（基于查看权限）
+    # 只要能查看项目，就可以添加客户关联
+    can_edit_project_data = True  # 如果能执行到这里，说明已经通过了查看权限检查
+    
     return render_template("project/detail.html", 
                          project=project, 
                          Quotation=Quotation, 
@@ -1208,7 +1218,9 @@ def view_project(project_id):
                          # 共享权限和用户
                          can_edit_sharing=can_edit_sharing,
                          can_view_sharing=can_view_sharing,
-                         shareable_users_tree=shareable_users_tree)
+                         shareable_users_tree=shareable_users_tree,
+                         # 数据权限
+                         can_edit_project_data=can_edit_project_data)
 
 @project.route('/add', methods=['GET', 'POST'])
 @permission_required('project', 'create')
@@ -1443,16 +1455,12 @@ def edit_project(project_id):
             project.project_name = request.form['project_name']
             project.report_source = request.form.get('report_source')
             project.product_situation = request.form.get('product_situation')
-            project.design_issues = request.form.get('design_issues')
             project.industry = request.form.get('industry')  # 添加行业字段更新
             
             # 当前阶段不在编辑页面显示，不需要更新，保持原值
             old_stage = project.current_stage
             new_stage = project.current_stage  # 保持不变
-            project.dealer = request.form.get('dealer')
-            project.end_user = request.form.get('end_user')
-            project.contractor = request.form.get('contractor')
-            project.system_integrator = request.form.get('system_integrator')
+            # 客户关联字段已从编辑表单中移除，在项目详情页单独管理
             project.stage_description = request.form.get('stage_description')
             
             # 更新销售负责人字段
@@ -2621,8 +2629,9 @@ def add_action_for_project(project_id):
             related_companies.append(company)
             related_companies_dict[company.id] = company
     
-    # 获取默认选择的企业ID
+    # 获取默认选择的企业ID和锁定状态
     default_company_id = request.args.get('company_id')
+    locked_company = request.args.get('locked') == 'true'  # 检查是否锁定客户
     selected_company = None
     company_contacts = []
     
@@ -2670,7 +2679,8 @@ def add_action_for_project(project_id):
                            project=project, 
                            related_companies=related_companies,
                            selected_company=selected_company,
-                           company_contacts=company_contacts)
+                           company_contacts=company_contacts,
+                           locked_company=locked_company)
 
 @project.route('/api/get_company_contacts/<int:company_id>', methods=['GET'])
 @permission_required('customer', 'view')
@@ -3164,3 +3174,395 @@ def update_project_sharing(project_id):
         logger.error(f"更新项目共享设置失败: {e}")
     
     return redirect(url_for('project.view_project', project_id=project_id))
+
+# ===== 项目-客户关联管理API =====
+
+@project.route('/api/search_customers')
+@login_required
+def search_customers_temp():
+    """搜索客户API - 优化版本，支持显示更多信息和排序（临时去掉权限检查）"""
+    # 添加认证调试信息
+    logger.info(f"搜索客户API被调用 - 用户: {current_user.username if current_user.is_authenticated else 'Anonymous'}")
+    logger.info(f"用户认证状态: {current_user.is_authenticated}")
+    if current_user.is_authenticated:
+        logger.info(f"用户详情: ID={current_user.id}, 用户名={current_user.username}, 角色={current_user.role}")
+    
+    # 临时权限检查：如果用户未认证，返回错误
+    if not current_user.is_authenticated:
+        logger.error("用户未认证")
+        return jsonify({'success': False, 'message': '用户未认证'}), 401
+        
+    # 如果不是admin，也检查权限
+    if current_user.role != 'admin' and not current_user.has_permission('project', 'view'):
+        logger.error("用户权限不足")
+        return jsonify({'success': False, 'message': '权限不足'}), 403
+    
+    search_term = request.args.get('search', '').strip()
+    if not search_term:
+        search_term = request.args.get('q', '').strip()  # 兼容旧参数名
+    
+    if not search_term or len(search_term) < 2:
+        return jsonify({
+            'success': False,
+            'message': '搜索关键词至少需要2个字符'
+        })
+    
+    try:
+        from app.models.customer import Company, Contact
+        from app.models.user import User
+        
+        logger.info(f"搜索客户，关键词: {search_term}, 用户ID: {current_user.id}")
+        
+        # 简化查询，直接获取所有未删除的匹配公司，并加载关联数据
+        companies = Company.query.filter(
+            Company.is_deleted == False,
+            Company.company_name.ilike(f'%{search_term}%')
+        ).outerjoin(User, Company.owner_id == User.id).order_by(
+            # 用户自己的客户排在前面
+            db.case((Company.owner_id == current_user.id, 0), else_=1),
+            Company.company_name
+        ).limit(20).all()
+        
+        logger.info(f"找到客户总数: {len(companies)} 个")
+        
+        # 调试排序：记录前几个客户的拥有者信息
+        for i, company in enumerate(companies[:5]):
+            is_owner = company.owner_id == current_user.id if company.owner_id else False
+            logger.info(f"排序调试 #{i+1}: {company.company_name} - 拥有者: {company.owner.real_name if company.owner else 'None'} (ID: {company.owner_id}) - 是当前用户: {is_owner}")
+        
+        customers = []
+        for company in companies:
+            # 获取主联系人（简化版本，避免懒加载问题）
+            primary_contact_name = ''
+            try:
+                primary_contact = Contact.query.filter_by(
+                    company_id=company.id, 
+                    is_primary=True
+                ).first()
+                if not primary_contact:
+                    primary_contact = Contact.query.filter_by(company_id=company.id).first()
+                if primary_contact:
+                    primary_contact_name = primary_contact.name
+            except Exception as e:
+                logger.warning(f"获取联系人失败: {e}")
+            
+            # 构建客户信息
+            customer_data = {
+                'id': company.id,
+                'company_name': company.company_name,
+                'contact_person': primary_contact_name,
+                'industry': company.industry or '',
+                'owner': {
+                    'id': company.owner.id if company.owner else None,
+                    'username': company.owner.username if company.owner else '',
+                    'real_name': company.owner.real_name if company.owner else '未设置',
+                    'is_vendor_user': company.owner.is_vendor_user() if company.owner and hasattr(company.owner, 'is_vendor_user') else False
+                },
+                'is_active': bool(company.owner.is_active) if company.owner else False
+            }
+            customers.append(customer_data)
+            logger.info(f"处理客户: {company.company_name}, 拥有人: {company.owner.real_name if company.owner else 'None'}")
+        
+        logger.info(f"返回搜索结果: {len(customers)} 个客户")
+        return jsonify({
+            'success': True,
+            'results': customers
+        })
+        
+    except Exception as e:
+        logger.error(f"搜索客户失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': '搜索客户失败，请重试'
+        }), 500
+
+@project.route('/api/customer_associations/<int:project_id>')
+@permission_required('project', 'view')  
+def get_customer_associations(project_id):
+    """获取项目的客户关联列表"""
+    try:
+        from app.models.project_customer_association import ProjectCustomerAssociation
+        
+        # 验证项目访问权限
+        project_obj = Project.query.get_or_404(project_id)
+        if not can_view_project(current_user, project_obj):
+            return jsonify({
+                'success': False,
+                'message': '没有权限查看此项目的客户关联'
+            }), 403
+        
+        # 获取活跃的客户关联
+        associations = ProjectCustomerAssociation.get_active_associations(project_id)
+        
+        associations_data = []
+        
+        for assoc in associations:
+            company = assoc.company
+            # 检查当前用户是否有权限查看此客户
+            from app.utils.access_control import can_view_company
+            can_view_customer = can_view_company(current_user, company) if company else False
+            
+            # 检查是否可以移除此关联
+            # 严格遵循"谁关联谁删除"原则
+            can_remove = False
+            
+            # 只有管理员有完全权限
+            if current_user.role == 'admin':
+                can_remove = True
+            # 只有创建者可以移除自己创建的关联
+            elif (hasattr(assoc, 'created_by') and
+                  assoc.created_by == current_user.id):
+                can_remove = True
+            
+            # 获取拥有者信息，用于正确显示徽章
+            owner_info = None
+            if company.owner:
+                owner_info = {
+                    'real_name': company.owner.real_name,
+                    'username': company.owner.username,
+                    'is_vendor_user': company.owner.is_vendor_user()
+                }
+            
+            # 获取创建者信息（安全处理）
+            created_by_name = None
+            try:
+                if hasattr(assoc, 'creator') and assoc.creator:
+                    created_by_name = assoc.creator.real_name or assoc.creator.username
+            except Exception as e:
+                # 如果creator字段不存在或查询失败，使用created_by字段
+                logger.debug(f"获取创建者信息失败: {e}")
+                if hasattr(assoc, 'created_by') and assoc.created_by:
+                    try:
+                        from app.models.user import User
+                        creator_user = User.query.get(assoc.created_by)
+                        if creator_user:
+                            created_by_name = creator_user.real_name or creator_user.username
+                    except Exception as e2:
+                        logger.debug(f"查询创建者用户失败: {e2}")
+                        created_by_name = f"用户#{assoc.created_by}" if hasattr(assoc, 'created_by') else None
+            
+            associations_data.append({
+                'id': assoc.id,
+                'company_id': assoc.company_id,
+                'company_name': company.company_name,
+                'customer_type': assoc.customer_type,
+                'customer_type_label': assoc.customer_type_label,
+                'company_type': company.company_type,
+                'owner_name': company.owner.real_name if company.owner else None,
+                'owner_info': owner_info,
+                'is_active': company.owner.is_active if company.owner else False,
+                'can_remove': can_remove,
+                'can_view_customer': can_view_customer,
+                'created_by': assoc.created_by,
+                'created_by_name': created_by_name,
+                'created_at': assoc.created_at.strftime('%Y-%m-%d %H:%M:%S')
+            })
+        
+        return jsonify({
+            'success': True,
+            'associations': associations_data
+        })
+        
+    except Exception as e:
+        logger.error(f"获取项目客户关联失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': '获取客户关联失败，请重试'
+        }), 500
+
+@project.route('/api/add_customer_association', methods=['POST'])
+@permission_required('project', 'view')
+def add_customer_association():
+    """添加项目-客户关联"""
+    try:
+        data = request.get_json()
+        project_id = data.get('project_id')
+        company_id = data.get('company_id')
+        customer_type = data.get('customer_type')
+        
+        if not all([project_id, company_id, customer_type]):
+            return jsonify({
+                'success': False,
+                'message': '缺少必要参数'
+            }), 400
+        
+        # 验证项目查看权限（有查看权限即可添加客户关联）
+        project_obj = Project.query.get_or_404(project_id)
+        if not can_view_project(current_user, project_obj):
+            return jsonify({
+                'success': False,
+                'message': '没有权限访问此项目'
+            }), 403
+        
+        # 验证客户类型
+        valid_types = ['end_user', 'design_issues', 'contractor', 'system_integrator', 'dealer']
+        if customer_type not in valid_types:
+            return jsonify({
+                'success': False,
+                'message': '无效的客户类型'
+            }), 400
+        
+        # 验证公司是否存在
+        from app.models.customer import Company
+        company = Company.query.filter_by(id=company_id, is_deleted=False).first()
+        if not company:
+            return jsonify({
+                'success': False,
+                'message': '指定的客户不存在'
+            }), 404
+        
+        # 添加关联
+        from app.models.project_customer_association import ProjectCustomerAssociation
+        
+        # 检查是否支持created_by字段
+        try:
+            # 尝试使用创建者ID
+            success, result = ProjectCustomerAssociation.add_association(project_id, company_id, customer_type, current_user.id)
+        except Exception as e:
+            logger.debug(f"使用created_by字段失败，尝试不使用创建者ID: {e}")
+            # 如果失败，尝试不使用created_by字段
+            try:
+                success, result = ProjectCustomerAssociation.add_association(project_id, company_id, customer_type)
+            except Exception as e2:
+                logger.error(f"添加关联完全失败: {e2}")
+                return jsonify({
+                    'success': False,
+                    'message': '数据库错误，请联系管理员'
+                }), 500
+        
+        if success:
+            db.session.commit()
+            return jsonify({
+                'success': True,
+                'message': '客户关联添加成功'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': result
+            }), 400
+            
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"添加客户关联失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': '添加客户关联失败，请重试'
+        }), 500
+
+@project.route('/api/remove_customer_association/<int:association_id>', methods=['POST'])
+@permission_required('project', 'view')
+def remove_customer_association(association_id):
+    """移除项目-客户关联"""
+    try:
+        from app.models.project_customer_association import ProjectCustomerAssociation
+        
+        # 获取关联记录
+        association = ProjectCustomerAssociation.query.get_or_404(association_id)
+        
+        # 验证移除权限
+        # 严格遵循"谁关联谁删除"原则
+        can_remove = False
+        
+        # 只有管理员有完全权限
+        if current_user.role == 'admin':
+            can_remove = True
+        # 只有创建者可以移除自己创建的关联
+        elif (hasattr(association, 'created_by') and
+              association.created_by == current_user.id):
+            can_remove = True
+        
+        if not can_remove:
+            return jsonify({
+                'success': False,
+                'message': '您只能移除自己添加的客户关联'
+            }), 403
+        
+        # 移除关联
+        success, message = ProjectCustomerAssociation.remove_association(association_id)
+        
+        if success:
+            db.session.commit()
+            return jsonify({
+                'success': True,
+                'message': message
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': message
+            }), 400
+            
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"移除客户关联失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': '移除客户关联失败，请重试'
+        }), 500
+
+@project.route('/api/customer_associations/<int:project_id>/render')
+@permission_required('project', 'view')
+def render_customer_associations_list(project_id):
+    """渲染项目客户关联列表的通用组件HTML"""
+    from flask import render_template
+    from app.models.project_customer_association import ProjectCustomerAssociation
+    
+    try:
+        # 验证项目访问权限
+        project_obj = Project.query.get_or_404(project_id)
+        if not can_view_project(current_user, project_obj):
+            return jsonify({
+                'success': False,
+                'message': '没有权限查看此项目的客户关联'
+            }), 403
+        
+        # 获取客户关联数据
+        associations = ProjectCustomerAssociation.get_active_associations(project_id)
+        
+        # 准备数据供模板使用
+        association_data = []
+        for association in associations:
+            company = association.company
+            owner = company.owner if company else None
+            
+            can_remove = ((current_user.role == 'admin' or 
+                          current_user.id == project_obj.owner_id) and 
+                         (not project_obj.is_locked or current_user.role == 'admin'))
+            
+            # 检查当前用户是否有权限查看此客户
+            from app.utils.access_control import can_view_company
+            can_view_customer = can_view_company(current_user, company) if company else False
+            
+            association_data.append({
+                'id': association.id,
+                'company_id': company.id,
+                'company_name': company.company_name,
+                'customer_type_label': dict(ProjectCustomerAssociation.CUSTOMER_TYPE_CHOICES).get(
+                    association.customer_type, association.customer_type
+                ),
+                'owner_name': owner.real_name if owner else None,
+                'is_active': bool(owner.is_active) if owner else False,
+                'can_remove': can_remove,
+                'can_view_customer': can_view_customer,
+                'company': company  # 为模板权限检查提供company对象
+            })
+        
+        # 使用专门的模板渲染客户关联列表
+        
+        rendered_html = render_template(
+            'project/customer_associations_list.html',
+            associations=association_data
+        )
+        
+        return jsonify({
+            'success': True,
+            'html': rendered_html
+        })
+        
+    except Exception as e:
+        logger.error(f"渲染客户关联列表失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': '渲染客户关联列表失败，请重试'
+        }), 500

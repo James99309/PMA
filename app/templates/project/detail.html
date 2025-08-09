@@ -1,6 +1,7 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_currency_with_symbol, render_quotation_number, render_project_stage, render_project_rating, render_rating_input, render_confirmation_badge, render_report_source_badge, render_product_situation_badge, render_industry_badge, render_button, render_status_badge, render_lock_status_badge, render_authorization_status_badge, render_sharing_section, render_tree_user_selector %}
+{% from 'macros/ui_helpers.html' import render_project_type, render_owner, render_date, render_datetime, render_authorization_code, render_currency, render_currency_with_symbol, render_quotation_number, render_project_stage, render_project_rating, render_rating_input, render_confirmation_badge, render_report_source_badge, render_product_situation_badge, render_industry_badge, render_button, render_status_badge, render_lock_status_badge, render_authorization_status_badge, render_sharing_section, render_tree_user_selector, render_confirm_dialog %}
 {% import 'macros/ui_helpers.html' as ui %}
+{% from 'macros/customer_search.html' import render_customer_search, init_customer_search_scripts %}
 {% from 'macros/approval_macros.html' import render_approval_timeline, render_approval_form, render_start_approval_button, render_approval_section %}
 {% from 'macros/ui_modals.html' import render_change_project_owner_modal %}
 
@@ -251,7 +252,6 @@
                                 <div class="col-md-4"><strong>{{ _('活跃状态') }}：</strong></div>
                                 <div class="col-md-8">
                                     {{ render_status_badge(project.is_active) }}
-                                    <small class="ms-2 text-muted">{{ _('阈值') }}: {{ settings.project_activity_threshold|default(30) }}{{ _('天') }}</small>
                                 </div>
                             </div>
                             <div class="row mb-2">
@@ -278,86 +278,20 @@
                 </div>
             </div>
 
-            <!-- 相关单位卡片 -->
+            <!-- 关联客户卡片 -->
             <div class="card mb-3">
-                <div class="card-header bg-light">
-                    <h5 class="card-title mb-0">{{ _('相关单位') }}</h5>
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">{{ _('关联客户') }}</h5>
+                    {% if can_edit_project_data and (not project.is_locked or current_user.role == 'admin') %}
+                        {{ ui.render_button(_('添加客户'), type='button', color='primary', size='sm', attrs='onclick="showAddCustomerDialog()"') }}
+                    {% endif %}
                 </div>
                 <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _('直接用户') }}:</strong></div>
-                                <div class="col-md-8">
-                                    {% if project.end_user %}
-                                        {% if related_companies.end_user %}
-                                            <a href="{{ url_for('customer.view_company', company_id=related_companies.end_user) }}" class="company-link">
-                                                {{ project.end_user }}
-                                            </a>
-                                        {% else %}
-                                            {{ project.end_user }}
-                                        {% endif %}
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _('设计院及顾问') }}:</strong></div>
-                                <div class="col-md-8">
-                                    {% if project.design_issues %}
-                                        {% if related_companies.design_issues %}
-                                            <a href="{{ url_for('customer.view_company', company_id=related_companies.design_issues) }}" class="company-link">
-                                                {{ project.design_issues }}
-                                            </a>
-                                        {% else %}
-                                            {{ project.design_issues }}
-                                        {% endif %}
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _('经销商') }}:</strong></div>
-                                <div class="col-md-8">
-                                    {% if project.dealer %}
-                                        {% if related_companies.dealer %}
-                                            <a href="{{ url_for('customer.view_company', company_id=related_companies.dealer) }}" class="company-link">
-                                                {{ project.dealer }}
-                                            </a>
-                                        {% else %}
-                                            {{ project.dealer }}
-                                        {% endif %}
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _('总承包单位') }}:</strong></div>
-                                <div class="col-md-8">
-                                    {% if project.contractor %}
-                                        {% if related_companies.contractor %}
-                                            <a href="{{ url_for('customer.view_company', company_id=related_companies.contractor) }}" class="company-link">
-                                                {{ project.contractor }}
-                                            </a>
-                                        {% else %}
-                                            {{ project.contractor }}
-                                        {% endif %}
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="row mb-2">
-                                <div class="col-md-4"><strong>{{ _('系统集成商') }}:</strong></div>
-                                <div class="col-md-8">
-                                    {% if project.system_integrator %}
-                                        {% if related_companies.system_integrator %}
-                                            <a href="{{ url_for('customer.view_company', company_id=related_companies.system_integrator) }}" class="company-link">
-                                                {{ project.system_integrator }}
-                                            </a>
-                                        {% else %}
-                                            {{ project.system_integrator }}
-                                        {% endif %}
-                                    {% endif %}
-                                </div>
-                            </div>
+                    <div id="customerAssociationsList">
+                        <!-- 客户关联列表将在这里动态加载 -->
+                        <div class="text-muted text-center py-3">
+                            <i class="fas fa-users me-2"></i>
+                            {{ _('暂无关联客户，点击上方"添加客户"按钮添加') }}
                         </div>
                     </div>
                 </div>
@@ -496,12 +430,71 @@
         </div>
     </div>
 </div>
+
+<!-- 阶段推进确认对话框 -->
+{{ render_confirm_dialog('stageProgressConfirmDialog') }}
+
+<!-- 添加客户对话框 -->
+<div class="modal fade" id="addCustomerModal" tabindex="-1" aria-labelledby="addCustomerModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addCustomerModalLabel">{{ _('添加关联客户') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- 使用通用客户搜索组件 -->
+                {% set customer_search_config = {
+                    "input_id": "customerSearch",
+                    "input_name": "customer_search",
+                    "dropdown_id": "customerDropdown", 
+                    "clear_button_id": "clearCustomer",
+                    "customer_id_field": "customerId",
+                    "customer_id_name": "customer_id",
+                    "data_element_id": "customerSearchConfig",
+                    "label": "搜索客户",
+                    "placeholder": "输入客户名称进行搜索...",
+                    "api_endpoints": {
+                        "search": "/project/api/search_customers"
+                    },
+                    "search_config": {
+                        "min_length": 2,
+                        "delay": 300,
+                        "limit": 10
+                    },
+                    "display_config": {
+                        "show_contact": true,
+                        "show_industry": true,
+                        "show_owner": true
+                    },
+                    "validation": {
+                        "required": true,
+                        "validate_on_submit": true
+                    }
+                } %}
+                
+                {{ render_customer_search(customer_search_config, selected_customer=None, readonly=False, required=True) }}
+            </div>
+            <div class="modal-footer">
+                {{ ui.render_button(_('取消'), type='button', color='secondary', attrs='data-bs-dismiss="modal"') }}
+                {{ ui.render_button(_('确认添加'), type='button', color='primary', attrs='id="confirmAddCustomer" onclick="confirmAddCustomer()" disabled') }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 标准确认对话框 -->
+{{ render_confirm_dialog('customerManagementDialog') }}
+
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
 <!-- 引入项目阶段进度条脚本 -->
 <script src="{{ url_for('static', filename='js/project_stages.js') }}"></script>
+
+<!-- 初始化客户搜索组件 -->
+{{ init_customer_search_scripts() }}
 <script src="/static/js/project_action_reply.js"></script>
 
 <script>
@@ -1342,6 +1335,382 @@ function showMessage(message, type = 'info') {
         }
     }, 3000);
 }
+
+// 客户管理JavaScript
+let selectedCustomerData = null;
+let searchTimeout;
+
+// 预定义翻译文本
+const customerI18nTexts = {
+    owner: '{{ _("拥有人") }}',
+    notSet: '{{ _("未设置") }}',
+    active: '{{ _("活跃") }}',
+    inactive: '{{ _("不活跃") }}',
+    confirmRemoveCustomer: '{{ _("确定要移除客户") }}',
+    confirmRemoveMessage: '{{ _("的关联吗？此操作不可恢复。") }}',
+    confirmRemoveTitle: '{{ _("确认移除客户关联") }}'
+};
+
+// 公司类型徽章生成函数 - 复制render_company_type_badge宏的逻辑
+function generateCompanyTypeBadge(companyType) {
+    const colorMap = {
+        'user': '#0B6EFD',
+        'dealer': '#28a745',
+        'integrator': '#fd7e14',
+        'designer': '#6f42c1',
+        'contractor': '#dc3545',
+        'direct_customer': '#17a2b8',
+        'partner': '#20c997',
+        'system_integrator': '#fd7e14',
+        'design_institute': '#6f42c1',
+        'consultant': '#6f42c1',
+        'general_contractor': '#dc3545',
+        'distributor': '#28a745',
+        'other': '#6c757d'
+    };
+    
+    const labelMap = {
+        'user': '用户',
+        'dealer': '经销商',
+        'integrator': '系统集成商',
+        'designer': '设计院及顾问',
+        'contractor': '总承包单位',
+        'direct_customer': '直接客户',
+        'partner': '合作伙伴',
+        'system_integrator': '系统集成商',
+        'design_institute': '设计院',
+        'consultant': '顾问',
+        'general_contractor': '总承包商',
+        'distributor': '分销商',
+        'other': '其他'
+    };
+    
+    if (companyType && colorMap[companyType]) {
+        const color = colorMap[companyType];
+        const label = labelMap[companyType] || companyType;
+        return `<span class="badge rounded-pill" style="background-color: ${color}; color: #fff; font-size: 0.75rem; padding: 0.35em 0.65em;">${label}</span>`;
+    } else {
+        return '<span class="badge bg-secondary rounded-pill" style="font-size: 0.75rem; padding: 0.35em 0.65em;">未知</span>';
+    }
+}
+
+// 拥有者徽章生成函数 - 复制render_owner宏的逻辑
+function generateOwnerBadge(ownerName, ownerInfo) {
+    if (ownerName) {
+        // 如果有拥有者信息且是厂商用户，使用厂商徽章样式
+        if (ownerInfo && ownerInfo.is_vendor_user) {
+            return `<span class="badge badge-user vendor rounded-pill">${ownerName}</span>`;
+        } else {
+            // 普通用户或只有名字字符串时使用常规徽章样式
+            return `<span class="badge badge-user regular">${ownerName}</span>`;
+        }
+    } else {
+        return `<span class="badge badge-user regular">${customerI18nTexts.notSet}</span>`;
+    }
+}
+
+// 显示添加客户对话框
+function showAddCustomerDialog() {
+    console.log('showAddCustomerDialog called');
+    try {
+        // 重置对话框状态
+        document.getElementById('confirmAddCustomer').disabled = true;
+        selectedCustomerData = null;
+        
+        // 清除通用搜索组件的选择
+        if (window.customerSearcher) {
+            window.customerSearcher.clearSelection();
+        }
+        
+        // 显示对话框
+        const modal = new bootstrap.Modal(document.getElementById('addCustomerModal'));
+        modal.show();
+    } catch (error) {
+        console.error('Error in showAddCustomerDialog:', error);
+        alert('Error opening dialog: ' + error.message);
+    }
+}
+
+// 选择客户回调函数（通用组件会调用这个函数）
+function onCustomerSelected(customer) {
+    console.log('onCustomerSelected 函数被调用:', customer);
+    selectedCustomerData = customer;
+    
+    // 启用确认按钮
+    const confirmButton = document.getElementById('confirmAddCustomer');
+    if (confirmButton) {
+        confirmButton.disabled = false;
+        console.log('确认按钮已启用');
+    } else {
+        console.error('找不到确认添加按钮');
+    }
+}
+
+// 确认添加客户
+async function confirmAddCustomer() {
+    // 从通用组件获取选中的客户
+    let customer = selectedCustomerData;
+    if (!customer && window.customerSearcher) {
+        customer = window.customerSearcher.getSelectedCustomer();
+    }
+    
+    if (!customer) {
+        showMessage('请选择一个客户', 'error');
+        return;
+    }
+    
+    const projectId = {{ project.id }};
+    
+    try {
+        const response = await fetch('/project/api/add_customer_association', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                project_id: projectId,
+                company_id: customer.id,
+                customer_type: 'end_user'  // 默认客户类型
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // 关闭对话框
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addCustomerModal'));
+            modal.hide();
+            
+            // 刷新客户关联列表
+            loadCustomerAssociations();
+            
+            // 显示成功消息
+            showMessage('客户关联添加成功', 'success');
+        } else {
+            showMessage(data.message || '添加客户关联失败', 'error');
+        }
+    } catch (error) {
+        console.error('添加客户关联失败:', error);
+        showMessage('添加客户关联失败，请重试', 'error');
+    }
+}
+
+// 加载客户关联列表 - 使用通用样式组件
+async function loadCustomerAssociations() {
+    const container = document.getElementById('customerAssociationsList');
+    
+    try {
+        const response = await fetch(`/project/api/customer_associations/{{ project.id }}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            if (data.associations.length > 0) {
+                let html = `
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle table-sm">
+                            <thead class="table-light">
+                                <tr class="small">
+                                    <th width="18%">角色</th>
+                                    <th width="28%">企业名称</th>
+                                    <th width="18%">负责人</th>
+                                    <th width="12%">状态</th>
+                                    <th width="14%">添加者</th>
+                                    <th width="10%">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                data.associations.forEach(association => {
+                    // 生成移除按钮的提示文本
+                    let removeTooltip = association.can_remove ? 
+                        (association.created_by_name ? 
+                            `移除客户关联 (由${association.created_by_name}添加)` : 
+                            '移除客户关联 (历史数据)') : 
+                        '只能移除自己添加的客户关联';
+                    
+                    html += `
+                        <tr class="small">
+                            <td>
+                                ${generateCompanyTypeBadge(association.company_type)}
+                            </td>
+                            <td>
+                                ${association.can_view_customer ? 
+                                    `<a href="/customer/${association.company_id}/view" class="text-primary text-decoration-underline fw-medium">${association.company_name}</a>` :
+                                    `<span class="text-primary fw-medium">${association.company_name}</span>`
+                                }
+                            </td>
+                            <td>
+                                ${generateOwnerBadge(association.owner_name, association.owner_info)}
+                            </td>
+                            <td>
+                                ${association.is_active ? 
+                                    '<span class="badge badge-pill badge-transparent customer-status-active">' + customerI18nTexts.active + '</span>' : 
+                                    '<span class="badge badge-pill badge-transparent customer-status-inactive">' + customerI18nTexts.inactive + '</span>'
+                                }
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-dark" style="font-size: 0.7rem;">
+                                    ${association.created_by_name || '未知'}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    ${association.can_remove ? `
+                                        <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                onclick="removeCustomerAssociation(${association.id}, '${association.company_name.replace(/'/g, "\\'")}')"
+                                                title="${removeTooltip}">
+                                            <i class="fas fa-times"></i>
+                                        </button>` : `
+                                        <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                title="${removeTooltip}" disabled>
+                                            <i class="fas fa-times"></i>
+                                        </button>`}
+                                    <a href="/project/add_action/{{ project.id }}?company_id=${association.company_id}&locked=true" 
+                                       class="btn btn-sm btn-outline-primary" 
+                                       title="添加行动记录">
+                                        <i class="fas fa-plus"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                container.innerHTML = html;
+            } else {
+                container.innerHTML = `
+                    <div class="text-muted text-center py-4">
+                        <i class="fas fa-users fs-3 mb-2 d-block"></i>
+                        <p class="mb-0">暂无关联客户，点击上方"添加客户"按钮添加</p>
+                    </div>
+                `;
+            }
+        } else {
+            container.innerHTML = `
+                <div class="text-danger text-center py-4">
+                    <i class="fas fa-exclamation-triangle fs-3 mb-2 d-block"></i>
+                    <p class="mb-0">加载客户关联失败</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('加载客户关联失败:', error);
+        container.innerHTML = `
+            <div class="text-danger text-center py-4">
+                <i class="fas fa-exclamation-triangle fs-3 mb-2 d-block"></i>
+                <p class="mb-0">网络错误，无法加载客户关联</p>
+            </div>
+        `;
+    }
+}
+
+// 移除客户关联
+function removeCustomerAssociation(associationId, companyName) {
+    showConfirmDialog({
+        title: customerI18nTexts.confirmRemoveTitle,
+        message: `${customerI18nTexts.confirmRemoveCustomer} "${companyName}" ${customerI18nTexts.confirmRemoveMessage}`,
+        type: 'danger',
+        dialogId: 'customerManagementDialog',
+        onConfirm: async function() {
+            try {
+                const response = await fetch(`/project/api/remove_customer_association/${associationId}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token() }}'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage('客户关联移除成功', 'success');
+                    loadCustomerAssociations();
+                } else {
+                    showMessage(data.message || '移除客户关联失败', 'error');
+                }
+            } catch (error) {
+                console.error('移除客户关联失败:', error);
+                showMessage('移除客户关联失败，请重试', 'error');
+            }
+        }
+    });
+}
+
+// 页面加载后初始化
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('=== 项目详情页面加载完成，开始初始化客户搜索 ===');
+    
+    // 等待通用客户搜索组件初始化完成后设置事件监听
+    setTimeout(function() {
+        console.log('延迟执行：查找客户搜索组件...');
+        
+        // 查找模态框内的客户搜索容器
+        const modal = document.getElementById('addCustomerModal');
+        console.log('模态框元素:', modal);
+        
+        const customerSearchContainer = modal ? modal.querySelector('.customer-search-container') : null;
+        console.log('客户搜索容器:', customerSearchContainer);
+        
+        if (customerSearchContainer) {
+            console.log('✅ 找到模态框内的客户搜索容器:', customerSearchContainer);
+            
+            // 检查组件是否已初始化
+            const inputElement = customerSearchContainer.querySelector('input');
+            const dropdownElement = customerSearchContainer.querySelector('.customer-dropdown');
+            console.log('输入框元素:', inputElement);
+            console.log('下拉框元素:', dropdownElement);
+            
+            // 检查全局组件变量
+            console.log('全局customerSearcher:', window.customerSearcher);
+            
+            // 监听通用组件的客户选择事件
+            customerSearchContainer.addEventListener('customerSelected', function(event) {
+                console.log('客户选择事件触发:', event.detail);
+                if (event.detail && event.detail.customer) {
+                    onCustomerSelected(event.detail.customer);
+                }
+            });
+            
+            // 监听客户清除事件
+            customerSearchContainer.addEventListener('customerCleared', function(event) {
+                console.log('客户清除事件触发');
+                selectedCustomerData = null;
+                const confirmButton = document.getElementById('confirmAddCustomer');
+                if (confirmButton) {
+                    confirmButton.disabled = true;
+                }
+            });
+            
+            console.log('✅ 客户搜索事件监听器已添加');
+        } else {
+            console.error('❌ 未找到模态框内的客户搜索容器');
+            
+            // 调试信息
+            if (!modal) {
+                console.error('模态框 addCustomerModal 不存在');
+            } else {
+                const allContainers = document.querySelectorAll('.customer-search-container');
+                console.log('页面中所有客户搜索容器:', allContainers.length, allContainers);
+            }
+        }
+    }, 2000); // 增加延迟确保组件完全初始化
+    
+    // 初始化客户关联列表
+    loadCustomerAssociations();
+    
+    // 确保全局函数可用
+    window.showAddCustomerDialog = showAddCustomerDialog;
+    window.removeCustomerAssociation = removeCustomerAssociation;
+    window.confirmAddCustomer = confirmAddCustomer;
+    window.onCustomerSelected = onCustomerSelected;
+});
 </script>
 
 {% endblock %}
@@ -1545,5 +1914,46 @@ function showMessage(message, type = 'info') {
 .progress {
     border-radius: 0.5rem;
 }
+
+
+.customer-type-select {
+    border-right: 1px solid #dee2e6;
+}
+
+.modal-body .row {
+    align-items: center;
+}
+
+/* 客户关联列表样式 */
+.customer-association-item {
+    display: flex;
+    justify-content: between;
+    align-items: center;
+    padding: 0.75rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+    background-color: #f8f9fa;
+}
+
+.customer-info {
+    flex-grow: 1;
+}
+
+.customer-actions {
+    margin-left: 1rem;
+}
+
+.customer-name {
+    font-weight: 500;
+    color: #212529;
+}
+
+.customer-meta {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
 </style>
+
 {% endblock %}

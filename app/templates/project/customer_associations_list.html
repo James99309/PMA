@@ -1,0 +1,76 @@
+{% from 'macros/ui_helpers.html' import render_data_list, render_owner, render_company_type_badge %}
+
+{# 自定义宏用于渲染客户关联列表 #}
+
+
+
+{# 活跃状态徽章 #}
+{% macro render_customer_active_badge(is_active) %}
+    {% if is_active %}
+        <span class="badge badge-pill badge-transparent customer-status-active">活跃</span>
+    {% else %}
+        <span class="badge badge-pill badge-transparent customer-status-inactive">不活跃</span>
+    {% endif %}
+{% endmacro %}
+
+{# 如果有数据则显示表格，否则显示空状态 #}
+{% if associations and associations|length > 0 %}
+    <div class="table-responsive">
+        <table class="table table-hover align-middle table-sm">
+            <thead class="table-light">
+                <tr class="small">
+                    <th width="20%">角色</th>
+                    <th width="35%">企业名称</th>
+                    <th width="20%">负责人</th>
+                    <th width="15%">状态</th>
+                    <th width="10%">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for association in associations %}
+                <tr class="small">
+                    <td>
+                        {{ render_company_type_badge(association.company_type) }}
+                    </td>
+                    <td>
+                        {% if association.can_view_customer %}
+                        <a href="{{ url_for('customer.view_company', company_id=association.company_id) }}" class="text-primary text-decoration-underline fw-medium">
+                            {{ association.company_name }}
+                        </a>
+                        {% else %}
+                        <span class="text-primary fw-medium">{{ association.company_name }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {{ render_owner(association.owner_name) }}
+                    </td>
+                    <td>
+                        {{ render_customer_active_badge(association.is_active) }}
+                    </td>
+                    <td>
+                        <div class="btn-group" role="group">
+                            {% if association.can_remove %}
+                                <button type="button" class="btn btn-sm btn-outline-danger" 
+                                        onclick="removeCustomerAssociation({{ association.id }}, '{{ association.company_name|replace("'", "\\'") }}')"
+                                        title="移除客户关联">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            {% endif %}
+                            <a href="{{ url_for('project.add_action_for_project', project_id=project.id) }}?company_id={{ association.company_id }}&locked=true" 
+                               class="btn btn-sm btn-outline-primary" 
+                               title="添加行动记录">
+                                <i class="fas fa-plus"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <div class="text-muted text-center py-4">
+        <i class="fas fa-users fs-3 mb-2 d-block"></i>
+        <p class="mb-0">暂无关联客户，点击上方"添加客户"按钮添加</p>
+    </div>
+{% endif %}

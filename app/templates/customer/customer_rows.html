@@ -3,9 +3,13 @@
 <tr>
     <td class="px-3">{{ render_owner(company.owner) if company.owner else '-' }}</td>
     <td class="px-3">
+        {% if can_view_company(current_user, company) %}
         <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="text-decoration-none">
             {{ company.company_name }}
         </a>
+        {% else %}
+        <span class="text-muted">{{ company.company_name }}</span>
+        {% endif %}
     </td>
     <td class="px-3">{{ render_company_type_badge(company.company_type) if company.company_type else '-' }}</td>
     <td class="px-3">{{ render_industry_badge(company.industry) if company.industry else '-' }}</td>

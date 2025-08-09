@@ -45,9 +45,13 @@
                                 </td>
                                 <td class="px-3">
                                     {% if contact.company %}
+                                        {% if can_view_company(current_user, contact.company) %}
                                         <a href="{{ url_for('customer.view_company', company_id=contact.company_id) }}">
                                             {{ contact.company.company_name }}
                                         </a>
+                                        {% else %}
+                                        <span class="text-muted">{{ contact.company.company_name }}</span>
+                                        {% endif %}
                                     {% else %}
                                         <span class="text-muted">未知企业</span>
                                     {% endif %}

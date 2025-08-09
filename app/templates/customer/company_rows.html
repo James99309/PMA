@@ -13,9 +13,13 @@
     {% endif %}
     <td class="px-3">{{ render_owner(company.owner) }}</td>
     <td class="px-3">
+        {% if can_view_company(current_user, company) %}
         <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="text-decoration-none">
             {{ company.company_name }}
         </a>
+        {% else %}
+        <span class="text-muted">{{ company.company_name }}</span>
+        {% endif %}
         {% if company.owner_id != current_user.id and current_user.id in company.contact_owner_ids %}
         <span class="badge bg-info ms-1" style="font-size: 0.7em;">{{ _('已创建联系人') }}</span>
         {% endif %}

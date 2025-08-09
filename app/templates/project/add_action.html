@@ -31,14 +31,24 @@
                         
                         <div class="mb-3">
                             <label for="company_id" class="form-label">{{ _('相关企业') }}</label>
-                            <select class="form-select" id="company_id" name="company_id">
-                                <option value="">-- {{ _('请选择企业（可选）') }} --</option>
-                                {% for company in related_companies %}
-                                <option value="{{ company.id }}" {% if selected_company and selected_company.id == company.id %}selected{% endif %}>
-                                    {{ company.company_name }}
-                                </option>
-                                {% endfor %}
-                            </select>
+                            {% if locked_company and selected_company %}
+                                <input type="text" class="form-control" 
+                                       value="{{ selected_company.company_name }}" 
+                                       readonly>
+                                <input type="hidden" name="company_id" value="{{ selected_company.id }}">
+                                <small class="form-text text-muted">
+                                    <i class="fas fa-lock"></i> {{ _('企业已锁定，来自项目客户关联') }}
+                                </small>
+                            {% else %}
+                                <select class="form-select" id="company_id" name="company_id">
+                                    <option value="">-- {{ _('请选择企业（可选）') }} --</option>
+                                    {% for company in related_companies %}
+                                    <option value="{{ company.id }}" {% if selected_company and selected_company.id == company.id %}selected{% endif %}>
+                                        {{ company.company_name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            {% endif %}
                         </div>
                         
                         <div class="mb-3">
@@ -129,11 +139,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // 获取表单元素
     const companySelect = document.getElementById('company_id');
     const contactSelect = document.getElementById('contact_id');
+    const isLocked = {{ 'true' if locked_company else 'false' }};
     
-    // 监听企业选择变化
-    companySelect.addEventListener('change', function() {
-        const companyId = this.value;
-        
+    // 加载联系人的函数
+    function loadContacts(companyId) {
         // 清空联系人下拉菜单
         contactSelect.innerHTML = '<option value="">-- {{ _("加载中...") }} --</option>';
         contactSelect.disabled = true;
@@ -175,7 +184,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 contactSelect.innerHTML = '<option value="">-- {{ _("加载联系人失败") }} --</option>';
                 contactSelect.disabled = true;
             });
-    });
+    }
+    
+    // 如果企业被锁定，直接加载联系人
+    if (isLocked && {{ selected_company.id if selected_company else 'null' }}) {
+        loadContacts({{ selected_company.id if selected_company else 'null' }});
+    }
+    
+    // 如果企业没有被锁定，监听企业选择变化
+    if (!isLocked && companySelect) {
+        companySelect.addEventListener('change', function() {
+            loadContacts(this.value);
+        });
+    }
     
     // 表单验证
     const actionForm = document.getElementById('actionForm');

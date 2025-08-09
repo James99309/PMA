@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>测试无限滚动配置路径</title>
+</head>
+<body>
+    <h1>测试无限滚动配置路径修复</h1>
+    
+    <script>
+        // 模拟用户列表页面的配置
+        const userListConfig = {
+            module_name: 'user',
+            ajax_mode: true,
+            ajax_endpoint: '/user/api/list_ajax',
+            ajax_target: '#userTableBody',
+            
+            table: {
+                infinite_scroll: {
+                    enabled: true,
+                    page_size: 20,
+                    scroll_threshold: 100,
+                    container_selector: '.table-responsive',
+                    scroll_mode: 'window'
+                }
+            }
+        };
+        
+        // 测试修复后的逻辑
+        console.log('🧪 测试配置路径修复');
+        
+        // 原有逻辑（错误）
+        const oldCheck = userListConfig.infinite_scroll && userListConfig.infinite_scroll.enabled;
+        console.log('❌ 原有逻辑检查结果:', oldCheck);
+        
+        // 修复后逻辑（正确）
+        const infiniteScrollConfig = userListConfig.table && userListConfig.table.infinite_scroll 
+            ? userListConfig.table.infinite_scroll 
+            : userListConfig.infinite_scroll;
+        const newCheck = infiniteScrollConfig && infiniteScrollConfig.enabled;
+        console.log('✅ 修复后逻辑检查结果:', newCheck);
+        
+        console.log('📋 无限滚动配置详情:', infiniteScrollConfig);
+        
+        if (newCheck) {
+            console.log('🎉 无限滚动功能应该正常启用！');
+        } else {
+            console.log('❌ 无限滚动功能仍然无法启用');
+        }
+    </script>
+</body>
+</html>

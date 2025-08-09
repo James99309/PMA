@@ -3,9 +3,13 @@
 <div class="customer-card-mobile data-card-mobile">
     <div class="card-header-mobile">
         <div class="card-title-mobile">
+            {% if can_view_company(current_user, company) %}
             <a href="{{ url_for('customer.view_company', company_id=company.id) }}">
                 {{ company.company_name or '-' }}
             </a>
+            {% else %}
+            <span class="text-muted">{{ company.company_name or '-' }}</span>
+            {% endif %}
             <span class="card-id">#{{ company.id }}</span>
         </div>
         <div class="card-badges-mobile">
