@@ -947,7 +947,8 @@ def upload_product_files(product_id):
                 image_url = supabase_client.upload_product_file(
                     product_id=product_id,
                     file=image_file,
-                    file_type='image'
+                    file_type='image',
+                    bucket_type='product'
                 )
                 
                 if image_url:
@@ -970,7 +971,8 @@ def upload_product_files(product_id):
                 pdf_url = supabase_client.upload_product_file(
                     product_id=product_id,
                     file=pdf_file,
-                    file_type='pdf'
+                    file_type='pdf',
+                    bucket_type='product'
                 )
                 
                 if pdf_url:
@@ -1265,7 +1267,7 @@ def create_product():
                         
                         # 使用Supabase客户端上传图片
                         supabase_client = get_supabase_client()
-                        image_url = supabase_client.upload_product_file(new_product.id, product_image, 'image')
+                        image_url = supabase_client.upload_product_file(new_product.id, product_image, 'image', 'product')
                         
                         if image_url:
                             new_product.image_path = image_url
@@ -1315,7 +1317,7 @@ def create_product():
                         
                         # 使用Supabase客户端上传PDF
                         supabase_client = get_supabase_client()
-                        pdf_url = supabase_client.upload_product_file(new_product.id, product_pdf, 'pdf')
+                        pdf_url = supabase_client.upload_product_file(new_product.id, product_pdf, 'pdf', 'product')
                         
                         if pdf_url:
                             new_product.pdf_path = pdf_url
@@ -1479,7 +1481,7 @@ def update_product(id):
                     try:
                         # 使用Supabase客户端上传图片
                         supabase_client = get_supabase_client()
-                        image_url = supabase_client.upload_product_file(product.id, product_image, 'image')
+                        image_url = supabase_client.upload_product_file(product.id, product_image, 'image', 'product')
                         
                         if image_url:
                             # 如果已有旧图片且是本地路径，删除本地文件
@@ -1553,7 +1555,7 @@ def update_product(id):
                     try:
                         # 使用Supabase客户端上传PDF
                         supabase_client = get_supabase_client()
-                        pdf_url = supabase_client.upload_product_file(product.id, product_pdf, 'pdf')
+                        pdf_url = supabase_client.upload_product_file(product.id, product_pdf, 'pdf', 'product')
                         
                         if pdf_url:
                             # 如果已有旧PDF且是本地路径，删除本地文件

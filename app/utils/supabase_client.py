@@ -36,8 +36,15 @@ class SupabaseStorageClient:
         try:
             # 从环境变量获取配置
             self.supabase_url = os.getenv('SUPABASE_URL')
-            self.supabase_key = os.getenv('SUPABASE_KEY') 
-            self.bucket_name = os.getenv('SUPABASE_BUCKET', 'product-images')
+            self.supabase_key = os.getenv('SUPABASE_KEY')
+            
+            # 多存储桶配置
+            self.bucket_config = {
+                'invoice': os.getenv('SUPABASE_BUCKET_INVOICE', 'invoice-images'),
+                'product': os.getenv('SUPABASE_BUCKET_PRODUCT', 'product-images'),
+                'rd_product': os.getenv('SUPABASE_BUCKET_RD_PRODUCT', 'rd-product-images'),
+                'default': os.getenv('SUPABASE_BUCKET', 'invoice-images')  # 向后兼容
+            }
             
             # 检查必需的环境变量
             if not self.supabase_url or not self.supabase_key:
@@ -48,7 +55,8 @@ class SupabaseStorageClient:
                     missing_vars.append('SUPABASE_KEY')
                 raise ValueError(f"缺少必需的Supabase环境变量: {', '.join(missing_vars)}")
                 
-            logger.info(f"Supabase配置: URL={self.supabase_url[:20]}..., BUCKET={self.bucket_name}")
+            logger.info(f"Supabase配置: URL={self.supabase_url[:20]}...")
+            logger.info(f"存储桶配置: {self.bucket_config}")
             
             # 使用官方推荐的create_client方法
             self.supabase = create_client(self.supabase_url, self.supabase_key)
@@ -58,7 +66,19 @@ class SupabaseStorageClient:
             logger.error(f"Supabase客户端初始化失败: {str(e)}")
             raise
     
-    def upload_product_file(self, product_id: int, file, file_type: str) -> Optional[str]:
+    def get_bucket_name(self, bucket_type: str = 'default') -> str:
+        """
+        根据类型获取存储桶名称
+        
+        Args:
+            bucket_type: 存储桶类型 ('invoice', 'product', 'rd_product', 'default')
+            
+        Returns:
+            存储桶名称
+        """
+        return self.bucket_config.get(bucket_type, self.bucket_config['default'])
+    
+    def upload_product_file(self, product_id: int, file, file_type: str, bucket_type: str = 'product') -> Optional[str]:
         """
         上传产品文件到Supabase存储
         
@@ -66,11 +86,15 @@ class SupabaseStorageClient:
             product_id: 产品ID
             file: 文件对象
             file_type: 文件类型 ('image' 或 'pdf')
+            bucket_type: 存储桶类型 ('product', 'rd_product', 'invoice', 'default')
             
         Returns:
             上传成功返回公开URL，失败返回None
         """
         try:
+            # 获取对应的存储桶名称
+            bucket_name = self.get_bucket_name(bucket_type)
+            
             # 验证文件类型
             if file_type not in ['image', 'pdf']:
                 raise ValueError("文件类型必须是 'image' 或 'pdf'")
@@ -126,7 +150,7 @@ class SupabaseStorageClient:
                         # 新版本SDK使用UploadFileOptions
                         logger.info("尝试使用UploadFileOptions方式上传")
                         options = UploadFileOptions(content_type=self._get_content_type(file_type, file_ext))
-                        res = self.supabase.storage.from_(self.bucket_name).upload(
+                        res = self.supabase.storage.from_(bucket_name).upload(
                             filename,
                             file_bytes,
                             options
@@ -140,7 +164,7 @@ class SupabaseStorageClient:
                     try:
                         # 尝试字典方式
                         logger.info("尝试使用字典方式上传")
-                        res = self.supabase.storage.from_(self.bucket_name).upload(
+                        res = self.supabase.storage.from_(bucket_name).upload(
                             filename,
                             file_bytes,
                             {"content-type": self._get_content_type(file_type, file_ext)}
@@ -154,7 +178,7 @@ class SupabaseStorageClient:
                     try:
                         # 最简化版本，不传递content-type
                         logger.info("尝试使用最简化方式上传")
-                        res = self.supabase.storage.from_(self.bucket_name).upload(
+                        res = self.supabase.storage.from_(bucket_name).upload(
                             filename,
                             file_bytes
                         )
@@ -173,7 +197,7 @@ class SupabaseStorageClient:
                         file_bytes.seek(0)
                         
                         # 构建上传URL
-                        upload_url = f"{self.supabase_url}/storage/v1/object/{self.bucket_name}/{filename}"
+                        upload_url = f"{self.supabase_url}/storage/v1/object/{bucket_name}/{filename}"
                         
                         # 设置请求头
                         headers = {
@@ -216,7 +240,7 @@ class SupabaseStorageClient:
                 raise upload_error
             
             # 构建公开URL
-            public_url = f"{self.supabase_url}/storage/v1/object/public/{self.bucket_name}/{filename}"
+            public_url = f"{self.supabase_url}/storage/v1/object/public/{bucket_name}/{filename}"
             logger.info(f"文件上传成功: {filename} -> {public_url}")
             
             return public_url
@@ -314,18 +338,22 @@ class SupabaseStorageClient:
         else:  # pdf
             return 'application/pdf'
     
-    def delete_product_file(self, product_id: int, file_type: str) -> bool:
+    def delete_product_file(self, product_id: int, file_type: str, bucket_type: str = 'product') -> bool:
         """
         删除产品文件
         
         Args:
             product_id: 产品ID
             file_type: 文件类型 ('image' 或 'pdf')
+            bucket_type: 存储桶类型 ('product', 'rd_product', 'invoice', 'default')
             
         Returns:
             删除成功返回True，失败返回False
         """
         try:
+            # 获取对应的存储桶名称
+            bucket_name = self.get_bucket_name(bucket_type)
+            
             # 生成文件名
             if file_type == 'image':
                 filename = f"product_{product_id}.jpg"
@@ -335,7 +363,7 @@ class SupabaseStorageClient:
                 raise ValueError("文件类型必须是 'image' 或 'pdf'")
             
             # 删除文件
-            result = self.supabase.storage.from_(self.bucket_name).remove([filename])
+            result = self.supabase.storage.from_(bucket_name).remove([filename])
             
             if hasattr(result, 'error') and result.error:
                 logger.error(f"Supabase删除错误: {result.error}")
@@ -348,7 +376,7 @@ class SupabaseStorageClient:
             logger.error(f"文件删除失败: {str(e)}")
             return False
     
-    def upload_expense_invoice(self, detail_id: int, file, filename: str) -> Optional[str]:
+    def upload_expense_invoice(self, detail_id: int, file, filename: str, bucket_type: str = 'invoice') -> Optional[str]:
         """
         上传报销明细发票图片到Supabase存储
         
@@ -356,11 +384,15 @@ class SupabaseStorageClient:
             detail_id: 报销明细ID
             file: 文件对象
             filename: 文件名
+            bucket_type: 存储桶类型 ('invoice', 'product', 'rd_product', 'default')
             
         Returns:
             成功返回公开URL，失败返回None
         """
         try:
+            # 获取对应的存储桶名称
+            bucket_name = self.get_bucket_name(bucket_type)
+            
             # 生成存储路径
             storage_path = f"expense_invoices/{detail_id}/{filename}"
             
@@ -393,7 +425,7 @@ class SupabaseStorageClient:
                         options = UploadFileOptions(
                             content_type=self._get_content_type('image', filename.split('.')[-1].lower() if '.' in filename else 'jpg')
                         )
-                        res = self.supabase.storage.from_(self.bucket_name).upload(
+                        res = self.supabase.storage.from_(bucket_name).upload(
                             storage_path,
                             file_bytes,
                             options
@@ -407,7 +439,7 @@ class SupabaseStorageClient:
                     try:
                         # 尝试字典方式
                         logger.info("尝试使用字典方式上传")
-                        res = self.supabase.storage.from_(self.bucket_name).upload(
+                        res = self.supabase.storage.from_(bucket_name).upload(
                             storage_path,
                             file_bytes,
                             {"content-type": self._get_content_type('image', filename.split('.')[-1].lower() if '.' in filename else 'jpg')}
@@ -421,7 +453,7 @@ class SupabaseStorageClient:
                     try:
                         # 最简化版本，不传递content-type
                         logger.info("尝试使用最简化方式上传")
-                        res = self.supabase.storage.from_(self.bucket_name).upload(
+                        res = self.supabase.storage.from_(bucket_name).upload(
                             storage_path,
                             file_bytes
                         )
@@ -440,7 +472,7 @@ class SupabaseStorageClient:
                         file_bytes.seek(0)
                         
                         # 构建上传URL
-                        upload_url = f"{self.supabase_url}/storage/v1/object/{self.bucket_name}/{storage_path}"
+                        upload_url = f"{self.supabase_url}/storage/v1/object/{bucket_name}/{storage_path}"
                         
                         # 设置请求头
                         headers = {
@@ -483,7 +515,7 @@ class SupabaseStorageClient:
                 raise upload_error
             
             # 构建公开URL
-            public_url = f"{self.supabase_url}/storage/v1/object/public/{self.bucket_name}/{storage_path}"
+            public_url = f"{self.supabase_url}/storage/v1/object/public/{bucket_name}/{storage_path}"
             
             logger.info(f"发票图片上传成功: {storage_path}")
             return public_url
@@ -492,17 +524,21 @@ class SupabaseStorageClient:
             logger.error(f"发票图片上传失败: {str(e)}")
             return None
     
-    def delete_expense_invoice(self, filename: str) -> bool:
+    def delete_expense_invoice(self, filename: str, bucket_type: str = 'invoice') -> bool:
         """
         删除报销明细发票图片
         
         Args:
             filename: 文件名
+            bucket_type: 存储桶类型 ('invoice', 'product', 'rd_product', 'default')
             
         Returns:
             删除成功返回True，失败返回False
         """
         try:
+            # 获取对应的存储桶名称
+            bucket_name = self.get_bucket_name(bucket_type)
+            
             # 构建存储路径
             # 从filename中提取detail_id（假设filename格式为：expense_invoice_{detail_id}_{uuid}.ext）
             parts = filename.split('_')
@@ -514,7 +550,7 @@ class SupabaseStorageClient:
                 storage_path = f"expense_invoices/{filename}"
             
             # 删除文件
-            result = self.supabase.storage.from_(self.bucket_name).remove([storage_path])
+            result = self.supabase.storage.from_(bucket_name).remove([storage_path])
             
             if hasattr(result, 'error') and result.error:
                 logger.error(f"Supabase删除错误: {result.error}")

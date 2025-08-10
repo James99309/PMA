@@ -1,0 +1,38 @@
+# Render云端环境变量配置 - 多存储桶版本
+# 复制以下内容到Render控制台的Environment Variables部分
+
+# ===================
+# Supabase基础配置
+# ===================
+
+SUPABASE_URL=https://pqzviljbpfoqvyfulakl.supabase.co
+
+SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxenZpbGpicGZvcXZ5ZnVsYWtsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDE4OTkzMywiZXhwIjoyMDY5NzY1OTMzfQ.GA3PLKQrERozFM923eEym5KAQvYCGwWCj57BQM5f4rY
+
+# ===================
+# 多存储桶配置
+# ===================
+
+SUPABASE_BUCKET_INVOICE=invoice-images
+
+SUPABASE_BUCKET_PRODUCT=product-images
+
+SUPABASE_BUCKET_RD_PRODUCT=rd-product-images
+
+# 向后兼容的默认存储桶（发票）
+SUPABASE_BUCKET=invoice-images
+
+FORCE_CLOUD_UPLOAD=true
+
+# ===================
+# 不同环境配置示例
+# ===================
+# 测试环境可以使用不同后缀：
+# SUPABASE_BUCKET_INVOICE=invoice-images-test
+# SUPABASE_BUCKET_PRODUCT=product-images-test  
+# SUPABASE_BUCKET_RD_PRODUCT=rd-product-images-test
+
+# 开发环境：
+# SUPABASE_BUCKET_INVOICE=invoice-images-dev
+# SUPABASE_BUCKET_PRODUCT=product-images-dev
+# SUPABASE_BUCKET_RD_PRODUCT=rd-product-images-dev

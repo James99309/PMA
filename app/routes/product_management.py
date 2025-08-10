@@ -1616,7 +1616,7 @@ def update_product(id):
                     # 云端环境：上传到Supabase
                     try:
                         supabase_client = get_supabase_client()
-                        image_url = supabase_client.upload_product_file(dev_product.id, file, 'image')
+                        image_url = supabase_client.upload_product_file(dev_product.id, file, 'image', 'rd_product')
                         
                         if image_url:
                             # 如果已有旧图片且是本地路径，删除本地文件
@@ -1678,7 +1678,7 @@ def update_product(id):
                     # 云端环境：上传到Supabase
                     try:
                         supabase_client = get_supabase_client()
-                        pdf_url = supabase_client.upload_product_file(dev_product.id, file, 'pdf')
+                        pdf_url = supabase_client.upload_product_file(dev_product.id, file, 'pdf', 'rd_product')
                         
                         if pdf_url:
                             # 如果已有旧PDF且是本地路径，删除本地文件
