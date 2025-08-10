@@ -1250,47 +1250,26 @@ def create_product():
         if 'product_image' in request.files:
             product_image = request.files['product_image']
             if product_image.filename:  # 确保有文件被上传
-                logger.debug(f'处理产品图片上传到Supabase: {product_image.filename}')
-                # 检查是否为云端环境（通过环境变量判断）
-                is_cloud_env = all([
-                    os.getenv('SUPABASE_URL'),
-                    os.getenv('SUPABASE_KEY'),
-                    os.getenv('SUPABASE_BUCKET')
-                ])
-                
-                if is_cloud_env:
-                    # 云端环境：上传到Supabase
-                    try:
-                        # 先保存产品以获取ID
-                        db.session.add(new_product)
-                        db.session.flush()  # 获取ID但不提交
-                        
-                        # 使用Supabase客户端上传图片
-                        supabase_client = get_supabase_client()
-                        image_url = supabase_client.upload_product_file(new_product.id, product_image, 'image', 'product')
-                        
-                        if image_url:
-                            new_product.image_path = image_url
-                            has_image = True
-                            logger.debug(f'产品图片已上传到Supabase: {image_url}')
-                        else:
-                            logger.warning('图片上传到Supabase失败，将创建没有图片的产品')
-                    except Exception as e:
-                        logger.error(f'产品图片上传到Supabase异常: {str(e)}')
-                        logger.warning('图片处理失败，将创建没有图片的产品')
-                else:
-                    # 本地环境：使用本地文件保存
-                    try:
-                        image_filename = process_product_image(product_image)
-                        if image_filename:
-                            new_product.image_path = image_filename
-                            has_image = True
-                            logger.debug(f'产品图片已保存到本地: {image_filename}')
-                        else:
-                            logger.warning('图片保存到本地失败，将创建没有图片的产品')
-                    except Exception as e:
-                        logger.error(f'产品图片保存到本地异常: {str(e)}')
-                        logger.warning('图片处理失败，将创建没有图片的产品')
+                logger.debug(f'处理产品图片上传: {product_image.filename}')
+                # 使用智能存储系统（自动判断本地/云端环境）
+                try:
+                    # 先保存产品以获取ID
+                    db.session.add(new_product)
+                    db.session.flush()  # 获取ID但不提交
+                    
+                    # 使用Supabase智能存储客户端上传图片
+                    supabase_client = get_supabase_client()
+                    image_url = supabase_client.upload_product_file(new_product.id, product_image, 'image', 'product')
+                    
+                    if image_url:
+                        new_product.image_path = image_url
+                        has_image = True
+                        logger.debug(f'产品图片上传成功: {image_url}')
+                    else:
+                        logger.warning('产品图片上传失败，将创建没有图片的产品')
+                except Exception as e:
+                    logger.error(f'产品图片上传异常: {str(e)}')
+                    logger.warning('图片处理失败，将创建没有图片的产品')
         else:
             logger.debug('没有上传产品图片')
         
@@ -1300,52 +1279,26 @@ def create_product():
             product_pdf = request.files['product_pdf']
             if product_pdf.filename:  # 确保有文件被上传
                 logger.debug(f'处理产品PDF上传: {product_pdf.filename}')
-                # 检查是否为云端环境（通过环境变量判断）
-                is_cloud_env = all([
-                    os.getenv('SUPABASE_URL'),
-                    os.getenv('SUPABASE_KEY'),
-                    os.getenv('SUPABASE_BUCKET')
-                ])
-                
-                if is_cloud_env:
-                    # 云端环境：上传到Supabase
-                    try:
-                        # 如果产品还没有添加到会话，先添加并flush
-                        if new_product not in db.session:
-                            db.session.add(new_product)
-                            db.session.flush()  # 获取ID但不提交
-                        
-                        # 使用Supabase客户端上传PDF
-                        supabase_client = get_supabase_client()
-                        pdf_url = supabase_client.upload_product_file(new_product.id, product_pdf, 'pdf', 'product')
-                        
-                        if pdf_url:
-                            new_product.pdf_path = pdf_url
-                            has_pdf = True
-                            logger.debug(f'产品PDF已上传到Supabase: {pdf_url}')
-                        else:
-                            logger.warning('PDF上传到Supabase失败，将创建没有PDF的产品')
-                    except Exception as e:
-                        logger.error(f'产品PDF上传到Supabase异常: {str(e)}')
-                        logger.warning('PDF文件处理失败，将创建没有PDF的产品')
-                else:
-                    # 本地环境：使用本地文件保存
-                    try:
-                        pdf_path, pdf_error = save_product_pdf(product_pdf)
-                        if pdf_error:
-                            return jsonify({
-                                'success': False,
-                                'message': pdf_error
-                            }), 400
-                        elif pdf_path:
-                            new_product.pdf_path = pdf_path
-                            has_pdf = True
-                            logger.debug(f'产品PDF已保存到本地: {pdf_path}')
-                        else:
-                            logger.warning('PDF保存到本地失败，将创建没有PDF的产品')
-                    except Exception as e:
-                        logger.error(f'产品PDF保存到本地异常: {str(e)}')
-                        logger.warning('PDF文件处理失败，将创建没有PDF的产品')
+                # 使用智能存储系统（自动判断本地/云端环境）
+                try:
+                    # 如果产品还没有添加到会话，先添加并flush
+                    if new_product not in db.session:
+                        db.session.add(new_product)
+                        db.session.flush()  # 获取ID但不提交
+                    
+                    # 使用Supabase智能存储客户端上传PDF
+                    supabase_client = get_supabase_client()
+                    pdf_url = supabase_client.upload_product_file(new_product.id, product_pdf, 'pdf', 'product')
+                    
+                    if pdf_url:
+                        new_product.pdf_path = pdf_url
+                        has_pdf = True
+                        logger.debug(f'产品PDF上传成功: {pdf_url}')
+                    else:
+                        logger.warning('产品PDF上传失败，将创建没有PDF的产品')
+                except Exception as e:
+                    logger.error(f'产品PDF上传异常: {str(e)}')
+                    logger.warning('PDF文件处理失败，将创建没有PDF的产品')
         else:
             logger.debug('没有上传产品PDF文件')
         
@@ -1469,60 +1422,32 @@ def update_product(id):
             product_image = request.files['product_image']
             if product_image.filename:  # 确保有文件被上传
                 logger.debug(f'处理产品图片上传: {product_image.filename}')
-                # 检查是否为云端环境（通过环境变量判断）
-                is_cloud_env = all([
-                    os.getenv('SUPABASE_URL'),
-                    os.getenv('SUPABASE_KEY'),
-                    os.getenv('SUPABASE_BUCKET')
-                ])
-                
-                if is_cloud_env:
-                    # 云端环境：上传到Supabase
-                    try:
-                        # 使用Supabase客户端上传图片
-                        supabase_client = get_supabase_client()
-                        image_url = supabase_client.upload_product_file(product.id, product_image, 'image', 'product')
-                        
-                        if image_url:
-                            # 如果已有旧图片且是本地路径，删除本地文件
-                            if product.image_path and not product.image_path.startswith('http'):
-                                old_image_path = os.path.join(UPLOAD_FOLDER, product.image_path)
-                                if os.path.exists(old_image_path):
-                                    try:
-                                        os.remove(old_image_path)
-                                        logger.info(f"删除旧本地图片: {old_image_path}")
-                                    except Exception as e:
-                                        logger.warning(f"删除旧图片失败: {str(e)}")
-                            
-                            # 更新图片路径为Supabase URL
-                            product.image_path = image_url
-                            image_changed = True
-                            data_changed = True
-                            logger.debug(f'产品图片已上传到Supabase: {image_url}')
-                        else:
-                            logger.warning('图片上传到Supabase失败')
-                    except Exception as e:
-                        logger.error(f'产品图片上传到Supabase异常: {str(e)}')
-                else:
-                    # 本地环境：使用本地文件保存
-                    try:
-                        # 如果有旧图片，删除它
+                # 使用智能存储系统（自动判断本地/云端环境）
+                try:
+                    # 使用Supabase智能存储客户端上传图片
+                    supabase_client = get_supabase_client()
+                    image_url = supabase_client.upload_product_file(product.id, product_image, 'image', 'product')
+                    
+                    if image_url:
+                        # 如果已有旧图片且是本地路径，删除本地文件
                         if product.image_path and not product.image_path.startswith('http'):
                             old_image_path = os.path.join(UPLOAD_FOLDER, product.image_path)
                             if os.path.exists(old_image_path):
-                                os.remove(old_image_path)
+                                try:
+                                    os.remove(old_image_path)
+                                    logger.info(f"删除旧本地图片: {old_image_path}")
+                                except Exception as e:
+                                    logger.warning(f"删除旧图片失败: {str(e)}")
                         
-                        # 处理并保存新图片
-                        image_filename = process_product_image(product_image)
-                        if image_filename:
-                            product.image_path = image_filename
-                            image_changed = True
-                            data_changed = True
-                            logger.debug(f'产品图片已保存到本地: {image_filename}')
-                        else:
-                            logger.warning('图片保存到本地失败')
-                    except Exception as e:
-                        logger.error(f'产品图片保存到本地异常: {str(e)}')
+                        # 更新图片路径
+                        product.image_path = image_url
+                        image_changed = True
+                        data_changed = True
+                        logger.debug(f'产品图片上传成功: {image_url}')
+                    else:
+                        logger.warning('产品图片上传失败')
+                except Exception as e:
+                    logger.error(f'产品图片上传异常: {str(e)}')
         
         # 检查是否需要删除图片
         if request.form.get('remove_image') == 'true' and product.image_path:
@@ -1543,65 +1468,32 @@ def update_product(id):
             product_pdf = request.files['product_pdf']
             if product_pdf.filename:  # 确保有文件被上传
                 logger.debug(f'处理产品PDF上传: {product_pdf.filename}')
-                # 检查是否为云端环境（通过环境变量判断）
-                is_cloud_env = all([
-                    os.getenv('SUPABASE_URL'),
-                    os.getenv('SUPABASE_KEY'),
-                    os.getenv('SUPABASE_BUCKET')
-                ])
-                
-                if is_cloud_env:
-                    # 云端环境：上传到Supabase
-                    try:
-                        # 使用Supabase客户端上传PDF
-                        supabase_client = get_supabase_client()
-                        pdf_url = supabase_client.upload_product_file(product.id, product_pdf, 'pdf', 'product')
-                        
-                        if pdf_url:
-                            # 如果已有旧PDF且是本地路径，删除本地文件
-                            if product.pdf_path and not product.pdf_path.startswith('http'):
-                                old_pdf_path = os.path.join(current_app.static_folder, product.pdf_path)
-                                if os.path.exists(old_pdf_path):
-                                    try:
-                                        os.remove(old_pdf_path)
-                                        logger.info(f"删除旧本地PDF: {old_pdf_path}")
-                                    except Exception as e:
-                                        logger.warning(f"删除旧PDF失败: {str(e)}")
-                            
-                            # 更新PDF路径为Supabase URL
-                            product.pdf_path = pdf_url
-                            pdf_changed = True
-                            data_changed = True
-                            logger.debug(f'产品PDF已上传到Supabase: {pdf_url}')
-                        else:
-                            logger.warning('PDF上传到Supabase失败')
-                    except Exception as e:
-                        logger.error(f'产品PDF上传到Supabase异常: {str(e)}')
-                else:
-                    # 本地环境：使用本地文件保存
-                    try:
-                        # 如果有旧PDF文件，删除它
+                # 使用智能存储系统（自动判断本地/云端环境）
+                try:
+                    # 使用Supabase智能存储客户端上传PDF
+                    supabase_client = get_supabase_client()
+                    pdf_url = supabase_client.upload_product_file(product.id, product_pdf, 'pdf', 'product')
+                    
+                    if pdf_url:
+                        # 如果已有旧PDF且是本地路径，删除本地文件
                         if product.pdf_path and not product.pdf_path.startswith('http'):
                             old_pdf_path = os.path.join(current_app.static_folder, product.pdf_path)
                             if os.path.exists(old_pdf_path):
-                                os.remove(old_pdf_path)
+                                try:
+                                    os.remove(old_pdf_path)
+                                    logger.info(f"删除旧本地PDF: {old_pdf_path}")
+                                except Exception as e:
+                                    logger.warning(f"删除旧PDF失败: {str(e)}")
                         
-                        # 处理并保存新PDF文件
-                        pdf_path, pdf_error = save_product_pdf(product_pdf)
-                        if pdf_error:
-                            return jsonify({
-                                'success': False,
-                                'message': pdf_error
-                            }), 400
-                        elif pdf_path:
-                            product.pdf_path = pdf_path
-                            pdf_changed = True
-                            data_changed = True
-                            logger.debug(f'产品PDF已保存到本地: {pdf_path}')
-                        else:
-                            logger.warning('PDF保存到本地失败')
-                    except Exception as e:
-                        logger.error(f'产品PDF保存到本地异常: {str(e)}')
+                        # 更新PDF路径
+                        product.pdf_path = pdf_url
+                        pdf_changed = True
+                        data_changed = True
+                        logger.debug(f'产品PDF上传成功: {pdf_url}')
+                    else:
+                        logger.warning('产品PDF上传失败')
+                except Exception as e:
+                    logger.error(f'产品PDF上传异常: {str(e)}')
         
         # 检查是否需要删除PDF文件
         if request.form.get('remove_pdf') == 'true' and product.pdf_path:

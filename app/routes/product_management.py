@@ -1605,128 +1605,61 @@ def update_product(id):
         if 'product_image' in request.files:
             file = request.files['product_image']
             if file.filename:
-                # 检查是否为云端环境（通过环境变量判断）
-                is_cloud_env = all([
-                    os.getenv('SUPABASE_URL'),
-                    os.getenv('SUPABASE_KEY'),
-                    os.getenv('SUPABASE_BUCKET')
-                ])
-                
-                if is_cloud_env:
-                    # 云端环境：上传到Supabase
-                    try:
-                        supabase_client = get_supabase_client()
-                        image_url = supabase_client.upload_product_file(dev_product.id, file, 'image', 'rd_product')
+                # 使用智能存储系统（自动判断本地/云端环境）
+                try:
+                    supabase_client = get_supabase_client()
+                    image_url = supabase_client.upload_product_file(dev_product.id, file, 'image', 'rd_product')
+                    
+                    if image_url:
+                        # 如果已有旧图片且是本地路径，删除本地文件
+                        if dev_product.image_path and not dev_product.image_path.startswith('http'):
+                            old_image_path = os.path.join(current_app.static_folder, dev_product.image_path)
+                            if os.path.exists(old_image_path):
+                                try:
+                                    os.remove(old_image_path)
+                                    current_app.logger.info(f"删除旧本地图片: {old_image_path}")
+                                except Exception as e:
+                                    current_app.logger.warning(f"删除旧图片失败: {str(e)}")
                         
-                        if image_url:
-                            # 如果已有旧图片且是本地路径，删除本地文件
-                            if dev_product.image_path and not dev_product.image_path.startswith('http'):
-                                old_image_path = os.path.join(current_app.static_folder, dev_product.image_path)
-                                if os.path.exists(old_image_path):
-                                    try:
-                                        os.remove(old_image_path)
-                                        current_app.logger.info(f"删除旧本地图片: {old_image_path}")
-                                    except Exception as e:
-                                        current_app.logger.warning(f"删除旧图片失败: {str(e)}")
-                            
-                            # 更新图片路径为Supabase URL
-                            dev_product.image_path = image_url
-                            current_app.logger.info(f"研发产品图片上传到Supabase成功: {image_url}")
-                        else:
-                            flash(_('图片上传失败，请检查文件格式和大小'), 'warning')
-                            current_app.logger.warning("研发产品图片上传到Supabase失败")
-                    except Exception as e:
-                        flash(_('图片上传过程中发生错误'), 'danger')
-                        current_app.logger.error(f"研发产品图片上传异常: {str(e)}")
-                else:
-                    # 本地环境：使用本地文件保存
-                    try:
-                        image_filename = save_product_image(file)
-                        if image_filename:
-                            # 如果已有旧图片，删除它
-                            if dev_product.image_path and not dev_product.image_path.startswith('http'):
-                                old_image_path = os.path.join(current_app.static_folder, dev_product.image_path)
-                                if os.path.exists(old_image_path):
-                                    try:
-                                        os.remove(old_image_path)
-                                        current_app.logger.info(f"删除旧本地图片: {old_image_path}")
-                                    except Exception as e:
-                                        current_app.logger.warning(f"删除旧图片失败: {str(e)}")
-                            
-                            # 更新图片路径为本地路径
-                            dev_product.image_path = image_filename
-                            current_app.logger.info(f"研发产品图片保存到本地成功: {image_filename}")
-                        else:
-                            flash(_('图片上传失败，请检查文件格式和大小'), 'warning')
-                            current_app.logger.warning("研发产品图片保存到本地失败")
-                    except Exception as e:
-                        flash(_('图片上传过程中发生错误'), 'danger')
-                        current_app.logger.error(f"研发产品图片保存异常: {str(e)}")
+                        # 更新图片路径
+                        dev_product.image_path = image_url
+                        current_app.logger.info(f"研发产品图片上传成功: {image_url}")
+                    else:
+                        flash(_('图片上传失败，请检查文件格式和大小'), 'warning')
+                        current_app.logger.warning("研发产品图片上传失败")
+                except Exception as e:
+                    flash(_('图片上传过程中发生错误'), 'danger')
+                    current_app.logger.error(f"研发产品图片上传异常: {str(e)}")
         
         # 处理PDF文件上传（智能选择本地或云端）
         if 'product_pdf' in request.files:
             file = request.files['product_pdf']
             if file.filename:
-                # 检查是否为云端环境（通过环境变量判断）
-                is_cloud_env = all([
-                    os.getenv('SUPABASE_URL'),
-                    os.getenv('SUPABASE_KEY'),
-                    os.getenv('SUPABASE_BUCKET')
-                ])
-                
-                if is_cloud_env:
-                    # 云端环境：上传到Supabase
-                    try:
-                        supabase_client = get_supabase_client()
-                        pdf_url = supabase_client.upload_product_file(dev_product.id, file, 'pdf', 'rd_product')
+                # 使用智能存储系统（自动判断本地/云端环境）
+                try:
+                    supabase_client = get_supabase_client()
+                    pdf_url = supabase_client.upload_product_file(dev_product.id, file, 'pdf', 'rd_product')
+                    
+                    if pdf_url:
+                        # 如果已有旧PDF且是本地路径，删除本地文件
+                        if dev_product.pdf_path and not dev_product.pdf_path.startswith('http'):
+                            old_pdf_path = os.path.join(current_app.static_folder, dev_product.pdf_path)
+                            if os.path.exists(old_pdf_path):
+                                try:
+                                    os.remove(old_pdf_path)
+                                    current_app.logger.info(f"删除旧本地PDF: {old_pdf_path}")
+                                except Exception as e:
+                                    current_app.logger.warning(f"删除旧PDF文件失败: {str(e)}")
                         
-                        if pdf_url:
-                            # 如果已有旧PDF且是本地路径，删除本地文件
-                            if dev_product.pdf_path and not dev_product.pdf_path.startswith('http'):
-                                old_pdf_path = os.path.join(current_app.static_folder, dev_product.pdf_path)
-                                if os.path.exists(old_pdf_path):
-                                    try:
-                                        os.remove(old_pdf_path)
-                                        current_app.logger.info(f"删除旧本地PDF: {old_pdf_path}")
-                                    except Exception as e:
-                                        current_app.logger.warning(f"删除旧PDF文件失败: {str(e)}")
-                            
-                            # 更新PDF路径为Supabase URL
-                            dev_product.pdf_path = pdf_url
-                            current_app.logger.info(f"研发产品PDF上传到Supabase成功: {pdf_url}")
-                        else:
-                            flash(_('PDF文件上传失败，请检查文件格式和大小'), 'warning')
-                            current_app.logger.warning("研发产品PDF上传到Supabase失败")
-                    except Exception as e:
-                        flash(_('PDF文件上传过程中发生错误'), 'danger')
-                        current_app.logger.error(f"研发产品PDF上传异常: {str(e)}")
-                else:
-                    # 本地环境：使用本地文件保存
-                    try:
-                        pdf_path, pdf_error = save_product_pdf(file)
-                        if pdf_error:
-                            flash(pdf_error, 'danger')
-                            current_app.logger.error(f"研发产品PDF保存错误: {pdf_error}")
-                        elif pdf_path:
-                            # 如果已有旧PDF，删除它
-                            if dev_product.pdf_path and not dev_product.pdf_path.startswith('http'):
-                                old_pdf_path = os.path.join(current_app.static_folder, dev_product.pdf_path)
-                                if os.path.exists(old_pdf_path):
-                                    try:
-                                        os.remove(old_pdf_path)
-                                        current_app.logger.info(f"删除旧本地PDF: {old_pdf_path}")
-                                    except Exception as e:
-                                        current_app.logger.warning(f"删除旧PDF文件失败: {str(e)}")
-                            
-                            # 更新PDF路径为本地路径
-                            dev_product.pdf_path = pdf_path
-                            current_app.logger.info(f"研发产品PDF保存到本地成功: {pdf_path}")
-                        else:
-                            flash(_('PDF文件上传失败，请检查文件格式和大小'), 'warning')
-                            current_app.logger.warning("研发产品PDF保存到本地失败")
-                    except Exception as e:
-                        flash(_('PDF文件上传过程中发生错误'), 'danger')
-                        current_app.logger.error(f"研发产品PDF保存异常: {str(e)}")
+                        # 更新PDF路径
+                        dev_product.pdf_path = pdf_url
+                        current_app.logger.info(f"研发产品PDF上传成功: {pdf_url}")
+                    else:
+                        flash(_('PDF文件上传失败，请检查文件格式和大小'), 'warning')
+                        current_app.logger.warning("研发产品PDF上传失败")
+                except Exception as e:
+                    flash(_('PDF文件上传过程中发生错误'), 'danger')
+                    current_app.logger.error(f"研发产品PDF上传异常: {str(e)}")
         
         # 处理规格字段
         # 1. 处理删除的规格

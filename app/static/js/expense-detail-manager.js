@@ -4417,15 +4417,41 @@ class ExpenseDetailManager {
                 console.log('🔥 创建本地预览URL（blob）:', imageUrl);
             } else {
                 // 已上传的文件：使用服务器URL
-                imageUrl = invoice.url || invoice.image_url || invoice.path || invoice.file_url;
-                console.log('🔥 使用服务器URL:', imageUrl);
+                let urlCandidate = invoice.url || invoice.image_url || invoice.path || invoice.file_url;
+                
+                // 🔥 特殊处理：修复错误转换为"[object Object]"字符串的情况
+                if (typeof urlCandidate === 'string' && urlCandidate === '[object Object]') {
+                    console.warn('🚨 检测到错误的对象字符串转换，尝试从原始发票数据中重新获取');
+                    // 尝试重新解析原始发票数据
+                    urlCandidate = null;
+                    if (invoice.url && typeof invoice.url === 'object' && invoice.url.url) {
+                        urlCandidate = invoice.url.url;
+                    } else if (invoice.image_url) {
+                        urlCandidate = invoice.image_url;
+                    } else if (invoice.path) {
+                        urlCandidate = invoice.path;
+                    } else if (invoice.file_url) {
+                        urlCandidate = invoice.file_url;
+                    }
+                }
+                
+                // 如果URL是对象（包含详细信息），提取实际的URL字符串
+                if (typeof urlCandidate === 'object' && urlCandidate !== null && urlCandidate.url) {
+                    imageUrl = urlCandidate.url;
+                    console.log('🔧 从对象中提取URL:', imageUrl);
+                } else if (typeof urlCandidate === 'string' && urlCandidate && urlCandidate !== '[object Object]') {
+                    imageUrl = urlCandidate;
+                } else {
+                    console.warn('🚨 无法解析URL数据:', {urlCandidate, invoice});
+                    imageUrl = null;
+                }
+                console.log('🔥 最终使用的URL:', imageUrl);
                 console.log('🔥 发票对象调试:', {
                     pending: invoice.pending,
                     hasFile: !!invoice.file,
-                    url: invoice.url,
-                    image_url: invoice.image_url,
-                    path: invoice.path,
-                    file_url: invoice.file_url,
+                    urlCandidate: urlCandidate,
+                    urlType: typeof urlCandidate,
+                    extractedUrl: imageUrl,
                     temp_id: invoice.temp_id,
                     is_temp: invoice.is_temp,
                     filename: invoice.filename
@@ -4472,17 +4498,21 @@ class ExpenseDetailManager {
             const isCreatePage = window.location.pathname.includes('/create');
             const isEditPage = window.location.pathname.includes('/edit');
             
+            // 检测文件类型
+            const isPDF = invoice.filename && invoice.filename.toLowerCase().endsWith('.pdf');
+            const baseIconClass = isPDF ? 'fas fa-file-pdf' : 'fas fa-file-invoice';
+            
             if (isPending) {
                 // 创建/编辑页面的待上传文件：黄色
-                icon.className = 'fas fa-file-invoice text-warning invoice-preview-icon';
+                icon.className = `${baseIconClass} text-warning invoice-preview-icon`;
                 icon.title = `发票${index + 1}: ${invoice.filename} (待上传)`;
             } else if (invoice.is_temp || invoice.temp_id) {
                 // 编辑页面的临时上传文件：橙色，表示已上传但未最终保存
-                icon.className = 'fas fa-file-invoice text-info invoice-preview-icon';
+                icon.className = `${baseIconClass} text-info invoice-preview-icon`;
                 icon.title = `发票${index + 1}: ${invoice.filename} (临时上传)`;
             } else {
                 // 已保存的文件：绿色
-                icon.className = 'fas fa-file-invoice text-success invoice-preview-icon';
+                icon.className = `${baseIconClass} text-success invoice-preview-icon`;
                 icon.title = `发票${index + 1}: ${invoice.filename}`;
             }
             icon.style.cursor = 'pointer';

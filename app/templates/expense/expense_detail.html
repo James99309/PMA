@@ -25,7 +25,7 @@ window.approvalFlowI18n = {
     days: '{{ _("天") }}',
     arrived: '{{ _("到达：") }}',
     staying: '{{ _("停留：") }}',
-    pending: '{{ _("待分配") }}',
+    pendingAssignment: '{{ _("待分配") }}',
     justArrived: '{{ _("刚刚到达") }}',
     ago: '{{ _("前") }}',
     approve: '{{ _("同意") }}',
@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初始化报销单审批流程
     setTimeout(function() {
         console.log('[DEBUG] 初始化报销单审批流程');
-        initStandardApprovalFlow('expense', {{ expense.id }}, 'expenseApprovalFlowSection', {
+        initStandardApprovalFlow('expense', {{ expense.id|default('null') }}, 'expenseApprovalFlowSection', {
             apiBasePath: '/expense/api/approval',  // 使用报销单专用的API路径
             autoLoad: true  // 自动加载审批流程
         });
@@ -64,14 +64,42 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 显示权限调试信息
     console.log('[DEBUG] 报销单权限信息:');
-    console.log('报销单ID: {{ expense.id }}');
-    console.log('报销单状态: {{ expense.status }}');
-    console.log('当前用户ID: {{ current_user.id }}');
-    console.log('创建人ID: {{ expense.owner_id }}');
-    console.log('创建人姓名: {{ expense.owner.real_name or expense.owner.username }}');
+    console.log('报销单ID: {{ expense.id|default("unknown") }}');
+    console.log('报销单状态: {{ expense.status|default("unknown") }}');
+    console.log('当前用户ID: {{ current_user.id|default("unknown") }}');
+    console.log('创建人ID: {{ expense.owner_id|default("unknown") }}');
+    console.log('创建人姓名: {{ expense.owner.real_name or expense.owner.username|default("unknown") }}');
     console.log('是否为创建人: {{ "true" if expense.owner_id == current_user.id else "false" }}');
     
     // 权限调试信息已移除
+    
+    // 🔥 为发票图标添加点击事件监听器（使用简单data属性，避免JSON解析问题）
+    document.addEventListener('click', function(event) {
+        if (event.target.classList.contains('invoice-preview-icon')) {
+            const element = event.target;
+            const filename = element.dataset.filename;
+            const invoiceUrl = element.dataset.invoiceUrl;
+            const invoicePath = element.dataset.invoicePath;
+            const fileUrl = element.dataset.fileUrl;
+            
+            console.log('点击发票图标，提取数据:', {filename, invoiceUrl, invoicePath, fileUrl});
+            
+            // 构造简化的发票数据对象
+            const invoiceData = {
+                url: invoiceUrl || invoicePath || fileUrl || null,
+                path: invoicePath || null,
+                file_url: fileUrl || null,
+                filename: filename
+            };
+            
+            if (filename && invoiceData.url) {
+                previewInvoiceImageSafe(invoiceData, filename);
+            } else {
+                console.error('发票数据缺失或不完整:', invoiceData);
+                alert('发票数据缺失，无法预览');
+            }
+        }
+    });
 });
 </script>
 {% endblock %}
@@ -108,7 +136,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             {% elif expense.status in ['rejected', 'recalled'] %}
                                 {{ render_button(_('重新提交'), None, color='success', icon='fas fa-redo', type='button', attrs='id="resubmitApprovalBtn" onclick="resubmitExpenseApproval()"') }}
                             {% elif expense.status == 'approved' %}
-                                {{ render_button(_('导出报销单'), None, color='info', icon='fas fa-download', type='button', attrs='onclick="exportExpense(' ~ expense.id ~ ')"') }}
+                                {{ render_button(_('导出报销单'), None, color='info', icon='fas fa-download', type='button', attrs='onclick="exportExpense(' ~ (expense.id|default('null')) ~ ')"') }}
                             {% endif %}
                         {% else %}
                             <!-- 非拥有者但有权限访问（如审批者）的情况，不显示权限信息 -->
@@ -125,7 +153,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 {{ render_button(_('编辑报销单'), url_for('expense.edit_expense', id=expense.id), color='primary', icon='fas fa-edit') }}
                             {% endif %}
                             {% if expense.status == 'draft' %}
-                                {{ render_button(_('删除'), None, color='danger', icon='fas fa-trash', type='button', attrs='onclick="deleteExpense(' ~ expense.id ~ ')"') }}
+                                {{ render_button(_('删除'), None, color='danger', icon='fas fa-trash', type='button', attrs='onclick="deleteExpense(' ~ (expense.id|default('null')) ~ ')"') }}
                             {% endif %}
                         {% endif %}
                     </div>
@@ -468,15 +496,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // 🔥 标准化发票图片预览功能 - 直接使用通用图片预览组件
 function previewInvoiceImage(imagePath, filename) {
-    console.log('预览发票:', imagePath, filename);
+    console.log('🔥 详情页预览发票:', imagePath, filename);
+    console.log('🔥 showInvoicePreviewDialog函数检查:', typeof showInvoicePreviewDialog);
     
     if (!imagePath || imagePath === 'undefined') {
         alert(window.i18nTexts.invoiceNotExist);
         return;
     }
 
-    // 🔥 直接使用通用图片预览组件
+    // 🔥 多次尝试使用通用预览组件
     if (typeof showInvoicePreviewDialog === 'function') {
+        console.log('✅ 使用通用预览组件');
         showInvoicePreviewDialog(
             imagePath,
             filename,
@@ -486,8 +516,99 @@ function previewInvoiceImage(imagePath, filename) {
             'expenseInvoicePreview'
         );
     } else {
-        console.error('通用图片预览组件未加载，使用备用方案');
-        window.open(imagePath, '_blank');
+        console.warn('❌ 通用预览组件未加载，延迟重试...');
+        
+        // 延迟重试，给组件时间加载
+        setTimeout(() => {
+            if (typeof showInvoicePreviewDialog === 'function') {
+                console.log('✅ 延迟重试成功，使用通用预览组件');
+                showInvoicePreviewDialog(
+                    imagePath,
+                    filename,
+                    {
+                        description: '报销单发票'
+                    },
+                    'expenseInvoicePreview'
+                );
+            } else {
+                console.error('❌ 重试失败，使用备用方案打开新窗口');
+                // 检测是否为PDF文件，如果是，尝试直接在新窗口预览
+                if (filename && filename.toLowerCase().endsWith('.pdf')) {
+                    // 为PDF添加预览参数
+                    let pdfUrl = imagePath;
+                    if (imagePath.includes('?')) {
+                        pdfUrl += '&view=inline&embedded=true';
+                    } else {
+                        pdfUrl += '?view=inline&embedded=true';
+                    }
+                    console.log('🔥 PDF文件，尝试在新窗口预览:', pdfUrl);
+                    window.open(pdfUrl, '_blank');
+                } else {
+                    window.open(imagePath, '_blank');
+                }
+            }
+        }, 500);
+    }
+}
+
+// 🔥 安全的发票预览函数 - 处理对象格式的URL数据
+function previewInvoiceImageSafe(invoiceData, filename) {
+    console.log('安全预览发票 - 原始数据:', invoiceData, filename);
+    
+    let imagePath = null;
+    
+    // 智能提取URL
+    if (typeof invoiceData === 'string') {
+        imagePath = invoiceData;
+    } else if (typeof invoiceData === 'object' && invoiceData !== null) {
+        // 尝试从对象中提取URL
+        if (invoiceData.url) {
+            if (typeof invoiceData.url === 'object' && invoiceData.url.url) {
+                // 嵌套对象情况：{url: {url: "actual_url", ...}}
+                imagePath = invoiceData.url.url;
+            } else if (typeof invoiceData.url === 'string') {
+                // 简单对象情况：{url: "actual_url", ...}
+                imagePath = invoiceData.url;
+            }
+        } else if (invoiceData.path) {
+            imagePath = invoiceData.path;
+        } else if (invoiceData.file_url) {
+            imagePath = invoiceData.file_url;
+        }
+    }
+    
+    console.log('提取的图片路径:', imagePath);
+    
+    if (!imagePath) {
+        console.error('无法提取有效的图片URL:', invoiceData);
+        alert('发票图片路径无效，无法预览');
+        return;
+    }
+    
+    // 调用原始预览函数
+    previewInvoiceImage(imagePath, filename);
+}
+
+// 🔥 从DOM元素安全读取发票数据进行预览
+function previewInvoiceImageSafeFromData(element) {
+    try {
+        const invoiceDataStr = element.dataset.invoiceData;
+        const filename = element.dataset.filename;
+        
+        console.log('从DOM读取发票数据:', invoiceDataStr, filename);
+        
+        if (!invoiceDataStr) {
+            console.error('未找到发票数据');
+            alert('发票数据缺失，无法预览');
+            return;
+        }
+        
+        const invoiceData = JSON.parse(invoiceDataStr);
+        previewInvoiceImageSafe(invoiceData, filename);
+        
+    } catch (error) {
+        console.error('解析发票数据失败:', error);
+        alert('发票数据解析失败，无法预览');
     }
 }
 
@@ -520,7 +641,7 @@ async function submitExpenseApproval() {
             btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>' + window.i18nTexts.submitting;
         }
         
-        const response = await fetch(`/expense/api/approval/{{ expense.id }}/submit`, {
+        const response = await fetch(`/expense/api/approval/{{ expense.id|default('null') }}/submit`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -586,7 +707,7 @@ async function recallExpenseApproval() {
             btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>' + window.i18nTexts.recalling;
         }
         
-        const response = await fetch(`/expense/api/approval/{{ expense.id }}/recall`, {
+        const response = await fetch(`/expense/api/approval/{{ expense.id|default('null') }}/recall`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -654,7 +775,7 @@ async function resubmitExpenseApproval() {
             btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>' + window.i18nTexts.submitting;
         }
         
-        const response = await fetch(`/expense/api/approval/{{ expense.id }}/resubmit`, {
+        const response = await fetch(`/expense/api/approval/{{ expense.id|default('null') }}/resubmit`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

@@ -3707,9 +3707,12 @@ window.dismissStandardAlert = function() {
                title="发票上传未完成: {{ invoice.filename }}"></i>
           {% else %}
             {# 正常的发票 #}
-            <i class="fas fa-file-invoice text-primary" 
+            <i class="fas fa-file-invoice text-primary invoice-preview-icon" 
                style="font-size: 1.2rem; cursor: pointer;" 
-               onclick="previewInvoiceImage('{{ get_invoice_image_url(invoice) }}', '{{ invoice.filename }}')"
+               data-invoice-url="{% if invoice.url %}{% if invoice.url is mapping %}{{ invoice.url.url|e if invoice.url.url else invoice.url|string|e }}{% else %}{{ invoice.url|e }}{% endif %}{% endif %}"
+               data-invoice-path="{{ invoice.path|e if invoice.path else '' }}"
+               data-file-url="{{ invoice.file_url|e if invoice.file_url else '' }}"
+               data-filename="{{ invoice.filename|e }}"
                title="点击预览发票: {{ invoice.filename }}"></i>
           {% endif %}
           <span class="badge bg-primary text-white position-absolute" 
@@ -4120,9 +4123,7 @@ window.showDeleteConfirm = function(options = {}) {
                         {{ render_button('+', href=None, color='outline-secondary', icon='', type='button', extra_class='dialog-zoom-in-btn', size='sm', attrs='title="放大"') }}
                         {{ render_button(_('适应'), href=None, color='outline-secondary', icon='fas fa-expand-arrows-alt', type='button', extra_class='dialog-fit-btn', size='sm', attrs='title="适应窗口"') }}
                     </div>
-                    <button type="button" class="dialog-close-btn" title="{{ _('关闭') }}">
-                        <i class="fas fa-times"></i>
-                    </button>
+                    {{ render_button('', href=None, color='outline-secondary', icon='fas fa-times', type='button', extra_class='dialog-close-btn', size='sm', attrs='title="关闭"') }}
                 </div>
             </div>
             
@@ -4197,8 +4198,9 @@ window.showDeleteConfirm = function(options = {}) {
 .standard-invoice-preview-dialog .dialog-container {
     position: relative;
     width: auto;
-    max-width: 95vw;
-    max-height: 95vh;
+    max-width: 98vw;
+    max-height: 98vh;
+    min-width: 600px;
     z-index: 1;
     animation: slideInScale 0.3s ease-out;
     display: flex;
@@ -4268,7 +4270,7 @@ window.showDeleteConfirm = function(options = {}) {
 /* 文件信息栏样式 */
 .standard-invoice-preview-dialog .file-info-bar {
     padding: 1rem 1.5rem;
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    background: #f8f9fa !important;
     border-bottom: 1px solid #dee2e6;
     display: flex;
     justify-content: space-between;
@@ -4329,8 +4331,8 @@ window.showDeleteConfirm = function(options = {}) {
 }
 
 .standard-invoice-preview-dialog .preview-image {
-    max-width: calc(95vw - 2rem);
-    max-height: calc(95vh - 200px);
+    max-width: calc(98vw - 2rem);
+    max-height: calc(98vh - 180px);
     width: auto;
     height: auto;
     border-radius: 8px;
@@ -4374,11 +4376,11 @@ window.showDeleteConfirm = function(options = {}) {
 }
 
 .standard-invoice-preview-dialog .zoom-controls {
-    background: rgba(255, 255, 255, 0.9);
+    background: transparent !important;
     border-radius: 6px;
     padding: 2px 4px;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border: none !important;
+    box-shadow: none !important;
 }
 
 
@@ -4520,35 +4522,60 @@ window.showDeleteConfirm = function(options = {}) {
     }
 }
 
-/* 深色模式支持 */
-@media (prefers-color-scheme: dark) {
-    .standard-invoice-preview-dialog .dialog-content {
-        background: #2d3748;
-        color: #e2e8f0;
-    }
-    
-    .standard-invoice-preview-dialog .dialog-header,
-    .standard-invoice-preview-dialog .file-info-bar,
-    .standard-invoice-preview-dialog .dialog-actions {
-        background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
-        border-color: #4a5568;
-    }
-    
-    .standard-invoice-preview-dialog .image-preview-container {
-        background: #1a202c;
-    }
-    
-    .standard-invoice-preview-dialog .dialog-title {
-        color: #e2e8f0;
-    }
-    
-    .standard-invoice-preview-dialog .file-name {
-        color: #e2e8f0;
-    }
-    
-    .standard-invoice-preview-dialog .file-meta {
-        color: #a0aec0;
-    }
+/* PDF预览容器样式 */
+.standard-invoice-preview-dialog .pdf-preview-container {
+    width: 100% !important;
+    min-height: 70vh !important;
+    max-height: calc(98vh - 180px) !important;
+    overflow: auto !important;
+    border: 1px solid #ddd !important;
+    border-radius: 8px !important;
+    background: #fff !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+.standard-invoice-preview-dialog .pdf-preview-container iframe {
+    width: 100% !important;
+    height: 70vh !important;
+    min-height: 600px !important;
+    border: none !important;
+    border-radius: 8px !important;
+}
+
+.standard-invoice-preview-dialog .pdf-preview-container canvas {
+    max-width: 100% !important;
+    height: auto !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* 强制使用白色背景，不受系统暗色模式影响 */
+.standard-invoice-preview-dialog .dialog-content {
+    background: #fff !important;
+    color: #495057 !important;
+}
+
+.standard-invoice-preview-dialog .dialog-header,
+.standard-invoice-preview-dialog .file-info-bar,
+.standard-invoice-preview-dialog .dialog-actions {
+    background: #fff !important;
+    border-color: #e9ecef !important;
+}
+
+.standard-invoice-preview-dialog .image-preview-container {
+    background: #fff !important;
+}
+
+.standard-invoice-preview-dialog .dialog-title {
+    color: #495057 !important;
+}
+
+.standard-invoice-preview-dialog .file-name {
+    color: #495057 !important;
+}
+
+.standard-invoice-preview-dialog .file-meta {
+    color: #6c757d !important;
 }
 </style>
 
@@ -4576,14 +4603,22 @@ function showInvoicePreviewDialog(imagePath, filename, fileInfo = {}, dialogId =
     
     console.log(`显示发票预览: ${filename}`, fileInfo);
     
+    // 检测文件类型
+    const isPDF = filename && filename.toLowerCase().endsWith('.pdf');
+    console.log('文件类型检测:', { filename, isPDF });
+    
     // 重置对话框状态
     resetDialogState(dialog);
     
     // 更新文件信息
     updateFileInfo(dialog, filename, fileInfo);
     
-    // 加载图片
-    loadPreviewImage(dialog, imagePath, filename);
+    // 根据文件类型加载预览
+    if (isPDF) {
+        loadPreviewPDF(dialog, imagePath, filename);
+    } else {
+        loadPreviewImage(dialog, imagePath, filename);
+    }
     
     // 设置下载链接
     setupDownloadAction(dialog, imagePath, filename);
@@ -4611,10 +4646,16 @@ function resetDialogState(dialog) {
     const previewImage = dialog.querySelector('.preview-image');
     const loadingEl = dialog.querySelector('.image-loading');
     const errorEl = dialog.querySelector('.image-error');
+    const pdfContainer = dialog.querySelector('.pdf-preview-container');
     
     previewImage.style.display = 'none';
     loadingEl.style.display = 'flex';
     errorEl.style.display = 'none';
+    
+    // 隐藏PDF容器
+    if (pdfContainer) {
+        pdfContainer.style.display = 'none';
+    }
     
     // 清除之前的图片
     previewImage.src = '';
@@ -4730,6 +4771,322 @@ function loadPreviewImage(dialog, imagePath, filename) {
 }
 
 /**
+ * 加载PDF预览
+ */
+function loadPreviewPDF(dialog, pdfPath, filename) {
+    const previewImage = dialog.querySelector('.preview-image');
+    const loadingEl = dialog.querySelector('.image-loading');
+    const errorEl = dialog.querySelector('.image-error');
+    const retryBtn = dialog.querySelector('.retry-load-btn');
+    
+    console.log('开始加载PDF预览:', pdfPath);
+    
+    // 显示加载状态
+    loadingEl.style.display = 'flex';
+    errorEl.style.display = 'none';
+    previewImage.style.display = 'none';
+    
+    // 创建PDF预览容器
+    let pdfContainer = dialog.querySelector('.pdf-preview-container');
+    if (!pdfContainer) {
+        pdfContainer = document.createElement('div');
+        pdfContainer.className = 'pdf-preview-container';
+        pdfContainer.style.cssText = `
+            width: 100%;
+            min-height: 400px;
+            max-height: 90vh;
+            display: none;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: auto;
+            position: relative;
+            background: #f8f9fa;
+            text-align: center;
+        `;
+        
+        // 插入到预览图片后面
+        previewImage.parentNode.insertBefore(pdfContainer, previewImage.nextSibling);
+    }
+    
+    // 清空容器
+    pdfContainer.innerHTML = '';
+    
+    // 优先使用PDF.js渲染，特别是对于blob URL
+    console.log('尝试PDF预览，URL:', pdfPath);
+    console.log('🔍 URL类型检测:', pdfPath.startsWith('blob:') ? 'Blob URL' : 'HTTP URL');
+    
+    // 🔥 对于blob URL，直接使用PDF.js，不尝试iframe
+    if (pdfPath.startsWith('blob:')) {
+        console.log('🔥 检测到Blob URL，直接使用PDF.js渲染');
+        tryPDFJS();
+    } else {
+        // HTTP URL可以尝试iframe
+        console.log('🔥 HTTP URL，尝试iframe方式');
+        
+        const iframe = document.createElement('iframe');
+        
+        // 🔥 为PDF URL添加预览参数，避免直接下载
+        let iframeSrc = pdfPath;
+        if (pdfPath.includes('?')) {
+            iframeSrc += '&view=inline&embedded=true';
+        } else {
+            iframeSrc += '?view=inline&embedded=true';
+        }
+        
+        iframe.src = iframeSrc;
+        iframe.setAttribute('type', 'application/pdf');
+        iframe.style.cssText = `
+            width: 100%;
+            min-height: 600px;
+            height: 75vh;
+            border: none;
+            border-radius: 4px;
+        `;
+        
+        console.log('设置iframe源地址:', iframeSrc);
+        
+        iframe.onload = () => {
+            console.log('✅ 通过iframe成功加载PDF');
+            loadingEl.style.display = 'none';
+            pdfContainer.style.display = 'block';
+        };
+        
+        iframe.onerror = () => {
+            console.warn('❌ iframe方式失败，尝试PDF.js方式');
+            try {
+                if (pdfContainer.contains(iframe)) {
+                    pdfContainer.removeChild(iframe);
+                }
+            } catch (e) {
+                console.log('iframe已被移除');
+            }
+            tryPDFJS();
+        };
+        
+        // 设置超时检查
+        let timeoutId = setTimeout(() => {
+            if (loadingEl.style.display !== 'none') {
+                console.warn('⏱️ iframe加载超时，尝试PDF.js方式');
+                try {
+                    if (pdfContainer.contains(iframe)) {
+                        pdfContainer.removeChild(iframe);
+                    }
+                } catch (e) {
+                    console.log('iframe已被移除');
+                }
+                tryPDFJS();
+            }
+        }, 3000);
+        
+        // iframe成功加载后清除超时
+        iframe.addEventListener('load', () => {
+            clearTimeout(timeoutId);
+        });
+        
+        pdfContainer.appendChild(iframe);
+    }
+    
+    function tryPDFJS() {
+        console.log('尝试使用PDF.js渲染');
+        
+        // 加载PDF.js如果需要
+        if (!window.pdfjsLib) {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+            script.onload = () => {
+                window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                renderPDFPreview();
+            };
+            script.onerror = () => {
+                console.error('PDF.js加载失败');
+                showPDFError('PDF预览库加载失败，但您仍可下载文件');
+            };
+            document.head.appendChild(script);
+        } else {
+            renderPDFPreview();
+        }
+    }
+    
+    function renderPDFPreview() {
+        // 清空PDF容器准备重新渲染
+        pdfContainer.innerHTML = '';
+        
+        console.log('开始使用PDF.js渲染:', pdfPath);
+        
+        const loadingTask = window.pdfjsLib.getDocument(pdfPath);
+        
+        loadingTask.promise.then(pdfDoc => {
+            console.log('✅ PDF.js加载成功，页数:', pdfDoc.numPages);
+            
+            // 保存PDF文档引用
+            window.currentPdfDoc = pdfDoc;
+            
+            // 获取第一页
+            return pdfDoc.getPage(1);
+        }).then(page => {
+            console.log('✅ 获取PDF第一页成功');
+            
+            // 🔥 等待容器完全显示后再渲染，确保获取正确的尺寸
+            pdfContainer.style.display = 'block';
+            
+            // 小延迟确保DOM完全渲染
+            setTimeout(() => {
+                renderPDFWithCorrectSize(page);
+            }, 100);
+        }).catch(error => {
+            console.error('PDF加载或渲染失败:', error);
+            showPDFError('PDF文件无法预览，请下载查看');
+        });
+    }
+    
+    function renderPDFWithCorrectSize(page) {
+        // 创建canvas
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        
+        // 🔥 获取模态框和容器的实际尺寸
+        const modalDialog = dialog.querySelector('.modal-dialog');
+        const modalBody = dialog.querySelector('.modal-body');
+        
+        let containerWidth, containerHeight;
+        
+        if (modalDialog && modalBody) {
+            // 使用模态框的实际尺寸
+            const modalRect = modalDialog.getBoundingClientRect();
+            const bodyRect = modalBody.getBoundingClientRect();
+            
+            containerWidth = Math.max(bodyRect.width, 600);  // 最小600px
+            containerHeight = Math.max(bodyRect.height, 400); // 最小400px
+            
+            console.log('🔍 模态框尺寸检测:', {
+                modalWidth: modalRect.width,
+                modalHeight: modalRect.height,
+                bodyWidth: bodyRect.width,
+                bodyHeight: bodyRect.height,
+                containerWidth,
+                containerHeight
+            });
+        } else {
+            // 回退到PDF容器尺寸
+            containerWidth = Math.max(pdfContainer.clientWidth, 600);
+            containerHeight = Math.max(pdfContainer.clientHeight, 400);
+            
+            console.log('🔍 容器尺寸检测:', {
+                containerWidth: pdfContainer.clientWidth,
+                containerHeight: pdfContainer.clientHeight,
+                finalWidth: containerWidth,
+                finalHeight: containerHeight
+            });
+        }
+        
+        // 获取页面原始尺寸
+        const originalViewport = page.getViewport({ scale: 1 });
+        
+        // 🔥 更智能的缩放计算，确保充分利用空间
+        const padding = 60; // 增加边距留白
+        const availableWidth = containerWidth - padding;
+        const availableHeight = containerHeight - padding;
+        
+        const scaleX = availableWidth / originalViewport.width;
+        const scaleY = availableHeight / originalViewport.height;
+        
+        // 选择更合适的缩放比例，但确保不会太小
+        let optimalScale = Math.min(scaleX, scaleY);
+        
+        // 🔥 确保最小缩放比例，避免PDF太小
+        const minScale = Math.min(1.2, Math.max(scaleX, scaleY) * 0.6);
+        optimalScale = Math.max(optimalScale, minScale);
+        
+        // 最大不超过3倍，避免太大
+        optimalScale = Math.min(optimalScale, 3.0);
+        
+        console.log('🔥 优化后的PDF缩放计算:', {
+            containerWidth, 
+            containerHeight,
+            availableWidth,
+            availableHeight,
+            originalWidth: originalViewport.width,
+            originalHeight: originalViewport.height,
+            scaleX: scaleX.toFixed(2), 
+            scaleY: scaleY.toFixed(2),
+            minScale: minScale.toFixed(2),
+            optimalScale: optimalScale.toFixed(2)
+        });
+        
+        const viewport = page.getViewport({ scale: optimalScale });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        
+        // 🔥 设置canvas样式，确保充分利用空间
+        canvas.style.cssText = `
+            width: 100%;
+            max-width: ${viewport.width}px;
+            height: auto;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: block;
+            margin: 0 auto;
+            background: white;
+        `;
+        
+        const renderContext = {
+            canvasContext: context,
+            viewport: viewport
+        };
+        
+        // 渲染PDF页面
+        return page.render(renderContext).promise.then(() => {
+            console.log('✅ PDF页面渲染完成，最终尺寸:', {
+                canvasWidth: canvas.width,
+                canvasHeight: canvas.height,
+                scale: optimalScale
+            });
+            
+            // 清空容器并添加canvas
+            pdfContainer.innerHTML = '';
+            pdfContainer.appendChild(canvas);
+            
+            // 添加PDF信息（使用保存的PDF文档引用）
+            const infoDiv = document.createElement('div');
+            infoDiv.innerHTML = `
+                <div style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; padding: 5px 10px; border-radius: 3px; font-size: 12px;">
+                    PDF - 第1页/共${window.currentPdfDoc ? window.currentPdfDoc.numPages : 1}页 (${(optimalScale * 100).toFixed(0)}%)
+                </div>
+            `;
+            pdfContainer.appendChild(infoDiv);
+            
+            // 显示PDF容器，隐藏加载状态
+            loadingEl.style.display = 'none';
+            pdfContainer.style.display = 'block';
+            
+            console.log('✅ PDF预览渲染完成');
+        });
+    }
+    
+    function showPDFError(message) {
+        pdfContainer.innerHTML = `
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #6c757d;">
+                <i class="fas fa-file-pdf" style="font-size: 3rem; margin-bottom: 1rem; color: #dc3545;"></i>
+                <div style="margin-bottom: 1rem;">${message}</div>
+                <div style="font-size: 0.9rem;">
+                    <a href="${pdfPath}" target="_blank" class="btn btn-primary btn-sm">
+                        <i class="fas fa-external-link-alt me-1"></i>在新窗口打开
+                    </a>
+                </div>
+            </div>
+        `;
+        loadingEl.style.display = 'none';
+        pdfContainer.style.display = 'block';
+    }
+    
+    // 设置重试功能
+    retryBtn.onclick = () => {
+        console.log('重试加载PDF:', pdfPath);
+        loadPreviewPDF(dialog, pdfPath, filename);
+    };
+}
+
+/**
  * 🔥 根据图片尺寸动态调整对话框大小
  */
 function adjustDialogSize(dialog, imageWidth, imageHeight) {
@@ -4765,9 +5122,20 @@ function adjustDialogSize(dialog, imageWidth, imageHeight) {
         displayWidth = displayWidth * ratio;
     }
     
-    // 确保最小尺寸
-    displayWidth = Math.max(displayWidth, 300);
-    displayHeight = Math.max(displayHeight, 200);
+    // 确保最小尺寸，但要保持宽高比
+    const minWidth = 300;
+    const minHeight = 200;
+    
+    if (displayWidth < minWidth || displayHeight < minHeight) {
+        // 计算需要放大的比例，选择较小的比例以确保都满足最小要求
+        const widthRatio = minWidth / displayWidth;
+        const heightRatio = minHeight / displayHeight;
+        const scaleRatio = Math.max(widthRatio, heightRatio);
+        
+        // 等比放大到满足最小尺寸要求
+        displayWidth = Math.round(displayWidth * scaleRatio);
+        displayHeight = Math.round(displayHeight * scaleRatio);
+    }
     
     // 设置对话框内容尺寸
     dialogContent.style.width = `${displayWidth + 32}px`; // +32px for padding

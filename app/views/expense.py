@@ -911,10 +911,18 @@ def create_expense():
                                         # upload_expense_invoice方法现在会自动生成规范化的文件名
                                         # 格式：{项目代码}-{客户简称}-{报销单号}-{明细序号}-{文件序号}.{扩展名}
                                         
-                                        # 上传到Supabase（自动使用规范化命名）
-                                        image_url = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, file_obj.filename)
+                                        # 上传到Supabase（传递明细索引避免冲突）
+                                        upload_result = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, file_obj.filename, 'invoice', index)
                                         
-                                        if not image_url:
+                                        if upload_result:
+                                            # 处理新的返回格式
+                                            if isinstance(upload_result, dict):
+                                                image_url = upload_result['url']
+                                                original_filename = upload_result['filename']  # 使用规范化文件名
+                                            else:
+                                                image_url = upload_result
+                                                original_filename = file_obj.filename
+                                        else:
                                             raise Exception("Supabase上传失败")
                                             
                                         current_app.logger.info(f"发票文件上传到Supabase成功: {image_url}")
@@ -933,8 +941,8 @@ def create_expense():
                                         from app.utils.supabase_client import get_supabase_client
                                         supabase_client = get_supabase_client()
                                         
-                                        # 上传到智能存储系统（自动生成规范化文件名）
-                                        upload_result = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, file_obj.filename)
+                                        # 上传到智能存储系统（传递明细索引避免冲突）
+                                        upload_result = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, file_obj.filename, 'invoice', index)
                                         
                                         if upload_result:
                                             # 处理新的返回格式
@@ -1672,13 +1680,44 @@ def delete_expense(id):
         return jsonify({'success': False, 'message': '已审批的报销单不能删除'})
     
     try:
-        # 软删除
+        # 🔥 删除关联的云端图片文件（在软删除之前）
+        deleted_files_count = 0
+        try:
+            for detail in expense_obj.details:
+                if detail.invoice_images_list:
+                    for image_info in detail.invoice_images_list:
+                        try:
+                            # 检测运行环境并删除云端文件
+                            if is_cloud_environment() and image_info.get('url', '').startswith('http'):
+                                from app.utils.supabase_client import get_supabase_client
+                                supabase_client = get_supabase_client()
+                                if supabase_client.delete_expense_invoice(image_info.get('filename', '')):
+                                    deleted_files_count += 1
+                                    logger.info(f"云端发票文件删除成功: {image_info.get('filename')}")
+                            else:
+                                # 本地文件删除逻辑
+                                import os
+                                file_path = os.path.join(current_app.static_folder, image_info.get('url', '').lstrip('/static/'))
+                                if os.path.exists(file_path):
+                                    os.remove(file_path)
+                                    deleted_files_count += 1
+                                    logger.info(f"本地发票文件删除成功: {file_path}")
+                        except Exception as e:
+                            logger.warning(f"删除发票文件失败 {image_info.get('filename', 'unknown')}: {str(e)}")
+        except Exception as e:
+            logger.warning(f"删除关联图片文件时出错，但继续执行软删除: {str(e)}")
+        
+        # 软删除报销单
         expense_obj.is_deleted = True
         db.session.commit()
         
+        success_message = f'报销单删除成功'
+        if deleted_files_count > 0:
+            success_message += f'，同时删除了 {deleted_files_count} 个关联的图片文件'
+        
         return jsonify({
             'success': True, 
-            'message': '报销单删除成功',
+            'message': success_message,
             'redirect_url': url_for('expense.expense_list')
         })
         
@@ -1828,10 +1867,10 @@ def upload_invoice_temp():
                 
                 # 上传处理后的文件
                 bucket_name = supabase_client.get_bucket_name('invoice')
+                # 使用新版SDK的正确API格式
                 result = supabase_client.supabase.storage.from_(bucket_name).upload(
-                    path=storage_path,
-                    file=processed_content,
-                    file_options={"content-type": content_type, "upsert": True}
+                    storage_path,
+                    processed_content
                 )
                 
                 if result.path:
@@ -1844,8 +1883,14 @@ def upload_invoice_temp():
                         image_url = public_url_response.publicUrl
                     elif hasattr(public_url_response, 'url'):
                         image_url = public_url_response.url
+                    elif isinstance(public_url_response, str):
+                        image_url = public_url_response
                     else:
-                        image_url = str(public_url_response)
+                        # 🚨 避免[object Object]，手动构建公开URL
+                        base_url = supabase_client.supabase_url
+                        image_url = f"{base_url}/storage/v1/object/public/{bucket_name}/{storage_path}"
+                        logger.warning(f"临时上传URL响应格式未知，手动构建公开URL: {image_url}")
+                        logger.debug(f"响应对象类型: {type(public_url_response)}, 内容: {public_url_response}")
                     
                     logger.info(f"🌐 生成的公开URL: {image_url}")
                     
@@ -2228,8 +2273,14 @@ def _move_temp_file_cloud(detail_id, temp_id, filename, temp_url, supabase_clien
                 final_url = public_url_response.publicUrl
             elif hasattr(public_url_response, 'url'):
                 final_url = public_url_response.url
+            elif isinstance(public_url_response, str):
+                final_url = public_url_response
             else:
-                final_url = str(public_url_response)
+                # 🚨 避免[object Object]，手动构建公开URL
+                base_url = supabase_client.supabase_url
+                final_url = f"{base_url}/storage/v1/object/public/{bucket_name}/{final_path}"
+                logger.warning(f"URL响应格式未知，手动构建公开URL: {final_url}")
+                logger.debug(f"响应对象类型: {type(public_url_response)}, 内容: {public_url_response}")
             
             logger.info(f"✅ 云端文件转移成功: {final_url}")
             return final_url

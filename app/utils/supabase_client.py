@@ -578,7 +578,7 @@ class SupabaseStorageClient:
             logger.error(f"文件删除失败: {str(e)}")
             return False
     
-    def upload_expense_invoice(self, detail_id: int, file, filename: str, bucket_type: str = 'invoice'):
+    def upload_expense_invoice(self, detail_id: int, file, filename: str, bucket_type: str = 'invoice', detail_sequence: int = None):
         """
         上传报销明细发票图片（本地/云端自适应）
         
@@ -587,6 +587,7 @@ class SupabaseStorageClient:
             file: 文件对象
             filename: 原始文件名
             bucket_type: 存储桶类型 ('invoice', 'product', 'rd_product', 'default')
+            detail_sequence: 明细序号（可选，用于新建报销单时避免序号冲突）
             
         Returns:
             成功返回文件信息字典或URL字符串（向下兼容），失败返回None
@@ -601,14 +602,14 @@ class SupabaseStorageClient:
         """
         try:
             if self.use_local_storage:
-                return self._upload_expense_invoice_local(detail_id, file, filename, bucket_type)
+                return self._upload_expense_invoice_local(detail_id, file, filename, bucket_type, detail_sequence)
             else:
-                return self._upload_expense_invoice_cloud(detail_id, file, filename, bucket_type)
+                return self._upload_expense_invoice_cloud(detail_id, file, filename, bucket_type, detail_sequence)
         except Exception as e:
             logger.error(f"发票上传失败: {str(e)}")
             return None
     
-    def _upload_expense_invoice_local(self, detail_id: int, file, filename: str, bucket_type: str) -> Optional[str]:
+    def _upload_expense_invoice_local(self, detail_id: int, file, filename: str, bucket_type: str, detail_sequence: int = None) -> Optional[str]:
         """
         上传发票到本地文件系统
         """
@@ -617,7 +618,7 @@ class SupabaseStorageClient:
             local_dir_name = self.get_bucket_name(bucket_type)
             
             # 生成规范化的文件名和存储路径
-            standardized_info = self._generate_standardized_invoice_name(detail_id, filename)
+            standardized_info = self._generate_standardized_invoice_name(detail_id, filename, detail_sequence)
             if not standardized_info:
                 logger.warning(f"生成规范化文件名失败，使用简化命名")
                 # 简化的本地存储路径
@@ -675,7 +676,7 @@ class SupabaseStorageClient:
             logger.error(f"本地发票上传失败: {str(e)}")
             return None
     
-    def _upload_expense_invoice_cloud(self, detail_id: int, file, filename: str, bucket_type: str) -> Optional[str]:
+    def _upload_expense_invoice_cloud(self, detail_id: int, file, filename: str, bucket_type: str, detail_sequence: int = None) -> Optional[str]:
         """
         上传发票到云端Supabase存储
         """
@@ -684,7 +685,7 @@ class SupabaseStorageClient:
             bucket_name = self.get_bucket_name(bucket_type)
             
             # 生成规范化的文件名和存储路径
-            standardized_info = self._generate_standardized_invoice_name(detail_id, filename)
+            standardized_info = self._generate_standardized_invoice_name(detail_id, filename, detail_sequence)
             if not standardized_info:
                 logger.error(f"生成规范化文件名失败，使用原始命名: {filename}")
                 storage_path = f"expense_invoices/{detail_id}/{filename}"
@@ -727,8 +728,7 @@ class SupabaseStorageClient:
                         )
                         res = self.supabase.storage.from_(bucket_name).upload(
                             storage_path,
-                            file_bytes,
-                            options
+                            processed_content
                         )
                         upload_success = True
                         logger.info("UploadFileOptions方式上传成功")
@@ -741,8 +741,7 @@ class SupabaseStorageClient:
                         logger.info("尝试使用字典方式上传")
                         res = self.supabase.storage.from_(bucket_name).upload(
                             storage_path,
-                            file_bytes,
-                            {"content-type": self._get_content_type('image', filename.split('.')[-1].lower() if '.' in filename else 'jpg')}
+                            processed_content
                         )
                         upload_success = True
                         logger.info("字典方式上传成功")
@@ -751,11 +750,11 @@ class SupabaseStorageClient:
                 
                 if not upload_success:
                     try:
-                        # 最简化版本，不传递content-type
+                        # 最简化版本，使用新版SDK格式
                         logger.info("尝试使用最简化方式上传")
                         res = self.supabase.storage.from_(bucket_name).upload(
                             storage_path,
-                            file_bytes
+                            processed_content  # 直接使用字节内容而不是BytesIO
                         )
                         upload_success = True
                         logger.info("最简化方式上传成功")
@@ -869,17 +868,17 @@ class SupabaseStorageClient:
                 except Exception as e:
                     logger.warning(f"解析URL失败: {e}")
             
-            # 新格式：规范化命名（项目-客户-报销单-明细-文件.ext）
-            if '-' in filename and len(filename.split('-')) >= 5:
-                # 尝试解析规范化文件名
+            # 新格式：规范化命名（项目_报销单_明细_文件.ext）
+            if '_' in filename and filename.count('_') >= 3:
+                # 尝试解析规范化文件名 PMA_BX2025081015_01_01.heic
                 try:
-                    parts = filename.split('-')
-                    if len(parts) >= 5:
-                        project_code = parts[0]
-                        customer_code = parts[1] 
-                        expense_number = parts[2]
+                    parts = filename.split('_')
+                    if len(parts) >= 4:
+                        system_id = parts[0]  # PMA
+                        expense_number = parts[1]  # BX2025081015
                         # 新格式存储路径
-                        storage_paths.append(f"invoice_files/{project_code}/{customer_code}/{expense_number}/{filename}")
+                        storage_paths.append(f"invoice_files/{system_id}/{expense_number}/{filename}")
+                        logger.debug(f"生成新格式删除路径: invoice_files/{system_id}/{expense_number}/{filename}")
                 except Exception as e:
                     logger.debug(f"解析规范化文件名失败: {e}")
             
@@ -907,6 +906,14 @@ class SupabaseStorageClient:
                 try:
                     logger.info(f"尝试删除路径: {storage_path}")
                     result = self.supabase.storage.from_(bucket_name).remove([storage_path])
+                    
+                    # 🔍 详细日志：查看删除结果
+                    logger.info(f"删除API响应: {result}")
+                    logger.info(f"响应类型: {type(result)}")
+                    if hasattr(result, 'data'):
+                        logger.info(f"响应数据: {result.data}")
+                    if hasattr(result, 'error'):
+                        logger.info(f"响应错误: {result.error}")
                     
                     if not (hasattr(result, 'error') and result.error):
                         logger.info(f"发票图片删除成功: {storage_path}")
@@ -1003,7 +1010,7 @@ class SupabaseStorageClient:
             logger.error(f"图片处理失败: {str(e)}")
             raise
     
-    def _generate_standardized_invoice_name(self, detail_id: int, original_filename: str) -> Optional[dict]:
+    def _generate_standardized_invoice_name(self, detail_id: int, original_filename: str, detail_sequence: int = None) -> Optional[dict]:
         """
         生成规范化的发票文件名和存储路径
         
@@ -1039,10 +1046,16 @@ class SupabaseStorageClient:
             system_id = self._get_system_identifier()
             
             # 2. 报销单编号
+            logger.info(f"🔍 调试文件名生成: 原始报销单编号={expense.expense_number}")
             expense_number = self._clean_filename_part(expense.expense_number)
+            logger.info(f"🔍 调试文件名生成: 清理后报销单编号={expense_number}")
             
             # 3. 明细序号（在该报销单中的位置，2位数）
-            detail_sequence = self._get_detail_sequence(expense, detail_id)
+            if detail_sequence is None:
+                detail_sequence = self._get_detail_sequence(expense, detail_id)
+            else:
+                # 使用传递的序号（从0开始转换为从1开始）
+                detail_sequence = detail_sequence + 1
             
             # 4. 文件序号（该明细的第几个文件，2位数）
             file_sequence = self._get_file_sequence_for_detail(detail_id)
@@ -1111,8 +1124,8 @@ class SupabaseStorageClient:
         if not cleaned:
             return "UNKNOWN"
         
-        # 限制长度
-        return cleaned[:10].upper()
+        # 保持完整长度，但限制合理范围（报销单编号通常不会超过20个字符）
+        return cleaned[:20].upper()
     
     def _get_detail_sequence(self, expense, detail_id: int) -> int:
         """
