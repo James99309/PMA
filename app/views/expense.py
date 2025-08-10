@@ -969,7 +969,23 @@ def create_expense():
                 # 处理已有的发票数据（JSON格式）
                 if detail_data.get('invoice_images'):
                     for invoice in detail_data['invoice_images']:
-                        if not invoice.get('pending') and (invoice.get('url') or invoice.get('path')):
+                        if invoice.get('pending'):
+                            # 处理待确认的发票（临时上传的文件）
+                            if invoice.get('temp_id') and invoice.get('url'):
+                                # 这是临时上传的文件，需要移动到正式位置
+                                logger.info(f"明细 {index}: 处理临时文件 - {invoice.get('filename')}")
+                                # 暂时保留临时文件的信息，后续可以添加移动逻辑
+                                processed_images.append({
+                                    'filename': invoice.get('filename', ''),
+                                    'url': invoice.get('url', ''),
+                                    'size': invoice.get('size', 0)
+                                })
+                            elif invoice.get('file'):
+                                # 这是前端待上传的文件对象，跳过（应该通过文件上传处理）
+                                logger.info(f"明细 {index}: 跳过前端文件对象")
+                                pass
+                        elif not invoice.get('pending') and (invoice.get('url') or invoice.get('path')):
+                            # 处理已确认的发票（已保存的文件）
                             processed_images.append(invoice)
                 
                 # 更新明细的发票数据
@@ -1740,8 +1756,15 @@ def upload_invoice_temp():
         # 生成临时文件名
         import uuid
         temp_id = str(uuid.uuid4())
-        filename = secure_filename(file.filename)
-        original_filename = filename
+        original_filename = secure_filename(file.filename)
+        
+        # 检测Safari tempImage重命名并修正扩展名
+        filename = original_filename
+        if original_filename.startswith('tempImage') and original_filename.endswith('.heic'):
+            # Safari的tempImage文件，为了兼容性强制使用JPG扩展名
+            name, ext = os.path.splitext(original_filename)
+            filename = f"{name}.jpg"
+            logger.warning(f"检测到Safari tempImage文件，修正扩展名：{original_filename} -> {filename}")
         
         # 添加时间戳避免重复
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -1760,11 +1783,20 @@ def upload_invoice_temp():
                 file_size = file.tell()
                 file.seek(0)
                 
-                # 使用现有的发票上传方法，但保存到临时路径
+                # 使用临时路径但应用标准的图片处理逻辑
                 storage_path = f"temp_expense_invoices/{temp_id}/{filename}"
                 
-                # 直接使用Supabase存储API
+                # 读取文件内容
                 file_content = file.read()
+                file.seek(0)  # 重置文件指针
+                
+                # 使用标准的图片处理逻辑（压缩等，但保持原始格式）
+                try:
+                    processed_content = supabase_client._process_invoice_image(file_content, filename)
+                    logger.info(f"图片已处理但保持原始格式: {filename}")
+                except Exception as e:
+                    logger.warning(f"图片处理失败，使用原始文件: {str(e)}")
+                    processed_content = file_content
                 
                 # 根据文件扩展名确定content-type
                 file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
@@ -1775,9 +1807,10 @@ def upload_invoice_temp():
                 }
                 content_type = content_type_map.get(file_ext, 'application/octet-stream')
                 
+                # 上传处理后的文件
                 result = supabase_client.supabase.storage.from_(supabase_client.bucket_name).upload(
                     path=storage_path,
-                    file=file_content,
+                    file=processed_content,
                     file_options={"content-type": content_type, "upsert": True}
                 )
                 
@@ -1790,9 +1823,10 @@ def upload_invoice_temp():
                         'message': '发票上传成功',
                         'data': {
                             'url': image_url,
-                            'filename': original_filename,
-                            'size': file_size,
-                            'temp_id': temp_id
+                            'filename': filename,  # 返回处理后的文件名
+                            'size': len(processed_content),  # 使用处理后的文件大小
+                            'temp_id': temp_id,
+                            'is_temp': True
                         }
                     })
                 else:
@@ -1820,7 +1854,7 @@ def upload_invoice_temp():
                 'message': '发票上传成功',
                 'data': {
                     'url': image_url,
-                    'filename': original_filename,
+                    'filename': filename,
                     'size': os.path.getsize(file_path),
                     'temp_id': temp_id
                 }
@@ -1973,8 +2007,36 @@ def preview_invoice_filename(detail_id):
                 'message': _('文件名不能为空')
             }), 400
         
-        # 根据MIME类型确定正确的扩展名
-        if mime_type:
+        # 检测Safari错误转换并确定正确的扩展名
+        correct_extension = 'jpg'  # 默认扩展名
+        
+        if original_filename and '.' in original_filename:
+            user_extension = original_filename.rsplit('.', 1)[1].lower()
+            
+            # 检测Safari错误转换：用户选择非HEIC文件但MIME类型为image/heic
+            if user_extension != 'heic' and mime_type and mime_type.lower() == 'image/heic':
+                current_app.logger.warning(f"检测到Safari错误转换：用户文件 {original_filename}（{user_extension}）被标记为 {mime_type}")
+                current_app.logger.warning(f"强制使用用户文件的原始扩展名：{user_extension}")
+                correct_extension = user_extension
+            elif mime_type:
+                # 正常情况：基于MIME类型确定扩展名
+                mime_to_extension = {
+                    'image/png': 'png',
+                    'image/jpeg': 'jpg',
+                    'image/jpg': 'jpg', 
+                    'image/gif': 'gif',
+                    'image/bmp': 'bmp',
+                    'image/webp': 'webp',
+                    'image/heic': 'heic',
+                    'image/heif': 'heif',
+                    'application/pdf': 'pdf'
+                }
+                correct_extension = mime_to_extension.get(mime_type.lower(), user_extension or 'jpg')
+            else:
+                # 没有MIME类型：使用用户文件扩展名
+                correct_extension = user_extension or 'jpg'
+        elif mime_type:
+            # 没有原始文件名但有MIME类型
             mime_to_extension = {
                 'image/png': 'png',
                 'image/jpeg': 'jpg',
@@ -1987,15 +2049,16 @@ def preview_invoice_filename(detail_id):
                 'application/pdf': 'pdf'
             }
             correct_extension = mime_to_extension.get(mime_type.lower(), 'jpg')
-            # 构造一个带有正确扩展名的文件名用于生成规范化名称
-            original_filename = f"temp_file.{correct_extension}"
-            current_app.logger.info(f"根据MIME类型 {mime_type} 调整文件名为: {original_filename}")
+        
+        # 构造用于生成规范化名称的文件名
+        preview_filename = f"temp_file.{correct_extension}"
+        current_app.logger.info(f"预览文件名生成：原始={original_filename}, MIME={mime_type}, 最终扩展名={correct_extension}")
         
         # 验证明细存在
         detail = ExpenseDetail.query.get_or_404(detail_id)
         
         # 检查权限
-        if not can_edit_data(detail.expense.owner_id):
+        if not can_edit_data(detail.expense, current_user):
             return jsonify({
                 'success': False,
                 'message': _('您没有权限预览此报销单的发票')
@@ -2006,7 +2069,7 @@ def preview_invoice_filename(detail_id):
         supabase_client = get_supabase_client()
         
         # 生成规范化文件名（仅预览，不实际保存）
-        result = supabase_client._generate_standardized_invoice_name(detail_id, original_filename)
+        result = supabase_client._generate_standardized_invoice_name(detail_id, preview_filename)
         
         if result:
             return jsonify({

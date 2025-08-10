@@ -474,7 +474,7 @@ def create_app(config_class=Config):
             '/auth/login', '/auth/logout', '/auth/register', 
             '/auth/forgot-password', '/auth/reset-password',
             '/auth/activate', '/static', '/api/version',
-            '/language/current', '/language/switch'
+            '/language/current', '/language/switch', '/storage'
         ]
         
         # 检查当前路径是否需要登录

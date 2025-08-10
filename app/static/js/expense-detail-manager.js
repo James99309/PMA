@@ -2498,17 +2498,37 @@ class ExpenseDetailManager {
                     const expectedExtension = file.name.split('.').pop()?.toLowerCase();
                     console.log('  从文件名推断的扩展名:', expectedExtension);
                     
-                    // 检测浏览器自动转换问题（特别是iOS Safari）
-                    const isTempFile = file.name.startsWith('tempImage') || file.name.startsWith('image-');
-                    if (isTempFile) {
-                        console.warn('🚨 检测到临时文件名格式：', file.name);
-                        console.warn('🍎 这通常表示iOS/Safari浏览器自动转换了用户的原始文件');
-                        console.warn('💡 用户实际选择的文件可能是不同的格式');
+                    // iOS Safari 会将某些文件重命名为 tempImage 格式
+                    // 这会在临时上传时保持原样，在正式保存时通过服务端处理
+                    if (file.name.startsWith('tempImage')) {
+                        console.warn('🚨 检测到iOS Safari重命名的文件:', file.name);
+                        console.warn('💡 将通过服务端统一处理和规范化命名');
                     }
                     
-                    if (expectedExtension && expectedExtension !== 'heic' && file.type === 'image/heic') {
+                    // 检测Safari的tempImage重命名（这表示Safari修改了用户的原始文件）
+                    let forcedExtension = null;
+                    let actualUserExtension = expectedExtension;
+                    
+                    if (file.name.startsWith('tempImage')) {
+                        console.warn('🚨 检测到Safari tempImage重命名:', file.name);
+                        console.warn('🚨 这意味着Safari修改了用户的原始文件名和可能的格式');
+                        
+                        // Safari的tempImage文件通常是HEIC格式，但用户原始文件可能是其他格式
+                        // 由于我们无法得知用户真正的原始文件扩展名，我们需要采用保守策略
+                        if (file.type === 'image/heic' && file.name.endsWith('.heic')) {
+                            // 这是一个真正的Safari转换的HEIC文件
+                            // 为了避免格式混乱，我们假设用户上传的是常见格式，强制使用JPG
+                            console.warn('🔒 Safari tempImage文件强制使用JPG扩展名以保证兼容性');
+                            forcedExtension = 'jpg';
+                            actualUserExtension = 'jpg';
+                        }
+                    } else if (expectedExtension && expectedExtension !== 'heic' && file.type === 'image/heic') {
+                        // 非tempImage情况下的MIME类型不匹配检测
                         console.warn('⚠️  警告：用户选择了', expectedExtension.toUpperCase(), '文件，但浏览器检测到MIME类型为 image/heic');
                         console.warn('⚠️  这可能是iOS设备自动转换或文件格式识别问题');
+                        console.warn('🔒 强制使用用户文件名的扩展名以防止格式错误修改');
+                        forcedExtension = expectedExtension;
+                        actualUserExtension = expectedExtension;
                     }
                     
                     try {
@@ -2516,14 +2536,26 @@ class ExpenseDetailManager {
                             console.log('📞 调用预览API:', `/expense/api/preview_invoice_filename/${row.id}`);
                             
                             // 如果有detail_id，调用预览API获取规范化文件名
+                            // 如果检测到Safari错误转换，传递修正后的信息
+                            const apiFilename = forcedExtension ? 
+                                `corrected_file.${actualUserExtension}` : file.name;
+                            const apiMimeType = forcedExtension ? 
+                                `image/${actualUserExtension === 'jpg' ? 'jpeg' : actualUserExtension}` : (file.type || '');
+                                
+                            console.log('📤 传递给预览API的参数:', {
+                                original: { filename: file.name, mimeType: file.type },
+                                corrected: { filename: apiFilename, mimeType: apiMimeType },
+                                forcedExtension: forcedExtension
+                            });
+                            
                             const previewResponse = await fetch(`/expense/api/preview_invoice_filename/${row.id}`, {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
                                 },
                                 body: JSON.stringify({
-                                    filename: file.name,
-                                    mimeType: file.type || ''
+                                    filename: apiFilename,
+                                    mimeType: apiMimeType
                                 })
                             });
                             
@@ -2564,7 +2596,11 @@ class ExpenseDetailManager {
                             });
                             console.log('📊 检测到的MIME类型:', file.type || '无MIME类型');
                             
-                            if (file.type) {
+                            // 如果有强制扩展名（防Safari错误转换），直接使用
+                            if (forcedExtension) {
+                                extension = forcedExtension;
+                                console.log('🔒 使用强制扩展名（防止浏览器错误转换）:', extension);
+                            } else if (file.type) {
                                 const mimeToExtension = {
                                     'image/png': 'png',
                                     'image/jpeg': 'jpg',
@@ -2580,8 +2616,8 @@ class ExpenseDetailManager {
                                 extension = mimeToExtension[file.type.toLowerCase()] || 'jpg';
                                 console.log('✅ 基于MIME类型检测到扩展名:', extension);
                                 
-                                // 额外的调试信息和智能修正
-                                if (expectedExtension && extension !== expectedExtension) {
+                                // 额外的调试信息和智能修正（只在非强制模式下执行）
+                                if (!forcedExtension && expectedExtension && extension !== expectedExtension) {
                                     console.warn('🔄 扩展名不匹配！');
                                     console.warn('  用户文件名显示:', expectedExtension);
                                     console.warn('  MIME类型检测:', extension);
@@ -2641,28 +2677,8 @@ class ExpenseDetailManager {
                             
                             console.log('📝 最终确定的扩展名:', extension);
                             
-                            // 🔧 智能格式处理（解决iOS HEIC兼容性问题）
-                            const isTempFile = file.name.startsWith('tempImage') || file.name.startsWith('image-');
-                            
-                            if (extension === 'heic' || extension === 'heif') {
-                                console.log('🍎 检测到Apple HEIC/HEIF格式');
-                                
-                                if (isTempFile) {
-                                    console.log('🔍 这是浏览器生成的临时文件');
-                                    console.log('💡 用户实际选择的可能是JPG文件，被浏览器自动转换为HEIC');
-                                    console.log('🎯 强制使用JPG格式以匹配用户期望');
-                                } else {
-                                    console.log('💡 为了更好的兼容性和通用性，自动转换为JPG格式');
-                                }
-                                
-                                // 自动转换为JPG格式，提供更好的兼容性
-                                const originalExtension = extension;
-                                extension = 'jpg';
-                                
-                                console.log(`🔄 格式转换: ${originalExtension.toUpperCase()} → JPG`);
-                                console.log('✅ 转换完成，现在使用JPG扩展名');
-                                console.log('📋 说明：JPG格式具有更好的通用兼容性');
-                            }
+                            // 📝 保留原始文件扩展名（简化逻辑，避免格式混乱）
+                            console.log('📋 保留原始扩展名:', extension);
                             
                             // 明细序号 (rowIndex + 1)
                             const detailSequence = String(rowIndex + 1).padStart(2, '0');
@@ -3071,6 +3087,7 @@ class ExpenseDetailManager {
         
         console.log('发票删除完成，剩余发票:', rowData.invoice_images);
     }
+    
     
     /**
      * 显示上传进度

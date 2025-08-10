@@ -622,7 +622,7 @@ class SupabaseStorageClient:
             
             try:
                 # 处理图片（压缩等）
-                processed_content = self._process_invoice_image(file_content)
+                processed_content = self._process_invoice_image(file_content, filename)
             except Exception as e:
                 logger.warning(f"图片处理失败，使用原始文件: {str(e)}")
                 processed_content = file_content
@@ -675,7 +675,7 @@ class SupabaseStorageClient:
             
             # 压缩图片以节省存储空间和带宽
             try:
-                processed_content = self._process_invoice_image(file_content)
+                processed_content = self._process_invoice_image(file_content, filename)
             except Exception as e:
                 logger.warning(f"图片处理失败，使用原始文件: {str(e)}")
                 processed_content = file_content
@@ -695,9 +695,10 @@ class SupabaseStorageClient:
                     try:
                         # 新版本SDK使用UploadFileOptions
                         logger.info("尝试使用UploadFileOptions方式上传")
-                        # 经过_process_invoice_image处理后，所有图片都转换为JPEG格式
+                        # 根据原始文件扩展名设置Content-Type
+                        original_ext = filename.split('.')[-1].lower() if '.' in filename else 'jpg'
                         options = UploadFileOptions(
-                            content_type='image/jpeg'
+                            content_type=self._get_content_type('image', original_ext)
                         )
                         res = self.supabase.storage.from_(bucket_name).upload(
                             storage_path,
@@ -899,17 +900,17 @@ class SupabaseStorageClient:
             logger.error(f"发票图片删除失败: {str(e)}")
             return False
     
-    def _process_invoice_image(self, file_content: bytes) -> bytes:
+    def _process_invoice_image(self, file_content: bytes, filename: str = '') -> bytes:
         """
-        处理发票图片：压缩和调整大小
+        处理发票图片：压缩和调整大小，保留原始格式
         """
         try:
             # 打开图片
             image = Image.open(BytesIO(file_content))
+            original_format = image.format or 'JPEG'
             
-            # 转换为RGB模式（如果需要）
-            if image.mode not in ('RGB', 'L'):
-                image = image.convert('RGB')
+            # 获取文件扩展名来确定目标格式
+            file_ext = filename.split('.')[-1].lower() if '.' in filename else 'jpg'
             
             # 调整大小（发票图片最大1600x1600）
             max_size = 1600
@@ -917,9 +918,39 @@ class SupabaseStorageClient:
                 image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
                 logger.info(f"图片大小调整为: {image.width}x{image.height}")
             
-            # 压缩并保存
+            # 保持原始格式，只做压缩处理
             output = BytesIO()
-            image.save(output, format='JPEG', quality=90, optimize=True)
+            
+            # 根据文件扩展名确定保存格式
+            if file_ext in ['png']:
+                # PNG格式：保持透明度
+                image.save(output, format='PNG', optimize=True)
+                logger.info(f"PNG文件保持原始格式")
+            elif file_ext in ['gif']:
+                # GIF格式：保持调色板  
+                image.save(output, format='GIF', optimize=True)
+                logger.info(f"GIF文件保持原始格式")
+            elif file_ext in ['webp']:
+                # WEBP格式：保持原始格式
+                image.save(output, format='WEBP', quality=90, optimize=True)
+                logger.info(f"WEBP文件保持原始格式")
+            elif file_ext in ['bmp']:
+                # BMP格式：保持原始格式
+                image.save(output, format='BMP')
+                logger.info(f"BMP文件保持原始格式")
+            elif file_ext in ['heic', 'heif']:
+                # HEIC/HEIF格式：由于PIL支持有限，转换为JPEG内容但保持扩展名
+                if image.mode not in ('RGB', 'L'):
+                    image = image.convert('RGB')
+                image.save(output, format='JPEG', quality=90, optimize=True)
+                logger.info(f"HEIC/HEIF文件内容处理为JPEG但保持原始扩展名")
+            else:
+                # JPG/JPEG和其他格式：保存为JPEG
+                if image.mode not in ('RGB', 'L'):
+                    image = image.convert('RGB')
+                image.save(output, format='JPEG', quality=90, optimize=True)
+                logger.info(f"文件处理为JPEG格式")
+            
             compressed_content = output.getvalue()
             
             # 检查压缩效果
@@ -962,8 +993,10 @@ class SupabaseStorageClient:
             
             expense = detail.expense
             
-            # 强制使用jpg扩展名（因为所有图片都会通过_process_invoice_image转换为JPEG格式）
-            file_ext = 'jpg'
+            # 保留原始文件扩展名
+            file_ext = 'jpg'  # 默认扩展名
+            if '.' in original_filename:
+                file_ext = original_filename.rsplit('.', 1)[1].lower()
             
             # 1. 系统标识
             system_id = self._get_system_identifier()
