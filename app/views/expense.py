@@ -911,8 +911,8 @@ def create_expense():
                                         # upload_expense_invoice方法现在会自动生成规范化的文件名
                                         # 格式：{项目代码}-{客户简称}-{报销单号}-{明细序号}-{文件序号}.{扩展名}
                                         
-                                        # 上传到Supabase（传递明细索引避免冲突）
-                                        upload_result = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, file_obj.filename, 'invoice', index)
+                                        # 上传到Supabase（传递明细索引和文件索引避免冲突）
+                                        upload_result = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, file_obj.filename, 'invoice', index, file_index)
                                         
                                         if upload_result:
                                             # 处理新的返回格式
@@ -941,8 +941,8 @@ def create_expense():
                                         from app.utils.supabase_client import get_supabase_client
                                         supabase_client = get_supabase_client()
                                         
-                                        # 上传到智能存储系统（传递明细索引避免冲突）
-                                        upload_result = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, file_obj.filename, 'invoice', index)
+                                        # 上传到智能存储系统（传递明细索引和文件索引避免冲突）
+                                        upload_result = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, file_obj.filename, 'invoice', index, file_index)
                                         
                                         if upload_result:
                                             # 处理新的返回格式
@@ -1520,10 +1520,18 @@ def edit_expense(id):
                                             from app.utils.supabase_client import get_supabase_client
                                             supabase_client = get_supabase_client()
                                             
-                                            # 使用规范化的文件命名系统
-                                            image_url = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, file_obj.filename)
+                                            # 使用规范化的文件命名系统（传递文件索引避免冲突）
+                                            upload_result = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, file_obj.filename, 'invoice', index, file_index)
                                             
-                                            if not image_url:
+                                            if upload_result:
+                                                # 处理新的返回格式
+                                                if isinstance(upload_result, dict):
+                                                    image_url = upload_result['url']
+                                                    original_filename = upload_result['filename']  # 使用规范化文件名
+                                                else:
+                                                    image_url = upload_result
+                                                    original_filename = file_obj.filename
+                                            else:
                                                 raise Exception("Supabase上传失败")
                                                 
                                             logger.info(f"明细 {index}: Supabase上传成功 - {image_url}")
@@ -1543,10 +1551,11 @@ def edit_expense(id):
                                         
                                         relative_path = os.path.join('uploads', 'invoices', str(detail_obj.id), filename).replace('\\', '/')
                                         image_url = f"/static/{relative_path}"
+                                        original_filename = file_obj.filename  # 本地上传使用原始文件名
                                     
                                     # 添加到图片列表
                                     processed_images.append({
-                                        'filename': file_obj.filename,
+                                        'filename': original_filename,
                                         'url': image_url,
                                         'size': file_size,
                                         'uploaded_at': datetime.now().isoformat()
@@ -1640,8 +1649,25 @@ def edit_expense(id):
                     if isinstance(images_data, list):
                         for img in images_data:
                             if isinstance(img, dict):
+                                # 修复URL数据：处理错误的"[object Object]"字符串
+                                raw_url = img.get('url', '')
+                                fixed_url = ''
+                                
+                                if isinstance(raw_url, str):
+                                    if raw_url == '[object Object]':
+                                        # 错误的对象字符串，尝试从其他字段重构URL或清空
+                                        logger.warning(f"检测到错误的URL数据，将被清空: {raw_url}")
+                                        fixed_url = ''
+                                    else:
+                                        fixed_url = raw_url
+                                elif isinstance(raw_url, dict):
+                                    # 如果URL是字典，提取实际的URL字符串
+                                    fixed_url = raw_url.get('url', '') if 'url' in raw_url else str(raw_url)
+                                else:
+                                    fixed_url = str(raw_url) if raw_url else ''
+                                
                                 detail_dict['invoice_images'].append({
-                                    'url': img.get('url', ''),
+                                    'url': fixed_url,
                                     'filename': img.get('filename', ''),
                                     'size': img.get('size', 0),
                                     'pending': False  # 现有图片不是pending状态
@@ -2018,8 +2044,11 @@ def upload_invoice_image(detail_id):
             
             current_app.logger.info(f"使用智能存储系统上传发票: {'本地存储' if supabase_client.use_local_storage else '云端存储'}")
             
-            # 上传到智能存储系统（自动生成规范化文件名）
-            upload_result = supabase_client.upload_expense_invoice(detail_id, file, file.filename)
+            # 计算下一个文件序号（避免命名冲突）
+            next_file_sequence = current_count + 1
+            
+            # 上传到智能存储系统（自动生成规范化文件名，传递文件序号）
+            upload_result = supabase_client.upload_expense_invoice(detail_id, file, file.filename, 'invoice', None, next_file_sequence)
             
             if upload_result:
                 # 处理新的返回格式（支持向下兼容）

@@ -821,7 +821,24 @@ async function submitExpenseFormWithFiles() {
                         formData.append(`details[${index}][temp_invoices][${fileIndex}][size]`, invoice.size || 0);
                     } else if (invoice.url || !invoice.pending) {
                         // 已存在的文件，传递元数据（包括url为空的现有图片）
-                        formData.append(`details[${index}][existing_invoices][${fileIndex}][url]`, invoice.url || '');
+                        // 修复URL数据：确保只有有效的字符串URL被提交
+                        let fixedUrl = '';
+                        if (typeof invoice.url === 'string') {
+                            if (invoice.url === '[object Object]') {
+                                console.warn('检测到错误的URL数据，将被清空:', invoice.url);
+                                fixedUrl = '';
+                            } else {
+                                fixedUrl = invoice.url;
+                            }
+                        } else if (typeof invoice.url === 'object' && invoice.url !== null) {
+                            // 如果是对象，尝试提取URL字符串
+                            fixedUrl = invoice.url.url || '';
+                            console.warn('检测到对象类型的URL，已提取URL字符串:', fixedUrl);
+                        } else {
+                            fixedUrl = invoice.url || '';
+                        }
+                        
+                        formData.append(`details[${index}][existing_invoices][${fileIndex}][url]`, fixedUrl);
                         formData.append(`details[${index}][existing_invoices][${fileIndex}][filename]`, invoice.filename || '');
                         formData.append(`details[${index}][existing_invoices][${fileIndex}][size]`, invoice.size || 0);
                     }

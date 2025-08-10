@@ -1661,6 +1661,64 @@ def update_product(id):
                     flash(_('PDF文件上传过程中发生错误'), 'danger')
                     current_app.logger.error(f"研发产品PDF上传异常: {str(e)}")
         
+        # 检查是否需要删除图片
+        if request.form.get('remove_image') == 'true' and dev_product.image_path:
+            current_app.logger.debug('删除研发产品图片')
+            try:
+                # 使用智能存储系统删除文件（支持本地和云端）
+                supabase_client = get_supabase_client()
+                
+                # 判断文件类型并删除
+                if dev_product.image_path.startswith('http'):
+                    # 云端文件，使用智能存储删除
+                    delete_success = supabase_client.delete_product_file(dev_product.id, 'image', 'rd_product')
+                    if delete_success:
+                        current_app.logger.info(f'云端研发产品图片删除成功: {dev_product.image_path}')
+                    else:
+                        current_app.logger.warning(f'云端研发产品图片删除失败: {dev_product.image_path}')
+                else:
+                    # 本地文件，直接删除
+                    image_path = os.path.join(current_app.static_folder, dev_product.image_path)
+                    if os.path.exists(image_path):
+                        os.remove(image_path)
+                        current_app.logger.info(f'本地研发产品图片删除成功: {image_path}')
+                
+                # 清空图片路径
+                dev_product.image_path = None
+                
+            except Exception as e:
+                current_app.logger.error(f'删除研发产品图片失败: {str(e)}')
+                flash(_('删除图片失败，请重试'), 'warning')
+        
+        # 检查是否需要删除PDF文件
+        if request.form.get('remove_pdf') == 'true' and dev_product.pdf_path:
+            current_app.logger.debug('删除研发产品PDF文件')
+            try:
+                # 使用智能存储系统删除PDF文件（支持本地和云端）
+                supabase_client = get_supabase_client()
+                
+                # 判断文件类型并删除
+                if dev_product.pdf_path.startswith('http'):
+                    # 云端文件，使用智能存储删除
+                    delete_success = supabase_client.delete_product_file(dev_product.id, 'pdf', 'rd_product')
+                    if delete_success:
+                        current_app.logger.info(f'云端研发产品PDF删除成功: {dev_product.pdf_path}')
+                    else:
+                        current_app.logger.warning(f'云端研发产品PDF删除失败: {dev_product.pdf_path}')
+                else:
+                    # 本地文件，直接删除
+                    pdf_path = os.path.join(current_app.static_folder, dev_product.pdf_path)
+                    if os.path.exists(pdf_path):
+                        os.remove(pdf_path)
+                        current_app.logger.info(f'本地研发产品PDF删除成功: {pdf_path}')
+                
+                # 清空PDF路径
+                dev_product.pdf_path = None
+                
+            except Exception as e:
+                current_app.logger.error(f'删除研发产品PDF文件失败: {str(e)}')
+                flash(_('删除PDF文件失败，请重试'), 'warning')
+        
         # 处理规格字段
         # 1. 处理删除的规格
         deleted_spec_ids = request.form.getlist('deleted_spec_ids[]')

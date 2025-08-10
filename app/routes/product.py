@@ -1452,15 +1452,33 @@ def update_product(id):
         # 检查是否需要删除图片
         if request.form.get('remove_image') == 'true' and product.image_path:
             logger.debug('删除产品图片')
-            # 如果是本地文件，删除图片文件
-            if not product.image_path.startswith('http'):
-                image_path = os.path.join(UPLOAD_FOLDER, product.image_path)
-                if os.path.exists(image_path):
-                    os.remove(image_path)
-            # 清空图片路径
-            product.image_path = None
-            image_changed = True
-            data_changed = True
+            try:
+                # 使用智能存储系统删除文件（支持本地和云端）
+                supabase_client = get_supabase_client()
+                
+                # 判断文件类型并删除
+                if product.image_path.startswith('http'):
+                    # 云端文件，使用智能存储删除
+                    delete_success = supabase_client.delete_product_file(product.id, 'image', 'product')
+                    if delete_success:
+                        logger.info(f'云端产品图片删除成功: {product.image_path}')
+                    else:
+                        logger.warning(f'云端产品图片删除失败: {product.image_path}')
+                else:
+                    # 本地文件，直接删除
+                    image_path = os.path.join(UPLOAD_FOLDER, product.image_path)
+                    if os.path.exists(image_path):
+                        os.remove(image_path)
+                        logger.info(f'本地产品图片删除成功: {image_path}')
+                
+                # 清空图片路径
+                product.image_path = None
+                image_changed = True
+                data_changed = True
+                
+            except Exception as e:
+                logger.error(f'删除产品图片失败: {str(e)}')
+                flash(_('删除图片失败，请重试'), 'warning')
         
         # 处理PDF文件上传（智能选择本地或云端）
         pdf_changed = False
@@ -1498,15 +1516,33 @@ def update_product(id):
         # 检查是否需要删除PDF文件
         if request.form.get('remove_pdf') == 'true' and product.pdf_path:
             logger.debug('删除产品PDF文件')
-            # 如果是本地文件，删除PDF文件
-            if not product.pdf_path.startswith('http'):
-                pdf_path = os.path.join(current_app.static_folder, product.pdf_path)
-                if os.path.exists(pdf_path):
-                    os.remove(pdf_path)
-            # 清空PDF路径
-            product.pdf_path = None
-            pdf_changed = True
-            data_changed = True
+            try:
+                # 使用智能存储系统删除PDF文件（支持本地和云端）
+                supabase_client = get_supabase_client()
+                
+                # 判断文件类型并删除
+                if product.pdf_path.startswith('http'):
+                    # 云端文件，使用智能存储删除
+                    delete_success = supabase_client.delete_product_file(product.id, 'pdf', 'product')
+                    if delete_success:
+                        logger.info(f'云端产品PDF删除成功: {product.pdf_path}')
+                    else:
+                        logger.warning(f'云端产品PDF删除失败: {product.pdf_path}')
+                else:
+                    # 本地文件，直接删除
+                    pdf_path = os.path.join(current_app.static_folder, product.pdf_path)
+                    if os.path.exists(pdf_path):
+                        os.remove(pdf_path)
+                        logger.info(f'本地产品PDF删除成功: {pdf_path}')
+                
+                # 清空PDF路径
+                product.pdf_path = None
+                pdf_changed = True
+                data_changed = True
+                
+            except Exception as e:
+                logger.error(f'删除产品PDF文件失败: {str(e)}')
+                flash(_('删除PDF文件失败，请重试'), 'warning')
         
         # 更新产品信息 - 仅当值发生变化时才更新
         if product.type != product_data['type']:

@@ -578,7 +578,7 @@ class SupabaseStorageClient:
             logger.error(f"文件删除失败: {str(e)}")
             return False
     
-    def upload_expense_invoice(self, detail_id: int, file, filename: str, bucket_type: str = 'invoice', detail_sequence: int = None):
+    def upload_expense_invoice(self, detail_id: int, file, filename: str, bucket_type: str = 'invoice', detail_sequence: int = None, file_sequence: int = None):
         """
         上传报销明细发票图片（本地/云端自适应）
         
@@ -588,6 +588,7 @@ class SupabaseStorageClient:
             filename: 原始文件名
             bucket_type: 存储桶类型 ('invoice', 'product', 'rd_product', 'default')
             detail_sequence: 明细序号（可选，用于新建报销单时避免序号冲突）
+            file_sequence: 文件序号（可选，用于避免同一明细多文件命名冲突）
             
         Returns:
             成功返回文件信息字典或URL字符串（向下兼容），失败返回None
@@ -602,14 +603,14 @@ class SupabaseStorageClient:
         """
         try:
             if self.use_local_storage:
-                return self._upload_expense_invoice_local(detail_id, file, filename, bucket_type, detail_sequence)
+                return self._upload_expense_invoice_local(detail_id, file, filename, bucket_type, detail_sequence, file_sequence)
             else:
-                return self._upload_expense_invoice_cloud(detail_id, file, filename, bucket_type, detail_sequence)
+                return self._upload_expense_invoice_cloud(detail_id, file, filename, bucket_type, detail_sequence, file_sequence)
         except Exception as e:
             logger.error(f"发票上传失败: {str(e)}")
             return None
     
-    def _upload_expense_invoice_local(self, detail_id: int, file, filename: str, bucket_type: str, detail_sequence: int = None) -> Optional[str]:
+    def _upload_expense_invoice_local(self, detail_id: int, file, filename: str, bucket_type: str, detail_sequence: int = None, file_sequence: int = None) -> Optional[str]:
         """
         上传发票到本地文件系统
         """
@@ -618,7 +619,7 @@ class SupabaseStorageClient:
             local_dir_name = self.get_bucket_name(bucket_type)
             
             # 生成规范化的文件名和存储路径
-            standardized_info = self._generate_standardized_invoice_name(detail_id, filename, detail_sequence)
+            standardized_info = self._generate_standardized_invoice_name(detail_id, filename, detail_sequence, file_sequence)
             if not standardized_info:
                 logger.warning(f"生成规范化文件名失败，使用简化命名")
                 # 简化的本地存储路径
@@ -676,7 +677,7 @@ class SupabaseStorageClient:
             logger.error(f"本地发票上传失败: {str(e)}")
             return None
     
-    def _upload_expense_invoice_cloud(self, detail_id: int, file, filename: str, bucket_type: str, detail_sequence: int = None) -> Optional[str]:
+    def _upload_expense_invoice_cloud(self, detail_id: int, file, filename: str, bucket_type: str, detail_sequence: int = None, file_sequence: int = None) -> Optional[str]:
         """
         上传发票到云端Supabase存储
         """
@@ -685,7 +686,7 @@ class SupabaseStorageClient:
             bucket_name = self.get_bucket_name(bucket_type)
             
             # 生成规范化的文件名和存储路径
-            standardized_info = self._generate_standardized_invoice_name(detail_id, filename, detail_sequence)
+            standardized_info = self._generate_standardized_invoice_name(detail_id, filename, detail_sequence, file_sequence)
             if not standardized_info:
                 logger.error(f"生成规范化文件名失败，使用原始命名: {filename}")
                 storage_path = f"expense_invoices/{detail_id}/{filename}"
@@ -1010,7 +1011,7 @@ class SupabaseStorageClient:
             logger.error(f"图片处理失败: {str(e)}")
             raise
     
-    def _generate_standardized_invoice_name(self, detail_id: int, original_filename: str, detail_sequence: int = None) -> Optional[dict]:
+    def _generate_standardized_invoice_name(self, detail_id: int, original_filename: str, detail_sequence: int = None, file_sequence: int = None) -> Optional[dict]:
         """
         生成规范化的发票文件名和存储路径
         
@@ -1058,7 +1059,11 @@ class SupabaseStorageClient:
                 detail_sequence = detail_sequence + 1
             
             # 4. 文件序号（该明细的第几个文件，2位数）
-            file_sequence = self._get_file_sequence_for_detail(detail_id)
+            if file_sequence is None:
+                file_sequence = self._get_file_sequence_for_detail(detail_id)
+            else:
+                # 使用传递的文件序号（从0开始转换为从1开始）
+                file_sequence = file_sequence + 1
             
             # 生成规范化文件名
             # 格式: PMA-SA_BX20250810_01_02.jpg

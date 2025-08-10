@@ -168,6 +168,15 @@
                                             </button>
                                         </div>
                                         <div class="form-text">支持 PNG, JPG, JPEG, GIF 格式，图片大小不超过5MB，支持中文文件名</div>
+                                        
+                                        <!-- 删除按钮区域（仅当有图片时显示） -->
+                                        {% if dev_product.image_path %}
+                                        <div class="mt-2">
+                                            {{ render_button('删除当前图片', color='danger', size='sm', icon='fas fa-trash', type='button', attrs='id="remove-image-btn"') }}
+                                        </div>
+                                        <input type="hidden" name="remove_image" id="remove-image-flag" value="false">
+                                        {% endif %}
+                                        
                                         <!-- 上传进度和状态 -->
                                         <div id="image_upload_status" class="mt-2" style="display: none;">
                                             <div class="d-flex align-items-center">
@@ -210,6 +219,13 @@
                                             </button>
                                         </div>
                                         <div class="form-text">支持 PDF 格式，文件大小不超过12MB，支持中英文文件名</div>
+                        <!-- 删除按钮区域（仅当有PDF时显示） -->
+                        {% if dev_product.pdf_path %}
+                        <div class="mt-2">
+                            {{ render_button('删除当前PDF', color='danger', size='sm', icon='fas fa-trash', type='button', attrs='id="remove-pdf-btn"') }}
+                        </div>
+                        <input type="hidden" name="remove_pdf" id="remove-pdf-flag" value="false">
+                        {% endif %}
                                         <!-- 上传进度和状态 -->
                                         <div id="pdf_upload_status" class="mt-2" style="display: none;">
                                             <div class="d-flex align-items-center">
@@ -236,11 +252,14 @@
                                                     </div>
                                                     <small class="text-muted">PDF文档</small>
                                                 </div>
-                                                <a href="{{ url_for('product_management.download_pdf', id=dev_product.id) }}" class="btn btn-sm btn-outline-primary">
-                                                    <i class="fas fa-download"></i> 下载
-                                                </a>
+                                                <div class="btn-group">
+                                                    <a href="{{ url_for('product_management.download_pdf', id=dev_product.id) }}" class="btn btn-sm btn-outline-primary">
+                                                        <i class="fas fa-download"></i> 下载
+                                                    </a>
+                                                </div>
                                             </div>
                                         </div>
+                                        <input type="hidden" name="remove_pdf" id="remove-pdf-flag" value="false">
                                         {% else %}
                                         <label class="form-label">当前PDF文件</label>
                                         <div class="border rounded p-3 text-center text-muted" id="current_pdf_preview">
@@ -1142,6 +1161,80 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         return newMNCode;
+    }
+
+    // 删除图片功能
+    const removeImageBtn = document.getElementById('remove-image-btn');
+    if (removeImageBtn) {
+        removeImageBtn.addEventListener('click', function() {
+            if (confirm('确定要删除当前图片吗？此操作无法撤销。')) {
+                // 设置删除标记
+                document.getElementById('remove-image-flag').value = 'true';
+                
+                // 提交表单以删除图片
+                const form = document.getElementById('editProductForm');
+                const formData = new FormData(form);
+                
+                fetch('{{ url_for("product_management.update_product", id=dev_product.id) }}', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('图片删除成功！');
+                        location.reload();
+                    } else {
+                        alert('删除失败：' + (data.message || '未知错误'));
+                    }
+                })
+                .catch(error => {
+                    console.error('删除错误:', error);
+                    alert('删除过程中发生错误，正在刷新页面...');
+                    location.reload();
+                });
+            }
+        });
+    }
+
+    // 删除PDF功能
+    const removePdfBtn = document.getElementById('remove-pdf-btn');
+    if (removePdfBtn) {
+        removePdfBtn.addEventListener('click', function() {
+            if (confirm('确定要删除当前PDF文件吗？此操作无法撤销。')) {
+                // 设置删除标记
+                document.getElementById('remove-pdf-flag').value = 'true';
+                
+                // 提交表单以删除PDF
+                const form = document.getElementById('editProductForm');
+                const formData = new FormData(form);
+                
+                fetch('{{ url_for("product_management.update_product", id=dev_product.id) }}', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('PDF文件删除成功！');
+                        location.reload();
+                    } else {
+                        alert('删除失败：' + (data.message || '未知错误'));
+                    }
+                })
+                .catch(error => {
+                    console.error('删除错误:', error);
+                    alert('删除过程中发生错误，正在刷新页面...');
+                    location.reload();
+                });
+            }
+        });
     }
 });
 </script>
