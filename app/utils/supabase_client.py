@@ -54,21 +54,39 @@ class SupabaseStorageClient:
     
     def _detect_local_environment(self) -> bool:
         """检测是否为本地开发环境"""
-        indicators = [
+        
+        # 🔥 修复云端环境检测：检查所有可能的云端环境变量
+        cloud_indicators = [
+            os.getenv('RENDER_SERVICE_NAME'),  # Render环境
+            os.getenv('RENDER'),
+            os.getenv('RAILWAY'),
+            os.getenv('VERCEL'),
+            os.getenv('DYNO'),  # Heroku
+            os.getenv('NETLIFY'),
+            os.getenv('FIREBASE_PROJECT_ID'),  # Firebase
+        ]
+        
+        # 如果检测到任何云端环境变量，就不是本地环境
+        has_cloud_env = any(cloud_indicators)
+        
+        local_indicators = [
             os.getenv('FLASK_ENV') == 'development',
-            os.getenv('RENDER') != 'true',  # Render云端环境标识
-            os.getenv('RAILWAY') != 'true',  # Railway云端环境标识  
-            os.getenv('VERCEL') != '1',  # Vercel云端环境标识
             'localhost' in os.getenv('SERVER_NAME', ''),
             '127.0.0.1' in os.getenv('SERVER_NAME', ''),
-            not os.getenv('DYNO'),  # Heroku环境标识
             os.path.exists('./run.py'),  # 本地开发文件存在
         ]
         
-        local_count = sum(indicators)
-        is_local = local_count >= 2  # 多数指标表明是本地环境
+        local_count = sum(local_indicators)
         
-        logger.info(f"环境检测: 本地环境指标 {local_count}/8, 判定为: {'本地' if is_local else '云端'}")
+        # 优先级：有云端环境变量就是云端，否则根据本地指标判断
+        if has_cloud_env:
+            is_local = False
+            logger.info(f"🌐 检测到云端环境变量，判定为云端环境")
+        else:
+            is_local = local_count >= 2
+            logger.info(f"🏠 未检测到云端环境变量，本地指标 {local_count}/4, 判定为: {'本地' if is_local else '云端'}")
+            
+        logger.info(f"环境检测结果: {'本地' if is_local else '云端'}, 云端环境变量: {[k for k, v in zip(['RENDER_SERVICE_NAME', 'RENDER', 'RAILWAY', 'VERCEL', 'DYNO', 'NETLIFY', 'FIREBASE_PROJECT_ID'], cloud_indicators) if v]}")
         return is_local
     
     def _should_use_local_storage(self) -> bool:
@@ -905,12 +923,24 @@ class SupabaseStorageClient:
         处理发票图片：压缩和调整大小，保留原始格式
         """
         try:
-            # 打开图片
-            image = Image.open(BytesIO(file_content))
-            original_format = image.format or 'JPEG'
-            
-            # 获取文件扩展名来确定目标格式
+            # 获取文件扩展名来预判格式
             file_ext = filename.split('.')[-1].lower() if '.' in filename else 'jpg'
+            
+            # 🔥 HEIC/HEIF格式特殊处理：PIL可能无法识别，但我们仍需要保存
+            if file_ext in ['heic', 'heif']:
+                try:
+                    # 尝试用PIL打开HEIC文件
+                    image = Image.open(BytesIO(file_content))
+                    original_format = image.format or 'HEIC'
+                    logger.info(f"成功识别HEIC格式文件")
+                except Exception as heic_error:
+                    # PIL无法识别HEIC时，直接返回原始文件内容
+                    logger.warning(f"PIL无法处理HEIC文件，保留原始文件内容: {heic_error}")
+                    return file_content
+            else:
+                # 其他格式正常处理
+                image = Image.open(BytesIO(file_content))
+                original_format = image.format or 'JPEG'
             
             # 调整大小（发票图片最大1600x1600）
             max_size = 1600

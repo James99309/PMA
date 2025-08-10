@@ -4390,9 +4390,16 @@ class ExpenseDetailManager {
         
         // 过滤出实际存在的发票（排除undefined或null）
         const validInvoices = invoiceImages.filter(invoice => invoice);
+        console.log('📊 有效发票过滤结果:', {
+            原始发票数量: invoiceImages.length,
+            过滤后数量: validInvoices.length,
+            过滤掉的数量: invoiceImages.length - validInvoices.length,
+            原始数据: invoiceImages,
+            有效数据: validInvoices
+        });
         
         validInvoices.forEach((invoice, index) => {
-            console.log('调试发票数据:', invoice);
+            console.log(`📋 渲染发票图标 ${index + 1}/${validInvoices.length}:`, invoice);
             
             const iconDiv = document.createElement('div');
             iconDiv.className = 'individual-invoice-icon';
@@ -4418,12 +4425,31 @@ class ExpenseDetailManager {
                     url: invoice.url,
                     image_url: invoice.image_url,
                     path: invoice.path,
-                    file_url: invoice.file_url
+                    file_url: invoice.file_url,
+                    temp_id: invoice.temp_id,
+                    is_temp: invoice.is_temp,
+                    filename: invoice.filename
                 });
+                
+                // 🔥 云端上传调试：检查URL是否为Supabase格式
+                if (imageUrl && imageUrl.includes('supabase')) {
+                    console.log('🌐 检测到Supabase云端URL:', imageUrl);
+                    // 测试URL可访问性
+                    const img = new Image();
+                    img.onload = () => console.log('✅ Supabase URL可正常访问:', imageUrl);
+                    img.onerror = () => console.error('❌ Supabase URL无法访问:', imageUrl);
+                    img.src = imageUrl;
+                }
             }
             
             if (!imageUrl) {
-                console.warn('无法获取发票URL:', invoice);
+                console.warn('❌ 无法获取发票URL，跳过此发票预览图标:', invoice);
+                return;
+            }
+            
+            // 额外的URL验证
+            if (typeof imageUrl !== 'string' || imageUrl.length === 0) {
+                console.warn('❌ 发票URL格式无效:', typeof imageUrl, imageUrl);
                 return;
             }
             

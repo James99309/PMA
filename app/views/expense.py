@@ -974,12 +974,30 @@ def create_expense():
                             if invoice.get('temp_id') and invoice.get('url'):
                                 # 这是临时上传的文件，需要移动到正式位置
                                 logger.info(f"明细 {index}: 处理临时文件 - {invoice.get('filename')}")
-                                # 暂时保留临时文件的信息，后续可以添加移动逻辑
-                                processed_images.append({
-                                    'filename': invoice.get('filename', ''),
-                                    'url': invoice.get('url', ''),
-                                    'size': invoice.get('size', 0)
-                                })
+                                
+                                # 🔥 将临时文件转移到正式存储
+                                final_url = self._move_temp_file_to_permanent(
+                                    detail_obj.id, 
+                                    invoice.get('temp_id'),
+                                    invoice.get('filename'),
+                                    invoice.get('url')
+                                )
+                                
+                                if final_url:
+                                    processed_images.append({
+                                        'filename': invoice.get('filename', ''),
+                                        'url': final_url,
+                                        'size': invoice.get('size', 0)
+                                    })
+                                    logger.info(f"明细 {index}: 临时文件已转移到正式存储: {final_url}")
+                                else:
+                                    # 转移失败，保留临时URL（降级方案）
+                                    processed_images.append({
+                                        'filename': invoice.get('filename', ''),
+                                        'url': invoice.get('url', ''),
+                                        'size': invoice.get('size', 0)
+                                    })
+                                    logger.warning(f"明细 {index}: 临时文件转移失败，保留临时URL")
                             elif invoice.get('file'):
                                 # 这是前端待上传的文件对象，跳过（应该通过文件上传处理）
                                 logger.info(f"明细 {index}: 跳过前端文件对象")
@@ -1816,7 +1834,18 @@ def upload_invoice_temp():
                 
                 if result.path:
                     # 获取公开URL
-                    image_url = supabase_client.supabase.storage.from_(supabase_client.bucket_name).get_public_url(storage_path)
+                    public_url_response = supabase_client.supabase.storage.from_(supabase_client.bucket_name).get_public_url(storage_path)
+                    # 处理Supabase的URL响应格式
+                    if hasattr(public_url_response, 'data'):
+                        image_url = public_url_response.data
+                    elif hasattr(public_url_response, 'publicUrl'):
+                        image_url = public_url_response.publicUrl
+                    elif hasattr(public_url_response, 'url'):
+                        image_url = public_url_response.url
+                    else:
+                        image_url = str(public_url_response)
+                    
+                    logger.info(f"🌐 生成的公开URL: {image_url}")
                     
                     return jsonify({
                         'success': True,
@@ -2093,6 +2122,122 @@ def preview_invoice_filename(detail_id):
             'success': False,
             'message': _('预览发票文件名失败')
         }), 500
+
+def _move_temp_file_to_permanent(detail_id, temp_id, filename, temp_url):
+    """
+    将临时上传的文件转移到正式存储位置
+    
+    Args:
+        detail_id: 明细ID
+        temp_id: 临时文件ID
+        filename: 文件名
+        temp_url: 临时文件URL
+        
+    Returns:
+        正式存储的URL，失败返回None
+    """
+    try:
+        from app.utils.supabase_client import SupabaseStorageClient
+        supabase_client = SupabaseStorageClient()
+        
+        logger.info(f"🔄 开始转移临时文件到正式存储: detail_id={detail_id}, temp_id={temp_id}, filename={filename}")
+        
+        if supabase_client.use_local_storage:
+            # 本地存储：从temp目录移动到正式目录
+            return _move_temp_file_local(detail_id, temp_id, filename, temp_url, supabase_client)
+        else:
+            # 云端存储：从临时路径复制到正式路径
+            return _move_temp_file_cloud(detail_id, temp_id, filename, temp_url, supabase_client)
+            
+    except Exception as e:
+        logger.error(f"转移临时文件失败: {e}")
+        return None
+
+def _move_temp_file_local(detail_id, temp_id, filename, temp_url, supabase_client):
+    """本地存储的临时文件转移"""
+    try:
+        # 构建临时文件路径
+        temp_dir = os.path.join(current_app.static_folder, 'uploads', 'temp', 'invoices')
+        temp_file_path = os.path.join(temp_dir, filename)
+        
+        if not os.path.exists(temp_file_path):
+            logger.warning(f"临时文件不存在: {temp_file_path}")
+            return None
+        
+        # 构建正式文件路径
+        local_dir_name = supabase_client.get_bucket_name('invoice')
+        final_dir = os.path.join(supabase_client.local_storage_root, local_dir_name, f"expense_{detail_id}")
+        os.makedirs(final_dir, exist_ok=True)
+        
+        final_file_path = os.path.join(final_dir, filename)
+        
+        # 移动文件
+        import shutil
+        shutil.move(temp_file_path, final_file_path)
+        
+        # 生成URL
+        relative_path = os.path.relpath(final_file_path, current_app.static_folder).replace('\\', '/')
+        final_url = url_for('static', filename=relative_path)
+        
+        logger.info(f"✅ 本地文件转移成功: {temp_file_path} -> {final_file_path}")
+        return final_url
+        
+    except Exception as e:
+        logger.error(f"本地文件转移失败: {e}")
+        return None
+
+def _move_temp_file_cloud(detail_id, temp_id, filename, temp_url, supabase_client):
+    """云端存储的临时文件转移"""
+    try:
+        bucket_name = supabase_client.get_bucket_name('invoice')
+        
+        # 构建临时和正式的存储路径
+        temp_path = f"temp_expense_invoices/{temp_id}/{filename}"
+        
+        # 生成正式的标准化路径
+        standardized_info = supabase_client._generate_standardized_invoice_name(detail_id, filename)
+        if standardized_info:
+            final_path = standardized_info['storage_path']
+            standardized_filename = standardized_info['filename']
+        else:
+            final_path = f"expense_invoices/{detail_id}/{filename}"
+            standardized_filename = filename
+        
+        logger.info(f"🔄 云端文件转移: {temp_path} -> {final_path}")
+        
+        # 从临时位置复制到正式位置
+        copy_response = supabase_client.supabase.storage.from_(bucket_name).copy(temp_path, final_path)
+        
+        if copy_response and not hasattr(copy_response, 'error'):
+            # 删除临时文件
+            try:
+                supabase_client.supabase.storage.from_(bucket_name).remove([temp_path])
+                logger.info(f"🗑️ 临时文件已删除: {temp_path}")
+            except Exception as e:
+                logger.warning(f"删除临时文件失败（但转移已成功）: {e}")
+            
+            # 生成正式的公开URL
+            public_url_response = supabase_client.supabase.storage.from_(bucket_name).get_public_url(final_path)
+            
+            # 处理URL响应格式
+            if hasattr(public_url_response, 'data'):
+                final_url = public_url_response.data
+            elif hasattr(public_url_response, 'publicUrl'):
+                final_url = public_url_response.publicUrl
+            elif hasattr(public_url_response, 'url'):
+                final_url = public_url_response.url
+            else:
+                final_url = str(public_url_response)
+            
+            logger.info(f"✅ 云端文件转移成功: {final_url}")
+            return final_url
+        else:
+            logger.error(f"云端文件复制失败: {copy_response}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"云端文件转移失败: {e}")
+        return None
 
 @expense.route('/api/delete_invoice/<int:detail_id>/<int:image_index>', methods=['DELETE'])
 @login_required
