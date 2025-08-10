@@ -86,7 +86,14 @@ class SupabaseStorageClient:
             is_local = local_count >= 2
             logger.info(f"🏠 未检测到云端环境变量，本地指标 {local_count}/4, 判定为: {'本地' if is_local else '云端'}")
             
-        logger.info(f"环境检测结果: {'本地' if is_local else '云端'}, 云端环境变量: {[k for k, v in zip(['RENDER_SERVICE_NAME', 'RENDER', 'RAILWAY', 'VERCEL', 'DYNO', 'NETLIFY', 'FIREBASE_PROJECT_ID'], cloud_indicators) if v]}")
+        # 安全的云端环境变量显示
+        try:
+            env_names = ['RENDER_SERVICE_NAME', 'RENDER', 'RAILWAY', 'VERCEL', 'DYNO', 'NETLIFY', 'FIREBASE_PROJECT_ID']
+            active_envs = [name for name, value in zip(env_names, cloud_indicators) if value]
+            logger.info(f"环境检测结果: {'本地' if is_local else '云端'}, 活跃云端环境变量: {active_envs}")
+        except Exception as e:
+            logger.warning(f"环境变量显示失败: {e}")
+        
         return is_local
     
     def _should_use_local_storage(self) -> bool:

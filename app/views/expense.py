@@ -976,7 +976,7 @@ def create_expense():
                                 logger.info(f"明细 {index}: 处理临时文件 - {invoice.get('filename')}")
                                 
                                 # 🔥 将临时文件转移到正式存储
-                                final_url = self._move_temp_file_to_permanent(
+                                final_url = _move_temp_file_to_permanent(
                                     detail_obj.id, 
                                     invoice.get('temp_id'),
                                     invoice.get('filename'),
@@ -1795,6 +1795,7 @@ def upload_invoice_temp():
                 # 云端环境，尝试使用Supabase上传
                 from app.utils.supabase_client import get_supabase_client
                 supabase_client = get_supabase_client()
+                logger.info(f"🌐 获取Supabase客户端成功，使用存储类型: {'云端' if not supabase_client.use_local_storage else '本地'}")
                 
                 # 先保存文件大小
                 file.seek(0, os.SEEK_END)
@@ -1826,7 +1827,8 @@ def upload_invoice_temp():
                 content_type = content_type_map.get(file_ext, 'application/octet-stream')
                 
                 # 上传处理后的文件
-                result = supabase_client.supabase.storage.from_(supabase_client.bucket_name).upload(
+                bucket_name = supabase_client.get_bucket_name('invoice')
+                result = supabase_client.supabase.storage.from_(bucket_name).upload(
                     path=storage_path,
                     file=processed_content,
                     file_options={"content-type": content_type, "upsert": True}
@@ -1834,7 +1836,7 @@ def upload_invoice_temp():
                 
                 if result.path:
                     # 获取公开URL
-                    public_url_response = supabase_client.supabase.storage.from_(supabase_client.bucket_name).get_public_url(storage_path)
+                    public_url_response = supabase_client.supabase.storage.from_(bucket_name).get_public_url(storage_path)
                     # 处理Supabase的URL响应格式
                     if hasattr(public_url_response, 'data'):
                         image_url = public_url_response.data
