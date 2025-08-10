@@ -4109,14 +4109,21 @@ window.showDeleteConfirm = function(options = {}) {
     <div class="dialog-overlay"></div>
     <div class="dialog-container">
         <div class="dialog-content">
-            <!-- 头部：标题和关闭按钮 -->
+            <!-- 头部：标题、缩放控件和关闭按钮 -->
             <div class="dialog-header">
                 <h5 class="dialog-title">
                     {{ _('发票预览') }}
                 </h5>
-                <button type="button" class="dialog-close-btn" title="{{ _('关闭') }}">
-                    <i class="fas fa-times"></i>
-                </button>
+                <div class="header-controls">
+                    <div class="zoom-controls" style="display: inline-flex; gap: 6px; align-items: center; margin-right: 12px;">
+                        {{ render_button('-', href=None, color='outline-secondary', icon='', type='button', extra_class='dialog-zoom-out-btn', size='sm', attrs='title="缩小"') }}
+                        {{ render_button('+', href=None, color='outline-secondary', icon='', type='button', extra_class='dialog-zoom-in-btn', size='sm', attrs='title="放大"') }}
+                        {{ render_button(_('适应'), href=None, color='outline-secondary', icon='fas fa-expand-arrows-alt', type='button', extra_class='dialog-fit-btn', size='sm', attrs='title="适应窗口"') }}
+                    </div>
+                    <button type="button" class="dialog-close-btn" title="{{ _('关闭') }}">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
             </div>
             
             <!-- 文件信息栏 -->
@@ -4221,6 +4228,10 @@ window.showDeleteConfirm = function(options = {}) {
     align-items: center;
     background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
     border-radius: 12px 12px 0 0; /* 顶部圆角 */
+}
+.standard-invoice-preview-dialog .header-controls {
+    display: flex;
+    align-items: center;
 }
 
 .standard-invoice-preview-dialog .dialog-title {
@@ -4330,9 +4341,46 @@ window.showDeleteConfirm = function(options = {}) {
 }
 
 .standard-invoice-preview-dialog .preview-image:hover {
-    transform: scale(1.02);
     box-shadow: 0 12px 35px rgba(0, 0, 0, 0.2);
 }
+
+/* 缩放功能相关样式 */
+.standard-invoice-preview-dialog .image-preview-container {
+    overflow: auto;
+    position: relative;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    max-height: calc(100vh - 200px);
+}
+
+.standard-invoice-preview-dialog .image-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.standard-invoice-preview-dialog .preview-image.zoomable {
+    cursor: grab;
+    transition: transform 0.2s ease;
+    transform-origin: center center;
+}
+
+.standard-invoice-preview-dialog .preview-image.zoomable:active {
+    cursor: grabbing;
+}
+
+.standard-invoice-preview-dialog .zoom-controls {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 6px;
+    padding: 2px 4px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
 
 .standard-invoice-preview-dialog .image-loading,
 .standard-invoice-preview-dialog .image-error {
@@ -4612,6 +4660,9 @@ function loadPreviewImage(dialog, imagePath, filename) {
         loadingEl.style.display = 'none';
         previewImage.style.display = 'block';
         
+        // 初始化缩放功能
+        initImageZoom(dialog, previewImage, img.naturalWidth, img.naturalHeight);
+        
         console.log('图片加载成功:', filename, `尺寸: ${img.naturalWidth}x${img.naturalHeight}`);
     };
     
@@ -4723,6 +4774,116 @@ function adjustDialogSize(dialog, imageWidth, imageHeight) {
     dialogContent.style.height = `${displayHeight + reservedHeight}px`;
     
     console.log(`调整对话框尺寸: ${displayWidth}x${displayHeight} (原图: ${imageWidth}x${imageHeight})`);
+}
+
+/**
+ * 🔥 初始化图片缩放功能
+ */
+function initImageZoom(dialog, previewImage, naturalWidth, naturalHeight) {
+    // 获取缩放控件
+    const zoomInBtn = dialog.querySelector('.dialog-zoom-in-btn');
+    const zoomOutBtn = dialog.querySelector('.dialog-zoom-out-btn');
+    const fitBtn = dialog.querySelector('.dialog-fit-btn');
+    const imageContainer = dialog.querySelector('.image-preview-container');
+    
+    if (!zoomInBtn || !zoomOutBtn || !fitBtn || !imageContainer) {
+        console.warn('缩放控件元素缺失，跳过缩放功能初始化');
+        return;
+    }
+    
+    // 缩放状态
+    let currentZoom = 1.0;
+    let isDragging = false;
+    let startX, startY, scrollLeft, scrollTop;
+    
+    // 更新缩放显示
+    function updateZoomDisplay() {
+        previewImage.style.transform = `scale(${currentZoom})`;
+    }
+    
+    // 放大按钮
+    zoomInBtn.addEventListener('click', function() {
+        currentZoom = Math.min(currentZoom * 1.25, 5.0); // 最大5倍
+        updateZoomDisplay();
+    });
+    
+    // 缩小按钮  
+    zoomOutBtn.addEventListener('click', function() {
+        currentZoom = Math.max(currentZoom / 1.25, 0.1); // 最小0.1倍
+        updateZoomDisplay();
+    });
+    
+    // 适应窗口按钮
+    fitBtn.addEventListener('click', function() {
+        // 重置缩放为适应窗口大小
+        currentZoom = 1.0;
+        updateZoomDisplay();
+        
+        // 居中显示并重置滚动
+        imageContainer.scrollTop = 0;
+        imageContainer.scrollLeft = 0;
+        
+        console.log('图片已适应窗口显示');
+    });
+    
+    
+    // 鼠标滚轮缩放
+    imageContainer.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        const newZoom = Math.max(0.1, Math.min(5.0, currentZoom * delta));
+        
+        if (newZoom !== currentZoom) {
+            currentZoom = newZoom;
+            updateZoomDisplay();
+        }
+    });
+    
+    // 鼠标拖拽功能（当图片缩放时）
+    previewImage.addEventListener('mousedown', function(e) {
+        if (currentZoom <= 1.0) return; // 只有放大时才能拖拽
+        
+        isDragging = true;
+        startX = e.clientX - imageContainer.offsetLeft;
+        startY = e.clientY - imageContainer.offsetTop;
+        scrollLeft = imageContainer.scrollLeft;
+        scrollTop = imageContainer.scrollTop;
+        
+        previewImage.style.cursor = 'grabbing';
+        e.preventDefault();
+    });
+    
+    imageContainer.addEventListener('mousemove', function(e) {
+        if (!isDragging || currentZoom <= 1.0) return;
+        
+        e.preventDefault();
+        const x = e.clientX - imageContainer.offsetLeft;
+        const y = e.clientY - imageContainer.offsetTop;
+        const walkX = (x - startX) * 2;
+        const walkY = (y - startY) * 2;
+        
+        imageContainer.scrollLeft = scrollLeft - walkX;
+        imageContainer.scrollTop = scrollTop - walkY;
+    });
+    
+    document.addEventListener('mouseup', function() {
+        if (isDragging) {
+            isDragging = false;
+            previewImage.style.cursor = currentZoom > 1.0 ? 'grab' : 'default';
+        }
+    });
+    
+    // 设置初始状态
+    previewImage.style.cursor = 'default';
+    previewImage.style.transformOrigin = 'center center';
+    
+    // 初始化为适应窗口
+    setTimeout(() => {
+        fitBtn.click();
+    }, 100);
+    
+    console.log('图片缩放功能已初始化');
 }
 
 /**

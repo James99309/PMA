@@ -157,11 +157,58 @@ class VersionAutoGenerator:
             if not commit_info:
                 return None
             
+            # 检查是否已有基于此提交的版本
+            existing_version = VersionRecord.query.filter_by(git_commit=commit_info['hash']).first()
+            if existing_version:
+                logger.info(f"已存在基于此提交的版本: {existing_version.version_number}")
+                # 确保此版本是当前版本
+                if not existing_version.is_current:
+                    VersionRecord.query.update({'is_current': False})
+                    existing_version.is_current = True
+                    db.session.commit()
+                return existing_version
+            
             # 分析提交类型
             change_type = self._analyze_commit_type(commit_info['message'])
             
-            # 生成新版本号
-            new_version = self.generate_next_version(change_type)
+            # 生成新版本号，并检查是否已存在
+            attempts = 0
+            max_attempts = 5
+            new_version = None
+            
+            while attempts < max_attempts:
+                new_version = self.generate_next_version(change_type)
+                
+                # 检查版本号是否已存在
+                existing = VersionRecord.query.filter_by(version_number=new_version).first()
+                if not existing:
+                    break  # 找到可用的版本号
+                    
+                logger.warning(f"版本号 {new_version} 已存在，尝试生成新的版本号")
+                attempts += 1
+                
+                # 如果版本号已存在，强制递增
+                version_parts = new_version.split('.')
+                if len(version_parts) >= 3:
+                    patch = int(version_parts[2]) + 1
+                    new_version = f"{version_parts[0]}.{version_parts[1]}.{patch}"
+            
+            if attempts >= max_attempts:
+                # 如果尝试多次仍然冲突，使用时间戳后缀
+                timestamp = int(datetime.now().timestamp()) % 1000
+                version_parts = new_version.split('.')
+                if len(version_parts) >= 3:
+                    new_version = f"{version_parts[0]}.{version_parts[1]}.{version_parts[2]}{timestamp}"
+                else:
+                    new_version = f"1.3.{timestamp}"
+                    
+                logger.warning(f"多次尝试后使用时间戳版本号: {new_version}")
+            
+            # 最终检查版本号是否存在
+            existing = VersionRecord.query.filter_by(version_number=new_version).first()
+            if existing:
+                logger.error(f"版本号仍然冲突: {new_version}，跳过自动创建")
+                return existing
             
             # 生成用户友好的升级说明
             user_friendly_description = self._generate_user_friendly_description(commit_info, new_version)

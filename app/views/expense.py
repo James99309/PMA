@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import current_user, login_required
 from flask_babel import gettext as _
+from app.extensions import csrf
 from app.models.expense import Expense, ExpenseDetail, EXPENSE_CATEGORIES, EXPENSE_STATUS
 from app.models.customer import Company, Contact
 from app.models.project import Project
@@ -906,12 +907,12 @@ def create_expense():
                                         from app.utils.supabase_client import get_supabase_client
                                         supabase_client = get_supabase_client()
                                         
-                                        # 生成文件名
-                                        import uuid
-                                        filename = f"expense_invoice_{detail_obj.id}_{uuid.uuid4().hex[:8]}.{file_ext}"
+                                        # 使用规范化的文件命名系统
+                                        # upload_expense_invoice方法现在会自动生成规范化的文件名
+                                        # 格式：{项目代码}-{客户简称}-{报销单号}-{明细序号}-{文件序号}.{扩展名}
                                         
-                                        # 上传到Supabase
-                                        image_url = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, filename)
+                                        # 上传到Supabase（自动使用规范化命名）
+                                        image_url = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, file_obj.filename)
                                         
                                         if not image_url:
                                             raise Exception("Supabase上传失败")
@@ -1474,9 +1475,8 @@ def edit_expense(id):
                                             from app.utils.supabase_client import get_supabase_client
                                             supabase_client = get_supabase_client()
                                             
-                                            import uuid
-                                            filename = f"expense_invoice_{detail_obj.id}_{uuid.uuid4().hex[:8]}.{file_ext}"
-                                            image_url = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, filename)
+                                            # 使用规范化的文件命名系统
+                                            image_url = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, file_obj.filename)
                                             
                                             if not image_url:
                                                 raise Exception("Supabase上传失败")
@@ -1898,79 +1898,51 @@ def upload_invoice_image(detail_id):
             }), 400
         
         # 检测运行环境 - 优先判断是否在云端部署
-        if is_cloud_environment():
-            # 云端环境，使用Supabase存储
-            try:
-                from app.utils.supabase_client import get_supabase_client
-                supabase_client = get_supabase_client()
-                
-                # 生成文件名
-                import uuid
-                filename = f"expense_invoice_{detail_id}_{uuid.uuid4().hex[:8]}.{file_ext}"
-                
-                # 上传到Supabase
-                image_url = supabase_client.upload_expense_invoice(detail_id, file, filename)
-                
-                if image_url:
-                    # 添加到明细记录
-                    detail.add_invoice_image(filename, image_url, file_size)
-                    db.session.commit()
-                    
-                    current_app.logger.info(f"发票图片上传到Supabase成功: {image_url}")
-                    
-                    return jsonify({
-                        'success': True,
-                        'message': _('发票上传成功'),
-                        'image_url': image_url,
-                        'filename': filename,
-                        'size': file_size,
-                        'invoice_count': detail.invoice_count
-                    })
+        # 使用智能存储系统（自动选择本地/云端）
+        try:
+            from app.utils.supabase_client import get_supabase_client
+            supabase_client = get_supabase_client()
+            
+            current_app.logger.info(f"使用智能存储系统上传发票: {'本地存储' if supabase_client.use_local_storage else '云端存储'}")
+            
+            # 上传到智能存储系统（自动生成规范化文件名）
+            upload_result = supabase_client.upload_expense_invoice(detail_id, file, file.filename)
+            
+            if upload_result:
+                # 处理新的返回格式（支持向下兼容）
+                if isinstance(upload_result, dict):
+                    # 新格式：详细文件信息
+                    image_url = upload_result['url']
+                    display_filename = upload_result['filename']  # 使用规范化文件名
+                    current_app.logger.info(f"规范化文件名: {display_filename}")
                 else:
-                    raise Exception("Supabase上传失败")
-                    
-            except Exception as supabase_error:
-                current_app.logger.error(f"云端Supabase上传失败: {str(supabase_error)}")
+                    # 旧格式：仅URL字符串（向下兼容）
+                    image_url = upload_result
+                    display_filename = file.filename
+                
+                # 添加到明细记录
+                detail.add_invoice_image(display_filename, image_url, file_size)
+                db.session.commit()
+                
+                current_app.logger.info(f"发票图片上传成功: {image_url}")
+                
                 return jsonify({
-                    'success': False,
-                    'message': _('云端存储失败，请检查网络连接后重试')
-                }), 500
-        else:
-            # 本地环境，直接使用本地存储
-            import os
-            import uuid
-            
-            current_app.logger.info("检测到本地环境，使用本地文件存储")
-            
-            # 创建上传目录
-            upload_dir = os.path.join(current_app.static_folder, 'uploads', 'invoices', str(detail_id))
-            os.makedirs(upload_dir, exist_ok=True)
-            
-            # 生成文件名
-            filename = f"invoice_{uuid.uuid4().hex[:8]}.{file_ext}"
-            file_path = os.path.join(upload_dir, filename)
-            
-            # 保存文件
-            file.save(file_path)
-            
-            # 生成URL
-            relative_path = os.path.join('uploads', 'invoices', str(detail_id), filename).replace('\\', '/')
-            image_url = f"/static/{relative_path}"
-            
-            # 添加到明细记录
-            detail.add_invoice_image(filename, image_url, file_size)
-            db.session.commit()
-            
-            current_app.logger.info(f"发票图片本地存储成功: {image_url}")
-            
+                    'success': True,
+                    'message': _('发票上传成功'),
+                    'image_url': image_url,
+                    'filename': display_filename,
+                    'size': file_size,
+                    'invoice_count': detail.invoice_count
+                })
+            else:
+                raise Exception("智能存储系统上传失败")
+                
+        except Exception as upload_error:
+            current_app.logger.error(f"智能存储系统上传失败: {str(upload_error)}")
             return jsonify({
-                'success': True,
-                'message': _('发票上传成功'),
-                'image_url': image_url,
-                'filename': filename,
-                'size': file_size,
-                'invoice_count': detail.invoice_count
-            })
+                'success': False,
+                'message': _('文件上传失败，请重试')
+            }), 500
             
     except Exception as e:
         db.session.rollback()
@@ -1980,6 +1952,81 @@ def upload_invoice_image(detail_id):
             'message': _('发票上传失败，请重试')
         }), 500
 
+
+@expense.route('/api/preview_invoice_filename/<int:detail_id>', methods=['POST'])
+@csrf.exempt
+@login_required
+@permission_required('expense', 'edit')
+def preview_invoice_filename(detail_id):
+    """预览规范化发票文件名（上传前预览）"""
+    try:
+        data = request.get_json()
+        original_filename = data.get('filename', '')
+        mime_type = data.get('mimeType', '')
+        
+        if not original_filename:
+            return jsonify({
+                'success': False,
+                'message': _('文件名不能为空')
+            }), 400
+        
+        # 根据MIME类型确定正确的扩展名
+        if mime_type:
+            mime_to_extension = {
+                'image/png': 'png',
+                'image/jpeg': 'jpg',
+                'image/jpg': 'jpg', 
+                'image/gif': 'gif',
+                'image/bmp': 'bmp',
+                'image/webp': 'webp',
+                'image/heic': 'heic',
+                'image/heif': 'heif',
+                'application/pdf': 'pdf'
+            }
+            correct_extension = mime_to_extension.get(mime_type.lower(), 'jpg')
+            # 构造一个带有正确扩展名的文件名用于生成规范化名称
+            original_filename = f"temp_file.{correct_extension}"
+            current_app.logger.info(f"根据MIME类型 {mime_type} 调整文件名为: {original_filename}")
+        
+        # 验证明细存在
+        detail = ExpenseDetail.query.get_or_404(detail_id)
+        
+        # 检查权限
+        if not can_edit_data(detail.expense.owner_id):
+            return jsonify({
+                'success': False,
+                'message': _('您没有权限预览此报销单的发票')
+            }), 403
+        
+        # 使用智能存储系统生成预览文件名
+        from app.utils.supabase_client import get_supabase_client
+        supabase_client = get_supabase_client()
+        
+        # 生成规范化文件名（仅预览，不实际保存）
+        result = supabase_client._generate_standardized_invoice_name(detail_id, original_filename)
+        
+        if result:
+            return jsonify({
+                'success': True,
+                'preview_filename': result['filename'],
+                'system_id': result['system_id'],
+                'expense_number': result['expense_number'],
+                'detail_sequence': f"{result['detail_sequence']:02d}",
+                'file_sequence': f"{result['file_sequence']:02d}"
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'preview_filename': original_filename,
+                'message': _('无法生成规范化文件名，将使用原始文件名')
+            })
+            
+    except Exception as e:
+        current_app.logger.error(f"预览发票文件名失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': _('预览发票文件名失败')
+        }), 500
 
 @expense.route('/api/delete_invoice/<int:detail_id>/<int:image_index>', methods=['DELETE'])
 @login_required

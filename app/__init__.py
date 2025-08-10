@@ -170,6 +170,11 @@ def create_app(config_class=Config):
             logger.debug(f'CSRF exempt Approval Action path: {request.path}, Method: {request.method}')
             return True
             
+        # 报销模块API路径豁免
+        if request.path.startswith('/expense/api/'):
+            logger.debug(f'CSRF exempt Expense API path: {request.path}, Method: {request.method}')
+            return True
+            
         # 审批配置模块API路径豁免
         if request.path.startswith('/admin/approval/field-options/'):
             logger.debug(f'CSRF exempt Approval Config API path: {request.path}, Method: {request.method}')
@@ -957,5 +962,40 @@ def create_app(config_class=Config):
     # 注册共享模块上下文处理器
     from app.utils.sharing import register_sharing_context_processors
     register_sharing_context_processors(app)
+
+    # 添加本地存储文件服务路由
+    @app.route('/storage/<path:filename>')
+    def serve_storage_file(filename):
+        """
+        为本地存储的文件提供访问服务
+        当使用本地存储时，通过此路由访问存储在./storage/目录下的文件
+        """
+        try:
+            import os
+            from flask import send_from_directory, abort
+            
+            # 构建存储目录的绝对路径
+            storage_dir = os.path.join(app.root_path, '..', 'storage')  # ./storage/
+            storage_dir = os.path.abspath(storage_dir)
+            
+            # 安全检查：确保请求的文件在存储目录内
+            requested_path = os.path.join(storage_dir, filename)
+            requested_path = os.path.abspath(requested_path)
+            
+            if not requested_path.startswith(storage_dir):
+                logger.warning(f"拒绝访问存储目录外的文件: {filename}")
+                abort(403)
+            
+            # 检查文件是否存在
+            if not os.path.exists(requested_path):
+                logger.warning(f"请求的文件不存在: {filename}")
+                abort(404)
+            
+            # 返回文件
+            return send_from_directory(storage_dir, filename)
+            
+        except Exception as e:
+            logger.error(f"服务本地存储文件失败: {str(e)}")
+            abort(500)
 
     return app 

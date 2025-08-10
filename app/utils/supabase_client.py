@@ -1,6 +1,7 @@
 import os
 import logging
 from io import BytesIO
+from datetime import datetime
 from PIL import Image
 from supabase import create_client, Client
 from werkzeug.utils import secure_filename
@@ -32,55 +33,138 @@ class SupabaseStorageClient:
     IMAGE_QUALITY = 85  # JPEG压缩质量
     
     def __init__(self):
-        """使用官方推荐的方式初始化Supabase客户端"""
+        """智能初始化存储客户端（本地/云端自动切换）"""
         try:
-            # 从环境变量获取配置
-            self.supabase_url = os.getenv('SUPABASE_URL')
-            self.supabase_key = os.getenv('SUPABASE_KEY')
+            # 检测运行环境
+            self.is_local_env = self._detect_local_environment()
+            self.use_local_storage = self._should_use_local_storage()
             
-            # 多存储桶配置
-            self.bucket_config = {
-                'invoice': os.getenv('SUPABASE_BUCKET_INVOICE', 'invoice-images'),
-                'product': os.getenv('SUPABASE_BUCKET_PRODUCT', 'product-images'),
-                'rd_product': os.getenv('SUPABASE_BUCKET_RD_PRODUCT', 'rd-product-images'),
-                'default': os.getenv('SUPABASE_BUCKET', 'invoice-images')  # 向后兼容
-            }
-            
-            # 检查必需的环境变量
-            if not self.supabase_url or not self.supabase_key:
-                missing_vars = []
-                if not self.supabase_url:
-                    missing_vars.append('SUPABASE_URL')
-                if not self.supabase_key:
-                    missing_vars.append('SUPABASE_KEY')
-                raise ValueError(f"缺少必需的Supabase环境变量: {', '.join(missing_vars)}")
+            if self.use_local_storage:
+                logger.info("📁 使用本地文件存储系统")
+                self._init_local_storage()
+            else:
+                logger.info("☁️ 使用云端Supabase存储系统")
+                self._init_supabase_storage()
                 
-            logger.info(f"Supabase配置: URL={self.supabase_url[:20]}...")
-            logger.info(f"存储桶配置: {self.bucket_config}")
-            
-            # 使用官方推荐的create_client方法
-            self.supabase = create_client(self.supabase_url, self.supabase_key)
-            logger.info("Supabase客户端初始化成功")
-            
         except Exception as e:
-            logger.error(f"Supabase客户端初始化失败: {str(e)}")
-            raise
+            logger.error(f"存储客户端初始化失败: {str(e)}")
+            # 降级到本地存储
+            logger.warning("降级到本地文件存储")
+            self._init_local_storage()
+    
+    def _detect_local_environment(self) -> bool:
+        """检测是否为本地开发环境"""
+        indicators = [
+            os.getenv('FLASK_ENV') == 'development',
+            os.getenv('RENDER') != 'true',  # Render云端环境标识
+            os.getenv('RAILWAY') != 'true',  # Railway云端环境标识  
+            os.getenv('VERCEL') != '1',  # Vercel云端环境标识
+            'localhost' in os.getenv('SERVER_NAME', ''),
+            '127.0.0.1' in os.getenv('SERVER_NAME', ''),
+            not os.getenv('DYNO'),  # Heroku环境标识
+            os.path.exists('./run.py'),  # 本地开发文件存在
+        ]
+        
+        local_count = sum(indicators)
+        is_local = local_count >= 2  # 多数指标表明是本地环境
+        
+        logger.info(f"环境检测: 本地环境指标 {local_count}/8, 判定为: {'本地' if is_local else '云端'}")
+        return is_local
+    
+    def _should_use_local_storage(self) -> bool:
+        """决定是否使用本地存储"""
+        # 强制云端存储的环境变量
+        force_cloud = os.getenv('FORCE_CLOUD_UPLOAD', '').lower() in ['true', '1', 'yes']
+        if force_cloud:
+            logger.info("🚀 FORCE_CLOUD_UPLOAD=true, 强制使用云端存储")
+            return False
+            
+        # 强制本地存储的环境变量
+        force_local = os.getenv('FORCE_LOCAL_STORAGE', '').lower() in ['true', '1', 'yes']
+        if force_local:
+            logger.info("📁 FORCE_LOCAL_STORAGE=true, 强制使用本地存储")
+            return True
+        
+        # 检查Supabase配置是否可用
+        supabase_url = os.getenv('SUPABASE_URL')
+        supabase_key = os.getenv('SUPABASE_KEY')
+        
+        if not supabase_url or not supabase_key:
+            logger.info("📁 Supabase配置不完整，使用本地存储")
+            return True
+        
+        # 本地环境默认使用本地存储，云端环境默认使用云端存储
+        return self.is_local_env
+    
+    def _init_local_storage(self):
+        """初始化本地文件存储"""
+        self.use_local_storage = True
+        self.supabase = None
+        
+        # 本地存储根目录
+        self.local_storage_root = os.getenv('LOCAL_STORAGE_ROOT', './storage')
+        
+        # 本地存储桶映射（目录名）
+        self.local_bucket_config = {
+            'invoice': 'invoices',
+            'product': 'products', 
+            'rd_product': 'rd_products',
+            'default': 'invoices'
+        }
+        
+        # 确保本地存储目录存在
+        for bucket_type, dir_name in self.local_bucket_config.items():
+            local_dir = os.path.join(self.local_storage_root, dir_name)
+            os.makedirs(local_dir, exist_ok=True)
+            
+        logger.info(f"📁 本地存储根目录: {self.local_storage_root}")
+        logger.info(f"📂 本地桶映射: {self.local_bucket_config}")
+    
+    def _init_supabase_storage(self):
+        """初始化Supabase云端存储"""
+        self.use_local_storage = False
+        
+        # 从环境变量获取配置
+        self.supabase_url = os.getenv('SUPABASE_URL')
+        self.supabase_key = os.getenv('SUPABASE_KEY')
+        
+        # 云端存储桶配置
+        self.bucket_config = {
+            'invoice': os.getenv('SUPABASE_BUCKET_INVOICE', 'invoice-images'),
+            'product': os.getenv('SUPABASE_BUCKET_PRODUCT', 'product-images'),
+            'rd_product': os.getenv('SUPABASE_BUCKET_RD_PRODUCT', 'rd-product-images'),
+            'default': os.getenv('SUPABASE_BUCKET', 'invoice-images')
+        }
+        
+        # 检查必需的环境变量
+        if not self.supabase_url or not self.supabase_key:
+            raise ValueError(f"缺少Supabase环境变量: SUPABASE_URL或SUPABASE_KEY")
+            
+        logger.info(f"☁️ Supabase URL: {self.supabase_url[:20]}...")
+        logger.info(f"📦 云端桶配置: {self.bucket_config}")
+        
+        # 创建Supabase客户端
+        self.supabase = create_client(self.supabase_url, self.supabase_key)
+        logger.info("✅ Supabase客户端初始化成功")
     
     def get_bucket_name(self, bucket_type: str = 'default') -> str:
         """
-        根据类型获取存储桶名称
+        根据类型获取存储桶名称或本地目录名
         
         Args:
             bucket_type: 存储桶类型 ('invoice', 'product', 'rd_product', 'default')
             
         Returns:
-            存储桶名称
+            存储桶名称（云端）或目录名（本地）
         """
-        return self.bucket_config.get(bucket_type, self.bucket_config['default'])
+        if self.use_local_storage:
+            return self.local_bucket_config.get(bucket_type, self.local_bucket_config['default'])
+        else:
+            return self.bucket_config.get(bucket_type, self.bucket_config['default'])
     
     def upload_product_file(self, product_id: int, file, file_type: str, bucket_type: str = 'product') -> Optional[str]:
         """
-        上传产品文件到Supabase存储
+        上传产品文件（支持本地/云端智能切换）
         
         Args:
             product_id: 产品ID
@@ -89,7 +173,100 @@ class SupabaseStorageClient:
             bucket_type: 存储桶类型 ('product', 'rd_product', 'invoice', 'default')
             
         Returns:
-            上传成功返回公开URL，失败返回None
+            上传成功返回访问URL，失败返回None
+        """
+        try:
+            # 根据存储类型路由到对应的上传方法
+            if self.use_local_storage:
+                return self._upload_product_file_local(product_id, file, file_type, bucket_type)
+            else:
+                return self._upload_product_file_cloud(product_id, file, file_type, bucket_type)
+            
+        except Exception as e:
+            logger.error(f"产品文件上传失败: {str(e)}")
+            return None
+    
+    def _upload_product_file_local(self, product_id: int, file, file_type: str, bucket_type: str) -> Optional[str]:
+        """
+        上传产品文件到本地文件系统
+        """
+        try:
+            # 验证文件类型
+            if file_type not in ['image', 'pdf']:
+                raise ValueError("文件类型必须是 'image' 或 'pdf'")
+            
+            # 验证文件扩展名
+            original_filename = secure_filename(file.filename)
+            if not original_filename:
+                raise ValueError("无效的文件名")
+                
+            file_ext = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else ''
+            
+            if file_type == 'image':
+                allowed_extensions = ['jpg', 'jpeg', 'png', 'gif']
+            else:  # pdf
+                allowed_extensions = ['pdf']
+            
+            if file_ext not in allowed_extensions:
+                raise ValueError(f"不支持的文件类型。{file_type}文件支持：{', '.join(allowed_extensions)}")
+            
+            # 验证文件大小
+            file.seek(0, 2)
+            file_size = file.tell()
+            file.seek(0)
+            
+            if file_size > self.MAX_FILE_SIZE:
+                raise ValueError(f"文件大小超过限制。最大允许: {self.MAX_FILE_SIZE // (1024*1024)}MB")
+            
+            if not file_size:
+                raise ValueError("文件内容为空")
+            
+            # 生成标准化文件名和路径
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"product_{product_id}_{timestamp}.{file_ext}"
+            
+            # 获取对应的本地存储目录
+            bucket_dir = self.get_bucket_name(bucket_type)
+            storage_path = f"{bucket_dir}/product_{product_id}/{filename}"
+            
+            # 构建完整的本地文件路径
+            local_file_path = os.path.join(self.local_storage_root, storage_path)
+            local_dir = os.path.dirname(local_file_path)
+            
+            # 确保目录存在
+            os.makedirs(local_dir, exist_ok=True)
+            
+            # 处理文件内容
+            if file_type == 'image':
+                try:
+                    processed_content = self._process_image(file, file_ext)
+                except Exception as e:
+                    logger.warning(f"图片处理失败，使用原始文件: {str(e)}")
+                    file.seek(0)
+                    processed_content = file.read()
+            else:
+                file.seek(0)
+                processed_content = file.read()
+            
+            # 保存到本地文件系统
+            with open(local_file_path, 'wb') as f:
+                f.write(processed_content)
+            
+            # 生成本地访问URL
+            local_url = f"/storage/{storage_path}"
+            
+            logger.info(f"✅ 产品文件保存到本地: {local_file_path}")
+            logger.info(f"🔗 本地访问URL: {local_url}")
+            
+            return local_url
+            
+        except Exception as e:
+            logger.error(f"本地产品文件上传失败: {str(e)}")
+            return None
+    
+    def _upload_product_file_cloud(self, product_id: int, file, file_type: str, bucket_type: str) -> Optional[str]:
+        """
+        上传产品文件到云端Supabase存储
         """
         try:
             # 获取对应的存储桶名称
@@ -376,25 +553,121 @@ class SupabaseStorageClient:
             logger.error(f"文件删除失败: {str(e)}")
             return False
     
-    def upload_expense_invoice(self, detail_id: int, file, filename: str, bucket_type: str = 'invoice') -> Optional[str]:
+    def upload_expense_invoice(self, detail_id: int, file, filename: str, bucket_type: str = 'invoice'):
         """
-        上传报销明细发票图片到Supabase存储
+        上传报销明细发票图片（本地/云端自适应）
         
         Args:
             detail_id: 报销明细ID
             file: 文件对象
-            filename: 文件名
+            filename: 原始文件名
             bucket_type: 存储桶类型 ('invoice', 'product', 'rd_product', 'default')
             
         Returns:
-            成功返回公开URL，失败返回None
+            成功返回文件信息字典或URL字符串（向下兼容），失败返回None
+            文件信息字典格式:
+            {
+                'url': '访问URL',
+                'filename': '规范化文件名',
+                'storage_path': '存储路径',
+                'original_filename': '原始文件名',
+                'standardized': True/False
+            }
+        """
+        try:
+            if self.use_local_storage:
+                return self._upload_expense_invoice_local(detail_id, file, filename, bucket_type)
+            else:
+                return self._upload_expense_invoice_cloud(detail_id, file, filename, bucket_type)
+        except Exception as e:
+            logger.error(f"发票上传失败: {str(e)}")
+            return None
+    
+    def _upload_expense_invoice_local(self, detail_id: int, file, filename: str, bucket_type: str) -> Optional[str]:
+        """
+        上传发票到本地文件系统
+        """
+        try:
+            # 获取本地目录名
+            local_dir_name = self.get_bucket_name(bucket_type)
+            
+            # 生成规范化的文件名和存储路径
+            standardized_info = self._generate_standardized_invoice_name(detail_id, filename)
+            if not standardized_info:
+                logger.warning(f"生成规范化文件名失败，使用简化命名")
+                # 简化的本地存储路径
+                local_subdir = os.path.join(self.local_storage_root, local_dir_name, f"expense_{detail_id}")
+                os.makedirs(local_subdir, exist_ok=True)
+                
+                # 生成唯一文件名避免冲突
+                import uuid
+                name, ext = os.path.splitext(filename)
+                safe_filename = f"invoice_{detail_id}_{uuid.uuid4().hex[:8]}{ext}"
+                local_file_path = os.path.join(local_subdir, safe_filename)
+                storage_path = f"{local_dir_name}/expense_{detail_id}/{safe_filename}"
+            else:
+                # 使用规范化路径
+                storage_path = standardized_info['storage_path']
+                local_file_path = os.path.join(self.local_storage_root, storage_path)
+                safe_filename = standardized_info['filename']
+                
+                # 确保目录存在
+                os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
+                
+            logger.info(f"📁 本地存储路径: {local_file_path}")
+            
+            # 处理并保存图片文件
+            file_content = file.read()
+            file.seek(0)
+            
+            try:
+                # 处理图片（压缩等）
+                processed_content = self._process_invoice_image(file_content)
+            except Exception as e:
+                logger.warning(f"图片处理失败，使用原始文件: {str(e)}")
+                processed_content = file_content
+            
+            # 保存到本地文件
+            with open(local_file_path, 'wb') as f:
+                f.write(processed_content)
+            
+            # 生成本地访问URL（相对于应用根目录）
+            local_url = f"/storage/{storage_path}"
+            
+            logger.info(f"✅ 发票保存到本地: {local_file_path}")
+            logger.info(f"🔗 本地访问URL: {local_url}")
+            
+            # 返回详细的文件信息
+            return {
+                'url': local_url,
+                'filename': safe_filename,
+                'storage_path': storage_path,
+                'original_filename': filename,
+                'standardized': standardized_info is not None
+            }
+            
+        except Exception as e:
+            logger.error(f"本地发票上传失败: {str(e)}")
+            return None
+    
+    def _upload_expense_invoice_cloud(self, detail_id: int, file, filename: str, bucket_type: str) -> Optional[str]:
+        """
+        上传发票到云端Supabase存储
         """
         try:
             # 获取对应的存储桶名称
             bucket_name = self.get_bucket_name(bucket_type)
             
-            # 生成存储路径
-            storage_path = f"expense_invoices/{detail_id}/{filename}"
+            # 生成规范化的文件名和存储路径
+            standardized_info = self._generate_standardized_invoice_name(detail_id, filename)
+            if not standardized_info:
+                logger.error(f"生成规范化文件名失败，使用原始命名: {filename}")
+                storage_path = f"expense_invoices/{detail_id}/{filename}"
+            else:
+                storage_path = standardized_info['storage_path']
+                standardized_filename = standardized_info['filename']
+                logger.info(f"生成规范化文件名: {standardized_filename}")
+                logger.info(f"☁️ 云端存储路径: {storage_path}")
             
             # 读取并处理图片文件
             file_content = file.read()
@@ -518,7 +791,24 @@ class SupabaseStorageClient:
             public_url = f"{self.supabase_url}/storage/v1/object/public/{bucket_name}/{storage_path}"
             
             logger.info(f"发票图片上传成功: {storage_path}")
-            return public_url
+            
+            # 返回详细的文件信息
+            if standardized_info:
+                return {
+                    'url': public_url,
+                    'filename': standardized_info['filename'],
+                    'storage_path': storage_path,
+                    'original_filename': filename,
+                    'standardized': True
+                }
+            else:
+                return {
+                    'url': public_url,
+                    'filename': filename,
+                    'storage_path': storage_path,
+                    'original_filename': filename,
+                    'standardized': False
+                }
             
         except Exception as e:
             logger.error(f"发票图片上传失败: {str(e)}")
@@ -526,10 +816,10 @@ class SupabaseStorageClient:
     
     def delete_expense_invoice(self, filename: str, bucket_type: str = 'invoice') -> bool:
         """
-        删除报销明细发票图片
+        删除报销明细发票图片（支持新旧命名格式）
         
         Args:
-            filename: 文件名
+            filename: 文件名或完整URL
             bucket_type: 存储桶类型 ('invoice', 'product', 'rd_product', 'default')
             
         Returns:
@@ -539,25 +829,70 @@ class SupabaseStorageClient:
             # 获取对应的存储桶名称
             bucket_name = self.get_bucket_name(bucket_type)
             
-            # 构建存储路径
-            # 从filename中提取detail_id（假设filename格式为：expense_invoice_{detail_id}_{uuid}.ext）
-            parts = filename.split('_')
-            if len(parts) >= 3 and parts[0] == 'expense' and parts[1] == 'invoice':
-                detail_id = parts[2]
-                storage_path = f"expense_invoices/{detail_id}/{filename}"
-            else:
-                # 备选方案：直接使用filename作为路径
-                storage_path = f"expense_invoices/{filename}"
+            storage_paths = []
             
-            # 删除文件
-            result = self.supabase.storage.from_(bucket_name).remove([storage_path])
+            # 如果是完整URL，提取路径
+            if filename.startswith('http'):
+                try:
+                    from urllib.parse import urlparse
+                    parsed_url = urlparse(filename)
+                    path_parts = parsed_url.path.split('/')
+                    if len(path_parts) > 6:  # /storage/v1/object/public/bucket/...
+                        storage_paths.append('/'.join(path_parts[6:]))
+                except Exception as e:
+                    logger.warning(f"解析URL失败: {e}")
             
-            if hasattr(result, 'error') and result.error:
-                logger.error(f"Supabase删除错误: {result.error}")
-                return False
+            # 新格式：规范化命名（项目-客户-报销单-明细-文件.ext）
+            if '-' in filename and len(filename.split('-')) >= 5:
+                # 尝试解析规范化文件名
+                try:
+                    parts = filename.split('-')
+                    if len(parts) >= 5:
+                        project_code = parts[0]
+                        customer_code = parts[1] 
+                        expense_number = parts[2]
+                        # 新格式存储路径
+                        storage_paths.append(f"invoice_files/{project_code}/{customer_code}/{expense_number}/{filename}")
+                except Exception as e:
+                    logger.debug(f"解析规范化文件名失败: {e}")
             
-            logger.info(f"发票图片删除成功: {storage_path}")
-            return True
+            # 旧格式：传统命名（expense_invoice_{detail_id}_{uuid}.ext）
+            if filename.startswith('expense_invoice_'):
+                parts = filename.split('_')
+                if len(parts) >= 3:
+                    try:
+                        detail_id = parts[2].split('.')[0] if '.' in parts[2] else parts[2]  # 移除文件扩展名
+                        if detail_id.isdigit():
+                            storage_paths.append(f"expense_invoices/{detail_id}/{filename}")
+                    except Exception as e:
+                        logger.debug(f"解析传统文件名失败: {e}")
+            
+            # 如果没有匹配的路径，尝试常见路径
+            if not storage_paths:
+                storage_paths = [
+                    f"expense_invoices/{filename}",  # 直接在expense_invoices目录
+                    filename  # 根目录
+                ]
+            
+            # 尝试删除所有可能的路径
+            deleted = False
+            for storage_path in storage_paths:
+                try:
+                    logger.info(f"尝试删除路径: {storage_path}")
+                    result = self.supabase.storage.from_(bucket_name).remove([storage_path])
+                    
+                    if not (hasattr(result, 'error') and result.error):
+                        logger.info(f"发票图片删除成功: {storage_path}")
+                        deleted = True
+                        break  # 成功删除一个路径就够了
+                    else:
+                        logger.debug(f"删除路径失败: {storage_path} - {result.error}")
+                        
+                except Exception as e:
+                    logger.debug(f"删除路径异常: {storage_path} - {str(e)}")
+                    continue
+            
+            return deleted
             
         except Exception as e:
             logger.error(f"发票图片删除失败: {str(e)}")
@@ -598,6 +933,164 @@ class SupabaseStorageClient:
         except Exception as e:
             logger.error(f"图片处理失败: {str(e)}")
             raise
+    
+    def _generate_standardized_invoice_name(self, detail_id: int, original_filename: str) -> Optional[dict]:
+        """
+        生成规范化的发票文件名和存储路径
+        
+        命名规范: {项目代码}-{客户简称}-{报销单号}-{明细序号}-{文件序号}.{扩展名}
+        存储路径: invoice_files/{项目代码}/{客户简称}/{报销单号}/{文件名}
+        
+        Args:
+            detail_id: 报销明细ID
+            original_filename: 原始文件名
+            
+        Returns:
+            dict: 包含filename和storage_path的字典，失败返回None
+        """
+        try:
+            from app.models.expense import ExpenseDetail, Expense
+            from app.models.customer import Company
+            from app.models.project import Project
+            
+            # 获取报销明细信息
+            detail = ExpenseDetail.query.get(detail_id)
+            if not detail or not detail.expense:
+                logger.error(f"未找到报销明细或报销单: detail_id={detail_id}")
+                return None
+            
+            expense = detail.expense
+            
+            # 提取文件扩展名
+            file_ext = 'jpg'  # 默认扩展名
+            if '.' in original_filename:
+                file_ext = original_filename.rsplit('.', 1)[1].lower()
+            
+            # 1. 系统标识
+            system_id = self._get_system_identifier()
+            
+            # 2. 报销单编号
+            expense_number = self._clean_filename_part(expense.expense_number)
+            
+            # 3. 明细序号（在该报销单中的位置，2位数）
+            detail_sequence = self._get_detail_sequence(expense, detail_id)
+            
+            # 4. 文件序号（该明细的第几个文件，2位数）
+            file_sequence = self._get_file_sequence_for_detail(detail_id)
+            
+            # 生成规范化文件名
+            # 格式: PMA-SA_BX20250810_01_02.jpg
+            standardized_filename = f"{system_id}_{expense_number}_{detail_sequence:02d}_{file_sequence:02d}.{file_ext}"
+            
+            # 生成存储路径
+            # 格式: invoice_files/PMA-SA/BX20250810/PMA-SA_BX20250810_01_02.jpg
+            storage_path = f"invoice_files/{system_id}/{expense_number}/{standardized_filename}"
+            
+            return {
+                'filename': standardized_filename,
+                'storage_path': storage_path,
+                'system_id': system_id,
+                'expense_number': expense_number,
+                'detail_sequence': detail_sequence,
+                'file_sequence': file_sequence
+            }
+            
+        except Exception as e:
+            logger.error(f"生成规范化文件名失败: {str(e)}")
+            import traceback
+            logger.error(f"详细错误: {traceback.format_exc()}")
+            return None
+    
+    def _get_system_identifier(self) -> str:
+        """
+        获取系统标识
+        
+        Returns:
+            系统标识字符串 (PMA-SA, PMA, LOCAL-PMA)
+        """
+        # 检查是否为云端部署
+        if not self.is_local_env:
+            # 云端环境，根据Supabase URL判断是PMA还是PMA-SA
+            supabase_url = os.getenv('SUPABASE_URL', '')
+            if 'pqzviljbpfoqvyfulakl' in supabase_url:  # PMA-SA项目URL标识
+                return 'PMA-SA'
+            else:
+                return 'PMA'  # 默认云端PMA项目
+        else:
+            # 本地环境
+            return 'LOCAL-PMA'
+    
+    def _clean_filename_part(self, text: str) -> str:
+        """
+        清理文件名部分，移除不安全字符
+        
+        Args:
+            text: 原始文本
+            
+        Returns:
+            清理后的文本
+        """
+        if not text:
+            return "UNKNOWN"
+        
+        # 移除或替换不安全字符
+        import re
+        # 保留字母、数字、中文字符
+        cleaned = re.sub(r'[^\w\u4e00-\u9fff]', '', text)
+        
+        # 如果清理后为空，返回默认值
+        if not cleaned:
+            return "UNKNOWN"
+        
+        # 限制长度
+        return cleaned[:10].upper()
+    
+    def _get_detail_sequence(self, expense, detail_id: int) -> int:
+        """
+        获取明细在报销单中的序号
+        
+        Args:
+            expense: 报销单对象
+            detail_id: 明细ID
+            
+        Returns:
+            序号（从1开始）
+        """
+        try:
+            # 按创建时间排序，获取序号
+            sorted_details = sorted(expense.details, key=lambda d: d.created_at or d.id)
+            for i, detail in enumerate(sorted_details):
+                if detail.id == detail_id:
+                    return i + 1
+            return 1  # 默认返回1
+        except Exception as e:
+            logger.error(f"获取明细序号失败: {str(e)}")
+            return 1
+    
+    def _get_file_sequence_for_detail(self, detail_id: int) -> int:
+        """
+        获取该明细当前应该使用的文件序号
+        
+        Args:
+            detail_id: 明细ID
+            
+        Returns:
+            文件序号（从1开始）
+        """
+        try:
+            from app.models.expense import ExpenseDetail
+            
+            detail = ExpenseDetail.query.get(detail_id)
+            if not detail:
+                return 1
+            
+            # 解析现有的发票图片数量
+            existing_images = detail.invoice_images_list
+            return len(existing_images) + 1
+            
+        except Exception as e:
+            logger.error(f"获取文件序号失败: {str(e)}")
+            return 1
 
 # 全局Supabase客户端实例
 _supabase_client = None

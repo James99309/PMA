@@ -2475,10 +2475,223 @@ class ExpenseDetailManager {
                         row.invoice_images = [];
                     }
                     
+                    // 获取规范化文件名（用于预览显示）
+                    let displayFilename = file.name; // 默认使用原始文件名
+                    console.log('🔍 开始处理文件预览:', {
+                        originalFilename: file.name,
+                        mimeType: file.type,
+                        fileSize: file.size,
+                        lastModified: new Date(file.lastModified).toLocaleString(),
+                        rowIndex: rowIndex,
+                        rowId: row.id,
+                        hasRowId: !!row.id
+                    });
+                    
+                    // 详细的文件信息调试
+                    console.log('📁 用户选择的文件详细信息:');
+                    console.log('  文件名:', file.name);
+                    console.log('  MIME类型:', file.type || '无');
+                    console.log('  文件大小:', file.size, '字节');
+                    console.log('  最后修改:', new Date(file.lastModified).toLocaleString());
+                    
+                    // 从文件名判断用户期望的格式
+                    const expectedExtension = file.name.split('.').pop()?.toLowerCase();
+                    console.log('  从文件名推断的扩展名:', expectedExtension);
+                    
+                    // 检测浏览器自动转换问题（特别是iOS Safari）
+                    const isTempFile = file.name.startsWith('tempImage') || file.name.startsWith('image-');
+                    if (isTempFile) {
+                        console.warn('🚨 检测到临时文件名格式：', file.name);
+                        console.warn('🍎 这通常表示iOS/Safari浏览器自动转换了用户的原始文件');
+                        console.warn('💡 用户实际选择的文件可能是不同的格式');
+                    }
+                    
+                    if (expectedExtension && expectedExtension !== 'heic' && file.type === 'image/heic') {
+                        console.warn('⚠️  警告：用户选择了', expectedExtension.toUpperCase(), '文件，但浏览器检测到MIME类型为 image/heic');
+                        console.warn('⚠️  这可能是iOS设备自动转换或文件格式识别问题');
+                    }
+                    
+                    try {
+                        if (row.id) {
+                            console.log('📞 调用预览API:', `/expense/api/preview_invoice_filename/${row.id}`);
+                            
+                            // 如果有detail_id，调用预览API获取规范化文件名
+                            const previewResponse = await fetch(`/expense/api/preview_invoice_filename/${row.id}`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    filename: file.name,
+                                    mimeType: file.type || ''
+                                })
+                            });
+                            
+                            console.log('🌐 预览API响应状态:', previewResponse.status);
+                            
+                            if (previewResponse.ok) {
+                                const previewResult = await previewResponse.json();
+                                console.log('📋 预览API响应内容:', previewResult);
+                                
+                                if (previewResult.success) {
+                                    displayFilename = previewResult.preview_filename;
+                                    console.log('✅ 获取到规范化文件名:', displayFilename);
+                                } else {
+                                    console.warn('⚠️  获取规范化文件名失败:', previewResult.message);
+                                }
+                            } else {
+                                console.warn('⚠️  预览API请求失败:', previewResponse.status);
+                                const errorText = await previewResponse.text();
+                                console.warn('⚠️  错误详情:', errorText);
+                            }
+                        } else {
+                            console.log('ℹ️  没有row.id，为创建页面生成预览文件名');
+                            console.log('🚀 文件类型检测代码版本: 2.0 - 已更新');
+                            // 在创建页面，没有detail_id时，生成基于当前信息的预览文件名
+                            // 格式：系统标识_当前日期_明细序号_文件序号.扩展名
+                            const now = new Date();
+                            const dateStr = now.getFullYear().toString().slice(-2) + 
+                                          String(now.getMonth() + 1).padStart(2, '0') + 
+                                          String(now.getDate()).padStart(2, '0');
+                            
+                            // 根据文件的MIME类型确定正确的扩展名
+                            let extension = 'jpg'; // 默认扩展名
+                            
+                            console.log('🔍 文件类型检测开始:', {
+                                fileName: file.name,
+                                mimeType: file.type,
+                                fileSize: file.size
+                            });
+                            console.log('📊 检测到的MIME类型:', file.type || '无MIME类型');
+                            
+                            if (file.type) {
+                                const mimeToExtension = {
+                                    'image/png': 'png',
+                                    'image/jpeg': 'jpg',
+                                    'image/jpg': 'jpg',
+                                    'image/gif': 'gif',
+                                    'image/bmp': 'bmp',
+                                    'image/webp': 'webp',
+                                    'image/heic': 'heic',
+                                    'image/heif': 'heif',
+                                    'application/pdf': 'pdf'
+                                };
+                                
+                                extension = mimeToExtension[file.type.toLowerCase()] || 'jpg';
+                                console.log('✅ 基于MIME类型检测到扩展名:', extension);
+                                
+                                // 额外的调试信息和智能修正
+                                if (expectedExtension && extension !== expectedExtension) {
+                                    console.warn('🔄 扩展名不匹配！');
+                                    console.warn('  用户文件名显示:', expectedExtension);
+                                    console.warn('  MIME类型检测:', extension);
+                                    
+                                    // 智能修正：对于常见的图片格式，优先使用用户期望的格式
+                                    const commonImageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+                                    if (commonImageExtensions.includes(expectedExtension)) {
+                                        console.log('🔧 应用智能修正：使用用户文件名的扩展名', expectedExtension);
+                                        extension = expectedExtension === 'jpeg' ? 'jpg' : expectedExtension;
+                                        console.log('✅ 修正后的扩展名:', extension);
+                                    } else {
+                                        console.warn('⚠️  保持MIME类型检测结果，因为用户文件扩展名不在常见图片格式列表中');
+                                    }
+                                }
+                            } else {
+                                // 如果没有MIME类型，尝试通过文件魔数检测
+                                console.warn('⚠️  文件没有MIME类型，尝试通过文件内容检测');
+                                
+                                try {
+                                    const buffer = await file.slice(0, 12).arrayBuffer();
+                                    const bytes = new Uint8Array(buffer);
+                                    
+                                    // PNG: 89 50 4E 47 0D 0A 1A 0A
+                                    if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
+                                        extension = 'png';
+                                        console.log('✅ 通过文件头检测到PNG格式');
+                                    }
+                                    // JPEG: FF D8 FF
+                                    else if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
+                                        extension = 'jpg';
+                                        console.log('✅ 通过文件头检测到JPEG格式');
+                                    }
+                                    // GIF: GIF87a or GIF89a
+                                    else if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) {
+                                        extension = 'gif';
+                                        console.log('✅ 通过文件头检测到GIF格式');
+                                    }
+                                    // BMP: BM
+                                    else if (bytes[0] === 0x42 && bytes[1] === 0x4D) {
+                                        extension = 'bmp';
+                                        console.log('✅ 通过文件头检测到BMP格式');
+                                    }
+                                    // PDF: %PDF
+                                    else if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) {
+                                        extension = 'pdf';
+                                        console.log('✅ 通过文件头检测到PDF格式');
+                                    }
+                                    else {
+                                        console.warn('⚠️  无法识别文件类型，使用默认扩展名 jpg');
+                                        extension = 'jpg';
+                                    }
+                                } catch (error) {
+                                    console.warn('⚠️  文件内容检测失败，使用默认扩展名:', error);
+                                    extension = 'jpg';
+                                }
+                            }
+                            
+                            console.log('📝 最终确定的扩展名:', extension);
+                            
+                            // 🔧 智能格式处理（解决iOS HEIC兼容性问题）
+                            const isTempFile = file.name.startsWith('tempImage') || file.name.startsWith('image-');
+                            
+                            if (extension === 'heic' || extension === 'heif') {
+                                console.log('🍎 检测到Apple HEIC/HEIF格式');
+                                
+                                if (isTempFile) {
+                                    console.log('🔍 这是浏览器生成的临时文件');
+                                    console.log('💡 用户实际选择的可能是JPG文件，被浏览器自动转换为HEIC');
+                                    console.log('🎯 强制使用JPG格式以匹配用户期望');
+                                } else {
+                                    console.log('💡 为了更好的兼容性和通用性，自动转换为JPG格式');
+                                }
+                                
+                                // 自动转换为JPG格式，提供更好的兼容性
+                                const originalExtension = extension;
+                                extension = 'jpg';
+                                
+                                console.log(`🔄 格式转换: ${originalExtension.toUpperCase()} → JPG`);
+                                console.log('✅ 转换完成，现在使用JPG扩展名');
+                                console.log('📋 说明：JPG格式具有更好的通用兼容性');
+                            }
+                            
+                            // 明细序号 (rowIndex + 1)
+                            const detailSequence = String(rowIndex + 1).padStart(2, '0');
+                            
+                            // 文件序号（当前明细已有的文件数 + 1）
+                            const currentFileCount = (row.invoice_images ? row.invoice_images.length : 0) + 1;
+                            const fileSequence = String(currentFileCount).padStart(2, '0');
+                            
+                            // 系统标识（本地为LOCAL-PMA）
+                            const systemId = 'LOCAL-PMA';
+                            
+                            // 报销单编号（如果有expense对象的话，这里暂时用占位符）
+                            const expenseNumber = `BX${dateStr}`;
+                            
+                            displayFilename = `${systemId}_${expenseNumber}_${detailSequence}_${fileSequence}.${extension}`;
+                            console.log('📝 生成创建页面预览文件名:', displayFilename);
+                        }
+                    } catch (error) {
+                        console.warn('⚠️  调用预览API时出错:', error);
+                        // 继续使用原始文件名
+                    }
+                    
+                    console.log('📝 最终使用的文件名:', displayFilename);
+                    
                     row.invoice_images.push({
                         file: file,
                         pending: true,
-                        filename: file.name,
+                        filename: displayFilename, // 使用规范化文件名
+                        original_filename: file.name, // 保存原始文件名
                         size: file.size
                     });
                     
@@ -2646,7 +2859,7 @@ class ExpenseDetailManager {
                     }
                     
                     const title = isPending 
-                        ? `发票1: ${firstImage.filename} (本地预览)`
+                        ? `发票1: ${firstImage.filename}`
                         : `发票1: ${firstImage.filename}`;
                     
                     this.showInvoicePreview(imageUrl, title, {
@@ -4235,7 +4448,7 @@ class ExpenseDetailManager {
             icon.addEventListener('click', (e) => {
                 e.preventDefault();
                 const title = isPending 
-                    ? `发票${index + 1}: ${invoice.filename} (本地预览)`
+                    ? `发票${index + 1}: ${invoice.filename}`
                     : `发票${index + 1}: ${invoice.filename}`;
                 this.showInvoicePreview(imageUrl, title, {
                     rowIndex: rowIndex,
