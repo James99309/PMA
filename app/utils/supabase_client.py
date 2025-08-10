@@ -695,8 +695,9 @@ class SupabaseStorageClient:
                     try:
                         # 新版本SDK使用UploadFileOptions
                         logger.info("尝试使用UploadFileOptions方式上传")
+                        # 经过_process_invoice_image处理后，所有图片都转换为JPEG格式
                         options = UploadFileOptions(
-                            content_type=self._get_content_type('image', filename.split('.')[-1].lower() if '.' in filename else 'jpg')
+                            content_type='image/jpeg'
                         )
                         res = self.supabase.storage.from_(bucket_name).upload(
                             storage_path,
@@ -961,10 +962,8 @@ class SupabaseStorageClient:
             
             expense = detail.expense
             
-            # 提取文件扩展名
-            file_ext = 'jpg'  # 默认扩展名
-            if '.' in original_filename:
-                file_ext = original_filename.rsplit('.', 1)[1].lower()
+            # 强制使用jpg扩展名（因为所有图片都会通过_process_invoice_image转换为JPEG格式）
+            file_ext = 'jpg'
             
             # 1. 系统标识
             system_id = self._get_system_identifier()

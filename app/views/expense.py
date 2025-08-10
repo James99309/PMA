@@ -928,27 +928,30 @@ def create_expense():
                                         # 云端上传失败，跳过这个文件
                                         continue
                                 else:
-                                    # 本地环境，使用本地文件系统
-                                    import uuid
-                                    upload_dir = os.path.join(current_app.static_folder, 'uploads', 'invoices', str(detail_obj.id))
-                                    os.makedirs(upload_dir, exist_ok=True)
-                                    
-                                    # 生成文件名
-                                    filename = f"invoice_{uuid.uuid4().hex[:8]}.{file_ext}"
-                                    file_path = os.path.join(upload_dir, filename)
-                                    
-                                    # 保存文件
-                                    file_obj.save(file_path)
-                                    
-                                    # 生成URL
-                                    relative_path = os.path.join('uploads', 'invoices', str(detail_obj.id), filename).replace('\\', '/')
-                                    raw_url = f"/static/{relative_path}"
-                                    image_url = normalize_file_url(raw_url, 'invoice_image')
+                                    # 本地环境，使用智能存储系统（自动生成规范化文件名）
+                                    try:
+                                        from app.utils.supabase_client import get_supabase_client
+                                        supabase_client = get_supabase_client()
+                                        
+                                        # 上传到智能存储系统（自动生成规范化文件名）
+                                        upload_result = supabase_client.upload_expense_invoice(detail_obj.id, file_obj, file_obj.filename)
+                                        
+                                        if upload_result:
+                                            # 处理新的返回格式
+                                            if isinstance(upload_result, dict):
+                                                image_url = upload_result['url']
+                                                original_filename = upload_result['filename']  # 使用规范化文件名
+                                            else:
+                                                image_url = upload_result
+                                                original_filename = file_obj.filename
+                                        else:
+                                            raise Exception("智能存储上传失败")
+                                            
+                                    except Exception as storage_error:
+                                        current_app.logger.error(f"智能存储上传失败: {str(storage_error)}")
+                                        continue
                                 
-                                # 获取原始文件名（如果有元数据）
-                                original_filename = file_obj.filename
-                                if index in file_data and 'meta' in file_data[index] and file_index in file_data[index]['meta']:
-                                    original_filename = file_data[index]['meta'][file_index].get('filename', file_obj.filename)
+                                # 注意：original_filename已经在上面的if-else分支中设置了
                                 
                                 # 添加到处理后的图片列表
                                 processed_images.append({
