@@ -52,7 +52,9 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # 环境检测
-    IS_CLOUD_ENV = 'render.com' in DATABASE_URL or 'dpg-' in DATABASE_URL
+    IS_RENDER_ENV = 'render.com' in DATABASE_URL or 'dpg-' in DATABASE_URL
+    IS_SUPABASE_ENV = 'supabase.com' in DATABASE_URL or 'supabase.co' in DATABASE_URL
+    IS_CLOUD_ENV = IS_RENDER_ENV or IS_SUPABASE_ENV
     IS_LOCAL_ENV = not IS_CLOUD_ENV
     
     # 根据环境调整配置
@@ -70,22 +72,39 @@ class Config:
         SESSION_COOKIE_SAMESITE = 'Lax'
         
         # 云端PostgreSQL连接池配置
-        SQLALCHEMY_ENGINE_OPTIONS = {
-            'pool_size': 10,
-            'max_overflow': 20,
-            'pool_recycle': 3600,
-            'pool_pre_ping': True,
-            'pool_timeout': 30,
-            'connect_args': {
-                'sslmode': 'require',
-                'connect_timeout': 30,
-                'keepalives': 1,
-                'keepalives_idle': 30,
-                'keepalives_interval': 10,
-                'keepalives_count': 5,
-                'application_name': 'PMA_Cloud_App'
+        if IS_SUPABASE_ENV:
+            # Supabase特定配置 - 需要设置search_path
+            SQLALCHEMY_ENGINE_OPTIONS = {
+                'pool_size': 10,
+                'max_overflow': 20,
+                'pool_recycle': 3600,
+                'pool_pre_ping': True,
+                'pool_timeout': 30,
+                'connect_args': {
+                    'sslmode': 'require',
+                    'connect_timeout': 30,
+                    'application_name': 'PMA_Supabase_App',
+                    'options': '-c search_path=public'
+                }
             }
-        }
+        else:
+            # Render或其他云端环境配置
+            SQLALCHEMY_ENGINE_OPTIONS = {
+                'pool_size': 10,
+                'max_overflow': 20,
+                'pool_recycle': 3600,
+                'pool_pre_ping': True,
+                'pool_timeout': 30,
+                'connect_args': {
+                    'sslmode': 'require',
+                    'connect_timeout': 30,
+                    'keepalives': 1,
+                    'keepalives_idle': 30,
+                    'keepalives_interval': 10,
+                    'keepalives_count': 5,
+                    'application_name': 'PMA_Cloud_App'
+                }
+            }
         
         # 云端域名配置
         APP_DOMAIN = os.environ.get('APP_DOMAIN', 'https://your-app.onrender.com')

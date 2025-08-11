@@ -97,6 +97,13 @@ def run_migrations_online():
     connectable = get_engine()
 
     with connectable.connect() as connection:
+        # 检测Supabase环境并设置search_path
+        database_url = str(connectable.url)
+        if 'supabase.com' in database_url or 'supabase.co' in database_url:
+            logger.info('检测到Supabase环境，设置search_path为public')
+            from sqlalchemy import text
+            connection.execute(text('SET search_path TO public'))
+        
         context.configure(
             connection=connection,
             target_metadata=get_metadata(),
