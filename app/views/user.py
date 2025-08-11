@@ -44,11 +44,10 @@ def list_users():
     query = base_query
     
     if search:
-        query = query.filter(
-            (User.username.like(f'%{search}%')) |
-            (User.real_name.like(f'%{search}%')) |
-            (User.email.like(f'%{search}%')) |
-            (User.company_name.like(f'%{search}%'))
+        # 使用优化的搜索查询
+        search_fields = ['username', 'real_name', 'email', 'company_name']
+        query = ListPerformanceOptimizer.optimize_search_query(
+            query, User, search, search_fields
         )
     if role:
         query = query.filter(User.role == role)
@@ -58,33 +57,34 @@ def list_users():
     if company:
         query = query.filter(User.company_name == company)
 
-    # 优化统计数据查询 - 使用单个查询获取统计信息
-    from sqlalchemy import case, func
-    try:
-        stats = base_query.with_entities(
-            func.count().label('total_count'),
-            func.sum(case((User._is_active == True, 1), else_=0)).label('active_count'),
-            func.sum(case((User._is_active == False, 1), else_=0)).label('inactive_count'),
-            func.sum(case((User.role == 'admin', 1), else_=0)).label('admin_count'),
-            func.sum(case((User.role == 'user', 1), else_=0)).label('user_count')
-        ).first()
-        
-        total_count = stats.total_count or 0
-        active_count = stats.active_count or 0
-        inactive_count = stats.inactive_count or 0
-        admin_count = stats.admin_count or 0
-        user_count = stats.user_count or 0
-    except Exception as e:
-        logger.warning(f"统计查询失败: {str(e)}, 使用默认值")
-        total_count = active_count = inactive_count = admin_count = user_count = 0
+    # 使用性能优化工具
+    from app.utils.performance_optimizer import ListPerformanceOptimizer
+    
+    # 定义统计字段配置
+    stat_fields = [
+        {'name': 'total_count', 'condition': None},
+        {'name': 'active_count', 'condition': (User._is_active == True)},
+        {'name': 'inactive_count', 'condition': (User._is_active == False)},
+        {'name': 'admin_count', 'condition': (User.role == 'admin')},
+        {'name': 'user_count', 'condition': (User.role == 'user')}
+    ]
+    
+    # 获取优化的统计数据
+    stats = ListPerformanceOptimizer.optimize_stats_query(base_query, stat_fields)
+    total_count = stats['total_count']
+    active_count = stats['active_count'] 
+    inactive_count = stats['inactive_count']
+    admin_count = stats['admin_count']
+    user_count = stats['user_count']
 
-    # 优化排序和分页 - 简单排序，限制数量
-    try:
-        users = query.order_by(User.id.desc()).limit(500).all()  # 限制最多500条记录
-    except Exception as e:
-        logger.error(f"用户列表查询失败: {str(e)}")
-        db.session.rollback()
-        users = []
+    # 获取分页参数并优化列表查询
+    page, per_page = ListPerformanceOptimizer.get_pagination_params()
+    users = ListPerformanceOptimizer.optimize_list_query(
+        query.order_by(User.id.desc()), 
+        page=page, 
+        per_page=per_page,
+        max_records=500
+    )
 
     # 用户数据已通过 datetimeformat 过滤器处理，无需额外转换
 

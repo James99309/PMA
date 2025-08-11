@@ -422,6 +422,17 @@ def create_app(config_class=Config):
     
     # 数据初始化
     with app.app_context():
+        # 为Supabase环境设置search_path，解决表创建问题
+        if 'supabase.com' in app.config['SQLALCHEMY_DATABASE_URI'] or 'supabase.co' in app.config['SQLALCHEMY_DATABASE_URI']:
+            try:
+                from sqlalchemy import text
+                with db.engine.connect() as conn:
+                    conn.execute(text('SET search_path TO public'))
+                    conn.commit()
+                logger.info("✅ Supabase环境已设置search_path为public")
+            except Exception as e:
+                logger.warning(f"⚠️ 设置search_path失败: {e}")
+        
         # 创建数据库表
         db.create_all()
         logger.info("数据库表创建成功")
