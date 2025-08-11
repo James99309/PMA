@@ -393,7 +393,7 @@
                                 {% if has_permission('product_code', 'view') %}
                                 <li><a class="nav-link text-sm py-2" href="{{ url_for('product_management.index') }}">{{ _('研发产品库') }}</a></li>
                                 {% endif %}
-                                {% if current_user.role == 'admin' %}
+                                {% if current_user.role in ['admin', 'product_manager'] %}
                                 <li><hr class="dropdown-divider my-1"></li>
                                 <li><a class="nav-link text-sm py-2" href="{{ url_for('product_code.categories') }}">{{ _('产品分类') }}</a></li>
                                 <li><a class="nav-link text-sm py-2" href="{{ url_for('product_code.origin_fields') }}">{{ _('销售地区') }}</a></li>
@@ -413,7 +413,7 @@
                             {% if has_permission('product_code', 'view') %}
                             <li><a class="dropdown-item" href="{{ url_for('product_management.index') }}">{{ _('研发产品库') }}</a></li>
                             {% endif %}
-                            {% if current_user.role == 'admin' %}
+                            {% if current_user.role in ['admin', 'product_manager'] %}
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('product_code.categories') }}">{{ _('产品分类') }}</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('product_code.origin_fields') }}">{{ _('销售地区') }}</a></li>

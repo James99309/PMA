@@ -2316,26 +2316,83 @@ input[type="number"].discount-rate:hover {
 /* Filter search component styles */
 .filter-search-container {
     background: #f8f9fa;
-    padding: 1.5rem;
+    padding: 1rem 1.2rem; /* 减少30%内边距，使布局更紧凑 */
     border-radius: 8px;
     margin-bottom: 1.5rem;
 }
 
+/* 简单直接的flexbox两行布局 */
 .filter-row {
-    row-gap: 0.5rem;
-    align-items: end; /* 底部对齐，确保按钮和输入框对齐 */
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 1rem !important;
+    margin: 0 !important;
+    width: 100% !important;
+    align-items: flex-end !important;
+}
+
+/* 搜索框 - 占50%宽度，保持在第一行 */
+.filter-row > .filter-control:first-of-type {
+    flex: 0 0 calc(50% - 0.5rem) !important; /* 50%宽度减去gap */
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* 按钮容器 - 填充第一行剩余空间，右对齐 */
+.filter-row > .filter-buttons-container {
+    flex: 1 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+}
+
+/* 筛选框 - 全宽度强制换行，然后内部正常排列 */
+.filter-row > .filter-control:not(:first-of-type) {
+    flex: 0 0 120px !important; /* 固定宽度 */
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* 第一个筛选框强制换行 */
+.filter-row > .filter-control:nth-of-type(2) {
+    flex-basis: 100% !important; /* 强制换行 */
+    width: 120px !important;
+    max-width: 120px !important;
 }
 
 .filter-control {
-    margin-bottom: 0.75rem;
-    min-width: 0; /* 允许flex收缩 */
+    display: flex !important;
+    flex-direction: column !important;
 }
 
-/* 自适应宽度规则 - 基于内容长度动态调整 */
-.filter-control.adaptive-width {
-    flex: 1 1 auto;
-    min-width: 120px; /* 最小宽度 */
-    max-width: 300px; /* 最大宽度 */
+/* 搜索框样式 - 占据第一行50%空间 */
+.filter-control .form-control[type="text"] {
+    width: 100% !important; /* 占满容器的50%宽度 */
+    max-width: 400px !important; /* 设置最大宽度避免过宽 */
+    height: calc(2.375rem + 2px) !important;
+    padding: 0.375rem 0.75rem !important;
+    font-size: 1rem !important; /* 恢复标准字体大小 */
+    border: 1px solid #ced4da !important;
+    box-sizing: border-box !important;
+}
+
+/* 筛选下拉框样式 - 紧凑宽度 */
+.filter-control .form-select {
+    width: 120px !important; /* 更紧凑的宽度 */
+    height: calc(2.375rem + 2px) !important;
+    padding: 0.375rem 1.5rem 0.375rem 0.75rem !important; /* 减少右侧padding为箭头留空间 */
+    font-size: 0.9rem !important; /* 稍微缩小字体 */
+    border: 1px solid #ced4da !important;
+    box-sizing: border-box !important;
+}
+
+/* 统一标签样式 */
+.filter-control .form-label {
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #495057;
 }
 
 /* 标签自适应 */

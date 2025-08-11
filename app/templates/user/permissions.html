@@ -7,7 +7,7 @@
 <!-- 标准化顶部提示组件 -->
 {{ render_top_notification() }}
 
-<div class="container-fluid page-with-fixed-nav">
+<div class="container-fluid page-with-fixed-nav"
     <!-- 标准化页面头部区域：标题与操作按钮在同一行 - 使用page-header-with-actions模组 -->
     <div class="page-header-with-actions mb-4">
         <div class="row align-items-center">
@@ -84,7 +84,6 @@
                             <thead class="table-light">
                                 <tr>
                                     <th>模块</th>
-                                    <th class="text-center">权限级别</th>
                                     <th class="text-center">查看</th>
                                     <th class="text-center">创建</th>
                                     <th class="text-center">编辑</th>
@@ -107,17 +106,6 @@
                                         {% if module_desc_map.get(module.id) %}
                                             <small class="text-muted d-block">{{ module_desc_map.get(module.id) }}</small>
                                         {% endif %}
-                                    </td>
-                                    <td class="text-center">
-                                        {% set has_any_permission = module.id in permissions and (permissions[module.id].get('can_view') or permissions[module.id].get('can_create') or permissions[module.id].get('can_edit') or permissions[module.id].get('can_delete')) %}
-                                        <select class="form-select form-select-sm permission-level-select" 
-                                            name="permission_level_{{ module.id }}" data-module="{{ module.id }}"
-                                            {% if not has_any_permission %}disabled{% endif %}>
-                                            <option value="personal" {% if module.id in permissions and permissions[module.id].get('permission_level', 'personal') == 'personal' %}selected{% endif %}>个人级</option>
-                                            <option value="department" {% if module.id in permissions and permissions[module.id].get('permission_level') == 'department' %}selected{% endif %}>部门级</option>
-                                            <option value="company" {% if module.id in permissions and permissions[module.id].get('permission_level') == 'company' %}selected{% endif %}>企业级</option>
-                                            <option value="system" {% if module.id in permissions and permissions[module.id].get('permission_level') == 'system' %}selected{% endif %}>系统级</option>
-                                        </select>
                                     </td>
                                     {% for action in ['view', 'create', 'edit', 'delete'] %}
                                     <td class="text-center">
@@ -332,14 +320,6 @@
     .btn-group .btn + .btn {
         margin-left: -1px;
     }
-    
-    /* 权限级别选择框禁用状态样式 */
-    .permission-level-select:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-        background-color: #e9ecef;
-        border-color: #ced4da;
-    }
 </style>
 {% endblock %}
 
@@ -357,57 +337,23 @@
                         cb.checked = allCb.checked;
                     }
                 });
-                
-                // 控制权限级别选择框的启用/禁用状态
-                const permissionLevelSelect = document.querySelector('.permission-level-select[data-module="' + moduleId + '"]');
-                if (permissionLevelSelect) {
-                    permissionLevelSelect.disabled = !allCb.checked;
-                    if (!allCb.checked) {
-                        // 如果取消全部权限，重置为个人级
-                        permissionLevelSelect.value = 'personal';
-                    }
-                }
             });
         });
-        // 单个权限变动时自动同步"全部"状态，并控制权限级别选择框
+        // 单个权限变动时自动同步"全部"状态
         document.querySelectorAll('.perm-checkbox').forEach(function(cb) {
             cb.addEventListener('change', function() {
                 const moduleId = this.getAttribute('data-module');
                 const allCbs = document.querySelectorAll('.perm-checkbox[data-module="' + moduleId + '"]');
                 const allChecked = Array.from(allCbs).filter(x => !x.disabled).every(x => x.checked);
-                const anyChecked = Array.from(allCbs).filter(x => !x.disabled).some(x => x.checked);
-                
-                // 更新"全部"复选框状态
                 document.querySelector('.perm-all-checkbox[data-module="' + moduleId + '"]').checked = allChecked;
-                
-                // 控制权限级别选择框的启用/禁用状态
-                const permissionLevelSelect = document.querySelector('.permission-level-select[data-module="' + moduleId + '"]');
-                if (permissionLevelSelect) {
-                    permissionLevelSelect.disabled = !anyChecked;
-                    if (!anyChecked) {
-                        // 如果没有任何权限被选中，重置为个人级
-                        permissionLevelSelect.value = 'personal';
-                    }
-                }
             });
         });
-        // 页面加载时初始化"全部"状态和权限级别选择框状态
+        // 页面加载时初始化"全部"状态
         document.querySelectorAll('.perm-all-checkbox').forEach(function(allCb) {
             const moduleId = allCb.getAttribute('data-module');
             const allCbs = document.querySelectorAll('.perm-checkbox[data-module="' + moduleId + '"]');
             const allChecked = Array.from(allCbs).filter(x => !x.disabled).every(x => x.checked);
-            const anyChecked = Array.from(allCbs).filter(x => !x.disabled).some(x => x.checked);
-            
             allCb.checked = allChecked;
-            
-            // 初始化权限级别选择框状态
-            const permissionLevelSelect = document.querySelector('.permission-level-select[data-module="' + moduleId + '"]');
-            if (permissionLevelSelect) {
-                permissionLevelSelect.disabled = !anyChecked;
-                if (!anyChecked) {
-                    permissionLevelSelect.value = 'personal';
-                }
-            }
         });
 
         // 禁用角色权限已有的复选框
@@ -509,24 +455,13 @@
             });
     };
     
-    // 更新"全部"复选框状态和权限级别选择框状态的辅助函数
+    // 更新“全部”复选框状态的辅助函数
     function updateAllCheckboxes() {
         document.querySelectorAll('.perm-all-checkbox').forEach(function(allCb) {
             const moduleId = allCb.getAttribute('data-module');
             const allCbs = document.querySelectorAll('.perm-checkbox[data-module="' + moduleId + '"]');
             const allChecked = Array.from(allCbs).filter(x => !x.disabled).every(x => x.checked);
-            const anyChecked = Array.from(allCbs).filter(x => !x.disabled).some(x => x.checked);
-            
             allCb.checked = allChecked;
-            
-            // 更新权限级别选择框状态
-            const permissionLevelSelect = document.querySelector('.permission-level-select[data-module="' + moduleId + '"]');
-            if (permissionLevelSelect) {
-                permissionLevelSelect.disabled = !anyChecked;
-                if (!anyChecked) {
-                    permissionLevelSelect.value = 'personal';
-                }
-            }
         });
     }
 </script>

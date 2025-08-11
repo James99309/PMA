@@ -495,6 +495,13 @@ def list_projects():
                 'width': '100px'
             },
             {
+                'key': 'delivery_forecast', 
+                'label': _('预测出货时间'), 
+                'type': 'date',
+                'format': '%Y-%m-%d',
+                'width': '150px'
+            },
+            {
                 'key': 'updated_at', 
                 'label': _('更新时间'), 
                 'type': 'date',

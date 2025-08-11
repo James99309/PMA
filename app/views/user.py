@@ -77,14 +77,13 @@ def list_users():
     admin_count = stats['admin_count']
     user_count = stats['user_count']
 
-    # 获取分页参数并优化列表查询
-    page, per_page = ListPerformanceOptimizer.get_pagination_params()
-    users = ListPerformanceOptimizer.optimize_list_query(
-        query.order_by(User.id.desc()), 
-        page=page, 
-        per_page=per_page,
-        max_records=500
-    )
+    # 优化列表查询 - 保持无限滚动，但限制最大记录数
+    try:
+        users = query.order_by(User.id.desc()).limit(1000).all()  # 限制最多1000条记录防止过载
+    except Exception as e:
+        logger.error(f"用户列表查询失败: {str(e)}")
+        db.session.rollback()
+        users = []
 
     # 用户数据已通过 datetimeformat 过滤器处理，无需额外转换
 

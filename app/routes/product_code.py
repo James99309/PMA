@@ -14,10 +14,10 @@ from datetime import datetime
 # 创建蓝图
 product_code_bp = Blueprint('product_code', __name__, url_prefix='/product-code')
 
-# 管理员视图 - 产品分类管理
+# 管理员和产品经理视图 - 产品分类管理
 @product_code_bp.route('/categories', methods=['GET'])
 @login_required
-@admin_required
+@product_manager_required
 def categories():
     categories = ProductCategory.query.all()
     
@@ -100,7 +100,7 @@ def generate_unique_subcategory_letter(category_id):
 
 @product_code_bp.route('/api/generate-category-code', methods=['GET'])
 @login_required
-@admin_required
+@product_manager_required
 def generate_category_code():
     """API端点：为新分类生成唯一标识符"""
     try:
@@ -115,7 +115,7 @@ def generate_category_code():
 
 @product_code_bp.route('/api/generate-subcategory-code/<int:category_id>', methods=['GET'])
 @login_required
-@admin_required
+@product_manager_required
 def generate_subcategory_code(category_id):
     """API端点：为指定分类下的新子类生成唯一标识符"""
     try:
@@ -130,7 +130,7 @@ def generate_subcategory_code(category_id):
 
 @product_code_bp.route('/categories/new', methods=['GET', 'POST'])
 @login_required
-@admin_required
+@product_manager_required
 def new_category():
     # 获取已使用的标识符列表
     used_identifiers = [category.code_letter for category in ProductCategory.query.all()]
@@ -199,7 +199,7 @@ def new_category():
 
 @product_code_bp.route('/categories/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
-@admin_required
+@product_manager_required
 def edit_category(id):
     category = ProductCategory.query.get_or_404(id)
     # 获取所有已使用的标识符（除了当前分类的标识符）
@@ -276,7 +276,7 @@ def edit_category(id):
 
 @product_code_bp.route('/categories/<int:id>/delete', methods=['POST'])
 @login_required
-@admin_required
+@product_manager_required
 def delete_category(id):
     from flask import request
     from flask_wtf.csrf import validate_csrf
@@ -313,7 +313,7 @@ def delete_category(id):
 # 管理员视图 - 子类管理
 @product_code_bp.route('/categories/<int:id>/subcategories', methods=['GET'])
 @login_required
-@admin_required
+@product_manager_required
 def category_subcategories(id):
     category = ProductCategory.query.get_or_404(id)
     # 按display_order字段排序
@@ -344,7 +344,7 @@ def category_subcategories(id):
 
 @product_code_bp.route('/categories/<int:id>/subcategories/new', methods=['GET', 'POST'])
 @login_required
-@admin_required
+@product_manager_required
 def new_subcategory(id):
     category = ProductCategory.query.get_or_404(id)
     
@@ -429,7 +429,7 @@ def new_subcategory(id):
 
 @product_code_bp.route('/subcategories/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
-@admin_required
+@product_manager_required
 def edit_subcategory(id):
     subcategory = ProductSubcategory.query.get_or_404(id)
     
@@ -511,7 +511,7 @@ def edit_subcategory(id):
 
 @product_code_bp.route('/subcategories/<int:id>/delete', methods=['POST'])
 @login_required
-@admin_required
+@product_manager_required
 def delete_subcategory(id):
     from flask import request
     from flask_wtf.csrf import validate_csrf
@@ -549,7 +549,7 @@ def delete_subcategory(id):
 # 管理员视图 - 编码字段管理
 @product_code_bp.route('/subcategories/<int:id>/fields', methods=['GET'])
 @login_required
-@admin_required
+@product_manager_required
 def subcategory_fields(id):
     subcategory = ProductSubcategory.query.get_or_404(id)
     
@@ -586,7 +586,7 @@ def subcategory_fields(id):
 
 @product_code_bp.route('/subcategories/<int:id>/fields/new', methods=['GET', 'POST'])
 @login_required
-@admin_required
+@product_manager_required
 def new_field(id):
     try:
         subcategory = ProductSubcategory.query.get_or_404(id)
@@ -692,7 +692,7 @@ def new_field(id):
 
 @product_code_bp.route('/fields/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
-@admin_required
+@product_manager_required
 def edit_field(id):
     try:
         field = ProductCodeField.query.get_or_404(id)
@@ -761,7 +761,7 @@ def edit_field(id):
 
 @product_code_bp.route('/fields/<int:id>/delete', methods=['POST'])
 @login_required
-@admin_required
+@product_manager_required
 def delete_field(id):
     from flask import request
     from flask_wtf.csrf import validate_csrf
@@ -798,7 +798,7 @@ def delete_field(id):
 
 @product_code_bp.route('/fields/<int:id>/options', methods=['GET'])
 @login_required
-@admin_required
+@product_manager_required
 def field_options(id):
     """字段指标管理"""
     field = ProductCodeField.query.get_or_404(id)
@@ -828,7 +828,7 @@ def field_options(id):
 
 @product_code_bp.route('/options/<int:id>/delete', methods=['POST'])
 @login_required
-@admin_required
+@product_manager_required
 def delete_option(id):
     from flask import request
     from flask_wtf.csrf import validate_csrf
@@ -858,7 +858,7 @@ def delete_option(id):
 
 @product_code_bp.route('/fields/<int:id>/options/new', methods=['GET', 'POST'])
 @login_required
-@admin_required
+@product_manager_required
 def new_option(id):
     field = ProductCodeField.query.get_or_404(id)
     
@@ -935,7 +935,7 @@ def new_option(id):
 
 @product_code_bp.route('/options/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
-@admin_required
+@product_manager_required
 def edit_option(id):
     option = ProductCodeFieldOption.query.get_or_404(id)
     field = option.field
@@ -1127,7 +1127,7 @@ def api_products():
 
 @product_code_bp.route('/api/generate-letter', methods=['GET'])
 @login_required
-@admin_required
+@product_manager_required
 def api_generate_letter():
     """API端点：生成随机唯一分类标识符"""
     letter = generate_unique_letter()
@@ -1135,7 +1135,7 @@ def api_generate_letter():
 
 @product_code_bp.route('/api/generate-subcategory-letter', methods=['GET'])
 @login_required
-@admin_required
+@product_manager_required
 def api_generate_subcategory_letter():
     """API端点：生成随机唯一子类标识符"""
     category_id = request.args.get('category_id', type=int)
@@ -1148,7 +1148,7 @@ def api_generate_subcategory_letter():
 # 产地区管理 - 独立于分类系统
 @product_code_bp.route('/origin-fields', methods=['GET'])
 @login_required
-@admin_required
+@product_manager_required
 def origin_fields():
     """所有销售区域的管理"""
     try:
@@ -1185,7 +1185,7 @@ def origin_fields():
 
 @product_code_bp.route('/origin-fields/new', methods=['GET', 'POST'])
 @login_required
-@admin_required
+@product_manager_required
 def new_origin_field():
     """添加新销售区域"""
     if request.method == 'POST':
@@ -1264,7 +1264,7 @@ def new_origin_field():
 
 @product_code_bp.route('/origin-fields/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
-@admin_required
+@product_manager_required
 def edit_origin_field(id):
     """编辑销售区域"""
     try:
@@ -1316,7 +1316,7 @@ def edit_origin_field(id):
 
 @product_code_bp.route('/origin-fields/<int:id>/delete', methods=['POST'])
 @login_required
-@admin_required
+@product_manager_required
 def delete_origin_field(id):
     """删除销售区域"""
     from flask import request
@@ -1354,7 +1354,7 @@ def delete_origin_field(id):
 
 @product_code_bp.route('/categories/update-order', methods=['POST'])
 @login_required
-@admin_required
+@product_manager_required
 def update_categories_order():
     """更新产品分类顺序并重排ID"""
     try:
@@ -1474,7 +1474,7 @@ def update_categories_order():
 
 @product_code_bp.route('/api/subcategory/<int:id>/update-fields-order', methods=['POST'])
 @login_required
-@admin_required
+@product_manager_required
 def update_fields_order(id):
     """更新规格字段的顺序"""
     if not request.is_json:
@@ -1612,7 +1612,7 @@ def update_fields_order(id):
 
 @product_code_bp.route('/api/category/<int:id>/update-subcategories-order', methods=['POST'])
 @login_required
-@admin_required
+@product_manager_required
 def update_subcategories_order(id):
     """更新子类别顺序并重排ID"""
     try:

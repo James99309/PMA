@@ -59,57 +59,27 @@ class ListPerformanceOptimizer:
             return {field['name']: 0 for field in stat_fields}
     
     @staticmethod
-    def optimize_list_query(query, page=1, per_page=100, max_records=1000):
+    def optimize_list_query(query, max_records=1000):
         """
-        优化列表查询 - 添加分页和记录限制
+        优化列表查询 - 添加记录数限制，保持无限滚动功能
         
         Args:
             query: SQLAlchemy查询对象
-            page: 页码 (默认1)
-            per_page: 每页记录数 (默认100)
             max_records: 最大记录数限制 (默认1000)
         
         Returns:
             list: 查询结果列表
         """
         try:
-            # 计算偏移量
-            offset = (page - 1) * per_page
-            
             # 限制最大记录数，防止查询过多数据
-            limit = min(per_page, max_records - offset)
-            if limit <= 0:
-                return []
+            results = query.limit(max_records).all()
             
-            # 执行分页查询
-            results = query.offset(offset).limit(limit).all()
-            
-            logger.debug(f"列表查询优化: 页码={page}, 每页={per_page}, 返回={len(results)}条")
+            logger.debug(f"列表查询优化: 返回={len(results)}条记录，最大限制={max_records}")
             return results
             
         except Exception as e:
             logger.error(f"列表查询失败: {e}")
             return []
-    
-    @staticmethod
-    def get_pagination_params():
-        """
-        从请求参数中获取分页参数
-        
-        Returns:
-            tuple: (page, per_page)
-        """
-        try:
-            page = max(1, int(request.args.get('page', 1)))
-        except (ValueError, TypeError):
-            page = 1
-            
-        try:
-            per_page = min(200, max(10, int(request.args.get('per_page', 50))))
-        except (ValueError, TypeError):
-            per_page = 50
-            
-        return page, per_page
     
     @staticmethod 
     def optimize_search_query(query, model, search_term, search_fields):
