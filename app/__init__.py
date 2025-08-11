@@ -277,6 +277,10 @@ def create_app(config_class=Config):
     from app.models.projectpm_statistics import ProjectStatistics
     from app.models.change_log import ChangeLog
     from app.models.company_asset import CompanyAsset
+    from app.models.performance_config import (
+        PerformanceMetricsDefinition, RolePerformanceConfig, RolePerformanceItem,
+        PerformanceFormulaTemplate, RolePerformanceAccess
+    )
 
     # 导入所有视图
     from app.views import main, customer, project, auth, user_bp
@@ -286,6 +290,7 @@ def create_app(config_class=Config):
     from app.routes.projectpm_routes import bp as projectpm_bp
     from app.views.approval import approval_bp
     from app.views.approval_config import approval_config_bp
+    from app.views.performance_config import performance_config_bp
     
     # 导入新的API视图
     from app.api.v1 import api_v1_bp
@@ -337,6 +342,7 @@ def create_app(config_class=Config):
     app.register_blueprint(projectpm_bp, url_prefix='/projectpm')
     app.register_blueprint(approval_bp)
     app.register_blueprint(approval_config_bp)
+    app.register_blueprint(performance_config_bp)
     app.register_blueprint(pricing_order_bp, url_prefix='/pricing_order')  # 添加URL前缀
     csrf.exempt(pricing_order_bp)  # 豁免批价单蓝图的CSRF保护
     app.register_blueprint(inventory, url_prefix='/inventory')  # 注册库存管理蓝图

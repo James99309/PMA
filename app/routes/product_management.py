@@ -1109,13 +1109,24 @@ def save():
         
         # 获取区域编码
         region_code = '0'  # 默认为0
+        actual_region_id = None  # 用于保存到product_regions表的实际ID
+        
         if region_id:
-            # 获取区域选项
-            region_options = ProductCodeFieldOption.query.filter_by(id=region_id).first()
-            if region_options:
-                region_code = region_options.code
+            # 从ProductCodeField查询区域编码（用于MN编码生成）
+            region_field = ProductCodeField.query.filter_by(id=region_id).first()
+            if region_field:
+                region_code = region_field.code if region_field.code else '0'
+                current_app.logger.debug(f"找到区域字段 '{region_field.name}' ID: {region_id}, 编码: {region_code}")
+                
+                # 根据区域名称找到product_regions表中对应的ID
+                matching_region = ProductRegion.query.filter_by(name=region_field.name).first()
+                if matching_region:
+                    actual_region_id = matching_region.id
+                    current_app.logger.debug(f"匹配到product_regions中的区域ID: {actual_region_id}")
+                else:
+                    current_app.logger.warning(f"在product_regions表中未找到匹配的区域: {region_field.name}")
             else:
-                current_app.logger.warning(f"无法找到区域选项ID {region_id}的编码，使用默认值'0'")
+                current_app.logger.warning(f"无法找到区域字段ID {region_id}的编码，使用默认值'0'")
         
         # 生成MN编码
         mn_code = None
@@ -1212,7 +1223,7 @@ def save():
         new_product = DevProduct(
             category_id=category_id,
             subcategory_id=subcategory_id,
-            region_id=region_id if region_id else None,
+            region_id=actual_region_id,  # 使用匹配后的正确region_id
             name=name,
             model=model,
             description=description,
@@ -1538,12 +1549,12 @@ def update_product(id):
             category = ProductCategory.query.get(dev_product.category_id)
             subcategory = ProductSubcategory.query.get(dev_product.subcategory_id)
             
-            # 获取区域编码
+            # 获取区域编码 - 修复：从product_regions表获取
             region_code = '0'  # 默认为0
             if dev_product.region_id:
-                region_options = ProductCodeFieldOption.query.filter_by(id=dev_product.region_id).first()
-                if region_options:
-                    region_code = region_options.code
+                region = ProductRegion.query.filter_by(id=dev_product.region_id).first()
+                if region:
+                    region_code = region.code_letter
             
             # 获取规格编码（从产品关联的规格中获取）
             spec_codes = []

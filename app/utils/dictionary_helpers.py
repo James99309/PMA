@@ -580,4 +580,25 @@ def user_label(user_id, users_dict=None):
     # 如果没有传入用户字典，则返回用户ID
     return str(user_id)
 
+def get_role_display_name_from_dict(role_key, roles_dict=None):
+    """
+    从提供的角色字典获取角色显示名称，如果没有提供字典则从数据库查询
+    
+    参数:
+        role_key: 角色键名
+        roles_dict: 角色字典，可选，格式为 {role_key: display_name}
+        
+    返回:
+        角色显示名称
+    """
+    if not role_key:
+        return '未知角色'
+    
+    # 如果提供了字典，优先使用
+    if roles_dict and role_key in roles_dict:
+        return roles_dict[role_key]
+    
+    # 否则使用原有的数据库查询方法
+    return get_role_display_name(role_key)
+
 # TODO: 可扩展更多字典类型的获取方法 

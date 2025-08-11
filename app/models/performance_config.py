@@ -1,0 +1,424 @@
+from app import db
+import time
+from datetime import datetime
+from sqlalchemy import Column, Integer, String, DateTime, Text, Numeric, ForeignKey, JSON, Boolean
+from sqlalchemy.orm import relationship
+from sqlalchemy.ext.hybrid import hybrid_property
+import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+class PerformanceMetricsDefinition(db.Model):
+    """绩效指标定义表 - 定义系统中所有可用的绩效指标"""
+    __tablename__ = 'performance_metrics_definition'
+    
+    id = Column(Integer, primary_key=True)
+    metric_code = Column(String(50), unique=True, nullable=False, index=True)
+    metric_name = Column(String(100), nullable=False)
+    metric_category = Column(String(50), default='custom')
+    data_type = Column(String(20), nullable=False)  # amount, count, percentage, score
+    default_unit = Column(String(20))
+    description = Column(Text)
+    available_sources = Column(JSON)  # 可用数据源配置
+    is_system_metric = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def __init__(self, **kwargs):
+        super(PerformanceMetricsDefinition, self).__init__(**kwargs)
+        if not self.created_at:
+            self.created_at = datetime.utcnow()
+        self.updated_at = datetime.utcnow()
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'metric_code': self.metric_code,
+            'metric_name': self.metric_name,
+            'metric_category': self.metric_category,
+            'data_type': self.data_type,
+            'default_unit': self.default_unit,
+            'description': self.description,
+            'available_sources': self.available_sources,
+            'is_system_metric': self.is_system_metric,
+            'is_active': self.is_active
+        }
+
+class RolePerformanceConfig(db.Model):
+    """角色绩效配置主表 - 每个角色的绩效配置方案"""
+    __tablename__ = 'role_performance_config'
+    
+    id = Column(Integer, primary_key=True)
+    role = Column(String(50), nullable=False, unique=True, index=True)
+    config_name = Column(String(100))
+    description = Column(Text)
+    is_active = Column(Boolean, default=True)
+    created_by = Column(Integer, ForeignKey('users.id'))
+    updated_by = Column(Integer, ForeignKey('users.id'))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # 关系
+    creator = relationship('User', foreign_keys=[created_by])
+    updater = relationship('User', foreign_keys=[updated_by])
+    items = relationship('RolePerformanceItem', backref='role_config', 
+                        cascade='all, delete-orphan', lazy='dynamic')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'role': self.role,
+            'config_name': self.config_name,
+            'description': self.description,
+            'is_active': self.is_active,
+            'created_by': self.created_by,
+            'updated_by': self.updated_by,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+class RolePerformanceItem(db.Model):
+    """角色绩效项目表 - 每个角色具体的绩效考核项目"""
+    __tablename__ = 'role_performance_items'
+    
+    id = Column(Integer, primary_key=True)
+    role_config_id = Column(Integer, ForeignKey('role_performance_config.id'), nullable=False)
+    metric_id = Column(Integer, ForeignKey('performance_metrics_definition.id'))
+    
+    # 项目基本配置
+    item_name = Column(String(100), nullable=False)
+    item_code = Column(String(50), nullable=False)
+    sort_order = Column(Integer, default=0)
+    is_enabled = Column(Boolean, default=True)
+    
+    # 统计范围配置
+    stat_scope = Column(String(20), nullable=False, default='personal')
+    stat_scope_description = Column(Text)
+    
+    # 计算方法配置
+    calculation_method = Column(String(20), default='sum')
+    calculation_formula = Column(Text)
+    data_source_config = Column(JSON)
+    
+    # 合格标准配置
+    qualification_rate = Column(Numeric(5,2))
+    excellent_threshold = Column(Numeric(15,2))
+    good_threshold = Column(Numeric(15,2))
+    qualified_threshold = Column(Numeric(15,2))
+    
+    # 显示配置
+    display_unit = Column(String(20))
+    decimal_places = Column(Integer, default=2)
+    color_config = Column(JSON)
+    
+    # 权重配置
+    weight = Column(Numeric(5,2), default=1.0)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # 关系
+    metric = relationship('PerformanceMetricsDefinition', backref='role_items')
+    
+    __table_args__ = (
+        db.UniqueConstraint('role_config_id', 'item_code', name='uq_role_item_code'),
+        db.Index('idx_role_items_config', 'role_config_id'),
+        db.Index('idx_role_items_metric', 'metric_id'),
+    )
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'role_config_id': self.role_config_id,
+            'metric_id': self.metric_id,
+            'item_name': self.item_name,
+            'item_code': self.item_code,
+            'sort_order': self.sort_order,
+            'is_enabled': self.is_enabled,
+            'stat_scope': self.stat_scope,
+            'stat_scope_description': self.stat_scope_description,
+            'calculation_method': self.calculation_method,
+            'calculation_formula': self.calculation_formula,
+            'data_source_config': self.data_source_config,
+            'qualification_rate': float(self.qualification_rate) if self.qualification_rate else None,
+            'excellent_threshold': float(self.excellent_threshold) if self.excellent_threshold else None,
+            'good_threshold': float(self.good_threshold) if self.good_threshold else None,
+            'qualified_threshold': float(self.qualified_threshold) if self.qualified_threshold else None,
+            'display_unit': self.display_unit,
+            'decimal_places': self.decimal_places,
+            'color_config': self.color_config,
+            'weight': float(self.weight) if self.weight else 1.0,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+class PerformanceFormulaTemplate(db.Model):
+    """绩效计算公式模板表 - 预定义的常用计算公式"""
+    __tablename__ = 'performance_formula_templates'
+    
+    id = Column(Integer, primary_key=True)
+    template_name = Column(String(100), nullable=False)
+    template_category = Column(String(50))
+    formula_expression = Column(Text, nullable=False)
+    description = Column(Text)
+    variables_definition = Column(JSON)  # 变量定义
+    example_usage = Column(Text)
+    is_system_template = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'template_name': self.template_name,
+            'template_category': self.template_category,
+            'formula_expression': self.formula_expression,
+            'description': self.description,
+            'variables_definition': self.variables_definition,
+            'example_usage': self.example_usage,
+            'is_system_template': self.is_system_template,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+class RolePerformanceAccess(db.Model):
+    """角色绩效数据访问权限表 - 控制不同角色的数据访问范围"""
+    __tablename__ = 'role_performance_access'
+    
+    id = Column(Integer, primary_key=True)
+    role = Column(String(50), nullable=False, index=True)
+    access_scope = Column(String(20), nullable=False)  # personal, department, company, system
+    access_conditions = Column(JSON)  # 访问条件配置
+    description = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (
+        db.UniqueConstraint('role', 'access_scope', name='uq_role_access_scope'),
+        db.Index('idx_role_access', 'role', 'access_scope'),
+    )
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'role': self.role,
+            'access_scope': self.access_scope,
+            'access_conditions': self.access_conditions,
+            'description': self.description,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+# 扩展原有的绩效服务类，支持基于角色配置的动态计算
+class ConfigurablePerformanceService:
+    """基于角色配置的绩效计算服务"""
+    
+    @staticmethod
+    def get_role_performance_config(role_code):
+        """获取角色的绩效配置"""
+        config = RolePerformanceConfig.query.filter_by(
+            role=role_code, 
+            is_active=True
+        ).first()
+        
+        if not config:
+            return None
+        
+        items = RolePerformanceItem.query.filter_by(
+            role_config_id=config.id,
+            is_enabled=True
+        ).order_by(RolePerformanceItem.sort_order).all()
+        
+        return {
+            'config': config,
+            'items': items
+        }
+    
+    @staticmethod
+    def calculate_performance_by_config(user_id, role_code, year, month):
+        """基于角色配置计算绩效数据"""
+        # 获取角色配置
+        role_config = ConfigurablePerformanceService.get_role_performance_config(role_code)
+        if not role_config:
+            return {}
+        
+        results = {}
+        
+        # 遍历配置的绩效项目
+        for item in role_config['items']:
+            try:
+                # 根据统计范围确定用户范围
+                user_ids = ConfigurablePerformanceService.get_user_ids_by_scope(
+                    user_id, item.stat_scope
+                )
+                
+                # 根据计算方法计算值
+                value = ConfigurablePerformanceService.calculate_item_value(
+                    item, user_ids, year, month
+                )
+                
+                results[item.item_code] = {
+                    'value': value,
+                    'item_name': item.item_name,
+                    'display_unit': item.display_unit,
+                    'thresholds': {
+                        'excellent': float(item.excellent_threshold) if item.excellent_threshold else None,
+                        'good': float(item.good_threshold) if item.good_threshold else None,
+                        'qualified': float(item.qualified_threshold) if item.qualified_threshold else None
+                    },
+                    'achievement_rate': ConfigurablePerformanceService.calculate_achievement_rate(
+                        value, item.qualified_threshold
+                    ) if item.qualified_threshold else 0
+                }
+                
+            except Exception as e:
+                import logging
+                logging.error(f"计算绩效项目失败 {item.item_code}: {e}")
+                results[item.item_code] = {
+                    'value': 0,
+                    'item_name': item.item_name,
+                    'error': str(e)
+                }
+        
+        return results
+    
+    @staticmethod
+    def get_user_ids_by_scope(base_user_id, scope):
+        """根据统计范围获取用户ID列表"""
+        from app.models.user import User
+        
+        if scope == 'personal':
+            return [base_user_id]
+        elif scope == 'department':
+            # 获取同部门用户
+            base_user = User.query.get(base_user_id)
+            if not base_user or not base_user.department:
+                return [base_user_id]
+            
+            dept_users = User.query.filter_by(
+                department=base_user.department,
+                company_name=base_user.company_name
+            ).all()
+            return [u.id for u in dept_users]
+        elif scope == 'company':
+            # 获取同公司用户
+            base_user = User.query.get(base_user_id)
+            if not base_user or not base_user.company_name:
+                return [base_user_id]
+            
+            company_users = User.query.filter_by(
+                company_name=base_user.company_name
+            ).all()
+            return [u.id for u in company_users]
+        elif scope == 'system':
+            # 获取所有用户
+            all_users = User.query.all()
+            return [u.id for u in all_users]
+        else:
+            return [base_user_id]
+    
+    @staticmethod
+    def calculate_item_value(item, user_ids, year, month):
+        """计算单个绩效项目的值"""
+        from sqlalchemy import extract, func, text
+        
+        try:
+            # 解析数据源配置
+            data_source = item.data_source_config or {}
+            table_name = data_source.get('table', 'quotations')  # 默认表
+            
+            # 根据计算方法和数据源进行查询
+            if item.calculation_method == 'custom' and item.calculation_formula:
+                # 自定义公式计算
+                return ConfigurablePerformanceService.execute_custom_formula(
+                    item.calculation_formula, user_ids, year, month
+                )
+            else:
+                # 标准计算方法
+                return ConfigurablePerformanceService.execute_standard_calculation(
+                    item.calculation_method, table_name, user_ids, year, month
+                )
+                
+        except Exception as e:
+            import logging
+            logging.error(f"计算项目值失败 {item.item_code}: {e}")
+            return 0.0
+    
+    @staticmethod
+    def execute_standard_calculation(method, table_name, user_ids, year, month):
+        """执行标准计算方法"""
+        # 这里可以根据不同的表和方法实现具体的查询逻辑
+        # 为了简化，这里提供一个示例实现
+        
+        if table_name == 'quotations':
+            from app.models.quotation import Quotation, QuotationDetail
+            
+            query = db.session.query(QuotationDetail).join(Quotation).filter(
+                Quotation.owner_id.in_(user_ids),
+                extract('year', Quotation.created_at) == year,
+                extract('month', Quotation.created_at) == month
+            )
+            
+            if method == 'sum':
+                # 计算总金额
+                total = query.with_entities(
+                    func.sum(QuotationDetail.quantity * QuotationDetail.market_price)
+                ).scalar()
+                return float(total or 0)
+            elif method == 'count':
+                return query.count()
+            elif method == 'avg':
+                total = query.with_entities(
+                    func.avg(QuotationDetail.quantity * QuotationDetail.market_price)
+                ).scalar()
+                return float(total or 0)
+        
+        elif table_name == 'pricing_orders':
+            from app.models.pricing_order import PricingOrder
+            
+            query = db.session.query(PricingOrder).filter(
+                PricingOrder.created_by.in_(user_ids),
+                PricingOrder.status == 'approved',
+                extract('year', PricingOrder.approved_at) == year,
+                extract('month', PricingOrder.approved_at) == month
+            )
+            
+            if method == 'sum':
+                total = query.with_entities(
+                    func.sum(PricingOrder.pricing_total_amount)
+                ).scalar()
+                return float(total or 0)
+            elif method == 'count':
+                return query.count()
+        
+        # 默认返回0
+        return 0.0
+    
+    @staticmethod
+    def execute_custom_formula(formula, user_ids, year, month):
+        """执行自定义公式（简化版实现）"""
+        # 这里可以实现一个公式解析器
+        # 为了安全性，建议使用受限的表达式解析器
+        try:
+            # 简化实现：替换常用变量并计算
+            # 实际实现应该使用更安全的公式解析器
+            context = {
+                'user_ids': user_ids,
+                'year': year,
+                'month': month
+            }
+            
+            # 这里只是示例，实际需要实现安全的公式解析
+            # 可以考虑使用专门的表达式引擎如 simpleeval
+            return 0.0
+            
+        except Exception as e:
+            import logging
+            logging.error(f"执行自定义公式失败: {e}")
+            return 0.0
+    
+    @staticmethod
+    def calculate_achievement_rate(actual_value, target_value):
+        """计算达成率"""
+        if not target_value or target_value == 0:
+            return 0.0
+        
+        return round((float(actual_value) / float(target_value)) * 100, 2)

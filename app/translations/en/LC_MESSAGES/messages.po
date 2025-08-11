@@ -3620,3 +3620,6 @@ msgstr "Replied"
 
 msgid "无回复"
 msgstr "No Reply"
+
+msgid "绩效配置"
+msgstr "Performance Configuration"

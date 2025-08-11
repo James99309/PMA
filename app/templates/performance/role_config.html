@@ -1,0 +1,919 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button, render_confirm_cancel, render_top_notification %}
+
+{# 设置语言变量 #}
+{% set is_chinese = session.get('language', 'zh') == 'zh' %}
+
+{% block title %}角色绩效配置{% endblock %}
+
+{% block content %}
+<!-- 标准化顶部提示组件 -->
+{{ render_top_notification() }}
+
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 页面头部 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">
+                    <i class="fas fa-users-cog me-2"></i>
+                    角色绩效配置
+                </h1>
+                <p class="text-muted mb-0 mt-1">为不同角色配置专属的绩效考核方案</p>
+            </div>
+            <div class="col text-end">
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    {{ render_button(
+                        text='保存配置',
+                        color='success',
+                        icon='fas fa-save',
+                        onclick='saveRoleConfig()',
+                        id='saveConfigBtn'
+                    ) }}
+                    {{ render_button(
+                        text='预览效果',
+                        color='info',
+                        icon='fas fa-eye',
+                        onclick='previewConfig()',
+                        extra_class='ms-2'
+                    ) }}
+                    {{ render_button(
+                        text='返回',
+                        href=url_for('performance.index'),
+                        color='secondary',
+                        icon='fas fa-arrow-left',
+                        extra_class='ms-2'
+                    ) }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- 左侧角色列表 -->
+        <div class="col-md-3">
+            <div class="card role-selector-card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-user-tag me-2"></i>选择角色
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush role-list">
+                        {% for role_info in available_roles %}
+                        <a href="#" class="list-group-item list-group-item-action role-item {% if loop.first %}active{% endif %}" 
+                           data-role="{{ role_info.role_code }}" onclick="switchRole('{{ role_info.role_code }}')">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-medium">{{ role_info.display_name }}</div>
+                                    <small class="text-muted">{{ role_info.role_code }}</small>
+                                </div>
+                                <div class="role-status">
+                                    {% if role_info.has_config %}
+                                        <span class="badge bg-success">已配置</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">待配置</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧配置面板 -->
+        <div class="col-md-9">
+            <div class="card config-panel-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-cogs me-2"></i>
+                        <span id="current-role-name">销售总监</span> - 绩效配置
+                    </h5>
+                    <div class="config-actions">
+                        <button type="button" class="btn btn-outline-primary btn-sm me-2" onclick="addPerformanceItem()">
+                            <i class="fas fa-plus me-1"></i>添加项目
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="importTemplate()">
+                            <i class="fas fa-download me-1"></i>导入模板
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- 配置基本信息 -->
+                    <div class="config-basic-info mb-4">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">配置方案名称</label>
+                                <input type="text" class="form-control" id="configName" placeholder="如：销售总监绩效方案">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">数据访问范围</label>
+                                <select class="form-select" id="accessScope">
+                                    <option value="personal">个人数据</option>
+                                    <option value="department">部门数据</option>
+                                    <option value="company">企业数据</option>
+                                    <option value="system">系统数据</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <label class="form-label">配置说明</label>
+                                <textarea class="form-control" id="configDescription" rows="2" placeholder="简要说明此角色的绩效考核重点和特色"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 绩效项目配置区域 -->
+                    <div class="performance-items-container">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="section-title mb-0">
+                                <i class="fas fa-chart-bar me-2"></i>绩效考核项目
+                            </h6>
+                            <span class="badge bg-info" id="items-count">共 0 项</span>
+                        </div>
+
+                        <!-- 绩效项目列表 -->
+                        <div id="performance-items-list" class="performance-items-list">
+                            <!-- 项目卡片将在这里动态生成 -->
+                        </div>
+
+                        <!-- 空状态提示 -->
+                        <div id="empty-state" class="empty-state text-center py-5">
+                            <i class="fas fa-chart-bar fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">暂无绩效项目</h5>
+                            <p class="text-muted">点击"添加项目"开始配置此角色的绩效考核方案</p>
+                            <button type="button" class="btn btn-primary" onclick="addPerformanceItem()">
+                                <i class="fas fa-plus me-2"></i>添加第一个项目
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 绩效项目编辑模态框 -->
+<div class="modal fade" id="performanceItemModal" tabindex="-1" aria-labelledby="performanceItemModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="performanceItemModalLabel">
+                    <i class="fas fa-edit me-2"></i>编辑绩效项目
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="performanceItemForm">
+                    <input type="hidden" id="itemId" name="itemId">
+                    
+                    <!-- 基本信息 -->
+                    <div class="section-group mb-4">
+                        <h6 class="section-subtitle">
+                            <i class="fas fa-info-circle me-2"></i>基本信息
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label required">项目名称</label>
+                                <input type="text" class="form-control" id="itemName" name="itemName" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label required">项目代码</label>
+                                <input type="text" class="form-control" id="itemCode" name="itemCode" required>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-4">
+                                <label class="form-label">显示顺序</label>
+                                <input type="number" class="form-control" id="sortOrder" name="sortOrder" min="1" value="1">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">权重</label>
+                                <input type="number" class="form-control" id="weight" name="weight" min="0" step="0.1" value="1.0">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">状态</label>
+                                <select class="form-select" id="isEnabled" name="isEnabled">
+                                    <option value="true">启用</option>
+                                    <option value="false">禁用</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 统计配置 -->
+                    <div class="section-group mb-4">
+                        <h6 class="section-subtitle">
+                            <i class="fas fa-chart-line me-2"></i>统计配置
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label required">统计范围</label>
+                                <select class="form-select" id="statScope" name="statScope" required>
+                                    <option value="personal">个人 - 仅统计个人数据</option>
+                                    <option value="department">部门 - 统计部门成员数据</option>
+                                    <option value="company">企业 - 统计企业所有数据</option>
+                                    <option value="system">系统 - 统计系统全部数据</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">基础指标</label>
+                                <select class="form-select" id="baseMetric" name="baseMetric">
+                                    <option value="">请选择基础指标...</option>
+                                    <option value="sales_amount">销售金额</option>
+                                    <option value="implant_amount">植入金额</option>
+                                    <option value="customer_count">新增客户数</option>
+                                    <option value="project_count">新增项目数</option>
+                                    <option value="custom">自定义</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 计算方法配置 -->
+                    <div class="section-group mb-4">
+                        <h6 class="section-subtitle">
+                            <i class="fas fa-calculator me-2"></i>计算方法
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">计算方式</label>
+                                <select class="form-select" id="calculationMethod" name="calculationMethod" onchange="toggleFormulaInput()">
+                                    <option value="sum">求和 (SUM)</option>
+                                    <option value="avg">平均 (AVG)</option>
+                                    <option value="count">计数 (COUNT)</option>
+                                    <option value="max">最大值 (MAX)</option>
+                                    <option value="min">最小值 (MIN)</option>
+                                    <option value="custom">自定义公式</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">数据表</label>
+                                <select class="form-select" id="dataTable" name="dataTable">
+                                    <option value="quotations">报价单 (quotations)</option>
+                                    <option value="pricing_orders">批价单 (pricing_orders)</option>
+                                    <option value="companies">客户公司 (companies)</option>
+                                    <option value="projects">项目 (projects)</option>
+                                    <option value="custom">其他表</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- 自定义公式输入区域 -->
+                        <div class="row mt-3" id="formulaSection" style="display: none;">
+                            <div class="col-12">
+                                <label class="form-label">自定义公式</label>
+                                <textarea class="form-control formula-input" id="calculationFormula" name="calculationFormula" 
+                                          rows="3" placeholder="如：sales_amount * 0.8 + bonus_amount&#10;支持的函数：SUM, AVG, COUNT, MAX, MIN&#10;支持的运算符：+, -, *, /, (, )"></textarea>
+                                <small class="form-text text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    示例：<code>SUM(pricing_orders.pricing_total_amount) WHERE status = 'approved'</code>
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- 快速公式模板 -->
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <label class="form-label">快速模板</label>
+                                <div class="btn-group-toggle" data-bs-toggle="buttons">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm me-2" onclick="useTemplate('sales_sum')">
+                                        销售金额统计
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm me-2" onclick="useTemplate('customer_growth')">
+                                        客户增长率
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm me-2" onclick="useTemplate('comprehensive_score')">
+                                        综合评分
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 合格标准配置 -->
+                    <div class="section-group mb-4">
+                        <h6 class="section-subtitle">
+                            <i class="fas fa-medal me-2"></i>合格标准
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label class="form-label">优秀阈值</label>
+                                <input type="number" class="form-control threshold-input excellent" id="excellentThreshold" name="excellentThreshold" step="0.01">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">良好阈值</label>
+                                <input type="number" class="form-control threshold-input good" id="goodThreshold" name="goodThreshold" step="0.01">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">合格阈值</label>
+                                <input type="number" class="form-control threshold-input qualified" id="qualifiedThreshold" name="qualifiedThreshold" step="0.01">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">合格率 (%)</label>
+                                <input type="number" class="form-control" id="qualificationRate" name="qualificationRate" min="0" max="100" step="1" value="80">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 显示配置 -->
+                    <div class="section-group">
+                        <h6 class="section-subtitle">
+                            <i class="fas fa-palette me-2"></i>显示配置
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label class="form-label">显示单位</label>
+                                <select class="form-select" id="displayUnit" name="displayUnit">
+                                    <option value="元">元</option>
+                                    <option value="万元">万元</option>
+                                    <option value="个">个</option>
+                                    <option value="%">%</option>
+                                    <option value="分">分</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">小数位数</label>
+                                <input type="number" class="form-control" id="decimalPlaces" name="decimalPlaces" min="0" max="4" value="2">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">图标</label>
+                                <select class="form-select" id="displayIcon" name="displayIcon">
+                                    <option value="fas fa-dollar-sign">💰 金额</option>
+                                    <option value="fas fa-users">👥 客户</option>
+                                    <option value="fas fa-project-diagram">📊 项目</option>
+                                    <option value="fas fa-chart-line">📈 趋势</option>
+                                    <option value="fas fa-trophy">🏆 成就</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                {{ render_confirm_cancel(
+                    confirm_text='保存项目',
+                    confirm_onclick='savePerformanceItem()',
+                    cancel_text='取消'
+                ) }}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block styles %}
+<style>
+.page-title {
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+.role-selector-card {
+    position: sticky;
+    top: 20px;
+}
+
+.role-item {
+    border: none;
+    transition: all 0.2s ease;
+}
+
+.role-item:hover {
+    background-color: #f8f9fa;
+    transform: translateX(2px);
+}
+
+.role-item.active {
+    background-color: #e3f2fd;
+    border-left: 4px solid #2196f3;
+    font-weight: 500;
+}
+
+.role-status .badge {
+    font-size: 0.7rem;
+}
+
+.config-panel-card {
+    min-height: 600px;
+}
+
+.section-title {
+    color: #495057;
+    font-weight: 600;
+}
+
+.section-subtitle {
+    color: #6c757d;
+    font-weight: 500;
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.section-group {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 1.5rem;
+    border: 1px solid #e9ecef;
+}
+
+.performance-items-list {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.performance-item-card {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    transition: all 0.2s ease;
+}
+
+.performance-item-card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transform: translateY(-1px);
+}
+
+.performance-item-card .card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    padding: 0.75rem 1rem;
+}
+
+.performance-item-card .card-body {
+    padding: 1rem;
+}
+
+.item-status {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.threshold-input.excellent {
+    border-left: 4px solid #28a745;
+}
+
+.threshold-input.good {
+    border-left: 4px solid #17a2b8;
+}
+
+.threshold-input.qualified {
+    border-left: 4px solid #ffc107;
+}
+
+.formula-input {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.9rem;
+    background-color: #f8f9fa;
+    border: 1px solid #ced4da;
+}
+
+.empty-state {
+    background-color: #f8f9fa;
+    border-radius: 12px;
+    border: 2px dashed #dee2e6;
+}
+
+.required::after {
+    content: " *";
+    color: #dc3545;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .col-md-3 {
+        margin-bottom: 1rem;
+    }
+    
+    .role-selector-card {
+        position: static;
+    }
+    
+    .config-actions {
+        margin-top: 1rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 当前选中的角色
+let currentRole = '{{ available_roles[0].role_code if available_roles else "sales_director" }}';
+let performanceItems = [];
+let itemEditIndex = -1;
+
+// 页面初始化
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('角色绩效配置页面初始化...');
+    loadRoleConfig(currentRole);
+});
+
+// 切换角色
+function switchRole(roleCode) {
+    if (roleCode === currentRole) return;
+    
+    console.log('切换到角色:', roleCode);
+    currentRole = roleCode;
+    
+    // 更新界面状态
+    document.querySelectorAll('.role-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    document.querySelector(`[data-role="${roleCode}"]`).classList.add('active');
+    
+    // 加载角色配置
+    loadRoleConfig(roleCode);
+}
+
+// 加载角色配置
+function loadRoleConfig(roleCode) {
+    console.log('加载角色配置:', roleCode);
+    
+    // 更新角色名称显示
+    const roleItem = document.querySelector(`[data-role="${roleCode}"]`);
+    const roleName = roleItem ? roleItem.querySelector('.fw-medium').textContent : roleCode;
+    document.getElementById('current-role-name').textContent = roleName;
+    
+    // 模拟加载配置数据（实际应该从后端API获取）
+    setTimeout(() => {
+        loadMockConfig(roleCode);
+        renderPerformanceItems();
+    }, 300);
+}
+
+// 加载模拟配置数据
+function loadMockConfig(roleCode) {
+    // 根据不同角色返回不同的默认配置
+    const mockConfigs = {
+        'sales_director': {
+            configName: '销售总监绩效方案',
+            accessScope: 'department',
+            description: '主要考核销售团队整体业绩和团队管理能力',
+            items: [
+                {
+                    id: 1,
+                    itemName: '团队销售金额',
+                    itemCode: 'team_sales',
+                    statScope: 'department',
+                    calculationMethod: 'sum',
+                    excellentThreshold: 500,
+                    goodThreshold: 300,
+                    qualifiedThreshold: 200,
+                    qualificationRate: 80,
+                    weight: 0.4
+                },
+                {
+                    id: 2,
+                    itemName: '团队客户增长',
+                    itemCode: 'team_customers',
+                    statScope: 'department',
+                    calculationMethod: 'count',
+                    excellentThreshold: 20,
+                    goodThreshold: 15,
+                    qualifiedThreshold: 10,
+                    qualificationRate: 75,
+                    weight: 0.3
+                }
+            ]
+        },
+        'product_manager': {
+            configName: '产品经理绩效方案',
+            accessScope: 'company',
+            description: '主要考核产品规划、市场表现和创新能力',
+            items: [
+                {
+                    id: 1,
+                    itemName: '产品植入金额',
+                    itemCode: 'product_implant',
+                    statScope: 'company',
+                    calculationMethod: 'sum',
+                    excellentThreshold: 1000,
+                    goodThreshold: 600,
+                    qualifiedThreshold: 400,
+                    qualificationRate: 85,
+                    weight: 0.5
+                }
+            ]
+        }
+    };
+    
+    const config = mockConfigs[roleCode] || {
+        configName: `${roleCode}绩效方案`,
+        accessScope: 'personal',
+        description: '待配置的绩效方案',
+        items: []
+    };
+    
+    // 填充界面
+    document.getElementById('configName').value = config.configName;
+    document.getElementById('accessScope').value = config.accessScope;
+    document.getElementById('configDescription').value = config.description;
+    
+    performanceItems = config.items;
+    updateItemsCount();
+}
+
+// 渲染绩效项目列表
+function renderPerformanceItems() {
+    const container = document.getElementById('performance-items-list');
+    const emptyState = document.getElementById('empty-state');
+    
+    if (performanceItems.length === 0) {
+        container.innerHTML = '';
+        emptyState.style.display = 'block';
+        return;
+    }
+    
+    emptyState.style.display = 'none';
+    
+    const itemsHtml = performanceItems.map((item, index) => `
+        <div class="card performance-item-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-grip-vertical text-muted me-2" style="cursor: move;"></i>
+                    <strong>${item.itemName}</strong>
+                    <span class="badge bg-secondary ms-2">${item.itemCode}</span>
+                </div>
+                <div class="item-actions">
+                    <button type="button" class="btn btn-outline-primary btn-sm me-1" onclick="editPerformanceItem(${index})">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="deletePerformanceItem(${index})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <small class="text-muted">统计范围</small>
+                        <div class="fw-medium">${getScopeDisplayName(item.statScope)}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted">计算方式</small>
+                        <div class="fw-medium">${getMethodDisplayName(item.calculationMethod)}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted">合格标准</small>
+                        <div class="fw-medium">${item.qualifiedThreshold || '未设置'}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted">权重</small>
+                        <div class="fw-medium">${item.weight || 1.0}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    container.innerHTML = itemsHtml;
+}
+
+// 获取范围显示名称
+function getScopeDisplayName(scope) {
+    const names = {
+        'personal': '个人',
+        'department': '部门', 
+        'company': '企业',
+        'system': '系统'
+    };
+    return names[scope] || scope;
+}
+
+// 获取方法显示名称
+function getMethodDisplayName(method) {
+    const names = {
+        'sum': '求和',
+        'avg': '平均',
+        'count': '计数',
+        'max': '最大值',
+        'min': '最小值',
+        'custom': '自定义'
+    };
+    return names[method] || method;
+}
+
+// 更新项目数量
+function updateItemsCount() {
+    document.getElementById('items-count').textContent = `共 ${performanceItems.length} 项`;
+}
+
+// 添加绩效项目
+function addPerformanceItem() {
+    itemEditIndex = -1;
+    document.getElementById('performanceItemModalLabel').innerHTML = '<i class="fas fa-plus me-2"></i>添加绩效项目';
+    
+    // 重置表单
+    document.getElementById('performanceItemForm').reset();
+    document.getElementById('itemId').value = '';
+    
+    // 显示模态框
+    new bootstrap.Modal(document.getElementById('performanceItemModal')).show();
+}
+
+// 编辑绩效项目
+function editPerformanceItem(index) {
+    itemEditIndex = index;
+    const item = performanceItems[index];
+    
+    document.getElementById('performanceItemModalLabel').innerHTML = '<i class="fas fa-edit me-2"></i>编辑绩效项目';
+    
+    // 填充表单
+    document.getElementById('itemId').value = item.id || '';
+    document.getElementById('itemName').value = item.itemName || '';
+    document.getElementById('itemCode').value = item.itemCode || '';
+    document.getElementById('sortOrder').value = item.sortOrder || 1;
+    document.getElementById('weight').value = item.weight || 1.0;
+    document.getElementById('isEnabled').value = item.isEnabled !== false ? 'true' : 'false';
+    document.getElementById('statScope').value = item.statScope || 'personal';
+    document.getElementById('baseMetric').value = item.baseMetric || '';
+    document.getElementById('calculationMethod').value = item.calculationMethod || 'sum';
+    document.getElementById('dataTable').value = item.dataTable || 'quotations';
+    document.getElementById('calculationFormula').value = item.calculationFormula || '';
+    document.getElementById('excellentThreshold').value = item.excellentThreshold || '';
+    document.getElementById('goodThreshold').value = item.goodThreshold || '';
+    document.getElementById('qualifiedThreshold').value = item.qualifiedThreshold || '';
+    document.getElementById('qualificationRate').value = item.qualificationRate || 80;
+    document.getElementById('displayUnit').value = item.displayUnit || '元';
+    document.getElementById('decimalPlaces').value = item.decimalPlaces || 2;
+    document.getElementById('displayIcon').value = item.displayIcon || 'fas fa-dollar-sign';
+    
+    // 切换公式输入显示
+    toggleFormulaInput();
+    
+    // 显示模态框
+    new bootstrap.Modal(document.getElementById('performanceItemModal')).show();
+}
+
+// 切换公式输入显示
+function toggleFormulaInput() {
+    const method = document.getElementById('calculationMethod').value;
+    const formulaSection = document.getElementById('formulaSection');
+    formulaSection.style.display = method === 'custom' ? 'block' : 'none';
+}
+
+// 使用模板公式
+function useTemplate(templateType) {
+    const templates = {
+        'sales_sum': 'SUM(pricing_orders.pricing_total_amount) WHERE status = \'approved\'',
+        'customer_growth': '(COUNT(companies.id) - PREV_MONTH_COUNT(companies.id)) / PREV_MONTH_COUNT(companies.id) * 100',
+        'comprehensive_score': 'sales_amount * 0.4 + implant_amount * 0.3 + customer_count * 100 * 0.3'
+    };
+    
+    const formula = templates[templateType];
+    if (formula) {
+        document.getElementById('calculationFormula').value = formula;
+        document.getElementById('calculationMethod').value = 'custom';
+        toggleFormulaInput();
+    }
+}
+
+// 保存绩效项目
+function savePerformanceItem() {
+    const form = document.getElementById('performanceItemForm');
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+    
+    const formData = new FormData(form);
+    const itemData = Object.fromEntries(formData.entries());
+    
+    // 转换数值类型
+    itemData.sortOrder = parseInt(itemData.sortOrder) || 1;
+    itemData.weight = parseFloat(itemData.weight) || 1.0;
+    itemData.isEnabled = itemData.isEnabled === 'true';
+    itemData.excellentThreshold = parseFloat(itemData.excellentThreshold) || null;
+    itemData.goodThreshold = parseFloat(itemData.goodThreshold) || null;
+    itemData.qualifiedThreshold = parseFloat(itemData.qualifiedThreshold) || null;
+    itemData.qualificationRate = parseFloat(itemData.qualificationRate) || 80;
+    itemData.decimalPlaces = parseInt(itemData.decimalPlaces) || 2;
+    
+    if (itemEditIndex >= 0) {
+        // 编辑现有项目
+        performanceItems[itemEditIndex] = { ...performanceItems[itemEditIndex], ...itemData };
+    } else {
+        // 添加新项目
+        itemData.id = Date.now(); // 临时ID
+        performanceItems.push(itemData);
+    }
+    
+    updateItemsCount();
+    renderPerformanceItems();
+    
+    // 关闭模态框
+    bootstrap.Modal.getInstance(document.getElementById('performanceItemModal')).hide();
+    
+    showTopNotification('绩效项目保存成功！', 'success', 3000);
+}
+
+// 删除绩效项目
+function deletePerformanceItem(index) {
+    if (confirm('确定要删除这个绩效项目吗？')) {
+        performanceItems.splice(index, 1);
+        updateItemsCount();
+        renderPerformanceItems();
+        showTopNotification('绩效项目已删除！', 'info', 3000);
+    }
+}
+
+// 保存角色配置
+function saveRoleConfig() {
+    const configData = {
+        role: currentRole,
+        configName: document.getElementById('configName').value,
+        accessScope: document.getElementById('accessScope').value,
+        description: document.getElementById('configDescription').value,
+        items: performanceItems
+    };
+    
+    console.log('保存配置:', configData);
+    
+    // 模拟保存过程
+    const saveBtn = document.getElementById('saveConfigBtn');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>保存中...';
+    saveBtn.disabled = true;
+    
+    setTimeout(() => {
+        saveBtn.innerHTML = originalText;
+        saveBtn.disabled = false;
+        showTopNotification('角色绩效配置保存成功！', 'success', 3000);
+        
+        // 更新角色状态
+        const roleItem = document.querySelector(`[data-role="${currentRole}"] .role-status`);
+        if (roleItem) {
+            roleItem.innerHTML = '<span class="badge bg-success">已配置</span>';
+        }
+    }, 1500);
+}
+
+// 预览配置效果
+function previewConfig() {
+    // 在新窗口中显示预览
+    const previewWindow = window.open('', '_blank', 'width=1000,height=700');
+    const previewContent = generatePreviewHTML();
+    previewWindow.document.write(previewContent);
+    previewWindow.document.close();
+}
+
+// 生成预览HTML
+function generatePreviewHTML() {
+    const roleName = document.getElementById('current-role-name').textContent;
+    const itemsHtml = performanceItems.map(item => `
+        <tr>
+            <td>${item.itemName}</td>
+            <td><span class="badge bg-info">${getScopeDisplayName(item.statScope)}</span></td>
+            <td>${getMethodDisplayName(item.calculationMethod)}</td>
+            <td>${item.qualifiedThreshold || '未设置'}</td>
+            <td>${item.weight || 1.0}</td>
+            <td>${item.displayUnit || '元'}</td>
+        </tr>
+    `).join('');
+    
+    return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>${roleName} - 绩效配置预览</title>
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        </head>
+        <body>
+            <div class="container mt-4">
+                <h3>${roleName} - 绩效配置预览</h3>
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>项目名称</th>
+                            <th>统计范围</th>
+                            <th>计算方式</th>
+                            <th>合格标准</th>
+                            <th>权重</th>
+                            <th>单位</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsHtml}
+                    </tbody>
+                </table>
+                ${performanceItems.length === 0 ? '<p class="text-muted">暂无配置项目</p>' : ''}
+            </div>
+        </body>
+        </html>
+    `;
+}
+
+// 导入模板
+function importTemplate() {
+    // 这里可以实现从预定义模板导入配置
+    showTopNotification('模板导入功能开发中...', 'info', 3000);
+}
+</script>
+{% endblock %}

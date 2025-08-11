@@ -477,6 +477,9 @@
                                 {% if has_permission('permission_management', 'view') %}
                                 <li><a class="nav-link text-sm py-2" href="{{ url_for('user.manage_role_permissions') }}">{{ _('权限管理') }}</a></li>
                                 {% endif %}
+                                {% if has_permission('performance_management', 'edit') %}
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('performance_config.role_config') }}">{{ _('绩效配置') }}</a></li>
+                                {% endif %}
                                 {% if has_permission('dictionary_management', 'view') %}
                                 <li><hr class="dropdown-divider my-1"></li>
                                 <li><a class="nav-link text-sm py-2" href="{{ url_for('user.manage_roles') }}">{{ _('角色字典') }}</a></li>
@@ -507,6 +510,14 @@
                                 <a class="dropdown-item"
                                    href="{{ url_for('user.manage_role_permissions') }}">
                                    {{ _('权限管理') }}
+                                </a>
+                            </li>
+                            {% endif %}
+                            {% if has_permission('performance_management', 'edit') %}
+                            <li>
+                                <a class="dropdown-item"
+                                   href="{{ url_for('performance_config.role_config') }}">
+                                   <i class="fas fa-users-cog me-2"></i>{{ _('绩效配置') }}
                                 </a>
                             </li>
                             {% endif %}
