@@ -73,18 +73,18 @@ class Config:
         
         # 云端PostgreSQL连接池配置
         if IS_SUPABASE_ENV:
-            # Supabase特定配置 - 需要设置search_path
+            # Supabase优化配置 - 针对远程数据库优化
             SQLALCHEMY_ENGINE_OPTIONS = {
-                'pool_size': 10,
-                'max_overflow': 20,
-                'pool_recycle': 3600,
-                'pool_pre_ping': True,
-                'pool_timeout': 30,
+                'pool_size': 5,  # 减少连接池大小，避免Supabase连接限制
+                'max_overflow': 10,  # 减少溢出连接
+                'pool_recycle': 1800,  # 30分钟回收连接，避免长连接问题
+                'pool_pre_ping': True,  # 保持连接检测
+                'pool_timeout': 10,  # 减少连接超时时间
                 'connect_args': {
                     'sslmode': 'require',
-                    'connect_timeout': 30,
+                    'connect_timeout': 10,  # 减少连接超时
                     'application_name': 'PMA_Supabase_App',
-                    'options': '-c search_path=public'
+                    'options': '-c search_path=public -c statement_timeout=30000'  # 添加语句超时30秒
                 }
             }
         else:

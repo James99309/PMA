@@ -58,25 +58,33 @@ def list_users():
     if company:
         query = query.filter(User.company_name == company)
 
-    # 获取统计数据
-    total_count = base_query.count()
-    active_count = base_query.filter(User._is_active == True).count()
-    inactive_count = base_query.filter(User._is_active == False).count()
-    admin_count = base_query.filter(User.role == 'admin').count()
-    user_count = base_query.filter(User.role == 'user').count()
-
-    # 按更新时间倒序排序，获取所有用户
+    # 优化统计数据查询 - 使用单个查询获取统计信息
+    from sqlalchemy import case, func
     try:
-        users = query.order_by(User.updated_at.desc().nullslast(), User.id.desc()).all()
+        stats = base_query.with_entities(
+            func.count().label('total_count'),
+            func.sum(case((User._is_active == True, 1), else_=0)).label('active_count'),
+            func.sum(case((User._is_active == False, 1), else_=0)).label('inactive_count'),
+            func.sum(case((User.role == 'admin', 1), else_=0)).label('admin_count'),
+            func.sum(case((User.role == 'user', 1), else_=0)).label('user_count')
+        ).first()
+        
+        total_count = stats.total_count or 0
+        active_count = stats.active_count or 0
+        inactive_count = stats.inactive_count or 0
+        admin_count = stats.admin_count or 0
+        user_count = stats.user_count or 0
     except Exception as e:
-        logger.warning(f"使用updated_at排序失败: {str(e)}, 尝试使用id排序")
-        try:
-            db.session.rollback()
-            users = query.order_by(User.id.desc()).all()
-        except Exception as e2:
-            logger.error(f"用户列表查询失败: {str(e2)}")
-            db.session.rollback()
-            users = []
+        logger.warning(f"统计查询失败: {str(e)}, 使用默认值")
+        total_count = active_count = inactive_count = admin_count = user_count = 0
+
+    # 优化排序和分页 - 简单排序，限制数量
+    try:
+        users = query.order_by(User.id.desc()).limit(500).all()  # 限制最多500条记录
+    except Exception as e:
+        logger.error(f"用户列表查询失败: {str(e)}")
+        db.session.rollback()
+        users = []
 
     # 用户数据已通过 datetimeformat 过滤器处理，无需额外转换
 
