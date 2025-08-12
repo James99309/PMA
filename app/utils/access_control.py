@@ -1253,27 +1253,58 @@ def can_change_company_owner(user, company):
 def can_change_project_owner(user, project):
     """
     判断用户是否有权修改项目的拥有人。
-    - 管理员可修改所有项目
-    - 项目拥有人可以修改
-    - 厂商负责人可以修改
-    - 部门负责人（is_department_manager为True或角色为sales_director）可修改本部门成员的项目
+    基于权限系统的检查，不再硬编码角色名称。
+    
+    权限检查顺序：
+    1. 管理员可修改所有项目
+    2. 项目拥有人可以修改自己的项目
+    3. 厂商负责人可以修改相关项目  
+    4. 通过权限系统检查用户是否有project模块的change_owner权限
+    5. 部门负责人可以修改本公司本部门成员的项目
     """
     if user.role == 'admin':
         return True
     
-    # 项目拥有人可以修改
+    # 项目拥有人可以修改自己的项目
     if project.owner_id == user.id:
         return True
     
-    # 厂商负责人可以修改
+    # 厂商负责人可以修改相关项目
     if hasattr(project, 'vendor_sales_manager_id') and project.vendor_sales_manager_id == user.id:
         return True
     
-    if getattr(user, 'is_department_manager', False) or user.role == 'sales_director':
+    # 检查用户是否具有项目模块的拥有人修改权限
+    if user.has_permission('project', 'change_owner'):
+        # 根据用户的权限级别决定可修改的范围
+        permission_level = user.get_permission_level('project')
+        
+        if permission_level == 'system':
+            # 系统级权限：可以修改所有项目
+            return True
+        elif permission_level in ['company', 'department']:
+            # 企业级或部门级权限：需要验证项目拥有者是否在可管理范围内
+            from app.models.user import User
+            owner = User.query.get(project.owner_id)
+            if not owner:
+                return False
+            
+            if permission_level == 'company' and user.company_name:
+                return owner.company_name == user.company_name
+            elif permission_level == 'department' and user.department and user.company_name:
+                return (owner.department == user.department and 
+                       owner.company_name == user.company_name)
+        elif permission_level == 'personal':
+            # 个人级权限：只能修改自己的项目（已在上面检查过）
+            return False
+    
+    # 部门负责人特殊权限：可以修改本公司本部门成员的项目
+    if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
+        from app.models.user import User
         owner = User.query.get(project.owner_id)
         if not owner:
             return False
-        return hasattr(owner, 'department') and hasattr(user, 'department') and owner.department == user.department
+        return (owner.department == user.department and owner.company_name == user.company_name)
+    
     return False
 
 def can_change_quotation_owner(user, quotation):

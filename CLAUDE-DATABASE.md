@@ -89,8 +89,18 @@ grep -c "COPY.*FROM stdin" backup_file.sql  # 数据表数量
 
 | 数据库 | 连接地址 | 用户名 | 数据库名 | 估计大小 | 备份耗时 |
 |--------|----------|--------|----------|----------|----------|
-| **SP8D** | dpg-d0b1gl1r0fns73d1jc1g-a.singapore-postgres.render.com | pma_db_sp8d_user | pma_db_sp8d | ~19MB | ~3秒 |
-| **OVS** | dpg-d170laodl3ps739trgp0-a.singapore-postgres.render.com | pma_db_ovs_user | pma_db_ovs | ~12MB | ~3秒 |
+| **SP8D** | aws-0-ap-southeast-1.pooler.supabase.com:6543 | postgres.iqcyimnjtnmomvfuwjzw | postgres | ~19MB | ~3秒 |
+| **OVS** | aws-0-ap-southeast-1.pooler.supabase.com:6543 | postgres.pqzviljbpfoqvyfulakl | postgres | ~12MB | ~3秒 |
+
+### **完整数据库连接URL**
+
+```bash
+# SP8D数据库连接URL
+SP8D_URL="postgresql://postgres.iqcyimnjtnmomvfuwjzw:towsys-coGdoq-6gofdi@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
+
+# OVS数据库连接URL  
+OVS_URL="postgresql://postgres.pqzviljbpfoqvyfulakl:nyjrIc-gubcu4-rukhoc@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres"
+```
 
 ## 🚀 云端数据库迁移升级规范
 

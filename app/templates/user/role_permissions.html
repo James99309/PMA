@@ -154,6 +154,7 @@
                                     <th class="text-center">创建</th>
                                     <th class="text-center">编辑</th>
                                     <th class="text-center">删除</th>
+                                    <th class="text-center">修改拥有人</th>
                                     <th class="text-center">全选模块</th>
                                 </tr>
                             </thead>
@@ -502,7 +503,7 @@
                 // 检查是否有任何权限
                 const hasAnyPermission = module.type === 'switch' 
                     ? modulePermission.can_create === true
-                    : (modulePermission.can_view || modulePermission.can_create || modulePermission.can_edit || modulePermission.can_delete);
+                    : (modulePermission.can_view || modulePermission.can_create || modulePermission.can_edit || modulePermission.can_delete || modulePermission.can_change_owner);
                 
                 if (hasAnyPermission) {
                     levelCell.innerHTML = `
@@ -525,7 +526,7 @@
                     // 开关式权限：只显示一个开关，跨越所有权限列
                     const switchCell = document.createElement('td');
                     switchCell.className = 'text-center';
-                    switchCell.colSpan = 5; // 跨越查看、创建、编辑、删除、全选列
+                    switchCell.colSpan = 6; // 跨越查看、创建、编辑、删除、修改拥有人、全选列
                     
                     const isEnabled = modulePermission.can_create === true; // 使用create权限作为开关状态
                     switchCell.innerHTML = `
@@ -542,9 +543,12 @@
                     `;
                     row.appendChild(switchCell);
                 } else {
+                    // 定义支持修改拥有人功能的模块
+                    const modulesWithOwnerChange = ['project', 'customer', 'quotation'];
+                    
                     // 普通权限：显示查看、创建、编辑、删除复选框
-                    const permissions = ['view', 'create', 'edit', 'delete'];
-                    permissions.forEach(action => {
+                    const basicPermissions = ['view', 'create', 'edit', 'delete'];
+                    basicPermissions.forEach(action => {
                         const permKey = `can_${action}`;
                         const isChecked = modulePermission[permKey] === true;
                         const cell = document.createElement('td');
@@ -562,8 +566,33 @@
                         row.appendChild(cell);
                     });
                     
+                    // 修改拥有人权限：只在支持的模块显示
+                    const changeOwnerCell = document.createElement('td');
+                    changeOwnerCell.className = 'text-center';
+                    
+                    if (modulesWithOwnerChange.includes(module.id)) {
+                        const isChecked = modulePermission.can_change_owner === true;
+                        changeOwnerCell.innerHTML = `
+                            <div class="checkbox-wrapper">
+                                <input type="checkbox" class="form-check-input permission-checkbox"
+                                    id="change_owner_${module.id}"
+                                    data-module="${module.id}"
+                                    data-action="change_owner"
+                                    ${isChecked ? 'checked' : ''}
+                                    disabled>
+                            </div>
+                        `;
+                    } else {
+                        // 不支持的模块显示为空
+                        changeOwnerCell.innerHTML = '<span class="text-muted">-</span>';
+                    }
+                    row.appendChild(changeOwnerCell);
+                    
                     // 添加模块全选复选框
-                    const allChecked = permissions.every(action => modulePermission[`can_${action}`] === true);
+                    const allPermissions = modulesWithOwnerChange.includes(module.id) 
+                        ? ['view', 'create', 'edit', 'delete', 'change_owner']
+                        : ['view', 'create', 'edit', 'delete'];
+                    const allChecked = allPermissions.every(action => modulePermission[`can_${action}`] === true);
                     const selectAllCell = document.createElement('td');
                     selectAllCell.className = 'text-center';
                     selectAllCell.innerHTML = `
@@ -711,7 +740,7 @@
             // 直接从下拉菜单获取选中的角色key
             const selectedRole = roleSelect.value;
             if (!selectedRole) {
-                alert('请先选择一个角色');
+                showTopNotification('请先选择一个角色', 'warning', 3000);
                 return;
             }
             
@@ -751,24 +780,27 @@
                         can_create: hasPermission,
                         can_edit: false,
                         can_delete: false,
+                        can_change_owner: false,
                         permission_level: permissionLevel,
                         pricing_discount_limit: (moduleId === 'pricing_order' || moduleId === 'settlement_order') ? pricingLimit : null,
                         settlement_discount_limit: (moduleId === 'pricing_order' || moduleId === 'settlement_order') ? settlementLimit : null
                     });
                 } else {
-                    // 普通权限：收集所有四个权限复选框的状态
+                    // 普通权限：收集所有权限复选框的状态
                     const viewCheckbox = document.getElementById(`view_${moduleId}`);
                     const createCheckbox = document.getElementById(`create_${moduleId}`);
                     const editCheckbox = document.getElementById(`edit_${moduleId}`);
                     const deleteCheckbox = document.getElementById(`delete_${moduleId}`);
+                    const changeOwnerCheckbox = document.getElementById(`change_owner_${moduleId}`);
                     
                     const canView = viewCheckbox ? viewCheckbox.checked : false;
                     const canCreate = createCheckbox ? createCheckbox.checked : false;
                     const canEdit = editCheckbox ? editCheckbox.checked : false;
                     const canDelete = deleteCheckbox ? deleteCheckbox.checked : false;
+                    const canChangeOwner = changeOwnerCheckbox ? changeOwnerCheckbox.checked : false;
                     
                     // 检查是否有任何权限
-                    const hasAnyPermission = canView || canCreate || canEdit || canDelete;
+                    const hasAnyPermission = canView || canCreate || canEdit || canDelete || canChangeOwner;
                     
                     // 获取权限级别（只有在有权限时才设置）
                     const levelSelect = document.querySelector(`select[data-module="${moduleId}"].permission-level-select`);
@@ -780,6 +812,7 @@
                         can_create: canCreate,
                         can_edit: canEdit,
                         can_delete: canDelete,
+                        can_change_owner: canChangeOwner,
                         permission_level: permissionLevel,
                         pricing_discount_limit: (moduleId === 'pricing_order' || moduleId === 'settlement_order') ? pricingLimit : null,
                         settlement_discount_limit: (moduleId === 'pricing_order' || moduleId === 'settlement_order') ? settlementLimit : null
@@ -816,18 +849,18 @@
             .then(data => {
                 if (data.success) {
                     // 显示成功消息
-                    alert('权限设置已成功保存！');
+                    showTopNotification('权限设置已成功保存！', 'success', 3000);
                     
                     // 重新加载权限数据
                     loadRolePermissions(selectedRole);
                 } else {
                     console.error('保存权限失败:', data.message);
-                    alert(`保存权限失败: ${data.message || '未知错误'}`);
+                    showTopNotification(`保存权限失败: ${data.message || '未知错误'}`, 'error', 5000);
                 }
             })
             .catch(error => {
                 console.error('保存权限时出错:', error);
-                alert('保存权限时发生错误，请稍后再试');
+                showTopNotification('保存权限时发生错误，请稍后再试', 'error', 5000);
             })
             .finally(() => {
                 // 恢复保存按钮状态

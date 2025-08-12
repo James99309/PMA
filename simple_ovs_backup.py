@@ -48,8 +48,8 @@ class SimpleOVSBackup:
         self.backup_dir = os.path.join(os.getcwd(), 'cloud_db_backups')
         os.makedirs(self.backup_dir, exist_ok=True)
         
-        # ovs 数据库连接信息
-        self.cloud_db_url = 'postgresql://pma_db_ovs_user:oUKdxwqXDvCrgkg3fkZ33axXgDF21D51@dpg-d170laodl3ps739trgp0-a.singapore-postgres.render.com/pma_db_ovs'
+        # ovs 数据库连接信息 - 更新到新的Supabase位置
+        self.cloud_db_url = 'postgresql://postgres.pqzviljbpfoqvyfulakl:nyjrIc-gubcu4-rukhoc@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres'
         
         logger.info(f"目标数据库: pma_db_ovs")
     

@@ -27,8 +27,8 @@ logger = logging.getLogger('StandardMigrationOVS')
 class StandardMigrationUpgradeOVS:
     def __init__(self):
         self.timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        # OVS 数据库配置
-        self.ovs_url = "postgresql://pma_db_ovs_user:oUKdxwqXDvCrgkg3fkZ33axXgDF21D51@dpg-d170laodl3ps739trgp0-a.singapore-postgres.render.com/pma_db_ovs"
+        # OVS 数据库配置 - 更新到新的Supabase位置
+        self.ovs_url = "postgresql://postgres.pqzviljbpfoqvyfulakl:nyjrIc-gubcu4-rukhoc@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres"
         
     def step1_check_current_status(self):
         """步骤1: 检查当前迁移状态"""

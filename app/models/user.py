@@ -141,6 +141,8 @@ class User(db.Model, UserMixin):
                     role_has_permission = role_permission.can_edit
                 elif action == 'delete':
                     role_has_permission = role_permission.can_delete
+                elif action == 'change_owner':
+                    role_has_permission = getattr(role_permission, 'can_change_owner', False)
                     
             # 2. 获取用户个人权限（补充权限）
             permission = Permission.query.filter_by(user_id=self.id, module=module).first()
@@ -154,6 +156,8 @@ class User(db.Model, UserMixin):
                     personal_has_permission = permission.can_edit
                 elif action == 'delete':
                     personal_has_permission = permission.can_delete
+                elif action == 'change_owner':
+                    personal_has_permission = getattr(permission, 'can_change_owner', False)
             
             # 3. 合并权限：角色权限 OR 个人权限
             final_permission = role_has_permission or personal_has_permission
@@ -408,6 +412,7 @@ class Permission(db.Model):
     can_create = db.Column(db.Boolean, default=False)  # 创建权限
     can_edit = db.Column(db.Boolean, default=False)  # 编辑权限
     can_delete = db.Column(db.Boolean, default=False)  # 删除权限
+    can_change_owner = db.Column(db.Boolean, default=False)  # 拥有人修改权限
     
     # 权限级别相关字段（与角色权限表保持一致）
     permission_level = db.Column(db.String(20), default='personal')  # 权限级别：system, company, department, personal
@@ -427,6 +432,7 @@ class Permission(db.Model):
             'can_create': self.can_create,
             'can_edit': self.can_edit,
             'can_delete': self.can_delete,
+            'can_change_owner': self.can_change_owner,
             'permission_level': self.permission_level,
             'permission_level_description': self.permission_level_description,
             'pricing_discount_limit': self.pricing_discount_limit,

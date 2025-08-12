@@ -39,7 +39,8 @@ def get_user_permissions(user_id):
                 'can_view': perm.can_view,
                 'can_create': perm.can_create,
                 'can_edit': perm.can_edit,
-                'can_delete': perm.can_delete
+                'can_delete': perm.can_delete,
+                'can_change_owner': getattr(perm, 'can_change_owner', False)
             })
     return api_response(
         success=True,
@@ -273,6 +274,7 @@ def get_role_permissions(role):
                 'can_create': perm.can_create,
                 'can_edit': perm.can_edit,
                 'can_delete': perm.can_delete,
+                'can_change_owner': getattr(perm, 'can_change_owner', False),
                 'permission_level': perm.permission_level,
                 'permission_level_description': perm.permission_level_description,
                 'pricing_discount_limit': perm.pricing_discount_limit,

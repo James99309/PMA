@@ -27,8 +27,8 @@ logger = logging.getLogger('StandardMigration')
 class StandardMigrationUpgrade:
     def __init__(self):
         self.timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        # SP8D 数据库配置
-        self.sp8d_url = "postgresql://pma_db_sp8d_user:LXNGJmR6bFrNecoaWbdbdzPpltIAd40w@dpg-d0b1gl1r0fns73d1jc1g-a.singapore-postgres.render.com/pma_db_sp8d"
+        # SP8D 数据库配置 - 更新到新的Supabase位置
+        self.sp8d_url = "postgresql://postgres.iqcyimnjtnmomvfuwjzw:towsys-coGdoq-6gofdi@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
         
     def step1_check_current_status(self):
         """步骤1: 检查当前迁移状态"""

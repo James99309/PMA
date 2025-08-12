@@ -58,8 +58,8 @@ class PMACloudDBSync:
         self.backup_dir = os.path.join(os.getcwd(), 'cloud_db_backups')
         os.makedirs(self.backup_dir, exist_ok=True)
         
-        # 云端数据库连接信息
-        self.cloud_db_url = "postgresql://pma_db_sp8d_user:LXNGJmR6bFrNecoaWbdbdzPpltIAd40w@dpg-d0b1gl1r0fns73d1jc1g-a.singapore-postgres.render.com/pma_db_sp8d"
+        # 云端数据库连接信息 - 更新到新的Supabase位置
+        self.cloud_db_url = "postgresql://postgres.iqcyimnjtnmomvfuwjzw:towsys-coGdoq-6gofdi@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
         
         # 本地数据库URL（从环境变量或默认配置获取）
         self.local_db_url = os.environ.get('DATABASE_URL')

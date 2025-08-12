@@ -846,6 +846,7 @@ def manage_permissions(user_id):
                 'can_create': perm.can_create,
                 'can_edit': perm.can_edit,
                 'can_delete': perm.can_delete,
+                'can_change_owner': getattr(perm, 'can_change_owner', False),
                 'permission_level': perm.permission_level or 'personal',
                 'permission_level_description': perm.permission_level_description,
                 'pricing_discount_limit': perm.pricing_discount_limit,
@@ -861,6 +862,7 @@ def manage_permissions(user_id):
                 'can_create': permission.can_create,
                 'can_edit': permission.can_edit,
                 'can_delete': permission.can_delete,
+                'can_change_owner': getattr(permission, 'can_change_owner', False),
                 'permission_level': permission.permission_level,
                 'permission_level_description': permission.permission_level_description,
                 'pricing_discount_limit': permission.pricing_discount_limit,
@@ -890,6 +892,7 @@ def manage_permissions(user_id):
                 effective_can_create = role_perm['can_create'] or (personal_perm['can_create'] if personal_perm else False)
                 effective_can_edit = role_perm['can_edit'] or (personal_perm['can_edit'] if personal_perm else False)
                 effective_can_delete = role_perm['can_delete'] or (personal_perm['can_delete'] if personal_perm else False)
+                effective_can_change_owner = role_perm['can_change_owner'] or (personal_perm['can_change_owner'] if personal_perm else False)
                 # 权限级别：个人权限设置 > 角色权限设置
                 effective_level = (personal_perm['permission_level'] if personal_perm and personal_perm.get('permission_level') else role_perm['permission_level'])
             elif personal_perm:
@@ -898,6 +901,7 @@ def manage_permissions(user_id):
                 effective_can_create = personal_perm['can_create']
                 effective_can_edit = personal_perm['can_edit']
                 effective_can_delete = personal_perm['can_delete']
+                effective_can_change_owner = personal_perm['can_change_owner']
                 effective_level = personal_perm['permission_level']
             else:
                 # 如果角色权限和个人权限中都没有此模块，默认为关闭状态
@@ -905,6 +909,7 @@ def manage_permissions(user_id):
                 effective_can_create = False
                 effective_can_edit = False
                 effective_can_delete = False
+                effective_can_change_owner = False
                 effective_level = 'personal'
             
             # 折扣限制取更严格的（较高的数值）
@@ -933,6 +938,7 @@ def manage_permissions(user_id):
                 'can_create': effective_can_create,
                 'can_edit': effective_can_edit,
                 'can_delete': effective_can_delete,
+                'can_change_owner': effective_can_change_owner,
                 'permission_level': effective_level,
                 'pricing_discount_limit': effective_pricing_limit,
                 'settlement_discount_limit': effective_settlement_limit
@@ -960,7 +966,8 @@ def manage_permissions(user_id):
                     'can_view': rp.can_view,
                     'can_create': rp.can_create,
                     'can_edit': rp.can_edit,
-                    'can_delete': rp.can_delete
+                    'can_delete': rp.can_delete,
+                    'can_change_owner': getattr(rp, 'can_change_owner', False)
                 }
             
             permissions = []
@@ -971,7 +978,8 @@ def manage_permissions(user_id):
                     'can_view': False,
                     'can_create': False,
                     'can_edit': False,
-                    'can_delete': False
+                    'can_delete': False,
+                    'can_change_owner': False
                 })
                 
                 # 检查用户想要设置的权限
@@ -979,6 +987,7 @@ def manage_permissions(user_id):
                 wants_create = f"create_{module}" in form_data
                 wants_edit = f"edit_{module}" in form_data
                 wants_delete = f"delete_{module}" in form_data
+                wants_change_owner = f"change_owner_{module}" in form_data
                 
                 # 构建个人权限记录，但只包含角色权限为False且用户想要为True的权限
                 personal_permissions = {}
@@ -992,6 +1001,8 @@ def manage_permissions(user_id):
                     personal_permissions['can_edit'] = True
                 if not role_perm['can_delete'] and wants_delete:
                     personal_permissions['can_delete'] = True
+                if not role_perm['can_change_owner'] and wants_change_owner:
+                    personal_permissions['can_change_owner'] = True
                 
                 # 获取权限级别设置
                 permission_level = form_data.get(f"permission_level_{module}", 'personal')
@@ -1009,6 +1020,7 @@ def manage_permissions(user_id):
                         "can_create": personal_permissions.get('can_create', False),
                         "can_edit": personal_permissions.get('can_edit', False),
                         "can_delete": personal_permissions.get('can_delete', False),
+                        "can_change_owner": personal_permissions.get('can_change_owner', False),
                         "permission_level": permission_level
                     }
                     permissions.append(permission)
@@ -1028,6 +1040,7 @@ def manage_permissions(user_id):
                     can_create=bool(perm.get('can_create', False)),
                     can_edit=bool(perm.get('can_edit', False)),
                     can_delete=bool(perm.get('can_delete', False)),
+                    can_change_owner=bool(perm.get('can_change_owner', False)),
                     permission_level=perm.get('permission_level', 'personal')
                 )
                 db.session.add(permission)
@@ -1260,9 +1273,10 @@ def manage_role_permissions():
                 can_create = bool(perm.get('can_create', False))
                 can_edit = bool(perm.get('can_edit', False))
                 can_delete = bool(perm.get('can_delete', False))
+                can_change_owner = bool(perm.get('can_change_owner', False))
                 
                 # 检查是否有任何权限
-                has_any_permission = can_view or can_create or can_edit or can_delete
+                has_any_permission = can_view or can_create or can_edit or can_delete or can_change_owner
                 
                 # 如果没有任何权限，权限级别强制设置为personal
                 permission_level = perm.get('permission_level', 'personal')
@@ -1276,6 +1290,7 @@ def manage_role_permissions():
                     can_create=can_create,
                     can_edit=can_edit,
                     can_delete=can_delete,
+                    can_change_owner=can_change_owner,
                     permission_level=permission_level,
                     permission_level_description=perm.get('permission_level_description'),
                     pricing_discount_limit=perm.get('pricing_discount_limit'),
