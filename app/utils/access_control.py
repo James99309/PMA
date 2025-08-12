@@ -189,6 +189,9 @@ def get_viewable_data(model_class, user, special_filters=None):
         # 获取用户在项目模块的权限级别
         permission_level = user.get_permission_level('project')
         
+        # 临时调试信息
+        logger.info(f"🔍 [ACCESS_CONTROL] 用户 {user.username} (角色: {user.role}) 项目权限级别: {permission_level}")
+        
         if permission_level == 'system':
             # 系统级权限：可以查看所有项目
             return model_class.query.filter(*special_filters)
@@ -233,9 +236,12 @@ def get_viewable_data(model_class, user, special_filters=None):
             for affiliation in affiliations:
                 viewable_user_ids.append(affiliation.owner_id)
             
-            # 部门负责人权限：可以查看本部门所有用户的数据
-            if getattr(user, 'is_department_manager', False) and user.department:
-                dept_users = User.query.filter_by(department=user.department).all()
+            # 部门负责人权限：可以查看本公司本部门所有用户的数据
+            if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
+                dept_users = User.query.filter_by(
+                    department=user.department,
+                    company_name=user.company_name
+                ).all()
                 viewable_user_ids.extend([u.id for u in dept_users])
             
             # 去重
@@ -416,6 +422,9 @@ def get_viewable_data(model_class, user, special_filters=None):
         # 基于四级权限系统的数据访问控制
         permission_level = user.get_permission_level('customer')
         
+        # 临时调试信息
+        logger.info(f"🔍 [ACCESS_CONTROL] 用户 {user.username} (角色: {user.role}) 客户权限级别: {permission_level}")
+        
         # 为Company模型添加is_deleted过滤条件
         base_filters = []
         if model_class.__name__ == 'Company':
@@ -447,9 +456,12 @@ def get_viewable_data(model_class, user, special_filters=None):
         for affiliation in affiliations:
             viewable_user_ids.append(affiliation.owner_id)
         
-        # 部门负责人权限：可以查看本部门所有用户的数据
-        if getattr(user, 'is_department_manager', False) and user.department:
-            dept_users = User.query.filter_by(department=user.department).all()
+        # 部门负责人权限：可以查看本公司本部门所有用户的数据
+        if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
+            dept_users = User.query.filter_by(
+                department=user.department,
+                company_name=user.company_name
+            ).all()
             viewable_user_ids.extend([u.id for u in dept_users])
         
         # 商务助理特殊权限：具备部门所有账户的查看权限
@@ -532,9 +544,12 @@ def get_viewable_data(model_class, user, special_filters=None):
         for affiliation in affiliations:
             viewable_user_ids.append(affiliation.owner_id)
         
-        # 部门负责人权限：可以查看本部门所有用户的报销单
-        if getattr(user, 'is_department_manager', False) and user.department:
-            dept_users = User.query.filter_by(department=user.department).all()
+        # 部门负责人权限：可以查看本公司本部门所有用户的报销单
+        if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
+            dept_users = User.query.filter_by(
+                department=user.department,
+                company_name=user.company_name
+            ).all()
             viewable_user_ids.extend([u.id for u in dept_users])
         
         # 商务助理特殊权限：具备部门所有账户的查看权限
@@ -827,13 +842,15 @@ def can_edit_data(model_obj, user):
                 return (owner and owner.department == user.department and 
                        owner.company_name == user.company_name)
         
-        # 部门负责人权限：可以编辑本部门所有用户的报销单
-        if getattr(user, 'is_department_manager', False) and user.department:
+        # 部门负责人权限：可以编辑本公司本部门所有用户的报销单
+        if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
             if hasattr(model_obj, 'owner') and model_obj.owner:
-                return model_obj.owner.department == user.department
+                return (model_obj.owner.department == user.department and 
+                       model_obj.owner.company_name == user.company_name)
             else:
                 owner = User.query.get(model_obj.owner_id)
-                return owner and owner.department == user.department
+                return (owner and owner.department == user.department and 
+                       owner.company_name == user.company_name)
         
         return False
     
@@ -1286,12 +1303,13 @@ def can_change_quotation_owner(user, quotation):
                 owner.department == user.department and owner.company_name == user.company_name)
     else:
         # 个人级权限或部门负责人权限
-        if getattr(user, 'is_department_manager', False) and user.department:
+        if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
             owner = User.query.get(quotation.owner_id)
             if not owner:
                 return False
             return (hasattr(owner, 'department') and hasattr(user, 'department') and 
-                    owner.department == user.department)
+                    hasattr(owner, 'company_name') and hasattr(user, 'company_name') and
+                    owner.department == user.department and owner.company_name == user.company_name)
         return False
 
 def can_delete_project(user, project):
