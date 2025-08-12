@@ -3314,33 +3314,35 @@ def get_available_accounts_api():
 
 @customer.route('/merge-tool')
 @login_required
-@permission_required('customer', 'create')
+@permission_required('customer', 'view')
 def customer_merge_tool():
-    """智能客户合并工具页面（仅管理员可访问）"""
-    if current_user.role != 'admin':
-        flash(_('只有管理员可以使用客户合并工具'), 'error')
+    """智能客户合并工具页面（管理员和商务助理可访问）"""
+    if current_user.role not in ['admin', 'business_admin']:
+        flash(_('只有管理员和商务助理可以使用客户合并工具'), 'error')
         return redirect(url_for('customer.list_companies'))
     
     return render_template('customer/merge_tool_optimized.html')
 
 @customer.route('/api/debug-normalize', methods=['GET'])
 @login_required
-@permission_required('customer', 'create')
+@permission_required('customer', 'view')
 def debug_normalize():
     """调试名称标准化 - 检查特定客户名称的标准化结果"""
-    if current_user.role != 'admin':
-        return jsonify({'success': False, 'message': '只有管理员可以使用此功能'}), 403
+    if current_user.role not in ['admin', 'business_admin']:
+        return jsonify({'success': False, 'message': '只有管理员和商务助理可以使用此功能'}), 403
     
     try:
         search_name = request.args.get('name', '')
         if not search_name:
             return jsonify({'success': False, 'message': '请提供要检查的客户名称'}), 400
         
-        # 查找包含该名称的所有客户
-        companies = Company.query.filter(
+        # 根据用户权限查找包含该名称的客户
+        from app.utils.access_control import get_viewable_data
+        companies_query = get_viewable_data(Company, current_user, [
             Company.company_name.ilike(f'%{search_name}%'),
             Company.is_deleted == False
-        ).all()
+        ])
+        companies = companies_query.all()
         
         debug_results = []
         normalized_groups = {}
@@ -3419,11 +3421,11 @@ def debug_normalize():
 
 @customer.route('/api/detect-duplicates', methods=['GET'])
 @login_required
-@permission_required('customer', 'create')
+@permission_required('customer', 'view')
 def detect_duplicates():
     """检测重复客户"""
-    if current_user.role != 'admin':
-        return jsonify({'success': False, 'message': '只有管理员可以使用此功能'}), 403
+    if current_user.role not in ['admin', 'business_admin']:
+        return jsonify({'success': False, 'message': '只有管理员和商务助理可以使用此功能'}), 403
     
     # 检查是否请求进度信息
     check_progress = request.args.get('progress') == 'true'
@@ -3439,9 +3441,11 @@ def detect_duplicates_simple():
     try:
         current_app.logger.info("开始检测重复客户...")
         
-        # 获取所有公司
-        companies = Company.query.filter_by(is_deleted=False).all()
-        current_app.logger.info(f"检测重复客户: 找到 {len(companies)} 个未删除的公司")
+        # 根据用户权限获取可查看的公司
+        from app.utils.access_control import get_viewable_data
+        companies_query = get_viewable_data(Company, current_user, [Company.is_deleted == False])
+        companies = companies_query.all()
+        current_app.logger.info(f"检测重复客户: 用户{current_user.username}可查看 {len(companies)} 个未删除的公司")
         
         if not companies:
             return jsonify({
@@ -3569,11 +3573,11 @@ def detect_duplicates_simple():
 
 @customer.route('/api/merge-preview', methods=['POST'])
 @login_required
-@permission_required('customer', 'create')
+@permission_required('customer', 'view')
 def get_merge_preview():
     """获取详细的合并预览数据，包括重复联系人检测"""
-    if current_user.role != 'admin':
-        return jsonify({'success': False, 'message': '只有管理员可以使用此功能'}), 403
+    if current_user.role not in ['admin', 'business_admin']:
+        return jsonify({'success': False, 'message': '只有管理员和商务助理可以使用此功能'}), 403
     
     try:
         data = request.json
@@ -3583,10 +3587,15 @@ def get_merge_preview():
         if not target_company_id or not source_company_ids:
             return jsonify({'success': False, 'message': '参数错误'}), 400
         
-        # 获取目标公司
+        # 获取目标公司并检查权限
         target_company = Company.query.filter_by(id=target_company_id, is_deleted=False).first()
         if not target_company:
             return jsonify({'success': False, 'message': '目标客户不存在'}), 404
+        
+        # 检查用户是否有权限访问目标公司
+        from app.utils.access_control import can_view_company
+        if not can_view_company(current_user, target_company):
+            return jsonify({'success': False, 'message': '您没有权限访问目标客户'}), 403
         
         # 获取目标公司的现有联系人
         target_contacts = Contact.query.filter_by(company_id=target_company_id).all()
@@ -3626,8 +3635,14 @@ def get_merge_preview():
                 'company_name': action.company.company_name if action.company else ''
             })
         
-        # 获取关联的项目（通过end_user字段）
+        # 获取源公司并检查权限
         source_companies = Company.query.filter(Company.id.in_(source_company_ids), Company.is_deleted == False).all()
+        
+        # 检查用户是否有权限访问所有源公司
+        for source_company in source_companies:
+            if not can_view_company(current_user, source_company):
+                return jsonify({'success': False, 'message': f'您没有权限访问源客户: {source_company.company_name}'}), 403
+        
         source_company_names = [c.company_name for c in source_companies]
         
         projects = db.session.query(Project).filter(
@@ -3697,11 +3712,11 @@ def get_merge_preview():
 
 @customer.route('/api/execute-merge', methods=['POST'])
 @login_required
-@permission_required('customer', 'create')
+@permission_required('customer', 'view')
 def execute_merge():
     """执行客户合并"""
-    if current_user.role != 'admin':
-        return jsonify({'success': False, 'message': '只有管理员可以使用此功能'}), 403
+    if current_user.role not in ['admin', 'business_admin']:
+        return jsonify({'success': False, 'message': '只有管理员和商务助理可以使用此功能'}), 403
     
     try:
         data = request.json
@@ -3712,17 +3727,29 @@ def execute_merge():
         if not target_company_id or not source_company_ids:
             return jsonify({'success': False, 'message': '参数错误'}), 400
         
-        # 获取目标公司
+        # 获取目标公司并检查权限
         target_company = Company.query.filter_by(id=target_company_id, is_deleted=False).first()
         if not target_company:
             db.session.rollback()
             return jsonify({'success': False, 'message': '目标客户不存在'}), 404
         
-        # 获取源公司列表
+        # 检查用户是否有权限访问目标公司
+        from app.utils.access_control import can_view_company
+        if not can_view_company(current_user, target_company):
+            db.session.rollback()
+            return jsonify({'success': False, 'message': '您没有权限访问目标客户'}), 403
+        
+        # 获取源公司列表并检查权限
         source_companies = Company.query.filter(Company.id.in_(source_company_ids), Company.is_deleted == False).all()
         if len(source_companies) != len(source_company_ids):
             db.session.rollback()
             return jsonify({'success': False, 'message': '部分源客户不存在'}), 404
+        
+        # 检查用户是否有权限访问所有源公司
+        for source_company in source_companies:
+            if not can_view_company(current_user, source_company):
+                db.session.rollback()
+                return jsonify({'success': False, 'message': f'您没有权限访问源客户: {source_company.company_name}'}), 403
         
         # 确保目标公司不在源公司列表中
         if target_company_id in source_company_ids:

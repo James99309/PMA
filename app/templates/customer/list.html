@@ -22,7 +22,7 @@
             <div class="col text-end">
                 <!-- 操作按钮组 -->
                 <div class="btn-toolbar justify-content-end" role="toolbar">
-                    {% if current_user.role == 'admin' %}
+                    {% if current_user.role in ['admin', 'business_admin'] %}
                         {{ render_button(_('智能合并'), url_for('customer.customer_merge_tool'), color='warning', attrs='title="智能检测并合并重复的客户数据"') }}
                     {% endif %}
                     {{ render_button(_('添加企业'), url_for('customer.add_company'), color='primary') }}

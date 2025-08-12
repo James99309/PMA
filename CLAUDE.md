@@ -53,6 +53,66 @@
 
 ---
 
+## 🔄 智能合并功能权限规范
+
+### **角色权限配置**
+- **管理员 (admin)**: 可访问所有客户数据的智能合并功能
+- **商务助理 (business_admin)**: 仅可访问权限范围内客户数据的智能合并功能
+
+### **API端点权限要求**
+智能合并相关API端点统一使用`@permission_required('customer', 'view')`权限：
+- `/api/debug-normalize` - 数据标准化调试
+- `/api/detect-duplicates` - 重复客户检测
+- `/api/merge-preview` - 合并预览
+- `/api/execute-merge` - 执行合并
+
+### **数据访问控制原则**
+- **数据归属限制**: 商务助理只能操作其权限范围内的客户数据
+- **公司范围限制**: 基于用户所属公司进行数据过滤
+- **部门权限限制**: 基于用户部门管理权限进行数据控制
+- **所有者权限验证**: 确保用户只能合并其有权访问的客户记录
+
+### **权限控制实现机制**
+智能合并功能的所有API端点均已实现基于数据归属的权限控制：
+
+#### **数据查询权限控制**
+```python
+# 使用get_viewable_data函数过滤用户可查看的数据（包含完整的权限级别和共享机制）
+from app.utils.access_control import get_viewable_data
+companies_query = get_viewable_data(Company, current_user, [Company.is_deleted == False])
+companies = companies_query.all()
+```
+
+#### **操作权限验证**
+```python
+# 使用can_view_company函数验证具体记录访问权限
+from app.utils.access_control import can_view_company
+if not can_view_company(current_user, target_company):
+    return jsonify({'success': False, 'message': '您没有权限访问目标客户'}), 403
+```
+
+#### **权限级别说明**
+- **system级权限**: 可查看所有客户数据（管理员默认拥有）
+- **company级权限**: 可查看同公司所有用户创建的客户数据
+- **department级权限**: 可查看同部门同公司用户创建的客户数据  
+- **personal级权限**: 可查看自己创建的客户数据 + 共享给自己的数据 + 归属关系授权的数据
+
+#### **数据访问范围**
+商务助理的数据访问范围包括：
+1. **自己创建的客户数据** - 通过owner_id字段控制
+2. **共享给自己的客户数据** - 通过shared_with_users字段和共享机制
+3. **归属关系授权的数据** - 通过Affiliation表的上下级关系
+4. **联系人级别的访问权限** - 创建联系人即可查看对应公司数据
+5. **权限级别范围内的数据** - 根据company/department/personal级别过滤
+
+#### **已实现的权限控制点**
+1. **重复检测API** (`/api/detect-duplicates`): 仅检测用户权限范围内的重复客户
+2. **合并预览API** (`/api/merge-preview`): 验证目标和源客户的访问权限
+3. **执行合并API** (`/api/execute-merge`): 验证所有相关客户的操作权限
+4. **调试标准化API** (`/api/debug-normalize`): 仅显示用户可访问的客户数据
+
+---
+
 ## 🌍 翻译与国际化规则
 
 **详细规范请参阅**: [CLAUDE-I18N.md](./CLAUDE-I18N.md)
@@ -274,6 +334,8 @@ def list_view():
 
 ## 📝 规则更新日志
 
+- **2025-08-12**: 修复项目模块中商务助理权限控制问题，确保商务助理能查看部门内所有账户的项目数据
+- **2025-08-12**: 添加智能合并功能权限规范，包括角色权限配置和数据访问控制原则
 - **2025-08-07**: 添加共享功能组件完整规范到CLAUDE-COMPONENTS.md，包括树状用户选择器、权限控制、服务器端状态渲染等v2.0功能
 - **2025-08-03**: 重构文档结构，拆分为专门规范文件，优化主文档
 - **2025-08-01**: 添加OVS数据库迁移升级规范，包含完整的工具链和实战验证案例
