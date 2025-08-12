@@ -534,7 +534,11 @@ class SupabaseStorageClient:
                 'jpg': 'image/jpeg',
                 'jpeg': 'image/jpeg', 
                 'png': 'image/png',
-                'gif': 'image/gif'
+                'gif': 'image/gif',
+                'heic': 'image/heic',
+                'heif': 'image/heif',
+                'webp': 'image/webp',
+                'bmp': 'image/bmp'
             }
             return content_types.get(file_ext, 'image/jpeg')
         else:  # pdf

@@ -2204,9 +2204,15 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
         {% set value = item %}
     {% elif column.key == 'role' and column.render == 'render_user_role_badge' %}
         {% set value = item %}
-    {% elif column.key == 'created_at' or column.key == 'updated_at' %}
+    {% elif column.key == 'created_at' or column.key == 'updated_at' or column.key == 'delivery_forecast' %}
         {# 时间字段特殊处理 - 直接从对象属性获取 #}
-        {% set value = item.created_at if column.key == 'created_at' else item.updated_at %}
+        {% if column.key == 'created_at' %}
+            {% set value = item.created_at %}
+        {% elif column.key == 'updated_at' %}
+            {% set value = item.updated_at %}
+        {% elif column.key == 'delivery_forecast' %}
+            {% set value = item.delivery_forecast %}
+        {% endif %}
     {% elif column.key == 'actions' %}
         {% set value = 'actions' %}
     {% else %}

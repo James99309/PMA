@@ -84,7 +84,7 @@
                         </div>
 
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                            {{ render_confirm_cancel(confirm_text=_('保存'), cancel_text=_('取消'), confirm_href=None, cancel_href=url_for('customer.view_company', company_id=contact.company_id)) }}
+                            {{ render_confirm_cancel(confirm_text=_('保存'), cancel_text=_('取消'), confirm_type='submit', cancel_href=url_for('customer.view_company', company_id=contact.company_id)) }}
                         </div>
                     </form>
                 </div>

@@ -745,6 +745,13 @@ def project_list_ajax():
                     'width': '100px'
                 },
                 {
+                    'key': 'delivery_forecast', 
+                    'label': '预测出货时间', 
+                    'type': 'date',
+                    'format': '%Y-%m-%d',
+                    'width': '150px'
+                },
+                {
                     'key': 'updated_at', 
                     'label': '更新时间', 
                     'type': 'date',
