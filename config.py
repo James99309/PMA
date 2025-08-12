@@ -38,8 +38,8 @@ def get_database_url():
     logger.info("⚠️ 使用默认本地数据库配置")
     return default_local_url
 
-# 获取数据库URL
-DATABASE_URL = get_database_url()
+# 数据库URL将在运行时动态获取
+# DATABASE_URL = get_database_url()  # 移至Config类中
 
 class Config:
     """基础配置类 - 支持动态数据库配置"""
@@ -48,10 +48,11 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'local-development-secret-key-pma-2025'
     
     # 🔧 动态数据库配置
-    SQLALCHEMY_DATABASE_URI = DATABASE_URL
+    SQLALCHEMY_DATABASE_URI = get_database_url()
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # 环境检测
+    DATABASE_URL = get_database_url()
     IS_RENDER_ENV = 'render.com' in DATABASE_URL or 'dpg-' in DATABASE_URL
     IS_SUPABASE_ENV = 'supabase.com' in DATABASE_URL or 'supabase.co' in DATABASE_URL
     IS_CLOUD_ENV = IS_RENDER_ENV or IS_SUPABASE_ENV
@@ -221,7 +222,8 @@ def verify_database_connection():
 
 def get_database_info():
     """获取数据库信息"""
-    parsed = urlparse(DATABASE_URL)
+    database_url = get_database_url()
+    parsed = urlparse(database_url)
     return {
         'host': parsed.hostname,
         'port': parsed.port,

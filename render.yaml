@@ -10,12 +10,9 @@ services:
     startCommand: ./render_start.sh
     healthCheckPath: /auth/login
     envVars:
-      - key: DATABASE_URL
-        value: postgresql://pma_db_sp8d_user:LXNGJmR6bFrNecoaWbdbdzPpltIAd40w@dpg-d0b1gl1r0fns73d1jc1g-a.singapore-postgres.render.com/pma_db_sp8d
-      - key: SQLALCHEMY_DATABASE_URI
-        fromDatabase:
-          name: pma-db
-          property: connectionString
+      # DATABASE_URL 应在Render控制台环境变量中设置
+      # 指向: postgresql://postgres.pqzviljbpfoqvyfulakl:***@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
+      # SQLALCHEMY_DATABASE_URI 将使用与 DATABASE_URL 相同的值
       - key: FLASK_ENV
         value: production
       - key: SECRET_KEY
@@ -54,20 +51,14 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python db_migration/migrate_data_to_render.py
     envVars:
-      - key: DATABASE_URL
-        value: postgresql://pma_db_sp8d_user:LXNGJmR6bFrNecoaWbdbdzPpltIAd40w@dpg-d0b1gl1r0fns73d1jc1g-a.singapore-postgres.render.com/pma_db_sp8d
-      - key: SQLALCHEMY_DATABASE_URI
-        fromDatabase:
-          name: pma-db
-          property: connectionString
+      # DATABASE_URL 应在Render控制台环境变量中设置
+      # 指向: postgresql://postgres.pqzviljbpfoqvyfulakl:***@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
+      # SQLALCHEMY_DATABASE_URI 将使用与 DATABASE_URL 相同的值
       - key: RENDER
         value: true
       - key: PGSSLMODE
         value: require
 
-# 数据库配置
-databases:
-  - name: pma-db
-    databaseName: pma_db_sp8d
-    region: singapore
-    plan: starter
+# 数据库配置 - 使用外部Supabase数据库
+# 不再使用Render内置数据库服务
+# DATABASE_URL 需要在Render控制台环境变量中手动设置

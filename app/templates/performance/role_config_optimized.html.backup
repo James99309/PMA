@@ -178,60 +178,24 @@
                             </div>
                         </div>
                         <div class="section-body">
-                            <!-- 预置绩效项目选择列表 -->
-                            <div id="preset-items-list" class="preset-items-list">
-                                <!-- 预置项目将在这里动态生成 -->
+                            <!-- 绩效项目列表 -->
+                            <div id="performance-items-list" class="performance-items-list">
+                                <!-- 项目卡片将在这里动态生成 -->
                             </div>
 
-                            <!-- 已选择的绩效项目列表 -->
-                            <div id="selected-items-list" class="selected-items-list mt-4" style="display: none;">
-                                <h6 class="mb-3"><i class="fas fa-check-circle me-2 text-success"></i>已选择的绩效项目</h6>
-                                <div id="selected-items-container">
-                                    <!-- 已选项目将在这里显示 -->
+                            <!-- 空状态提示 - 使用标准化样式 -->
+                            <div id="empty-state" class="empty-state text-center py-5">
+                                <div class="empty-state-icon">
+                                    <i class="fas fa-chart-bar fa-3x text-muted mb-3"></i>
                                 </div>
-                            </div>
-
-                            <!-- 数据范围配置区域 -->
-                            <div id="scope-config-section" class="scope-config-section mt-4" style="display: none;">
-                                <h6 class="mb-3"><i class="fas fa-cog me-2 text-info"></i>数据范围配置</h6>
-                                <div class="card">
-                                    <div class="card-body">
-                                        <div class="row">
-                                            <div class="col-md-12">
-                                                <label class="form-label">选择统计数据范围 <span class="text-muted">(可多选)</span></label>
-                                                <div class="scope-options">
-                                                    <div class="form-check form-check-inline">
-                                                        <input class="form-check-input" type="checkbox" id="scope-system" value="system">
-                                                        <label class="form-check-label" for="scope-system">
-                                                            <i class="fas fa-globe me-1 text-primary"></i>系统全局
-                                                        </label>
-                                                    </div>
-                                                    <div class="form-check form-check-inline">
-                                                        <input class="form-check-input" type="checkbox" id="scope-company" value="company">
-                                                        <label class="form-check-label" for="scope-company">
-                                                            <i class="fas fa-building me-1 text-info"></i>企业
-                                                        </label>
-                                                    </div>
-                                                    <div class="form-check form-check-inline">
-                                                        <input class="form-check-input" type="checkbox" id="scope-department" value="department">
-                                                        <label class="form-check-label" for="scope-department">
-                                                            <i class="fas fa-users me-1 text-warning"></i>部门
-                                                        </label>
-                                                    </div>
-                                                    <div class="form-check form-check-inline">
-                                                        <input class="form-check-input" type="checkbox" id="scope-personal" value="personal" checked>
-                                                        <label class="form-check-label" for="scope-personal">
-                                                            <i class="fas fa-user me-1 text-success"></i>个人
-                                                        </label>
-                                                    </div>
-                                                </div>
-                                                <small class="form-text text-muted">
-                                                    选择的范围决定绩效统计的数据来源。个人范围仅统计用户本人数据，部门范围包含部门成员数据。
-                                                </small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                                <h5 class="text-muted mb-2">暂无绩效项目</h5>
+                                <p class="text-muted mb-3">点击"添加项目"开始配置此角色的绩效考核方案</p>
+                                {{ render_button(
+                                    text='添加第一个项目',
+                                    color='primary',
+                                    icon='fas fa-plus',
+                                    onclick='addPerformanceItem()'
+                                ) }}
                             </div>
                         </div>
                     </div>
@@ -241,6 +205,296 @@
     </div>
 </div>
 
+<!-- 绩效项目编辑模态框 - 使用标准化模态框结构 -->
+<div class="modal fade" id="performanceItemModal" tabindex="-1" aria-labelledby="performanceItemModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="performanceItemModalLabel">
+                    <i class="fas fa-edit me-2"></i>编辑绩效项目
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="performanceItemForm">
+                    <input type="hidden" id="itemId" name="itemId">
+                    
+                    <!-- 基本信息区域 -->
+                    <div class="modal-section mb-4">
+                        <h6 class="modal-section-title">
+                            <i class="fas fa-info-circle me-2 text-primary"></i>基本信息
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label required">项目名称</label>
+                                <input type="text" class="form-control" id="itemName" name="itemName" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label required">项目代码</label>
+                                <input type="text" class="form-control" id="itemCode" name="itemCode" required>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-4">
+                                <label class="form-label">显示顺序</label>
+                                <input type="number" class="form-control" id="sortOrder" name="sortOrder" min="1" value="1">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">权重</label>
+                                <input type="number" class="form-control" id="weight" name="weight" min="0" step="0.1" value="1.0">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">状态</label>
+                                <select class="form-select" id="isEnabled" name="isEnabled">
+                                    <option value="true">启用</option>
+                                    <option value="false">禁用</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 统计配置区域 -->
+                    <div class="modal-section mb-4">
+                        <h6 class="modal-section-title">
+                            <i class="fas fa-chart-line me-2 text-info"></i>统计配置
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label required">统计范围</label>
+                                <select class="form-select" id="statScope" name="statScope" required>
+                                    <option value="personal">个人 - 仅统计个人数据</option>
+                                    <option value="department">部门 - 统计部门成员数据</option>
+                                    <option value="company">企业 - 统计企业所有数据</option>
+                                    <option value="system">系统 - 统计系统全部数据</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">基础指标</label>
+                                <select class="form-select" id="baseMetric" name="baseMetric">
+                                    <option value="">请选择基础指标...</option>
+                                    <option value="sales_amount">销售金额</option>
+                                    <option value="implant_amount">植入金额</option>
+                                    <option value="customer_count">新增客户数</option>
+                                    <option value="project_count">新增项目数</option>
+                                    <option value="custom">自定义</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 计算方法配置区域 -->
+                    <div class="modal-section mb-4">
+                        <h6 class="modal-section-title">
+                            <i class="fas fa-calculator me-2 text-warning"></i>计算方法
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">计算方式</label>
+                                <select class="form-select" id="calculationMethod" name="calculationMethod" onchange="toggleFormulaInput()">
+                                    <option value="sum">求和 (SUM)</option>
+                                    <option value="avg">平均 (AVG)</option>
+                                    <option value="count">计数 (COUNT)</option>
+                                    <option value="max">最大值 (MAX)</option>
+                                    <option value="min">最小值 (MIN)</option>
+                                    <option value="custom">自定义公式</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">数据表</label>
+                                <select class="form-select" id="dataTable" name="dataTable">
+                                    <option value="quotations">报价单 (quotations)</option>
+                                    <option value="pricing_orders">批价单 (pricing_orders)</option>
+                                    <option value="companies">客户公司 (companies)</option>
+                                    <option value="projects">项目 (projects)</option>
+                                    <option value="custom">其他表</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- 自定义公式输入区域 -->
+                        <div class="row mt-3" id="formulaSection" style="display: none;">
+                            <div class="col-12">
+                                <label class="form-label">自定义公式</label>
+                                <div class="formula-editor-container">
+                                    <!-- 数据表和字段选择器 -->
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label text-sm">选择数据表</label>
+                                            <select class="form-select form-select-sm" id="formulaDataTable" onchange="loadTableFields()">
+                                                <option value="">选择数据表...</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label text-sm">选择字段</label>
+                                            <select class="form-select form-select-sm" id="formulaDataField" onchange="previewFieldReference()">
+                                                <option value="">先选择数据表...</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 字段操作按钮 -->
+                                    <div class="field-actions mb-2">
+                                        <div class="btn-group btn-group-sm mb-2" role="group">
+                                            <button type="button" class="btn btn-outline-info" onclick="insertField()" title="插入选中字段">
+                                                <i class="fas fa-plus"></i> 插入字段
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary" onclick="insertFunction('SUM')" title="插入SUM函数">SUM</button>
+                                            <button type="button" class="btn btn-outline-secondary" onclick="insertFunction('COUNT')" title="插入COUNT函数">COUNT</button>
+                                            <button type="button" class="btn btn-outline-secondary" onclick="insertFunction('AVG')" title="插入AVG函数">AVG</button>
+                                            <button type="button" class="btn btn-outline-secondary" onclick="insertText('WHERE')" title="插入WHERE条件">WHERE</button>
+                                        </div>
+                                        <!-- 常用模板按钮 -->
+                                        <div class="btn-group btn-group-sm mb-2" role="group">
+                                            <button type="button" class="btn btn-outline-success" onclick="insertDateRange()" title="插入日期范围条件">
+                                                <i class="fas fa-calendar"></i> 近30天
+                                            </button>
+                                            <button type="button" class="btn btn-outline-success" onclick="insertApprovedFilter()" title="插入已审批条件">
+                                                <i class="fas fa-check"></i> 已审批
+                                            </button>
+                                            <button type="button" class="btn btn-outline-success" onclick="insertActiveFilter()" title="插入有效状态条件">
+                                                <i class="fas fa-toggle-on"></i> 有效状态
+                                            </button>
+                                        </div>
+                                        <!-- 字段值查询按钮 -->
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button type="button" class="btn btn-outline-warning" onclick="showFieldValues()" title="查看字段的实际值">
+                                                <i class="fas fa-search"></i> 查看字段值
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 公式输入框 -->
+                                    <textarea class="form-control formula-input" id="calculationFormula" name="calculationFormula" 
+                                              rows="4" placeholder="输入自定义公式&#10;示例：SUM({quotations.amount}) WHERE {quotations.status} = 'approved'&#10;字段引用格式：{table.field}&#10;支持的函数：SUM, AVG, COUNT, MAX, MIN&#10;支持的运算符：+, -, *, /, (, )"></textarea>
+                                    
+                                    <!-- 字段预览和提示 -->
+                                    <div class="formula-help mt-2">
+                                        <div id="fieldPreview" class="text-info mb-1" style="display: none;">
+                                            <small><i class="fas fa-eye me-1"></i>字段预览: <code id="fieldPreviewText"></code></small>
+                                        </div>
+                                        <div id="fieldValues" class="text-success mb-1" style="display: none;">
+                                            <small><i class="fas fa-list me-1"></i>可能的值: <span id="fieldValuesText"></span></small>
+                                        </div>
+                                        <div id="fieldExample" class="text-warning mb-1" style="display: none;">
+                                            <small><i class="fas fa-code me-1"></i>使用示例: <code id="fieldExampleText"></code></small>
+                                        </div>
+                                        <div class="form-text">
+                                            <i class="fas fa-lightbulb me-1"></i>
+                                            <strong>使用提示：</strong> 
+                                            1. 选择表和字段后点击"插入字段" 
+                                            2. 使用 <code>{表名.字段名}</code> 格式引用字段 
+                                            3. 支持SQL函数和WHERE条件
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 快速公式模板 -->
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <label class="form-label">快速模板</label>
+                                <div class="template-buttons">
+                                    {{ render_button('销售金额统计', color='outline-secondary', size='sm', onclick="useTemplate('sales_sum')", extra_class='me-2 mb-2') }}
+                                    {{ render_button('客户增长率', color='outline-secondary', size='sm', onclick="useTemplate('customer_growth')", extra_class='me-2 mb-2') }}
+                                    {{ render_button('综合评分', color='outline-secondary', size='sm', onclick="useTemplate('comprehensive_score')", extra_class='me-2 mb-2') }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 合格标准配置区域 -->
+                    <div class="modal-section mb-4">
+                        <h6 class="modal-section-title">
+                            <i class="fas fa-medal me-2 text-success"></i>合格标准
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label class="form-label">
+                                    优秀阈值 
+                                    <span class="badge bg-success">🟢</span>
+                                </label>
+                                <input type="number" class="form-control threshold-input excellent" 
+                                       id="excellentThreshold" name="excellentThreshold" step="0.01">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">
+                                    良好阈值 
+                                    <span class="badge bg-info">🔵</span>
+                                </label>
+                                <input type="number" class="form-control threshold-input good" 
+                                       id="goodThreshold" name="goodThreshold" step="0.01">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">
+                                    合格阈值 
+                                    <span class="badge bg-warning">🟡</span>
+                                </label>
+                                <input type="number" class="form-control threshold-input qualified" 
+                                       id="qualifiedThreshold" name="qualifiedThreshold" step="0.01">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">合格率 (%)</label>
+                                <input type="number" class="form-control" id="qualificationRate" 
+                                       name="qualificationRate" min="0" max="100" step="1" value="80">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 显示配置区域 -->
+                    <div class="modal-section">
+                        <h6 class="modal-section-title">
+                            <i class="fas fa-palette me-2 text-info"></i>显示配置
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label class="form-label">显示单位</label>
+                                <select class="form-select" id="displayUnit" name="displayUnit">
+                                    <option value="元">元</option>
+                                    <option value="万元">万元</option>
+                                    <option value="个">个</option>
+                                    <option value="%">%</option>
+                                    <option value="分">分</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">小数位数</label>
+                                <input type="number" class="form-control" id="decimalPlaces" 
+                                       name="decimalPlaces" min="0" max="4" value="2">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">图标</label>
+                                <select class="form-select" id="displayIcon" name="displayIcon">
+                                    <option value="fas fa-dollar-sign">💰 金额</option>
+                                    <option value="fas fa-users">👥 客户</option>
+                                    <option value="fas fa-project-diagram">📊 项目</option>
+                                    <option value="fas fa-chart-line">📈 趋势</option>
+                                    <option value="fas fa-trophy">🏆 成就</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer bg-light">
+                <div class="d-flex gap-2">
+                    {{ render_button(
+                        text='保存项目',
+                        color='primary',
+                        type='button',
+                        onclick='savePerformanceItem()'
+                    ) }}
+                    {{ render_button(
+                        text='取消',
+                        color='secondary',
+                        type='button',
+                        attrs='data-bs-dismiss="modal"'
+                    ) }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 {% endblock %}
 

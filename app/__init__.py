@@ -281,6 +281,7 @@ def create_app(config_class=Config):
         PerformanceMetricsDefinition, RolePerformanceConfig, RolePerformanceItem,
         PerformanceFormulaTemplate, RolePerformanceAccess
     )
+    from app.models.data_source_config import DataTableConfig, DataFieldConfig, FormulaTemplate
 
     # 导入所有视图
     from app.views import main, customer, project, auth, user_bp

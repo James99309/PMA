@@ -1,0 +1,1099 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button, render_top_notification, render_tree_user_selector %}
+
+{# 设置语言变量 #}
+{% set is_chinese = session.get('language', 'zh') == 'zh' %}
+
+{% block title %}绩效配置{% endblock %}
+
+{% block content %}
+<!-- 标准化顶部提示组件 -->
+{{ render_top_notification() }}
+
+<!-- 遵循CLAUDE.md主要功能页面结构规范 -->
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 标准化页面头部区域：标题与操作按钮在同一行 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">
+                    <i class="fas fa-users-cog me-2"></i>
+                    绩效配置
+                </h1>
+                <p class="text-muted mb-0 mt-1">为不同角色配置专属的绩效考核方案</p>
+            </div>
+            <div class="col text-end">
+                <!-- 操作按钮组 - 使用标准化按钮容器 -->
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    {{ render_button(
+                        text='保存配置',
+                        color='success',
+                        icon='fas fa-save',
+                        onclick='saveRoleConfig()',
+                        attrs='id="saveConfigBtn"'
+                    ) }}
+                    {{ render_button(
+                        text='返回',
+                        href=url_for('main.index'),
+                        color='secondary',
+                        icon='fas fa-arrow-left',
+                        extra_class='ms-2'
+                    ) }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 角色选择器 - 顶部位置 -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-user-tag me-2"></i>选择配置角色
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-4">
+                    <label class="form-label">当前配置角色</label>
+                    <select class="form-select" id="roleSelector" onchange="switchRole(this.value)">
+                        <option value="">请选择角色...</option>
+                        {% for role_info in available_roles %}
+                        <option value="{{ role_info.role_code }}" 
+                                {% if loop.first %}selected{% endif %}
+                                data-display-name="{{ role_info.display_name }}"
+                                data-user-count="{{ role_info.user_count }}"
+                                data-has-config="{{ role_info.has_config }}">
+                            {{ role_info.display_name }} ({{ role_info.role_code }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主要配置内容 -->
+    <div class="card config-panel-card">
+        <div class="card-header bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0" id="config-title">
+                    绩效配置
+                </h5>
+                <div class="config-actions">
+                    <span class="badge bg-info" id="items-count">已选 0 项</span>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+
+            <!-- 使用标准化页签显示绩效项目 -->
+            <div class="section-card mb-4">
+                <div class="section-header">
+                    <h6 class="section-title">
+                        <i class="fas fa-chart-bar me-2 text-success"></i>
+                        绩效考核项目
+                    </h6>
+                </div>
+                <div class="section-body">
+                    <!-- 页签导航 -->
+                    <ul class="nav nav-tabs nav-tabs-performance" id="performanceItemsTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="sales-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#sales-items" type="button" role="tab" 
+                                    aria-controls="sales-items" aria-selected="true">
+                                <i class="fas fa-dollar-sign me-1"></i>销售业绩
+                                <span class="badge bg-secondary ms-2" id="sales-count">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="customer-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#customer-items" type="button" role="tab"
+                                    aria-controls="customer-items" aria-selected="false">
+                                <i class="fas fa-users me-1"></i>客户管理
+                                <span class="badge bg-secondary ms-2" id="customer-count">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="project-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#project-items" type="button" role="tab"
+                                    aria-controls="project-items" aria-selected="false">
+                                <i class="fas fa-project-diagram me-1"></i>项目管理
+                                <span class="badge bg-secondary ms-2" id="project-count">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="quality-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#quality-items" type="button" role="tab"
+                                    aria-controls="quality-items" aria-selected="false">
+                                <i class="fas fa-medal me-1"></i>质量管理
+                                <span class="badge bg-secondary ms-2" id="quality-count">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="other-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#other-items" type="button" role="tab"
+                                    aria-controls="other-items" aria-selected="false">
+                                <i class="fas fa-chart-bar me-1"></i>其他
+                                <span class="badge bg-secondary ms-2" id="other-count">0</span>
+                            </button>
+                        </li>
+                    </ul>
+
+                    <!-- 页签内容 -->
+                    <div class="tab-content performance-items-content" id="performanceItemsTabContent">
+                        <!-- 销售业绩页签 -->
+                        <div class="tab-pane fade show active" id="sales-items" role="tabpanel" aria-labelledby="sales-tab">
+                            <div class="preset-items-grid" data-category="sales">
+                                <!-- 销售相关的预置项目将在这里动态生成 -->
+                                <div class="loading-indicator text-center py-4">
+                                    <i class="fas fa-spinner fa-spin text-muted"></i>
+                                    <p class="text-muted mt-2">正在加载销售业绩项目...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 客户管理页签 -->
+                        <div class="tab-pane fade" id="customer-items" role="tabpanel" aria-labelledby="customer-tab">
+                            <div class="preset-items-grid" data-category="customer">
+                                <div class="loading-indicator text-center py-4">
+                                    <i class="fas fa-spinner fa-spin text-muted"></i>
+                                    <p class="text-muted mt-2">正在加载客户管理项目...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 项目管理页签 -->
+                        <div class="tab-pane fade" id="project-items" role="tabpanel" aria-labelledby="project-tab">
+                            <div class="preset-items-grid" data-category="project">
+                                <div class="loading-indicator text-center py-4">
+                                    <i class="fas fa-spinner fa-spin text-muted"></i>
+                                    <p class="text-muted mt-2">正在加载项目管理项目...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 质量管理页签 -->
+                        <div class="tab-pane fade" id="quality-items" role="tabpanel" aria-labelledby="quality-tab">
+                            <div class="preset-items-grid" data-category="quality">
+                                <div class="loading-indicator text-center py-4">
+                                    <i class="fas fa-spinner fa-spin text-muted"></i>
+                                    <p class="text-muted mt-2">正在加载质量管理项目...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 其他页签 -->
+                        <div class="tab-pane fade" id="other-items" role="tabpanel" aria-labelledby="other-tab">
+                            <div class="preset-items-grid" data-category="other">
+                                <div class="loading-indicator text-center py-4">
+                                    <i class="fas fa-spinner fa-spin text-muted"></i>
+                                    <p class="text-muted mt-2">正在加载其他项目...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 已选择的绩效项目汇总 -->
+            <div class="section-card mb-4" id="selected-items-section" style="display: none;">
+                <div class="section-header">
+                    <h6 class="section-title">
+                        <i class="fas fa-check-circle me-2 text-success"></i>
+                        已选择的绩效项目
+                    </h6>
+                </div>
+                <div class="section-body">
+                    <div id="selected-items-summary">
+                        <!-- 已选择项目汇总将在这里显示 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 数据范围配置 - 使用共享设置样式 -->
+            <div class="section-card" id="scope-config-section" style="display: none;">
+                <div class="section-header">
+                    <h6 class="section-title">
+                        <i class="fas fa-cog me-2 text-info"></i>
+                        数据统计范围配置
+                    </h6>
+                </div>
+                <div class="section-body">
+                    <div class="alert alert-info mb-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        为选择的绩效项目配置数据统计范围。可以选择企业、部门、用户进行多选组合。
+                    </div>
+
+                    <!-- 启用数据范围配置选项 -->
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="scope_enabled" 
+                                   name="scope_enabled" checked>
+                            <label class="form-check-label" for="scope_enabled">
+                                启用自定义数据统计范围
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 用户选择区域 - 使用通用的共享设置模组 -->
+                    <div id="scope_users_section">
+                        <div class="mb-3">
+                            <label for="scope_users" class="form-label">数据统计范围选择：</label>
+                            {% if shareable_users_tree %}
+                                {{ render_tree_user_selector(shareable_users_tree, [], 'performanceScopeTree', disabled=False) }}
+                            {% else %}
+                                <!-- 备用方案：简单列表 -->
+                                <div id="scope_users_simple_list" 
+                                     style="border:1px solid #ced4da;border-radius:0.375rem;max-height:200px;overflow-y:auto;padding:6px;">
+                                    <div class="loading-indicator text-center py-3">
+                                        <i class="fas fa-spinner fa-spin text-muted"></i>
+                                        <p class="text-muted mt-2">正在加载组织架构...</p>
+                                    </div>
+                                </div>
+                            {% endif %}
+                            <input type="hidden" name="scope_users" id="scope_users_hidden">
+                            <div class="form-text mt-2">
+                                <i class="fas fa-info-circle me-1"></i>
+                                选择组织或用户后，绩效统计将包含选中范围内的所有数据。
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block styles %}
+<style>
+/* 页面布局样式 */
+.page-with-fixed-nav {
+    padding-top: 1rem;
+}
+
+.page-header-with-actions {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 8px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e9ecef;
+}
+
+.page-title {
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+/* 配置面板样式 */
+.config-panel-card {
+    min-height: 600px;
+}
+
+.section-card {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    overflow: hidden;
+}
+
+.section-header {
+    background-color: #ffffff;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.section-body {
+    padding: 1.25rem;
+}
+
+.section-title {
+    color: #495057;
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 0;
+}
+
+/* 角色信息显示样式已移除 */
+
+/* 标准化页签样式 */
+.nav-tabs-performance {
+    border-bottom: 2px solid #e9ecef;
+    margin-bottom: 1rem;
+}
+
+.nav-tabs-performance .nav-link {
+    color: #6c757d;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 1rem 1.5rem;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.nav-tabs-performance .nav-link:hover {
+    color: #007bff;
+    border-bottom-color: #007bff;
+    background-color: transparent;
+}
+
+.nav-tabs-performance .nav-link.active {
+    color: #007bff;
+    border-bottom-color: #007bff;
+    background-color: transparent;
+    font-weight: 500;
+}
+
+.nav-tabs-performance .nav-link.disabled {
+    color: #6c757d;
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.nav-tabs-performance .nav-link .badge {
+    font-size: 0.7rem;
+    transition: all 0.3s ease;
+}
+
+.nav-tabs-performance .nav-link.active .badge {
+    background-color: #007bff !important;
+}
+
+/* 绩效项目网格样式 */
+.performance-items-content {
+    min-height: 400px;
+}
+
+.preset-items-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+    padding: 1rem 0;
+}
+
+.preset-item-card {
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    background-color: #ffffff;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.preset-item-card:hover {
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+    border-color: #007bff;
+}
+
+.preset-item-card.selected {
+    border-color: #28a745;
+    background-color: #f8fff9;
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.2);
+}
+
+.preset-item-card .card-header {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-bottom: 1px solid #dee2e6;
+    padding: 1rem;
+    position: relative;
+}
+
+.preset-item-card.selected .card-header {
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+}
+
+.item-select-indicator {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: #28a745;
+    color: white;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+}
+
+.preset-item-card.selected .item-select-indicator {
+    display: flex;
+}
+
+.preset-item-card .card-body {
+    padding: 1rem;
+}
+
+.preset-item-card .card-title {
+    margin-bottom: 0.5rem;
+    color: #495057;
+}
+
+.preset-item-card .card-text {
+    font-size: 0.9rem;
+    color: #6c757d;
+}
+
+/* 已选择项目汇总样式 */
+.selected-item-summary {
+    border: 1px solid #28a745;
+    border-radius: 8px;
+    background-color: #f8fff9;
+    margin-bottom: 0.75rem;
+    padding: 1rem;
+}
+
+.selected-item-summary .item-remove-btn {
+    cursor: pointer;
+    color: #dc3545;
+    margin-left: 0.75rem;
+    transition: all 0.3s ease;
+}
+
+.selected-item-summary .item-remove-btn:hover {
+    color: #c82333;
+    transform: scale(1.1);
+}
+
+/* 加载指示器样式 */
+.loading-indicator {
+    color: #6c757d;
+    min-height: 100px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 空状态样式 */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #6c757d;
+}
+
+.empty-state-icon {
+    font-size: 3rem;
+    opacity: 0.6;
+    margin-bottom: 1rem;
+}
+
+/* 树状选择器样式增强 */
+.tree-user-selector {
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 0.5rem;
+    background-color: #ffffff;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .preset-items-grid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+    
+    .nav-tabs-performance .nav-link {
+        padding: 0.75rem 1rem;
+        font-size: 0.9rem;
+    }
+    
+    .section-body {
+        padding: 1rem;
+    }
+}
+
+/* 页签状态指示 */
+.nav-tabs-performance .nav-link.has-items::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 6px;
+    height: 6px;
+    background-color: #28a745;
+    border-radius: 50%;
+    display: block;
+}
+
+.nav-tabs-performance .nav-link.active.has-items::after {
+    background-color: #007bff;
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 全局变量
+// 注意：树状选择器JavaScript逻辑由render_tree_user_selector宏自动提供
+let currentRole = '{{ available_roles[0].role_code if available_roles else "" }}';
+let presetItems = [];
+let selectedItems = [];
+let selectedScopeUsers = [];
+let shareableUsersTree = [];
+
+// 页面初始化
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 优化版绩效配置页面初始化...');
+    
+    try {
+        // 初始化角色选择器
+        initializeRoleSelector();
+        
+        // 加载预置项目
+        loadPresetItems();
+        
+        // 初始化用户范围选择器
+        initializeScopeUserSelector();
+        
+        // 注意：树状选择器由render_tree_user_selector宏自动初始化
+        console.log('✅ 等待树状选择器宏自动初始化');
+        
+        // 初始化事件监听
+        initializeEventListeners();
+        
+        // 加载默认角色配置
+        if (currentRole) {
+            loadRoleConfig(currentRole);
+        }
+        
+        console.log('✅ 页面初始化完成');
+    } catch (error) {
+        console.error('❌ 页面初始化失败:', error);
+        alert('页面初始化失败: ' + error.message);
+    }
+});
+
+// 初始化角色选择器
+function initializeRoleSelector() {
+    const selector = document.getElementById('roleSelector');
+    if (selector.value) {
+        updateRoleInfo(selector.value);
+    }
+}
+
+// 初始化事件监听
+function initializeEventListeners() {
+    // 范围启用切换
+    const scopeEnabled = document.getElementById('scope_enabled');
+    if (scopeEnabled) {
+        scopeEnabled.addEventListener('change', function() {
+            const section = document.getElementById('scope_users_section');
+            section.style.display = this.checked ? 'block' : 'none';
+        });
+    }
+}
+
+// 切换角色
+function switchRole(roleCode) {
+    if (!roleCode) return;
+    
+    console.log('切换角色:', roleCode);
+    currentRole = roleCode;
+    
+    // 更新角色信息显示
+    updateRoleInfo(roleCode);
+    
+    // 重置选择状态
+    selectedItems = [];
+    selectedScopeUsers = [];
+    
+    // 清除所有选择状态
+    clearAllSelections();
+    
+    // 加载角色配置
+    loadRoleConfig(roleCode);
+}
+
+// 更新角色信息显示
+function updateRoleInfo(roleCode) {
+    const selector = document.getElementById('roleSelector');
+    const option = selector.querySelector(`option[value="${roleCode}"]`);
+    
+    if (option) {
+        const displayName = option.getAttribute('data-display-name');
+        const userCount = option.getAttribute('data-user-count');
+        const hasConfig = option.getAttribute('data-has-config') === 'true';
+        
+        // 由于已移除角色显示名称和状态信息，这里不需要更新UI
+        console.log('角色切换:', roleCode, displayName);
+    }
+}
+
+// 加载预置项目
+async function loadPresetItems() {
+    try {
+        console.log('加载预置绩效项目...');
+        
+        const response = await fetch('/performance/config/api/preset-items');
+        const data = await response.json();
+        
+        if (data.success) {
+            presetItems = data.data.items;
+            renderPresetItemsByCategory(data.data.grouped_items);
+            updateTabCounts();
+        } else {
+            throw new Error(data.message);
+        }
+    } catch (error) {
+        console.error('加载预置项目失败:', error);
+        showErrorInAllTabs('加载预置项目失败');
+    }
+}
+
+// 按分类渲染预置项目
+function renderPresetItemsByCategory(groupedItems) {
+    const categoryMap = {
+        '销售业绩': 'sales',
+        '客户管理': 'customer', 
+        '项目管理': 'project',
+        '质量管理': 'quality'
+    };
+    
+    // 渲染各分类的项目
+    Object.keys(groupedItems).forEach(categoryName => {
+        const categoryKey = categoryMap[categoryName] || 'other';
+        const items = groupedItems[categoryName];
+        renderCategoryItems(categoryKey, items);
+    });
+    
+    // 处理未分类的项目
+    const unCategorizedItems = presetItems.filter(item => 
+        !Object.keys(categoryMap).includes(item.category)
+    );
+    if (unCategorizedItems.length > 0) {
+        renderCategoryItems('other', unCategorizedItems);
+    }
+}
+
+// 渲染分类项目
+function renderCategoryItems(category, items) {
+    const container = document.querySelector(`.preset-items-grid[data-category="${category}"]`);
+    if (!container) return;
+    
+    if (!items || items.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state col-span-full">
+                <div class="empty-state-icon">
+                    <i class="fas fa-inbox"></i>
+                </div>
+                <p>此分类暂无可用项目</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const itemsHtml = items.map(item => `
+        <div class="preset-item-card" data-item-id="${item.id}" onclick="toggleItemSelection(${item.id})">
+            <div class="item-select-indicator">
+                <i class="fas fa-check"></i>
+            </div>
+            <div class="card-header">
+                <div class="d-flex align-items-center">
+                    <i class="${item.icon} me-2 text-primary"></i>
+                    <h6 class="card-title mb-0">${item.name}</h6>
+                </div>
+            </div>
+            <div class="card-body">
+                <p class="card-text mb-2">
+                    ${item.description || '暂无描述'}
+                </p>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="badge bg-outline-secondary">${item.category}</span>
+                    <small class="text-muted">${item.result_unit}</small>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    container.innerHTML = itemsHtml;
+}
+
+// 显示错误信息
+function showErrorInAllTabs(message) {
+    document.querySelectorAll('.preset-items-grid').forEach(container => {
+        container.innerHTML = `
+            <div class="empty-state col-span-full text-danger">
+                <div class="empty-state-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <p>${message}</p>
+            </div>
+        `;
+    });
+}
+
+// 切换项目选择状态
+function toggleItemSelection(itemId) {
+    const itemCard = document.querySelector(`[data-item-id="${itemId}"]`);
+    const isSelected = itemCard.classList.contains('selected');
+    
+    if (isSelected) {
+        // 取消选择
+        itemCard.classList.remove('selected');
+        selectedItems = selectedItems.filter(id => id !== itemId);
+    } else {
+        // 选择项目
+        itemCard.classList.add('selected');
+        selectedItems.push(itemId);
+    }
+    
+    updateSelectedItemsDisplay();
+    updateTabCounts();
+    updateItemsCount();
+    toggleScopeConfig();
+}
+
+// 更新页签计数
+function updateTabCounts() {
+    const categoryMap = {
+        'sales': 'sales-count',
+        'customer': 'customer-count',
+        'project': 'project-count', 
+        'quality': 'quality-count',
+        'other': 'other-count'
+    };
+    
+    // 重置所有计数
+    Object.values(categoryMap).forEach(countId => {
+        const element = document.getElementById(countId);
+        if (element) element.textContent = '0';
+    });
+    
+    // 更新选中项计数
+    selectedItems.forEach(itemId => {
+        const item = presetItems.find(p => p.id === itemId);
+        if (item) {
+            const categoryKey = getCategoryKey(item.category);
+            const countId = categoryMap[categoryKey];
+            if (countId) {
+                const element = document.getElementById(countId);
+                if (element) {
+                    const current = parseInt(element.textContent) || 0;
+                    element.textContent = current + 1;
+                }
+            }
+        }
+    });
+    
+    // 更新页签状态
+    Object.keys(categoryMap).forEach(category => {
+        const countId = categoryMap[category];
+        const count = parseInt(document.getElementById(countId).textContent) || 0;
+        const tabId = category + '-tab';
+        const tab = document.getElementById(tabId);
+        if (tab) {
+            if (count > 0) {
+                tab.classList.add('has-items');
+                tab.classList.remove('disabled');
+            } else {
+                tab.classList.remove('has-items');
+                // 不设为disabled，保持可点击状态
+            }
+        }
+    });
+}
+
+// 获取分类键
+function getCategoryKey(categoryName) {
+    const categoryMap = {
+        '销售业绩': 'sales',
+        '客户管理': 'customer',
+        '项目管理': 'project', 
+        '质量管理': 'quality'
+    };
+    return categoryMap[categoryName] || 'other';
+}
+
+// 更新已选择项目显示
+function updateSelectedItemsDisplay() {
+    const container = document.getElementById('selected-items-summary');
+    const section = document.getElementById('selected-items-section');
+    
+    if (selectedItems.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+    
+    section.style.display = 'block';
+    
+    const selectedItemsHtml = selectedItems.map(itemId => {
+        const item = presetItems.find(p => p.id === itemId);
+        if (!item) return '';
+        
+        return `
+            <div class="selected-item-summary">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="${item.icon} me-2 text-primary"></i>
+                        <strong>${item.name}</strong>
+                        <span class="badge bg-secondary ms-2">${item.category}</span>
+                    </div>
+                    <div>
+                        <small class="text-muted me-2">${item.result_unit}</small>
+                        <i class="fas fa-times item-remove-btn" onclick="toggleItemSelection(${item.id})" title="移除"></i>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = selectedItemsHtml;
+}
+
+// 更新项目计数
+function updateItemsCount() {
+    document.getElementById('items-count').textContent = `已选 ${selectedItems.length} 项`;
+}
+
+// 显示/隐藏范围配置
+function toggleScopeConfig() {
+    const section = document.getElementById('scope-config-section');
+    section.style.display = selectedItems.length > 0 ? 'block' : 'none';
+}
+
+// 清除所有选择状态
+function clearAllSelections() {
+    document.querySelectorAll('.preset-item-card.selected').forEach(card => {
+        card.classList.remove('selected');
+    });
+    updateSelectedItemsDisplay();
+    updateTabCounts();
+    updateItemsCount();
+    toggleScopeConfig();
+}
+
+// 初始化用户范围选择器
+function initializeScopeUserSelector() {
+    // 等待树状选择器宏完成初始化，然后添加我们的事件监听
+    setTimeout(function() {
+        const treeContainer = document.getElementById('performanceScopeTree');
+        if (treeContainer) {
+            // 监听树状选择器的变化
+            treeContainer.addEventListener('change', function(e) {
+                if (e.target.type === 'checkbox') {
+                    setTimeout(updateSelectedScopeUsers, 50); // 稍微延迟以确保状态已更新
+                }
+            });
+            console.log('✅ 树状选择器事件监听初始化完成');
+        } else {
+            // 如果没有树状选择器，加载简化版本
+            loadSimpleUsersList();
+        }
+    }, 200); // 稍微延迟以确保宏的初始化完成
+}
+
+// 注意：树状选择器的展开/收缩功能由ui_helpers.html中的initTreeUserSelector函数处理
+
+// 更新选中的范围用户
+function updateSelectedScopeUsers() {
+    const treeContainer = document.getElementById('performanceScopeTree');
+    selectedScopeUsers = [];
+    
+    if (treeContainer) {
+        // 收集所有选中的用户节点
+        const checkedUsers = treeContainer.querySelectorAll('input[data-type="user"]:checked');
+        checkedUsers.forEach(function(checkbox) {
+            const userId = checkbox.getAttribute('data-user-id');
+            if (userId) {
+                selectedScopeUsers.push(parseInt(userId));
+            }
+        });
+        
+        // 收集所有选中的部门节点（包含部门下的所有用户）
+        const checkedDepts = treeContainer.querySelectorAll('input[data-type="department"]:checked');
+        checkedDepts.forEach(function(checkbox) {
+            const deptId = checkbox.getAttribute('data-id');
+            // 查找该部门下的所有用户
+            const deptUsers = treeContainer.querySelectorAll(`input[data-type="user"][data-parent="${deptId}"]`);
+            deptUsers.forEach(function(userCheckbox) {
+                const userId = userCheckbox.getAttribute('data-user-id');
+                if (userId && !selectedScopeUsers.includes(parseInt(userId))) {
+                    selectedScopeUsers.push(parseInt(userId));
+                }
+            });
+        });
+        
+        // 收集所有选中的公司节点（包含公司下的所有用户）
+        const checkedCompanies = treeContainer.querySelectorAll('input[data-type="company"]:checked');
+        checkedCompanies.forEach(function(checkbox) {
+            const companyId = checkbox.getAttribute('data-id');
+            // 查找该公司下的所有用户
+            const companyUsers = treeContainer.querySelectorAll(`input[data-type="user"]`);
+            companyUsers.forEach(function(userCheckbox) {
+                const userId = userCheckbox.getAttribute('data-user-id');
+                if (userId && !selectedScopeUsers.includes(parseInt(userId))) {
+                    selectedScopeUsers.push(parseInt(userId));
+                }
+            });
+        });
+    }
+    
+    console.log('选中的用户范围:', selectedScopeUsers);
+    
+    // 更新隐藏字段
+    const hiddenField = document.getElementById('scope_users_hidden');
+    if (hiddenField) {
+        hiddenField.value = selectedScopeUsers.join(',');
+    }
+}
+
+// 加载简化版用户列表
+async function loadSimpleUsersList() {
+    try {
+        const container = document.getElementById('scope_users_simple_list');
+        if (!container) return;
+        
+        const response = await fetch('/performance/config/api/shareable-users-tree');
+        const data = await response.json();
+        
+        if (data.success && data.data.length > 0) {
+            renderSimpleUsersList(data.data, container);
+        } else {
+            container.innerHTML = `
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    暂未配置组织架构，将使用个人数据范围。
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('加载用户列表失败:', error);
+        const container = document.getElementById('scope_users_simple_list');
+        if (container) {
+            container.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    加载用户列表失败，将使用个人数据范围。
+                </div>
+            `;
+        }
+    }
+}
+
+// 渲染简化版用户列表
+function renderSimpleUsersList(treeData, container) {
+    let html = '';
+    
+    treeData.forEach(org => {
+        html += `<div class="mb-2"><strong>${org.name}</strong></div>`;
+        
+        org.children.forEach(dept => {
+            if (dept.type === 'department') {
+                html += `<div class="ms-2 mb-1"><strong>${dept.name}</strong></div>`;
+                
+                dept.children.forEach(user => {
+                    html += `
+                        <div class="form-check ms-4">
+                            <input class="form-check-input scope-user-checkbox" 
+                                   type="checkbox" value="${user.user_id}" 
+                                   id="scope_user_${user.user_id}"
+                                   onchange="updateSimpleScopeUsers()">
+                            <label class="form-check-label" for="scope_user_${user.user_id}">
+                                ${user.name}
+                            </label>
+                        </div>
+                    `;
+                });
+            }
+        });
+    });
+    
+    container.innerHTML = html;
+}
+
+// 更新简化版的范围用户选择
+function updateSimpleScopeUsers() {
+    selectedScopeUsers = [];
+    const checkboxes = document.querySelectorAll('.scope-user-checkbox:checked');
+    checkboxes.forEach(cb => {
+        selectedScopeUsers.push(parseInt(cb.value));
+    });
+    
+    console.log('选中的用户范围:', selectedScopeUsers);
+    
+    const hiddenField = document.getElementById('scope_users_hidden');
+    if (hiddenField) {
+        hiddenField.value = selectedScopeUsers.join(',');
+    }
+}
+
+// 加载角色配置
+async function loadRoleConfig(roleCode) {
+    try {
+        console.log('加载角色配置:', roleCode);
+        
+        const response = await fetch(`/performance/config/api/role/${roleCode}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const config = data.data;
+            
+            // 基本信息区域已移除
+            
+            // TODO: 恢复已选择的项目状态
+        }
+        
+    } catch (error) {
+        console.error('加载角色配置失败:', error);
+    }
+}
+
+// 保存角色配置
+async function saveRoleConfig() {
+    try {
+        if (!currentRole) {
+            alert('请先选择一个角色');
+            return;
+        }
+        
+        if (selectedItems.length === 0) {
+            alert('请至少选择一个绩效项目');
+            return;
+        }
+        
+        console.log('保存角色配置...');
+        
+        const configData = {
+            selected_items: selectedItems,
+            scope_users: selectedScopeUsers
+        };
+        
+        const response = await fetch(`/performance/config/api/role/${currentRole}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(configData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('配置保存成功！');
+            
+            // 更新角色状态
+            const selector = document.getElementById('roleSelector');
+            const option = selector.querySelector(`option[value="${currentRole}"]`);
+            if (option) {
+                option.setAttribute('data-has-config', 'true');
+            }
+            updateRoleInfo(currentRole);
+        } else {
+            alert('保存失败：' + result.message);
+        }
+        
+    } catch (error) {
+        console.error('保存配置失败:', error);
+        alert('保存失败：' + error.message);
+    }
+}
+</script>
+{% endblock %}

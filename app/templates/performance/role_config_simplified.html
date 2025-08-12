@@ -1,0 +1,754 @@
+{% extends "base.html" %}
+{% from 'macros/ui_helpers.html' import render_button, render_top_notification %}
+
+{# 设置语言变量 #}
+{% set is_chinese = session.get('language', 'zh') == 'zh' %}
+
+{% block title %}绩效配置{% endblock %}
+
+{% block content %}
+<!-- 标准化顶部提示组件 -->
+{{ render_top_notification() }}
+
+<!-- 遵循CLAUDE.md主要功能页面结构规范 -->
+<div class="container-fluid page-with-fixed-nav">
+    <!-- 标准化页面头部区域：标题与操作按钮在同一行 -->
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="page-title mb-0">
+                    <i class="fas fa-users-cog me-2"></i>
+                    绩效配置
+                </h1>
+                <p class="text-muted mb-0 mt-1">为不同角色配置专属的绩效考核方案</p>
+            </div>
+            <div class="col text-end">
+                <!-- 操作按钮组 - 使用标准化按钮容器 -->
+                <div class="btn-toolbar justify-content-end" role="toolbar">
+                    {{ render_button(
+                        text='保存配置',
+                        color='success',
+                        icon='fas fa-save',
+                        onclick='saveRoleConfig()',
+                        attrs='id="saveConfigBtn"'
+                    ) }}
+                    {{ render_button(
+                        text='返回',
+                        href=url_for('main.index'),
+                        color='secondary',
+                        icon='fas fa-arrow-left',
+                        extra_class='ms-2'
+                    ) }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 页面主体内容 -->
+    <div class="row">
+        <!-- 左侧角色选择区域 -->
+        <div class="col-lg-3 col-md-4 mb-4">
+            <div class="card role-selector-card sticky-card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-user-tag me-2"></i>选择角色
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush role-list">
+                        {% for role_info in available_roles %}
+                        <a href="#" class="list-group-item list-group-item-action role-item {% if loop.first %}active{% endif %}" 
+                           data-role="{{ role_info.role_code }}" onclick="switchRole('{{ role_info.role_code }}')">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="role-info">
+                                    <div class="fw-medium role-name">{{ role_info.display_name }}</div>
+                                    <small class="text-muted role-code">{{ role_info.role_code }}</small>
+                                    <small class="text-muted d-block">用户数：{{ role_info.user_count }}</small>
+                                </div>
+                                <div class="role-status">
+                                    {% if role_info.has_config %}
+                                        <span class="badge bg-success">已配置</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">待配置</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="card-footer bg-light">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        点击角色切换配置方案
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧配置面板区域 -->
+        <div class="col-lg-9 col-md-8">
+            <div class="card config-panel-card">
+                <div class="card-header bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-0" id="config-title">
+                                <i class="fas fa-cog me-2 text-primary"></i>
+                                <span id="role-display-name">加载中...</span> 绩效方案
+                            </h5>
+                            <small class="text-muted" id="role-description">配置此角色的专属绩效考核指标</small>
+                        </div>
+                        <div class="config-actions">
+                            <span class="badge bg-info" id="items-count">已选 0 项</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- 配置基本信息区域 -->
+                    <div class="section-card mb-4">
+                        <div class="section-header">
+                            <h6 class="section-title">
+                                <i class="fas fa-info-circle me-2 text-primary"></i>
+                                基本信息
+                            </h6>
+                        </div>
+                        <div class="section-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label class="form-label">配置名称</label>
+                                    <input type="text" class="form-control" id="configName" 
+                                           placeholder="输入绩效方案名称">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">启用状态</label>
+                                    <select class="form-select" id="configStatus">
+                                        <option value="true">启用</option>
+                                        <option value="false">禁用</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row mt-3">
+                                <div class="col-12">
+                                    <label class="form-label">方案描述</label>
+                                    <textarea class="form-control" id="configDescription" rows="2" 
+                                              placeholder="简要说明此角色的绩效考核重点和特色"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 预置绩效项目选择区域 -->
+                    <div class="section-card mb-4">
+                        <div class="section-header">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="section-title mb-0">
+                                    <i class="fas fa-chart-bar me-2 text-success"></i>
+                                    选择绩效考核项目
+                                </h6>
+                                <span class="text-muted">从预置项目中选择适合的指标</span>
+                            </div>
+                        </div>
+                        <div class="section-body">
+                            <!-- 预置项目分类选择 -->
+                            <div class="category-tabs mb-3">
+                                <ul class="nav nav-pills" id="category-tabs" role="tablist">
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link active" id="all-tab" data-bs-toggle="pill" 
+                                                data-bs-target="#all-items" type="button" role="tab">
+                                            全部项目
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <!-- 预置项目列表 -->
+                            <div class="tab-content" id="preset-items-content">
+                                <div class="tab-pane fade show active" id="all-items" role="tabpanel">
+                                    <div id="preset-items-list" class="row">
+                                        <!-- 预置项目卡片将在这里动态生成 -->
+                                        <div class="col-12 text-center py-4" id="loading-preset-items">
+                                            <i class="fas fa-spinner fa-spin fa-2x text-muted mb-2"></i>
+                                            <p class="text-muted">正在加载预置绩效项目...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 已选择的绩效项目 -->
+                    <div class="section-card mb-4" id="selected-items-section" style="display: none;">
+                        <div class="section-header">
+                            <h6 class="section-title">
+                                <i class="fas fa-check-circle me-2 text-success"></i>
+                                已选择的绩效项目
+                            </h6>
+                        </div>
+                        <div class="section-body">
+                            <div id="selected-items-list">
+                                <!-- 已选择项目将在这里显示 -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 数据范围配置 -->
+                    <div class="section-card" id="scope-config-section" style="display: none;">
+                        <div class="section-header">
+                            <h6 class="section-title">
+                                <i class="fas fa-cog me-2 text-info"></i>
+                                数据统计范围配置
+                            </h6>
+                        </div>
+                        <div class="section-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                选择的范围决定绩效统计的数据来源。可以为不同项目设置不同的统计范围。
+                            </div>
+                            <div class="scope-options">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="scope-system" value="system">
+                                    <label class="form-check-label" for="scope-system">
+                                        <i class="fas fa-globe me-1 text-primary"></i>系统全局
+                                        <small class="text-muted d-block">统计整个系统所有数据</small>
+                                    </label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="scope-company" value="company">
+                                    <label class="form-check-label" for="scope-company">
+                                        <i class="fas fa-building me-1 text-info"></i>企业范围
+                                        <small class="text-muted d-block">统计企业内所有数据</small>
+                                    </label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="scope-department" value="department">
+                                    <label class="form-check-label" for="scope-department">
+                                        <i class="fas fa-users me-1 text-warning"></i>部门范围
+                                        <small class="text-muted d-block">统计所在部门数据</small>
+                                    </label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="scope-personal" value="personal" checked>
+                                    <label class="form-check-label" for="scope-personal">
+                                        <i class="fas fa-user me-1 text-success"></i>个人范围
+                                        <small class="text-muted d-block">仅统计个人数据</small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block styles %}
+<style>
+/* 页面布局样式 */
+.page-with-fixed-nav {
+    padding-top: 1rem;
+}
+
+.page-header-with-actions {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 8px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e9ecef;
+}
+
+.page-title {
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+/* 角色选择器样式 */
+.role-selector-card {
+    height: fit-content;
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.sticky-card {
+    position: sticky;
+    top: 20px;
+}
+
+.role-item {
+    border: none;
+    transition: all 0.3s ease;
+    padding: 1rem;
+    cursor: pointer;
+}
+
+.role-item:hover {
+    background-color: #f8f9fa;
+    transform: translateX(3px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.role-item.active {
+    background-color: #e3f2fd;
+    border-left: 4px solid #2196f3;
+    font-weight: 500;
+}
+
+/* 配置面板样式 */
+.config-panel-card {
+    min-height: 600px;
+}
+
+.section-card {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    overflow: hidden;
+}
+
+.section-header {
+    background-color: #ffffff;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.section-body {
+    padding: 1.25rem;
+}
+
+.section-title {
+    color: #495057;
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 0;
+}
+
+/* 预置项目卡片样式 */
+.preset-item-card {
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    transition: all 0.3s ease;
+    background-color: #ffffff;
+    cursor: pointer;
+    position: relative;
+}
+
+.preset-item-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
+    border-color: #007bff;
+}
+
+.preset-item-card.selected {
+    border-color: #28a745;
+    background-color: #f8fff9;
+}
+
+.preset-item-card .card-header {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-bottom: 1px solid #dee2e6;
+    padding: 0.875rem 1.125rem;
+}
+
+.item-select-indicator {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: #28a745;
+    color: white;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+}
+
+.preset-item-card.selected .item-select-indicator {
+    display: flex;
+}
+
+/* 已选择项目样式 */
+.selected-item-card {
+    border: 1px solid #28a745;
+    border-radius: 8px;
+    background-color: #f8fff9;
+    margin-bottom: 0.5rem;
+    padding: 0.75rem;
+}
+
+.selected-item-card .item-remove-btn {
+    cursor: pointer;
+    color: #dc3545;
+    margin-left: 0.5rem;
+}
+
+/* 范围配置样式 */
+.scope-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.scope-options .form-check-inline {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 0;
+    transition: all 0.3s ease;
+}
+
+.scope-options .form-check-inline:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border-color: #007bff;
+}
+
+.scope-options .form-check-inline input:checked + label {
+    color: #007bff;
+    font-weight: 500;
+}
+
+/* 分类标签页样式 */
+.category-tabs .nav-pills .nav-link {
+    color: #6c757d;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+}
+
+.category-tabs .nav-pills .nav-link:hover {
+    background-color: #e9ecef;
+    color: #495057;
+}
+
+.category-tabs .nav-pills .nav-link.active {
+    background-color: #007bff;
+    color: #ffffff;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .scope-options {
+        grid-template-columns: 1fr;
+    }
+    
+    .preset-item-card {
+        margin-bottom: 0.75rem;
+    }
+}
+
+/* 空状态样式 */
+.empty-state {
+    color: #6c757d;
+}
+
+.empty-state-icon {
+    opacity: 0.6;
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 全局变量
+let currentRole = '{{ available_roles[0].role_code if available_roles else "sales_director" }}';
+let presetItems = [];
+let selectedItems = [];
+let selectedScopes = ['personal'];
+
+// 页面初始化
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 简化版绩效配置页面初始化...');
+    
+    try {
+        // 加载预置项目
+        loadPresetItems();
+        
+        // 加载角色配置
+        loadRoleConfig(currentRole);
+        
+        // 初始化事件监听
+        initializeEventListeners();
+        
+        console.log('✅ 页面初始化完成');
+    } catch (error) {
+        console.error('❌ 页面初始化失败:', error);
+        alert('页面初始化失败: ' + error.message);
+    }
+});
+
+// 初始化事件监听
+function initializeEventListeners() {
+    // 范围选择变化
+    document.querySelectorAll('input[type="checkbox"][id^="scope-"]').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            updateSelectedScopes();
+        });
+    });
+}
+
+// 切换角色
+function switchRole(roleCode) {
+    console.log('切换角色:', roleCode);
+    currentRole = roleCode;
+    
+    // 更新角色选择状态
+    document.querySelectorAll('.role-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    document.querySelector(`[data-role="${roleCode}"]`).classList.add('active');
+    
+    // 加载角色配置
+    loadRoleConfig(roleCode);
+}
+
+// 加载预置项目
+async function loadPresetItems() {
+    try {
+        console.log('加载预置绩效项目...');
+        
+        const response = await fetch('/performance/config/api/preset-items');
+        const data = await response.json();
+        
+        if (data.success) {
+            presetItems = data.data.items;
+            renderPresetItems(presetItems);
+            renderCategoryTabs(data.data.grouped_items);
+        } else {
+            throw new Error(data.message);
+        }
+    } catch (error) {
+        console.error('加载预置项目失败:', error);
+        document.getElementById('preset-items-list').innerHTML = 
+            '<div class="col-12 text-center text-danger"><i class="fas fa-exclamation-triangle"></i> 加载预置项目失败</div>';
+    }
+}
+
+// 渲染预置项目
+function renderPresetItems(items) {
+    const container = document.getElementById('preset-items-list');
+    
+    if (!items || items.length === 0) {
+        container.innerHTML = '<div class="col-12 text-center text-muted py-4">暂无可用的预置项目</div>';
+        return;
+    }
+    
+    const itemsHtml = items.map(item => `
+        <div class="col-md-6 col-lg-4 mb-3">
+            <div class="preset-item-card" data-item-id="${item.id}" onclick="toggleItemSelection(${item.id})">
+                <div class="item-select-indicator">
+                    <i class="fas fa-check"></i>
+                </div>
+                <div class="card-header">
+                    <div class="d-flex align-items-center">
+                        <i class="${item.icon} me-2 text-primary"></i>
+                        <h6 class="card-title mb-0">${item.name}</h6>
+                    </div>
+                </div>
+                <div class="card-body py-2">
+                    <p class="card-text text-muted mb-2" style="font-size: 0.85rem;">
+                        ${item.description || '暂无描述'}
+                    </p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="badge bg-outline-secondary">${item.category}</span>
+                        <small class="text-muted">${item.result_unit}</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    container.innerHTML = itemsHtml;
+}
+
+// 渲染分类标签页
+function renderCategoryTabs(groupedItems) {
+    const tabsContainer = document.getElementById('category-tabs');
+    
+    // 添加分类标签页
+    let tabsHtml = '<li class="nav-item" role="presentation"><button class="nav-link active" id="all-tab" data-bs-toggle="pill" data-bs-target="#all-items" type="button" role="tab">全部项目</button></li>';
+    
+    Object.keys(groupedItems).forEach(category => {
+        const categoryId = category.replace(/\s+/g, '-').toLowerCase();
+        tabsHtml += `
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="${categoryId}-tab" data-bs-toggle="pill" 
+                        data-bs-target="#${categoryId}-items" type="button" role="tab">
+                    ${category}
+                </button>
+            </li>
+        `;
+    });
+    
+    tabsContainer.innerHTML = tabsHtml;
+}
+
+// 切换项目选择状态
+function toggleItemSelection(itemId) {
+    const itemCard = document.querySelector(`[data-item-id="${itemId}"]`);
+    const isSelected = itemCard.classList.contains('selected');
+    
+    if (isSelected) {
+        // 取消选择
+        itemCard.classList.remove('selected');
+        selectedItems = selectedItems.filter(id => id !== itemId);
+    } else {
+        // 选择项目
+        itemCard.classList.add('selected');
+        selectedItems.push(itemId);
+    }
+    
+    updateSelectedItemsDisplay();
+    updateItemsCount();
+    toggleScopeConfig();
+}
+
+// 更新已选择项目显示
+function updateSelectedItemsDisplay() {
+    const container = document.getElementById('selected-items-list');
+    const section = document.getElementById('selected-items-section');
+    
+    if (selectedItems.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+    
+    section.style.display = 'block';
+    
+    const selectedItemsHtml = selectedItems.map(itemId => {
+        const item = presetItems.find(p => p.id === itemId);
+        if (!item) return '';
+        
+        return `
+            <div class="selected-item-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="${item.icon} me-2 text-primary"></i>
+                        <strong>${item.name}</strong>
+                        <span class="badge bg-secondary ms-2">${item.category}</span>
+                    </div>
+                    <div>
+                        <small class="text-muted me-2">${item.result_unit}</small>
+                        <i class="fas fa-times item-remove-btn" onclick="toggleItemSelection(${item.id})" title="移除"></i>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = selectedItemsHtml;
+}
+
+// 更新项目计数
+function updateItemsCount() {
+    document.getElementById('items-count').textContent = `已选 ${selectedItems.length} 项`;
+}
+
+// 显示/隐藏范围配置
+function toggleScopeConfig() {
+    const section = document.getElementById('scope-config-section');
+    section.style.display = selectedItems.length > 0 ? 'block' : 'none';
+}
+
+// 更新选择的范围
+function updateSelectedScopes() {
+    selectedScopes = Array.from(document.querySelectorAll('input[type="checkbox"][id^="scope-"]:checked'))
+        .map(checkbox => checkbox.value);
+    console.log('选择的范围:', selectedScopes);
+}
+
+// 加载角色配置
+async function loadRoleConfig(roleCode) {
+    try {
+        console.log('加载角色配置:', roleCode);
+        
+        // 更新页面显示
+        const roleItem = document.querySelector(`[data-role="${roleCode}"]`);
+        const roleName = roleItem ? roleItem.querySelector('.role-name').textContent : roleCode;
+        document.getElementById('role-display-name').textContent = roleName;
+        
+        // 加载现有配置（如果有）
+        const response = await fetch(`/performance/config/api/role/${roleCode}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            // 填充配置信息
+            const config = data.data;
+            document.getElementById('configName').value = config.config_name || `${roleName}绩效方案`;
+            document.getElementById('configStatus').value = config.is_active ? 'true' : 'false';
+            document.getElementById('configDescription').value = config.description || '';
+            
+            // 恢复已选择的项目（如果有保存的配置）
+            // TODO: 实现从现有配置恢复选择状态
+        }
+        
+    } catch (error) {
+        console.error('加载角色配置失败:', error);
+    }
+}
+
+// 保存角色配置
+async function saveRoleConfig() {
+    try {
+        console.log('保存角色配置...');
+        
+        if (selectedItems.length === 0) {
+            alert('请至少选择一个绩效项目');
+            return;
+        }
+        
+        if (selectedScopes.length === 0) {
+            alert('请至少选择一个数据统计范围');
+            return;
+        }
+        
+        const configData = {
+            config_name: document.getElementById('configName').value,
+            description: document.getElementById('configDescription').value,
+            is_active: document.getElementById('configStatus').value === 'true',
+            selected_items: selectedItems,
+            data_scopes: selectedScopes
+        };
+        
+        const response = await fetch(`/performance/config/api/role/${currentRole}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(configData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('配置保存成功！');
+            // 更新角色状态显示
+            updateRoleStatus(currentRole, true);
+        } else {
+            alert('保存失败：' + result.message);
+        }
+        
+    } catch (error) {
+        console.error('保存配置失败:', error);
+        alert('保存失败：' + error.message);
+    }
+}
+
+// 更新角色状态显示
+function updateRoleStatus(roleCode, hasConfig) {
+    const roleItem = document.querySelector(`[data-role="${roleCode}"]`);
+    if (roleItem) {
+        const statusBadge = roleItem.querySelector('.badge');
+        if (hasConfig) {
+            statusBadge.className = 'badge bg-success';
+            statusBadge.textContent = '已配置';
+        } else {
+            statusBadge.className = 'badge bg-warning';
+            statusBadge.textContent = '待配置';
+        }
+    }
+}
+</script>
+{% endblock %}

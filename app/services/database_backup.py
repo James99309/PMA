@@ -36,8 +36,9 @@ class DatabaseBackupService:
         os.makedirs(self.backup_location, exist_ok=True)
         
         # 动态获取数据库URL
-        from config import DATABASE_URL
-        self.db_config = self._parse_database_url(DATABASE_URL)
+        from config import get_database_url
+        database_url = get_database_url()
+        self.db_config = self._parse_database_url(database_url)
         
     def _parse_database_url(self, database_url):
         """解析数据库URL"""

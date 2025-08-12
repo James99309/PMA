@@ -9,6 +9,7 @@ from app.models.performance_config import (
     PerformanceMetricsDefinition, RolePerformanceConfig, RolePerformanceItem, 
     PerformanceFormulaTemplate, RolePerformanceAccess, ConfigurablePerformanceService
 )
+from app.models.data_source_config import DataTableConfig, DataFieldConfig, FormulaTemplate
 from app.permissions import permission_required
 from app.utils.dictionary_helpers import get_role_display_name_from_dict
 
@@ -24,22 +25,69 @@ performance_config_bp = Blueprint('performance_config', __name__, url_prefix='/p
 @login_required  
 @permission_required('performance_management', 'edit')
 def role_config():
-    """角色绩效配置主页面"""
+    """绩效配置主页面"""
     try:
+        # 详细的服务器端调试信息
+        logger.info("=== 绩效配置页面加载开始 ===")
+        logger.info(f"用户ID: {current_user.id}")
+        logger.info(f"用户名: {current_user.username}")
+        logger.info(f"用户角色: {current_user.role}")
+        logger.info(f"请求URL: {request.url}")
+        logger.info(f"请求方法: {request.method}")
+        logger.info(f"请求参数: {request.args}")
+        logger.info(f"用户代理: {request.headers.get('User-Agent', 'N/A')}")
+        logger.info(f"会话语言: {get_locale()}")
+        
         # 获取所有可配置的角色
+        logger.info("正在获取可配置角色列表...")
         available_roles = get_available_roles()
+        logger.info(f"找到 {len(available_roles)} 个可配置角色: {[r['role_code'] for r in available_roles]}")
         
         # 获取当前用户的默认角色（如果有的话）
         default_role = request.args.get('role', available_roles[0]['role_code'] if available_roles else 'sales_director')
+        logger.info(f"默认角色: {default_role}")
         
-        return render_template('performance/role_config_optimized.html',
+        # 加载共享用户树（使用通用模组）
+        shareable_users_tree = []
+        try:
+            from app.utils.sharing import get_shareable_users_tree
+            shareable_users_tree = get_shareable_users_tree(current_user, 'performance')
+            logger.info(f"加载共享用户树成功：{len(shareable_users_tree)} 个组织")
+        except ImportError as e:
+            logger.warning(f"未找到sharing模块：{e}")
+        except Exception as e:
+            logger.warning(f"加载共享用户树失败：{e}")
+        
+        # 检查模板是否存在
+        template_path = 'performance/role_config_optimized_v2.html'
+        logger.info(f"使用模板: {template_path}")
+        
+        logger.info("=== 绩效配置页面加载成功 ===")
+        
+        return render_template(template_path,
                              available_roles=available_roles,
-                             default_role=default_role)
+                             default_role=default_role,
+                             shareable_users_tree=shareable_users_tree)
     
     except Exception as e:
-        logger.error(f"加载角色绩效配置页面失败: {e}")
-        flash('页面加载失败', 'error')
-        return redirect(url_for('user.index'))
+        logger.error(f"=== 绩效配置页面加载失败 ===")
+        logger.error(f"错误类型: {type(e).__name__}")
+        logger.error(f"错误消息: {str(e)}")
+        logger.error(f"错误堆栈: ", exc_info=True)
+        logger.error("=== 错误详情结束 ===")
+        
+        # 根据具体错误类型提供更详细的错误信息
+        if "TemplateNotFound" in str(type(e)):
+            error_msg = f"模板文件未找到: {e}"
+        elif "permission" in str(e).lower():
+            error_msg = f"权限检查失败: {e}"
+        elif "database" in str(e).lower() or "sql" in str(e).lower():
+            error_msg = f"数据库错误: {e}"
+        else:
+            error_msg = f"页面加载失败: {e}"
+        
+        flash(error_msg, 'error')
+        return redirect(url_for('main.index'))
 
 @performance_config_bp.route('/api/roles')
 @login_required
@@ -65,30 +113,45 @@ def api_get_roles():
 def api_get_role_config(role_code):
     """获取指定角色的绩效配置API"""
     try:
+        # 详细的API调试信息
+        logger.info(f"=== API: 获取角色配置 {role_code} ===")
+        logger.info(f"请求用户: {current_user.username} (ID: {current_user.id})")
+        logger.info(f"请求时间: {datetime.utcnow()}")
+        logger.info(f"用户代理: {request.headers.get('User-Agent', 'N/A')}")
+        
         # 查询角色配置
         from app.models.performance_config import RolePerformanceConfig, RolePerformanceItem
         
+        logger.info(f"正在查询角色 {role_code} 的配置...")
         role_config = RolePerformanceConfig.query.filter_by(role=role_code).first()
         
         if not role_config:
+            logger.info(f"角色 {role_code} 暂无配置，返回默认配置")
             # 返回默认配置
+            default_config = {
+                'role': role_code,
+                'config_name': f'{get_role_display_name_from_dict(role_code)}绩效方案',
+                'description': '待配置的绩效方案',
+                'access_scope': 'personal',
+                'is_active': True,
+                'items': []
+            }
+            logger.info(f"默认配置: {default_config}")
             return jsonify({
                 'success': True,
-                'data': {
-                    'role': role_code,
-                    'config_name': f'{get_role_display_name_from_dict(role_code)}绩效方案',
-                    'description': '待配置的绩效方案',
-                    'access_scope': 'personal',
-                    'is_active': True,
-                    'items': []
-                }
+                'data': default_config
             })
         
+        logger.info(f"找到角色配置: ID={role_config.id}, 名称={role_config.config_name}")
+        
         # 获取配置项目
+        logger.info("正在获取绩效项目...")
         items = RolePerformanceItem.query.filter_by(
             role_config_id=role_config.id,
             is_enabled=True
         ).order_by(RolePerformanceItem.sort_order).all()
+        
+        logger.info(f"找到 {len(items)} 个启用的绩效项目")
         
         config_data = {
             'role': role_config.role,
@@ -99,17 +162,31 @@ def api_get_role_config(role_code):
             'items': [item.to_dict() for item in items]
         }
         
+        logger.info(f"返回配置数据: {len(config_data['items'])} 个项目")
+        logger.info("=== API调用成功 ===")
+        
         return jsonify({
             'success': True,
             'data': config_data
         })
         
     except Exception as e:
-        logger.error(f"获取角色配置失败 {role_code}: {e}")
+        logger.error(f"=== API调用失败: 获取角色配置 {role_code} ===")
+        logger.error(f"错误类型: {type(e).__name__}")
+        logger.error(f"错误消息: {str(e)}")
+        logger.error(f"错误堆栈: ", exc_info=True)
+        logger.error("=== API错误详情结束 ===")
+        
         return jsonify({
             'success': False,
-            'message': f'获取角色配置失败: {str(e)}'
-        })
+            'message': f'获取角色配置失败: {str(e)}',
+            'error_type': type(e).__name__,
+            'debug_info': {
+                'role_code': role_code,
+                'user_id': current_user.id,
+                'timestamp': datetime.utcnow().isoformat()
+            }
+        }), 500
 
 @performance_config_bp.route('/api/role/<role_code>', methods=['POST'])
 @login_required
@@ -125,13 +202,29 @@ def api_save_role_config(role_code):
         })
     
     # 验证数据
-    required_fields = ['config_name', 'access_scope']
+    required_fields = ['config_name']
     for field in required_fields:
         if field not in data:
             return jsonify({
                 'success': False,
                 'message': f'缺少必要字段: {field}'
             })
+    
+    # 验证选择的项目
+    if 'selected_items' not in data or not data['selected_items']:
+        return jsonify({
+            'success': False,
+            'message': '请至少选择一个绩效项目'
+        })
+    
+    # 可选验证：如果有scope_users则使用，否则使用默认个人范围
+    scope_users = data.get('scope_users', [])
+    if not scope_users:
+        # 使用默认个人范围
+        data_scopes = ['personal']
+    else:
+        # 使用指定用户范围
+        data_scopes = ['custom']
     
     from app.models.performance_config import RolePerformanceConfig, RolePerformanceItem
     
@@ -156,30 +249,33 @@ def api_save_role_config(role_code):
         # 删除现有的配置项目
         RolePerformanceItem.query.filter_by(role_config_id=role_config.id).delete()
         
-        # 保存新的配置项目
-        items = data.get('items', [])
-        for i, item_data in enumerate(items):
-            # 验证项目数据
-            if not validate_performance_item(item_data):
+        # 从选择的预置项目创建绩效项目
+        selected_item_ids = data.get('selected_items', [])
+        
+        for i, item_id in enumerate(selected_item_ids):
+            # 查找预置模板
+            template = FormulaTemplate.query.get(item_id)
+            if not template:
                 return jsonify({
                     'success': False,
-                    'message': f'第{i+1}个项目数据无效'
+                    'message': f'预置项目 {item_id} 不存在'
                 })
             
-            # 创建绩效项目
-            item = create_performance_item(role_config, item_data)
+            # 从模板创建绩效项目
+            item = create_performance_item_from_template_v2(role_config, template, scope_users, i + 1)
             db.session.add(item)
         
-        # 保存访问权限配置
-        save_role_access_config(role_code, data['access_scope'])
+        # 保存访问权限配置（使用选择的数据范围）
+        primary_scope = data_scopes[0] if data_scopes else 'personal'
+        save_role_access_config(role_code, primary_scope)
         
         db.session.commit()
         
-        logger.info(f"角色绩效配置保存成功: {role_code}, 项目数: {len(items)}")
+        logger.info(f"角色绩效配置保存成功: {role_code}, 项目数: {len(selected_item_ids)}")
         
         return jsonify({
             'success': True,
-            'message': f'角色配置保存成功，共配置{len(items)}个绩效项目'
+            'message': f'角色配置保存成功，共配置{len(selected_item_ids)}个绩效项目'
         })
         
     except IntegrityError as e:
@@ -308,41 +404,487 @@ def api_preview_config(role_code):
             'message': f'生成预览失败: {str(e)}'
         })
 
+@performance_config_bp.route('/api/data-tables')
+@login_required
+@permission_required('performance_management', 'edit')
+def api_get_data_tables():
+    """获取可用的数据表列表API"""
+    try:
+        logger.info("=== API: 获取数据表列表 ===")
+        
+        # 查询所有启用的绩效数据源表
+        tables = DataTableConfig.query.filter_by(
+            is_active=True, 
+            is_performance_source=True
+        ).order_by(DataTableConfig.category, DataTableConfig.display_name).all()
+        
+        logger.info(f"找到 {len(tables)} 个可用数据表")
+        
+        tables_data = []
+        for table in tables:
+            table_dict = table.to_dict()
+            # 添加字段统计
+            table_dict['field_count'] = table.field_configs.filter_by(is_performance_metric=True).count()
+            tables_data.append(table_dict)
+        
+        # 按类别分组
+        grouped_tables = {}
+        for table in tables_data:
+            category = table['category']
+            if category not in grouped_tables:
+                grouped_tables[category] = []
+            grouped_tables[category].append(table)
+        
+        logger.info("=== 数据表列表获取成功 ===")
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'tables': tables_data,
+                'grouped_tables': grouped_tables,
+                'total_count': len(tables_data)
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"=== 获取数据表列表失败 ===")
+        logger.error(f"错误: {e}", exc_info=True)
+        
+        return jsonify({
+            'success': False,
+            'message': f'获取数据表列表失败: {str(e)}'
+        }), 500
+
+@performance_config_bp.route('/api/table/<table_name>/fields')
+@login_required
+@permission_required('performance_management', 'edit')
+def api_get_table_fields(table_name):
+    """获取指定数据表的字段列表API"""
+    try:
+        logger.info(f"=== API: 获取表 {table_name} 的字段列表 ===")
+        
+        # 查找数据表配置
+        table_config = DataTableConfig.query.filter_by(
+            table_name=table_name,
+            is_active=True
+        ).first()
+        
+        if not table_config:
+            return jsonify({
+                'success': False,
+                'message': f'数据表 {table_name} 不存在或未启用'
+            }), 404
+        
+        # 获取字段配置
+        fields = DataFieldConfig.query.filter_by(
+            table_config_id=table_config.id
+        ).order_by(
+            DataFieldConfig.is_performance_metric.desc(),
+            DataFieldConfig.performance_category,
+            DataFieldConfig.field_name
+        ).all()
+        
+        logger.info(f"找到 {len(fields)} 个字段")
+        
+        fields_data = []
+        for field in fields:
+            field_dict = field.to_dict()
+            # 添加完整字段引用
+            field_dict['full_field_name'] = field.full_field_name
+            field_dict['formula_reference'] = field.formula_reference
+            fields_data.append(field_dict)
+        
+        # 按类别分组
+        grouped_fields = {}
+        performance_fields = []
+        
+        for field in fields_data:
+            if field['is_performance_metric']:
+                performance_fields.append(field)
+                
+                category = field['performance_category'] or 'other'
+                if category not in grouped_fields:
+                    grouped_fields[category] = []
+                grouped_fields[category].append(field)
+        
+        logger.info(f"其中 {len(performance_fields)} 个绩效字段")
+        logger.info("=== 字段列表获取成功 ===")
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'table_info': table_config.to_dict(),
+                'fields': fields_data,
+                'performance_fields': performance_fields,
+                'grouped_fields': grouped_fields,
+                'total_count': len(fields_data),
+                'performance_count': len(performance_fields)
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"=== 获取表字段失败: {table_name} ===")
+        logger.error(f"错误: {e}", exc_info=True)
+        
+        return jsonify({
+            'success': False,
+            'message': f'获取表字段失败: {str(e)}'
+        }), 500
+
+@performance_config_bp.route('/api/formula-templates-extended')
+@login_required
+@permission_required('performance_management', 'edit')
+def api_get_formula_templates_extended():
+    """获取扩展公式模板列表API"""
+    try:
+        logger.info("=== API: 获取扩展公式模板列表 ===")
+        
+        templates = FormulaTemplate.query.filter_by(is_active=True).order_by(
+            FormulaTemplate.template_category,
+            FormulaTemplate.usage_count.desc(),
+            FormulaTemplate.template_name
+        ).all()
+        
+        logger.info(f"找到 {len(templates)} 个活动模板")
+        
+        templates_data = []
+        for template in templates:
+            templates_data.append(template.to_dict())
+        
+        # 按类别分组
+        grouped_templates = {}
+        for template in templates_data:
+            category = template['template_category'] or 'other'
+            if category not in grouped_templates:
+                grouped_templates[category] = []
+            grouped_templates[category].append(template)
+        
+        logger.info("=== 扩展公式模板列表获取成功 ===")
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'templates': templates_data,
+                'grouped_templates': grouped_templates,
+                'total_count': len(templates_data)
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"=== 获取扩展公式模板失败 ===")
+        logger.error(f"错误: {e}", exc_info=True)
+        
+        return jsonify({
+            'success': False,
+            'message': f'获取扩展公式模板失败: {str(e)}'
+        }), 500
+
+@performance_config_bp.route('/api/preset-items')
+@login_required
+@permission_required('performance_management', 'edit')
+def api_get_preset_items():
+    """获取预置绩效项目列表API"""
+    try:
+        logger.info("=== API: 获取预置绩效项目列表 ===")
+        
+        # 查询所有启用的系统预置模板
+        templates = FormulaTemplate.query.filter_by(
+            is_active=True,
+            is_system_template=True
+        ).order_by(
+            FormulaTemplate.template_category,
+            FormulaTemplate.template_name
+        ).all()
+        
+        logger.info(f"找到 {len(templates)} 个预置绩效项目")
+        
+        items_data = []
+        for template in templates:
+            item = {
+                'id': template.id,
+                'name': template.template_name,
+                'category': template.template_category,
+                'description': template.description,
+                'formula': template.formula_expression,
+                'result_type': template.result_type,
+                'result_unit': template.result_unit,
+                'icon': get_category_icon(template.template_category)
+            }
+            items_data.append(item)
+        
+        # 按类别分组
+        grouped_items = {}
+        for item in items_data:
+            category = item['category'] or 'other'
+            category_name = get_category_display_name(category)
+            if category_name not in grouped_items:
+                grouped_items[category_name] = []
+            grouped_items[category_name].append(item)
+        
+        logger.info("=== 预置绩效项目列表获取成功 ===")
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'items': items_data,
+                'grouped_items': grouped_items,
+                'total_count': len(items_data)
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"=== 获取预置绩效项目失败 ===")
+        logger.error(f"错误: {e}", exc_info=True)
+        
+        return jsonify({
+            'success': False,
+            'message': f'获取预置绩效项目失败: {str(e)}'
+        }), 500
+
+@performance_config_bp.route('/api/shareable-users-tree')
+@login_required
+@permission_required('performance_management', 'edit')
+def api_get_shareable_users_tree():
+    """获取可分享用户的组织架构数据API"""
+    try:
+        logger.info("=== API: 获取用户组织架构 ===")
+        
+        # 使用与共享设置相同的逻辑获取组织架构
+        from app.utils.sharing_utils import get_shareable_users_tree
+        
+        # 获取组织架构数据
+        users_tree = get_shareable_users_tree(current_user)
+        
+        logger.info(f"获取到 {len(users_tree)} 个顶级组织")
+        
+        # 转换为适合前端使用的格式
+        tree_data = []
+        for org in users_tree:
+            org_data = {
+                'id': org.id,
+                'name': org.name,
+                'type': org.type,
+                'children': []
+            }
+            
+            # 处理子组织和用户
+            for child in org.children:
+                child_data = {
+                    'id': child.id,
+                    'name': child.name,
+                    'type': child.type,
+                    'user_id': getattr(child, 'user_id', None),
+                    'children': []
+                }
+                
+                # 如果是部门，处理部门下的用户
+                if hasattr(child, 'children'):
+                    for user in child.children:
+                        user_data = {
+                            'id': user.id,
+                            'name': user.name,
+                            'type': user.type,
+                            'user_id': user.user_id
+                        }
+                        child_data['children'].append(user_data)
+                
+                org_data['children'].append(child_data)
+            
+            tree_data.append(org_data)
+        
+        logger.info("=== 组织架构数据获取成功 ===")
+        
+        return jsonify({
+            'success': True,
+            'data': tree_data
+        })
+        
+    except ImportError:
+        # 如果没有sharing_utils，使用备用方案
+        logger.warning("未找到sharing_utils，使用备用方案")
+        return get_simple_users_tree()
+        
+    except Exception as e:
+        logger.error(f"=== 获取组织架构失败 ===")
+        logger.error(f"错误: {e}", exc_info=True)
+        
+        # 返回简单的用户列表作为备用
+        return get_simple_users_tree()
+
+@performance_config_bp.route('/api/field-values/<table_name>/<field_name>')
+@login_required
+@permission_required('performance_management', 'edit')
+def api_get_field_values(table_name, field_name):
+    """获取指定字段的实际值API"""
+    try:
+        logger.info(f"=== API: 获取字段值 {table_name}.{field_name} ===")
+        
+        # 验证表名和字段名
+        valid_tables = ['quotations', 'pricing_orders', 'companies', 'projects', 'contacts', 'products', 'users', 'expenses', 'settlements']
+        if table_name not in valid_tables:
+            return jsonify({
+                'success': False,
+                'message': f'不支持的数据表: {table_name}'
+            }), 400
+        
+        from sqlalchemy import text, inspect
+        
+        # 检查字段是否存在
+        inspector = inspect(db.engine)
+        columns = [col['name'] for col in inspector.get_columns(table_name)]
+        if field_name not in columns:
+            return jsonify({
+                'success': False, 
+                'message': f'字段 {field_name} 在表 {table_name} 中不存在'
+            }), 400
+        
+        # 查询字段的不同值（限制数量避免性能问题）
+        query = text(f"""
+            SELECT DISTINCT {field_name} as field_value, COUNT(*) as count
+            FROM {table_name} 
+            WHERE {field_name} IS NOT NULL 
+            GROUP BY {field_name}
+            ORDER BY count DESC, {field_name}
+            LIMIT 20
+        """)
+        
+        result = db.session.execute(query).fetchall()
+        
+        values = [str(row.field_value) for row in result if row.field_value is not None]
+        counts = {str(row.field_value): row.count for row in result if row.field_value is not None}
+        
+        # 生成使用示例
+        examples = []
+        if values:
+            most_common_value = values[0] if values else None
+            if most_common_value:
+                examples.append(f"{{{table_name}.{field_name}}} = '{most_common_value}'")
+                if len(values) > 1:
+                    examples.append(f"{{{table_name}.{field_name}}} IN ('{values[0]}', '{values[1]}')")
+        
+        # 根据字段类型提供更多示例
+        field_type_examples = {
+            'status': [f"{{{table_name}.{field_name}}} = 'active'", f"{{{table_name}.{field_name}}} != 'deleted'"],
+            'approval_status': [f"{{{table_name}.{field_name}}} = 'approved'", f"{{{table_name}.{field_name}}} IN ('pending', 'approved')"],
+            'is_active': [f"{{{table_name}.{field_name}}} = true", f"{{{table_name}.{field_name}}} = false"],
+            'created_at': [f"{{{table_name}.{field_name}}} >= '2024-01-01'", f"{{{table_name}.{field_name}}} >= CURRENT_DATE - INTERVAL '30 days'"],
+        }
+        
+        if field_name in field_type_examples:
+            examples.extend(field_type_examples[field_name])
+        
+        logger.info(f"字段 {table_name}.{field_name} 查询完成: {len(values)} 个不同值")
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'values': values,
+                'counts': counts,
+                'examples': examples[:3],  # 最多返回3个示例
+                'total_count': len(values),
+                'sample_count': sum(counts.values()) if counts else 0
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"=== 获取字段值失败: {table_name}.{field_name} ===")
+        logger.error(f"错误: {e}", exc_info=True)
+        
+        return jsonify({
+            'success': False,
+            'message': f'获取字段值失败: {str(e)}'
+        }), 500
+
 # ===== 辅助函数 =====
 
 def get_available_roles():
     """获取所有可配置的角色列表"""
-    # 从用户表获取所有存在的角色
-    existing_roles = db.session.query(User.role).distinct().all()
-    existing_roles = [role[0] for role in existing_roles if role[0]]
-    
-    # 从role_permissions表获取已配置权限的角色
-    permission_roles = db.session.query(RolePermission.role).filter_by(
-        module='performance_management'
-    ).distinct().all()
-    permission_roles = [role[0] for role in permission_roles if role[0]]
-    
-    # 合并并去重
-    all_roles = list(set(existing_roles + permission_roles))
-    
-    # 排除admin角色（admin默认有所有权限）
-    all_roles = [role for role in all_roles if role not in ['admin']]
-    
-    # 构建角色信息
-    roles_info = []
-    for role in sorted(all_roles):
-        # 检查是否已有绩效配置
-        from app.models.performance_config import RolePerformanceConfig
-        has_config = RolePerformanceConfig.query.filter_by(role=role).first() is not None
+    try:
+        logger.info("=== 获取可配置角色列表开始 ===")
         
-        roles_info.append({
-            'role_code': role,
-            'display_name': get_role_display_name_from_dict(role),
-            'has_config': has_config,
-            'user_count': User.query.filter_by(role=role).count()
-        })
-    
-    return roles_info
+        # 从用户表获取所有存在的角色
+        logger.info("从用户表查询现有角色...")
+        existing_roles = db.session.query(User.role).distinct().all()
+        existing_roles = [role[0] for role in existing_roles if role[0]]
+        logger.info(f"用户表中的角色: {existing_roles}")
+        
+        # 从role_permissions表获取已配置权限的角色
+        logger.info("从权限表查询有绩效管理权限的角色...")
+        permission_roles = db.session.query(RolePermission.role).filter_by(
+            module='performance_management'
+        ).distinct().all()
+        permission_roles = [role[0] for role in permission_roles if role[0]]
+        logger.info(f"有绩效管理权限的角色: {permission_roles}")
+        
+        # 合并并去重
+        all_roles = list(set(existing_roles + permission_roles))
+        logger.info(f"合并后的角色列表: {all_roles}")
+        
+        # 排除admin角色（admin默认有所有权限）
+        all_roles = [role for role in all_roles if role not in ['admin']]
+        logger.info(f"排除admin后的角色列表: {all_roles}")
+        
+        # 如果没有找到任何角色，提供默认角色
+        if not all_roles:
+            logger.warning("未找到任何可配置角色，使用默认角色列表")
+            all_roles = ['sales_director', 'product_manager', 'service_manager', 'channel_manager']
+        
+        # 构建角色信息
+        roles_info = []
+        for role in sorted(all_roles):
+            try:
+                logger.info(f"处理角色: {role}")
+                
+                # 检查是否已有绩效配置
+                from app.models.performance_config import RolePerformanceConfig
+                has_config = RolePerformanceConfig.query.filter_by(role=role).first() is not None
+                
+                # 获取该角色的用户数量
+                user_count = User.query.filter_by(role=role).count()
+                
+                # 获取角色显示名称
+                display_name = get_role_display_name_from_dict(role)
+                
+                role_info = {
+                    'role_code': role,
+                    'display_name': display_name,
+                    'has_config': has_config,
+                    'user_count': user_count
+                }
+                
+                roles_info.append(role_info)
+                logger.info(f"角色 {role} 信息: {role_info}")
+                
+            except Exception as role_error:
+                logger.error(f"处理角色 {role} 时出错: {role_error}")
+                # 继续处理其他角色，不中断整个流程
+                continue
+        
+        logger.info(f"=== 获取到 {len(roles_info)} 个可配置角色 ===")
+        return roles_info
+        
+    except Exception as e:
+        logger.error(f"=== 获取可配置角色列表失败 ===")
+        logger.error(f"错误类型: {type(e).__name__}")
+        logger.error(f"错误消息: {str(e)}")
+        logger.error(f"错误堆栈: ", exc_info=True)
+        
+        # 返回默认角色列表以防止页面完全崩溃
+        logger.info("返回默认角色列表作为降级处理")
+        return [
+            {
+                'role_code': 'sales_director',
+                'display_name': '销售总监',
+                'has_config': False,
+                'user_count': 0
+            },
+            {
+                'role_code': 'product_manager', 
+                'display_name': '产品经理',
+                'has_config': False,
+                'user_count': 0
+            }
+        ]
 
 def get_role_access_scope(role_code):
     """获取角色的默认数据访问范围"""
@@ -471,3 +1013,182 @@ def get_calculation_display_name(method):
         'custom': '自定义公式'
     }
     return names.get(method, method)
+
+def get_category_icon(category):
+    """获取类别图标"""
+    icons = {
+        'sales': 'fas fa-dollar-sign',
+        'customer': 'fas fa-users',
+        'project': 'fas fa-project-diagram',
+        'quality': 'fas fa-medal',
+        'service': 'fas fa-headset',
+        'business': 'fas fa-briefcase',
+        'financial': 'fas fa-chart-pie',
+        'team': 'fas fa-user-friends'
+    }
+    return icons.get(category, 'fas fa-chart-bar')
+
+def get_category_display_name(category):
+    """获取类别显示名称"""
+    names = {
+        'sales': '销售业绩',
+        'customer': '客户管理',
+        'project': '项目管理',
+        'quality': '质量管理',
+        'service': '服务质量',
+        'business': '业务发展',
+        'financial': '财务指标',
+        'team': '团队合作'
+    }
+    return names.get(category, '其他')
+
+def create_performance_item_from_template(role_config, template, data_scopes, sort_order):
+    """从预置模板创建绩效项目"""
+    # 生成项目代码（基于模板名称和角色）
+    item_code = f"{role_config.role}_{template.template_name.replace(' ', '_').lower()}"
+    
+    # 选择主要数据范围
+    primary_scope = data_scopes[0] if data_scopes else 'personal'
+    
+    # 统计范围描述
+    scope_descriptions = {
+        'system': '统计系统全部数据',
+        'company': '统计企业内所有数据', 
+        'department': '统计部门成员数据',
+        'personal': '仅统计个人数据'
+    }
+    
+    scope_desc = ', '.join([scope_descriptions.get(scope, scope) for scope in data_scopes])
+    
+    return RolePerformanceItem(
+        role_config_id=role_config.id,
+        metric_id=None,  # 暂时不使用基础指标
+        item_name=template.template_name,
+        item_code=item_code,
+        sort_order=sort_order,
+        is_enabled=True,
+        stat_scope=primary_scope,
+        stat_scope_description=scope_desc,
+        calculation_method='custom',
+        calculation_formula=template.formula_expression,
+        data_source_config=json.dumps({
+            'template_id': template.id,
+            'data_scopes': data_scopes,
+            'required_tables': json.loads(template.required_tables) if template.required_tables else [],
+            'required_fields': json.loads(template.required_fields) if template.required_fields else []
+        }),
+        qualification_rate=80.0,  # 默认合格率
+        excellent_threshold=None,  # 可以后续配置
+        good_threshold=None,
+        qualified_threshold=None,
+        display_unit=template.result_unit or '元',
+        decimal_places=2 if template.result_type == 'numeric' else 0,
+        color_config=json.dumps({}),
+        weight=1.0,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
+
+def create_performance_item_from_template_v2(role_config, template, scope_users, sort_order):
+    """从预置模板创建绩效项目 V2 - 支持用户范围配置"""
+    # 生成项目代码（基于模板名称和角色）
+    item_code = f"{role_config.role}_{template.template_name.replace(' ', '_').lower()}"
+    
+    # 根据选择的用户范围决定统计范围
+    if scope_users:
+        primary_scope = 'custom'
+        scope_desc = f'自定义范围（包含 {len(scope_users)} 个用户/组织）'
+    else:
+        primary_scope = 'personal'
+        scope_desc = '仅统计个人数据'
+    
+    return RolePerformanceItem(
+        role_config_id=role_config.id,
+        metric_id=None,
+        item_name=template.template_name,
+        item_code=item_code,
+        sort_order=sort_order,
+        is_enabled=True,
+        stat_scope=primary_scope,
+        stat_scope_description=scope_desc,
+        calculation_method='custom',
+        calculation_formula=template.formula_expression,
+        data_source_config=json.dumps({
+            'template_id': template.id,
+            'scope_users': scope_users,  # 保存用户范围配置
+            'required_tables': json.loads(template.required_tables) if template.required_tables else [],
+            'required_fields': json.loads(template.required_fields) if template.required_fields else []
+        }),
+        qualification_rate=80.0,
+        excellent_threshold=None,
+        good_threshold=None,
+        qualified_threshold=None,
+        display_unit=template.result_unit or '元',
+        decimal_places=2 if template.result_type == 'numeric' else 0,
+        color_config=json.dumps({}),
+        weight=1.0,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
+
+def get_simple_users_tree():
+    """获取简化版的用户组织架构"""
+    try:
+        logger.info("使用简化版用户组织架构")
+        
+        # 查询所有激活用户
+        users = User.query.filter_by(is_active=True).all()
+        
+        # 按部门分组用户
+        departments = {}
+        for user in users:
+            dept = user.department or '未分组'
+            if dept not in departments:
+                departments[dept] = []
+            departments[dept].append(user)
+        
+        # 构建简化的树状结构
+        tree_data = []
+        
+        # 企业级别
+        company_data = {
+            'id': 'company_1',
+            'name': '企业',
+            'type': 'company',
+            'children': []
+        }
+        
+        # 添加部门和用户
+        for dept_name, dept_users in departments.items():
+            dept_data = {
+                'id': f'dept_{dept_name}',
+                'name': dept_name,
+                'type': 'department',
+                'children': []
+            }
+            
+            # 添加部门下的用户
+            for user in dept_users:
+                user_data = {
+                    'id': f'user_{user.id}',
+                    'name': user.real_name or user.username,
+                    'type': 'user',
+                    'user_id': user.id
+                }
+                dept_data['children'].append(user_data)
+            
+            company_data['children'].append(dept_data)
+        
+        tree_data.append(company_data)
+        
+        return jsonify({
+            'success': True,
+            'data': tree_data
+        })
+        
+    except Exception as e:
+        logger.error(f"获取简化用户树失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'获取用户组织架构失败: {str(e)}'
+        }), 500

@@ -26,6 +26,12 @@ def main():
         parser.add_argument('--supabase', action='store_true', help='启用Supabase云端上传测试')
         args = parser.parse_args()
         
+        # 强制加载本地环境配置
+        if not args.supabase:
+            from dotenv import load_dotenv
+            load_dotenv('.env.local', override=True)
+            logger.info("🔧 强制加载本地环境配置文件 .env.local")
+        
         # 如果启用了Supabase测试
         if args.supabase:
             logger.info("🌐 启用Supabase云端上传测试模式")
@@ -48,6 +54,13 @@ def main():
         # 清除可能影响本地配置的环境变量
         if 'DATABASE_URL' in os.environ:
             del os.environ['DATABASE_URL']
+        if 'CLOUD_DB_URL' in os.environ:
+            del os.environ['CLOUD_DB_URL']
+        if 'CLOUD_DB_ACCESS' in os.environ:
+            del os.environ['CLOUD_DB_ACCESS']
+        
+        # 设置本地数据库配置
+        os.environ['LOCAL_DATABASE_URL'] = 'postgresql://nijie@localhost:5432/pma_local'
         logger.info("🔧 配置为使用本地数据库")
         
         # 导入本地配置
