@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from 'macros/ui_helpers.html' import render_button, render_animated_alert_script, render_pricing_order_number, render_project_type %}
+{% from 'macros/ui_helpers.html' import render_button, render_pricing_order_number, render_project_type %}
 
 {% block title %}批价单编辑 - {{ pricing_order.order_number }}{% endblock %}
 
@@ -128,7 +128,6 @@
 
 {% block content %}
 <!-- 引入标准提示函数 -->
-{{ render_animated_alert_script() }}
 
 <div class="container-fluid page-with-fixed-nav">
     <!-- 标准化页面头部区域：标题与操作按钮在同一行 -->

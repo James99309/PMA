@@ -201,8 +201,8 @@
                             </div>
                             {% endif %}
                             
-                            <!-- 创建批价单按钮 - 只在报价阶段显示，签约后不允许创建 -->
-                            {% if has_quotations and current_stage_key == 'quoted' %}
+                            <!-- 创建批价单按钮 - 在报价和签约阶段都显示 -->
+                            {% if has_quotations and current_stage_key in ['quoted', 'signed'] %}
                             <div class="row mb-2">
                                 <div class="col-md-4"></div>
                                 <div class="col-md-8">
