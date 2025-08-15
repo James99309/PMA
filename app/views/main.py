@@ -184,8 +184,14 @@ def get_recent_work_records():
         # 计算N天前的日期
         start_date = datetime.now().date() - timedelta(days=days-1)  # days-1是因为包含今天
         
-        # 基础查询 - 获取最近N天的记录
-        base_query = Action.query.filter(Action.date >= start_date)
+        # 基础查询 - 获取最近N天的记录（按行动日期或创建时间）
+        from sqlalchemy import func, or_
+        base_query = Action.query.filter(
+            or_(
+                Action.date >= start_date,  # 行动发生在最近N天内
+                func.date(Action.created_at) >= start_date  # 或者记录创建在最近N天内
+            )
+        )
         
         # 账户筛选逻辑
         if account_id:
@@ -193,7 +199,7 @@ def get_recent_work_records():
             if is_admin_or_ceo():
                 # 管理员和CEO可以查看任何账户的记录
                 base_query = base_query.filter(Action.owner_id == account_id)
-            elif current_user.role in ['sales_director', 'service_manager']:
+            elif current_user.role in ['sales_director', 'service_manager', 'sales_manager']:
                 # 总监级别只能查看下属的记录
                 target_user = User.query.get(account_id)
                 if target_user and (target_user.department == current_user.department and current_user.is_department_manager):
@@ -221,7 +227,7 @@ def get_recent_work_records():
             if is_admin_or_ceo():
                 # 管理员和CEO可以查看所有记录
                 pass
-            elif current_user.role in ['sales_director', 'service_manager']:
+            elif current_user.role in ['sales_director', 'service_manager', 'sales_manager']:
                 # 总监级别可以查看自己和下属的记录（如果是部门负责人）
                 if current_user.is_department_manager:
                     subordinate_ids = [user.id for user in User.query.filter_by(department=current_user.department).all()]
@@ -239,6 +245,36 @@ def get_recent_work_records():
             joinedload(Action.project),
             joinedload(Action.owner)
         ).order_by(Action.date.desc(), Action.created_at.desc()).all()
+        
+        # 如果指定时间范围内没有记录，且没有指定account_id，显示用户最近的5条记录
+        fallback_message = None
+        if not records and not account_id:
+            # 获取当前用户权限范围内的最近5条记录（不限时间）
+            fallback_query = Action.query
+            
+            # 应用相同的权限逻辑，但不限制时间
+            if is_admin_or_ceo():
+                pass
+            elif current_user.role in ['sales_director', 'service_manager', 'sales_manager']:
+                if current_user.is_department_manager:
+                    subordinate_ids = [user.id for user in User.query.filter_by(department=current_user.department).all()]
+                else:
+                    subordinate_ids = [current_user.id]
+                fallback_query = fallback_query.filter(Action.owner_id.in_(subordinate_ids))
+            else:
+                fallback_query = fallback_query.filter(Action.owner_id == current_user.id)
+            
+            # 获取最近5条记录
+            fallback_records = fallback_query.options(
+                joinedload(Action.company),
+                joinedload(Action.contact),
+                joinedload(Action.project),
+                joinedload(Action.owner)
+            ).order_by(Action.date.desc(), Action.created_at.desc()).limit(5).all()
+            
+            if fallback_records:
+                records = fallback_records
+                fallback_message = f'最近{days}天内无工作记录，显示最近的{len(fallback_records)}条历史记录'
         
         # 处理数据
         result = []
@@ -295,11 +331,17 @@ def get_recent_work_records():
             }
             result.append(record_data)
             
-        return jsonify({
+        response_data = {
             'success': True,
             'data': result,
             'total': len(result)
-        })
+        }
+        
+        if fallback_message:
+            response_data['message'] = fallback_message
+            response_data['is_fallback'] = True
+        
+        return jsonify(response_data)
         
     except Exception as e:
         logger.error(f"获取最近工作记录失败: {str(e)}")
@@ -478,7 +520,7 @@ def get_available_accounts():
                     'name': user.real_name or user.username,
                     'role': user.role
                 })
-        elif current_user.role in ['sales_director', 'service_manager']:
+        elif current_user.role in ['sales_director', 'service_manager', 'sales_manager']:
             # 总监级别可以查看同部门下属（如果是部门负责人）
             if current_user.is_department_manager:
                 subordinates = User.query.filter_by(department=current_user.department).filter(User.id != current_user.id).all()
