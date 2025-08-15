@@ -2936,7 +2936,62 @@ class ExpenseDetailManager {
             const filename = title || 'invoice.jpg';
             const fileInfo = { description: '报销单发票' };
             
-            console.log('使用通用预览组件:', imageUrl, filename, dialogId, deleteInfo);
+            // 🔥 尝试提取detail_id信息以支持专门的下载路由
+            let detailId = null;
+            let invoiceIndex = null;
+            
+            // 检查是否是blob URL（创建页面的临时文件）
+            const isBlobUrl = imageUrl && imageUrl.startsWith('blob:');
+            const isTempFile = imageUrl && (imageUrl.includes('/temp/') || imageUrl.includes('temp'));
+            
+            if (isBlobUrl || isTempFile) {
+                console.log('🔍🔍🔍 检测到临时文件，跳过专门下载路由:', { isBlobUrl, isTempFile, imageUrl });
+                // 对于临时文件，不设置detail_id，这样会使用备用下载方案
+            } else {
+                // 方法1：从URL中提取detail_id（如果URL包含 /invoices/{detail_id}/ 模式）
+                if (imageUrl && imageUrl.includes('/invoices/')) {
+                    console.log('🔍🔍🔍 URL包含/invoices/，尝试提取detail_id，URL:', imageUrl);
+                    const matches = imageUrl.match(/\/invoices\/(\d+)\//);
+                    console.log('🔍🔍🔍 正则匹配结果:', matches);
+                    if (matches) {
+                        detailId = matches[1];
+                        // 对于编辑页面，通常预览第一个发票，所以index为0
+                        invoiceIndex = 0;
+                        console.log('✅✅✅ 从URL提取到detail_id:', detailId);
+                    } else {
+                        console.log('❌❌❌ URL正则匹配失败');
+                    }
+                } else {
+                    console.log('⚠️⚠️⚠️ URL不包含/invoices/，URL:', imageUrl);
+                }
+                
+                // 方法2：从页面URL中获取expense_id作为detail_id
+                if (!detailId) {
+                    const currentUrl = window.location.href;
+                    console.log('🔍🔍🔍 尝试从页面URL提取expense_id:', currentUrl);
+                    
+                    // 匹配编辑页面URL格式：/expense/edit/{expense_id}
+                    const urlMatches = currentUrl.match(/\/expense\/edit\/(\d+)/);
+                    if (urlMatches) {
+                        detailId = urlMatches[1];
+                        invoiceIndex = 0; // 默认第一个发票
+                        console.log('✅✅✅ 从页面URL提取到expense_id作为detail_id:', detailId);
+                    } else {
+                        console.log('❌❌❌ 页面URL格式不匹配编辑页面模式');
+                    }
+                }
+            }
+            
+            // 将下载信息添加到fileInfo中
+            if (detailId !== null && invoiceIndex !== null) {
+                fileInfo.detail_id = detailId;
+                fileInfo.invoice_index = invoiceIndex;
+                console.log('💾💾💾 添加下载信息到fileInfo:', { detail_id: detailId, invoice_index: invoiceIndex });
+            } else {
+                console.log('🚫🚫🚫 未能获取detail_id或为临时文件，将使用备用下载方案');
+            }
+            
+            console.log('🎯🎯🎯 调用通用预览组件 - imageUrl:', imageUrl, 'filename:', filename, 'fileInfo:', fileInfo, 'dialogId:', dialogId);
             
             // 🔥 如果有删除信息，传递给通用预览组件
             if (deleteInfo) {

@@ -81,19 +81,39 @@ document.addEventListener('DOMContentLoaded', function() {
             const invoiceUrl = element.dataset.invoiceUrl;
             const invoicePath = element.dataset.invoicePath;
             const fileUrl = element.dataset.fileUrl;
+            const detailId = element.dataset.detailId;
+            const invoiceIndex = element.dataset.invoiceIndex;
             
-            console.log('点击发票图标，提取数据:', {filename, invoiceUrl, invoicePath, fileUrl});
+            console.log('点击发票图标，提取数据:', {filename, invoiceUrl, invoicePath, fileUrl, detailId, invoiceIndex});
             
-            // 构造简化的发票数据对象
+            // 构造简化的发票数据对象，包含下载路由信息
             const invoiceData = {
                 url: invoiceUrl || invoicePath || fileUrl || null,
                 path: invoicePath || null,
                 file_url: fileUrl || null,
-                filename: filename
+                filename: filename,
+                detail_id: detailId,
+                invoice_index: invoiceIndex
             };
             
             if (filename && invoiceData.url) {
-                previewInvoiceImageSafe(invoiceData, filename);
+                // 将下载信息作为 fileInfo 传递
+                const fileInfo = {
+                    description: '报销单发票',
+                    detail_id: detailId,
+                    invoice_index: invoiceIndex
+                };
+                // 使用带有下载信息的预览函数
+                if (typeof showInvoicePreviewDialog === 'function') {
+                    showInvoicePreviewDialog(
+                        invoiceData.url,
+                        filename,
+                        fileInfo,
+                        'expenseInvoicePreview'
+                    );
+                } else {
+                    previewInvoiceImageSafe(invoiceData, filename);
+                }
             } else {
                 console.error('发票数据缺失或不完整:', invoiceData);
                 alert('发票数据缺失，无法预览');
@@ -531,20 +551,69 @@ function previewInvoiceImage(imagePath, filename) {
                     'expenseInvoicePreview'
                 );
             } else {
-                console.error('❌ 重试失败，使用备用方案打开新窗口');
-                // 检测是否为PDF文件，如果是，尝试直接在新窗口预览
-                if (filename && filename.toLowerCase().endsWith('.pdf')) {
-                    // 为PDF添加预览参数
-                    let pdfUrl = imagePath;
-                    if (imagePath.includes('?')) {
-                        pdfUrl += '&view=inline&embedded=true';
-                    } else {
-                        pdfUrl += '?view=inline&embedded=true';
-                    }
-                    console.log('🔥 PDF文件，尝试在新窗口预览:', pdfUrl);
-                    window.open(pdfUrl, '_blank');
+                console.error('❌ 重试失败，使用统一下载备用方案');
+                // 使用统一的下载逻辑，不再使用window.open()
+                if (typeof downloadFileForced === 'function') {
+                    console.log('使用强制下载函数作为最终备用方案');
+                    downloadFileForced(imagePath, filename)
+                        .then(() => {
+                            console.log('最终备用下载方案成功');
+                        })
+                        .catch(downloadError => {
+                            console.error('最终备用下载方案也失败了:', downloadError);
+                            // 最后的备用方案：程序化下载链接
+                            try {
+                                const link = document.createElement('a');
+                                link.href = imagePath;
+                                link.download = filename || 'invoice';
+                                link.style.display = 'none';
+                                
+                                // 为PDF文件添加下载参数
+                                if (filename && filename.toLowerCase().endsWith('.pdf')) {
+                                    if (imagePath.indexOf('?') > -1) {
+                                        link.href = imagePath + '&download=1';
+                                    } else {
+                                        link.href = imagePath + '?download=1';
+                                    }
+                                }
+                                
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                
+                                console.log('程序化下载链接备用方案执行完成');
+                            } catch (linkError) {
+                                console.error('所有下载方案都失败了:', linkError);
+                                alert('发票文件下载失败，请联系管理员检查文件状态');
+                            }
+                        });
                 } else {
-                    window.open(imagePath, '_blank');
+                    console.log('downloadFileForced函数不可用，使用程序化下载');
+                    // 直接使用程序化下载
+                    try {
+                        const link = document.createElement('a');
+                        link.href = imagePath;
+                        link.download = filename || 'invoice';
+                        link.style.display = 'none';
+                        
+                        // 为PDF文件添加下载参数
+                        if (filename && filename.toLowerCase().endsWith('.pdf')) {
+                            if (imagePath.indexOf('?') > -1) {
+                                link.href = imagePath + '&download=1';
+                            } else {
+                                link.href = imagePath + '?download=1';
+                            }
+                        }
+                        
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        
+                        console.log('程序化下载备用方案执行完成');
+                    } catch (error) {
+                        console.error('程序化下载备用方案失败:', error);
+                        alert('发票文件下载失败，请联系管理员检查文件状态');
+                    }
                 }
             }
         }, 500);

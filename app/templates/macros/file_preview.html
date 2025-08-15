@@ -50,12 +50,12 @@
                                     title="{{ _('查看原图') }}">
                                 <i class="fas fa-search-plus"></i>
                             </button>
-                            <a href="{{ file_url }}" 
-                               target="_blank" 
-                               class="btn btn-sm btn-light preview-btn"
-                               title="{{ _('在新窗口打开') }}">
-                                <i class="fas fa-external-link-alt"></i>
-                            </a>
+                            <button type="button" 
+                                    class="btn btn-sm btn-light preview-btn" 
+                                    onclick="downloadFileDirect('{{ file_url }}', '{{ filename or 'image' }}')"
+                                    title="{{ _('下载文件') }}">
+                                <i class="fas fa-download"></i>
+                            </button>
                         </div>
                     </div>
                 {% endif %}
@@ -91,12 +91,12 @@
                                     title="{{ _('预览PDF') }}">
                                 <i class="fas fa-search-plus"></i>
                             </button>
-                            <a href="{{ file_url }}" 
-                               target="_blank" 
-                               class="btn btn-sm btn-light preview-btn"
-                               title="{{ _('下载PDF') }}">
+                            <button type="button" 
+                                    class="btn btn-sm btn-light preview-btn" 
+                                    onclick="downloadFileDirect('{{ file_url }}', '{{ filename or 'document.pdf' }}')"
+                                    title="{{ _('下载PDF') }}">
                                 <i class="fas fa-download"></i>
-                            </a>
+                            </button>
                         </div>
                     </div>
                 {% endif %}
@@ -142,4 +142,58 @@
         </div>
     </div>
 </div>
+
+<script>
+/**
+ * 直接下载文件 - 统一下载行为
+ */
+function downloadFileDirect(fileUrl, filename) {
+    console.log('文件预览组件 - 直接下载文件:', filename);
+    
+    // 检查是否有通用的强制下载函数
+    if (typeof downloadFileForced === 'function') {
+        downloadFileForced(fileUrl, filename)
+            .then(() => {
+                console.log('使用强制下载函数完成');
+            })
+            .catch(error => {
+                console.warn('强制下载失败，使用备用方案:', error);
+                fallbackDownload(fileUrl, filename);
+            });
+    } else {
+        // 备用方案
+        fallbackDownload(fileUrl, filename);
+    }
+}
+
+/**
+ * 备用下载方案
+ */
+function fallbackDownload(fileUrl, filename) {
+    try {
+        const link = document.createElement('a');
+        link.href = fileUrl;
+        link.download = filename || 'download';
+        link.style.display = 'none';
+        
+        // 为PDF文件添加下载参数
+        if (filename && filename.toLowerCase().endsWith('.pdf')) {
+            if (fileUrl.indexOf('?') > -1) {
+                link.href = fileUrl + '&download=1';
+            } else {
+                link.href = fileUrl + '?download=1';
+            }
+        }
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        console.log('备用下载方案执行完成:', filename);
+    } catch (error) {
+        console.error('备用下载方案失败:', error);
+        alert('文件下载失败，请尝试右键另存为');
+    }
+}
+</script>
 {% endmacro %}

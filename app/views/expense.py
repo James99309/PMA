@@ -2940,3 +2940,112 @@ def get_expense_status(expense_id):
             'success': False,
             'message': f'获取状态失败: {str(e)}'
         }), 500
+
+
+@expense.route('/download-invoice/<int:detail_id>/<int:invoice_index>')
+@login_required
+@permission_required('expense', 'view')
+def download_invoice(detail_id, invoice_index):
+    """下载发票文件 - 强制下载而非预览"""
+    from flask import send_file, abort
+    import os
+    import json
+    import urllib.parse
+    from app.utils.access_control import can_edit_data
+    
+    try:
+        # 获取报销明细
+        expense_detail = ExpenseDetail.query.get_or_404(detail_id)
+        
+        # 检查权限 - 是否能查看对应的报销单
+        if not can_edit_data(expense_detail.expense, current_user):
+            flash(_('您没有权限下载此发票'), 'danger')
+            abort(403)
+        
+        # 解析发票图片数据
+        invoice_images = []
+        if expense_detail.invoice_images:
+            try:
+                if isinstance(expense_detail.invoice_images, str):
+                    invoice_images = json.loads(expense_detail.invoice_images)
+                else:
+                    invoice_images = expense_detail.invoice_images
+            except (json.JSONDecodeError, TypeError):
+                current_app.logger.error(f"发票图片数据解析失败: {expense_detail.invoice_images}")
+                flash(_('发票数据格式错误'), 'danger')
+                abort(400)
+        
+        # 检查索引是否有效
+        if not invoice_images or invoice_index < 0 or invoice_index >= len(invoice_images):
+            flash(_('发票不存在'), 'danger')
+            abort(404)
+        
+        invoice_info = invoice_images[invoice_index]
+        filename = invoice_info.get('filename', f'invoice_{detail_id}_{invoice_index}')
+        file_url = invoice_info.get('url', '')
+        
+        # 检查是否是外部云端URL（非本地服务器）
+        is_external_url = (file_url.startswith('http') and 
+                         not file_url.startswith('http://localhost:') and 
+                         not file_url.startswith('http://127.0.0.1:'))
+        
+        if is_external_url:
+            # 对于外部云端文件，重定向到云端下载
+            if '?' in file_url:
+                download_url = f"{file_url}&response-content-disposition=attachment"
+            else:
+                download_url = f"{file_url}?response-content-disposition=attachment"
+            
+            return redirect(download_url)
+        
+        # 处理本地文件
+        # 将URL路径转换为本地文件路径
+        if file_url.startswith('http://localhost:') or file_url.startswith('http://127.0.0.1:'):
+            # 提取URL中的路径部分
+            from urllib.parse import urlparse
+            parsed_url = urlparse(file_url)
+            url_path = parsed_url.path
+        else:
+            url_path = file_url
+        
+        if url_path.startswith('/static/uploads/'):
+            local_path = url_path.replace('/static/', '')
+        elif url_path.startswith('/uploads/'):
+            local_path = url_path[1:]  # 去掉开头的 /
+        else:
+            # 假设是相对路径
+            local_path = url_path
+        
+        file_path = os.path.join(current_app.static_folder, local_path)
+        
+        # 检查文件是否存在
+        if not os.path.exists(file_path):
+            current_app.logger.error(f"发票文件不存在: {file_path}")
+            flash(_('发票文件不存在'), 'danger')
+            abort(404)
+        
+        # 确定MIME类型
+        file_ext = os.path.splitext(filename)[1].lower()
+        mime_types = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg', 
+            '.png': 'image/png',
+            '.gif': 'image/gif',
+            '.pdf': 'application/pdf',
+            '.heic': 'image/heic',
+            '.heif': 'image/heif'
+        }
+        mimetype = mime_types.get(file_ext, 'application/octet-stream')
+        
+        # 强制下载文件
+        return send_file(
+            file_path,
+            as_attachment=True,
+            download_name=filename,
+            mimetype=mimetype
+        )
+        
+    except Exception as e:
+        current_app.logger.error(f"下载发票文件失败: {str(e)}")
+        flash(_('下载发票文件失败'), 'danger')
+        abort(500)
