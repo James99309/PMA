@@ -153,6 +153,26 @@ function showPDFFallback(container) {
 }
 
 /**
+ * 从URL中提取文件名
+ */
+function extractFilename(url) {
+    if (!url) return null;
+    
+    try {
+        // 移除查询参数和片段
+        const cleanUrl = url.split('?')[0].split('#')[0];
+        const parts = cleanUrl.split('/');
+        const filename = parts[parts.length - 1];
+        
+        // 解码URL编码的文件名
+        return decodeURIComponent(filename);
+    } catch (error) {
+        console.warn('提取文件名失败:', error);
+        return null;
+    }
+}
+
+/**
  * 打开文件预览模态框
  */
 function openFileModal(fileUrl, fileType) {
@@ -165,8 +185,11 @@ function openFileModal(fileUrl, fileType) {
         return;
     }
     
-    // 设置下载链接
-    downloadBtn.href = fileUrl;
+    // 设置下载按钮的数据属性
+    if (downloadBtn) {
+        downloadBtn.dataset.fileUrl = fileUrl;
+        downloadBtn.dataset.filename = extractFilename(fileUrl) || (fileType === 'pdf' ? 'document.pdf' : 'file');
+    }
     
     // 清空内容
     modalContent.innerHTML = '';
@@ -201,9 +224,9 @@ function openFileModal(fileUrl, fileType) {
                     <i class="fas fa-file-pdf fa-4x text-danger mb-3"></i>
                     <div>PDF预览不可用</div>
                     <div class="mt-2">
-                        <a href="${fileUrl}" target="_blank" class="btn btn-primary">
+                        <button type="button" class="btn btn-outline-primary" onclick="window.open('${fileUrl}', '_blank')">
                             <i class="fas fa-external-link-alt me-1"></i>在新窗口打开
-                        </a>
+                        </button>
                     </div>
                 </div>
             </div>

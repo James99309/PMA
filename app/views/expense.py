@@ -2946,8 +2946,8 @@ def get_expense_status(expense_id):
 @login_required
 @permission_required('expense', 'view')
 def download_invoice(detail_id, invoice_index):
-    """下载发票文件 - 强制下载而非预览"""
-    from flask import send_file, abort
+    """下载发票文件 - 支持预览和下载模式"""
+    from flask import send_file, abort, request
     import os
     import json
     import urllib.parse
@@ -2984,19 +2984,68 @@ def download_invoice(detail_id, invoice_index):
         filename = invoice_info.get('filename', f'invoice_{detail_id}_{invoice_index}')
         file_url = invoice_info.get('url', '')
         
+        # 检查是否强制下载模式 - 只有明确请求下载时才强制下载，否则允许预览
+        force_download = (request.args.get('download') == '1' or 
+                         request.args.get('as_attachment') == 'true')
+        
+        # 检查是否是预览模式
+        is_preview_mode = (request.args.get('view') == 'inline' or 
+                          request.args.get('embedded') == 'true' or
+                          not force_download)  # 默认为预览模式
+        
         # 检查是否是外部云端URL（非本地服务器）
         is_external_url = (file_url.startswith('http') and 
                          not file_url.startswith('http://localhost:') and 
                          not file_url.startswith('http://127.0.0.1:'))
         
         if is_external_url:
-            # 对于外部云端文件，重定向到云端下载
-            if '?' in file_url:
-                download_url = f"{file_url}&response-content-disposition=attachment"
-            else:
-                download_url = f"{file_url}?response-content-disposition=attachment"
-            
-            return redirect(download_url)
+            # 对于外部云端文件，使用代理下载确保强制下载
+            try:
+                import requests
+                from io import BytesIO
+                
+                current_app.logger.info(f"开始代理下载云端文件: {file_url}")
+                
+                # 从云端下载文件内容
+                response = requests.get(file_url, timeout=30)
+                response.raise_for_status()
+                
+                # 获取文件内容
+                file_content = BytesIO(response.content)
+                file_content.seek(0)
+                
+                # 确定MIME类型
+                file_ext = os.path.splitext(filename)[1].lower()
+                mime_types = {
+                    '.jpg': 'image/jpeg',
+                    '.jpeg': 'image/jpeg', 
+                    '.png': 'image/png',
+                    '.gif': 'image/gif',
+                    '.pdf': 'application/pdf',
+                    '.heic': 'image/heic',
+                    '.heif': 'image/heif'
+                }
+                mimetype = mime_types.get(file_ext, 'application/octet-stream')
+                
+                current_app.logger.info(f"云端文件代理下载成功，文件大小: {len(response.content)} bytes")
+                
+                # 根据查询参数决定是否强制下载或预览
+                current_app.logger.info(f"云端文件响应模式: {'强制下载' if force_download else '预览模式'}")
+                return send_file(
+                    file_content,
+                    as_attachment=force_download,
+                    download_name=filename if force_download else None,
+                    mimetype=mimetype
+                )
+                
+            except requests.RequestException as e:
+                current_app.logger.error(f"云端文件下载失败: {str(e)}")
+                flash(_('云端文件下载失败，请稍后再试'), 'danger')
+                abort(500)
+            except Exception as e:
+                current_app.logger.error(f"代理下载处理失败: {str(e)}")
+                flash(_('文件下载处理失败'), 'danger')
+                abort(500)
         
         # 处理本地文件
         # 将URL路径转换为本地文件路径
@@ -3037,11 +3086,12 @@ def download_invoice(detail_id, invoice_index):
         }
         mimetype = mime_types.get(file_ext, 'application/octet-stream')
         
-        # 强制下载文件
+        # 根据查询参数决定是否强制下载或预览
+        current_app.logger.info(f"本地文件响应模式: {'强制下载' if force_download else '预览模式'}")
         return send_file(
             file_path,
-            as_attachment=True,
-            download_name=filename,
+            as_attachment=force_download,
+            download_name=filename if force_download else None,
             mimetype=mimetype
         )
         

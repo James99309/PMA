@@ -76,6 +76,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 🔥 为发票图标添加点击事件监听器（使用简单data属性，避免JSON解析问题）
     document.addEventListener('click', function(event) {
         if (event.target.classList.contains('invoice-preview-icon')) {
+            console.log('🔥 预览按钮被点击！开始处理预览逻辑');
             const element = event.target;
             const filename = element.dataset.filename;
             const invoiceUrl = element.dataset.invoiceUrl;
@@ -84,7 +85,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const detailId = element.dataset.detailId;
             const invoiceIndex = element.dataset.invoiceIndex;
             
-            console.log('点击发票图标，提取数据:', {filename, invoiceUrl, invoicePath, fileUrl, detailId, invoiceIndex});
+            console.log('🔍 预览按钮点击 - 提取数据:', {filename, invoiceUrl, invoicePath, fileUrl, detailId, invoiceIndex});
+            console.log('🔍 重要：这应该只触发预览，不应该下载！');
             
             // 构造简化的发票数据对象，包含下载路由信息
             const invoiceData = {

@@ -199,6 +199,58 @@ total_amount = order.total_amount / 10000  # 转换为万元
 
 ---
 
+## ☁️ 本地开发云端存储规范
+
+### **核心原则**
+- **测试一致性** - 本地开发必须使用生产环境Supabase存储
+- **数据真实性** - 确保本地测试和云端生产环境完全一致
+- **下载功能验证** - 消除本地文件存储与云端存储的行为差异
+
+### **配置要求**
+1. **生产环境配置文件** - 使用 `.env.supabase.prod` 配置生产环境Supabase
+2. **强制云端存储** - 设置 `FORCE_CLOUD_UPLOAD=true` 强制本地使用云端存储
+3. **多存储桶支持** - 配置发票、产品、研发产品等专用存储桶
+
+### **启动方式**
+```bash
+# 使用生产环境Supabase存储启动本地开发
+./run_with_supabase_prod.sh
+
+# 或手动加载配置
+export $(cat .env.supabase.prod | grep -v '^#' | xargs)
+python run.py
+```
+
+### **配置文件结构**
+`.env.supabase.prod` 必须包含：
+```bash
+# Supabase 项目配置
+SUPABASE_URL=https://pqzviljbpfoqvyfulakl.supabase.co
+SUPABASE_KEY=your-service-role-key
+
+# 存储桶配置
+SUPABASE_BUCKET_INVOICE=invoice-images
+SUPABASE_BUCKET_PRODUCT=product-images  
+SUPABASE_BUCKET_RD_PRODUCT=rd-product-images
+
+# 强制云端存储
+FORCE_CLOUD_UPLOAD=true
+```
+
+### **验证要求**
+- **连接测试** - 启动前自动运行Supabase连接测试
+- **存储桶访问** - 验证所有配置的存储桶可正常访问
+- **上传下载测试** - 确保文件上传和下载功能完全正常
+- **权限验证** - 验证存储桶的RLS策略配置正确
+
+### **重要提醒**
+- **生产数据谨慎** - 本地开发使用生产存储，避免上传测试数据
+- **网络依赖** - 本地开发需要稳定的网络连接访问Supabase
+- **安全配置** - 确保 `.env.supabase.prod` 在 `.gitignore` 中
+- **定期更新** - 定期更新密钥确保安全性
+
+---
+
 ## 🎨 前端交互规则
 
 ### **动态元素控制**
@@ -292,8 +344,13 @@ total_amount = order.total_amount / 10000  # 转换为万元
 # 编译翻译文件
 pybabel compile -d app/translations
 
-# 运行开发服务器
-python run.py
+# 运行开发服务器（推荐使用云端存储）
+./run_with_supabase_prod.sh           # 使用生产环境Supabase存储
+python run.py                         # 使用本地存储（不推荐）
+
+# 云端存储配置
+export $(cat .env.supabase.prod | grep -v '^#' | xargs)  # 手动加载配置
+python3 test_supabase_prod_connection.py                # 测试Supabase连接
 
 # 数据库备份
 python3 backup_cloud_pma_db.py        # SP8D
@@ -334,6 +391,8 @@ def list_view():
 
 ## 📝 规则更新日志
 
+- **2025-08-15**: 添加本地开发云端存储规范，包括生产环境Supabase配置、启动脚本和测试一致性要求
+- **2025-08-15**: 修复云端PDF下载问题，将重定向下载改为代理下载确保强制下载行为
 - **2025-08-12**: 修复项目模块中商务助理权限控制问题，确保商务助理能查看部门内所有账户的项目数据
 - **2025-08-12**: 添加智能合并功能权限规范，包括角色权限配置和数据访问控制原则
 - **2025-08-07**: 添加共享功能组件完整规范到CLAUDE-COMPONENTS.md，包括树状用户选择器、权限控制、服务器端状态渲染等v2.0功能
@@ -341,8 +400,8 @@ def list_view():
 - **2025-08-01**: 添加OVS数据库迁移升级规范，包含完整的工具链和实战验证案例
 - **2025-07-30**: 添加云端数据库备份工具规范
 - **2025-07-20**: 创建初始规则文档
-- **版本**: 2.1.0
-- **最后更新**: 2025-08-07
+- **版本**: 2.2.0
+- **最后更新**: 2025-08-15
 
 ---
 

@@ -134,9 +134,9 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <a id="modalDownloadBtn" href="#" target="_blank" class="btn btn-primary">
+                <button type="button" id="modalDownloadBtn" class="btn btn-primary" onclick="downloadModalFile()">
                     <i class="fas fa-download me-1"></i>{{ _('下载文件') }}
-                </a>
+                </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('关闭') }}</button>
             </div>
         </div>
@@ -145,29 +145,60 @@
 
 <script>
 /**
+ * 强制下载文件 - 确保文件以附件形式下载
+ */
+function downloadFileForced(fileUrl, filename) {
+    return new Promise((resolve, reject) => {
+        console.log('强制下载文件:', filename);
+        
+        try {
+            // 创建下载链接
+            const link = document.createElement('a');
+            link.style.display = 'none';
+            
+            // 为PDF和其他文件添加强制下载参数
+            let downloadUrl = fileUrl;
+            if (downloadUrl.indexOf('?') > -1) {
+                downloadUrl = downloadUrl + '&download=1&as_attachment=true';
+            } else {
+                downloadUrl = downloadUrl + '?download=1&as_attachment=true';
+            }
+            
+            link.href = downloadUrl;
+            link.download = filename || 'download';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            console.log('强制下载执行完成:', filename);
+            resolve();
+        } catch (error) {
+            console.error('强制下载失败:', error);
+            reject(error);
+        }
+    });
+}
+
+/**
  * 直接下载文件 - 统一下载行为
  */
 function downloadFileDirect(fileUrl, filename) {
     console.log('文件预览组件 - 直接下载文件:', filename);
     
-    // 检查是否有通用的强制下载函数
-    if (typeof downloadFileForced === 'function') {
-        downloadFileForced(fileUrl, filename)
-            .then(() => {
-                console.log('使用强制下载函数完成');
-            })
-            .catch(error => {
-                console.warn('强制下载失败，使用备用方案:', error);
-                fallbackDownload(fileUrl, filename);
-            });
-    } else {
-        // 备用方案
-        fallbackDownload(fileUrl, filename);
-    }
+    // 使用强制下载函数
+    downloadFileForced(fileUrl, filename)
+        .then(() => {
+            console.log('文件下载完成');
+        })
+        .catch(error => {
+            console.warn('强制下载失败，使用备用方案:', error);
+            fallbackDownload(fileUrl, filename);
+        });
 }
 
 /**
- * 备用下载方案
+ * 备用下载方案 - 简化版本，避免自动添加下载参数
  */
 function fallbackDownload(fileUrl, filename) {
     try {
@@ -175,15 +206,6 @@ function fallbackDownload(fileUrl, filename) {
         link.href = fileUrl;
         link.download = filename || 'download';
         link.style.display = 'none';
-        
-        // 为PDF文件添加下载参数
-        if (filename && filename.toLowerCase().endsWith('.pdf')) {
-            if (fileUrl.indexOf('?') > -1) {
-                link.href = fileUrl + '&download=1';
-            } else {
-                link.href = fileUrl + '?download=1';
-            }
-        }
         
         document.body.appendChild(link);
         link.click();
@@ -193,6 +215,36 @@ function fallbackDownload(fileUrl, filename) {
     } catch (error) {
         console.error('备用下载方案失败:', error);
         alert('文件下载失败，请尝试右键另存为');
+    }
+}
+
+/**
+ * 模态框下载文件功能
+ */
+function downloadModalFile() {
+    const modalDownloadBtn = document.getElementById('modalDownloadBtn');
+    if (!modalDownloadBtn) {
+        console.error('模态框下载按钮未找到');
+        return;
+    }
+    
+    // 从按钮的数据属性获取文件信息
+    const fileUrl = modalDownloadBtn.dataset.fileUrl;
+    const filename = modalDownloadBtn.dataset.filename || 'download';
+    
+    if (!fileUrl) {
+        console.error('文件URL未设置');
+        alert('下载失败：文件URL未找到');
+        return;
+    }
+    
+    console.log('模态框下载文件:', filename);
+    
+    // 使用统一的下载功能
+    if (typeof downloadFileDirect === 'function') {
+        downloadFileDirect(fileUrl, filename);
+    } else {
+        fallbackDownload(fileUrl, filename);
     }
 }
 </script>
