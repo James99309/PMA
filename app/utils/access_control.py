@@ -943,8 +943,9 @@ def can_view_company(user, company):
                 logger.debug(f"[权限检查] 部门级权限 - 同部门客户 - 允许访问")
                 return True
     
-    # 判断是否通过共享获得权限
-    if hasattr(company, 'shared_with_users') and company.shared_with_users:
+    # 判断是否通过共享获得权限 - 需要同时检查 share_enabled 和 shared_with_users
+    if (hasattr(company, 'share_enabled') and hasattr(company, 'shared_with_users') and 
+        company.share_enabled and company.shared_with_users):
         if user.id in company.shared_with_users:
             logger.debug(f"[权限检查] 企业共享权限 - 允许访问")
             return True
