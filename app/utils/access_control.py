@@ -943,23 +943,35 @@ def can_view_company(user, company):
                 logger.debug(f"[权限检查] 部门级权限 - 同部门客户 - 允许访问")
                 return True
     
-    # 判断是否通过共享获得权限 - 需要同时检查 share_enabled 和 shared_with_users
-    if (hasattr(company, 'share_enabled') and hasattr(company, 'shared_with_users') and 
-        company.share_enabled and company.shared_with_users):
+    # 补充部门权限检查：即使是个人级权限，也应该能查看同部门同事的客户（根据业务需求）
+    if user.department and user.company_name:
+        company_owner = User.query.get(company.owner_id)
+        if (company_owner and 
+            company_owner.department == user.department and 
+            company_owner.company_name == user.company_name):
+            logger.debug(f"[权限检查] 同部门权限检查 - 允许访问")
+            return True
+    
+    # 判断是否通过共享获得权限
+    if hasattr(company, 'shared_with_users') and company.shared_with_users:
         if user.id in company.shared_with_users:
             logger.debug(f"[权限检查] 企业共享权限 - 允许访问")
             return True
             
     # 判断是否通过归属关系获得权限
-    try:
-        from app.models.affiliation import Affiliation
-        affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
-        if company.owner_id in [affiliation.owner_id for affiliation in affiliations]:
-            logger.debug(f"[权限检查] 归属关系权限 - 允许访问")
+    affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()
+    if company.owner_id in [affiliation.owner_id for affiliation in affiliations]:
+        logger.debug(f"[权限检查] 归属关系权限 - 允许访问")
+        return True
+    
+    # 部门负责人权限：可以查看本公司本部门所有用户的客户
+    if getattr(user, 'is_department_manager', False) and user.department and user.company_name:
+        company_owner = User.query.get(company.owner_id)
+        if (company_owner and 
+            company_owner.department == user.department and 
+            company_owner.company_name == user.company_name):
+            logger.debug(f"[权限检查] 部门负责人权限 - 允许访问")
             return True
-    except ImportError:
-        # 如果Affiliation模型不存在，跳过归属关系检查
-        pass
     
     # 判断是否创建了该公司下的联系人
     from app.models.customer import Contact
