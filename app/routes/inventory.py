@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file
+from flask import Blueprint, render_template, render_template_string, request, redirect, url_for, flash, jsonify, send_file
 from flask_login import login_required, current_user
 from app import db
 from app.models.inventory import Inventory, InventoryTransaction, Settlement, SettlementDetail, PurchaseOrder, PurchaseOrderDetail
@@ -718,10 +718,81 @@ def stock_list_ajax():
             'zero_count': zero_stats
         }
         
-        # 渲染HTML片段
-        html = render_template('inventory/stock_rows.html', 
-                              product_records=product_records,
-                              is_company_view=bool(company_id))
+        # 检测移动端并使用智能移动卡片
+        from app.utils.mobile_helpers import is_mobile_request
+        from types import SimpleNamespace
+        
+        if product_records:
+            # 格式化库存数据为标准结构
+            formatted_results = []
+            for record in product_records:
+                # 计算库存状态
+                quantity = record['total_quantity']
+                min_stock = record['min_stock']
+                
+                if quantity == 0:
+                    stock_status = '缺货'
+                elif quantity <= min_stock:
+                    stock_status = '库存不足'
+                else:
+                    stock_status = '库存正常'
+                
+                formatted_record = SimpleNamespace(
+                    id=record['inventory_id'] or record['product_id'],
+                    inventory_id=record['inventory_id'],
+                    product_id=record['product_id'],
+                    product_name=record['product_name'],
+                    model=record['model'],
+                    product_mn=record['product_mn'],
+                    brand=record['brand'],
+                    specification=record['specification'] or '',
+                    unit=record['unit'],
+                    total_quantity=quantity,
+                    min_stock=min_stock,
+                    stock_status=stock_status,
+                    company_name=record['company_name'],
+                    updated_at=record['updated_at'],
+                    is_aggregate=record.get('is_aggregate', False)
+                )
+                formatted_results.append(formatted_record)
+            
+            if is_mobile_request():
+                # 智能移动卡片配置 - 库存管理
+                smart_mobile_card = {
+                    'module': 'inventory',
+                    'title_field': {'field': 'product_name'},
+                    'badges': [
+                        {'field': 'stock_status', 'renderer': 'inventory_status'}
+                    ],
+                    'details': [
+                        {'field': 'model', 'label': '产品型号'},
+                        {'field': 'product_mn', 'label': '产品料号'},
+                        {'field': 'brand', 'label': '品牌'},
+                        {'field': 'specification', 'label': '规格'},
+                        {'field': 'total_quantity', 'label': '库存数量', 'suffix': '件'},
+                        {'field': 'min_stock', 'label': '最小库存', 'suffix': '件'},
+                        {'field': 'company_name', 'label': '所属公司'},
+                        {'field': 'updated_at', 'label': '更新时间', 'format': 'date'}
+                    ]
+                }
+                
+                # 使用智能移动卡片模板渲染
+                html = render_template_string('''
+                {% from 'macros/ui_helpers.html' import render_smart_mobile_cards %}
+                {{ render_smart_mobile_cards(items, card_config) }}
+                ''', items=formatted_results, card_config=smart_mobile_card)
+            else:
+                # 桌面端使用传统表格行渲染
+                html = render_template('inventory/stock_rows.html', 
+                                      product_records=product_records,
+                                      is_company_view=bool(company_id))
+        else:
+            if is_mobile_request():
+                html = '<div class="text-center py-4">暂无符合条件的数据</div>'
+            else:
+                html = render_template('inventory/stock_rows.html', 
+                                      product_records=product_records,
+                                      is_company_view=bool(company_id))
         
         # 计算是否还有更多数据
         has_more = (offset + limit) < total_count
@@ -2778,9 +2849,72 @@ def order_list_ajax():
         'completed_amount': float(completed_stats_amount)
     }
     
-    # 渲染HTML片段
-    html = render_template('inventory/order_rows.html', 
-                          orders=orders)
+    # 检测移动端并使用智能移动卡片
+    from app.utils.mobile_helpers import is_mobile_request
+    from types import SimpleNamespace
+    
+    if orders:
+        # 格式化订单数据为标准结构
+        formatted_results = []
+        for order in orders:
+            company_name = order.company.company_name if order.company else '未知公司'
+            creator_name = order.created_by.real_name if order.created_by and order.created_by.real_name else (order.created_by.username if order.created_by else '未知')
+            
+            # 获取入库状态标签
+            inventory_status = order.inventory_status or 'pending'
+            status_labels = {
+                'pending': '待入库',
+                'partially_received': '部分入库',
+                'fully_received': '已入库'
+            }
+            inventory_status_label = status_labels.get(inventory_status, inventory_status)
+            
+            formatted_order = SimpleNamespace(
+                id=order.id,
+                order_number=order.order_number,
+                company_name=company_name,
+                total_amount=order.total_amount or 0,
+                status=order.status or '未知',
+                inventory_status=inventory_status,
+                inventory_status_label=inventory_status_label,
+                expected_date=order.expected_date,
+                creator_name=creator_name,
+                created_at=order.created_at
+            )
+            formatted_results.append(formatted_order)
+        
+        if is_mobile_request():
+            # 智能移动卡片配置 - 订单管理
+            smart_mobile_card = {
+                'module': 'order',
+                'title_field': {'field': 'order_number'},
+                'link_url': '/inventory/orders/{id}',
+                'badges': [
+                    {'field': 'inventory_status_label', 'renderer': 'order_status'}
+                ],
+                'details': [
+                    {'field': 'company_name', 'label': '供应商'},
+                    {'field': 'total_amount', 'label': '订单金额', 'format': 'currency'},
+                    {'field': 'status', 'label': '订单状态'},
+                    {'field': 'expected_date', 'label': '预期日期', 'format': 'date'},
+                    {'field': 'creator_name', 'label': '创建人'},
+                    {'field': 'created_at', 'label': '创建时间', 'format': 'date'}
+                ]
+            }
+            
+            # 使用智能移动卡片模板渲染
+            html = render_template_string('''
+            {% from 'macros/ui_helpers.html' import render_smart_mobile_cards %}
+            {{ render_smart_mobile_cards(items, card_config) }}
+            ''', items=formatted_results, card_config=smart_mobile_card)
+        else:
+            # 桌面端使用传统表格行渲染
+            html = render_template('inventory/order_rows.html', orders=orders)
+    else:
+        if is_mobile_request():
+            html = '<div class="text-center py-4">暂无符合条件的数据</div>'
+        else:
+            html = render_template('inventory/order_rows.html', orders=orders)
     
     return jsonify({
         'success': True,
@@ -2886,9 +3020,69 @@ def settlement_order_list_ajax():
         'pending_amount': pending_stats_amount
     }
     
-    # 渲染HTML片段
-    html = render_template('inventory/settlement_order_rows.html', 
-                          settlement_orders=settlement_orders)
+    # 检测移动端并使用智能移动卡片
+    from app.utils.mobile_helpers import is_mobile_request
+    from types import SimpleNamespace
+    
+    if settlement_orders:
+        # 格式化结算单数据为标准结构
+        formatted_results = []
+        for order in settlement_orders:
+            project_name = order.project.project_name if order.project else '未知项目'
+            dealer_name = order.dealer.company_name if order.dealer else '未知经销商'
+            
+            # 获取结算状态标签
+            status_labels = {
+                'pending': '待结算',
+                'partially_settled': '部分结算',
+                'fully_settled': '已完成结算'
+            }
+            status_label = status_labels.get(order.settlement_status, order.settlement_status)
+            
+            formatted_order = SimpleNamespace(
+                id=order.id,
+                order_number=order.order_number,
+                project_name=project_name,
+                dealer_name=dealer_name,
+                total_amount=order.total_amount or 0,
+                settlement_status=order.settlement_status,
+                settlement_status_label=status_label,
+                created_at=order.created_at,
+                updated_at=order.updated_at
+            )
+            formatted_results.append(formatted_order)
+        
+        if is_mobile_request():
+            # 智能移动卡片配置 - 结算单管理
+            smart_mobile_card = {
+                'module': 'settlement_order',
+                'title_field': {'field': 'order_number'},
+                'link_url': '/inventory/settlement/{id}',
+                'badges': [
+                    {'field': 'settlement_status_label', 'renderer': 'settlement_status'}
+                ],
+                'details': [
+                    {'field': 'project_name', 'label': '关联项目'},
+                    {'field': 'dealer_name', 'label': '经销商'},
+                    {'field': 'total_amount', 'label': '结算金额', 'format': 'currency'},
+                    {'field': 'created_at', 'label': '创建时间', 'format': 'date'},
+                    {'field': 'updated_at', 'label': '更新时间', 'format': 'date'}
+                ]
+            }
+            
+            # 使用智能移动卡片模板渲染
+            html = render_template_string('''
+            {% from 'macros/ui_helpers.html' import render_smart_mobile_cards %}
+            {{ render_smart_mobile_cards(items, card_config) }}
+            ''', items=formatted_results, card_config=smart_mobile_card)
+        else:
+            # 桌面端使用传统表格行渲染
+            html = render_template('inventory/settlement_order_rows.html', settlement_orders=settlement_orders)
+    else:
+        if is_mobile_request():
+            html = '<div class="text-center py-4">暂无符合条件的数据</div>'
+        else:
+            html = render_template('inventory/settlement_order_rows.html', settlement_orders=settlement_orders)
     
     return jsonify({
         'success': True,

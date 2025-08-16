@@ -20,7 +20,7 @@
     <div class="expense-detail-header mb-3">
         <div class="d-flex align-items-center justify-content-between">
             <div class="d-flex align-items-center">
-                <h5 class="mb-0 me-2">{{ _('报销明细') }}</h5>
+                <h5 class="mb-0 me-2 expense-detail-title">{{ _('报销明细') }}</h5>
             </div>
             {% if not readonly %}
             <div class="expense-detail-actions">
@@ -34,8 +34,8 @@
     </div>
     
     <!-- 报销明细表格 - 桌面端 -->
-    <div class="table-responsive d-none d-lg-block">
-        <table class="table table-bordered table-hover" id="{{ config.table_id | default('expenseTable') }}">
+    <div class="table-responsive d-none d-lg-block expense-detail-container">
+        <table class="table table-bordered table-hover expense-detail-table" id="{{ config.table_id | default('expenseTable') }}">
             <thead class="table-light">
                 <tr>
                     {% for column in config.columns %}

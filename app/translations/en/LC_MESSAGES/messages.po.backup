@@ -3608,3 +3608,49 @@ msgstr "Are you sure you want to delete this approval process? This action canno
 
 msgid "警告：删除审批流程可能会影响业务数据完整性！"
 msgstr "Warning: Deleting approval process may affect business data integrity!"
+
+msgid "版本号"
+msgstr "Version"
+
+msgid "最近升级时间"
+msgstr "Last Upgrade Time"
+
+msgid "已回复"
+msgstr "Replied"
+
+msgid "无回复"
+msgstr "No Reply"
+
+msgid "绩效配置"
+msgstr "Performance Configuration"
+
+# 新增的界面翻译
+msgid "缩小"
+msgstr "Zoom Out"
+
+msgid "放大"
+msgstr "Zoom In"
+
+msgid "适应窗口"
+msgstr "Fit to Window"
+
+msgid "点击确认产品明细"
+msgstr "Click to confirm product details"
+
+msgid "厂商产品，计入植入合计"
+msgstr "Vendor product, counted in implant total"
+
+msgid "发票上传未完成"
+msgstr "Invoice upload incomplete"
+
+msgid "点击预览发票"
+msgstr "Click to preview invoice"
+
+msgid "发票上传未完成，请重新编辑报销单并上传发票。"
+msgstr "Invoice upload incomplete. Please edit the expense report and upload the invoice."
+
+msgid "文件下载失败，请尝试右键另存为"
+msgstr "File download failed, please try right-click and save as"
+
+msgid "发票文件下载失败，请联系管理员检查文件状态"
+msgstr "Invoice file download failed, please contact administrator to check file status"

@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, session, current_app
+from flask import Blueprint, render_template, render_template_string, redirect, url_for, flash, request, jsonify, session, current_app
 from flask_login import login_required, current_user
 from flask_babel import gettext as _
 from app.models.user import User, Permission, User as UserModel, Affiliation
@@ -366,73 +366,136 @@ def list_users_ajax():
         active_users = total_query.filter(User._is_active == True).count()
         inactive_users = total_query.filter(User._is_active == False).count()
         
-        # 第三步：完整渲染
-        html_rows = []
-        for user in users:
-            # 安全访问用户属性
-            real_name = getattr(user, 'real_name', None) or '未设置'
-            email = getattr(user, 'email', None) or '未设置'
-            department = getattr(user, 'department', None) or '未设置'
-            
-            # 处理角色显示 - 直接查询数据库获取中文显示名称并生成徽章
-            role_key = getattr(user, 'role', None)
-            if role_key:
-                # 直接查询数据库，不使用g对象缓存
-                role_dict = Dictionary.query.filter_by(type='role', key=role_key, is_active=True).first()
-                role_display = role_dict.value if role_dict else role_key
-                role_badge = f'<span class="badge badge-pill badge-transparent user-role-{role_key}">{role_display}</span>'
-            else:
-                role_badge = '<span class="badge badge-pill badge-transparent badge-muted">未设置</span>'
-            
-            # 企业名称：检查多种可能的字段名
-            company_name = getattr(user, 'company_name', None) or getattr(user, 'company', None) or '未设置'
-            
-            # 安全访问_is_active属性
-            is_active = getattr(user, '_is_active', True)
-            if is_active:
-                status_badge = '<span class="badge badge-pill badge-transparent user-status-active">激活</span>'
-            else:
-                status_badge = '<span class="badge badge-pill badge-transparent user-status-inactive">禁用</span>'
-            
-            # 处理时间
-            created_at = getattr(user, 'created_at', None)
-            updated_at = getattr(user, 'updated_at', None)
-            
-            if created_at:
-                if isinstance(created_at, (int, float)):
-                    created_time = datetime.fromtimestamp(created_at).strftime('%Y-%m-%d %H:%M')
-                else:
-                    created_time = created_at.strftime('%Y-%m-%d %H:%M')
-            else:
-                created_time = '未知'
+        # 检测移动端并使用智能移动卡片
+        from app.utils.mobile_helpers import is_mobile_request
+        from types import SimpleNamespace
+        
+        if users:
+            # 格式化用户数据为标准结构
+            formatted_results = []
+            for user in users:
+                # 安全访问用户属性
+                real_name = getattr(user, 'real_name', None) or '未设置'
+                email = getattr(user, 'email', None) or '未设置'
+                department = getattr(user, 'department', None) or '未设置'
                 
-            if updated_at:
-                if isinstance(updated_at, (int, float)):
-                    updated_time = datetime.fromtimestamp(updated_at).strftime('%Y-%m-%d %H:%M')
+                # 处理角色显示
+                role_key = getattr(user, 'role', None)
+                if role_key:
+                    role_dict = Dictionary.query.filter_by(type='role', key=role_key, is_active=True).first()
+                    role_display = role_dict.value if role_dict else role_key
                 else:
-                    updated_time = updated_at.strftime('%Y-%m-%d %H:%M')
-            else:
-                updated_time = '未知'
+                    role_display = '未设置'
+                
+                # 企业名称
+                company_name = getattr(user, 'company_name', None) or getattr(user, 'company', None) or '未设置'
+                
+                # 用户状态
+                is_active = getattr(user, '_is_active', True)
+                status_display = '激活' if is_active else '禁用'
+                
+                # 处理时间
+                created_at = getattr(user, 'created_at', None)
+                updated_at = getattr(user, 'updated_at', None)
+                
+                formatted_user = SimpleNamespace(
+                    id=user.id,
+                    username=user.username,
+                    real_name=real_name,
+                    email=email,
+                    company_name=company_name,
+                    department=department,
+                    role_display=role_display,
+                    role_key=role_key,
+                    status_display=status_display,
+                    is_active=is_active,
+                    created_at=created_at,
+                    updated_at=updated_at
+                )
+                formatted_results.append(formatted_user)
             
-            html_row = f'''
-            <tr>
-                <td>{user.id}</td>
-                <td><a href="/user/detail/{user.id}">{user.username}</a></td>
-                <td>{real_name}</td>
-                <td>{status_badge}</td>
-                <td>{email}</td>
-                <td>{company_name}</td>
-                <td style="text-align: left !important;">{department}</td>
-                <td>{role_badge}</td>
-                <td>{updated_time}</td>
-                <td>{created_time}</td>
-            </tr>
-            '''
-            html_rows.append(html_row)
+            if is_mobile_request():
+                # 智能移动卡片配置 - 用户管理
+                smart_mobile_card = {
+                    'module': 'user',
+                    'title_field': {'field': 'username'},
+                    'link_url': '/user/detail/{id}',
+                    'badges': [
+                        {'field': 'status_display', 'renderer': 'user_status'},
+                        {'field': 'role_display', 'renderer': 'user_role'}
+                    ],
+                    'details': [
+                        {'field': 'real_name', 'label': '真实姓名'},
+                        {'field': 'email', 'label': '邮箱'},
+                        {'field': 'company_name', 'label': '所属公司'},
+                        {'field': 'department', 'label': '部门'},
+                        {'field': 'created_at', 'label': '创建时间', 'format': 'date'},
+                        {'field': 'updated_at', 'label': '更新时间', 'format': 'date'}
+                    ]
+                }
+                
+                # 使用智能移动卡片模板渲染
+                html = render_template_string('''
+                {% from 'macros/ui_helpers.html' import render_smart_mobile_cards %}
+                {{ render_smart_mobile_cards(items, card_config) }}
+                ''', items=formatted_results, card_config=smart_mobile_card)
+            else:
+                # 桌面端使用传统表格行渲染
+                html_rows = []
+                for user in formatted_results:
+                    # 重新生成徽章HTML（用于桌面端）
+                    if user.role_key:
+                        role_badge = f'<span class="badge badge-pill badge-transparent user-role-{user.role_key}">{user.role_display}</span>'
+                    else:
+                        role_badge = '<span class="badge badge-pill badge-transparent badge-muted">未设置</span>'
+                    
+                    if user.is_active:
+                        status_badge = '<span class="badge badge-pill badge-transparent user-status-active">激活</span>'
+                    else:
+                        status_badge = '<span class="badge badge-pill badge-transparent user-status-inactive">禁用</span>'
+                    
+                    # 处理时间显示
+                    if user.created_at:
+                        if isinstance(user.created_at, (int, float)):
+                            created_time = datetime.fromtimestamp(user.created_at).strftime('%Y-%m-%d %H:%M')
+                        else:
+                            created_time = user.created_at.strftime('%Y-%m-%d %H:%M')
+                    else:
+                        created_time = '未知'
+                        
+                    if user.updated_at:
+                        if isinstance(user.updated_at, (int, float)):
+                            updated_time = datetime.fromtimestamp(user.updated_at).strftime('%Y-%m-%d %H:%M')
+                        else:
+                            updated_time = user.updated_at.strftime('%Y-%m-%d %H:%M')
+                    else:
+                        updated_time = '未知'
+                    
+                    html_row = f'''
+                    <tr>
+                        <td>{user.id}</td>
+                        <td><a href="/user/detail/{user.id}">{user.username}</a></td>
+                        <td>{user.real_name}</td>
+                        <td>{status_badge}</td>
+                        <td>{user.email}</td>
+                        <td>{user.company_name}</td>
+                        <td style="text-align: left !important;">{user.department}</td>
+                        <td>{role_badge}</td>
+                        <td>{updated_time}</td>
+                        <td>{created_time}</td>
+                    </tr>
+                    '''
+                    html_rows.append(html_row)
+                html = '\n'.join(html_rows)
+        else:
+            if is_mobile_request():
+                html = '<div class="text-center py-4">暂无符合条件的数据</div>'
+            else:
+                html = '<tr><td colspan="10" class="text-center text-muted py-4">暂无符合条件的数据</td></tr>'
         
         return jsonify({
             'success': True,
-            'html': '\n'.join(html_rows),
+            'html': html,
             'total_count': total_count,
             'loaded_count': len(users),
             'has_more': has_more,

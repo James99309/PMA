@@ -29,17 +29,26 @@
  */
 
 /**
- * 检测移动设备
+ * 检测移动设备 - 使用统一的响应式管理器
  * @returns {boolean} 是否为移动设备
+ * @deprecated 建议使用 ResponsiveManager.isMobile() 替代
  */
 function detectMobileDevice() {
-    // 优先检查URL参数
+    // 如果响应式管理器可用，使用统一的检测方法
+    if (window.ResponsiveManager) {
+        return window.ResponsiveManager.isMobile();
+    }
+    
+    // 兼容性检测 - 窗口宽度优先
+    if (window.innerWidth <= 768) return true;
+    
+    // 优先检查URL参数（兼容性支持）
     const urlParams = new URLSearchParams(window.location.search);
     const mobileParam = urlParams.get('mobile');
     if (mobileParam === 'true') return true;
     if (mobileParam === 'false') return false;
     
-    // 检查User-Agent
+    // 检查User-Agent（最低优先级）
     const userAgent = navigator.userAgent.toLowerCase();
     const mobileKeywords = ['mobile', 'android', 'iphone', 'ipad', 'ipod', 'blackberry', 'windows phone'];
     return mobileKeywords.some(keyword => userAgent.includes(keyword));
@@ -768,9 +777,10 @@ function performGenericAjaxFilter(config) {
         }
     });
     
-    // 添加设备类型检测参数
-    const isMobileDevice = detectMobileDevice();
-    url.searchParams.set('mobile', isMobileDevice ? 'true' : 'false');
+    // 添加设备类型检测参数 - 强制基于当前窗口宽度
+    const isWindowMobile = window.innerWidth <= 768;
+    url.searchParams.set('mobile', isWindowMobile ? 'true' : 'false');
+    console.log(`📱 设置mobile参数: ${isWindowMobile ? 'true' : 'false'} (窗口宽度: ${window.innerWidth}px)`);
     
     // 添加额外的AJAX参数
     if (config.ajax_params) {
@@ -796,12 +806,60 @@ function performGenericAjaxFilter(config) {
             return response.json();
         })
         .then(data => {
-            // 统一更新目标元素，服务器已根据设备类型返回正确的HTML
-            if (targetElement) {
-                targetElement.innerHTML = data.html;
+            // 根据设备类型选择正确的目标容器
+            const isMobileLayout = window.innerWidth <= 768;
+            let actualTargetElement = targetElement;
+            
+            if (isMobileLayout) {
+                // 移动端：查找移动端容器
+                const mobileContainer = document.querySelector('.data-list-mobile .p-3, .product-list-mobile .p-3');
+                if (mobileContainer) {
+                    actualTargetElement = mobileContainer;
+                }
+            }
+            
+            console.log('📋 接收到数据:', {
+                windowWidth: window.innerWidth,
+                isMobile: isMobileLayout,
+                originalTarget: config.ajax_target,
+                actualTarget: actualTargetElement ? actualTargetElement.className : 'null',
+                dataLength: data.html ? data.html.length : 0,
+                hasHTML: !!data.html
+            });
+            
+            if (actualTargetElement) {
+                actualTargetElement.innerHTML = data.html;
+                console.log('✅ 数据已插入到目标容器:', isMobileLayout ? '移动端容器' : config.ajax_target);
             } else {
                 console.error('❌ 找不到目标元素:', config.ajax_target);
             }
+            
+            // 移动端布局时的特殊处理
+            if (window.innerWidth <= 768) {
+                // 检查移动端容器状态
+                const mobileContainer = document.querySelector('.data-list-mobile .p-3');
+                console.log('📱 移动端容器检查:', {
+                    containerExists: !!mobileContainer,
+                    containerHTML: mobileContainer ? mobileContainer.innerHTML.substring(0, 100) + '...' : 'N/A',
+                    hasLoadingCard: mobileContainer ? !!mobileContainer.querySelector('.loading-card') : false
+                });
+                
+                // 如果移动端容器还有加载状态，清除它
+                if (mobileContainer && mobileContainer.querySelector('.loading-card')) {
+                    console.log('⚠️ 移动端容器仍有加载状态，清除中...');
+                    // 清除加载卡片，显示数据完成提示
+                    const totalCount = data.total_count || data.loaded_count || 0;
+                    mobileContainer.innerHTML = `
+                        <div class="alert alert-success text-center">
+                            <i class="fas fa-check-circle"></i>
+                            <div class="mt-2">数据加载完成</div>
+                            <div class="text-muted">共 ${totalCount} 条记录</div>
+                        </div>
+                    `;
+                    console.log('✅ 移动端加载状态已清除，显示完成提示');
+                }
+            }
+            console.log('✅ 数据已根据窗口宽度加载到正确的容器');
             
             // 显示结果数量
             console.log(`✅ 筛选完成，加载了 ${data.loaded_count || 0} 条记录，总计 ${data.total_count || 0} 条`);
@@ -826,6 +884,8 @@ function performGenericAjaxFilter(config) {
         })
         .catch(error => {
             console.error('❌ 筛选失败:', error);
+            
+            // 错误情况下不需要特殊处理移动端容器，错误信息会通过targetElement显示
             
             // 检查是否是移动端以适配错误显示格式
             const isMobile = detectMobileDevice();
@@ -1088,22 +1148,31 @@ function initDeviceChangeDetection() {
         const wasDesktop = lastWindowWidth > 768;
         const isDesktop = currentWindowWidth > 768;
         
-        if (wasDesktop !== isDesktop || lastDeviceType !== currentDeviceType) {
+        if (wasDesktop !== isDesktop) {
             console.log(`📱↔️💻 设备类型变化检测: ${wasDesktop ? 'Desktop' : 'Mobile'} → ${isDesktop ? 'Desktop' : 'Mobile'}`);
             
-            // 更新URL参数以反映新的设备类型
+            // 更新URL参数以反映新的设备类型（统一使用窗口宽度检测逻辑）
             const newUrl = new URL(window.location);
-            newUrl.searchParams.set('mobile', currentDeviceType ? 'true' : 'false');
+            const isMobileLayout = currentWindowWidth <= 768;
+            newUrl.searchParams.set('mobile', isMobileLayout ? 'true' : 'false');
+            console.log(`📱 URL参数更新: mobile=${isMobileLayout ? 'true' : 'false'} (窗口宽度: ${currentWindowWidth}px)`);
             window.history.pushState({}, '', newUrl);
             
-            // 触发页面内容刷新
             if (window.filterSearchConfig && window.filterSearchConfig.ajax_mode) {
-                setTimeout(() => {
-                    performGenericAjaxFilter(window.filterSearchConfig);
-                }, 100); // 短暂延迟确保DOM更新完成
+                if (!isDesktop) {
+                    // 切换到移动端布局：重新加载获取移动端卡片格式数据
+                    console.log('📱 切换到移动端：重新加载卡片格式数据');
+                    setTimeout(() => {
+                        performGenericAjaxFilter(window.filterSearchConfig);
+                    }, 100);
+                } else {
+                    // 切换到桌面端：重新加载获取表格格式数据
+                    console.log('💻 切换到桌面端：重新加载表格格式数据');
+                    setTimeout(() => {
+                        performGenericAjaxFilter(window.filterSearchConfig);
+                    }, 100);
+                }
             }
-            
-            lastDeviceType = currentDeviceType;
         }
         
         lastWindowWidth = currentWindowWidth;
@@ -1112,5 +1181,50 @@ function initDeviceChangeDetection() {
 
 // 页面加载完成后初始化设备变化检测
 document.addEventListener('DOMContentLoaded', function() {
-    initDeviceChangeDetection();
+    // 如果响应式管理器可用，使用统一的状态管理
+    if (window.ResponsiveManager) {
+        console.log('📱 使用 ResponsiveManager 进行响应式管理');
+        
+        // 添加状态变化监听器
+        window.ResponsiveManager.addStateChangeListener((oldState, newState, context) => {
+            console.log(`📱 设备状态变化: ${oldState} → ${newState}`);
+            
+            // 如果有筛选配置且支持AJAX模式，重新加载数据
+            if (window.filterSearchConfig && window.filterSearchConfig.ajax_mode) {
+                console.log('📱 响应设备变化，重新加载数据');
+                setTimeout(() => {
+                    performGenericAjaxFilter(window.filterSearchConfig);
+                }, 100);
+            }
+        });
+    } else {
+        // 兼容性处理：如果响应式管理器不可用，使用传统方式
+        console.log('⚠️ ResponsiveManager 不可用，使用传统设备检测');
+        
+        // 强制检查并修正页面初始的mobile参数
+        const currentWindowWidth = window.innerWidth;
+        const isMobileLayout = currentWindowWidth <= 768;
+        const currentUrl = new URL(window.location);
+        const currentMobileParam = currentUrl.searchParams.get('mobile');
+        const expectedMobileParam = isMobileLayout ? 'true' : 'false';
+        
+        if (currentMobileParam !== expectedMobileParam) {
+            console.log(`🔧 修正mobile参数: ${currentMobileParam} → ${expectedMobileParam} (窗口宽度: ${currentWindowWidth}px)`);
+            currentUrl.searchParams.set('mobile', expectedMobileParam);
+            window.history.replaceState({}, '', currentUrl);
+            
+            // 如果是移动端布局但参数不正确，触发数据重新加载
+            if (isMobileLayout && window.filterSearchConfig && window.filterSearchConfig.ajax_mode) {
+                console.log('📱 移动端参数修正后重新加载数据');
+                setTimeout(() => {
+                    performGenericAjaxFilter(window.filterSearchConfig);
+                }, 100);
+            }
+        } else {
+            console.log(`✅ mobile参数已正确: ${expectedMobileParam} (窗口宽度: ${currentWindowWidth}px)`);
+        }
+        
+        // 初始化传统设备变化检测
+        initDeviceChangeDetection();
+    }
 });

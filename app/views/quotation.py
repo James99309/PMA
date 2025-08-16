@@ -436,7 +436,7 @@ def list_quotations():
                         'key': 'quotation_number',
                         'label': _('报价单编号'),
                         'type': 'link',
-                        'url_template': '/quotations/{id}',
+                        'url_template': '/quotation/{id}/detail',
                         'width': '160px',
                         'render': 'render_quotation_number'
                     },
@@ -488,6 +488,25 @@ def list_quotations():
                         'format': '%Y-%m-%d',
                         'width': '120px'
                     }
+                ]
+            },
+            
+            # 智能移动端卡片配置
+            'smart_mobile_card': {
+                'module': 'quotation',
+                'title_field': {'field': 'quotation_number', 'renderer': 'render_quotation_number'},
+                'link_url': '/quotation/{id}/detail',
+                'conditional_approval_badge': True,  # 启用条件审核通过徽章
+                'badges': [
+                    {'field': 'project_stage', 'renderer': 'project_stage'},
+                    {'field': 'project_type', 'renderer': 'project_type'}
+                ],
+                'details': [
+                    {'field': 'owner', 'label': '拥有人', 'renderer': 'owner'},
+                    {'field': 'project_name', 'label': '关联项目'},
+                    {'field': 'amount', 'label': '总价', 'format': 'currency'},
+                    {'field': 'created_at', 'label': '创建时间', 'format': 'date'},
+                    {'field': 'updated_at', 'label': '更新时间', 'format': 'date'}
                 ]
             }
         }
@@ -622,7 +641,7 @@ def quotations_list_ajax():
         
         # 基础查询
         try:
-            query = get_viewable_data(Quotation, current_user)
+            query = get_viewable_data(Quotation, current_user).options(joinedload(Quotation.project))
             current_app.logger.info("基础查询创建成功")
         except Exception as e:
             current_app.logger.error(f"基础查询创建失败: {e}")
@@ -689,13 +708,85 @@ def quotations_list_ajax():
             current_app.logger.error(f"查询报价单失败: {e}")
             raise
         
-        # 渲染HTML片段
+        # 为报价单数据添加项目名称（用于移动端显示）
+        for quotation in quotations:
+            try:
+                if hasattr(quotation, 'project') and quotation.project:
+                    quotation.project_name = getattr(quotation.project, 'project_name', '未知项目')
+                else:
+                    quotation.project_name = '未关联项目'
+                
+                # project_stage 和 project_type 是报价单模型自己的字段，不需要从project获取
+                # 这些字段已经在数据库查询时自动加载了
+                    
+            except Exception as e:
+                current_app.logger.error(f"处理报价单 {quotation.id} 的项目数据时出错: {e}")
+                quotation.project_name = '数据错误'
+            
+        
+        # 直接进行响应式渲染
         try:
-            html = render_template('quotation/quotation_rows.html', quotations=quotations)
-            current_app.logger.info("模板渲染成功")
+            from flask import render_template_string
+            from app.utils.mobile_helpers import is_mobile_request
+            
+            is_mobile = is_mobile_request()
+            current_app.logger.info(f"移动端检测结果: {is_mobile}, mobile参数: {request.args.get('mobile')}")
+            
+            # 临时调试：在HTML中添加调试信息
+            debug_info = f"<!-- DEBUG: is_mobile={is_mobile}, mobile_param={request.args.get('mobile')} -->"
+            current_app.logger.info(f"🔍 AJAX调试: URL={request.url}, is_mobile={is_mobile}, User-Agent={request.headers.get('User-Agent', 'None')}")
+            
+            if is_mobile:
+                # 移动端：使用智能卡片配置
+                current_app.logger.info("开始配置智能卡片")
+                smart_mobile_card = {
+                    'module': 'quotation',
+                    'title_field': {'field': 'quotation_number', 'renderer': 'render_quotation_number'},
+                    'link_url': '/quotation/{id}/detail',
+                    'conditional_approval_badge': True,  # 启用条件审核通过徽章
+                    'badges': [
+                        {'field': 'project_stage', 'renderer': 'project_stage'},
+                        {'field': 'project_type', 'renderer': 'project_type'}
+                    ],
+                    'details': [
+                        {'field': 'project_name', 'label': '关联项目', 'renderer': 'project_link'},
+                        {'field': 'owner', 'label': '拥有人', 'renderer': 'owner'},
+                        {'field': 'amount', 'label': '总价', 'format': 'currency'},
+                        {'field': 'created_at', 'label': '创建时间', 'format': 'date'},
+                        {'field': 'updated_at', 'label': '更新时间', 'format': 'date'}
+                    ]
+                }
+                current_app.logger.info(f"智能卡片配置: {smart_mobile_card}")
+                
+                try:
+                    html = render_template_string('''
+                        {% from 'macros/ui_helpers.html' import render_smart_mobile_cards %}
+                        {{ render_smart_mobile_cards(quotations, card_config) }}
+                    ''', quotations=quotations, card_config=smart_mobile_card)
+                    current_app.logger.info(f"渲染移动端智能卡片: {len(quotations)}条记录")
+                    current_app.logger.info(f"生成的HTML长度: {len(html)}")
+                    html = debug_info + "<!-- MOBILE RENDER SUCCESS -->" + html
+                except Exception as render_error:
+                    current_app.logger.error(f"智能卡片渲染失败: {render_error}")
+                    import traceback
+                    current_app.logger.error(f"渲染异常堆栈: {traceback.format_exc()}")
+                    # 回退到桌面模板
+                    html = debug_info + f"<!-- MOBILE RENDER FAILED: {str(render_error)} -->" + render_template('quotation/quotation_rows.html', quotations=quotations)
+            else:
+                # 桌面端：使用表格
+                html = debug_info + "<!-- DESKTOP RENDER -->" + render_template('quotation/quotation_rows.html', quotations=quotations)
+            current_app.logger.info("统一响应式渲染成功")
         except Exception as e:
-            current_app.logger.error(f"模板渲染失败: {e}")
-            html = f'<tr><td colspan="8" class="text-center text-muted">渲染失败: {str(e)}</td></tr>'
+            current_app.logger.error(f"统一响应式渲染失败: {e}")
+            import traceback
+            current_app.logger.error(f"完整异常堆栈: {traceback.format_exc()}")
+            # 回退到传统桌面端渲染
+            try:
+                html = render_template('quotation/quotation_rows.html', quotations=quotations)
+                current_app.logger.info("回退到传统模板渲染成功")
+            except Exception as fallback_error:
+                current_app.logger.error(f"回退渲染也失败: {fallback_error}")
+                html = f'<tr><td colspan="8" class="text-center text-muted">渲染失败: {str(e)}</td></tr>'
         
         # 计算统计数据 - 应用相同的筛选条件
         try:

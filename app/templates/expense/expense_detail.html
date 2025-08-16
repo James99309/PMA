@@ -46,7 +46,10 @@ window.approvalFlowI18n = {
     processedTime: '{{ _("处理时间：") }}',
     arrivedTime: '{{ _("到达时间：") }}',
     clickToView: '{{ _("点击查看审批意见") }}',
-    noCurrentStage: '{{ _("无法找到当前审批阶段信息") }}'
+    noCurrentStage: '{{ _("无法找到当前审批阶段信息") }}',
+    invoiceUploadIncomplete: '{{ _("发票上传未完成，请重新编辑报销单并上传发票。") }}',
+    fileDownloadFailed: '{{ _("文件下载失败，请尝试右键另存为") }}',
+    invoiceDownloadFailed: '{{ _("发票文件下载失败，请联系管理员检查文件状态") }}'
 };
 
 // 设置CSRF令牌
@@ -130,7 +133,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <!-- 顶部通知组件 -->
 {{ render_top_notification() }}
 
-<div class="container-fluid page-with-fixed-nav">
+<div class="container-fluid page-with-fixed-nav font-system-primary expense-detail-unified">
     <!-- 标准化页面头部区域：标题与操作按钮在同一行 -->
     <div class="page-header-with-actions mb-4">
         <div class="row align-items-center">
@@ -586,7 +589,7 @@ function previewInvoiceImage(imagePath, filename) {
                                 console.log('程序化下载链接备用方案执行完成');
                             } catch (linkError) {
                                 console.error('所有下载方案都失败了:', linkError);
-                                alert('发票文件下载失败，请联系管理员检查文件状态');
+                                alert(window.i18nTexts.invoiceDownloadFailed || '发票文件下载失败，请联系管理员检查文件状态');
                             }
                         });
                 } else {
@@ -734,7 +737,7 @@ async function submitExpenseApproval() {
             // 恢复按钮状态
             if (btn) {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-paper-plane me-1"></i>提交审批';
+                btn.innerHTML = '<i class="fas fa-paper-plane me-1"></i>' + window.i18nTexts.submitApproval;
             }
         }
         
@@ -746,7 +749,7 @@ async function submitExpenseApproval() {
         const btn = document.getElementById('submitApprovalBtn');
         if (btn) {
             btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-paper-plane me-1"></i>提交审批';
+            btn.innerHTML = '<i class="fas fa-paper-plane me-1"></i>' + window.i18nTexts.submitApproval;
         }
     }
 }
@@ -880,7 +883,7 @@ async function resubmitExpenseApproval() {
         const btn = document.getElementById('resubmitApprovalBtn');
         if (btn) {
             btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-redo me-1"></i>重新提交';
+            btn.innerHTML = '<i class="fas fa-redo me-1"></i>' + window.i18nTexts.resubmit;
         }
     }
 }
@@ -890,6 +893,15 @@ function exportExpense(expenseId) {
     showTopNotification(window.i18nTexts.exportInDevelopment, 'info');
     // TODO: 实现报销单导出功能
     // window.open(`/expense/${expenseId}/export`, '_blank');
+}
+
+// 显示发票上传未完成警告
+function showInvoiceUploadIncompleteAlert() {
+    if (window.i18nTexts && window.i18nTexts.invoiceUploadIncomplete) {
+        alert(window.i18nTexts.invoiceUploadIncomplete);
+    } else {
+        alert('发票上传未完成，请重新编辑报销单并上传发票。');
+    }
 }
 
 // ==================== 审核阶段字段编辑功能 ====================

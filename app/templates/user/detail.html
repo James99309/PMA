@@ -119,24 +119,27 @@
                         href=url_for('user.edit_user', user_id=user.id),
                         color='outline-primary',
                         size='sm',
+                        icon='fas fa-edit',
                         extra_class='d-none',
-                        attrs='id="editBaseBtn"'
+                        attrs='id="editBaseBtn" title="编辑基本信息"'
                     ) }}
                     {{ render_button(
                         text=_('编辑权限'),
                         href=url_for('user.manage_permissions', user_id=user.id),
                         color='outline-primary',
                         size='sm',
+                        icon='fas fa-shield-alt',
                         extra_class='d-none',
-                        attrs='id="editPermBtn"'
+                        attrs='id="editPermBtn" title="编辑权限"'
                     ) }}
                     {{ render_button(
                         text=_('编辑归属'),
                         href=url_for('user.manage_user_affiliations', user_id=user.id),
                         color='outline-primary',
                         size='sm',
+                        icon='fas fa-sitemap',
                         extra_class='d-none',
-                        attrs='id="editAffBtn"'
+                        attrs='id="editAffBtn" title="编辑归属关系"'
                     ) }}
                     {% if can_view_performance %}
                     {{ render_button(
@@ -144,8 +147,9 @@
                         href=url_for('performance.index', user_id=user.id),
                         color='outline-info',
                         size='sm',
+                        icon='fas fa-chart-line',
                         extra_class='d-none',
-                        attrs='id="viewPerfBtn"'
+                        attrs='id="viewPerfBtn" title="查看绩效"'
                     ) }}
                     {% endif %}
                     {% if can_edit_performance %}
@@ -154,8 +158,9 @@
                         href=url_for('performance.target_settings', user_id=user.id),
                         color='outline-success',
                         size='sm',
+                        icon='fas fa-bullseye',
                         extra_class='d-none',
-                        attrs='id="editPerfBtn"'
+                        attrs='id="editPerfBtn" title="编辑绩效目标"'
                     ) }}
                     {% endif %}
                     {{ render_button(

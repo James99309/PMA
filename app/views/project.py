@@ -668,110 +668,73 @@ def project_list_ajax():
             current_app.logger.error(f"查询项目失败: {e}")
             raise
         
-        # 使用标准通用组件方式渲染HTML片段
+        # 响应式渲染 - 根据设备类型返回不同格式
         try:
-            # 获取表格配置（与主列表页面保持一致）
-            table_columns = [
-                {
-                    'key': 'owner', 
-                    'label': '拥有者', 
-                    'type': 'custom',
-                    'render': 'render_owner',
-                    'width': '120px'
-                },
-                {
-                    'key': 'vendor_sales_manager', 
-                    'label': '厂商负责人', 
-                    'type': 'custom',
-                    'render': 'render_owner',
-                    'width': '120px'
-                },
-                {
-                    'key': 'authorization_code', 
-                    'label': '授权编号', 
-                    'type': 'custom',
-                    'render': 'render_project_authorization',
-                    'width': '120px'
-                },
-                {
-                    'key': 'project_name', 
-                    'label': '项目名称', 
-                    'type': 'link',
-                    'url_template': '/project/view/{id}',
-                    'width': '200px'
-                },
-                {
-                    'key': 'is_active', 
-                    'label': '活跃状态', 
-                    'type': 'custom',
-                    'render': 'render_status_badge',
-                    'width': '80px'
-                },
-                {
-                    'key': 'current_stage', 
-                    'label': '当前阶段', 
-                    'type': 'custom',
-                    'render': 'render_project_stage',
-                    'width': '120px'
-                },
-                {
-                    'key': 'project_type', 
-                    'label': '项目类型', 
-                    'type': 'custom',
-                    'render': 'render_project_type',
-                    'width': '100px',
-                    'align': 'start'
-                },
-                {
-                    'key': 'quotation_customer', 
-                    'label': '报价', 
-                    'type': 'number',
-                    'format': 'currency',
-                    'width': '120px', 
-                    'align': 'end'
-                },
-                {
-                    'key': 'industry', 
-                    'label': '行业', 
-                    'type': 'custom',
-                    'render': 'render_industry_badge',
-                    'width': '100px'
-                },
-                {
-                    'key': 'report_source', 
-                    'label': '来源', 
-                    'type': 'custom',
-                    'render': 'render_report_source_badge',
-                    'width': '100px'
-                },
-                {
-                    'key': 'delivery_forecast', 
-                    'label': '预测出货时间', 
-                    'type': 'date',
-                    'format': '%Y-%m-%d',
-                    'width': '150px'
-                },
-                {
-                    'key': 'updated_at', 
-                    'label': '更新时间', 
-                    'type': 'date',
-                    'format': '%Y-%m-%d %H:%M',
-                    'width': '150px'
-                },
-                {
-                    'key': 'created_at', 
-                    'label': '创建时间', 
-                    'type': 'date',
-                    'format': '%Y-%m-%d %H:%M',
-                    'width': '150px'
-                }
-            ]
+            from app.utils.mobile_helpers import is_mobile_request
+            from flask import render_template, render_template_string
             
-            # 使用模板渲染（通过标准通用组件方式）
-            html = render_template('project/project_rows_standard.html', 
-                                 projects=projects, 
-                                 table_columns=table_columns)
-            current_app.logger.info("标准组件模板渲染成功")
+            if is_mobile_request():
+                # 移动端：使用智能移动端卡片配置
+                use_smart_card = request.args.get('use_smart_card', 'true').lower() == 'true'
+                
+                if use_smart_card:
+                    # 项目智能卡片配置
+                    smart_card_config = {
+                        'module': 'project',
+                        'title_field': {'field': 'project_name'},
+                        'link_url': '/project/view/{id}',
+                        'badges': [
+                            {'field': 'current_stage', 'renderer': 'project_stage'},
+                            {'field': 'is_active', 'renderer': 'status_badge'},
+                            {'field': 'project_type', 'renderer': 'project_type'}
+                        ],
+                        'details': [
+                            {'field': 'authorization_code', 'label': '授权编号', 'renderer': 'render_project_authorization'},
+                            {'field': 'owner', 'label': '拥有者', 'renderer': 'owner'},
+                            {'field': 'vendor_sales_manager', 'label': '厂商负责人', 'renderer': 'owner'},
+                            {'field': 'industry', 'label': '行业', 'renderer': 'industry_badge'},
+                            {'field': 'report_source', 'label': '来源', 'renderer': 'report_source_badge'},
+                            {'field': 'quotation_customer', 'label': '报价金额', 'format': 'currency'},
+                            {'field': 'delivery_forecast', 'label': _('预测出货时间'), 'format': 'date'},
+                            {'field': 'updated_at', 'label': '更新时间', 'format': 'datetime'}
+                        ]
+                    }
+                    html = render_template_string('''
+                        {% from 'macros/ui_helpers.html' import render_smart_mobile_cards %}
+                        {{ render_smart_mobile_cards(projects, card_config) }}
+                    ''', projects=projects, card_config=smart_card_config)
+                    current_app.logger.info("智能移动端卡片渲染成功")
+                else:
+                    # 兼容传统移动端模板（如果存在）
+                    try:
+                        html = render_template('project/project_cards.html', items=projects)
+                        current_app.logger.info("传统移动端模板渲染成功")
+                    except Exception:
+                        # 传统模板不存在，回退到智能卡片
+                        html = render_template_string('''
+                            {% from 'macros/ui_helpers.html' import render_smart_mobile_cards %}
+                            {{ render_smart_mobile_cards(projects, card_config) }}
+                        ''', projects=projects, card_config=smart_card_config)
+                        current_app.logger.info("回退到智能移动端卡片渲染")
+            else:
+                # 桌面端：使用表格渲染
+                table_columns = [
+                    {'key': 'owner', 'label': '拥有者', 'type': 'custom', 'render': 'render_owner', 'width': '120px'},
+                    {'key': 'vendor_sales_manager', 'label': '厂商负责人', 'type': 'custom', 'render': 'render_owner', 'width': '120px'},
+                    {'key': 'authorization_code', 'label': '授权编号', 'type': 'custom', 'render': 'render_project_authorization', 'width': '120px'},
+                    {'key': 'project_name', 'label': '项目名称', 'type': 'link', 'url_template': '/project/view/{id}', 'width': '200px'},
+                    {'key': 'is_active', 'label': '活跃状态', 'type': 'custom', 'render': 'render_status_badge', 'width': '80px'},
+                    {'key': 'current_stage', 'label': '当前阶段', 'type': 'custom', 'render': 'render_project_stage', 'width': '120px'},
+                    {'key': 'project_type', 'label': '项目类型', 'type': 'custom', 'render': 'render_project_type', 'width': '100px', 'align': 'start'},
+                    {'key': 'quotation_customer', 'label': '报价', 'type': 'number', 'format': 'currency', 'width': '120px', 'align': 'end'},
+                    {'key': 'industry', 'label': '行业', 'type': 'custom', 'render': 'render_industry_badge', 'width': '100px'},
+                    {'key': 'report_source', 'label': '来源', 'type': 'custom', 'render': 'render_report_source_badge', 'width': '100px'},
+                    {'key': 'delivery_forecast', 'label': _('预测出货时间'), 'type': 'date', 'format': '%Y-%m-%d', 'width': '150px'},
+                    {'key': 'updated_at', 'label': '更新时间', 'type': 'date', 'format': '%Y-%m-%d %H:%M', 'width': '150px'},
+                    {'key': 'created_at', 'label': '创建时间', 'type': 'date', 'format': '%Y-%m-%d %H:%M', 'width': '150px'}
+                ]
+                html = render_template('project/project_rows_standard.html', projects=projects, table_columns=table_columns)
+                current_app.logger.info("桌面端表格渲染成功")
         except Exception as e:
             current_app.logger.error(f"标准组件模板渲染失败: {e}")
             html = f'<tr><td colspan="12" class="text-center text-muted">渲染失败: {str(e)}</td></tr>'

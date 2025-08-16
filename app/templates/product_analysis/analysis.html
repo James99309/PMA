@@ -109,6 +109,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初始化数据列表
     setupDataList(productAnalysisConfig);
     
+    // 添加前端翻译支持
+    setupProductAnalysisTranslations();
+    
     // 配置阶段统计组件
     console.log('🔍 检查StageAnalyticsComponent是否定义:', typeof StageAnalyticsComponent);
     console.log('🔍 检查echarts是否定义:', typeof echarts);
@@ -159,5 +162,207 @@ document.addEventListener('DOMContentLoaded', function() {
     
     console.log('✅ 植入产品分析页面初始化完成');
 });
+
+// 产品分析模块前端翻译函数
+function setupProductAnalysisTranslations() {
+    // 语言检测和翻译映射
+    const currentLanguage = '{{ session.get("language", "zh") }}';
+    const testTranslation = '{{ _("搜索") }}';
+    console.log('🌐 当前语言设置:', currentLanguage);
+    console.log('🔧 测试翻译 "搜索":', testTranslation);
+    
+    // 硬编码英文翻译映射表（作为后备方案）
+    const uiTranslations = {
+        // 统计卡片标题
+        '总金额': 'Total Amount',
+        '产品数量': 'Product Quantity',
+        '本月新增': 'Monthly New',
+        '平均单价': 'Average Price',
+        '个': 'Items',
+        '项': 'Items',
+        '万元': '10K CNY',
+        // 搜索和筛选相关
+        '产品名称、型号、描述或MN号': 'Product name, model, description or MN number',
+        '搜索': 'Search',
+        '产品类别': 'Product Category',
+        '全部类别': 'All Categories',
+        '产品名称': 'Product Name',
+        '全部产品': 'All Products',
+        '产品型号': 'Product Model',
+        '全部型号': 'All Models',
+        '重置': 'Reset',
+        // 表格标题和列头
+        '产品明细列表': 'Product Detail List',
+        '型号/规格': 'Model/Spec',
+        '数量': 'Quantity',
+        '单价': 'Unit Price',
+        '折扣': 'Discount',
+        '合计': 'Total',
+        '总价': 'Total Price',
+        '植入产品分析': 'Product Analysis',
+        '导出数据': 'Export Data'
+    };
+    
+    // 如果检测到英文环境，则使用服务器端翻译
+    if (currentLanguage === 'en' && testTranslation !== '搜索') {
+        uiTranslations['总金额'] = '{{ _("总金额") }}';
+        uiTranslations['产品数量'] = '{{ _("产品数量") }}';
+        uiTranslations['本月新增'] = '{{ _("本月新增") }}';
+        uiTranslations['平均单价'] = '{{ _("平均单价") }}';
+        uiTranslations['个'] = '{{ _("个") }}';
+        uiTranslations['项'] = '{{ _("项") }}';
+        uiTranslations['万元'] = '{{ _("万元") }}';
+        uiTranslations['产品名称、型号、描述或MN号'] = '{{ _("产品名称、型号、描述或MN号") }}';
+        uiTranslations['搜索'] = '{{ _("搜索") }}';
+        uiTranslations['产品类别'] = '{{ _("产品类别") }}';
+        uiTranslations['全部类别'] = '{{ _("全部类别") }}';
+        uiTranslations['产品名称'] = '{{ _("产品名称") }}';
+        uiTranslations['全部产品'] = '{{ _("全部产品") }}';
+        uiTranslations['产品型号'] = '{{ _("产品型号") }}';
+        uiTranslations['全部型号'] = '{{ _("全部型号") }}';
+        uiTranslations['重置'] = '{{ _("重置") }}';
+        uiTranslations['产品明细列表'] = '{{ _("产品明细列表") }}';
+        uiTranslations['型号/规格'] = '{{ _("型号/规格") }}';
+        uiTranslations['数量'] = '{{ _("数量") }}';
+        uiTranslations['单价'] = '{{ _("单价") }}';
+        uiTranslations['折扣'] = '{{ _("折扣") }}';
+        uiTranslations['合计'] = '{{ _("合计") }}';
+        uiTranslations['总价'] = '{{ _("总价") }}';
+        uiTranslations['植入产品分析'] = '{{ _("植入产品分析") }}';
+        uiTranslations['导出数据'] = '{{ _("导出数据") }}';
+        console.log('✅ 使用服务器端翻译');
+    } else {
+        console.log('⚠️ 服务器端翻译不可用，使用硬编码英文翻译');
+    }
+    
+    // 强制应用UI元素翻译
+    function forceTranslateUI() {
+        console.log('🌍 开始强制翻译UI元素...');
+        
+        // 1. 翻译统计卡片标题
+        document.querySelectorAll('.stats-cards-container .card-title').forEach(titleElement => {
+            let html = titleElement.innerHTML;
+            let translated = false;
+            Object.keys(uiTranslations).forEach(chineseText => {
+                if (html.includes(chineseText)) {
+                    html = html.replace(new RegExp(chineseText, 'g'), uiTranslations[chineseText]);
+                    translated = true;
+                    console.log('✅ 翻译卡片标题:', chineseText, '->', uiTranslations[chineseText]);
+                }
+            });
+            if (translated) {
+                titleElement.innerHTML = html;
+            }
+        });
+        
+        // 2. 翻译单位文本
+        document.querySelectorAll('.stats-cards-container .text-muted').forEach(unitElement => {
+            const text = unitElement.textContent.trim();
+            if (uiTranslations[text]) {
+                unitElement.textContent = uiTranslations[text];
+                console.log('✅ 翻译单位:', text, '->', uiTranslations[text]);
+            }
+        });
+        
+        // 3. 翻译搜索框占位符
+        const searchInput = document.querySelector('input[name="search"]');
+        if (searchInput && searchInput.placeholder) {
+            const placeholder = searchInput.placeholder;
+            if (uiTranslations[placeholder]) {
+                searchInput.placeholder = uiTranslations[placeholder];
+                console.log('✅ 翻译搜索占位符:', placeholder, '->', uiTranslations[placeholder]);
+            }
+        }
+        
+        // 4. 翻译筛选标签和选项
+        document.querySelectorAll('label[for*="filter"], .form-label').forEach(label => {
+            const text = label.textContent.trim();
+            if (uiTranslations[text]) {
+                label.textContent = uiTranslations[text];
+                console.log('✅ 翻译标签:', text, '->', uiTranslations[text]);
+            }
+        });
+        
+        // 5. 翻译下拉选项的默认文本
+        document.querySelectorAll('select option[value=""]').forEach(option => {
+            const text = option.textContent.trim();
+            if (uiTranslations[text]) {
+                option.textContent = uiTranslations[text];
+                console.log('✅ 翻译下拉选项:', text, '->', uiTranslations[text]);
+            }
+        });
+        
+        // 6. 翻译表格标题
+        document.querySelectorAll('.card-header h5, .list-title-main h5').forEach(titleElement => {
+            let html = titleElement.innerHTML;
+            let translated = false;
+            Object.keys(uiTranslations).forEach(chineseText => {
+                if (html.includes(chineseText)) {
+                    html = html.replace(new RegExp(chineseText, 'g'), uiTranslations[chineseText]);
+                    translated = true;
+                    console.log('✅ 翻译表格标题:', chineseText, '->', uiTranslations[chineseText]);
+                }
+            });
+            if (translated) {
+                titleElement.innerHTML = html;
+            }
+        });
+        
+        // 7. 翻译表头
+        document.querySelectorAll('th').forEach(thElement => {
+            const text = thElement.textContent.trim();
+            if (uiTranslations[text]) {
+                thElement.textContent = uiTranslations[text];
+                console.log('✅ 翻译表头:', text, '->', uiTranslations[text]);
+            }
+        });
+        
+        // 8. 翻译按钮文本
+        document.querySelectorAll('button, .btn').forEach(button => {
+            const text = button.textContent.trim();
+            if (uiTranslations[text]) {
+                button.textContent = uiTranslations[text];
+                console.log('✅ 翻译按钮:', text, '->', uiTranslations[text]);
+            }
+        });
+        
+        // 9. 翻译页面标题
+        const pageTitle = document.querySelector('.page-title');
+        if (pageTitle) {
+            const text = pageTitle.textContent.trim();
+            if (uiTranslations[text]) {
+                pageTitle.textContent = uiTranslations[text];
+                console.log('✅ 翻译页面标题:', text, '->', uiTranslations[text]);
+            }
+        }
+    }
+    
+    // 立即执行翻译（针对同步渲染的内容）
+    if (currentLanguage === 'en') {
+        console.log('🌐 检测到英文环境，开始翻译UI');
+        forceTranslateUI();
+        
+        // 设置观察器监听动态内容变化
+        const observer = new MutationObserver(function(mutations) {
+            let shouldTranslate = false;
+            mutations.forEach(function(mutation) {
+                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                    shouldTranslate = true;
+                }
+            });
+            if (shouldTranslate) {
+                setTimeout(forceTranslateUI, 100);
+            }
+        });
+        
+        // 开始观察DOM变化
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+        
+        console.log('🔍 已启动DOM变化监听器');
+    }
+}
 </script>
 {% endblock %}

@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, url_for
+from flask import Blueprint, render_template, render_template_string, request, jsonify, url_for
 from types import SimpleNamespace
 from flask_login import login_required, current_user
 from app.decorators import permission_required
@@ -809,7 +809,11 @@ def products_list_ajax():
         # 使用模板渲染表格行HTML
         
         if not results:
-            html = '<tr><td colspan="13" class="text-center py-4">暂无符合条件的数据</td></tr>'
+            from app.utils.mobile_helpers import is_mobile_request
+            if is_mobile_request():
+                html = '<div class="text-center py-4">暂无符合条件的数据</div>'
+            else:
+                html = '<tr><td colspan="13" class="text-center py-4">暂无符合条件的数据</td></tr>'
         else:
             # 创建简单的数据结构供模板使用
             formatted_results = []
@@ -838,8 +842,36 @@ def products_list_ajax():
                 )
                 formatted_results.append(formatted_row)
             
-            # 使用行模板渲染HTML，确保徽章样式一致
-            html = render_template('product_analysis/product_analysis_rows_simple.html', items=formatted_results)
+            # 检测移动端并使用智能移动卡片
+            from app.utils.mobile_helpers import is_mobile_request
+            
+            if is_mobile_request():
+                # 智能移动卡片配置 - 产品植入分析
+                smart_mobile_card = {
+                    'module': 'product_analysis',
+                    'title_field': {'field': 'product_name'},
+                    'badges': [
+                        {'field': 'current_stage_label', 'renderer': 'project_stage'}
+                    ],
+                    'details': [
+                        {'field': 'product_model', 'label': '产品型号'},
+                        {'field': 'product_mn', 'label': '产品料号'},
+                        {'field': 'project_name', 'label': '关联项目', 'renderer': 'project_link'},
+                        {'field': 'quotation_number', 'label': '报价单号'},
+                        {'field': 'quantity', 'label': '数量'},
+                        {'field': 'total_price', 'label': '总价', 'format': 'currency'},
+                        {'field': 'updated_at', 'label': '更新时间', 'format': 'date'}
+                    ]
+                }
+                
+                # 使用智能移动卡片模板渲染
+                html = render_template_string('''
+                {% from 'macros/ui_helpers.html' import render_smart_mobile_cards %}
+                {{ render_smart_mobile_cards(items, card_config) }}
+                ''', items=formatted_results, card_config=smart_mobile_card)
+            else:
+                # 桌面端使用传统表格行渲染
+                html = render_template('product_analysis/product_analysis_rows_simple.html', items=formatted_results)
             logger.info(f"✅ 模板渲染成功，生成了 {len(formatted_results)} 行数据")
         
         # 使用模组化函数计算统计信息

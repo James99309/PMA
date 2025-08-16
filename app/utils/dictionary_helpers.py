@@ -44,7 +44,32 @@ COMPANY_TYPE_LABELS = {
     'dealer': {'zh': '经销商', 'en': 'Dealer'},
     'integrator': {'zh': '系统集成商', 'en': 'System Integrator'},
     'designer': {'zh': '设计院及顾问', 'en': 'Designer'},
-    'contractor': {'zh': '总承包单位', 'en': 'Main Contractor'}
+    'contractor': {'zh': '总承包单位', 'en': 'Main Contractor'},
+    'direct_customer': {'zh': '直接客户', 'en': 'Direct Customer'},
+    'partner': {'zh': '合作伙伴', 'en': 'Partner'},
+    'system_integrator': {'zh': '系统集成商', 'en': 'System Integrator'},
+    'design_institute': {'zh': '设计院', 'en': 'Design Institute'},
+    'consultant': {'zh': '顾问', 'en': 'Consultant'},
+    'general_contractor': {'zh': '总承包商', 'en': 'General Contractor'},
+    'distributor': {'zh': '分销商', 'en': 'Distributor'},
+    'other': {'zh': '其他', 'en': 'Other'}
+}
+
+# 企业类型颜色映射
+COMPANY_TYPE_COLORS = {
+    'user': '#0B6EFD',
+    'dealer': '#28a745',
+    'integrator': '#fd7e14',
+    'designer': '#6f42c1',
+    'contractor': '#dc3545',
+    'direct_customer': '#17a2b8',
+    'partner': '#20c997',
+    'system_integrator': '#fd7e14',
+    'design_institute': '#6f42c1',
+    'consultant': '#6f42c1',
+    'general_contractor': '#dc3545',
+    'distributor': '#28a745',
+    'other': '#6c757d'
 }
 
 # 货币类型映射
@@ -99,6 +124,10 @@ def authorization_status_label(key, lang='zh'):
 
 def company_type_label(key, lang='zh'):
     return COMPANY_TYPE_LABELS.get(key, {}).get(lang, key)
+
+def company_type_color(key):
+    """获取企业类型对应的颜色"""
+    return COMPANY_TYPE_COLORS.get(key, '#6c757d')
 
 def product_situation_label(key, lang='zh'):
     return PRODUCT_SITUATION_LABELS.get(key, {}).get(lang, key)
@@ -363,8 +392,29 @@ INDUSTRY_LABELS = {
     'other': {'zh': '其他选择', 'en': 'Other'},
 }
 
+# 行业颜色映射
+INDUSTRY_COLORS = {
+    'manufacturing': '#0B6EFD',
+    'datacenter': '#5BC0DE', 
+    'shipbuilding': '#198754',
+    'semiconductor': '#fd7e14',
+    'chemical': '#dc3545',
+    'energy': '#ffc107',
+    'transportation': '#6f42c1',
+    'tunnel_underground': '#6c757d',
+    'real_estate': '#20c997',
+    'hospitality': '#e83e8c',
+    'government': '#007bff',
+    'education': '#28a745',
+    'other': '#6c757d'
+}
+
 def industry_label(key, lang='zh'):
     return INDUSTRY_LABELS.get(key, {}).get(lang, key)
+
+def industry_color(key):
+    """获取行业对应的颜色"""
+    return INDUSTRY_COLORS.get(key, '#6c757d')
 
 def get_industry_options():
     """获取语言感知的行业选项"""

@@ -66,7 +66,7 @@
                     <div class="border rounded-3 p-2 mb-2">
                         <div class="fw-bold text-secondary small mb-1">{{ _('基本信息') }}</div>
                         <div class="row g-1 small">
-                            <div class="col-6">{{ _('企业类型') }}：{% if company.company_type %}{{ render_company_type_badge(company.company_type, get_current_language()) }}{% else %}{{ _('未指定') }}{% endif %}</div>
+                            <div class="col-6">{{ _('企业类型') }}：{% if company.company_type %}{{ render_company_type_badge(company.company_type) }}{% else %}{{ _('未指定') }}{% endif %}</div>
                             <div class="col-6">{{ _('行业') }}：{% if company.industry %}{{ render_industry_badge(company.industry, get_current_language()) }}{% else %}{{ _('未指定') }}{% endif %}</div>
                             <div class="col-6">{{ _('国家/地区') }}：{{ country_code_to_name[company.country] if company.country in country_code_to_name else company.country or _('未指定') }}</div>
                             <div class="col-6">{{ _('省/州') }}：{{ company.region or _('未指定') }}</div>
@@ -117,7 +117,7 @@
                         <div class="row">
                             <div class="col-md-3">
                                 <label class="info-label text-secondary">{{ _('企业类型') }}</label>
-                                <div>{% if company.company_type %}{{ render_company_type_badge(company.company_type, get_current_language()) }}{% else %}{{ _('未指定') }}{% endif %}</div>
+                                <div>{% if company.company_type %}{{ render_company_type_badge(company.company_type) }}{% else %}{{ _('未指定') }}{% endif %}</div>
                             </div>
                             <div class="col-md-3">
                                 <label class="info-label text-secondary">{{ _('行业') }}</label>
@@ -249,17 +249,14 @@
                 
                 <div class="mt-3 pt-2 border-top">
                     <div class="btn-group btn-group-sm">
-                        {{ render_button('添加记录', href=url_for('customer.add_action_for_company', company_id=company.id) ~ '?contact_id=' ~ contact.id, color='info', icon='fas fa-comment', size='sm', extra_class='me-1') }}
+                        {{ render_button(_('添加行动记录'), href=url_for('customer.add_action_for_company', company_id=company.id) ~ '?contact_id=' ~ contact.id, color='info', size='sm', extra_class='me-1') }}
                         
                         {% if has_permission('customer', 'edit') and can_edit_contact(current_user, contact) %}
-                        {{ render_button('编辑', href=url_for('customer.edit_contact', company_id=company.id, contact_id=contact.id), color='primary', icon='fas fa-edit', size='sm', extra_class='me-1') }}
+                        {{ render_button(_('编辑'), href=url_for('customer.edit_contact', company_id=company.id, contact_id=contact.id), color='primary', size='sm', extra_class='me-1') }}
                         {% endif %}
                         
                         {% if has_permission('customer', 'delete') and can_delete_contact(current_user, contact) %}
-                        <form method="post" action="{{ url_for('customer.delete_contact', company_id=company.id, contact_id=contact.id) }}" style="display:inline;">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" class="btn btn-outline-danger"><i class="fas fa-trash"></i></button>
-                        </form>
+                        {{ render_button(_('删除'), href='#', color='danger', size='sm', attrs='onclick="deleteContact(' ~ company.id ~ ', ' ~ contact.id ~ ')"') }}
                         {% endif %}
                     </div>
                 </div>
@@ -304,26 +301,17 @@
                             <td class="px-3">{{ render_owner(contact.owner) }}</td>
                             <td class="px-3">{{ render_date(contact.created_at) }}</td>
                             <td class="px-3">
-                                <!-- 添加行动按钮 -->
-                                <a href="{{ url_for('customer.add_action_for_company', company_id=company.id) }}?contact_id={{ contact.id }}"
-                                   class="btn btn-sm btn-outline-info me-1" 
-                                   title="{{ _('添加行动记录') }}">
-                                    <i class="fas fa-comment"></i>
-                                </a>
-                                <!-- 编辑按钮 -->
-                                {% if has_permission('customer', 'edit') and can_edit_contact(current_user, contact) %}
-                                <a href="{{ url_for('customer.edit_contact', company_id=company.id, contact_id=contact.id) }}" 
-                                   class="btn btn-sm btn-outline-primary me-1">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                {% endif %}
-                                <!-- 删除按钮 -->
-                                {% if has_permission('customer', 'delete') and can_delete_contact(current_user, contact) %}
-                                <form method="post" action="{{ url_for('customer.delete_contact', company_id=company.id, contact_id=contact.id) }}" style="display:inline;">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
-                                </form>
-                                {% endif %}
+                                <div class="btn-group btn-group-sm">
+                                    {{ render_button(_('添加行动记录'), href=url_for('customer.add_action_for_company', company_id=company.id) ~ '?contact_id=' ~ contact.id, color='info', size='sm', extra_class='me-1') }}
+                                    
+                                    {% if has_permission('customer', 'edit') and can_edit_contact(current_user, contact) %}
+                                    {{ render_button(_('编辑'), href=url_for('customer.edit_contact', company_id=company.id, contact_id=contact.id), color='primary', size='sm', extra_class='me-1') }}
+                                    {% endif %}
+                                    
+                                    {% if has_permission('customer', 'delete') and can_delete_contact(current_user, contact) %}
+                                    {{ render_button(_('删除'), href='#', color='danger', size='sm', attrs='onclick="deleteContact(' ~ company.id ~ ', ' ~ contact.id ~ ')"') }}
+                                    {% endif %}
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}

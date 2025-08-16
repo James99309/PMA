@@ -16,7 +16,7 @@ from app.utils import version_check
 import datetime
 from app.utils.filters import project_type_style, project_stage_style, format_date, format_datetime, format_currency, format_achievement_rate
 from app.utils.dictionary_helpers import (
-    project_type_label, project_stage_label, project_type_label_i18n, project_stage_label_i18n, report_source_label, authorization_status_label, company_type_label, product_situation_label, industry_label, status_label, brand_status_label, reporting_source_label, share_permission_label, user_label, get_role_display_name, get_amount_unit_config, get_currency_symbol, get_default_currency
+    project_type_label, project_stage_label, project_type_label_i18n, project_stage_label_i18n, report_source_label, authorization_status_label, company_type_label, company_type_color, product_situation_label, industry_label, industry_color, status_label, brand_status_label, reporting_source_label, share_permission_label, user_label, get_role_display_name, get_amount_unit_config, get_currency_symbol, get_default_currency
 )
 from app.utils.access_control import can_edit_company_info, can_edit_data, can_change_company_owner, can_start_approval
 from sqlalchemy.exc import OperationalError
@@ -706,8 +706,10 @@ def create_app(config_class=Config):
     app.jinja_env.filters['report_source_label'] = report_source_label
     app.jinja_env.filters['authorization_status_label'] = authorization_status_label
     app.jinja_env.filters['company_type_label'] = company_type_label
+    app.jinja_env.filters['company_type_color'] = company_type_color
     app.jinja_env.filters['product_situation_label'] = product_situation_label
     app.jinja_env.filters['industry_label'] = industry_label
+    app.jinja_env.filters['industry_color'] = industry_color
     app.jinja_env.filters['status_label'] = status_label
     app.jinja_env.filters['brand_status_label'] = brand_status_label
     app.jinja_env.filters['reporting_source_label'] = reporting_source_label
@@ -772,6 +774,9 @@ def create_app(config_class=Config):
     app.jinja_env.globals['_'] = gettext
     app.jinja_env.globals['gettext'] = gettext
     app.jinja_env.globals['ngettext'] = ngettext
+    
+    # 将语言检测函数注册到 Jinja2 全局环境
+    app.jinja_env.globals['get_current_language'] = get_current_language
 
     # 添加项目阶段配置函数到模板上下文
     from app.context_processors import inject_project_stages_config
@@ -857,6 +862,10 @@ def create_app(config_class=Config):
     app.jinja_env.globals['get_quotation_by_id'] = get_quotation_by_id
     app.jinja_env.globals['get_company_by_id'] = get_company_by_id
     app.jinja_env.globals['get_pricing_order_by_id'] = get_pricing_order_by_id
+    
+    # 注册移动端检测函数到模板全局环境
+    from app.utils.mobile_helpers import is_mobile_request
+    app.jinja_env.globals['is_mobile_request'] = is_mobile_request
 
     # 临时权限测试路由
     @app.route('/test-tonglei-permission')

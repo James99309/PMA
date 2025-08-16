@@ -904,6 +904,11 @@ def can_view_company(user, company):
     """
     检查用户是否有权限查看指定的客户
     """
+    # 处理匿名用户
+    if not user or not hasattr(user, 'username') or not hasattr(user, 'id'):
+        logger.debug(f"[权限检查] 匿名用户或无效用户 - 拒绝访问企业 '{company.company_name if company else 'unknown'}'")
+        return False
+    
     logger.debug(f"[权限检查] 用户 {user.username} (ID: {user.id}, 角色: {user.role}) 尝试访问企业 '{company.company_name}' (ID: {company.id}, 拥有者: {company.owner_id})")
     
     if user.role == 'admin':

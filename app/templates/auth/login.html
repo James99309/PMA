@@ -220,33 +220,7 @@
         });
     });
     
-    // 更新语言状态显示的函数
-    function updateLanguageDisplay() {
-        // 添加缓存破坏参数确保每次都获取最新状态
-        fetch('/language/current?' + new Date().getTime())
-            .then(response => response.json())
-            .then(data => {
-                const currentLang = data.language;
-                const currentLangText = document.getElementById('currentLanguageText');
-                
-                // 更新当前语言显示
-                if (currentLang === 'en') {
-                    currentLangText.textContent = 'English';
-                } else {
-                    currentLangText.textContent = '简体中文';
-                }
-                
-                // 更新选中状态
-                document.querySelectorAll('.language-option i').forEach(icon => {
-                    icon.style.visibility = 'hidden';
-                });
-                const checkIcon = document.getElementById('check-' + currentLang);
-                if (checkIcon) {
-                    checkIcon.style.visibility = 'visible';
-                }
-            })
-            .catch(error => console.error('Error fetching current language:', error));
-    }
+    // 注意：updateLanguageDisplay 函数现在在 base.html 中定义
 
     // 语言切换事件处理
     function initLanguageSwitcher() {

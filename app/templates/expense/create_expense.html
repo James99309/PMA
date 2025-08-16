@@ -446,6 +446,108 @@
     color: #6c757d;
     font-weight: normal;
 }
+
+/* 报销明细表格样式优化 */
+.expense-detail-table th {
+    font-size: 0.875rem !important;  /* 14px，与联系人标题相同 */
+    font-weight: 600 !important;
+    color: #495057 !important;
+    padding: 0.5rem 0.25rem !important;  /* 减少padding让内容更紧凑 */
+    white-space: nowrap !important;
+    vertical-align: middle !important;
+    border-bottom: 1px solid #dee2e6 !important;
+}
+
+/* 表格内容行样式 */
+.expense-detail-table td {
+    padding: 0.375rem 0.25rem !important;  /* 减少padding */
+    font-size: 0.875rem !important;
+    vertical-align: middle !important;
+}
+
+/* 确保表格在小屏幕下可以水平滚动 */
+.expense-detail-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;  /* iOS平滑滚动 */
+}
+
+.expense-detail-table {
+    min-width: 1200px;  /* 确保表格有足够宽度显示所有列 */
+    width: 100%;
+    table-layout: fixed;  /* 固定布局以更好控制列宽 */
+}
+
+/* 各列的最小宽度 */
+.expense-detail-table th:nth-child(1),  /* 报销科目 */
+.expense-detail-table td:nth-child(1) {
+    min-width: 120px;
+}
+
+.expense-detail-table th:nth-child(2),  /* 发生日期 */
+.expense-detail-table td:nth-child(2) {
+    min-width: 110px;
+}
+
+.expense-detail-table th:nth-child(3),  /* 费用描述 */
+.expense-detail-table td:nth-child(3) {
+    min-width: 180px;
+}
+
+.expense-detail-table th:nth-child(4),  /* 单据数量 */
+.expense-detail-table td:nth-child(4) {
+    min-width: 80px;
+}
+
+.expense-detail-table th:nth-child(5),  /* 发票货币 */
+.expense-detail-table td:nth-child(5) {
+    min-width: 100px;
+}
+
+.expense-detail-table th:nth-child(6),  /* 发票金额 */
+.expense-detail-table td:nth-child(6) {
+    min-width: 100px;
+}
+
+.expense-detail-table th:nth-child(7),  /* 汇率 */
+.expense-detail-table td:nth-child(7) {
+    min-width: 80px;
+}
+
+.expense-detail-table th:nth-child(8),  /* 报销金额 */
+.expense-detail-table td:nth-child(8) {
+    min-width: 100px;
+}
+
+.expense-detail-table th:nth-child(9),  /* 发票 */
+.expense-detail-table td:nth-child(9) {
+    min-width: 120px;
+}
+
+.expense-detail-table th:nth-child(10), /* 操作 */
+.expense-detail-table td:nth-child(10) {
+    min-width: 80px;
+}
+
+/* 报销明细标题样式，与联系人标题保持一致 */
+.expense-detail-header h5 {
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    color: #495057 !important;
+    margin-bottom: 0.75rem !important;
+}
+
+/* 在移动设备上的额外优化 */
+@media (max-width: 768px) {
+    .expense-detail-table th,
+    .expense-detail-table td {
+        padding: 0.25rem 0.125rem !important;
+        font-size: 0.8125rem !important;  /* 13px */
+    }
+    
+    .expense-detail-table {
+        min-width: 1000px;  /* 移动设备上稍微减少最小宽度 */
+    }
+}
 </style>
 {% endblock %}
 
@@ -987,6 +1089,243 @@ function clearContactSelection() {
     contactSelect.innerHTML = '<option value="">' + window.i18nTexts.pleaseSelectCustomerFirst + '</option>';
     contactSelect.disabled = true;
 }
+
+// 创建报销单前端翻译函数
+function setupCreateExpenseTranslations() {
+    // 语言检测和翻译映射
+    const currentLanguage = '{{ session.get("language", "zh") }}';
+    const testTranslation = '{{ _("搜索") }}';
+    console.log('🌐 当前语言设置:', currentLanguage);
+    console.log('🔧 测试翻译 "搜索":', testTranslation);
+    
+    // 硬编码英文翻译映射表（作为后备方案）
+    const uiTranslations = {
+        // 按钮文本
+        '保存报销单': 'Save Expense',
+        '返回列表': 'Back to List',
+        '添加报销明细': 'Add Expense Detail',
+        
+        // 表单标签
+        '报销主题': 'Expense Subject',
+        '货币类型': 'Currency Type',
+        '不关联客户模式': 'No Customer Association Mode',
+        '关联客户': 'Associated Customer',
+        '关联项目': 'Related Project',
+        '联系人': 'Contact',
+        '报销说明': 'Expense Description',
+        
+        // 输入框占位符
+        '默认客户名称-账号-YYDDHHS': 'Default Customer Name-Account-YYDDHHS',
+        '输入公司名称进行搜索...': 'Enter company name to search...',
+        '输入项目名称进行搜索...': 'Enter project name to search...',
+        '请描述报销的背景、目的等总体说明': 'Please describe the background, purpose and general description of the expense',
+        '将自动生成：报销说明前6字-账号-YYMMDDHHS': 'Will auto-generate: First 6 chars of description-Account-YYMMDDHHS',
+        '请填写报销说明（不关联客户模式下为必填项）': 'Please fill in expense description (required in no customer association mode)',
+        
+        // 下拉选项
+        '请先选择关联客户': 'Please select associated customer first',
+        '请选择联系人': 'Please select contact',
+        '请选择科目': 'Please select category',
+        
+        // 标题和说明
+        '报销明细': 'Expense Details',
+        '添加报销项目，填写费用发生的详细信息': 'Add expense items, fill in detailed information of the expense',
+        
+        // 表头
+        '报销科目': 'Expense Category',
+        '发生日期': 'Occurrence Date',
+        '费用描述': 'Expense Description',
+        '单据数量': 'Document Quantity',
+        '发票货币': 'Invoice Currency',
+        '发票金额': 'Invoice Amount',
+        '汇率': 'Exchange Rate',
+        '发票': 'Invoice',
+        '操作': 'Actions'
+    };
+    
+    // 如果检测到英文环境，则使用服务器端翻译
+    if (currentLanguage === 'en' && testTranslation !== '搜索') {
+        uiTranslations['保存报销单'] = '{{ _("保存报销单") }}';
+        uiTranslations['返回列表'] = '{{ _("返回列表") }}';
+        uiTranslations['添加报销明细'] = '{{ _("添加报销明细") }}';
+        uiTranslations['报销主题'] = '{{ _("报销主题") }}';
+        uiTranslations['货币类型'] = '{{ _("货币类型") }}';
+        uiTranslations['不关联客户模式'] = '{{ _("不关联客户模式") }}';
+        uiTranslations['关联客户'] = '{{ _("关联客户") }}';
+        uiTranslations['关联项目'] = '{{ _("关联项目") }}';
+        uiTranslations['联系人'] = '{{ _("联系人") }}';
+        uiTranslations['报销说明'] = '{{ _("报销说明") }}';
+        uiTranslations['默认客户名称-账号-YYDDHHS'] = '{{ _("默认客户名称-账号-YYDDHHS") }}';
+        uiTranslations['输入公司名称进行搜索...'] = '{{ _("输入公司名称进行搜索...") }}';
+        uiTranslations['输入项目名称进行搜索...'] = '{{ _("输入项目名称进行搜索...") }}';
+        uiTranslations['请描述报销的背景、目的等总体说明'] = '{{ _("请描述报销的背景、目的等总体说明") }}';
+        uiTranslations['将自动生成：报销说明前6字-账号-YYMMDDHHS'] = '{{ _("将自动生成：报销说明前6字-账号-YYMMDDHHS") }}';
+        uiTranslations['请填写报销说明（不关联客户模式下为必填项）'] = '{{ _("请填写报销说明（不关联客户模式下为必填项）") }}';
+        uiTranslations['请先选择关联客户'] = '{{ _("请先选择关联客户") }}';
+        uiTranslations['请选择联系人'] = '{{ _("请选择联系人") }}';
+        uiTranslations['请选择科目'] = '{{ _("请选择科目") }}';
+        uiTranslations['报销明细'] = '{{ _("报销明细") }}';
+        uiTranslations['添加报销项目，填写费用发生的详细信息'] = '{{ _("添加报销项目，填写费用发生的详细信息") }}';
+        uiTranslations['报销科目'] = '{{ _("报销科目") }}';
+        uiTranslations['发生日期'] = '{{ _("发生日期") }}';
+        uiTranslations['费用描述'] = '{{ _("费用描述") }}';
+        uiTranslations['单据数量'] = '{{ _("单据数量") }}';
+        uiTranslations['发票货币'] = '{{ _("发票货币") }}';
+        uiTranslations['发票金额'] = '{{ _("发票金额") }}';
+        uiTranslations['汇率'] = '{{ _("汇率") }}';
+        uiTranslations['发票'] = '{{ _("发票") }}';
+        uiTranslations['操作'] = '{{ _("操作") }}';
+        console.log('✅ 使用服务器端翻译');
+    } else {
+        console.log('⚠️ 服务器端翻译不可用，使用硬编码英文翻译');
+    }
+    
+    // 强制应用UI元素翻译
+    function forceTranslateUI() {
+        console.log('🌍 开始强制翻译UI元素...');
+        
+        // 1. 翻译页面标题
+        const pageTitle = document.querySelector('.page-title');
+        if (pageTitle) {
+            const text = pageTitle.textContent.trim();
+            if (uiTranslations[text]) {
+                pageTitle.textContent = uiTranslations[text];
+                console.log('✅ 翻译页面标题:', text, '->', uiTranslations[text]);
+            }
+        }
+        
+        // 2. 翻译按钮文本
+        document.querySelectorAll('button, .btn').forEach(button => {
+            const text = button.textContent.trim();
+            if (uiTranslations[text]) {
+                button.textContent = uiTranslations[text];
+                console.log('✅ 翻译按钮:', text, '->', uiTranslations[text]);
+            }
+        });
+        
+        // 3. 翻译表单标签
+        document.querySelectorAll('label.form-label').forEach(label => {
+            let text = label.textContent.trim();
+            // 移除必填标记后比较
+            text = text.replace(/\s*\*\s*$/, '').trim();
+            if (uiTranslations[text]) {
+                const hasRequired = label.innerHTML.includes('<span class="text-danger">*</span>');
+                label.innerHTML = uiTranslations[text] + (hasRequired ? ' <span class="text-danger">*</span>' : '');
+                console.log('✅ 翻译标签:', text, '->', uiTranslations[text]);
+            }
+        });
+        
+        // 4. 翻译输入框占位符
+        document.querySelectorAll('input[placeholder], textarea[placeholder]').forEach(input => {
+            const placeholder = input.placeholder;
+            if (uiTranslations[placeholder]) {
+                input.placeholder = uiTranslations[placeholder];
+                console.log('✅ 翻译占位符:', placeholder, '->', uiTranslations[placeholder]);
+            }
+        });
+        
+        // 5. 翻译下拉选项的默认文本
+        document.querySelectorAll('select option').forEach(option => {
+            const text = option.textContent.trim();
+            if (uiTranslations[text]) {
+                option.textContent = uiTranslations[text];
+                console.log('✅ 翻译下拉选项:', text, '->', uiTranslations[text]);
+            }
+        });
+        
+        // 6. 翻译复选框标签
+        document.querySelectorAll('.form-check-label').forEach(label => {
+            const text = label.textContent.trim();
+            if (uiTranslations[text]) {
+                label.textContent = uiTranslations[text];
+                console.log('✅ 翻译复选框标签:', text, '->', uiTranslations[text]);
+            }
+        });
+        
+        // 7. 翻译表头
+        document.querySelectorAll('th').forEach(thElement => {
+            const text = thElement.textContent.trim();
+            if (uiTranslations[text]) {
+                thElement.textContent = uiTranslations[text];
+                console.log('✅ 翻译表头:', text, '->', uiTranslations[text]);
+            }
+        });
+        
+        // 8. 翻译卡片标题和说明文本（包括报销明细标题）
+        document.querySelectorAll('.card-header h5, .card-title, h5, .expense-detail-title').forEach(titleElement => {
+            const text = titleElement.textContent.trim();
+            if (uiTranslations[text]) {
+                titleElement.textContent = uiTranslations[text];
+                console.log('✅ 翻译标题:', text, '->', uiTranslations[text]);
+            }
+        });
+        
+        // 9. 翻译提示信息
+        document.querySelectorAll('.text-muted, .help-text').forEach(helpElement => {
+            const text = helpElement.textContent.trim();
+            if (uiTranslations[text]) {
+                helpElement.textContent = uiTranslations[text];
+                console.log('✅ 翻译提示:', text, '->', uiTranslations[text]);
+            }
+        });
+    }
+    
+    // 立即执行翻译（针对同步渲染的内容）
+    if (currentLanguage === 'en') {
+        console.log('🌐 检测到英文环境，开始翻译UI');
+        forceTranslateUI();
+        
+        // 设置观察器监听动态内容变化
+        const observer = new MutationObserver(function(mutations) {
+            let shouldTranslate = false;
+            mutations.forEach(function(mutation) {
+                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                    shouldTranslate = true;
+                    // 特别处理报销明细表格的动态内容
+                    mutation.addedNodes.forEach(function(node) {
+                        if (node.nodeType === 1) { // Element node
+                            // 处理新添加的表格行中的选择框
+                            const selects = node.querySelectorAll ? node.querySelectorAll('select') : [];
+                            selects.forEach(function(select) {
+                                select.querySelectorAll('option').forEach(function(option) {
+                                    const text = option.textContent.trim();
+                                    if (uiTranslations[text]) {
+                                        option.textContent = uiTranslations[text];
+                                        console.log('✅ 翻译动态选项:', text, '->', uiTranslations[text]);
+                                    }
+                                });
+                            });
+                        }
+                    });
+                }
+            });
+            if (shouldTranslate) {
+                setTimeout(forceTranslateUI, 100);
+            }
+        });
+        
+        // 开始观察DOM变化
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+        
+        console.log('🔍 已启动DOM变化监听器');
+    }
+}
+
+// 页面加载完成后初始化翻译
+document.addEventListener('DOMContentLoaded', function() {
+    setupCreateExpenseTranslations();
+    
+    // 延迟再次检查翻译，确保动态内容也能被翻译
+    setTimeout(function() {
+        if ('{{ session.get("language", "zh") }}' === 'en') {
+            console.log('🔄 延迟再次检查翻译...');
+            setupCreateExpenseTranslations();
+        }
+    }, 2000);
+});
 </script>
 
 <!-- 确认对话框组件 -->

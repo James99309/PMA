@@ -216,30 +216,8 @@
                 </div>
                 
                 {% if current_user.is_authenticated or session.get('user_id') %}
-                <!-- 移动端和桌面端语言切换和账户头像 -->
+                <!-- 桌面端和移动端账户头像 -->
                 <div class="d-flex align-items-center">
-                    <!-- 移动端语言切换器 -->
-                    <div class="d-lg-none dropdown me-2">
-                        <button class="btn btn-link text-white p-1" type="button" id="mobileLanguageDropdownTop" data-bs-toggle="dropdown" aria-expanded="false" title="切换语言" style="font-size: 0.8rem;">
-                            <i class="fas fa-globe" style="font-size: 0.8rem;"></i>
-                            <span class="ms-1 d-none d-sm-inline" id="mobileCurrentLanguageTop" style="font-size: 0.8rem;">简体中文</span>
-                            <i class="fas fa-caret-down ms-1" style="font-size: 0.7rem;"></i>
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="mobileLanguageDropdownTop" style="font-size: 0.8rem;">
-                            <li>
-                                <a class="dropdown-item mobile-language-option" href="#" data-lang="zh" style="font-size: 0.8rem;">
-                                    <i class="fas fa-check me-2" style="visibility: hidden;" id="mobile-top-check-zh"></i>
-                                    简体中文
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item mobile-language-option" href="#" data-lang="en" style="font-size: 0.8rem;">
-                                    <i class="fas fa-check me-2" style="visibility: hidden;" id="mobile-top-check-en"></i>
-                                    English
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
                 </div>
                 
                 <!-- 桌面端语言切换和账户头像 -->
@@ -604,6 +582,30 @@
                     </li>
                     {% endif %}
                     {% endif %}
+                    
+                    <!-- 移动端语言选择器 - 在菜单最后，双线上方 -->
+                    <li class="nav-item d-lg-none border-top border-light-subtle pt-2 mt-2">
+                        <details>
+                            <summary class="nav-link text-sm py-2 mb-0" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+                                <span>{{ _('语言设置') }}</span>
+                                <svg class="ms-1" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M6 8l4 4 4-4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            </summary>
+                            <ul class="list-unstyled ps-3 mb-0">
+                                <li>
+                                    <a class="nav-link text-sm py-2 mobile-sidebar-language-option" href="#" data-lang="zh">
+                                        <i class="fas fa-check me-2" style="visibility: hidden;" id="mobile-sidebar-check-zh"></i>
+                                        简体中文
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="nav-link text-sm py-2 mobile-sidebar-language-option" href="#" data-lang="en">
+                                        <i class="fas fa-check me-2" style="visibility: hidden;" id="mobile-sidebar-check-en"></i>
+                                        English
+                                    </a>
+                                </li>
+                            </ul>
+                        </details>
+                    </li>
                 </ul>
                 
                 <!-- 移动端用户账户和语言切换 - 移到菜单最后 -->
@@ -879,6 +881,9 @@
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- 响应式管理器 - 必须在其他JS之前加载 -->
+    <script src="{{ url_for('static', filename='js/responsive-manager.js') }}"></script>
     <script>
         // 用户下拉菜单交互
         document.addEventListener('DOMContentLoaded', function() {
@@ -943,6 +948,9 @@
             
             // 移动端菜单自动收缩功能
             initMobileMenuCollapse();
+            
+            // 初始化语言显示状态
+            updateLanguageDisplay();
         });
 
         // 表头下拉筛选交互脚本
@@ -962,10 +970,10 @@
             });
         }
         
-        // 语言切换功能
-        function initLanguageSwitcher() {
-            // 获取当前语言并显示选中状态
-            fetch('/language/current')
+        // 🌍 更新语言显示状态的通用函数
+        function updateLanguageDisplay() {
+            // 添加缓存破坏参数确保每次都获取最新状态
+            fetch('/language/current?' + new Date().getTime())
                 .then(response => response.json())
                 .then(data => {
                     const currentLang = data.language;
@@ -980,13 +988,23 @@
                         }
                     }
                     
-                    // 更新移动端语言切换器显示
+                    // 更新移动端语言切换器显示（如果存在）
                     const mobileCurrentLanguageTop = document.getElementById('mobileCurrentLanguageTop');
                     if (mobileCurrentLanguageTop) {
                         if (currentLang === 'en') {
                             mobileCurrentLanguageTop.textContent = 'English';
                         } else {
                             mobileCurrentLanguageTop.textContent = '简体中文';
+                        }
+                    }
+                    
+                    // 更新登录页面的语言显示（如果存在）
+                    const currentLangText = document.getElementById('currentLanguageText');
+                    if (currentLangText) {
+                        if (currentLang === 'en') {
+                            currentLangText.textContent = 'English';
+                        } else {
+                            currentLangText.textContent = '简体中文';
                         }
                     }
                     
@@ -999,22 +1017,31 @@
                         mainCheckIcon.style.visibility = 'visible';
                     }
                     
-                    // 更新移动端选中状态图标
-                    document.querySelectorAll('.mobile-language-option i').forEach(icon => {
+                    // 更新移动端侧边栏语言选中状态图标
+                    document.querySelectorAll('.mobile-sidebar-language-option i').forEach(icon => {
                         icon.style.visibility = 'hidden';
                     });
-                    const mobileTopCheckIcon = document.getElementById(`mobile-top-check-${currentLang}`);
-                    if (mobileTopCheckIcon) {
-                        mobileTopCheckIcon.style.visibility = 'visible';
+                    const mobileSidebarCheckIcon = document.getElementById(`mobile-sidebar-check-${currentLang}`);
+                    if (mobileSidebarCheckIcon) {
+                        mobileSidebarCheckIcon.style.visibility = 'visible';
                     }
                     
-                    // 更新用户菜单中的选中状态图标（如果存在）
+                    // 更新登录页面的选中状态图标（如果存在）
+                    document.querySelectorAll('.language-option i').forEach(icon => {
+                        icon.style.visibility = 'hidden';
+                    });
                     const checkIcon = document.getElementById(`check-${currentLang}`);
                     if (checkIcon) {
                         checkIcon.style.visibility = 'visible';
                     }
                 })
                 .catch(error => console.error('获取当前语言失败:', error));
+        }
+        
+        // 语言切换功能初始化
+        function initLanguageSwitcher() {
+            // 初始化语言显示状态
+            updateLanguageDisplay();
             
             // 绑定桌面端语言切换事件
             document.querySelectorAll('.main-language-option').forEach(option => {
@@ -1025,8 +1052,8 @@
                 });
             });
             
-            // 绑定移动端语言切换事件
-            document.querySelectorAll('.mobile-language-option').forEach(option => {
+            // 绑定移动端侧边栏语言切换事件  
+            document.querySelectorAll('.mobile-sidebar-language-option').forEach(option => {
                 option.addEventListener('click', function(e) {
                     e.preventDefault();
                     const selectedLang = this.getAttribute('data-lang');

@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app, send_file
+from flask import Blueprint, render_template, render_template_string, request, jsonify, redirect, url_for, flash, current_app, send_file
 from flask_babel import gettext as _
 from flask_login import login_required, current_user
 from app import db
@@ -671,49 +671,100 @@ def products_list_ajax():
             else:
                 base_query = base_query.filter_by(created_by=current_user.id)
         
-        # 渲染HTML片段
-        html_rows = []
-        for product in products:
-            # 格式化产品数据
-            creator_name = '-'
-            if product.creator:
-                creator_name = product.creator.real_name or product.creator.username
+        # 检测移动端并使用智能移动卡片
+        from app.utils.mobile_helpers import is_mobile_request
+        from types import SimpleNamespace
+        
+        if products:
+            # 格式化产品数据为标准结构
+            formatted_results = []
+            for product in products:
+                creator_name = '-'
+                if product.creator:
+                    creator_name = product.creator.real_name or product.creator.username
+                
+                formatted_product = SimpleNamespace(
+                    id=product.id,
+                    model=product.model,
+                    mn_code=product.mn_code or '',
+                    status=product.status or '未设置',
+                    category_name=product.category.name if product.category else '-',
+                    subcategory_name=product.subcategory.name if product.subcategory else '-',
+                    creator_name=creator_name,
+                    description=product.description or '',
+                    created_at=product.created_at
+                )
+                formatted_results.append(formatted_product)
             
-            created_at = product.created_at.strftime('%Y-%m-%d') if product.created_at else '-'
-            
-            # 产品状态徽章
-            status_badge = ''
-            if product.status:
-                status_map = {
-                    '调研中': '<span class="badge badge-pill badge-transparent product-status-research">调研中</span>',
-                    '立项中': '<span class="badge badge-pill badge-transparent product-status-planning">立项中</span>',
-                    '研发中': '<span class="badge badge-pill badge-transparent product-status-development">研发中</span>',
-                    '已入库': '<span class="badge badge-pill badge-transparent product-status-completed">已入库</span>',
-                    '已停产': '<span class="badge badge-pill badge-transparent product-status-discontinued">已停产</span>'
+            if is_mobile_request():
+                # 智能移动卡片配置 - 研发产品库
+                smart_mobile_card = {
+                    'module': 'rd_product',
+                    'title_field': {'field': 'model'},
+                    'link_url': '/product-management/{id}',
+                    'badges': [
+                        {'field': 'status', 'renderer': 'rd_product_status'}
+                    ],
+                    'details': [
+                        {'field': 'mn_code', 'label': '产品料号'},
+                        {'field': 'category_name', 'label': '产品分类'},
+                        {'field': 'subcategory_name', 'label': '子分类'},
+                        {'field': 'creator_name', 'label': '创建人'},
+                        {'field': 'description', 'label': '产品描述'},
+                        {'field': 'created_at', 'label': '创建时间', 'format': 'date'}
+                    ]
                 }
-                status_badge = status_map.get(product.status, f'<span class="badge badge-pill badge-transparent badge-muted">{product.status}</span>')
+                
+                # 使用智能移动卡片模板渲染
+                html = render_template_string('''
+                {% from 'macros/ui_helpers.html' import render_smart_mobile_cards %}
+                {{ render_smart_mobile_cards(items, card_config) }}
+                ''', items=formatted_results, card_config=smart_mobile_card)
             else:
-                status_badge = '<span class="badge badge-pill badge-transparent badge-muted">未设置</span>'
-            
-            html_row = f"""
-            <tr>
-                <td>{product.category.name if product.category else '-'}</td>
-                <td>{product.subcategory.name if product.subcategory else '-'}</td>
-                <td><a href="/product-management/{product.id}" class="text-primary text-decoration-none">{product.model}</a></td>
-                <td><code class="text-muted">{product.mn_code or ''}</code></td>
-                <td>{status_badge}</td>
-                <td>{creator_name}</td>
-                <td class="text-muted">{created_at}</td>
-            </tr>
-            """
-            html_rows.append(html_row)
+                # 桌面端使用传统表格行渲染
+                html_rows = []
+                for product in formatted_results:
+                    # 产品状态徽章
+                    status_badge = ''
+                    if product.status:
+                        status_map = {
+                            '调研中': '<span class="badge badge-pill badge-transparent product-status-research">调研中</span>',
+                            '立项中': '<span class="badge badge-pill badge-transparent product-status-planning">立项中</span>',
+                            '研发中': '<span class="badge badge-pill badge-transparent product-status-development">研发中</span>',
+                            '已入库': '<span class="badge badge-pill badge-transparent product-status-completed">已入库</span>',
+                            '已停产': '<span class="badge badge-pill badge-transparent product-status-discontinued">已停产</span>'
+                        }
+                        status_badge = status_map.get(product.status, f'<span class="badge badge-pill badge-transparent badge-muted">{product.status}</span>')
+                    else:
+                        status_badge = '<span class="badge badge-pill badge-transparent badge-muted">未设置</span>'
+                    
+                    created_at = product.created_at.strftime('%Y-%m-%d') if product.created_at else '-'
+                    
+                    html_row = f"""
+                    <tr>
+                        <td>{product.category_name}</td>
+                        <td>{product.subcategory_name}</td>
+                        <td><a href="/product-management/{product.id}" class="text-primary text-decoration-none">{product.model}</a></td>
+                        <td><code class="text-muted">{product.mn_code}</code></td>
+                        <td>{status_badge}</td>
+                        <td>{product.creator_name}</td>
+                        <td class="text-muted">{created_at}</td>
+                    </tr>
+                    """
+                    html_rows.append(html_row)
+                html = '\n'.join(html_rows)
+        else:
+            if is_mobile_request():
+                html = '<div class="text-center py-4">暂无符合条件的数据</div>'
+            else:
+                html = '<tr><td colspan="7" class="text-center text-muted py-4">暂无符合条件的数据</td></tr>'
         
         # 计算是否还有更多数据
         has_more = (offset + limit) < total_count
         
         return jsonify({
             'success': True,
-            'html': '\n'.join(html_rows),
+            'html': html,
             'has_more': has_more,
             'total_count': total_count,
             'loaded_count': offset + len(products),

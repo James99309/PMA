@@ -30,8 +30,8 @@
                     <div class="dropdown">
                         {{ render_button(_('导入数据'), '#', color='auxiliary', extra_class='dropdown-toggle', attrs='id="importDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false"') }}
                         <ul class="dropdown-menu" aria-labelledby="importDropdownBtn">
-                            <li><a class="dropdown-item" href="#" id="importCustomers">{{ _('导入客户') }}</a></li>
-                            <li><a class="dropdown-item" href="#" id="importContacts">{{ _('导入联系人') }}</a></li>
+                            <li>{{ render_button(_('导入客户'), '#', color='auxiliary', type='a', extra_class='dropdown-item', attrs='id="importCustomers"') }}</li>
+                            <li>{{ render_button(_('导入联系人'), '#', color='auxiliary', type='a', extra_class='dropdown-item', attrs='id="importContacts"') }}</li>
                         </ul>
                     </div>
                     {% endif %}
@@ -2458,6 +2458,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const uiTranslations = {
         // 统计卡片标题
         '全部企业': 'All Companies',
+        '全部公司': 'All Companies',
         '活跃企业': 'Active Companies',
         '直接客户': 'Direct Customers',
         '项目客户': 'Project Customers',

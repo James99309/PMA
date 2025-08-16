@@ -241,7 +241,7 @@
     {% elif show_unconfirmed %}
       <!-- 未确认状态：空心徽章，用于指导点击 -->
       <span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; border: 2px solid #6c757d; background-color: transparent; color: #6c757d; font-size: 8px; line-height: 1; vertical-align: middle; margin-left: 4px; cursor: pointer;" 
-            title="点击确认产品明细" class="confirmation-badge-unconfirmed">
+            title="{{ _('点击确认产品明细') }}" class="confirmation-badge-unconfirmed">
         <i class="fas fa-question" style="font-size: 8px;"></i>
       </span>
     {% endif %}
@@ -326,7 +326,7 @@
 {% endmacro %}
 
 
-{% macro render_button(text, href=None, color="primary", size="md", icon=None, rounded="pill", extra_class="", type="a", attrs=None, onclick=None) %}
+{% macro render_button(text, href=None, color="primary", size="md", icon=None, rounded="pill", extra_class="", type="a", attrs=None, onclick=None, mobile_mode=None) %}
   {%- set inline_style = "" %}
   {# 优化尺寸系统 - 确保最小宽度能容纳图标+4个字符 #}
   {%- if size == "sm" %}
@@ -345,6 +345,20 @@
     {%- set font_size = "text-xs" %}
     {%- set padding = "py-1 px-3" %}
     {%- set min_width = "min-width-md" %}
+  {%- endif %}
+  
+  {# 移动端按钮模式检测和配置 #}
+  {%- set mobile_class = "" %}
+  {%- if mobile_mode == "circle" or (mobile_mode is none and icon and not text) %}
+    {# 圆形按钮：仅有图标的按钮 #}
+    {%- set mobile_class = "btn-circle-mobile" %}
+  {%- elif mobile_mode == "pill" or (mobile_mode is none and text) %}
+    {# 胶囊按钮：有文本的按钮 #}
+    {%- set mobile_class = "btn-pill-mobile" %}
+  {%- endif %}
+  {# 所有移动端按钮都添加基础类 #}
+  {%- if mobile_class %}
+    {%- set mobile_class = "btn-mobile-base " + mobile_class %}
   {%- endif %}
   
   {%- set display_text = text %}
@@ -378,11 +392,49 @@
     {%- endif %}
   {%- endif %}
   
-  {# 默认图标设置 - 根据按钮颜色和文字内容自动匹配图标 #}
+  {# 默认图标设置 - 基于翻译词条进行反向匹配 #}
   {# 先去除空格进行匹配，支持字符间距处理 #}
   {%- set clean_text = text.replace(' ', '') %}
   {%- if not icon %}
-    {%- if color == "primary" %}
+    {# 通过检测翻译来识别按钮类型 - 更稳定的方案 #}
+    {%- if text == _('智能合并') %}
+      {%- set icon = "fas fa-compress-arrows-alt" %}
+    {%- elif text == _('添加企业') %}
+      {%- set icon = "fas fa-building" %}
+    {%- elif text == _('导入数据') %}
+      {%- set icon = "fas fa-upload" %}
+    {%- elif text == _('新增产品') or text == _('添加产品') %}
+      {%- set icon = "fas fa-plus" %}
+    {%- elif text == _('编辑产品') %}
+      {%- set icon = "fas fa-edit" %}
+    {%- elif text == _('删除产品') %}
+      {%- set icon = "fas fa-trash" %}
+    {%- elif text == _('创建项目') or text == _('新建项目') %}
+      {%- set icon = "fas fa-project-diagram" %}
+    {%- elif text == _('创建报价') or text == _('新建报价') %}
+      {%- set icon = "fas fa-calculator" %}
+    {%- elif text == _('导入客户') %}
+      {%- set icon = "fas fa-user-plus" %}
+    {%- elif text == _('导入联系人') %}
+      {%- set icon = "fas fa-address-book" %}
+    {%- elif text == _('批量导入') %}
+      {%- set icon = "fas fa-upload" %}
+    {%- elif text == _('批量删除') %}
+      {%- set icon = "fas fa-trash-alt" %}
+    {%- elif text == _('编辑项目') %}
+      {%- set icon = "fas fa-edit" %}
+    {%- elif text == _('删除项目') %}
+      {%- set icon = "fas fa-trash" %}
+    {%- elif text == _('添加行动记录') %}
+      {%- set icon = "fas fa-comment" %}
+    {%- elif text == _('编辑') %}
+      {%- set icon = "fas fa-edit" %}
+    {%- elif text == _('删除') %}
+      {%- set icon = "fas fa-trash" %}
+    {%- elif text == _('返回列表') %}
+      {%- set icon = "fas fa-arrow-left" %}
+    {# 通用匹配规则 - 按颜色和关键词匹配（当精确匹配失败时） #}
+    {%- elif color == "primary" %}
       {%- if "保存" in clean_text or "提交" in clean_text or "确认" in clean_text %}
         {%- set icon = "fas fa-save" %}
       {%- elif "新增" in clean_text or "添加" in clean_text or "创建" in clean_text %}
@@ -436,6 +488,7 @@
   {%- set inline_style = "" %}
   {%- set btn_class = btn_class + " " + padding + " " + font_size %}
   {%- if rounded %} {%- set btn_class = btn_class + " rounded-" + rounded %} {%- endif %}
+  {%- if mobile_class %} {%- set btn_class = btn_class + " " + mobile_class %} {%- endif %}
   {%- if extra_class %} {%- set btn_class = btn_class + " " + extra_class %} {%- endif %}
   {% if type == "a" %}
     <a href="{{ href or '#' }}" class="{{ btn_class }}" style="{{ inline_style }}" 
@@ -760,6 +813,10 @@
   justify-content: center;
   font-size: 18px;
   transition: all 0.3s ease;
+  /* 继承移动端圆形按钮标准 */
+  min-height: 44px;
+  min-width: 44px;
+  -webkit-tap-highlight-color: transparent;
 }
 .fab-group {
   display: none;
@@ -775,7 +832,7 @@
 <div class="fab-container d-md-none">
   <div class="fab-group">
     {% for btn in buttons %}
-    <a href="{{ btn.href or '#' }}" class="btn btn-secondary mb-2 px-3 py-1 text-white rounded-pill small">
+    <a href="{{ btn.href or '#' }}" class="btn btn-secondary mb-2 px-3 py-1 text-white btn-mobile-base btn-pill-mobile small">
       {{ btn.label }}
     </a>
     {% endfor %}
@@ -1791,123 +1848,42 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
 {% endmacro %}
 
 {# 行业徽章 #}
+{# 行业徽章 - 使用标准化映射系统 #}
 {% macro render_industry_badge(industry, lang=None) %}
   {% if not lang %}
-    {% set lang = session.get('language', 'zh') %}
+    {% set lang = get_current_language() %}
   {% endif %}
   
-  {% set color_map = {
-    'manufacturing': '#0B6EFD',
-    'datacenter': '#5BC0DE', 
-    'shipbuilding': '#198754',
-    'semiconductor': '#fd7e14',
-    'chemical': '#dc3545',
-    'energy': '#ffc107',
-    'transportation': '#6f42c1',
-    'tunnel_underground': '#6c757d',
-    'real_estate': '#20c997',
-    'hospitality': '#e83e8c',
-    'government': '#495057',
-    'education': '#17a2b8',
-    'healthcare': '#28a745',
-    'finance': '#007bff',
-    'retail': '#6610f2',
-    'automotive': '#fd7e14',
-    'telecommunications': '#20c997',
-    'other': '#6c757d'
-  } %}
-  
-  {% set label_map = {
-    'manufacturing': {'zh': '制造业', 'en': 'Manufacturing'},
-    'datacenter': {'zh': '数据中心', 'en': 'Data Center'},
-    'shipbuilding': {'zh': '造船业', 'en': 'Shipbuilding'},
-    'semiconductor': {'zh': '半导体', 'en': 'Semiconductor'},
-    'chemical': {'zh': '化工医药', 'en': 'Chemicals & Pharma'},
-    'energy': {'zh': '石油能源', 'en': 'Energy'},
-    'transportation': {'zh': '交通枢纽', 'en': 'Transportation'},
-    'tunnel_underground': {'zh': '隧道及地下道路', 'en': 'Tunnel & Underground Roads'},
-    'real_estate': {'zh': '商业地产', 'en': 'Real Estate'},
-    'hospitality': {'zh': '酒店餐饮', 'en': 'Hospitality'},
-    'government': {'zh': '政府机构', 'en': 'Government'},
-    'education': {'zh': '教育', 'en': 'Education'},
-    'healthcare': {'zh': '医疗健康', 'en': 'Healthcare'},
-    'finance': {'zh': '金融', 'en': 'Finance'},
-    'retail': {'zh': '零售', 'en': 'Retail'},
-    'automotive': {'zh': '汽车', 'en': 'Automotive'},
-    'telecommunications': {'zh': '电信', 'en': 'Telecommunications'},
-    'other': {'zh': '其他选择', 'en': 'Other'}
-  } %}
-  
   {% if industry %}
-    {% set color = color_map.get(industry, '#6c757d') %}
-    {% if industry in label_map %}
-      {% set label = label_map[industry][lang] %}
-    {% else %}
-      {% set label = industry %}
-    {% endif %}
+    {% set color = industry|industry_color %}
+    {% set label = industry|industry_label(lang) %}
     
     <span class="badge rounded-pill" style="background-color: {{ color }}; color: #fff; font-size: 0.75rem; padding: 0.35em 0.65em;">
       {{ label }}
     </span>
   {% else %}
     <span class="badge bg-secondary rounded-pill" style="font-size: 0.75rem; padding: 0.35em 0.65em;">
-      {% if lang == 'en' %}Uncategorized{% else %}未分类{% endif %}
+      {% if lang == 'en' %}{{ _('未分类') }}{% else %}{{ _('未分类') }}{% endif %}
     </span>
   {% endif %}
 {% endmacro %}
 
-{# 企业类型徽章 #}
+{# 企业类型徽章 - 使用标准化映射系统 #}
 {% macro render_company_type_badge(company_type, lang=None) %}
   {% if not lang %}
-    {% set lang = session.get('language', 'zh') %}
+    {% set lang = get_current_language() %}
   {% endif %}
   
-  {% set color_map = {
-    'user': '#0B6EFD',
-    'dealer': '#28a745',
-    'integrator': '#fd7e14',
-    'designer': '#6f42c1',
-    'contractor': '#dc3545',
-    'direct_customer': '#17a2b8',
-    'partner': '#20c997',
-    'system_integrator': '#fd7e14',
-    'design_institute': '#6f42c1',
-    'consultant': '#6f42c1',
-    'general_contractor': '#dc3545',
-    'distributor': '#28a745',
-    'other': '#6c757d'
-  } %}
-  
-  {% set label_map = {
-    'user': {'zh': '用户', 'en': 'User'},
-    'dealer': {'zh': '经销商', 'en': 'Dealer'},
-    'integrator': {'zh': '系统集成商', 'en': 'System Integrator'},
-    'designer': {'zh': '设计院及顾问', 'en': 'Designer'},
-    'contractor': {'zh': '总承包单位', 'en': 'Main Contractor'},
-    'direct_customer': {'zh': '直接客户', 'en': 'Direct Customer'},
-    'partner': {'zh': '合作伙伴', 'en': 'Partner'},
-    'system_integrator': {'zh': '系统集成商', 'en': 'System Integrator'},
-    'design_institute': {'zh': '设计院', 'en': 'Design Institute'},
-    'consultant': {'zh': '顾问', 'en': 'Consultant'},
-    'general_contractor': {'zh': '总承包商', 'en': 'General Contractor'},
-    'distributor': {'zh': '分销商', 'en': 'Distributor'},
-    'other': {'zh': '其他', 'en': 'Other'}
-  } %}
-  
   {% if company_type %}
-    {% set color = color_map.get(company_type, '#6c757d') %}
-    {% if company_type in label_map %}
-      {% set label = label_map[company_type][lang] %}
-    {% else %}
-      {% set label = company_type %}
-    {% endif %}
+    {% set color = company_type|company_type_color %}
+    {% set label = company_type|company_type_label(lang) %}
     
     <span class="badge rounded-pill" style="background-color: {{ color }}; color: #fff; font-size: 0.75rem; padding: 0.35em 0.65em;">
       {{ label }}
     </span>
   {% else %}
     <span class="badge bg-secondary rounded-pill" style="font-size: 0.75rem; padding: 0.35em 0.65em;">
-      {% if lang == 'en' %}Uncategorized{% else %}未分类{% endif %}
+      {% if lang == 'en' %}{{ _('未分类') }}{% else %}{{ _('未分类') }}{% endif %}
     </span>
   {% endif %}
 {% endmacro %}
@@ -1915,7 +1891,7 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
 {# 厂商产品徽章 #}
 {% macro render_vendor_product_badge(is_vendor_product) %}
   {% if is_vendor_product %}
-    <span class="badge bg-primary rounded-pill" title="厂商产品，计入植入合计" style="font-size: 0.65rem;">厂商</span>
+    <span class="badge bg-primary rounded-pill" title="{{ _('厂商产品，计入植入合计') }}" style="font-size: 0.65rem;">厂商</span>
   {% endif %}
 {% endmacro %}
 
@@ -2359,12 +2335,12 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
             {% if has_permission(list_config.module_name, 'view') %}
             {% if list_config.module_name == 'project' %}
             <a href="{{ url_for('project.view_project', project_id=item.id) }}" 
-               class="btn btn-outline-primary btn-sm" title="查看详情">
+               class="btn btn-outline-primary btn-sm" title="{{ _('查看详情') }}">
                 <i class="fas fa-eye"></i>
             </a>
             {% else %}
             <a href="{{ url_for(list_config.module_name + '.view_' + list_config.module_name, **{list_config.module_name + '_id': item.id}) }}" 
-               class="btn btn-outline-primary btn-sm" title="查看详情">
+               class="btn btn-outline-primary btn-sm" title="{{ _('查看详情') }}">
                 <i class="fas fa-eye"></i>
             </a>
             {% endif %}
@@ -2372,12 +2348,12 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
             {% if has_permission(list_config.module_name, 'edit') %}
             {% if list_config.module_name == 'project' %}
             <a href="{{ url_for('project.edit_project', project_id=item.id) }}" 
-               class="btn btn-outline-secondary btn-sm" title="编辑">
+               class="btn btn-outline-secondary btn-sm" title="{{ _('编辑') }}">
                 <i class="fas fa-edit"></i>
             </a>
             {% else %}
             <a href="{{ url_for(list_config.module_name + '.edit_' + list_config.module_name, **{list_config.module_name + '_id': item.id}) }}" 
-               class="btn btn-outline-secondary btn-sm" title="编辑">
+               class="btn btn-outline-secondary btn-sm" title="{{ _('编辑') }}">
                 <i class="fas fa-edit"></i>
             </a>
             {% endif %}
@@ -2449,34 +2425,18 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
 =============================================================================
 #}
 
-{# 移动端设备检测宏 #}
+{# 移动端设备检测宏 - 统一使用Python函数 #}
 {% macro is_mobile_device() %}
-  {%- set mobile_param = request.args.get('mobile', '').lower() -%}
-  {%- if mobile_param == 'true' -%}
-    {{- true -}}
-  {%- elif mobile_param == 'false' -%}
-    {{- false -}}  
+  {%- if is_mobile_request is defined -%}
+    {{- is_mobile_request() -}}
   {%- else -%}
-    {%- set user_agent = request.headers.get('User-Agent', '').lower() -%}
-    {%- set mobile_keywords = ['mobile', 'android', 'iphone', 'ipad', 'ipod', 'blackberry', 'windows phone'] -%}
-    {{- mobile_keywords|select('in', user_agent)|list|length > 0 -}}
+    {{- false -}}
   {%- endif -%}
 {% endmacro %}
 
-{# 响应式列表内容渲染宏 #}
+{# 响应式列表内容渲染宏 - 统一使用Python函数 #}
 {% macro render_responsive_content(list_config, items) %}
-  {# 移动端检测逻辑 #}
-  {%- set mobile_param = request.args.get('mobile', '').lower() -%}
-  {%- set is_mobile = false -%}
-  {%- if mobile_param == 'true' -%}
-    {%- set is_mobile = true -%}
-  {%- elif mobile_param == 'false' -%}
-    {%- set is_mobile = false -%}
-  {%- else -%}
-    {%- set user_agent = request.headers.get('User-Agent', '').lower() -%}
-    {%- set mobile_keywords = ['mobile', 'android', 'iphone', 'ipad', 'ipod', 'blackberry', 'windows phone'] -%}
-    {%- set is_mobile = mobile_keywords|select('in', user_agent)|list|length > 0 -%}
-  {%- endif -%}
+  {%- set is_mobile = is_mobile_request() if is_mobile_request is defined else false -%}
   
   {% if is_mobile and list_config.mobile_template %}
     {# 移动端：使用专用卡片模板（优先级最高） #}
@@ -2491,6 +2451,21 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
         </div>
       {% else %}
         {% include list_config.mobile_template %}
+      {% endif %}
+    </div>
+  {% elif is_mobile and list_config.smart_mobile_card %}
+    {# 移动端：使用智能卡片配置（优先级第二） #}
+    <div class="mobile-cards-container" {% if list_config.ajax_mode %}id="{{ list_config.table.ajax_target }}"{% endif %}>
+      {% if list_config.ajax_mode and not items %}
+        <!-- AJAX模式：内容将通过JavaScript动态加载 -->
+        <div class="d-flex justify-content-center align-items-center p-4" data-loading-state="true">
+          <div class="spinner-border text-primary me-2" role="status">
+            <span class="visually-hidden">{{ _('加载中...') }}</span>
+          </div>
+          <span class="text-muted">{{ _('正在加载数据...') }}</span>
+        </div>
+      {% else %}
+        {{ render_smart_mobile_cards(items, list_config.smart_mobile_card) }}
       {% endif %}
     </div>
   {% elif is_mobile and list_config.table %}
@@ -3095,6 +3070,57 @@ function showChannelValidationAlert(validationResult, targetSelector = null) {
     {% endif %}
     
     <span class="badge badge-pill badge-transparent approval-status-{{ status_key }}">
+        {{ display_text }}
+    </span>
+{% endmacro %}
+
+{# 
+  报价状态徽章渲染 - 专用于报价单状态显示
+  
+  参数:
+  - status: 报价状态
+  - lang: 语言设置（可选，默认从session获取）
+#}
+{% macro render_quotation_status_badge(status, lang=None) %}
+    {% if not lang %}
+        {% set is_english = (_('搜索') == 'Search') %}
+        {% set lang = 'en' if is_english else 'zh' %}
+    {% endif %}
+    
+    {% if status %}
+        {% if status.name is defined %}
+            {% set status_key = status.name.lower() %}
+        {% elif status.value is defined %}
+            {% set status_key = status.value.lower() %}
+        {% else %}
+            {% set status_key = status|string|lower %}
+        {% endif %}
+    {% else %}
+        {% set status_key = 'unknown' %}
+    {% endif %}
+    
+    {# 报价状态映射 #}
+    {% set quotation_status_mappings = {
+        'draft': {'zh': '草稿', 'en': 'Draft', 'css_class': 'quotation-status-draft'},
+        'pending': {'zh': '待审核', 'en': 'Pending', 'css_class': 'quotation-status-pending'},
+        'approved': {'zh': '已通过', 'en': 'Approved', 'css_class': 'quotation-status-approved'},
+        'rejected': {'zh': '已拒绝', 'en': 'Rejected', 'css_class': 'quotation-status-rejected'},
+        'sent': {'zh': '已发送', 'en': 'Sent', 'css_class': 'quotation-status-sent'},
+        'accepted': {'zh': '已接受', 'en': 'Accepted', 'css_class': 'quotation-status-accepted'},
+        'declined': {'zh': '已拒绝', 'en': 'Declined', 'css_class': 'quotation-status-declined'},
+        'expired': {'zh': '已过期', 'en': 'Expired', 'css_class': 'quotation-status-expired'}
+    } %}
+    
+    {% if status_key in quotation_status_mappings %}
+        {% set status_info = quotation_status_mappings[status_key] %}
+        {% set display_text = status_info[lang] %}
+        {% set css_class = status_info.css_class %}
+    {% else %}
+        {% set display_text = status_key if status_key != 'unknown' else (lang == 'en' and 'Unknown' or '未知状态') %}
+        {% set css_class = 'quotation-status-unknown' %}
+    {% endif %}
+    
+    <span class="badge badge-pill badge-transparent {{ css_class }}">
         {{ display_text }}
     </span>
 {% endmacro %}
@@ -3709,8 +3735,8 @@ window.dismissStandardAlert = function() {
             {# 处于pending状态且没有实际文件路径的发票 #}
             <i class="fas fa-file-invoice text-warning" 
                style="font-size: 1.2rem; cursor: pointer;" 
-               onclick="alert('发票上传未完成，请重新编辑报销单并上传发票。')"
-               title="发票上传未完成: {{ invoice.filename }}"></i>
+               onclick="showInvoiceUploadIncompleteAlert()"
+               title="{{ _('发票上传未完成') }}: {{ invoice.filename }}"></i>
           {% else %}
             {# 正常的发票 #}
             <i class="fas fa-file-invoice text-primary invoice-preview-icon" 
@@ -3721,7 +3747,7 @@ window.dismissStandardAlert = function() {
                data-filename="{{ invoice.filename|e }}"
                data-detail-id="{{ item.id|e }}"
                data-invoice-index="{{ loop.index0 }}"
-               title="点击预览发票: {{ invoice.filename }}"></i>
+               title="{{ _('点击预览发票') }}: {{ invoice.filename }}"></i>
           {% endif %}
           <span class="badge bg-primary text-white position-absolute" 
                 style="top: -5px; right: -8px; font-size: 0.6rem; min-width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">{{ loop.index }}</span>
@@ -3787,8 +3813,8 @@ window.dismissStandardAlert = function() {
                 </div>
             </div>
             <div class="dialog-actions">
-                {{ render_button('取消', None, color='secondary', type='button', extra_class='dialog-cancel-btn', size='') }}
-                {{ render_button('确认', None, color='danger', type='button', extra_class='dialog-confirm-btn', size='') }}
+                {{ render_button(_('取消'), None, color='secondary', type='button', extra_class='dialog-cancel-btn', size='') }}
+                {{ render_button(_('确认'), None, color='danger', type='button', extra_class='dialog-confirm-btn', size='') }}
             </div>
         </div>
     </div>
@@ -4120,15 +4146,17 @@ window.showDeleteConfirm = function(options = {}) {
     <div class="dialog-overlay"></div>
     <div class="dialog-container">
         <div class="dialog-content">
-            <!-- 头部：缩放控件和关闭按钮 -->
+            <!-- 头部：缩放控件（居中） -->
             <div class="dialog-header">
                 <div class="header-controls">
-                    <div class="zoom-controls" style="display: inline-flex; gap: 6px; align-items: center; margin-right: 12px;">
-                        {{ render_button('-', href=None, color='outline-secondary', icon='', type='button', extra_class='dialog-zoom-out-btn', size='sm', attrs='title="缩小"') }}
-                        {{ render_button('+', href=None, color='outline-secondary', icon='', type='button', extra_class='dialog-zoom-in-btn', size='sm', attrs='title="放大"') }}
-                        {{ render_button(_('适应'), href=None, color='outline-secondary', icon='fas fa-expand-arrows-alt', type='button', extra_class='dialog-fit-btn', size='sm', attrs='title="适应窗口"') }}
+                    <div class="zoom-controls" style="display: inline-flex; gap: 6px; align-items: center;">
+                        {% set zoom_out_title = _('缩小') %}
+                        {% set zoom_in_title = _('放大') %}
+                        {% set fit_title = _('适应窗口') %}
+                        {{ render_button('-', href=None, color='outline-secondary', icon='', type='button', extra_class='dialog-zoom-out-btn', size='sm', attrs='title="' + zoom_out_title + '"') }}
+                        {{ render_button('+', href=None, color='outline-secondary', icon='', type='button', extra_class='dialog-zoom-in-btn', size='sm', attrs='title="' + zoom_in_title + '"') }}
+                        {{ render_button(_('适应'), href=None, color='outline-secondary', icon='fas fa-expand-arrows-alt', type='button', extra_class='dialog-fit-btn', size='sm', attrs='title="' + fit_title + '"') }}
                     </div>
-                    {{ render_button('', href=None, color='outline-secondary', icon='fas fa-times', type='button', extra_class='dialog-close-btn', size='sm', attrs='title="关闭"') }}
                 </div>
             </div>
             
@@ -4229,7 +4257,7 @@ window.showDeleteConfirm = function(options = {}) {
     max-height: 95vh;
     max-width: 95vw;
     overflow: hidden;
-    min-width: 350px; /* 🔥 适中的最小宽度 */
+    min-width: 420px; /* 🔥 确保底部三个按钮有足够空间 */
     min-height: 300px; /* 🔥 适中的最小高度，确保按钮可见 */
 }
 
@@ -4246,7 +4274,7 @@ window.showDeleteConfirm = function(options = {}) {
     padding: 1rem 1.5rem;
     border-bottom: 1px solid #e9ecef;
     display: flex;
-    justify-content: flex-end; /* 🔥 控件右对齐，因为去掉了标题 */
+    justify-content: center; /* 🔥 缩放控件居中显示 */
     align-items: center;
     background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
     border-radius: 12px 12px 0 0; /* 顶部圆角 */
@@ -4429,7 +4457,7 @@ window.showDeleteConfirm = function(options = {}) {
     padding: 1rem 1.5rem;
     border-top: 1px solid #e9ecef;
     display: flex;
-    justify-content: flex-end;
+    justify-content: center; /* 🔥 底部按钮居中显示 */
     gap: 0.75rem;
     background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
     border-radius: 0 0 12px 12px; /* 底部圆角 */
@@ -4523,13 +4551,13 @@ window.showDeleteConfirm = function(options = {}) {
         width: 98vw;
         max-width: 98vw;
         max-height: 98vh;
-        min-width: 280px; /* 🔥 移动端减少最小宽度 */
+        min-width: 320px; /* 🔥 移动端确保按钮区域有足够空间 */
     }
     
     .standard-invoice-preview-dialog .dialog-content {
         max-width: 98vw !important;
         max-height: 98vh !important;
-        min-width: 280px;
+        min-width: 320px;
     }
     
     /* 🔥 移动端PDF模式 */
@@ -5778,9 +5806,9 @@ function setupDownloadAction(dialog, imagePath, filename, downloadInfo = null) {
                     } catch (linkError) {
                         console.error('备用下载方案也失败了:', linkError);
                         if (typeof showErrorMessage === 'function') {
-                            showErrorMessage('文件下载失败，请尝试右键另存为');
+                            showErrorMessage(window.i18nTexts?.fileDownloadFailed || '文件下载失败，请尝试右键另存为');
                         } else {
-                            alert('文件下载失败，请尝试右键另存为');
+                            alert(window.i18nTexts?.fileDownloadFailed || '文件下载失败，请尝试右键另存为');
                         }
                     }
                 });
@@ -6568,5 +6596,399 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 100);
 });
 </script>
+{% endmacro %}
+
+{# ================================
+   移动端响应式卡片体系 v2.0
+   配置驱动的智能渲染宏
+   ================================ #}
+
+{#
+  智能移动端卡片渲染 - 配置驱动
+  
+  参数:
+  - item: 数据项对象
+  - card_config: 卡片配置对象
+    - module: 模块名称 (用于CSS模块化样式)
+    - title_field: 标题字段配置
+    - badges: 徽章配置列表
+    - details: 详情配置列表
+    - actions: 操作配置列表 (可选)
+    - link_url: 标题链接URL模板 (可选)
+#}
+{% macro render_smart_mobile_card(item, card_config) %}
+<div class="mobile-card" data-module="{{ card_config.module|default('generic') }}">
+    <div class="mobile-card-header">
+        <div class="mobile-card-title">
+            {% if card_config.link_url %}
+                <a href="{{ card_config.link_url.replace('{id}', item.id|string) }}">
+                    {{ render_card_title_value(item, card_config.title_field) }}
+                </a>
+            {% else %}
+                <span>{{ render_card_title_value(item, card_config.title_field) }}</span>
+            {% endif %}
+        </div>
+        
+        {# 条件审核通过徽章 - 与桌面版完全一致的绿色打勾图标 #}
+        {% if card_config.conditional_approval_badge and ((item.approval_status and item.approval_status != 'pending') or (item.confirmation_badge_status == 'confirmed')) %}
+        <div class="mobile-card-approval-badge mt-1">
+            <span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background-color: #28a745; color: #fff; font-size: 10px; line-height: 1; vertical-align: middle;" 
+                  title="产品明细已确认" class="confirmation-badge-confirmed">
+                <i class="fas fa-check" style="font-size: 10px;"></i>
+            </span>
+        </div>
+        {% endif %}
+        
+        {% if card_config.badges %}
+        <div class="mobile-card-badges">
+            {% for badge_config in card_config.badges %}
+                {{ render_smart_card_badge(item, badge_config) }}
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="mobile-card-body">
+        {% if card_config.details %}
+        <div class="mobile-card-details">
+            {% for detail_config in card_config.details %}
+                {{ render_smart_card_detail(item, detail_config) }}
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        {% if card_config.actions %}
+        <div class="mobile-card-actions">
+            {% for action_config in card_config.actions %}
+                {{ render_smart_card_action(item, action_config) }}
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+{#
+  智能卡片标题渲染
+  支持多种标题字段的智能识别
+#}
+{% macro render_card_title_value(item, title_config) %}
+    {% if title_config and title_config.field %}
+        {# 使用指定字段 #}
+        {% set title_value = item[title_config.field] %}
+        {% if title_config.renderer %}
+            {# 如果有渲染器，使用渲染器处理 #}
+            {% if title_config.renderer == 'render_quotation_number' %}
+                {{ render_quotation_number(title_value) }}
+            {% elif title_config.renderer == 'render_expense_number' %}
+                {{ render_expense_number(title_value) }}
+            {% elif title_config.renderer == 'render_project_stage' %}
+                {{ render_project_stage(title_value) }}
+            {% elif title_config.renderer == 'render_project_type' %}
+                {{ render_project_type(title_value) }}
+            {% else %}
+                {# 其他渲染器可在此扩展 #}
+                {% if title_config.prefix %}{{ title_config.prefix }} {% endif %}{{ title_value }}{% if title_config.suffix %} {{ title_config.suffix }}{% endif %}
+            {% endif %}
+        {% else %}
+            {# 普通文本渲染 #}
+            {% if title_config.prefix %}{{ title_config.prefix }} {% endif %}{{ title_value }}{% if title_config.suffix %} {{ title_config.suffix }}{% endif %}
+        {% endif %}
+    {% else %}
+        {# 智能识别标题字段 #}
+        {% if item.company_name %}
+            {{ item.company_name }}
+        {% elif item.product_name %}
+            {{ item.product_name }}
+        {% elif item.project_name %}
+            {{ item.project_name }}
+        {% elif item.quotation_number %}
+            {{ _('报价单') }} {{ item.quotation_number }}
+        {% elif item.order_number %}
+            {{ _('订单') }} {{ item.order_number }}
+        {% elif item.name %}
+            {{ item.name }}
+        {% elif item.title %}
+            {{ item.title }}
+        {% else %}
+            {{ _('项目') }} #{{ item.id }}
+        {% endif %}
+    {% endif %}
+{% endmacro %}
+
+{#
+  智能徽章渲染
+  支持配置化的徽章显示
+#}
+{% macro render_smart_card_badge(item, badge_config) %}
+    {% if badge_config.field and item[badge_config.field] %}
+        {% set badge_value = item[badge_config.field] %}
+        
+        {% if badge_config.renderer %}
+            {# 简化的渲染器调用 - 直接使用标准化的桌面端渲染器 #}
+            {{ _render_badge_by_name(badge_config.renderer, badge_value, item) }}
+        {% else %}
+            {# 默认徽章显示 #}
+            <span class="badge bg-{{ badge_config.color|default('secondary') }}">{{ badge_value }}</span>
+        {% endif %}
+    {% endif %}
+{% endmacro %}
+
+{# 辅助宏：通过渲染器名称调用对应的渲染器 #}
+{% macro _render_badge_by_name(renderer_name, badge_value, item) %}
+    {% if renderer_name == 'render_customer_status_badge' or renderer_name == 'customer_status_badge' %}
+        {{ render_customer_status_badge(badge_value) }}
+    {% elif renderer_name == 'render_company_type_badge' or renderer_name == 'company_type_badge' %}
+        {{ render_company_type_badge(badge_value) }}
+    {% elif renderer_name == 'render_product_type_badge' or renderer_name == 'product_type_badge' %}
+        {{ render_product_type_badge(badge_value) }}
+    {% elif renderer_name == 'render_product_status_badge' or renderer_name == 'product_status_badge' %}
+        {{ render_product_status_badge(badge_value) }}
+    {% elif renderer_name == 'render_industry_badge' or renderer_name == 'industry_badge' %}
+        {{ render_industry_badge(badge_value) }}
+    {% elif renderer_name == 'render_project_stage' or renderer_name == 'project_stage' %}
+        {{ render_project_stage(badge_value) }}
+    {% elif renderer_name == 'render_project_type' or renderer_name == 'project_type' %}
+        {{ render_project_type(badge_value) }}
+    {% elif renderer_name == 'render_status_badge' or renderer_name == 'status_badge' %}
+        {{ render_status_badge(badge_value) }}
+    {% elif renderer_name == 'render_report_source_badge' or renderer_name == 'report_source_badge' %}
+        {{ render_report_source_badge(badge_value) }}
+    {% elif renderer_name == 'render_approval_status_badge' or renderer_name == 'approval_status_badge' %}
+        {{ render_approval_status_badge(badge_value) }}
+    {% elif renderer_name == 'render_expense_status_badge' or renderer_name == 'expense_status' %}
+        {{ render_expense_status_badge(badge_value) }}
+    {% elif renderer_name == 'rd_product_status' %}
+        {% if badge_value == '调研中' %}
+            <span class="badge badge-pill badge-transparent product-status-research">调研中</span>
+        {% elif badge_value == '立项中' %}
+            <span class="badge badge-pill badge-transparent product-status-planning">立项中</span>
+        {% elif badge_value == '研发中' %}
+            <span class="badge badge-pill badge-transparent product-status-development">研发中</span>
+        {% elif badge_value == '已入库' %}
+            <span class="badge badge-pill badge-transparent product-status-completed">已入库</span>
+        {% elif badge_value == '已停产' %}
+            <span class="badge badge-pill badge-transparent product-status-discontinued">已停产</span>
+        {% else %}
+            <span class="badge badge-pill badge-transparent badge-muted">{{ badge_value }}</span>
+        {% endif %}
+    {% elif renderer_name == 'inventory_status' %}
+        {% if badge_value == '缺货' %}
+            <span class="badge badge-pill badge-transparent badge-danger">缺货</span>
+        {% elif badge_value == '库存不足' %}
+            <span class="badge badge-pill badge-transparent badge-warning">库存不足</span>
+        {% elif badge_value == '库存正常' %}
+            <span class="badge badge-pill badge-transparent badge-success">库存正常</span>
+        {% else %}
+            <span class="badge badge-pill badge-transparent badge-muted">{{ badge_value }}</span>
+        {% endif %}
+    {% elif renderer_name == 'order_status' %}
+        {% if badge_value == '待入库' %}
+            <span class="badge badge-pill badge-transparent badge-warning">待入库</span>
+        {% elif badge_value == '部分入库' %}
+            <span class="badge badge-pill badge-transparent badge-info">部分入库</span>
+        {% elif badge_value == '已入库' %}
+            <span class="badge badge-pill badge-transparent badge-success">已入库</span>
+        {% else %}
+            <span class="badge badge-pill badge-transparent badge-muted">{{ badge_value }}</span>
+        {% endif %}
+    {% elif renderer_name == 'settlement_status' %}
+        {% if badge_value == '待结算' %}
+            <span class="badge badge-pill badge-transparent badge-warning">待结算</span>
+        {% elif badge_value == '部分结算' %}
+            <span class="badge badge-pill badge-transparent badge-info">部分结算</span>
+        {% elif badge_value == '已完成结算' %}
+            <span class="badge badge-pill badge-transparent badge-success">已完成结算</span>
+        {% else %}
+            <span class="badge badge-pill badge-transparent badge-muted">{{ badge_value }}</span>
+        {% endif %}
+    {% elif renderer_name == 'user_status' %}
+        {% if badge_value == '激活' %}
+            <span class="badge badge-pill badge-transparent user-status-active">激活</span>
+        {% elif badge_value == '禁用' %}
+            <span class="badge badge-pill badge-transparent user-status-inactive">禁用</span>
+        {% else %}
+            <span class="badge badge-pill badge-transparent badge-muted">{{ badge_value }}</span>
+        {% endif %}
+    {% elif renderer_name == 'user_role' %}
+        <span class="badge badge-pill badge-transparent badge-info">{{ badge_value }}</span>
+    {% elif renderer_name == 'render_quotation_status_badge' or renderer_name == 'quotation_status_badge' %}
+        {{ render_quotation_status_badge(badge_value) }}
+    {% elif renderer_name == 'render_currency_badge' or renderer_name == 'currency_badge' %}
+        {{ render_currency_badge(badge_value) }}
+    {% elif renderer_name == 'render_expense_status_badge' or renderer_name == 'expense_status_badge' %}
+        {{ render_expense_status_badge(badge_value) }}
+    {% elif renderer_name == 'render_confirmation_badge' %}
+        {{ render_confirmation_badge(item) }}
+    {% elif renderer_name == 'render_datetime' %}
+        {{ render_datetime(badge_value, format='%Y-%m-%d') }}
+    {% elif renderer_name == 'render_currency_with_symbol' %}
+        {{ render_currency_with_symbol(badge_value, item.currency|default('CNY')) }}
+    {% else %}
+        {# 回退到默认徽章 #}
+        <span class="badge bg-secondary">{{ badge_value }}</span>
+    {% endif %}
+{% endmacro %}
+
+{#
+  智能详情渲染
+  支持多种数据类型的格式化显示
+#}
+{% macro render_smart_card_detail(item, detail_config) %}
+    {% if detail_config.field and item[detail_config.field] %}
+        {% set detail_value = item[detail_config.field] %}
+        
+        <div class="detail-row">
+            <span class="label">{{ _(detail_config.label) }}:</span>
+            <span class="value">
+                {% if detail_config.format == 'date' and detail_value.strftime %}
+                    {{ detail_value.strftime('%Y-%m-%d') }}
+                {% elif detail_config.format == 'datetime' and detail_value.strftime %}
+                    {{ detail_value.strftime('%Y-%m-%d %H:%M') }}
+                {% elif detail_config.format == 'currency' %}
+                    ¥{{ "%.2f"|format(detail_value) }}
+                {% elif detail_config.format == 'phone' %}
+                    <a href="tel:{{ detail_value }}" class="text-decoration-none">{{ detail_value }}</a>
+                {% elif detail_config.format == 'email' %}
+                    <a href="mailto:{{ detail_value }}" class="text-decoration-none">{{ detail_value }}</a>
+                {% elif detail_config.format == 'link' and detail_config.link_url %}
+                    <a href="{{ detail_config.link_url|format(id=item.id, value=detail_value) }}" class="text-decoration-none">{{ detail_value }}</a>
+                {% elif detail_config.renderer %}
+                    {# 简化的渲染器调用 - 直接使用标准化的桌面端渲染器 #}
+                    {{ _render_detail_by_name(detail_config.renderer, detail_value, item, detail_config) }}
+                {% else %}
+                    {{ detail_value }}
+                {% endif %}
+            </span>
+        </div>
+    {% elif detail_config.custom_renderer %}
+        {# 自定义渲染逻辑 #}
+        {% if detail_config.custom_renderer == 'location' %}
+            {{ render_location_detail(item) }}
+        {% endif %}
+    {% endif %}
+{% endmacro %}
+
+{# 辅助宏：通过渲染器名称调用对应的详情渲染器 #}
+{% macro _render_detail_by_name(renderer_name, detail_value, item, detail_config) %}
+    {% if renderer_name == 'render_owner' or renderer_name == 'owner' %}
+        {{ render_owner(detail_value) }}
+    {% elif renderer_name == 'render_datetime' %}
+        {% if detail_config.renderer_args and 'format=' in detail_config.renderer_args|join(' ') %}
+            {% set format_arg = detail_config.renderer_args|select('match', "format=")|first %}
+            {% set format_value = format_arg.split('=')[1].replace("'", "").replace('"', '') if format_arg else '%Y-%m-%d' %}
+            {{ render_datetime(detail_value, format=format_value) }}
+        {% else %}
+            {{ render_datetime(detail_value, format='%Y-%m-%d') }}
+        {% endif %}
+    {% elif renderer_name == 'render_currency_with_symbol' %}
+        {{ render_currency_with_symbol(detail_value, item.currency|default('CNY')) }}
+    {% elif renderer_name == 'render_quotation_number' %}
+        {{ render_quotation_number(detail_value) }}
+    {% elif renderer_name == 'render_project_stage' %}
+        {{ render_project_stage(detail_value) }}
+    {% elif renderer_name == 'render_project_type' %}
+        {{ render_project_type(detail_value) }}
+    {% elif renderer_name == 'render_confirmation_badge' %}
+        {{ render_confirmation_badge(item) }}
+    {% elif renderer_name == 'project_link' %}
+        {% if item.project and item.project.id %}
+            <a href="/project/view/{{ item.project.id }}" class="text-decoration-none">{{ detail_value }}</a>
+        {% elif item.project_id %}
+            <a href="/project/view/{{ item.project_id }}" class="text-decoration-none">{{ detail_value }}</a>
+        {% else %}
+            {{ detail_value }}
+        {% endif %}
+    {% elif renderer_name == 'render_approval_status_badge' %}
+        {{ render_approval_status_badge(detail_value) }}
+    {% elif renderer_name == 'render_expense_status_badge' %}
+        {{ render_expense_status_badge(detail_value) }}
+    {% elif renderer_name == 'render_expense_number' %}
+        {{ render_expense_number(detail_value) }}
+    {% elif renderer_name == 'render_company_type_badge' %}
+        {{ render_company_type_badge(detail_value) }}
+    {% elif renderer_name == 'render_customer_status_badge' %}
+        {{ render_customer_status_badge(detail_value) }}
+    {% elif renderer_name == 'render_industry_badge' or renderer_name == 'industry_badge' %}
+        {{ render_industry_badge(detail_value) }}
+    {% elif renderer_name == 'render_report_source_badge' or renderer_name == 'report_source_badge' %}
+        {{ render_report_source_badge(detail_value) }}
+    {% elif renderer_name == 'render_project_authorization' %}
+        {{ render_authorization_status_badge(item.authorization_code, item.authorization_status, item.project_type) }}
+    {% elif renderer_name == 'render_product_type_badge' %}
+        {{ render_product_type_badge(detail_value) }}
+    {% elif renderer_name == 'render_product_status_badge' %}
+        {{ render_product_status_badge(detail_value) }}
+    {% elif renderer_name == 'location' %}
+        {{ render_location_info(item, detail_config.extra_fields|default([])) }}
+    {% else %}
+        {# 回退到直接显示值 #}
+        {{ detail_value }}
+    {% endif %}
+{% endmacro %}
+
+{#
+  智能操作按钮渲染
+#}
+{% macro render_smart_card_action(item, action_config) %}
+    {% if action_config.type == 'link' %}
+        <a href="{{ action_config.url|format(id=item.id) }}" 
+           class="btn btn-{{ action_config.color|default('primary') }} btn-sm">
+            {% if action_config.icon %}<i class="{{ action_config.icon }}"></i> {% endif %}
+            {{ _(action_config.text) }}
+        </a>
+    {% elif action_config.type == 'button' %}
+        <button type="button" 
+                class="btn btn-{{ action_config.color|default('secondary') }} btn-sm"
+                {% if action_config.onclick %}onclick="{{ action_config.onclick|format(id=item.id) }}"{% endif %}>
+            {% if action_config.icon %}<i class="{{ action_config.icon }}"></i> {% endif %}
+            {{ _(action_config.text) }}
+        </button>
+    {% endif %}
+{% endmacro %}
+
+{#
+  地区信息渲染助手
+#}
+{% macro render_location_detail(item) %}
+    {% if item.country or item.region or item.address %}
+    <div class="detail-row">
+        <span class="label">{{ _('地区') }}:</span>
+        <span class="value text-start">
+            {% if item.country %}
+                {% set country_name = country_code_to_name.get(item.country, item.country) if country_code_to_name else item.country %}
+                {% set location_parts = [country_name] %}
+                {% if item.region %}
+                    {% set _ = location_parts.append(item.region) %}
+                {% endif %}
+                {% if item.address %}
+                    {% if '市' in item.address %}
+                        {% set city = item.address.split('市')[0] + '市' %}
+                        {% set _ = location_parts.append(city) %}
+                    {% elif '城' in item.address %}
+                        {% set city = item.address.split('城')[0] + '城' %}
+                        {% set _ = location_parts.append(city) %}
+                    {% endif %}
+                {% endif %}
+                {{ location_parts | join('/') }}
+            {% else %}
+                -
+            {% endif %}
+        </span>
+    </div>
+    {% endif %}
+{% endmacro %}
+
+{#
+  批量移动端卡片渲染 - 基于配置
+  
+  参数:
+  - items: 数据列表
+  - card_config: 卡片配置对象
+#}
+{% macro render_smart_mobile_cards(items, card_config) %}
+    {% for item in items %}
+        {{ render_smart_mobile_card(item, card_config) }}
+    {% endfor %}
 {% endmacro %}
 

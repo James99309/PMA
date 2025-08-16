@@ -573,8 +573,60 @@ def list_companies():
             ]
         },
         
-        # 移动端模板配置
-        'mobile_template': 'customer/customer_cards.html'
+        # 移动端模板配置 (兼容性保持)
+        'mobile_template': 'customer/customer_cards.html',
+        
+        # 智能移动端卡片配置 v2.0
+        'smart_mobile_card': {
+            'module': 'customer',
+            'title_field': {'field': 'company_name'},
+            'link_url': '/customer/{id}/view',
+            'badges': [
+                {
+                    'field': 'company_type',
+                    'renderer': 'render_company_type_badge'
+                },
+                {
+                    'field': 'status',
+                    'renderer': 'customer_status_badge'
+                }
+            ],
+            'details': [
+                {
+                    'field': 'owner',
+                    'label': '负责人',
+                    'renderer': 'owner'
+                },
+                {
+                    'field': 'industry',
+                    'label': '行业',
+                    'renderer': 'industry_badge'
+                },
+                {
+                    'custom_renderer': 'location',
+                    'label': '地区'
+                },
+                {
+                    'field': 'main_contact_name',
+                    'label': '主要联系人'
+                },
+                {
+                    'field': 'main_contact_phone',
+                    'label': '联系电话',
+                    'format': 'phone'
+                },
+                {
+                    'field': 'main_contact_email',
+                    'label': '邮箱',
+                    'format': 'email'
+                },
+                {
+                    'field': 'created_at',
+                    'label': '创建时间',
+                    'format': 'date'
+                }
+            ]
+        }
     }
     
     return render_template('customer/list.html', 
@@ -655,16 +707,18 @@ def companies_list_ajax():
         from app.utils.i18n import get_current_language
         country_code_to_name = get_country_names(get_current_language())
         
-        # 使用通用组件的响应式渲染逻辑（与页面初始化保持一致）
-        from app.utils.mobile_helpers import is_mobile_request
-        from flask import render_template
+        # 使用统一的响应式渲染器
+        from app.utils.responsive_renderer import ResponsiveRenderer
+        from app.utils.smart_module_configs import get_smart_module_config
         
-        if is_mobile_request():
-            # 移动端：渲染卡片内容（不包含容器，因为容器已存在）
-            companies_html = render_template('customer/customer_cards.html', items=companies, country_code_to_name=country_code_to_name)
-        else:
-            # 桌面端：渲染表格行
-            companies_html = render_template('customer/customer_rows.html', items=companies, country_code_to_name=country_code_to_name)
+        # 获取智能配置
+        module_config = get_smart_module_config('customer')
+        
+        companies_html = ResponsiveRenderer.render_list_response(
+            items=companies,
+            module_config=module_config,
+            country_code_to_name=country_code_to_name
+        )
         
         # 计算统计数据 - 基于当前筛选条件的结果
         # 重新构建基础查询以获取筛选后的统计数据

@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
+from flask import Blueprint, render_template, render_template_string, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import current_user, login_required
 from flask_babel import gettext as _
 from app.extensions import csrf
@@ -540,7 +540,7 @@ def expense_list_ajax():
             detail_counts = {}
         
         # 5. 格式化数据并渲染HTML
-        html_rows = []
+        formatted_results = []
         for expense in expenses:
             user_obj = owners.get(expense.owner_id)
             owner_display = ""
@@ -567,9 +567,48 @@ def expense_list_ajax():
                 owner_obj=user_obj,
                 detail_count=detail_counts.get(expense.id, 0)
             )
-            
-            html_row = render_template('expense/expense_rows.html', expense=formatted_row)
-            html_rows.append(html_row)
+            formatted_results.append(formatted_row)
+        
+        # 检测移动端并使用智能移动卡片
+        from app.utils.mobile_helpers import is_mobile_request
+        
+        if formatted_results:
+            if is_mobile_request():
+                # 智能移动卡片配置
+                smart_mobile_card = {
+                    'module': 'expense',
+                    'title_field': {'field': 'expense_number', 'renderer': 'render_expense_number'},
+                    'link_url': '/expense/{id}',
+                    'badges': [
+                        {'field': 'status', 'renderer': 'expense_status'}
+                    ],
+                    'details': [
+                        {'field': 'title', 'label': '报销标题'},
+                        {'field': 'customer_name', 'label': '归属客户'},
+                        {'field': 'owner', 'label': '申请人'},
+                        {'field': 'total_amount', 'label': '报销金额', 'format': 'currency'},
+                        {'field': 'detail_count', 'label': '明细数量', 'suffix': '项'},
+                        {'field': 'created_at', 'label': '创建时间', 'format': 'date'}
+                    ]
+                }
+                
+                # 使用智能移动卡片模板渲染
+                html = render_template_string('''
+                {% from 'macros/ui_helpers.html' import render_smart_mobile_cards %}
+                {{ render_smart_mobile_cards(items, card_config) }}
+                ''', items=formatted_results, card_config=smart_mobile_card)
+            else:
+                # 桌面端使用传统表格行渲染
+                html_rows = []
+                for formatted_row in formatted_results:
+                    html_row = render_template('expense/expense_rows.html', expense=formatted_row)
+                    html_rows.append(html_row)
+                html = '\n'.join(html_rows)
+        else:
+            if is_mobile_request():
+                html = '<div class="text-center py-4">暂无符合条件的数据</div>'
+            else:
+                html = '<tr><td colspan="8" class="text-center py-4">暂无符合条件的数据</td></tr>'
         
         # 6. 优化统计查询：使用权限过滤的查询获取所有统计数据
         stats_query = get_viewable_data(Expense, current_user)
@@ -625,7 +664,7 @@ def expense_list_ajax():
         
         return jsonify({
             'success': True,
-            'html': '\n'.join(html_rows),
+            'html': html,
             'total_count': total_count,
             'loaded_count': len(expenses),
             'statistics': statistics

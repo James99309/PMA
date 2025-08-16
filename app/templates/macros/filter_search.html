@@ -1,4 +1,4 @@
-{% from 'macros/ui_helpers.html' import render_button %}
+{% from 'macros/ui_helpers.html' import render_button, is_mobile_device %}
 
 {# 
 筛选搜索表单组件
@@ -6,71 +6,648 @@
 - config: 配置对象，包含所有筛选和搜索的配置信息
 #}
 {% macro render_filter_search_form(config) %}
-<div class="filter-search-container">
+{# 调试：检测移动端状态 #}
+{%- set is_mobile = is_mobile_request() if is_mobile_request is defined else false -%}
+
+<div class="filter-search-container {{ 'mobile-layout' if is_mobile else 'desktop-layout' }}" data-mobile="{{ is_mobile|lower }}">
     <form method="GET" action="{{ config.action_url }}" id="{{ config.form_id or 'filterForm' }}">
-        <div class="row filter-row">
-            
-            {# 文本搜索框 #}
-            {% if config.search_field and not config.get('show_search') == false %}
-            {% set adaptive_class = 'adaptive-width' if config.search_field.get('adaptive', true) else '' %}
-            <div class="col-md-{{ config.search_field.col_width or 'auto' }} filter-control {{ adaptive_class }}">
-                <label for="{{ config.search_field.name }}" class="form-label" 
-                       title="{{ _(config.search_field.label) }}">
-                    {{ _(config.search_field.label) }}
-                </label>
-                <input type="text" 
-                       class="form-control" 
-                       id="{{ config.search_field.name }}" 
-                       name="{{ config.search_field.name }}"
-                       placeholder="{{ _(config.search_field.placeholder) }}" 
-                       value="{{ config.search_field.value or '' }}"
-                       title="{{ _(config.search_field.placeholder) }}">
+        {% if is_mobile %}
+        <!-- 移动端折叠式布局 -->
+        <div class="mobile-filter-wrapper">
+            <!-- 主搜索栏 - 始终可见 -->
+            <div class="mobile-search-bar">
+                {% if config.search_field and not config.get('show_search') == false %}
+                <div class="mobile-search-input">
+                    <input type="text" 
+                           class="form-control" 
+                           id="{{ config.search_field.name }}" 
+                           name="{{ config.search_field.name }}"
+                           placeholder="{{ _(config.search_field.placeholder) }}" 
+                           value="{{ config.search_field.value or '' }}"
+                           title="{{ _(config.search_field.placeholder) }}">
+                </div>
+                {% endif %}
+                
+                {% if config.filter_fields and config.filter_fields|length > 0 %}
+                <button type="button" class="btn btn-outline-secondary mobile-filter-toggle" 
+                        onclick="toggleMobileFilters()" title="{{ _('显示/隐藏筛选器') }}">
+                    <i class="fas fa-chevron-down"></i>
+                    <span class="filter-count" style="display: none;">0</span>
+                </button>
+                {% endif %}
             </div>
-            {% endif %}
             
-            {# 动态筛选字段 #}
-            {% for filter_field in config.filter_fields %}
-            {% set adaptive_class = 'adaptive-width' if filter_field.get('adaptive', true) else '' %}
-            <div class="col-md-{{ filter_field.col_width or 'auto' }} filter-control {{ adaptive_class }}">
-                <label for="{{ filter_field.name }}" class="form-label"
-                       title="{{ _(filter_field.label) }}">
-                    {{ _(filter_field.label) }}
-                </label>
-                <select class="form-select" id="{{ filter_field.name }}" name="{{ filter_field.name }}"
-                        title="{{ _(filter_field.all_option_text) }}">
-                    <option value="" {% if not filter_field.current_value %}selected{% endif %}>{{ _(filter_field.all_option_text) }}</option>
-                    {% for option in filter_field.options %}
-                    <option value="{{ option.value }}" 
-                            {% if filter_field.current_value|string == option.value|string %}selected{% endif %}
-                            title="{{ _(option.label) if option.translate else option.label }}">
-                        {{ _(option.label) if option.translate else option.label }}
-                    </option>
+            <!-- 筛选器区域 - 可折叠 -->
+            {% if config.filter_fields and config.filter_fields|length > 0 %}
+            <div class="mobile-filters-panel" id="mobileFiltersPanel" style="display: none;">
+                <div class="row g-1">
+                    {% for filter_field in config.filter_fields %}
+                    <div class="col-4">
+                        <select class="form-select form-select-sm" 
+                                id="{{ filter_field.name }}" 
+                                name="{{ filter_field.name }}"
+                                title="{{ _(filter_field.all_option_text) }}"
+                                onchange="updateFilterCount()">
+                            <option value="" {% if not filter_field.current_value %}selected{% endif %}>{{ _(filter_field.all_option_text) }}</option>
+                            {% for option in filter_field.options %}
+                            <option value="{{ option.value }}" 
+                                    {% if filter_field.current_value|string == option.value|string %}selected{% endif %}
+                                    title="{{ _(option.label) if option.translate else option.label }}">
+                                {{ _(option.label) if option.translate else option.label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
                     {% endfor %}
-                </select>
-            </div>
-            {% endfor %}
-            
-            
-            {# 自适应按钮布局容器 #}
-            {% if not config.get('show_buttons') == false %}
-            <div class="col-md-auto ms-auto filter-buttons-container">
-                <div class="d-flex gap-2 mt-2 mt-md-0">
-                    {{ render_button(config.search_button_text or _('搜索'), 
-                                   type='submit', 
-                                   color='primary', 
-                                   icon='fas fa-search',
-                                   extra_class='filter-search-button') }}
-                    {{ render_button(config.reset_button_text or _('重置'), 
-                                   type='button', 
-                                   onclick='resetFiltersEnhanced("' + config.reset_url + '", window.filterSearchConfig)', 
-                                   color='secondary', 
-                                   icon='fas fa-undo',
-                                   extra_class='filter-reset-button') }}
                 </div>
             </div>
             {% endif %}
             
+            <!-- 按钮区域 -->
+            {% if not config.get('show_buttons') == false %}
+            <div class="mobile-buttons-area">
+                <div class="d-flex gap-2 justify-content-center">
+                    {{ render_button(config.search_button_text or _('搜索'), 
+                                   type='submit', 
+                                   color='primary', 
+                                   icon='fas fa-search',
+                                   size='sm',
+                                   extra_class='filter-search-button flex-fill') }}
+                    {{ render_button(config.reset_button_text or _('重置'), 
+                                   type='button', 
+                                   onclick='resetMobileFilters("' + config.reset_url + '")', 
+                                   color='secondary', 
+                                   icon='fas fa-undo',
+                                   size='sm',
+                                   extra_class='filter-reset-button flex-fill') }}
+                </div>
+            </div>
+            {% endif %}
         </div>
+        {% else %}
+        <!-- 桌面端折叠式布局 -->
+        <div class="desktop-filter-wrapper">
+            <!-- 主搜索栏 - 始终可见 -->
+            <div class="desktop-search-bar">
+                {% if config.search_field and not config.get('show_search') == false %}
+                <div class="desktop-search-input">
+                    <input type="text" 
+                           class="form-control" 
+                           id="{{ config.search_field.name }}" 
+                           name="{{ config.search_field.name }}"
+                           placeholder="{{ _(config.search_field.placeholder) }}" 
+                           value="{{ config.search_field.value or '' }}"
+                           title="{{ _(config.search_field.placeholder) }}">
+                </div>
+                {% endif %}
+                
+                {% if config.filter_fields and config.filter_fields|length > 0 %}
+                <button type="button" class="btn btn-outline-secondary desktop-filter-toggle" 
+                        onclick="toggleDesktopFilters()" title="{{ _('显示/隐藏筛选器') }}">
+                    <i class="fas fa-chevron-down"></i>
+                    <span class="filter-count" style="display: none;">0</span>
+                </button>
+                {% endif %}
+                
+                {% if not config.get('show_buttons') == false %}
+                <div class="desktop-search-buttons">
+                    {{ render_button(config.search_button_text or _('搜索'), 
+                                   type='submit', 
+                                   color='primary', 
+                                   icon='fas fa-search',
+                                   size='md',
+                                   extra_class='filter-search-button') }}
+                    {{ render_button(config.reset_button_text or _('重置'), 
+                                   type='button', 
+                                   onclick='resetDesktopFilters("' + config.reset_url + '")', 
+                                   color='secondary', 
+                                   icon='fas fa-undo',
+                                   size='md',
+                                   extra_class='filter-reset-button') }}
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- 筛选器区域 - 可折叠 -->
+            {% if config.filter_fields and config.filter_fields|length > 0 %}
+            <div class="desktop-filters-panel" id="desktopFiltersPanel" style="display: none;">
+                <div class="row g-2">
+                    {% for filter_field in config.filter_fields %}
+                    {% set adaptive_class = 'adaptive-width' if filter_field.get('adaptive', true) else '' %}
+                    <div class="col-md-{{ filter_field.col_width or 'auto' }} filter-control {{ adaptive_class }}">
+                        <label for="{{ filter_field.name }}" class="form-label"
+                               title="{{ _(filter_field.label) }}">
+                            {{ _(filter_field.label) }}
+                        </label>
+                        <select class="form-select" id="{{ filter_field.name }}" name="{{ filter_field.name }}"
+                                title="{{ _(filter_field.all_option_text) }}"
+                                onchange="updateDesktopFilterCount()">
+                            <option value="" {% if not filter_field.current_value %}selected{% endif %}>{{ _(filter_field.all_option_text) }}</option>
+                            {% for option in filter_field.options %}
+                            <option value="{{ option.value }}" 
+                                    {% if filter_field.current_value|string == option.value|string %}selected{% endif %}
+                                    title="{{ _(option.label) if option.translate else option.label }}">
+                                {{ _(option.label) if option.translate else option.label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
     </form>
 </div>
+
+<style>
+/* 移动端折叠式筛选器样式 */
+.filter-search-container.mobile-layout {
+    background-color: #f8f9fa;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid #e9ecef;
+}
+
+/* CSS媒体查询后备方案 - 确保小屏幕设备也能正确显示 */
+@media (max-width: 767.98px) {
+    .filter-search-container.mobile-layout {
+        background-color: #f8f9fa;
+        border-radius: 0.75rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border: 1px solid #e9ecef;
+    }
+    
+    /* 强制移动端布局，仅当明确是mobile-layout时 */
+    .filter-search-container.mobile-layout .mobile-filter-wrapper {
+        display: flex !important;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .filter-search-container.mobile-layout .mobile-search-bar {
+        display: flex !important;
+        gap: 0.5rem;
+        align-items: center;
+    }
+    
+    .filter-search-container.mobile-layout .mobile-search-input {
+        flex: 1;
+    }
+    
+    .filter-search-container.mobile-layout .mobile-filter-toggle {
+        position: relative;
+        min-width: 44px;
+        height: 38px;
+        border-radius: 0.5rem;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .filter-search-container.mobile-layout .mobile-filters-panel {
+        background-color: white;
+        border-radius: 0.5rem;
+        padding: 0.5rem;
+        border: 1px solid #dee2e6;
+    }
+    
+    .filter-search-container.mobile-layout .mobile-buttons-area {
+        margin-top: 0.5rem;
+    }
+    
+    /* 隐藏桌面端布局 */
+    .filter-search-container.mobile-layout .desktop-filter-wrapper {
+        display: none !important;
+    }
+}
+
+.mobile-filter-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.mobile-search-bar {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.mobile-search-input {
+    flex: 1;
+}
+
+.mobile-filter-toggle {
+    position: relative;
+    min-width: 44px;
+    height: 38px;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.mobile-filter-toggle:hover {
+    background-color: #e9ecef;
+}
+
+.mobile-filter-toggle.active {
+    background-color: #6c757d;
+    color: white;
+}
+
+.mobile-filter-toggle.active i {
+    transform: rotate(180deg);
+}
+
+.mobile-filter-toggle i {
+    transition: transform 0.2s ease;
+}
+
+.mobile-filter-toggle .filter-count {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background-color: #dc3545;
+    color: white;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    font-size: 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.mobile-filters-panel {
+    background-color: white;
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    border: 1px solid #dee2e6;
+    animation: slideDown 0.2s ease-out;
+}
+
+.mobile-filters-panel .row {
+    margin: 0;
+    row-gap: 0.25rem;
+}
+
+.mobile-filters-panel .col-4 {
+    padding: 0 0.25rem;
+}
+
+.mobile-filters-panel .form-select {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 0.375rem;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.mobile-buttons-area {
+    margin-top: 0.5rem;
+}
+
+.mobile-buttons-area .btn {
+    border-radius: 0.5rem;
+    font-weight: 500;
+}
+
+/* 桌面端折叠式样式 */
+.filter-search-container.desktop-layout {
+    margin-bottom: 1.5rem;
+}
+
+.desktop-filter-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.desktop-search-bar {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.desktop-search-input {
+    flex: 1;
+    max-width: 400px;
+}
+
+.desktop-filter-toggle {
+    position: relative;
+    min-width: 44px;
+    height: 38px;
+    border-radius: 0.375rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.desktop-filter-toggle:hover {
+    background-color: #e9ecef;
+}
+
+.desktop-filter-toggle.active {
+    background-color: #6c757d;
+    color: white;
+}
+
+.desktop-filter-toggle.active i {
+    transform: rotate(180deg);
+}
+
+.desktop-filter-toggle i {
+    transition: transform 0.2s ease;
+}
+
+.desktop-filter-toggle .filter-count {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background-color: #dc3545;
+    color: white;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    font-size: 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.desktop-search-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.desktop-filters-panel {
+    background-color: #f8f9fa;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    border: 1px solid #dee2e6;
+    animation: slideDown 0.2s ease-out;
+}
+
+/* 原有的响应式样式保持兼容 */
+@media (max-width: 767.98px) {
+    .filter-search-container:not(.mobile-layout) {
+        padding: 0.75rem;
+        margin-bottom: 0.75rem;
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+    }
+    
+    .filter-row {
+        margin: 0;
+    }
+    
+    .filter-control {
+        padding: 0;
+        margin-bottom: 0.5rem;
+    }
+    
+    .filter-control .form-control,
+    .filter-control .form-select {
+        font-size: 0.9rem;
+        padding: 0.5rem 0.75rem;
+        height: auto;
+    }
+    
+    .filter-buttons-container {
+        margin-top: 0.5rem;
+        padding: 0;
+    }
+    
+    .filter-buttons-container .btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+    }
+}
+</style>
+
+<script>
+// 移动端筛选器功能
+function toggleMobileFilters() {
+    const panel = document.getElementById('mobileFiltersPanel');
+    const toggle = document.querySelector('.mobile-filter-toggle');
+    
+    if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        toggle.classList.add('active');
+        toggle.setAttribute('aria-expanded', 'true');
+    } else {
+        panel.style.display = 'none';
+        toggle.classList.remove('active');
+        toggle.setAttribute('aria-expanded', 'false');
+    }
+}
+
+// 更新筛选器计数
+function updateFilterCount() {
+    const selects = document.querySelectorAll('.mobile-filters-panel select');
+    const countElement = document.querySelector('.filter-count');
+    
+    if (!countElement) return;
+    
+    let activeCount = 0;
+    selects.forEach(select => {
+        if (select.value && select.value !== '') {
+            activeCount++;
+        }
+    });
+    
+    if (activeCount > 0) {
+        countElement.textContent = activeCount;
+        countElement.style.display = 'flex';
+    } else {
+        countElement.style.display = 'none';
+    }
+}
+
+// 移动端重置功能
+function resetMobileFilters(resetUrl) {
+    // 重置所有筛选器
+    const selects = document.querySelectorAll('.mobile-filters-panel select');
+    const searchInput = document.querySelector('.mobile-search-input input');
+    
+    selects.forEach(select => {
+        select.value = '';
+    });
+    
+    if (searchInput) {
+        searchInput.value = '';
+    }
+    
+    // 更新计数
+    updateFilterCount();
+    
+    // 如果提供了重置URL，跳转到该URL
+    if (resetUrl && resetUrl !== '#') {
+        window.location.href = resetUrl;
+    }
+}
+
+// 桌面端筛选器功能
+function toggleDesktopFilters() {
+    const panel = document.getElementById('desktopFiltersPanel');
+    const toggle = document.querySelector('.desktop-filter-toggle');
+    
+    if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        toggle.classList.add('active');
+        toggle.setAttribute('aria-expanded', 'true');
+    } else {
+        panel.style.display = 'none';
+        toggle.classList.remove('active');
+        toggle.setAttribute('aria-expanded', 'false');
+    }
+}
+
+// 更新桌面端筛选器计数
+function updateDesktopFilterCount() {
+    const selects = document.querySelectorAll('.desktop-filters-panel select');
+    const countElement = document.querySelector('.desktop-filter-toggle .filter-count');
+    
+    if (!countElement) return;
+    
+    let activeCount = 0;
+    selects.forEach(select => {
+        if (select.value && select.value !== '') {
+            activeCount++;
+        }
+    });
+    
+    if (activeCount > 0) {
+        countElement.textContent = activeCount;
+        countElement.style.display = 'flex';
+    } else {
+        countElement.style.display = 'none';
+    }
+}
+
+// 桌面端重置功能
+function resetDesktopFilters(resetUrl) {
+    // 重置所有筛选器
+    const selects = document.querySelectorAll('.desktop-filters-panel select');
+    const searchInput = document.querySelector('.desktop-search-input input');
+    
+    selects.forEach(select => {
+        select.value = '';
+    });
+    
+    if (searchInput) {
+        searchInput.value = '';
+    }
+    
+    // 更新计数
+    updateDesktopFilterCount();
+    
+    // 如果提供了重置URL，跳转到该URL
+    if (resetUrl && resetUrl !== '#') {
+        window.location.href = resetUrl;
+    }
+}
+
+// 客户端移动端检测增强
+function enhanceMobileDetection() {
+    const container = document.querySelector('.filter-search-container');
+    if (!container) return;
+    
+    const serverDetection = container.getAttribute('data-mobile') === 'true';
+    const clientDetection = window.innerWidth <= 768;
+    
+    // 如果服务器端检测失败但客户端检测为移动端，强制切换
+    if (!serverDetection && clientDetection) {
+        console.log('客户端检测到移动端，但服务器端未检测到，强制切换到移动端布局');
+        container.classList.remove('desktop-layout');
+        container.classList.add('mobile-layout');
+        
+        // 显示移动端元素
+        const mobileWrapper = container.querySelector('.mobile-filter-wrapper');
+        if (mobileWrapper) {
+            mobileWrapper.style.display = 'flex';
+        }
+        
+        // 隐藏桌面端元素
+        const desktopWrapper = container.querySelector('.desktop-filter-wrapper');
+        if (desktopWrapper) {
+            desktopWrapper.style.display = 'none';
+        }
+    } else if (serverDetection && !clientDetection) {
+        console.log('服务器端检测为移动端，但客户端检测为桌面端，强制切换到桌面端布局');
+        container.classList.remove('mobile-layout');
+        container.classList.add('desktop-layout');
+        
+        // 显示桌面端元素
+        const desktopWrapper = container.querySelector('.desktop-filter-wrapper');
+        if (desktopWrapper) {
+            desktopWrapper.style.display = 'flex';
+        }
+        
+        // 隐藏移动端元素
+        const mobileWrapper = container.querySelector('.mobile-filter-wrapper');
+        if (mobileWrapper) {
+            mobileWrapper.style.display = 'none';
+        }
+    }
+    
+    // 调试信息
+    console.log('筛选器移动端检测(使用is_mobile_request统一函数):', {
+        serverDetection: serverDetection,
+        clientDetection: clientDetection,
+        finalLayout: container.classList.contains('mobile-layout') ? 'mobile' : 'desktop'
+    });
+}
+
+// 页面加载时初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 增强移动端检测
+    enhanceMobileDetection();
+    
+    // 初始化筛选器计数（移动端和桌面端）
+    updateFilterCount();
+    updateDesktopFilterCount();
+    
+    // 为现有的重置按钮添加移动端支持
+    const existingResetButton = document.querySelector('.filter-reset-button');
+    if (existingResetButton && existingResetButton.onclick) {
+        const originalOnclick = existingResetButton.onclick;
+        existingResetButton.onclick = function(e) {
+            // 调用原有的重置函数
+            if (typeof originalOnclick === 'function') {
+                originalOnclick.call(this, e);
+            }
+            // 然后更新计数
+            setTimeout(function() {
+                updateFilterCount();
+                updateDesktopFilterCount();
+            }, 100);
+        };
+    }
+    
+    // 监听窗口大小变化
+    window.addEventListener('resize', function() {
+        setTimeout(enhanceMobileDetection, 100);
+    });
+});
+</script>
 {% endmacro %}

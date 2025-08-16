@@ -30,17 +30,26 @@
  */
 
 /**
- * 检测是否为移动设备
+ * 检测是否为移动设备 - 使用统一的响应式管理器
  * @returns {boolean} 是否为移动设备
+ * @deprecated 建议使用 ResponsiveManager.isMobile() 替代
  */
 function isMobileDevice() {
-    // 检查URL参数（优先级最高，用于强制切换）
+    // 如果响应式管理器可用，使用统一的检测方法
+    if (window.ResponsiveManager) {
+        return window.ResponsiveManager.isMobile();
+    }
+    
+    // 兼容性检测 - 窗口宽度优先
+    if (window.innerWidth <= 768) return true;
+    
+    // 检查URL参数（兼容性支持）
     const urlParams = new URLSearchParams(window.location.search);
     const mobileParam = urlParams.get('mobile');
     if (mobileParam === 'true') return true;
     if (mobileParam === 'false') return false;
     
-    // 检查User-Agent（与服务器端保持一致）
+    // 检查User-Agent（最低优先级）
     const userAgent = navigator.userAgent.toLowerCase();
     const mobileKeywords = ['mobile', 'android', 'iphone', 'ipad', 'ipod', 'blackberry', 'windows phone'];
     return mobileKeywords.some(keyword => userAgent.includes(keyword));
@@ -53,7 +62,7 @@ function isMobileDevice() {
  */
 function getMobileAjaxTarget(desktopTarget) {
     // 桌面端目标通常是表格body，移动端需要定位到卡片容器
-    return '.product-list-mobile .p-3';
+    return '.data-list-mobile .p-3, .product-list-mobile .p-3';
 }
 
 /**
@@ -149,6 +158,11 @@ function setupDataList(config) {
                         totalCount: data.total_count,
                         initialLoadComplete: infiniteScrollState.initialLoadComplete
                     });
+                    
+                    // 更新移动端加载更多按钮
+                    if (typeof updateLoadMoreButton === 'function') {
+                        updateLoadMoreButton();
+                    }
                 }
                 
                 // 调用数据列表的加载完成回调
@@ -571,6 +585,8 @@ function resetInfiniteScrollState() {
     infiniteScrollState.hasMore = true;
     infiniteScrollState.currentOffset = 0;
     infiniteScrollState.lastLoadTime = null;  // 重置时间戳
+    infiniteScrollState.consecutiveLoadCount = 0; // 重置连续加载计数器
+    infiniteScrollState.initialLoadComplete = false; // 重置初始加载完成标志
     console.log('🔄 重置无限滚动状态');
 }
 
@@ -586,12 +602,30 @@ function setupInfiniteScroll(config) {
     
     // 获取无限滚动配置，使用默认值
     const scrollConfig = config.infinite_scroll || {};
-    const pageSize = scrollConfig.page_size || 60;
+    // 根据设备类型调整页面大小：移动端使用较小的页面大小以适配卡片显示
+    const basePageSize = scrollConfig.page_size || 60;
+    const pageSize = (window.innerWidth <= 768) ? Math.min(basePageSize, 12) : basePageSize;
     
-    // 根据设备类型调整滚动阈值 - 移动端使用更大的阈值减少触发频率
+    // 根据设备类型调整滚动策略
     const isMobile = isMobileDevice();
+    const isWindowMobile = window.innerWidth <= 768;
     const baseThreshold = scrollConfig.scroll_threshold || 100;
-    const scrollThreshold = isMobile ? Math.max(baseThreshold * 3, 300) : baseThreshold;
+    const scrollThreshold = (isMobile || isWindowMobile) ? Math.max(baseThreshold * 3, 300) : baseThreshold;
+    
+    // 移动端使用按钮加载模式
+    const useMobileButtonMode = isWindowMobile && scrollConfig.mobile_button_mode !== false;
+    
+    // 详细的设备检测调试信息
+    console.log('🔍 设备检测详情:', {
+        isMobile: isMobile,
+        isWindowMobile: isWindowMobile,
+        useMobileButtonMode: useMobileButtonMode,
+        userAgent: navigator.userAgent,
+        baseThreshold: baseThreshold,
+        scrollThreshold: scrollThreshold,
+        windowInnerHeight: window.innerHeight,
+        windowInnerWidth: window.innerWidth
+    });
     
     const containerSelector = scrollConfig.container_selector || '.table-responsive';
     const scrollMode = scrollConfig.scroll_mode || 'window'; // 'window' 或 'container'
@@ -606,6 +640,7 @@ function setupInfiniteScroll(config) {
     // 初始化状态 - 等待初始数据加载完成后再设置offset
     infiniteScrollState.currentOffset = 0; // 先设置为0，等初始数据加载完成后更新
     infiniteScrollState.initialLoadComplete = false; // 初始加载完成标志
+    infiniteScrollState.consecutiveLoadCount = 0; // 连续加载计数器
     const limit = pageSize;
     
     // 找到目标容器（用于检测底部位置）
@@ -620,7 +655,19 @@ function setupInfiniteScroll(config) {
     
     // 滚动监听函数（带防抖）
     function handleScroll() {
-        if (infiniteScrollState.isLoading || !infiniteScrollState.hasMore) return;
+        console.log('📱 滚动事件触发:', {
+            isLoading: infiniteScrollState.isLoading,
+            hasMore: infiniteScrollState.hasMore,
+            initialLoadComplete: infiniteScrollState.initialLoadComplete,
+            scrollTop: window.pageYOffset || document.documentElement.scrollTop
+        });
+        
+        if (infiniteScrollState.isLoading || !infiniteScrollState.hasMore) {
+            console.log('⏸️ 跳过滚动处理:', {
+                reason: infiniteScrollState.isLoading ? '正在加载' : '没有更多数据'
+            });
+            return;
+        }
         
         // 清除上一次的定时器
         if (scrollDebounceTimer) {
@@ -632,6 +679,7 @@ function setupInfiniteScroll(config) {
         
         // 设置新的定时器
         scrollDebounceTimer = setTimeout(() => {
+            console.log('🎯 防抖延迟后执行滚动检测');
             checkScrollPosition();
         }, debounceDelay);
     }
@@ -646,22 +694,28 @@ function setupInfiniteScroll(config) {
             const tableRect = targetContainer.getBoundingClientRect();
             const tableBottom = tableRect.bottom + windowScrollTop;
             
+            // 移动端需要更保守的触发条件，避免过度触发
+            const actualThreshold = isMobile ? Math.min(scrollThreshold, windowHeight * 0.2) : scrollThreshold;
+            const triggerCondition = windowScrollTop + windowHeight >= tableBottom - actualThreshold;
+            
             // 调试日志：显示滚动检测参数
             console.log(`📏 滚动检测参数:`, {
                 windowScrollTop: Math.round(windowScrollTop),
                 windowHeight: Math.round(windowHeight),
                 tableBottom: Math.round(tableBottom),
                 scrollThreshold: scrollThreshold,
-                triggerPoint: Math.round(tableBottom - scrollThreshold),
+                actualThreshold: actualThreshold,
+                triggerPoint: Math.round(tableBottom - actualThreshold),
                 currentPosition: Math.round(windowScrollTop + windowHeight),
-                shouldTrigger: windowScrollTop + windowHeight >= tableBottom - scrollThreshold,
+                shouldTrigger: triggerCondition,
                 hasMore: infiniteScrollState.hasMore,
-                isLoading: infiniteScrollState.isLoading
+                isLoading: infiniteScrollState.isLoading,
+                deviceType: isMobile ? '移动端' : '桌面端'
             });
             
             // 当滚动接近表格底部时触发加载
-            if (windowScrollTop + windowHeight >= tableBottom - scrollThreshold) {
-                console.log(`🔄 窗口滚动触发加载更多数据 (阈值: ${scrollThreshold}px, 设备: ${isMobile ? '移动端' : '桌面端'})`);
+            if (triggerCondition) {
+                console.log(`🔄 窗口滚动触发加载更多数据 (阈值: ${actualThreshold}px, 设备: ${isMobile ? '移动端' : '桌面端'})`);
                 loadMoreData();
             }
         } else {
@@ -670,9 +724,12 @@ function setupInfiniteScroll(config) {
             const scrollHeight = targetContainer.scrollHeight;
             const clientHeight = targetContainer.clientHeight;
             
+            // 移动端使用更保守的阈值
+            const actualThreshold = isMobile ? Math.min(scrollThreshold, clientHeight * 0.2) : scrollThreshold;
+            
             // 当滚动到容器底部附近时触发加载
-            if (scrollTop + clientHeight >= scrollHeight - scrollThreshold) {
-                console.log(`🔄 容器滚动触发加载更多数据 (阈值: ${scrollThreshold}px, 设备: ${isMobile ? '移动端' : '桌面端'})`);
+            if (scrollTop + clientHeight >= scrollHeight - actualThreshold) {
+                console.log(`🔄 容器滚动触发加载更多数据 (阈值: ${actualThreshold}px, 设备: ${isMobile ? '移动端' : '桌面端'})`);
                 loadMoreData();
             }
         }
@@ -687,15 +744,26 @@ function setupInfiniteScroll(config) {
         
         // 添加时间间隔控制，防止过于频繁的请求
         const now = Date.now();
-        const minInterval = isMobile ? 1000 : 500; // 移动端最小间隔1秒，桌面端0.5秒
+        const minInterval = isMobile ? 1500 : 500; // 移动端最小间隔1.5秒，桌面端0.5秒
         if (infiniteScrollState.lastLoadTime && (now - infiniteScrollState.lastLoadTime) < minInterval) {
-            console.log(`⏱️ 请求间隔过短，跳过加载 (距离上次: ${now - infiniteScrollState.lastLoadTime}ms)`);
+            console.log(`⏱️ 请求间隔过短，跳过加载 (距离上次: ${now - infiniteScrollState.lastLoadTime}ms, 最小间隔: ${minInterval}ms)`);
             return;
+        }
+        
+        // 移动端额外的防抖逻辑：检查连续触发
+        if (isMobile && infiniteScrollState.consecutiveLoadCount >= 3) {
+            const consecutiveInterval = 3000; // 连续加载3次后强制等待3秒
+            if (infiniteScrollState.lastLoadTime && (now - infiniteScrollState.lastLoadTime) < consecutiveInterval) {
+                console.log(`📱 移动端防抖：连续加载过多，强制等待 (连续次数: ${infiniteScrollState.consecutiveLoadCount})`);
+                return;
+            }
+            infiniteScrollState.consecutiveLoadCount = 0; // 重置计数器
         }
         
         infiniteScrollState.isLoading = true;
         infiniteScrollState.lastLoadTime = now;
-        console.log(`🔄 加载更多数据: offset=${infiniteScrollState.currentOffset}, limit=${limit}`);
+        infiniteScrollState.consecutiveLoadCount = (infiniteScrollState.consecutiveLoadCount || 0) + 1;
+        console.log(`🔄 加载更多数据: offset=${infiniteScrollState.currentOffset}, limit=${limit}, 连续次数: ${infiniteScrollState.consecutiveLoadCount}`);
         
         // 显示加载提示
         showLoadingIndicator();
@@ -713,9 +781,19 @@ function setupInfiniteScroll(config) {
         params.append('offset', infiniteScrollState.currentOffset);
         params.append('limit', limit);
         
+        // 添加设备类型参数 - 强制基于当前窗口宽度
+        const isWindowMobile = window.innerWidth <= 768;
+        params.append('mobile', isWindowMobile ? 'true' : 'false');
+        console.log(`📱 无限滚动设置mobile参数: ${isWindowMobile ? 'true' : 'false'} (窗口宽度: ${window.innerWidth}px)`);
+        
         // 发送AJAX请求
         fetch(`${config.ajax_endpoint}?${params.toString()}`)
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success && data.html) {
                     // 将新数据追加到表格
@@ -728,7 +806,16 @@ function setupInfiniteScroll(config) {
                     infiniteScrollState.currentOffset += limit;
                     infiniteScrollState.hasMore = data.has_more;
                     
+                    // 成功加载后重置连续计数器（表示不是连续的错误触发）
+                    if (!data.has_more) {
+                        infiniteScrollState.consecutiveLoadCount = 0;
+                        console.log(`✅ 加载成功: 已到最后一页，重置连续计数器`);
+                    }
+                    
                     console.log(`✅ 加载成功: 新增数据，当前offset=${infiniteScrollState.currentOffset}，还有更多: ${infiniteScrollState.hasMore}`);
+                    
+                    // 更新移动端加载更多按钮
+                    updateLoadMoreButton();
                     
                     // 更新统计数据（可选，因为滚动加载不应该改变统计）
                     if (config.stats && data.statistics) {
@@ -742,6 +829,14 @@ function setupInfiniteScroll(config) {
             .catch(error => {
                 console.error('❌ 无限滚动AJAX请求失败:', error);
                 infiniteScrollState.hasMore = false;
+                
+                // 显示错误信息给用户
+                const targetElement = document.querySelector(config.ajax_target);
+                if (targetElement) {
+                    const errorRow = document.createElement('tr');
+                    errorRow.innerHTML = `<td colspan="6" class="text-center text-muted p-3"><i class="fas fa-exclamation-triangle"></i> 加载失败，请刷新页面重试</td>`;
+                    targetElement.appendChild(errorRow);
+                }
             })
             .finally(() => {
                 infiniteScrollState.isLoading = false;
@@ -774,15 +869,78 @@ function setupInfiniteScroll(config) {
         }
     }
     
-    // 绑定滚动事件
-    if (scrollMode === 'window') {
+    // 创建移动端"加载更多"按钮
+    function createLoadMoreButton() {
+        let button = document.getElementById('mobileLoadMoreButton');
+        if (!button) {
+            button = document.createElement('button');
+            button.id = 'mobileLoadMoreButton';
+            button.className = 'btn btn-outline-primary btn-block mt-3';
+            button.innerHTML = '<i class="fas fa-plus"></i> 加载更多';
+            button.style.display = 'none';
+            
+            // 找到移动端容器并添加按钮
+            const mobileContainer = document.querySelector('.data-list-mobile');
+            if (mobileContainer) {
+                mobileContainer.appendChild(button);
+            }
+            
+            // 绑定点击事件
+            button.addEventListener('click', () => {
+                if (!infiniteScrollState.isLoading && infiniteScrollState.hasMore) {
+                    loadMoreData();
+                }
+            });
+        }
+        return button;
+    }
+    
+    // 显示/隐藏加载更多按钮
+    function updateLoadMoreButton() {
+        if (useMobileButtonMode) {
+            const button = createLoadMoreButton();
+            if (infiniteScrollState.hasMore && infiniteScrollState.initialLoadComplete) {
+                button.style.display = 'block';
+                button.disabled = infiniteScrollState.isLoading;
+                button.innerHTML = infiniteScrollState.isLoading ? 
+                    '<i class="fas fa-spinner fa-spin"></i> 加载中...' : 
+                    '<i class="fas fa-plus"></i> 加载更多';
+            } else {
+                button.style.display = 'none';
+            }
+        }
+    }
+    
+    // 绑定滚动事件或设置按钮模式
+    if (useMobileButtonMode) {
+        console.log('📱 移动端：使用"加载更多"按钮模式');
+        createLoadMoreButton();
+    } else if (scrollMode === 'window') {
         // 窗口滚动模式：监听窗口滚动事件
         window.addEventListener('scroll', handleScroll, { passive: true });
-        console.log('✅ 绑定窗口滚动事件监听器');
+        console.log('✅ 绑定窗口滚动事件监听器', {
+            scrollMode: scrollMode,
+            isMobile: isMobile,
+            deviceType: isMobile ? '移动端' : '桌面端',
+            targetContainer: containerSelector
+        });
+        
+        // 测试事件是否正确绑定
+        setTimeout(() => {
+            console.log('🧪 测试滚动事件绑定:', {
+                currentScrollTop: window.pageYOffset || document.documentElement.scrollTop,
+                windowHeight: window.innerHeight,
+                documentHeight: document.documentElement.scrollHeight
+            });
+        }, 1000);
     } else {
         // 容器滚动模式：监听容器滚动事件
         targetContainer.addEventListener('scroll', handleScroll, { passive: true });
-        console.log('✅ 绑定容器滚动事件监听器');
+        console.log('✅ 绑定容器滚动事件监听器', {
+            scrollMode: scrollMode,
+            isMobile: isMobile,
+            targetContainer: containerSelector
+        });
     }
     
     // 监听筛选重置事件（全局状态管理，不需要本地重置函数）

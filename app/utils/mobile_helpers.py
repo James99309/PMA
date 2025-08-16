@@ -8,19 +8,23 @@ from flask import request, render_template
 
 def is_mobile_request():
     """
-    统一的移动端检测逻辑
+    统一的移动端检测逻辑 - 与响应式管理器保持一致
+    
+    优先级:
+    1. URL参数 mobile (用于前端窗口宽度检测结果)
+    2. User-Agent检测 (兼容真实移动设备)
     
     Returns:
         bool: 如果是移动端请求返回True，否则返回False
     """
-    # 检查URL参数（优先级最高，用于强制切换）
+    # 检查URL参数（优先级最高，与前端响应式管理器同步）
     mobile_param = request.args.get('mobile', '').lower()
     if mobile_param == 'true':
         return True
     elif mobile_param == 'false':
         return False
     
-    # 检查User-Agent
+    # 检查User-Agent（兼容真实移动设备，优先级较低）
     user_agent = request.headers.get('User-Agent', '').lower()
     mobile_keywords = ['mobile', 'android', 'iphone', 'ipad', 'ipod', 'blackberry', 'windows phone']
     
